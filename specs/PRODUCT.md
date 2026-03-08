@@ -11,7 +11,7 @@
 
 ## Core Principle
 
-Accounts are the atomic unit of your financial picture. Every feature derives from a simple, well-maintained transaction database. The complexity of maintaining that database is where intelligence makes the difference.
+Every feature derives from a simple, well-maintained transaction database. The complexity of maintaining that database is where intelligence makes the difference.
 
 ## Key Features
 
