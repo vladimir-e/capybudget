@@ -1,7 +1,38 @@
-# Tauri + React + Typescript
+# Capy Budget
 
-This template should help get you started developing with Tauri, React and Typescript in Vite.
+A self-contained desktop app for tracking personal finances. Your data lives in plain CSV files in a folder you choose — no cloud, no subscription, no vendor lock-in.
 
-## Recommended IDE Setup
+Built with Tauri v2, React, and TypeScript. Optional intelligence layer powered by Claude Code.
 
-- [VS Code](https://code.visualstudio.com/) + [Tauri](https://marketplace.visualstudio.com/items?itemName=tauri-apps.tauri-vscode) + [rust-analyzer](https://marketplace.visualstudio.com/items?itemName=rust-lang.rust-analyzer)
+## Quick Start
+
+### Prerequisites
+
+- [Node.js](https://nodejs.org/) v20+
+- [Rust](https://rustup.rs/) (stable)
+- Platform-specific Tauri dependencies — see [Tauri Prerequisites](https://v2.tauri.app/start/prerequisites/)
+
+### Run Locally
+
+```bash
+npm install
+npm run tauri dev
+```
+
+This starts the Vite dev server and opens the Tauri desktop window.
+
+### Build
+
+```bash
+npm run tauri build
+```
+
+Produces a native `.dmg` (macOS), `.msi` (Windows), or `.deb`/`.AppImage` (Linux).
+
+## Documentation
+
+Detailed specs live in [`specs/`](./specs/):
+
+- **[PRODUCT.md](./specs/PRODUCT.md)** — Product vision and feature overview
+- **[ARCHITECTURE.md](./specs/ARCHITECTURE.md)** — Tech stack, project structure, conventions
+- **[DATA_MODEL.md](./specs/DATA_MODEL.md)** — CSV-based data model and schema
