@@ -112,6 +112,12 @@ Route parameters use type-safe search params:
 
 Claude Code CLI orchestrated as a subprocess via Tauri's shell plugin. Soft dependency — the app is fully functional without it. Architecture is message-passing: compose prompt with context, shell out to `claude` CLI with streaming, pipe response back to UI.
 
+## Testing & Linting
+
+**Vitest** for unit tests — colocated with source files as `*.test.ts`. Shares `vite.config.ts` so path aliases and transforms work automatically.
+
+**ESLint 9** (flat config) with TypeScript, React Hooks, and React Refresh rules. The `react-refresh/only-export-components` rule is disabled for route files and shadcn components since those patterns require multi-export files.
+
 ## Conventions
 
 ### File Naming

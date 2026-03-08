@@ -21,6 +21,14 @@ npm run tauri dev
 
 This starts the Vite dev server and opens the Tauri desktop window.
 
+### Lint & Test
+
+```bash
+npm run lint          # ESLint
+npm test              # Vitest (single run)
+npm run test:watch    # Vitest in watch mode
+```
+
 ### Build
 
 ```bash

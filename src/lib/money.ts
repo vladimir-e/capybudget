@@ -9,7 +9,7 @@ export function formatMoney(cents: number): string {
 
 /** Parse a dollar string to cents: "$12.50" → 1250, "12.5" → 1250 */
 export function parseMoney(input: string): number {
-  const cleaned = input.replace(/[^0-9.\-]/g, "");
+  const cleaned = input.replace(/[^0-9.-]/g, "");
   const num = parseFloat(cleaned);
   if (isNaN(num)) return 0;
   return Math.round(num * 100);
