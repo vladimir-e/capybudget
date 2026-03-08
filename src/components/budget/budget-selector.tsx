@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/card";
 import { useAppStore } from "@/stores/app-store";
 import { detectBudget, bootstrapBudget } from "@/services/budget";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 export function BudgetSelector() {
   const navigate = useNavigate();
@@ -71,6 +72,9 @@ export function BudgetSelector() {
 
   return (
     <div className="flex h-screen items-center justify-center">
+      <div className="absolute top-4 right-4">
+        <ThemeToggle />
+      </div>
       <div className="w-full max-w-lg space-y-8 px-6">
         <div className="text-center space-y-2">
           <h1 className="text-3xl font-bold tracking-tight">Capy Budget</h1>

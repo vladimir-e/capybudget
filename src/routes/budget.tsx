@@ -1,5 +1,10 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Outlet, useNavigate } from "@tanstack/react-router";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Sidebar } from "@/components/budget/sidebar";
+import { AddAccountDialog } from "@/components/budget/add-account-dialog";
+import { ThemeToggle } from "@/components/theme-toggle";
+import { MOCK_ACCOUNTS, MOCK_TRANSACTIONS } from "@/lib/mock-data";
 
 interface BudgetSearch {
   path: string;
@@ -11,16 +16,17 @@ export const Route = createFileRoute("/budget")({
     path: (search.path as string) ?? "",
     name: (search.name as string) ?? "Budget",
   }),
-  component: BudgetView,
+  component: BudgetLayout,
 });
 
-function BudgetView() {
+function BudgetLayout() {
   const { path, name } = Route.useSearch();
   const navigate = useNavigate();
+  const [addAccountOpen, setAddAccountOpen] = useState(false);
 
   return (
     <div className="flex h-screen flex-col">
-      <header className="flex items-center justify-between border-b px-6 py-3">
+      <header className="flex items-center justify-between border-b px-4 py-2">
         <div className="flex items-center gap-3">
           <Button
             variant="ghost"
@@ -31,22 +37,31 @@ function BudgetView() {
           </Button>
           <h1 className="text-lg font-semibold">{name}</h1>
         </div>
-        <span className="text-muted-foreground text-xs font-mono truncate max-w-80">
-          {path}
-        </span>
+        <div className="flex items-center gap-2">
+          <span className="text-muted-foreground text-xs font-mono truncate max-w-80">
+            {path}
+          </span>
+          <ThemeToggle />
+        </div>
       </header>
 
-      <main className="flex flex-1 items-center justify-center">
-        <div className="text-center space-y-4">
-          <div className="text-6xl">🏗️</div>
-          <h2 className="text-2xl font-semibold">Budget workspace</h2>
-          <p className="text-muted-foreground max-w-md">
-            Accounts, transactions, and categories will live here.
-            <br />
-            This area is ready for the budget management UI.
-          </p>
-        </div>
-      </main>
+      <div className="flex flex-1 overflow-hidden">
+        <Sidebar
+          accounts={MOCK_ACCOUNTS}
+          transactions={MOCK_TRANSACTIONS}
+          budgetPath={path}
+          budgetName={name}
+          onAddAccount={() => setAddAccountOpen(true)}
+        />
+        <main className="flex-1 overflow-auto">
+          <Outlet />
+        </main>
+      </div>
+
+      <AddAccountDialog
+        open={addAccountOpen}
+        onOpenChange={setAddAccountOpen}
+      />
     </div>
   );
 }
