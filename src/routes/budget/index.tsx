@@ -9,9 +9,10 @@ export const Route = createFileRoute("/budget/")({
 function AllAccountsView() {
   return (
     <div className="p-6">
-      <h2 className="text-xl font-semibold mb-4">All Accounts</h2>
+      <h2 className="text-lg font-bold tracking-tight mb-4">All Accounts</h2>
       <TransactionList
         transactions={MOCK_TRANSACTIONS}
+        allTransactions={MOCK_TRANSACTIONS}
         accounts={MOCK_ACCOUNTS}
         categories={MOCK_CATEGORIES}
         showAccountColumn={true}

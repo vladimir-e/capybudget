@@ -28,6 +28,7 @@ function AccountView() {
       <div className="p-6">
         <TransactionList
           transactions={transactions}
+          allTransactions={MOCK_TRANSACTIONS}
           accounts={MOCK_ACCOUNTS}
           categories={MOCK_CATEGORIES}
           showAccountColumn={false}

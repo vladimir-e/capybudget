@@ -5,6 +5,7 @@ import { Sidebar } from "@/components/budget/sidebar";
 import { AddAccountDialog } from "@/components/budget/add-account-dialog";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { MOCK_ACCOUNTS, MOCK_TRANSACTIONS } from "@/lib/mock-data";
+import { ChevronLeft } from "lucide-react";
 
 interface BudgetSearch {
   path: string;
@@ -26,21 +27,21 @@ function BudgetLayout() {
 
   return (
     <div className="flex h-screen flex-col">
-      <header className="flex items-center justify-between border-b px-4 py-2">
-        <div className="flex items-center gap-3">
+      <header className="flex items-center justify-between border-b px-4 py-2 bg-background/80 backdrop-blur-sm">
+        <div className="flex items-center gap-1">
           <Button
             variant="ghost"
             size="sm"
+            className="gap-1 text-muted-foreground hover:text-foreground"
             onClick={() => navigate({ to: "/" })}
           >
-            &larr; Budgets
+            <ChevronLeft className="h-4 w-4" />
+            Budgets
           </Button>
-          <h1 className="text-lg font-semibold">{name}</h1>
+          <span className="text-border mx-1">/</span>
+          <h1 className="text-sm font-semibold">{name}</h1>
         </div>
         <div className="flex items-center gap-2">
-          <span className="text-muted-foreground text-xs font-mono truncate max-w-80">
-            {path}
-          </span>
           <ThemeToggle />
         </div>
       </header>
@@ -53,7 +54,7 @@ function BudgetLayout() {
           budgetName={name}
           onAddAccount={() => setAddAccountOpen(true)}
         />
-        <main className="flex-1 overflow-auto">
+        <main className="flex-1 overflow-auto bg-background">
           <Outlet />
         </main>
       </div>

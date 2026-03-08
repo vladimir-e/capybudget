@@ -46,7 +46,7 @@ export function Sidebar({
 
   if (collapsed) {
     return (
-      <div className="flex w-12 flex-col items-center border-r bg-sidebar py-3">
+      <div className="flex w-12 flex-col items-center border-r border-sidebar-border bg-sidebar py-3">
         <Button
           variant="ghost"
           size="icon"
@@ -58,7 +58,7 @@ export function Sidebar({
         <Link
           to="/budget"
           search={{ path: budgetPath, name: budgetName }}
-          className="mb-2 rounded-md p-2 hover:bg-sidebar-accent"
+          className="mb-2 rounded-md p-2 text-sidebar-foreground hover:bg-sidebar-accent"
         >
           <Layers className="h-4 w-4" />
         </Link>
@@ -67,38 +67,40 @@ export function Sidebar({
   }
 
   return (
-    <div className="flex w-64 flex-col border-r bg-sidebar">
-      {/* Header */}
-      <div className="flex items-center justify-between border-b px-3 py-3">
-        <div className="min-w-0">
-          <div className="text-muted-foreground text-xs">Net Worth</div>
-          <div className="text-lg font-semibold tabular-nums">
+    <div className="flex w-64 flex-col border-r border-sidebar-border bg-sidebar">
+      {/* Net Worth — warm hero area */}
+      <div className="px-4 pt-4 pb-3">
+        <div className="rounded-lg bg-brand-subtle px-3 py-3">
+          <div className="text-xs font-medium text-brand/70 uppercase tracking-wider">
+            Net Worth
+          </div>
+          <div className="text-2xl font-bold tabular-nums text-brand mt-0.5">
             {formatMoney(netWorth)}
           </div>
         </div>
         <Button
           variant="ghost"
           size="icon"
-          className="h-8 w-8 shrink-0"
+          className="absolute right-2 top-14 h-7 w-7 text-muted-foreground hover:text-foreground"
           onClick={() => setCollapsed(true)}
         >
-          <ChevronLeft className="h-4 w-4" />
+          <ChevronLeft className="h-3.5 w-3.5" />
         </Button>
       </div>
 
       <ScrollArea className="flex-1">
-        <div className="p-2">
+        <div className="px-2 pb-2">
           {/* All Accounts link */}
           <Link
             to="/budget"
             search={{ path: budgetPath, name: budgetName }}
-            className={`flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
+            className={`flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
               !activeAccountId && !isCategoriesRoute
-                ? "bg-sidebar-accent text-sidebar-accent-foreground"
-                : "text-sidebar-foreground hover:bg-sidebar-accent"
+                ? "bg-sidebar-accent text-sidebar-accent-foreground shadow-sm"
+                : "text-sidebar-foreground hover:bg-sidebar-accent/60"
             }`}
           >
-            <Layers className="h-4 w-4" />
+            <Layers className="h-4 w-4 text-brand" />
             All Accounts
           </Link>
 
@@ -110,39 +112,43 @@ export function Sidebar({
             );
 
             return (
-              <div key={type} className="mt-4">
-                <div className="flex items-center justify-between px-3 py-1">
-                  <span className="text-muted-foreground text-xs font-medium uppercase tracking-wider">
+              <div key={type} className="mt-5">
+                <div className="flex items-center justify-between px-3 mb-1">
+                  <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70">
                     {ACCOUNT_TYPE_LABELS[type]}
                   </span>
-                  <span className="text-muted-foreground text-xs tabular-nums">
+                  <span className="text-[11px] font-medium tabular-nums text-muted-foreground/60">
                     {formatMoney(groupBalance)}
                   </span>
                 </div>
 
-                {accts.map((account) => {
-                  const balance = getAccountBalance(account.id, transactions);
-                  const isActive = activeAccountId === account.id;
+                <div className="space-y-0.5">
+                  {accts.map((account) => {
+                    const balance = getAccountBalance(account.id, transactions);
+                    const isActive = activeAccountId === account.id;
 
-                  return (
-                    <Link
-                      key={account.id}
-                      to="/budget/account/$accountId"
-                      params={{ accountId: account.id }}
-                      search={{ path: budgetPath, name: budgetName }}
-                      className={`flex items-center justify-between rounded-md px-3 py-1.5 text-sm transition-colors ${
-                        isActive
-                          ? "bg-sidebar-accent text-sidebar-accent-foreground"
-                          : "text-sidebar-foreground hover:bg-sidebar-accent"
-                      }`}
-                    >
-                      <span className="truncate">{account.name}</span>
-                      <span className="ml-2 shrink-0 tabular-nums text-xs">
-                        {formatMoney(balance)}
-                      </span>
-                    </Link>
-                  );
-                })}
+                    return (
+                      <Link
+                        key={account.id}
+                        to="/budget/account/$accountId"
+                        params={{ accountId: account.id }}
+                        search={{ path: budgetPath, name: budgetName }}
+                        className={`flex items-center justify-between rounded-lg px-3 py-1.5 text-sm transition-all ${
+                          isActive
+                            ? "bg-sidebar-accent text-sidebar-accent-foreground shadow-sm font-medium"
+                            : "text-sidebar-foreground/80 hover:bg-sidebar-accent/60 hover:text-sidebar-foreground"
+                        }`}
+                      >
+                        <span className="truncate">{account.name}</span>
+                        <span className={`ml-2 shrink-0 tabular-nums text-xs font-medium ${
+                          balance < 0 ? "text-amount-expense/80" : ""
+                        }`}>
+                          {formatMoney(balance)}
+                        </span>
+                      </Link>
+                    );
+                  })}
+                </div>
               </div>
             );
           })}
@@ -150,11 +156,11 @@ export function Sidebar({
       </ScrollArea>
 
       {/* Footer */}
-      <div className="border-t p-2 space-y-1">
+      <div className="border-t border-sidebar-border p-2 space-y-0.5">
         <Button
           variant="ghost"
           size="sm"
-          className="w-full justify-start gap-2"
+          className="w-full justify-start gap-2 text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent/60"
           onClick={onAddAccount}
         >
           <Plus className="h-4 w-4" />
@@ -163,10 +169,10 @@ export function Sidebar({
         <Link
           to="/budget/categories"
           search={{ path: budgetPath, name: budgetName }}
-          className={`flex items-center gap-2 rounded-md px-3 py-1.5 text-sm transition-colors ${
+          className={`flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm transition-colors ${
             isCategoriesRoute
-              ? "bg-sidebar-accent text-sidebar-accent-foreground"
-              : "text-sidebar-foreground hover:bg-sidebar-accent"
+              ? "bg-sidebar-accent text-sidebar-accent-foreground shadow-sm font-medium"
+              : "text-sidebar-foreground/70 hover:bg-sidebar-accent/60 hover:text-sidebar-foreground"
           }`}
         >
           <Settings className="h-4 w-4" />

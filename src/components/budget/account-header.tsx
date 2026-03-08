@@ -23,22 +23,24 @@ export function AccountHeader({ account, transactions }: AccountHeaderProps) {
   const balance = getAccountBalance(account.id, transactions);
 
   return (
-    <div className="flex items-center justify-between border-b px-6 py-4">
-      <div className="flex items-center gap-3">
-        <div>
-          <div className="flex items-center gap-2">
-            <h2 className="text-xl font-semibold">{account.name}</h2>
-            <Badge variant="secondary">{ACCOUNT_TYPE_LABELS[account.type]}</Badge>
-          </div>
-          <div className="text-2xl font-semibold tabular-nums mt-1">
-            {formatMoney(balance)}
-          </div>
+    <div className="flex items-start justify-between px-6 py-5 border-b bg-gradient-to-b from-brand-subtle/40 to-transparent">
+      <div>
+        <div className="flex items-center gap-2.5">
+          <h2 className="text-xl font-bold tracking-tight">{account.name}</h2>
+          <Badge variant="outline" className="text-brand border-brand/25 bg-brand-subtle/50 font-medium">
+            {ACCOUNT_TYPE_LABELS[account.type]}
+          </Badge>
+        </div>
+        <div className={`text-3xl font-bold tabular-nums mt-1 ${
+          balance < 0 ? "text-amount-expense" : "text-foreground"
+        }`}>
+          {formatMoney(balance)}
         </div>
       </div>
 
       <DropdownMenu>
         <DropdownMenuTrigger
-          render={<Button variant="ghost" size="icon" />}
+          render={<Button variant="ghost" size="icon" className="mt-1 text-muted-foreground hover:text-foreground" />}
         >
           <MoreHorizontal className="h-4 w-4" />
         </DropdownMenuTrigger>
@@ -53,7 +55,7 @@ export function AccountHeader({ account, transactions }: AccountHeaderProps) {
           </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem
-            className="text-destructive"
+            variant="destructive"
             onClick={() => toast.info("Delete account — coming in Phase 2")}
           >
             <Trash2 className="mr-2 h-4 w-4" />
