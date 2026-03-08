@@ -69,9 +69,9 @@ User picks folder
   → detect budget.json or bootstrap new
   → read CSVs via Tauri fs plugin
   → PapaParse into TypeScript objects
-  → load into Zustand / TanStack Query cache
+  → load into TanStack Query cache
   → UI reads from cache
-  → mutations update cache + schedule debounced CSV flush
+  → mutations update cache optimistically + schedule debounced CSV flush
 ```
 
 ### Functional Style
@@ -88,9 +88,23 @@ Each module owns one concern:
 - A **component** displays data — it doesn't know about file I/O
 - The **intelligence layer** composes prompts — it doesn't mutate state directly
 
-### Money as Integers
+## Mutation Strategy
 
-All monetary values stored in cents as integers. No floating point anywhere in the data layer. Display formatting is a view concern only.
+### Optimistic Updates
+
+1. Validate locally using shared schema. If invalid, show inline error immediately.
+2. Update in-memory state (TanStack Query cache) immediately. UI reflects change instantly.
+3. Persist to CSV in the background (debounced).
+4. On write failure: show blocking error — "Something went wrong. Reload to continue." No retry logic, no partial rollback. Deliberately blunt because errors are rare in a local-first app.
+
+### Undo / Redo
+
+Session-scoped stack of state snapshots (past, present, future). On mutation: push present to past, replace present with new state. On undo: pop from past, push present to future. Undo triggers the appropriate write to re-sync CSV files. Not persisted across sessions.
+
+### Write Safety
+
+- Mutations write to a temp file first, then atomic rename
+- Writes are debounced — rapid changes batched into a single flush
 
 ## Routing
 
@@ -107,10 +121,13 @@ Route parameters use type-safe search params:
 | Recent budgets | Zustand         | localStorage        |
 | Budget data    | TanStack Query  | CSV files via Tauri  |
 | UI state       | React state     | None (ephemeral)     |
+| Undo/redo      | Zustand         | None (session only)  |
 
 ## Intelligence Layer (Future)
 
 Claude Code CLI orchestrated as a subprocess via Tauri's shell plugin. Soft dependency — the app is fully functional without it. Architecture is message-passing: compose prompt with context, shell out to `claude` CLI with streaming, pipe response back to UI.
+
+AI generates structured data. The app validates and writes — AI never has direct storage access.
 
 ## Testing & Linting
 

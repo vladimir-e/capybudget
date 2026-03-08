@@ -6,7 +6,7 @@ All data lives in a user-chosen folder as plain CSV files. A `budget.json` metad
 
 ```
 ~/MyBudget/
-  budget.json            ← metadata: schema version, name, timestamps
+  budget.json            ← metadata: schema version, name, currency
   accounts.csv
   categories.csv
   transactions.csv
@@ -18,6 +18,7 @@ All data lives in a user-chosen folder as plain CSV files. A `budget.json` metad
 {
   "schemaVersion": 1,
   "name": "My Budget",
+  "currency": "USD",
   "createdAt": "2026-03-07T12:00:00.000Z",
   "lastModified": "2026-03-07T12:00:00.000Z"
 }
@@ -25,30 +26,36 @@ All data lives in a user-chosen folder as plain CSV files. A `budget.json` metad
 
 The schema version enables future migrations. On load, the app checks the version and runs any necessary transformations before proceeding.
 
+The `currency` field determines minor-unit precision for display (2 for USD/EUR, 0 for JPY, etc.). All amounts are integers in the minor unit.
+
 ## Accounts
 
 Every financial entity is an account.
 
-| Field          | Type    | Notes                                                                 |
-|----------------|---------|-----------------------------------------------------------------------|
-| `id`           | string  | UUID                                                                  |
-| `name`         | string  | User-defined label (e.g. "BofA Checking", "Cash Wallet")             |
-| `type`         | enum    | `cash · checking · savings · credit_card · loan · asset · crypto`     |
-| `startBalance` | integer | Cents. All money stored as integers.                                  |
-| `sortOrder`    | integer | Display ordering                                                      |
-| `createdAt`    | string  | ISO 8601                                                              |
+| Field       | Type    | Notes                                                             |
+|-------------|---------|-------------------------------------------------------------------|
+| `id`        | string  | UUID, client-generated                                            |
+| `name`      | string  | User-defined label (e.g. "BofA Checking", "Cash Wallet")         |
+| `type`      | enum    | `cash · checking · savings · credit_card · loan · asset · crypto` |
+| `archived`  | boolean | Excluded from sidebar and net worth when true                     |
+| `sortOrder` | integer | Display ordering                                                  |
+| `createdAt` | string  | ISO 8601                                                          |
+
+**No stored balance.** Balance is always derived: sum of all transactions where `accountId` matches. See Architecture for rationale.
+
+**Opening balance.** When creating an account with an existing balance, generate an "Opening Balance" income transaction dated to the account's `createdAt`. This is the only way balances enter the system — through transactions.
 
 ## Categories
 
 Fully user-manageable. Sensible defaults prepopulated on first launch.
 
-| Field       | Type    | Notes                                    |
-|-------------|---------|------------------------------------------|
-| `id`        | integer | Auto-incrementing                        |
-| `name`      | string  | Display name                             |
-| `group`     | string  | Logical grouping (see below)             |
-| `assigned`  | integer | Cents. Budget assignment for the period. |
-| `sortOrder` | integer | Display ordering within group            |
+| Field       | Type    | Notes                            |
+|-------------|---------|----------------------------------|
+| `id`        | string  | UUID, client-generated           |
+| `name`      | string  | Display name                     |
+| `group`     | string  | Logical grouping (see below)     |
+| `archived`  | boolean | Hidden under "Archived" group    |
+| `sortOrder` | integer | Display ordering within group    |
 
 ### Default Category Groups
 
@@ -60,31 +67,57 @@ Fully user-manageable. Sensible defaults prepopulated on first launch.
 | Personal       | Alcohol & Smoking, Health & Beauty, Clothing, Fun & Hobbies, Allowances, Education & Business, Gifts & Giving |
 | Irregular      | Housekeeping & Maintenance, Big Purchases, Travel, Taxes & Fees                     |
 
+Groups can be created, renamed, and reordered by the user.
+
 ## Transactions
 
 The core entity. Every financial event is a transaction.
 
-| Field        | Type    | Notes                                                     |
-|--------------|---------|-----------------------------------------------------------|
-| `id`         | string  | UUID                                                      |
-| `date`       | string  | ISO 8601 date                                             |
-| `type`       | enum    | `income · expense · transfer`                             |
-| `amount`     | integer | Cents. Always positive — type determines direction.       |
-| `categoryId` | integer | FK to categories. Nullable for transfers.                 |
-| `accountId`  | string  | FK to accounts. Source account for transfers.             |
-| `toAccountId`| string  | FK to accounts. Destination for transfers only.           |
-| `note`       | string  | Optional description                                     |
-| `createdAt`  | string  | ISO 8601                                                  |
+| Field            | Type    | Notes                                                           |
+|------------------|---------|-----------------------------------------------------------------|
+| `id`             | string  | UUID, client-generated                                          |
+| `date`           | string  | `YYYY-MM-DD`                                                    |
+| `type`           | enum    | `income · expense · transfer`                                   |
+| `amount`         | integer | **Signed** cents. Negative = outflow, positive = inflow.        |
+| `categoryId`     | string  | UUID FK to categories. **Empty for transfers.**                 |
+| `accountId`      | string  | UUID FK to accounts. The account this transaction belongs to.   |
+| `transferPairId` | string  | UUID of the paired transaction. Empty for non-transfers.        |
+| `payee`          | string  | Optional. Who you paid or received from.                        |
+| `note`           | string  | Optional. Additional context.                                   |
+| `createdAt`      | string  | ISO 8601                                                        |
 
-## Money Representation
+### Sign Convention
 
-All monetary values are stored as **integers in cents**. `$12.50` is `1250`. No floating point anywhere in the data layer. Display formatting is a view concern only.
+- **Expense**: amount is negative. Reduces account balance.
+- **Income**: amount is positive. Increases account balance.
+- **Transfer outflow leg**: amount is negative on source account.
+- **Transfer inflow leg**: amount is positive on destination account.
 
-## Write Safety
+An account's balance = `sum(amount)` for all its transactions. No special cases.
 
-- Mutations write to a temp file first, then rename (atomic on most filesystems)
-- Writes are debounced — the app batches rapid changes and flushes on an interval
-- This keeps the UI responsive and avoids iCloud/Dropbox sync conflicts
+### Transfer Architecture
+
+A transfer is **two linked transactions** with mutual `transferPairId` references.
+
+- Creating a transfer creates both legs atomically. User specifies source account, destination account, and amount. The system creates:
+  1. Outflow transaction (negative amount) on the source account
+  2. Inflow transaction (positive amount) on the destination account
+  3. Each leg's `transferPairId` points to the other's `id`
+- **Transfers have no category** (`categoryId = ""`). Enforced at schema level. Transfers move money — they are not spending.
+- Deleting either leg **cascades** to delete both.
+- Updating a transfer **propagates** amount and date changes to the paired transaction.
+- **Type changes between income ↔ expense are allowed.** Changing to/from transfer is NOT — delete and recreate. This avoids orphaned pair references.
+
+## Referential Integrity
+
+| Operation         | Rule                                                              |
+|-------------------|-------------------------------------------------------------------|
+| Delete account    | **Blocked** if account has more than one transaction              |
+| Archive account   | **Blocked** if derived balance is non-zero                        |
+| Update transfer   | **Propagates** `amount` and `date` to paired transaction          |
+| Delete transfer   | **Cascades** — deletes paired transaction                         |
+| Delete category   | **Clears** `categoryId` on all referencing transactions           |
+| Archive category  | No cascade — transactions keep the reference, display still works |
 
 ## Schema Migrations
 
