@@ -28,13 +28,15 @@ Accounts can be archived (zero balance required) or deleted (only if no real tra
 
 Three types: expense, income, and transfer. Amounts are signed (negative = outflow, positive = inflow) with semantic coloring in the UI.
 
-**Credit card lifecycle** — the app should explain this to users:
+**Credit card lifecycle**
 1. **Purchase**: expense on the credit card. Balance goes more negative. Category impacted now.
 2. **Payment**: transfer from checking to credit card. No category impact. The payment is debt settlement, not spending.
 
 ### Categories
 
 Fully user-manageable with sensible defaults. Organized into groups that provide financial reasoning: Fixed (hard to change), Daily Living & Personal (where to cut first), Irregular (easy to forget). Users can create, rename, and reorder both categories and groups.
+
+By default transaction category is null, in the UI this surfaces as 'Uncategorized' and I should be able to reset category value back to null, choosing 'Uncategorized'.
 
 ### Sidebar
 
@@ -49,22 +51,23 @@ Accounts grouped by type: Cash, Checking, Savings, Credit, Investment, Loans, Ar
 
 ## UX Principles
 
+Consider keyboard workflow for majority of user actions, for user's convenience and speed. Controls are intuitive - e.g. ESC will close a modal window, enter confirms something, tab navigation in forms makes sense. 
+
 ### Transaction Entry
 
 - **Hero amount input**: large text, type-aware coloring (red/green/neutral).
 - **Segmented type control** (expense/income/transfer) with semantic colors.
 - **Keyboard shortcuts in amount field**: `-` → expense, `+` → income.
-- **`Cmd+Enter` submits from any field.**
-- **Flexible date input**: shorthand like `2/15`, `15` (current month), `yesterday`, plus calendar picker.
-- **Secondary fields collapsed**: payee and note behind a "Details" toggle. Auto-expand when editing a transaction that has them filled.
+- **Convenient date input**
 - **Pre-select the currently viewed account.**
 
 ### Transaction List
 
-- Columns: date, account, category, payee/note, amount.
+- Columns: date, account, category, merchant, amount.
 - Sortable by any column. Inline editing — click to edit.
-- Full-text search across all visible fields. Category filter, date range picker.
+- Full-text search across all visible fields, including money e.g. "12.50" will find transactions with amount=1250. Category filter, date range picker.
 - "All Accounts" view for cross-account overview.
+- Transfers don't have category/merchant columns and display from<>to accounts instead
 
 ### Confirmation Dialogs
 

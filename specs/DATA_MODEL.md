@@ -76,13 +76,13 @@ The core entity. Every financial event is a transaction.
 | Field            | Type    | Notes                                                           |
 |------------------|---------|-----------------------------------------------------------------|
 | `id`             | string  | UUID, client-generated                                          |
-| `date`           | string  | `YYYY-MM-DD`                                                    |
+| `datetime`       | string  | ISO 8601. Time preserves entry order within a day.              |
 | `type`           | enum    | `income · expense · transfer`                                   |
 | `amount`         | integer | **Signed** cents. Negative = outflow, positive = inflow.        |
 | `categoryId`     | string  | UUID FK to categories. **Empty for transfers.**                 |
 | `accountId`      | string  | UUID FK to accounts. The account this transaction belongs to.   |
 | `transferPairId` | string  | UUID of the paired transaction. Empty for non-transfers.        |
-| `payee`          | string  | Optional. Who you paid or received from.                        |
+| `merchant`       | string  | Optional. Who you paid or received from.                        |
 | `note`           | string  | Optional. Additional context.                                   |
 | `createdAt`      | string  | ISO 8601                                                        |
 

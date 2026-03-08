@@ -8,8 +8,8 @@
 | Frontend        | React + TypeScript     | 19.x    | UI components and application logic         |
 | Bundler         | Vite                   | 7.x     | Fast dev server and production builds       |
 | Routing         | TanStack Router        | 1.x     | Type-safe file-based routing                |
-| Server state    | TanStack Query         | 5.x     | Stale-while-revalidate for data reads       |
-| Client state    | Zustand                | 5.x     | Lightweight store for app-level state       |
+| Data cache      | TanStack Query         | 5.x     | Async cache for CSV data (fetch, invalidate, loading states) |
+| App state       | Zustand                | 5.x     | Lightweight store for app-level state       |
 | UI primitives   | shadcn/ui (Radix)      | —       | Accessible components, copied into project  |
 | Styling         | Tailwind CSS           | 4.x     | Utility-first CSS, zero-config in v4        |
 | CSV             | PapaParse              | 5.x     | Parse/unparse CSV with type coercion        |
@@ -86,7 +86,7 @@ User picks folder
 Each module owns one concern:
 - A **service** parses CSV — it doesn't render UI
 - A **component** displays data — it doesn't know about file I/O
-- The **intelligence layer** composes prompts — it doesn't mutate state directly
+- The **intelligence layer** produces structured data — the app validates and writes
 
 ## Mutation Strategy
 
@@ -118,10 +118,10 @@ Route parameters use type-safe search params:
 
 | Concern        | Solution        | Persistence        |
 |----------------|-----------------|---------------------|
-| Recent budgets | Zustand         | localStorage        |
 | Budget data    | TanStack Query  | CSV files via Tauri  |
-| UI state       | React state     | None (ephemeral)     |
+| Recent budgets | Zustand         | localStorage         |
 | Undo/redo      | Zustand         | None (session only)  |
+| UI state       | React state     | None (ephemeral)     |
 
 ## Intelligence Layer (Future)
 
