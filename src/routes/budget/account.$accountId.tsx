@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { TransactionList } from "@/components/budget/transaction-list";
+import { TransactionToolbar } from "@/components/budget/transaction-toolbar";
 import { AccountHeader } from "@/components/budget/account-header";
 import { MOCK_ACCOUNTS, MOCK_CATEGORIES, MOCK_TRANSACTIONS } from "@/lib/mock-data";
 import { getTransactionsForAccount } from "@/lib/queries";
@@ -26,13 +27,16 @@ function AccountView() {
     <div>
       <AccountHeader account={account} transactions={MOCK_TRANSACTIONS} />
       <div className="p-6">
-        <TransactionList
-          transactions={transactions}
-          allTransactions={MOCK_TRANSACTIONS}
-          accounts={MOCK_ACCOUNTS}
-          categories={MOCK_CATEGORIES}
-          showAccountColumn={false}
-        />
+        <TransactionToolbar categories={MOCK_CATEGORIES} />
+        <div className="mt-4">
+          <TransactionList
+            transactions={transactions}
+            allTransactions={MOCK_TRANSACTIONS}
+            accounts={MOCK_ACCOUNTS}
+            categories={MOCK_CATEGORIES}
+            showAccountColumn={false}
+          />
+        </div>
       </div>
     </div>
   );
