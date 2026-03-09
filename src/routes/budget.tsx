@@ -1,5 +1,5 @@
 import { createFileRoute, Outlet, useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Sidebar } from "@/components/budget/sidebar";
 import { AddAccountDialog } from "@/components/budget/add-account-dialog";
@@ -7,6 +7,7 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { ColorThemeSwitcher } from "@/components/color-theme-switcher";
 import { MOCK_ACCOUNTS, MOCK_TRANSACTIONS } from "@/lib/mock-data";
 import { ChevronLeft } from "lucide-react";
+import type { AccountType } from "@/lib/types";
 
 interface BudgetSearch {
   path: string;
@@ -25,6 +26,20 @@ function BudgetLayout() {
   const { path, name } = Route.useSearch();
   const navigate = useNavigate();
   const [addAccountOpen, setAddAccountOpen] = useState(false);
+  const [accounts, setAccounts] = useState(MOCK_ACCOUNTS);
+
+  const handleReorderAccounts = useCallback(
+    (type: AccountType, orderedIds: string[]) => {
+      setAccounts((prev) =>
+        prev.map((a) => {
+          if (a.type !== type) return a;
+          const idx = orderedIds.indexOf(a.id);
+          return idx === -1 ? a : { ...a, sortOrder: idx };
+        }),
+      );
+    },
+    [],
+  );
 
   return (
     <div className="flex h-screen flex-col">
@@ -50,11 +65,12 @@ function BudgetLayout() {
 
       <div className="flex flex-1 overflow-hidden">
         <Sidebar
-          accounts={MOCK_ACCOUNTS}
+          accounts={accounts}
           transactions={MOCK_TRANSACTIONS}
           budgetPath={path}
           budgetName={name}
           onAddAccount={() => setAddAccountOpen(true)}
+          onReorderAccounts={handleReorderAccounts}
         />
         <main className="flex-1 overflow-auto bg-background">
           <Outlet />

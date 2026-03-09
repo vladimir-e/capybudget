@@ -29,7 +29,7 @@ describe("getAccountsByGroup", () => {
   it("groups accounts by type in display order", () => {
     const groups = getAccountsByGroup(MOCK_ACCOUNTS);
     const keys = [...groups.keys()];
-    expect(keys).toEqual(["cash", "checking", "savings", "credit_card", "crypto"]);
+    expect(keys).toEqual(["cash", "checking", "savings", "credit_card", "loan", "crypto"]);
   });
 
   it("excludes archived accounts", () => {
