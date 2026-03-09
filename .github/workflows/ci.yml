@@ -21,6 +21,9 @@ jobs:
 
       - run: npm ci
 
+      - name: Generate route tree
+        run: npx @tanstack/router-cli generate
+
       - name: Lint
         run: npm run lint
 
