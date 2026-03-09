@@ -2,17 +2,18 @@ import { useState, useRef } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
 import { CategorySelector } from "@/components/budget/category-selector";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
-  SelectValue,
 } from "@/components/ui/select";
 import type { Account, Category, Transaction, TransactionType } from "@/lib/types";
 import { parseMoney } from "@/lib/money";
-import { Minus, Plus, ArrowLeftRight, Check } from "lucide-react";
+import { Minus, Plus, ArrowLeftRight, Check, CalendarDays } from "lucide-react";
 
 export interface TransactionFormData {
   id?: string;
@@ -40,6 +41,25 @@ interface TransactionFormProps {
 function getToday(): string {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+/** Parse "YYYY-MM-DD" to a local Date (noon to avoid timezone edge). */
+function parseLocalDate(s: string): Date {
+  return new Date(s + "T12:00:00");
+}
+
+/** Format a Date as "YYYY-MM-DD". */
+function toDateString(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+/** Format "YYYY-MM-DD" for display: "Mar 8, 2026". */
+function formatDateLabel(s: string): string {
+  return parseLocalDate(s).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
 }
 
 const TYPES: { value: TransactionType; label: string; icon: typeof Minus }[] = [
@@ -97,6 +117,7 @@ export function TransactionForm({
 }: TransactionFormProps) {
   const amountRef = useRef<HTMLInputElement>(null);
   const activeAccounts = accounts.filter((a) => !a.archived);
+  const accountMap = new Map(activeAccounts.map((a) => [a.id, a.name]));
   const defaultAccountId = fixedAccountId ?? activeAccounts[0]?.id ?? "";
   const isEditing = !!editingTransaction;
 
@@ -121,6 +142,7 @@ export function TransactionForm({
   );
   const [merchant, setMerchant] = useState(editingTransaction?.merchant ?? "");
   const [note, setNote] = useState(editingTransaction?.note ?? "");
+  const [datePickerOpen, setDatePickerOpen] = useState(false);
 
   function resetForm() {
     setAmount("");
@@ -201,7 +223,8 @@ export function TransactionForm({
             value={amount}
             onChange={(e) => handleAmountChange(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === "-") { e.preventDefault(); setType("expense"); }
+              // "-" or Shift+"-" (which produces "_" on US keyboards)
+              if (e.key === "-" || e.key === "_") { e.preventDefault(); setType("expense"); }
               else if (e.key === "+" || e.key === "=") { e.preventDefault(); setType("income"); }
             }}
             placeholder="0.00"
@@ -261,7 +284,9 @@ export function TransactionForm({
             <Label className="text-[11px] text-muted-foreground">Account</Label>
             <Select value={accountId} onValueChange={(v) => v && setAccountId(v)}>
               <SelectTrigger className="h-8 min-w-[130px]">
-                <SelectValue />
+                <span className="flex flex-1 items-center text-left truncate">
+                  {accountMap.get(accountId) ?? "Select account…"}
+                </span>
               </SelectTrigger>
               <SelectContent>
                 {activeAccounts.map((a) => (
@@ -280,7 +305,9 @@ export function TransactionForm({
                 <Label className="text-[11px] text-muted-foreground">From</Label>
                 <Select value={accountId} onValueChange={(v) => v && setAccountId(v)}>
                   <SelectTrigger className="h-8 min-w-[130px]">
-                    <SelectValue />
+                    <span className="flex flex-1 items-center text-left truncate">
+                      {accountMap.get(accountId) ?? "Select account…"}
+                    </span>
                   </SelectTrigger>
                   <SelectContent>
                     {activeAccounts.map((a) => (
@@ -296,7 +323,9 @@ export function TransactionForm({
               </Label>
               <Select value={toAccountId} onValueChange={(v) => v && setToAccountId(v)}>
                 <SelectTrigger className="h-8 min-w-[130px]">
-                  <SelectValue placeholder="Select account…" />
+                  <span className={`flex flex-1 items-center text-left truncate ${toAccountId ? "" : "text-muted-foreground"}`}>
+                    {accountMap.get(toAccountId) ?? "Select account…"}
+                  </span>
                 </SelectTrigger>
                 <SelectContent>
                   {activeAccounts
@@ -310,15 +339,34 @@ export function TransactionForm({
           </>
         )}
 
-        {/* Date */}
+        {/* Date — popover calendar, one tap to pick */}
         <div className="space-y-1">
           <Label className="text-[11px] text-muted-foreground">Date</Label>
-          <Input
-            type="date"
-            value={date}
-            onChange={(e) => setDate(e.target.value)}
-            className="h-8 w-[140px]"
-          />
+          <Popover open={datePickerOpen} onOpenChange={setDatePickerOpen}>
+            <PopoverTrigger
+              render={
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="h-8 w-[150px] justify-start gap-1.5 font-normal"
+                />
+              }
+            >
+              <CalendarDays className="h-3.5 w-3.5 text-muted-foreground" />
+              <span className="text-sm">{formatDateLabel(date)}</span>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="start">
+              <Calendar
+                mode="single"
+                selected={parseLocalDate(date)}
+                onSelect={(d) => {
+                  if (d) setDate(toDateString(d));
+                  setDatePickerOpen(false);
+                }}
+                defaultMonth={parseLocalDate(date)}
+              />
+            </PopoverContent>
+          </Popover>
         </div>
 
         {/* Merchant */}
