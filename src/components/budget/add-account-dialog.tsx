@@ -8,13 +8,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { ACCOUNT_TYPE_LABELS, ACCOUNT_TYPE_ORDER } from "@/lib/account-type-labels";
 import { toast } from "sonner";
 
@@ -38,19 +32,14 @@ export function AddAccountDialog({ open, onOpenChange }: AddAccountDialogProps) 
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="account-type">Type</Label>
-            <Select>
-              <SelectTrigger id="account-type">
-                <SelectValue placeholder="Select type" />
-              </SelectTrigger>
-              <SelectContent>
-                {ACCOUNT_TYPE_ORDER.map((type) => (
-                  <SelectItem key={type} value={type}>
-                    {ACCOUNT_TYPE_LABELS[type]}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Label>Type</Label>
+            <ToggleGroup variant="outline" spacing={2} className="flex-wrap">
+              {ACCOUNT_TYPE_ORDER.map((type) => (
+                <ToggleGroupItem key={type} value={type}>
+                  {ACCOUNT_TYPE_LABELS[type]}
+                </ToggleGroupItem>
+              ))}
+            </ToggleGroup>
           </div>
 
           <div className="space-y-2">
