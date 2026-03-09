@@ -21,6 +21,7 @@ Read the specs before making changes — they are the source of truth:
 - `specs/PRODUCT.md` — vision, philosophy, feature set
 - `specs/ARCHITECTURE.md` — tech stack, data flow, state management, principles
 - `specs/DATA_MODEL.md` — CSV schemas, budget.json, migration strategy
+- `specs/FRONTEND_DESIGN.md` — color scheme, interaction patterns, typography, accessibility
 
 ## Conventions
 
