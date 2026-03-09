@@ -3,13 +3,19 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Sidebar } from "@/components/budget/sidebar";
 import { AddAccountDialog } from "@/components/budget/add-account-dialog";
-import { TransactionForm, type TransactionFormData } from "@/components/budget/transaction-form";
+import { TransactionForm } from "@/components/budget/transaction-form";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { ColorThemeSwitcher } from "@/components/color-theme-switcher";
 import { BudgetProvider, type BudgetContextValue } from "@/contexts/budget-context";
 import { MOCK_ACCOUNTS, MOCK_CATEGORIES, MOCK_TRANSACTIONS } from "@/lib/mock-data";
 import { ChevronDown, ChevronLeft } from "lucide-react";
 import type { AccountType, Transaction } from "@/lib/types";
+import {
+  createTransaction,
+  updateTransaction,
+  deleteTransaction as deleteTransactionFromList,
+  type TransactionFormData,
+} from "@/services/transactions";
 import { toast } from "sonner";
 
 interface BudgetSearch {
@@ -37,7 +43,7 @@ function BudgetLayout() {
   const amountRef = useRef<HTMLInputElement>(null);
   const formKey = editingTxn?.id ?? "new";
 
-  const isMac = navigator.platform.includes("Mac");
+  const isMac = navigator.userAgent.includes("Mac");
 
   const toggleForm = useCallback(() => {
     setFormOpen((prev) => {
@@ -79,63 +85,29 @@ function BudgetLayout() {
     [],
   );
 
-  const handleSave = (data: TransactionFormData) => {
-    const now = new Date().toISOString();
-
+  const handleSave = useCallback((data: TransactionFormData) => {
     if (data.id) {
-      setTransactions((prev) => {
-        if (data.type === "transfer") {
-          const original = prev.find((t) => t.id === data.id);
-          const pairId = original?.transferPairId;
-          return prev.map((t) => {
-            if (t.id === data.id) {
-              return { ...t, amount: -data.amount, accountId: data.accountId, datetime: `${data.date}T12:00:00.000Z`, merchant: data.merchant, note: data.note };
-            }
-            if (pairId && t.id === pairId) {
-              return { ...t, amount: data.amount, accountId: data.toAccountId!, datetime: `${data.date}T12:00:00.000Z`, merchant: data.merchant, note: data.note };
-            }
-            return t;
-          });
-        }
-        return prev.map((t) =>
-          t.id === data.id
-            ? { ...t, type: data.type, amount: data.type === "expense" ? -data.amount : data.amount, categoryId: data.categoryId, accountId: data.accountId, datetime: `${data.date}T12:00:00.000Z`, merchant: data.merchant, note: data.note }
-            : t,
-        );
-      });
+      setTransactions((prev) => updateTransaction(data, prev));
       setEditingTxn(null);
       setFormOpen(false);
       toast.success("Transaction updated");
     } else {
-      if (data.type === "transfer") {
-        const fromId = crypto.randomUUID();
-        const toId = crypto.randomUUID();
-        const base = { datetime: `${data.date}T12:00:00.000Z`, type: "transfer" as const, categoryId: "", merchant: data.merchant, note: data.note, createdAt: now };
-        setTransactions((prev) => [
-          ...prev,
-          { ...base, id: fromId, amount: -data.amount, accountId: data.accountId, transferPairId: toId },
-          { ...base, id: toId, amount: data.amount, accountId: data.toAccountId!, transferPairId: fromId },
-        ]);
-      } else {
-        setTransactions((prev) => [
-          ...prev,
-          {
-            id: crypto.randomUUID(),
-            datetime: `${data.date}T12:00:00.000Z`,
-            type: data.type,
-            amount: data.type === "expense" ? -data.amount : data.amount,
-            categoryId: data.categoryId,
-            accountId: data.accountId,
-            transferPairId: "",
-            merchant: data.merchant,
-            note: data.note,
-            createdAt: now,
-          },
-        ]);
-      }
+      setTransactions((prev) => createTransaction(data, prev));
       toast.success("Transaction added");
     }
-  };
+  }, []);
+
+  const handleDelete = useCallback((txn: Transaction) => {
+    setTransactions((prev) => deleteTransactionFromList(txn, prev));
+    setEditingTxn((current) => {
+      if (current?.id === txn.id) {
+        setFormOpen(false);
+        return null;
+      }
+      return current;
+    });
+    toast.success("Transaction deleted");
+  }, []);
 
   const editTransaction = useCallback((txn: Transaction) => {
     setEditingTxn(txn);
@@ -154,13 +126,15 @@ function BudgetLayout() {
 
   const budgetCtx = useMemo<BudgetContextValue>(() => ({
     transactions,
-    setTransactions,
+    accounts,
+    categories: MOCK_CATEGORIES,
+    deleteTransaction: handleDelete,
     editingTxnId: editingTxn?.id,
     editTransaction,
     cancelEdit,
     currentAccountId,
     setCurrentAccountId,
-  }), [transactions, setTransactions, editingTxn?.id, editTransaction, cancelEdit, currentAccountId]);
+  }), [transactions, accounts, handleDelete, editingTxn?.id, editTransaction, cancelEdit, currentAccountId]);
 
   return (
     <BudgetProvider value={budgetCtx}>
@@ -205,8 +179,6 @@ function BudgetLayout() {
 
         <div className="relative flex flex-1 overflow-hidden">
           <Sidebar
-            accounts={accounts}
-            transactions={transactions}
             budgetPath={path}
             budgetName={name}
             onAddAccount={() => setAddAccountOpen(true)}
@@ -225,9 +197,6 @@ function BudgetLayout() {
               <TransactionForm
                 key={formKey}
                 amountRef={amountRef}
-                accounts={MOCK_ACCOUNTS}
-                categories={MOCK_CATEGORIES}
-                allTransactions={transactions}
                 editingTransaction={editingTxn}
                 defaultAccountId={currentAccountId}
                 onSave={handleSave}

@@ -14,14 +14,13 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { formatMoney } from "@/lib/money";
-import type { Account, Category, Transaction } from "@/lib/types";
+import { resolveTransferPair } from "@/lib/queries";
+import { useBudget } from "@/contexts/budget-context";
+import type { Transaction } from "@/lib/types";
 import { ArrowRight, Inbox, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
 
 interface TransactionListProps {
   transactions: Transaction[];
-  allTransactions: Transaction[];
-  accounts: Account[];
-  categories: Category[];
   showAccountColumn: boolean;
   editingTransactionId?: string | null;
   onEdit?: (transaction: Transaction) => void;
@@ -44,14 +43,12 @@ function getAmountClass(txn: Transaction): string {
 
 export function TransactionList({
   transactions,
-  allTransactions,
-  accounts,
-  categories,
   showAccountColumn,
   editingTransactionId,
   onEdit,
   onDelete,
 }: TransactionListProps) {
+  const { accounts, categories, transactions: allTransactions } = useBudget();
   const accountMap = new Map(accounts.map((a) => [a.id, a]));
   const categoryMap = new Map(categories.map((c) => [c.id, c]));
   const hasActions = !!(onEdit || onDelete);
@@ -91,10 +88,9 @@ export function TransactionList({
           // Transfer display
           let categoryDisplay: React.ReactNode;
           if (txn.type === "transfer") {
-            const pairedTxn = allTransactions.find((t) => t.id === txn.transferPairId);
-            const pairedAccount = pairedTxn ? accountMap.get(pairedTxn.accountId) : null;
-            const fromName = txn.amount < 0 ? account?.name : pairedAccount?.name;
-            const toName = txn.amount < 0 ? pairedAccount?.name : account?.name;
+            const { fromAccountId, toAccountId } = resolveTransferPair(txn, allTransactions);
+            const fromName = accountMap.get(fromAccountId)?.name;
+            const toName = accountMap.get(toAccountId)?.name;
             categoryDisplay = (
               <span className="inline-flex items-center gap-1.5 text-muted-foreground">
                 <span>{fromName ?? "?"}</span>

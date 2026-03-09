@@ -5,26 +5,14 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar } from "@/components/ui/calendar";
 import { CategorySelector } from "@/components/budget/category-selector";
 import { AccountSelector } from "@/components/budget/account-selector";
-import type { Account, Category, Transaction, TransactionType } from "@/lib/types";
+import { useBudget } from "@/contexts/budget-context";
+import { resolveTransferPair } from "@/lib/queries";
+import type { Transaction, TransactionType } from "@/lib/types";
+import type { TransactionFormData } from "@/services/transactions";
 import { parseMoney } from "@/lib/money";
 import { Minus, Plus, ArrowLeftRight, Check, CalendarDays } from "lucide-react";
 
-export interface TransactionFormData {
-  id?: string;
-  type: TransactionType;
-  amount: number; // positive cents
-  categoryId: string;
-  accountId: string;
-  toAccountId?: string;
-  date: string;
-  merchant: string;
-  note: string;
-}
-
 interface TransactionFormProps {
-  accounts: Account[];
-  categories: Category[];
-  allTransactions: Transaction[];
   editingTransaction?: Transaction | null;
   /** Pre-select this account (e.g. when on an account page). Selector always shown. */
   defaultAccountId?: string;
@@ -78,22 +66,7 @@ const TYPE_COLORS: Record<TransactionType, { text: string; pill: string }> = {
   },
 };
 
-function resolveTransferAccounts(
-  txn: Transaction,
-  all: Transaction[],
-): [string, string] {
-  if (txn.type !== "transfer" || !txn.transferPairId) return [txn.accountId, ""];
-  const pair = all.find((t) => t.id === txn.transferPairId);
-  if (!pair) return [txn.accountId, ""];
-  return txn.amount < 0
-    ? [txn.accountId, pair.accountId]
-    : [pair.accountId, txn.accountId];
-}
-
 export function TransactionForm({
-  accounts,
-  categories,
-  allTransactions,
   editingTransaction,
   defaultAccountId: defaultAccountIdProp,
   amountRef: externalAmountRef,
@@ -101,6 +74,7 @@ export function TransactionForm({
   onCancel,
   onDismiss,
 }: TransactionFormProps) {
+  const { accounts, categories, transactions: allTransactions } = useBudget();
   const internalAmountRef = useRef<HTMLInputElement>(null);
   const amountRef = externalAmountRef ?? internalAmountRef;
   const panelMode = !!onDismiss;
@@ -110,9 +84,11 @@ export function TransactionForm({
 
   const [expanded, setExpanded] = useState(isEditing);
 
-  const [initialFrom, initialTo] = editingTransaction
-    ? resolveTransferAccounts(editingTransaction, allTransactions)
-    : [defaultAccountId, ""];
+  const initialTransfer = editingTransaction
+    ? resolveTransferPair(editingTransaction, allTransactions)
+    : null;
+  const initialFrom = initialTransfer?.fromAccountId ?? defaultAccountId;
+  const initialTo = initialTransfer?.toAccountId ?? "";
 
   const [amount, setAmount] = useState(() =>
     editingTransaction ? (Math.abs(editingTransaction.amount) / 100).toFixed(2) : "",
@@ -165,7 +141,7 @@ export function TransactionForm({
       accountId,
       toAccountId: type === "transfer" ? toAccountId : undefined,
       date,
-      merchant: merchant.trim(),
+      merchant: type === "transfer" ? "" : merchant.trim(),
       note: note.trim(),
     });
 
@@ -336,8 +312,8 @@ export function TransactionForm({
 
       {/* Notes */}
       <Input
-        value={type !== "transfer" ? note : merchant}
-        onChange={(e) => type !== "transfer" ? setNote(e.target.value) : setMerchant(e.target.value)}
+        value={note}
+        onChange={(e) => setNote(e.target.value)}
         placeholder="Notes (optional)"
         className="text-muted-foreground"
       />

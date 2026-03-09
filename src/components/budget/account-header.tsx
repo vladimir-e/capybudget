@@ -1,17 +1,14 @@
 import { Badge } from "@/components/ui/badge";
 import { formatMoney } from "@/lib/money";
 import { ACCOUNT_TYPE_LABELS } from "@/lib/account-type-labels";
-import { getAccountBalance } from "@/lib/queries";
-import type { Account, Transaction } from "@/lib/types";
+import type { Account } from "@/lib/types";
 
 interface AccountHeaderProps {
   account: Account;
-  transactions: Transaction[];
+  balance: number;
 }
 
-export function AccountHeader({ account, transactions }: AccountHeaderProps) {
-  const balance = getAccountBalance(account.id, transactions);
-
+export function AccountHeader({ account, balance }: AccountHeaderProps) {
   return (
     <div className="px-6 py-5 border-b bg-gradient-to-b from-brand-subtle/40 to-transparent">
       <div className="flex items-center gap-2.5">

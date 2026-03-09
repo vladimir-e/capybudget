@@ -1,5 +1,13 @@
-import type { Account, AccountType, Transaction } from "@/lib/types";
+import type { Account, AccountType, CategoryGroup, Transaction } from "@/lib/types";
 import { ACCOUNT_TYPE_ORDER } from "@/lib/account-type-labels";
+
+export const CATEGORY_GROUP_ORDER: CategoryGroup[] = [
+  "Income",
+  "Fixed",
+  "Daily Living",
+  "Personal",
+  "Irregular",
+];
 
 /** Sum of all transaction amounts for a given account. */
 export function getAccountBalance(
@@ -46,4 +54,28 @@ export function getNetWorth(
   return accounts
     .filter((a) => !a.archived)
     .reduce((sum, a) => sum + getAccountBalance(a.id, transactions), 0);
+}
+
+/** Resolve the from/to account IDs for a transfer transaction. */
+export interface TransferPair {
+  fromAccountId: string;
+  toAccountId: string;
+  pairTransaction: Transaction | undefined;
+}
+
+export function resolveTransferPair(
+  txn: Transaction,
+  allTransactions: Transaction[],
+): TransferPair {
+  const pair = txn.transferPairId
+    ? allTransactions.find((t) => t.id === txn.transferPairId)
+    : undefined;
+
+  if (!pair) {
+    return { fromAccountId: txn.accountId, toAccountId: "", pairTransaction: undefined };
+  }
+
+  return txn.amount < 0
+    ? { fromAccountId: txn.accountId, toAccountId: pair.accountId, pairTransaction: pair }
+    : { fromAccountId: pair.accountId, toAccountId: txn.accountId, pairTransaction: pair };
 }

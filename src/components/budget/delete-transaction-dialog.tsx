@@ -8,38 +8,34 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { formatMoney } from "@/lib/money";
-import type { Account, Category, Transaction } from "@/lib/types";
+import { resolveTransferPair } from "@/lib/queries";
+import { useBudget } from "@/contexts/budget-context";
+import type { Transaction } from "@/lib/types";
 import { ArrowRight } from "lucide-react";
 
 interface DeleteTransactionDialogProps {
   transaction: Transaction | null;
-  allTransactions: Transaction[];
-  accounts: Account[];
-  categories: Category[];
   onConfirm: () => void;
   onCancel: () => void;
 }
 
 export function DeleteTransactionDialog({
   transaction,
-  allTransactions,
-  accounts,
-  categories,
   onConfirm,
   onCancel,
 }: DeleteTransactionDialogProps) {
+  const { accounts, categories, transactions: allTransactions } = useBudget();
+
   if (!transaction) return null;
 
   const isTransfer = transaction.type === "transfer";
-  const account = accounts.find((a) => a.id === transaction.accountId);
   const category = categories.find((c) => c.id === transaction.categoryId);
 
   let transferLabel: React.ReactNode = null;
-  if (isTransfer && transaction.transferPairId) {
-    const pair = allTransactions.find((t) => t.id === transaction.transferPairId);
-    const pairAccount = pair ? accounts.find((a) => a.id === pair.accountId) : null;
-    const fromName = transaction.amount < 0 ? account?.name : pairAccount?.name;
-    const toName = transaction.amount < 0 ? pairAccount?.name : account?.name;
+  if (isTransfer) {
+    const { fromAccountId, toAccountId } = resolveTransferPair(transaction, allTransactions);
+    const fromName = accounts.find((a) => a.id === fromAccountId)?.name;
+    const toName = accounts.find((a) => a.id === toAccountId)?.name;
     transferLabel = (
       <span className="inline-flex items-center gap-1.5">
         {fromName} <ArrowRight className="h-3 w-3 opacity-50" /> {toName}

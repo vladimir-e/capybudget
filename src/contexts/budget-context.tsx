@@ -1,9 +1,11 @@
 import { createContext, useContext } from "react";
-import type { Transaction } from "@/lib/types";
+import type { Account, Category, Transaction } from "@/lib/types";
 
 export interface BudgetContextValue {
   transactions: Transaction[];
-  setTransactions: React.Dispatch<React.SetStateAction<Transaction[]>>;
+  accounts: Account[];
+  categories: Category[];
+  deleteTransaction: (txn: Transaction) => void;
   editingTxnId: string | undefined;
   editTransaction: (txn: Transaction) => void;
   cancelEdit: () => void;

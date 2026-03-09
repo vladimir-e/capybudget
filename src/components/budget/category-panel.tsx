@@ -1,35 +1,18 @@
 import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { CategoryGroupSection } from "@/components/budget/category-group-section";
-import type { Category, CategoryGroup } from "@/lib/types";
+import { CATEGORY_GROUP_ORDER } from "@/lib/queries";
+import type { Category } from "@/lib/types";
 import { toast } from "sonner";
 
 interface CategoryPanelProps {
   categories: Category[];
 }
 
-const GROUP_ORDER: CategoryGroup[] = [
-  "Income",
-  "Fixed",
-  "Daily Living",
-  "Personal",
-  "Irregular",
-];
-
 export function CategoryPanel({ categories }: CategoryPanelProps) {
   const activeCategories = categories.filter((c) => !c.archived);
   const archivedCategories = categories.filter((c) => c.archived);
-
-  // Collect groups: known groups in order, then any custom groups
-  const knownGroups = new Set<string>(GROUP_ORDER);
-  const customGroups = [
-    ...new Set(
-      activeCategories
-        .map((c) => c.group)
-        .filter((g) => !knownGroups.has(g)),
-    ),
-  ];
-  const allGroups = [...GROUP_ORDER, ...customGroups];
+  const allGroups = CATEGORY_GROUP_ORDER;
 
   return (
     <div className="space-y-2">

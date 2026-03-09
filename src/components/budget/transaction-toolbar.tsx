@@ -1,18 +1,25 @@
-import { useState } from "react";
 import { Input } from "@/components/ui/input";
 import { CategorySelector } from "@/components/budget/category-selector";
 import { DateRangePicker, type DateRangeValue } from "@/components/budget/date-range-picker";
-import type { Category } from "@/lib/types";
+import { useBudget } from "@/contexts/budget-context";
 import { Search, X } from "lucide-react";
 
-interface TransactionToolbarProps {
-  categories: Category[];
+export interface TransactionFilters {
+  search: string;
+  categoryId: string | null;
+  dateRange: DateRangeValue | null;
 }
 
-export function TransactionToolbar({ categories }: TransactionToolbarProps) {
-  const [search, setSearch] = useState("");
-  const [categoryId, setCategoryId] = useState<string | null>(null);
-  const [dateRange, setDateRange] = useState<DateRangeValue | null>(null);
+interface TransactionToolbarProps {
+  filters: TransactionFilters;
+  onFiltersChange: (filters: TransactionFilters) => void;
+}
+
+export function TransactionToolbar({ filters, onFiltersChange }: TransactionToolbarProps) {
+  const { categories } = useBudget();
+
+  const update = (patch: Partial<TransactionFilters>) =>
+    onFiltersChange({ ...filters, ...patch });
 
   return (
     <div className="flex items-center gap-2">
@@ -20,14 +27,14 @@ export function TransactionToolbar({ categories }: TransactionToolbarProps) {
         <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground/60" />
         <Input
           placeholder="Search transactions…"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
+          value={filters.search}
+          onChange={(e) => update({ search: e.target.value })}
           className="pl-8 pr-8"
         />
-        {search && (
+        {filters.search && (
           <button
             type="button"
-            onClick={() => setSearch("")}
+            onClick={() => update({ search: "" })}
             className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground/60 hover:text-foreground"
             aria-label="Clear search"
           >
@@ -39,15 +46,18 @@ export function TransactionToolbar({ categories }: TransactionToolbarProps) {
       <div className="flex-[3] min-w-0 [&>div]:w-full [&_button:first-of-type]:flex-1 [&_button:first-of-type]:min-w-0">
         <CategorySelector
           categories={categories}
-          value={categoryId}
-          onChange={setCategoryId}
+          value={filters.categoryId}
+          onChange={(id) => update({ categoryId: id })}
           includeAll
           clearable
         />
       </div>
 
       <div className="flex-[3] min-w-0 [&>div]:w-full [&_button:first-of-type]:flex-1 [&_button:first-of-type]:min-w-0">
-        <DateRangePicker value={dateRange} onChange={setDateRange} />
+        <DateRangePicker
+          value={filters.dateRange}
+          onChange={(range) => update({ dateRange: range })}
+        />
       </div>
     </div>
   );

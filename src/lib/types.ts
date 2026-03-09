@@ -40,7 +40,7 @@ export type CategoryGroup =
 export interface Category {
   id: string;
   name: string;
-  group: string;
+  group: CategoryGroup;
   archived: boolean;
   sortOrder: number;
 }

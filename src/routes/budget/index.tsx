@@ -1,32 +1,28 @@
 import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { TransactionList } from "@/components/budget/transaction-list";
-import { TransactionToolbar } from "@/components/budget/transaction-toolbar";
+import { TransactionToolbar, type TransactionFilters } from "@/components/budget/transaction-toolbar";
 import { DeleteTransactionDialog } from "@/components/budget/delete-transaction-dialog";
 import { useBudget } from "@/contexts/budget-context";
-import { MOCK_ACCOUNTS, MOCK_CATEGORIES } from "@/lib/mock-data";
 import type { Transaction } from "@/lib/types";
-import { toast } from "sonner";
 
 export const Route = createFileRoute("/budget/")({
   component: AllAccountsView,
 });
 
 function AllAccountsView() {
-  const { transactions, setTransactions, editingTxnId, editTransaction, cancelEdit } = useBudget();
+  const { transactions, editingTxnId, editTransaction, deleteTransaction } = useBudget();
   const [deletingTxn, setDeletingTxn] = useState<Transaction | null>(null);
+  const [filters, setFilters] = useState<TransactionFilters>({
+    search: "",
+    categoryId: null,
+    dateRange: null,
+  });
 
   const handleDelete = () => {
     if (!deletingTxn) return;
-    setTransactions((prev) => {
-      if (deletingTxn.type === "transfer" && deletingTxn.transferPairId) {
-        return prev.filter((t) => t.id !== deletingTxn.id && t.id !== deletingTxn.transferPairId);
-      }
-      return prev.filter((t) => t.id !== deletingTxn.id);
-    });
-    if (editingTxnId === deletingTxn.id) cancelEdit();
+    deleteTransaction(deletingTxn);
     setDeletingTxn(null);
-    toast.success("Transaction deleted");
   };
 
   return (
@@ -39,13 +35,10 @@ function AllAccountsView() {
       </div>
 
       <div className="p-6 space-y-4">
-        <TransactionToolbar categories={MOCK_CATEGORIES} />
+        <TransactionToolbar filters={filters} onFiltersChange={setFilters} />
 
         <TransactionList
           transactions={transactions}
-          allTransactions={transactions}
-          accounts={MOCK_ACCOUNTS}
-          categories={MOCK_CATEGORIES}
           showAccountColumn={true}
           editingTransactionId={editingTxnId}
           onEdit={editTransaction}
@@ -54,9 +47,6 @@ function AllAccountsView() {
 
         <DeleteTransactionDialog
           transaction={deletingTxn}
-          allTransactions={transactions}
-          accounts={MOCK_ACCOUNTS}
-          categories={MOCK_CATEGORIES}
           onConfirm={handleDelete}
           onCancel={() => setDeletingTxn(null)}
         />

@@ -28,14 +28,13 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { formatMoney } from "@/lib/money";
-import { ACCOUNT_TYPE_LABELS, ACCOUNT_TYPE_ORDER } from "@/lib/account-type-labels";
-import { getAccountBalance, getNetWorth } from "@/lib/queries";
-import type { Account, AccountType, Transaction } from "@/lib/types";
+import { ACCOUNT_TYPE_LABELS } from "@/lib/account-type-labels";
+import { getAccountBalance, getAccountsByGroup, getNetWorth } from "@/lib/queries";
+import { useBudget } from "@/contexts/budget-context";
+import type { Account, AccountType } from "@/lib/types";
 import { toast } from "sonner";
 
 interface SidebarProps {
-  accounts: Account[];
-  transactions: Transaction[];
   budgetPath: string;
   budgetName: string;
   onAddAccount: () => void;
@@ -43,13 +42,12 @@ interface SidebarProps {
 }
 
 export function Sidebar({
-  accounts,
-  transactions,
   budgetPath,
   budgetName,
   onAddAccount,
   onReorderAccounts,
 }: SidebarProps) {
+  const { accounts, transactions } = useBudget();
   const [collapsed, setCollapsed] = useState(false);
   const [showArchived, setShowArchived] = useState(false);
   const matches = useMatches();
@@ -60,18 +58,7 @@ export function Sidebar({
   const isCategoriesRoute = matches.some((m) => m.routeId?.includes("/categories"));
 
   const netWorth = getNetWorth(accounts, transactions);
-
-  // Group non-archived accounts by type
-  const groupedAccounts = new Map<AccountType, Account[]>();
-  for (const type of ACCOUNT_TYPE_ORDER) {
-    const matching = accounts
-      .filter((a) => a.type === type && !a.archived)
-      .sort((a, b) => a.sortOrder - b.sortOrder);
-    if (matching.length > 0) {
-      groupedAccounts.set(type, matching);
-    }
-  }
-
+  const groupedAccounts = getAccountsByGroup(accounts);
   const archivedAccounts = accounts.filter((a) => a.archived);
 
   const sensors = useSensors(
@@ -196,7 +183,7 @@ export function Sidebar({
                         <SortableAccountRow
                           key={account.id}
                           account={account}
-                          transactions={transactions}
+                          balance={getAccountBalance(account.id, transactions)}
                           budgetPath={budgetPath}
                           budgetName={budgetName}
                           isActive={activeAccountId === account.id}
@@ -231,7 +218,7 @@ export function Sidebar({
                     <AccountRow
                       key={account.id}
                       account={account}
-                      transactions={transactions}
+                      balance={getAccountBalance(account.id, transactions)}
                       budgetPath={budgetPath}
                       budgetName={budgetName}
                       isActive={activeAccountId === account.id}
@@ -273,11 +260,11 @@ export function Sidebar({
   );
 }
 
-// ── Sortable Account Row ──────────────────────────────────
+// ── Account Row Components ──────────────────────────────────
 
 interface AccountRowProps {
   account: Account;
-  transactions: Transaction[];
+  balance: number;
   budgetPath: string;
   budgetName: string;
   isActive: boolean;
@@ -310,7 +297,7 @@ function SortableAccountRow(props: AccountRowProps) {
 
 function AccountRow({
   account,
-  transactions,
+  balance,
   budgetPath,
   budgetName,
   isActive,
@@ -319,8 +306,6 @@ function AccountRow({
 }: AccountRowProps & {
   dragHandleProps?: Record<string, unknown>;
 }) {
-  const balance = getAccountBalance(account.id, transactions);
-
   return (
     <div className={`flex items-center rounded-lg transition-all ${
       isActive
