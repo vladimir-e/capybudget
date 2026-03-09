@@ -217,19 +217,10 @@ export function TransactionForm({
           }
         }
       }}
-      className="rounded-xl border bg-card/50 px-4 py-3 space-y-2"
+      className="rounded-xl border bg-card/50 px-5 py-3.5 space-y-2"
     >
-      {/* Row 1: Account + Amount + Type + Date */}
-      <div className="flex items-center gap-3">
-        {!fixedAccountId && (
-          <AccountSelector
-            accounts={accounts}
-            value={accountId}
-            onChange={setAccountId}
-            placeholder={type === "transfer" ? "From…" : undefined}
-          />
-        )}
-
+      {/* Line 1: Amount · Type · Date */}
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2 pl-14">
         <div className="flex items-baseline gap-0.5">
           <span className={`text-xl font-semibold transition-colors ${colors.text}`}>$</span>
           <input
@@ -268,86 +259,128 @@ export function TransactionForm({
           })}
         </div>
 
-        <Popover open={datePickerOpen} onOpenChange={setDatePickerOpen}>
-          <PopoverTrigger
-            render={
-              <Button
-                type="button"
-                variant="outline"
-                className="h-8 justify-start gap-1.5 font-normal"
+        <div className="ml-auto flex items-center gap-2">
+          <Popover open={datePickerOpen} onOpenChange={setDatePickerOpen}>
+            <PopoverTrigger
+              render={
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="h-8 justify-start gap-1.5 font-normal"
+                />
+              }
+            >
+              <CalendarDays className="h-3.5 w-3.5 text-muted-foreground" />
+              <span className="text-sm">{formatDateLabel(date)}</span>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="end">
+              <Calendar
+                mode="single"
+                selected={parseLocalDate(date)}
+                onSelect={(d) => {
+                  if (d) setDate(toDateString(d));
+                  setDatePickerOpen(false);
+                }}
+                defaultMonth={parseLocalDate(date)}
               />
-            }
-          >
-            <CalendarDays className="h-3.5 w-3.5 text-muted-foreground" />
-            <span className="text-sm">{formatDateLabel(date)}</span>
-          </PopoverTrigger>
-          <PopoverContent className="w-auto p-0" align="start">
-            <Calendar
-              mode="single"
-              selected={parseLocalDate(date)}
-              onSelect={(d) => {
-                if (d) setDate(toDateString(d));
-                setDatePickerOpen(false);
-              }}
-              defaultMonth={parseLocalDate(date)}
-            />
-          </PopoverContent>
-        </Popover>
+            </PopoverContent>
+          </Popover>
 
-        {!isEditing && (
-          <button
-            type="button"
-            tabIndex={-1}
-            onClick={() => { resetForm(); setExpanded(false); }}
-            className="ml-auto rounded-md p-1.5 text-muted-foreground/40 transition-colors hover:bg-muted hover:text-muted-foreground"
-            aria-label="Close form"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        )}
+          {!isEditing && (
+            <button
+              type="button"
+              tabIndex={-1}
+              onClick={() => { resetForm(); setExpanded(false); }}
+              className="rounded-md p-1.5 text-muted-foreground/40 transition-colors hover:bg-muted hover:text-muted-foreground"
+              aria-label="Close form"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          )}
+        </div>
       </div>
 
-      {/* Row 2: Remaining fields — each 1/3 width */}
-      <div className="flex items-center gap-2">
+      {/* Line 2: Pay to + Category (or Transfer From/To) */}
+      <div className="flex items-center gap-3">
         {type !== "transfer" ? (
-          <div className="flex-1 min-w-0 [&>div]:w-full [&_button:first-of-type]:w-full">
-            <CategorySelector
-              categories={categories}
-              value={categoryId}
-              onChange={setCategoryId}
-              placeholder="Category"
+          <>
+            <span className="text-[11px] uppercase tracking-wider text-muted-foreground/50 shrink-0 w-11">Pay to</span>
+            <Input
+              value={merchant}
+              onChange={(e) => setMerchant(e.target.value)}
+              placeholder="Merchant"
+              className="h-8 flex-1 min-w-0"
             />
-          </div>
-        ) : (
-          <div className="flex-1 min-w-0 flex items-center gap-2">
-            <ArrowLeftRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground/40" />
+            <span className="text-[11px] uppercase tracking-wider text-muted-foreground/50 shrink-0">For</span>
+            <div className="flex-1 min-w-0 [&>div]:w-full [&_button:first-of-type]:w-full">
+              <CategorySelector
+                categories={categories}
+                value={categoryId}
+                onChange={setCategoryId}
+                placeholder="Category"
+              />
+            </div>
+          </>
+        ) : !fixedAccountId ? (
+          <>
+            <span className="text-[11px] uppercase tracking-wider text-muted-foreground/50 shrink-0 w-11">From</span>
+            <div className="flex-1 [&>div]:w-full [&_button:first-of-type]:w-full">
+              <AccountSelector
+                accounts={accounts}
+                value={accountId}
+                onChange={setAccountId}
+              />
+            </div>
+            <span className="text-[11px] uppercase tracking-wider text-muted-foreground/50 shrink-0">To</span>
             <div className="flex-1 [&>div]:w-full [&_button:first-of-type]:w-full">
               <AccountSelector
                 accounts={accounts}
                 value={toAccountId}
                 onChange={setToAccountId}
                 placeholder="To…"
-                excludeIds={[fixedAccountId ?? accountId]}
+                excludeIds={[accountId]}
               />
             </div>
-          </div>
+          </>
+        ) : (
+          <>
+            <span className="text-[11px] uppercase tracking-wider text-muted-foreground/50 shrink-0 w-11">To</span>
+            <div className="flex-1 [&>div]:w-full [&_button:first-of-type]:w-full">
+              <AccountSelector
+                accounts={accounts}
+                value={toAccountId}
+                onChange={setToAccountId}
+                placeholder="Select account…"
+                excludeIds={[fixedAccountId]}
+              />
+            </div>
+          </>
         )}
+      </div>
 
+      {/* Line 3: [From Account +] Memo + Submit */}
+      <div className="flex items-center gap-3">
+        {!fixedAccountId && type !== "transfer" ? (
+          <>
+            <span className="text-[11px] uppercase tracking-wider text-muted-foreground/50 shrink-0 w-11">From</span>
+            <div className="shrink-0 [&>div]:w-full [&_button:first-of-type]:w-full">
+              <AccountSelector
+                accounts={accounts}
+                value={accountId}
+                onChange={setAccountId}
+              />
+            </div>
+            <span className="text-[11px] uppercase tracking-wider text-muted-foreground/50 shrink-0">Memo</span>
+          </>
+        ) : (
+          <span className="text-[11px] uppercase tracking-wider text-muted-foreground/50 shrink-0 w-11">Memo</span>
+        )}
         <Input
-          value={merchant}
-          onChange={(e) => setMerchant(e.target.value)}
-          placeholder={type === "transfer" ? "Note" : "Payee"}
-          className="h-8 flex-1 min-w-0"
+          value={type !== "transfer" ? note : merchant}
+          onChange={(e) => type !== "transfer" ? setNote(e.target.value) : setMerchant(e.target.value)}
+          placeholder="Optional"
+          className="h-8 flex-1"
         />
-
-        {type !== "transfer" && (
-          <Input
-            value={note}
-            onChange={(e) => setNote(e.target.value)}
-            placeholder="Note"
-            className="h-8 flex-1 min-w-0"
-          />
-        )}
 
         {isEditing ? (
           <div className="flex items-center gap-1.5 shrink-0">
