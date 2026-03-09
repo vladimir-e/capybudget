@@ -1,7 +1,6 @@
 import { useState, useRef } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { CategorySelector } from "@/components/budget/category-selector";
@@ -218,14 +217,21 @@ export function TransactionForm({
           }
         }
       }}
-      className="rounded-xl border bg-card/50 p-4 space-y-3"
+      className="rounded-xl border bg-card/50 px-4 py-3 space-y-2"
     >
-      {/* Row 1: Amount + Type toggle */}
+      {/* Row 1: Account + Amount + Type + Date */}
       <div className="flex items-center gap-3">
-        <div className="relative flex-1 max-w-xs">
-          <span className={`pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-lg font-semibold transition-colors ${colors.text}`}>
-            $
-          </span>
+        {!fixedAccountId && (
+          <AccountSelector
+            accounts={accounts}
+            value={accountId}
+            onChange={setAccountId}
+            placeholder={type === "transfer" ? "From…" : undefined}
+          />
+        )}
+
+        <div className="flex items-baseline gap-0.5">
+          <span className={`text-xl font-semibold transition-colors ${colors.text}`}>$</span>
           <input
             ref={amountRef}
             type="text"
@@ -238,7 +244,7 @@ export function TransactionForm({
             }}
             placeholder="0.00"
             autoFocus
-            className={`h-11 w-full rounded-lg border border-input bg-transparent pl-8 pr-3 text-xl font-semibold tabular-nums outline-none transition-colors placeholder:text-muted-foreground/40 focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30 ${colors.text}`}
+            className={`bg-transparent text-xl font-semibold tabular-nums outline-none w-28 transition-colors placeholder:text-muted-foreground/30 ${colors.text}`}
           />
         </div>
 
@@ -262,12 +268,31 @@ export function TransactionForm({
           })}
         </div>
 
-        <span className="hidden lg:inline text-[11px] text-muted-foreground/40 leading-tight">
-          <kbd className="px-1 rounded bg-muted text-[10px]">-</kbd>
-          {" / "}
-          <kbd className="px-1 rounded bg-muted text-[10px]">+</kbd>
-          {" to switch"}
-        </span>
+        <Popover open={datePickerOpen} onOpenChange={setDatePickerOpen}>
+          <PopoverTrigger
+            render={
+              <Button
+                type="button"
+                variant="outline"
+                className="h-8 justify-start gap-1.5 font-normal"
+              />
+            }
+          >
+            <CalendarDays className="h-3.5 w-3.5 text-muted-foreground" />
+            <span className="text-sm">{formatDateLabel(date)}</span>
+          </PopoverTrigger>
+          <PopoverContent className="w-auto p-0" align="start">
+            <Calendar
+              mode="single"
+              selected={parseLocalDate(date)}
+              onSelect={(d) => {
+                if (d) setDate(toDateString(d));
+                setDatePickerOpen(false);
+              }}
+              defaultMonth={parseLocalDate(date)}
+            />
+          </PopoverContent>
+        </Popover>
 
         {!isEditing && (
           <button
@@ -282,127 +307,62 @@ export function TransactionForm({
         )}
       </div>
 
-      {/* Row 2: Detail fields */}
-      <div className="flex items-end gap-2 flex-wrap">
-        {type !== "transfer" && (
-          <div className="space-y-1">
-            <Label className="text-[11px] text-muted-foreground">Category</Label>
+      {/* Row 2: Remaining fields — each 1/3 width */}
+      <div className="flex items-center gap-2">
+        {type !== "transfer" ? (
+          <div className="flex-1 min-w-0 [&>div]:w-full [&_button:first-of-type]:w-full">
             <CategorySelector
               categories={categories}
               value={categoryId}
               onChange={setCategoryId}
-              placeholder="Uncategorized"
+              placeholder="Category"
             />
           </div>
-        )}
-
-        {type !== "transfer" && !fixedAccountId && (
-          <div className="space-y-1">
-            <Label className="text-[11px] text-muted-foreground">Account</Label>
-            <AccountSelector
-              accounts={accounts}
-              value={accountId}
-              onChange={setAccountId}
-            />
-          </div>
-        )}
-
-        {type === "transfer" && (
-          <>
-            {!fixedAccountId && (
-              <div className="space-y-1">
-                <Label className="text-[11px] text-muted-foreground">From</Label>
-                <AccountSelector
-                  accounts={accounts}
-                  value={accountId}
-                  onChange={setAccountId}
-                />
-              </div>
-            )}
-            <div className="space-y-1">
-              <Label className="text-[11px] text-muted-foreground">
-                {fixedAccountId ? "To Account" : "To"}
-              </Label>
+        ) : (
+          <div className="flex-1 min-w-0 flex items-center gap-2">
+            <ArrowLeftRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground/40" />
+            <div className="flex-1 [&>div]:w-full [&_button:first-of-type]:w-full">
               <AccountSelector
                 accounts={accounts}
                 value={toAccountId}
                 onChange={setToAccountId}
-                placeholder="Select account…"
+                placeholder="To…"
                 excludeIds={[fixedAccountId ?? accountId]}
               />
             </div>
-          </>
-        )}
-
-        <div className="space-y-1">
-          <Label className="text-[11px] text-muted-foreground">Date</Label>
-          <Popover open={datePickerOpen} onOpenChange={setDatePickerOpen}>
-            <PopoverTrigger
-              render={
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="h-8 w-[150px] justify-start gap-1.5 font-normal"
-                />
-              }
-            >
-              <CalendarDays className="h-3.5 w-3.5 text-muted-foreground" />
-              <span className="text-sm">{formatDateLabel(date)}</span>
-            </PopoverTrigger>
-            <PopoverContent className="w-auto p-0" align="start">
-              <Calendar
-                mode="single"
-                selected={parseLocalDate(date)}
-                onSelect={(d) => {
-                  if (d) setDate(toDateString(d));
-                  setDatePickerOpen(false);
-                }}
-                defaultMonth={parseLocalDate(date)}
-              />
-            </PopoverContent>
-          </Popover>
-        </div>
-
-        <div className="space-y-1 flex-1 min-w-[120px]">
-          <Label className="text-[11px] text-muted-foreground">
-            {type === "transfer" ? "Note" : "Merchant"}
-          </Label>
-          <Input
-            value={merchant}
-            onChange={(e) => setMerchant(e.target.value)}
-            placeholder={type === "transfer" ? "Transfer note" : "Who did you pay?"}
-            className="h-8"
-          />
-        </div>
-
-        {type !== "transfer" && (
-          <div className="space-y-1 flex-1 min-w-[100px]">
-            <Label className="text-[11px] text-muted-foreground">Note</Label>
-            <Input
-              value={note}
-              onChange={(e) => setNote(e.target.value)}
-              placeholder="Optional"
-              className="h-8"
-            />
           </div>
         )}
 
-        <div className="flex items-center gap-1.5 self-end">
-          {isEditing ? (
-            <>
-              <Button type="button" variant="ghost" size="sm" onClick={handleCancel}>
-                Cancel
-              </Button>
-              <Button type="submit" size="sm">
-                <Check className="h-3.5 w-3.5" /> Save
-              </Button>
-            </>
-          ) : (
-            <Button type="submit" size="sm">
-              <Plus className="h-3.5 w-3.5" /> Add
+        <Input
+          value={merchant}
+          onChange={(e) => setMerchant(e.target.value)}
+          placeholder={type === "transfer" ? "Note" : "Payee"}
+          className="h-8 flex-1 min-w-0"
+        />
+
+        {type !== "transfer" && (
+          <Input
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            placeholder="Note"
+            className="h-8 flex-1 min-w-0"
+          />
+        )}
+
+        {isEditing ? (
+          <div className="flex items-center gap-1.5 shrink-0">
+            <Button type="button" variant="ghost" size="sm" onClick={handleCancel}>
+              Cancel
             </Button>
-          )}
-        </div>
+            <Button type="submit" size="sm">
+              <Check className="h-3.5 w-3.5" /> Save
+            </Button>
+          </div>
+        ) : (
+          <Button type="submit" size="sm" className="shrink-0">
+            <Plus className="h-3.5 w-3.5" /> Add
+          </Button>
+        )}
       </div>
     </form>
   );
