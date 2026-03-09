@@ -343,20 +343,15 @@ export function TransactionForm({
       />
 
       {/* Submit */}
-      {isEditing ? (
-        <div className="flex items-center gap-2 pt-1">
-          <Button type="button" variant="ghost" size="sm" className="flex-1" onClick={handleCancel}>
-            Cancel
-          </Button>
-          <Button type="submit" size="sm" className="flex-1">
-            <Check className="h-3.5 w-3.5" /> Save
-          </Button>
-        </div>
-      ) : (
-        <Button type="submit" size="sm" className="w-full">
-          <Plus className="h-3.5 w-3.5" /> Add
+      <div className="flex items-center gap-2 pt-1">
+        <Button type="button" variant="ghost" size="sm" className="flex-1" onClick={isEditing ? handleCancel : () => onDismiss?.()}>
+          Cancel
         </Button>
-      )}
+        <Button type="submit" size="sm" className="flex-1">
+          {isEditing ? <Check className="h-3.5 w-3.5" /> : <Plus className="h-3.5 w-3.5" />}
+          {isEditing ? "Save" : "Add"}
+        </Button>
+      </div>
     </form>
   );
 }
