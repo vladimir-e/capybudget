@@ -5,15 +5,10 @@ import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { CategorySelector } from "@/components/budget/category-selector";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-} from "@/components/ui/select";
+import { AccountSelector } from "@/components/budget/account-selector";
 import type { Account, Category, Transaction, TransactionType } from "@/lib/types";
 import { parseMoney } from "@/lib/money";
-import { Minus, Plus, ArrowLeftRight, Check, CalendarDays } from "lucide-react";
+import { Minus, Plus, ArrowLeftRight, Check, CalendarDays, X } from "lucide-react";
 
 export interface TransactionFormData {
   id?: string;
@@ -43,17 +38,14 @@ function getToday(): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
-/** Parse "YYYY-MM-DD" to a local Date (noon to avoid timezone edge). */
 function parseLocalDate(s: string): Date {
   return new Date(s + "T12:00:00");
 }
 
-/** Format a Date as "YYYY-MM-DD". */
 function toDateString(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
-/** Format "YYYY-MM-DD" for display: "Mar 8, 2026". */
 function formatDateLabel(s: string): string {
   return parseLocalDate(s).toLocaleDateString("en-US", {
     month: "short",
@@ -83,10 +75,6 @@ const TYPE_COLORS: Record<TransactionType, { text: string; pill: string }> = {
   },
 };
 
-/**
- * Resolve initial transfer accounts from a transaction and the full list.
- * Returns [fromAccountId, toAccountId].
- */
 function resolveTransferAccounts(
   txn: Transaction,
   all: Transaction[],
@@ -100,11 +88,15 @@ function resolveTransferAccounts(
 }
 
 /**
- * Transaction form — used for both creating and editing.
+ * Transaction form with collapsible entry.
  *
- * IMPORTANT: When switching between add/edit mode, change the `key` prop
- * on this component so React remounts it with fresh initial state.
- * e.g. `<TransactionForm key={editingTxn?.id ?? "new"} ... />`
+ * Collapsed: a subtle "Add transaction…" prompt.
+ * Expanded: full form with all fields.
+ *
+ * Stays expanded during rapid entry (add → reset → keep typing).
+ * Auto-collapses when editing is done (key-based remount resets to collapsed).
+ *
+ * Use `key={editingTxn?.id ?? "new"}` on the parent to remount cleanly.
  */
 export function TransactionForm({
   accounts,
@@ -117,11 +109,12 @@ export function TransactionForm({
 }: TransactionFormProps) {
   const amountRef = useRef<HTMLInputElement>(null);
   const activeAccounts = accounts.filter((a) => !a.archived);
-  const accountMap = new Map(activeAccounts.map((a) => [a.id, a.name]));
   const defaultAccountId = fixedAccountId ?? activeAccounts[0]?.id ?? "";
   const isEditing = !!editingTransaction;
 
-  // Derive initial state from props (works with key-based remounting)
+  // Editing always starts expanded; add mode starts collapsed
+  const [expanded, setExpanded] = useState(isEditing);
+
   const [initialFrom, initialTo] = editingTransaction
     ? resolveTransferAccounts(editingTransaction, allTransactions)
     : [defaultAccountId, ""];
@@ -184,7 +177,6 @@ export function TransactionForm({
     resetForm();
   }
 
-  // Amount: allow digits and one decimal with max 2 places
   function handleAmountChange(raw: string) {
     const cleaned = raw.replace(/[^0-9.]/g, "");
     const parts = cleaned.split(".");
@@ -194,7 +186,23 @@ export function TransactionForm({
   }
 
   const colors = TYPE_COLORS[type];
+  const hasContent = !!(amount || merchant || note);
 
+  // ── Collapsed state ──────────────────────────────────────
+  if (!expanded) {
+    return (
+      <button
+        type="button"
+        onClick={() => setExpanded(true)}
+        className="group flex w-full items-center gap-2 rounded-lg border border-dashed border-border/50 px-4 py-2.5 text-sm text-muted-foreground/50 transition-colors hover:border-border hover:bg-muted/20 hover:text-muted-foreground"
+      >
+        <Plus className="h-4 w-4 transition-colors group-hover:text-foreground" />
+        <span>Add transaction…</span>
+      </button>
+    );
+  }
+
+  // ── Expanded state ───────────────────────────────────────
   return (
     <form
       onSubmit={(e) => { e.preventDefault(); handleSubmit(); }}
@@ -203,8 +211,10 @@ export function TransactionForm({
           e.preventDefault();
           if (isEditing) {
             handleCancel();
-          } else {
+          } else if (hasContent) {
             resetForm();
+          } else {
+            setExpanded(false);
           }
         }
       }}
@@ -223,7 +233,6 @@ export function TransactionForm({
             value={amount}
             onChange={(e) => handleAmountChange(e.target.value)}
             onKeyDown={(e) => {
-              // "-" or Shift+"-" (which produces "_" on US keyboards)
               if (e.key === "-" || e.key === "_") { e.preventDefault(); setType("expense"); }
               else if (e.key === "+" || e.key === "=") { e.preventDefault(); setType("income"); }
             }}
@@ -233,7 +242,6 @@ export function TransactionForm({
           />
         </div>
 
-        {/* Type pills — outside tab order */}
         <div className="flex gap-0.5 rounded-lg bg-muted/50 p-0.5">
           {TYPES.map(({ value, label, icon: Icon }) => {
             const active = type === value;
@@ -260,11 +268,22 @@ export function TransactionForm({
           <kbd className="px-1 rounded bg-muted text-[10px]">+</kbd>
           {" to switch"}
         </span>
+
+        {!isEditing && (
+          <button
+            type="button"
+            tabIndex={-1}
+            onClick={() => { resetForm(); setExpanded(false); }}
+            className="ml-auto rounded-md p-1.5 text-muted-foreground/40 transition-colors hover:bg-muted hover:text-muted-foreground"
+            aria-label="Close form"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        )}
       </div>
 
       {/* Row 2: Detail fields */}
       <div className="flex items-end gap-2 flex-wrap">
-        {/* Category — hidden for transfers */}
         {type !== "transfer" && (
           <div className="space-y-1">
             <Label className="text-[11px] text-muted-foreground">Category</Label>
@@ -273,73 +292,48 @@ export function TransactionForm({
               value={categoryId}
               onChange={setCategoryId}
               placeholder="Uncategorized"
-              clearable
             />
           </div>
         )}
 
-        {/* Single account selector (non-transfer, all-accounts view) */}
         {type !== "transfer" && !fixedAccountId && (
           <div className="space-y-1">
             <Label className="text-[11px] text-muted-foreground">Account</Label>
-            <Select value={accountId} onValueChange={(v) => v && setAccountId(v)}>
-              <SelectTrigger className="h-8 min-w-[130px]">
-                <span className="flex flex-1 items-center text-left truncate">
-                  {accountMap.get(accountId) ?? "Select account…"}
-                </span>
-              </SelectTrigger>
-              <SelectContent>
-                {activeAccounts.map((a) => (
-                  <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <AccountSelector
+              accounts={accounts}
+              value={accountId}
+              onChange={setAccountId}
+            />
           </div>
         )}
 
-        {/* Transfer: From / To */}
         {type === "transfer" && (
           <>
             {!fixedAccountId && (
               <div className="space-y-1">
                 <Label className="text-[11px] text-muted-foreground">From</Label>
-                <Select value={accountId} onValueChange={(v) => v && setAccountId(v)}>
-                  <SelectTrigger className="h-8 min-w-[130px]">
-                    <span className="flex flex-1 items-center text-left truncate">
-                      {accountMap.get(accountId) ?? "Select account…"}
-                    </span>
-                  </SelectTrigger>
-                  <SelectContent>
-                    {activeAccounts.map((a) => (
-                      <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <AccountSelector
+                  accounts={accounts}
+                  value={accountId}
+                  onChange={setAccountId}
+                />
               </div>
             )}
             <div className="space-y-1">
               <Label className="text-[11px] text-muted-foreground">
                 {fixedAccountId ? "To Account" : "To"}
               </Label>
-              <Select value={toAccountId} onValueChange={(v) => v && setToAccountId(v)}>
-                <SelectTrigger className="h-8 min-w-[130px]">
-                  <span className={`flex flex-1 items-center text-left truncate ${toAccountId ? "" : "text-muted-foreground"}`}>
-                    {accountMap.get(toAccountId) ?? "Select account…"}
-                  </span>
-                </SelectTrigger>
-                <SelectContent>
-                  {activeAccounts
-                    .filter((a) => a.id !== (fixedAccountId ?? accountId))
-                    .map((a) => (
-                      <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>
-                    ))}
-                </SelectContent>
-              </Select>
+              <AccountSelector
+                accounts={accounts}
+                value={toAccountId}
+                onChange={setToAccountId}
+                placeholder="Select account…"
+                excludeIds={[fixedAccountId ?? accountId]}
+              />
             </div>
           </>
         )}
 
-        {/* Date — popover calendar, one tap to pick */}
         <div className="space-y-1">
           <Label className="text-[11px] text-muted-foreground">Date</Label>
           <Popover open={datePickerOpen} onOpenChange={setDatePickerOpen}>
@@ -369,7 +363,6 @@ export function TransactionForm({
           </Popover>
         </div>
 
-        {/* Merchant */}
         <div className="space-y-1 flex-1 min-w-[120px]">
           <Label className="text-[11px] text-muted-foreground">
             {type === "transfer" ? "Note" : "Merchant"}
@@ -382,7 +375,6 @@ export function TransactionForm({
           />
         </div>
 
-        {/* Note — hidden for transfers (merchant field serves as note) */}
         {type !== "transfer" && (
           <div className="space-y-1 flex-1 min-w-[100px]">
             <Label className="text-[11px] text-muted-foreground">Note</Label>
@@ -395,16 +387,21 @@ export function TransactionForm({
           </div>
         )}
 
-        {/* Actions */}
         <div className="flex items-center gap-1.5 self-end">
-          {isEditing && (
-            <Button type="button" variant="ghost" size="sm" onClick={handleCancel}>
-              Cancel
+          {isEditing ? (
+            <>
+              <Button type="button" variant="ghost" size="sm" onClick={handleCancel}>
+                Cancel
+              </Button>
+              <Button type="submit" size="sm">
+                <Check className="h-3.5 w-3.5" /> Save
+              </Button>
+            </>
+          ) : (
+            <Button type="submit" size="sm">
+              <Plus className="h-3.5 w-3.5" /> Add
             </Button>
           )}
-          <Button type="submit" size="sm">
-            {isEditing ? <><Check className="h-3.5 w-3.5" /> Save</> : <><Plus className="h-3.5 w-3.5" /> Add</>}
-          </Button>
         </div>
       </div>
     </form>
