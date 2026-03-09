@@ -17,17 +17,6 @@ UI shell with mock data: accounts, transactions, categories.
 - Color theme switcher (Capybara, Ocean, Forest, Rose, Slate) with dark mode
 - CI workflow for PR validation
 
-### Refactored
-- Extract transaction CRUD into `src/services/transactions.ts` (pure functions)
-- Unify data flow: accounts, categories, and transactions routed through BudgetContext
-- Replace raw `setTransactions` in context with action methods
-- Deduplicate delete logic and transfer pair resolution (shared `resolveTransferPair`)
-- Wire toolbar filters with controlled state (`filters`/`onFiltersChange`)
-- Type `Category.group` as `CategoryGroup` union; share `CATEGORY_GROUP_ORDER`
-- Sidebar uses shared `getAccountsByGroup` from queries
-- AccountHeader accepts `balance` prop instead of all transactions
-- Fix note/merchant field confusion in transfer form
-
 ## 0.1.0 — 2026-03-07
 
 Initial shell app with full tech stack.
