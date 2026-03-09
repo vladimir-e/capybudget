@@ -6,9 +6,16 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Button } from "@/components/ui/button";
 import { formatMoney } from "@/lib/money";
 import type { Account, Category, Transaction } from "@/lib/types";
-import { ArrowRight, Inbox } from "lucide-react";
+import { ArrowRight, Inbox, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
 
 interface TransactionListProps {
   transactions: Transaction[];
@@ -16,6 +23,9 @@ interface TransactionListProps {
   accounts: Account[];
   categories: Category[];
   showAccountColumn: boolean;
+  editingTransactionId?: string | null;
+  onEdit?: (transaction: Transaction) => void;
+  onDelete?: (transaction: Transaction) => void;
 }
 
 function formatDate(iso: string): string {
@@ -38,9 +48,13 @@ export function TransactionList({
   accounts,
   categories,
   showAccountColumn,
+  editingTransactionId,
+  onEdit,
+  onDelete,
 }: TransactionListProps) {
   const accountMap = new Map(accounts.map((a) => [a.id, a]));
   const categoryMap = new Map(categories.map((c) => [c.id, c]));
+  const hasActions = !!(onEdit || onDelete);
 
   // Sort by datetime descending
   const sorted = [...transactions].sort(
@@ -66,13 +80,15 @@ export function TransactionList({
           <TableHead className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/70">Category</TableHead>
           <TableHead className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/70">Merchant</TableHead>
           <TableHead className="text-right w-[130px] text-xs font-semibold uppercase tracking-wider text-muted-foreground/70">Amount</TableHead>
+          {hasActions && <TableHead className="w-[48px]" />}
         </TableRow>
       </TableHeader>
       <TableBody>
         {sorted.map((txn, i) => {
           const account = accountMap.get(txn.accountId);
+          const isBeingEdited = txn.id === editingTransactionId;
 
-          // For transfers, look up paired account from FULL transaction list
+          // Transfer display
           let categoryDisplay: React.ReactNode;
           if (txn.type === "transfer") {
             const pairedTxn = allTransactions.find((t) => t.id === txn.transferPairId);
@@ -94,12 +110,16 @@ export function TransactionList({
             categoryDisplay = <span className="text-muted-foreground/50 italic">Uncategorized</span>;
           }
 
+          const rowBg = isBeingEdited
+            ? "bg-brand-subtle/40 ring-1 ring-brand/20"
+            : i % 2 === 0 ? "bg-transparent" : "bg-muted/30";
+
           return (
             <TableRow
               key={txn.id}
-              className={`transition-colors border-border/50 ${
-                i % 2 === 0 ? "bg-transparent" : "bg-muted/30"
-              } hover:bg-brand-subtle/50`}
+              className={`transition-colors border-border/50 ${rowBg} ${
+                isBeingEdited ? "" : "hover:bg-brand-subtle/50"
+              }`}
             >
               <TableCell className="text-muted-foreground text-[13px]">
                 {formatDate(txn.datetime)}
@@ -118,6 +138,33 @@ export function TransactionList({
               <TableCell className={`text-right tabular-nums font-semibold text-[13px] ${getAmountClass(txn)}`}>
                 {formatMoney(txn.amount)}
               </TableCell>
+              {hasActions && (
+                <TableCell className="px-1">
+                  <DropdownMenu>
+                    <DropdownMenuTrigger
+                      render={
+                        <Button variant="ghost" size="icon-xs" className="text-muted-foreground/50 hover:text-foreground" />
+                      }
+                    >
+                      <MoreHorizontal className="h-3.5 w-3.5" />
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      {onEdit && (
+                        <DropdownMenuItem onClick={() => onEdit(txn)}>
+                          <Pencil className="h-3.5 w-3.5" />
+                          Edit
+                        </DropdownMenuItem>
+                      )}
+                      {onDelete && (
+                        <DropdownMenuItem variant="destructive" onClick={() => onDelete(txn)}>
+                          <Trash2 className="h-3.5 w-3.5" />
+                          Delete
+                        </DropdownMenuItem>
+                      )}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </TableCell>
+              )}
             </TableRow>
           );
         })}
