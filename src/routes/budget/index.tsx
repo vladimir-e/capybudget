@@ -90,9 +90,15 @@ function AllAccountsView() {
   };
 
   return (
-    <div className="p-6 space-y-4">
-      <h2 className="text-lg font-bold tracking-tight">All Accounts</h2>
+    <div>
+      <div className="px-6 py-5 border-b bg-gradient-to-b from-brand-subtle/40 to-transparent">
+        <h2 className="text-xl font-bold tracking-tight">All Accounts</h2>
+        <p className="text-sm text-muted-foreground mt-1">
+          {transactions.length} transaction{transactions.length !== 1 ? "s" : ""}
+        </p>
+      </div>
 
+      <div className="p-6 space-y-4">
       <TransactionForm
         key={editingTxn?.id ?? "new"}
         accounts={MOCK_ACCOUNTS}
@@ -124,6 +130,7 @@ function AllAccountsView() {
         onConfirm={handleDelete}
         onCancel={() => setDeletingTxn(null)}
       />
+      </div>
     </div>
   );
 }

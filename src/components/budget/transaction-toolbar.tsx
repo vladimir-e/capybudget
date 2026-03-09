@@ -16,7 +16,7 @@ export function TransactionToolbar({ categories }: TransactionToolbarProps) {
 
   return (
     <div className="flex items-center gap-2">
-      <div className="relative flex-1 max-w-sm">
+      <div className="relative flex-[5] min-w-0">
         <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground/60" />
         <Input
           placeholder="Search transactions…"
@@ -36,15 +36,19 @@ export function TransactionToolbar({ categories }: TransactionToolbarProps) {
         )}
       </div>
 
-      <CategorySelector
-        categories={categories}
-        value={categoryId}
-        onChange={setCategoryId}
-        includeAll
-        clearable
-      />
+      <div className="flex-[3] min-w-0 [&>div]:w-full [&_button:first-of-type]:flex-1 [&_button:first-of-type]:min-w-0">
+        <CategorySelector
+          categories={categories}
+          value={categoryId}
+          onChange={setCategoryId}
+          includeAll
+          clearable
+        />
+      </div>
 
-      <DateRangePicker value={dateRange} onChange={setDateRange} />
+      <div className="flex-[3] min-w-0 [&>div]:w-full [&_button:first-of-type]:flex-1 [&_button:first-of-type]:min-w-0">
+        <DateRangePicker value={dateRange} onChange={setDateRange} />
+      </div>
     </div>
   );
 }
