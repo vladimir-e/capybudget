@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, type RefObject } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -7,7 +7,7 @@ import { CategorySelector } from "@/components/budget/category-selector";
 import { AccountSelector } from "@/components/budget/account-selector";
 import type { Account, Category, Transaction, TransactionType } from "@/lib/types";
 import { parseMoney } from "@/lib/money";
-import { Minus, Plus, ArrowLeftRight, Check, CalendarDays, X } from "lucide-react";
+import { Minus, Plus, ArrowLeftRight, Check, CalendarDays } from "lucide-react";
 
 export interface TransactionFormData {
   id?: string;
@@ -26,10 +26,14 @@ interface TransactionFormProps {
   categories: Category[];
   allTransactions: Transaction[];
   editingTransaction?: Transaction | null;
-  /** Lock the account (single-account view). */
-  fixedAccountId?: string;
+  /** Pre-select this account (e.g. when on an account page). Selector always shown. */
+  defaultAccountId?: string;
+  /** External ref for the amount input (panel mode). */
+  amountRef?: RefObject<HTMLInputElement | null>;
   onSave: (data: TransactionFormData) => void;
   onCancel?: () => void;
+  /** When provided, form runs in "panel mode": always expanded, Escape-with-no-content calls this. */
+  onDismiss?: () => void;
 }
 
 function getToday(): string {
@@ -86,32 +90,24 @@ function resolveTransferAccounts(
     : [pair.accountId, txn.accountId];
 }
 
-/**
- * Transaction form with collapsible entry.
- *
- * Collapsed: a subtle "Add transaction…" prompt.
- * Expanded: full form with all fields.
- *
- * Stays expanded during rapid entry (add → reset → keep typing).
- * Auto-collapses when editing is done (key-based remount resets to collapsed).
- *
- * Use `key={editingTxn?.id ?? "new"}` on the parent to remount cleanly.
- */
 export function TransactionForm({
   accounts,
   categories,
   allTransactions,
   editingTransaction,
-  fixedAccountId,
+  defaultAccountId: defaultAccountIdProp,
+  amountRef: externalAmountRef,
   onSave,
   onCancel,
+  onDismiss,
 }: TransactionFormProps) {
-  const amountRef = useRef<HTMLInputElement>(null);
+  const internalAmountRef = useRef<HTMLInputElement>(null);
+  const amountRef = externalAmountRef ?? internalAmountRef;
+  const panelMode = !!onDismiss;
   const activeAccounts = accounts.filter((a) => !a.archived);
-  const defaultAccountId = fixedAccountId ?? activeAccounts[0]?.id ?? "";
+  const defaultAccountId = defaultAccountIdProp ?? activeAccounts[0]?.id ?? "";
   const isEditing = !!editingTransaction;
 
-  // Editing always starts expanded; add mode starts collapsed
   const [expanded, setExpanded] = useState(isEditing);
 
   const [initialFrom, initialTo] = editingTransaction
@@ -166,7 +162,7 @@ export function TransactionForm({
       type,
       amount: cents,
       categoryId: type === "transfer" ? "" : (categoryId ?? ""),
-      accountId: fixedAccountId ?? accountId,
+      accountId,
       toAccountId: type === "transfer" ? toAccountId : undefined,
       date,
       merchant: merchant.trim(),
@@ -187,8 +183,8 @@ export function TransactionForm({
   const colors = TYPE_COLORS[type];
   const hasContent = !!(amount || merchant || note);
 
-  // ── Collapsed state ──────────────────────────────────────
-  if (!expanded) {
+  // ── Collapsed state (inline mode only) ──────────────────
+  if (!panelMode && !expanded) {
     return (
       <button
         type="button"
@@ -212,17 +208,42 @@ export function TransactionForm({
             handleCancel();
           } else if (hasContent) {
             resetForm();
+          } else if (panelMode) {
+            onDismiss?.();
           } else {
             setExpanded(false);
           }
         }
       }}
-      className="rounded-xl border bg-card/50 px-5 py-3.5 space-y-2"
+      className="space-y-3"
     >
-      {/* Line 1: Amount · Type · Date */}
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-2 pl-14">
-        <div className="flex items-baseline gap-0.5">
-          <span className={`text-xl font-semibold transition-colors ${colors.text}`}>$</span>
+      {/* Type selector */}
+      <div className="flex justify-center">
+        <div className="flex gap-0.5 rounded-lg bg-muted/50 p-0.5">
+          {TYPES.map(({ value, label, icon: Icon }) => {
+            const active = type === value;
+            return (
+              <button
+                key={value}
+                type="button"
+                tabIndex={-1}
+                onClick={() => setType(value)}
+                className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-all ${
+                  active ? TYPE_COLORS[value].pill : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <Icon className="h-3 w-3" />
+                {label}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Amount + Date */}
+      <div className="flex items-center gap-3">
+        <div className="flex items-baseline gap-0.5 flex-1 min-w-0">
+          <span className={`text-2xl font-bold transition-colors ${colors.text}`}>$</span>
           <input
             ref={amountRef}
             type="text"
@@ -234,105 +255,73 @@ export function TransactionForm({
               else if (e.key === "+" || e.key === "=") { e.preventDefault(); setType("income"); }
             }}
             placeholder="0.00"
-            autoFocus
-            className={`bg-transparent text-xl font-semibold tabular-nums outline-none w-28 transition-colors placeholder:text-muted-foreground/30 ${colors.text}`}
+            autoFocus={!panelMode}
+            className={`bg-transparent text-2xl font-bold tabular-nums outline-none w-full transition-colors placeholder:text-muted-foreground/20 ${colors.text}`}
           />
         </div>
-
-        <div className="flex gap-0.5 rounded-lg bg-muted/50 p-0.5">
-          {TYPES.map(({ value, label, icon: Icon }) => {
-            const active = type === value;
-            return (
-              <button
-                key={value}
+        <Popover open={datePickerOpen} onOpenChange={setDatePickerOpen}>
+          <PopoverTrigger
+            render={
+              <Button
                 type="button"
-                tabIndex={-1}
-                onClick={() => setType(value)}
-                className={`inline-flex items-center gap-1 rounded-md px-2.5 py-1.5 text-xs font-medium transition-all ${
-                  active ? TYPE_COLORS[value].pill : "text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                <Icon className="h-3 w-3" />
-                {label}
-              </button>
-            );
-          })}
-        </div>
-
-        <div className="ml-auto flex items-center gap-2">
-          <Popover open={datePickerOpen} onOpenChange={setDatePickerOpen}>
-            <PopoverTrigger
-              render={
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="h-8 justify-start gap-1.5 font-normal"
-                />
-              }
-            >
-              <CalendarDays className="h-3.5 w-3.5 text-muted-foreground" />
-              <span className="text-sm">{formatDateLabel(date)}</span>
-            </PopoverTrigger>
-            <PopoverContent className="w-auto p-0" align="end">
-              <Calendar
-                mode="single"
-                selected={parseLocalDate(date)}
-                onSelect={(d) => {
-                  if (d) setDate(toDateString(d));
-                  setDatePickerOpen(false);
-                }}
-                defaultMonth={parseLocalDate(date)}
+                variant="outline"
+                className="h-9 justify-start gap-1.5 font-normal shrink-0"
               />
-            </PopoverContent>
-          </Popover>
-
-          {!isEditing && (
-            <button
-              type="button"
-              tabIndex={-1}
-              onClick={() => { resetForm(); setExpanded(false); }}
-              className="rounded-md p-1.5 text-muted-foreground/40 transition-colors hover:bg-muted hover:text-muted-foreground"
-              aria-label="Close form"
-            >
-              <X className="h-4 w-4" />
-            </button>
-          )}
-        </div>
+            }
+          >
+            <CalendarDays className="h-3.5 w-3.5 text-muted-foreground" />
+            <span className="text-sm">{formatDateLabel(date)}</span>
+          </PopoverTrigger>
+          <PopoverContent className="w-auto p-0" align="end">
+            <Calendar
+              mode="single"
+              selected={parseLocalDate(date)}
+              onSelect={(d) => {
+                if (d) setDate(toDateString(d));
+                setDatePickerOpen(false);
+              }}
+              defaultMonth={parseLocalDate(date)}
+            />
+          </PopoverContent>
+        </Popover>
       </div>
 
-      {/* Line 2: Pay to + Category (or Transfer From/To) */}
-      <div className="flex items-center gap-3">
-        {type !== "transfer" ? (
-          <>
-            <span className="text-[11px] uppercase tracking-wider text-muted-foreground/50 shrink-0 w-11">Pay to</span>
-            <Input
-              value={merchant}
-              onChange={(e) => setMerchant(e.target.value)}
-              placeholder="Merchant"
-              className="h-8 flex-1 min-w-0"
+      {/* Context fields */}
+      {type !== "transfer" ? (
+        <>
+          <Input
+            value={merchant}
+            onChange={(e) => setMerchant(e.target.value)}
+            placeholder="Merchant"
+          />
+          <div className="[&>div]:w-full [&_button:first-of-type]:w-full">
+            <CategorySelector
+              categories={categories}
+              value={categoryId}
+              onChange={setCategoryId}
+              placeholder="Category"
             />
-            <span className="text-[11px] uppercase tracking-wider text-muted-foreground/50 shrink-0">For</span>
+          </div>
+          <div className="[&>div]:w-full [&_button:first-of-type]:w-full">
+            <AccountSelector
+              accounts={accounts}
+              value={accountId}
+              onChange={setAccountId}
+            />
+          </div>
+        </>
+      ) : (
+        <>
+          <div className="flex items-center gap-2">
             <div className="flex-1 min-w-0 [&>div]:w-full [&_button:first-of-type]:w-full">
-              <CategorySelector
-                categories={categories}
-                value={categoryId}
-                onChange={setCategoryId}
-                placeholder="Category"
-              />
-            </div>
-          </>
-        ) : !fixedAccountId ? (
-          <>
-            <span className="text-[11px] uppercase tracking-wider text-muted-foreground/50 shrink-0 w-11">From</span>
-            <div className="flex-1 [&>div]:w-full [&_button:first-of-type]:w-full">
               <AccountSelector
                 accounts={accounts}
                 value={accountId}
                 onChange={setAccountId}
               />
             </div>
-            <span className="text-[11px] uppercase tracking-wider text-muted-foreground/50 shrink-0">To</span>
-            <div className="flex-1 [&>div]:w-full [&_button:first-of-type]:w-full">
+            <ArrowLeftRight className="h-4 w-4 text-muted-foreground/50 shrink-0" />
+            <div className="flex-1 min-w-0 [&>div]:w-full [&_button:first-of-type]:w-full">
               <AccountSelector
                 accounts={accounts}
                 value={toAccountId}
@@ -341,62 +330,33 @@ export function TransactionForm({
                 excludeIds={[accountId]}
               />
             </div>
-          </>
-        ) : (
-          <>
-            <span className="text-[11px] uppercase tracking-wider text-muted-foreground/50 shrink-0 w-11">To</span>
-            <div className="flex-1 [&>div]:w-full [&_button:first-of-type]:w-full">
-              <AccountSelector
-                accounts={accounts}
-                value={toAccountId}
-                onChange={setToAccountId}
-                placeholder="Select account…"
-                excludeIds={[fixedAccountId]}
-              />
-            </div>
-          </>
-        )}
-      </div>
-
-      {/* Line 3: [From Account +] Memo + Submit */}
-      <div className="flex items-center gap-3">
-        {!fixedAccountId && type !== "transfer" ? (
-          <>
-            <span className="text-[11px] uppercase tracking-wider text-muted-foreground/50 shrink-0 w-11">From</span>
-            <div className="shrink-0 [&>div]:w-full [&_button:first-of-type]:w-full">
-              <AccountSelector
-                accounts={accounts}
-                value={accountId}
-                onChange={setAccountId}
-              />
-            </div>
-            <span className="text-[11px] uppercase tracking-wider text-muted-foreground/50 shrink-0">Memo</span>
-          </>
-        ) : (
-          <span className="text-[11px] uppercase tracking-wider text-muted-foreground/50 shrink-0 w-11">Memo</span>
-        )}
-        <Input
-          value={type !== "transfer" ? note : merchant}
-          onChange={(e) => type !== "transfer" ? setNote(e.target.value) : setMerchant(e.target.value)}
-          placeholder="Optional"
-          className="h-8 flex-1"
-        />
-
-        {isEditing ? (
-          <div className="flex items-center gap-1.5 shrink-0">
-            <Button type="button" variant="ghost" size="sm" onClick={handleCancel}>
-              Cancel
-            </Button>
-            <Button type="submit" size="sm">
-              <Check className="h-3.5 w-3.5" /> Save
-            </Button>
           </div>
-        ) : (
-          <Button type="submit" size="sm" className="shrink-0">
-            <Plus className="h-3.5 w-3.5" /> Add
+        </>
+      )}
+
+      {/* Notes */}
+      <Input
+        value={type !== "transfer" ? note : merchant}
+        onChange={(e) => type !== "transfer" ? setNote(e.target.value) : setMerchant(e.target.value)}
+        placeholder="Notes (optional)"
+        className="text-muted-foreground"
+      />
+
+      {/* Submit */}
+      {isEditing ? (
+        <div className="flex items-center gap-2 pt-1">
+          <Button type="button" variant="ghost" size="sm" className="flex-1" onClick={handleCancel}>
+            Cancel
           </Button>
-        )}
-      </div>
+          <Button type="submit" size="sm" className="flex-1">
+            <Check className="h-3.5 w-3.5" /> Save
+          </Button>
+        </div>
+      ) : (
+        <Button type="submit" size="sm" className="w-full">
+          <Plus className="h-3.5 w-3.5" /> Add
+        </Button>
+      )}
     </form>
   );
 }
