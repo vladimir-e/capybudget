@@ -13,6 +13,7 @@ import {
 import { useAppStore } from "@/stores/app-store";
 import { detectBudget, bootstrapBudget } from "@/services/budget";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { ColorThemeSwitcher } from "@/components/color-theme-switcher";
 
 export function BudgetSelector() {
   const navigate = useNavigate();
@@ -73,7 +74,8 @@ export function BudgetSelector() {
 
   return (
     <div className="flex h-screen items-center justify-center">
-      <div className="absolute top-4 right-4">
+      <div className="absolute top-4 right-4 flex items-center gap-1">
+        <ColorThemeSwitcher />
         <ThemeToggle />
       </div>
       <div className="w-full max-w-lg space-y-8 px-6">

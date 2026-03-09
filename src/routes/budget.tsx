@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Sidebar } from "@/components/budget/sidebar";
 import { AddAccountDialog } from "@/components/budget/add-account-dialog";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { ColorThemeSwitcher } from "@/components/color-theme-switcher";
 import { MOCK_ACCOUNTS, MOCK_TRANSACTIONS } from "@/lib/mock-data";
 import { ChevronLeft } from "lucide-react";
 
@@ -41,7 +42,8 @@ function BudgetLayout() {
           <span className="text-border mx-1">/</span>
           <h1 className="text-sm font-semibold">{name}</h1>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1">
+          <ColorThemeSwitcher />
           <ThemeToggle />
         </div>
       </header>
