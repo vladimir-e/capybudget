@@ -100,40 +100,13 @@ User picks folder
 
 ### Repository Pattern
 
-Storage is abstracted behind the `BudgetRepository` interface:
-
-```ts
-interface BudgetRepository {
-  getAccounts(): Promise<Account[]>;
-  getCategories(): Promise<Category[]>;
-  getTransactions(): Promise<Transaction[]>;
-  saveAccounts(accounts: Account[]): Promise<void>;
-  saveCategories(categories: Category[]): Promise<void>;
-  saveTransactions(transactions: Transaction[]): Promise<void>;
-}
-```
-
-**Design:** Document-oriented (read/write whole arrays), not entity-CRUD. This matches CSV's natural model — read the file, parse all rows, write the file. Entity operations stay as pure functions in `services/transactions.ts`.
-
-**Adapters:**
-- `MockRepository` — returns mock data, save methods are no-ops (current)
-- `CsvRepository` — reads/writes CSV files via Tauri fs plugin (Phase 2)
+Storage is abstracted behind the `BudgetRepository` interface (see `src/repositories/types.ts`). The interface will evolve as new adapters are needed — the current shape is designed for the CSV adapter; future backends (e.g. a database for a web version) may require a different contract.
 
 **Injection:** React context (`RepositoryProvider`) wraps the budget workspace. `useBudgetRepository()` hook provides the active adapter.
 
 ### Data Hooks (TanStack Query)
 
-Query hooks wrap repository reads:
-- `useAccounts()`, `useCategories()`, `useTransactions()` — `staleTime: Infinity` (desktop app, data doesn't change externally)
-- Query key factory: `budgetKeys.accounts()`, etc.
-
-Mutation hooks handle the write pipeline:
-1. Read current state from query cache
-2. Apply pure transformation (e.g., `createTransaction()`)
-3. Optimistic cache update via `queryClient.setQueryData()`
-4. Persist via `repo.saveTransactions()`
-
-This captures previous state on every mutation — the hook point for future undo/redo.
+Query hooks (`useAccounts`, `useCategories`, `useTransactions`) wrap repository reads with `staleTime: Infinity`. Mutation hooks apply pure transformations, update the cache optimistically, then persist via the repository.
 
 ### Functional Style
 
@@ -159,17 +132,6 @@ Each module owns one concern:
 2. Update in-memory state (TanStack Query cache) immediately. UI reflects change instantly.
 3. Persist via repository in the background (debounced in CSV adapter).
 4. On write failure: show blocking error — "Something went wrong. Reload to continue." No retry logic, no partial rollback. Deliberately blunt because errors are rare in a local-first app.
-
-### Mutation Pipeline
-
-```
-User action
-  → mutation hook (useCreateTransaction, etc.)
-  → read current state from query cache
-  → pure function transforms state (services/transactions.ts)
-  → optimistic cache update (queryClient.setQueryData)
-  → repo.saveTransactions() (async, adapter-specific)
-```
 
 ### Undo / Redo
 
