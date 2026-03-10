@@ -8,7 +8,15 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { ColorThemeSwitcher } from "@/components/color-theme-switcher";
 import { BudgetProvider, type BudgetContextValue } from "@/contexts/budget-context";
 import { MOCK_ACCOUNTS, MOCK_CATEGORIES, MOCK_TRANSACTIONS } from "@/lib/mock-data";
-import { ChevronDown, ChevronLeft } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { ChevronDown, FolderOpen, LogOut } from "lucide-react";
+import { open as shellOpen } from "@tauri-apps/plugin-shell";
 import type { AccountType, Transaction } from "@/lib/types";
 import {
   createTransaction,
@@ -30,6 +38,15 @@ export const Route = createFileRoute("/budget")({
   }),
   component: BudgetLayout,
 });
+
+function shortenPath(path: string, maxLen: number): string {
+  const shortened = path.replace(/^\/(?:Users|home)\/[^/]+/, "~");
+  if (shortened.length <= maxLen) return shortened;
+  const keep = maxLen - 1; // 1 for "…"
+  const tail = Math.ceil(keep / 2);
+  const head = keep - tail;
+  return shortened.slice(0, head) + "…" + shortened.slice(-tail);
+}
 
 function BudgetLayout() {
   const { path, name } = Route.useSearch();
@@ -140,18 +157,28 @@ function BudgetLayout() {
     <BudgetProvider value={budgetCtx}>
       <div className="flex h-screen flex-col">
         <header className="grid grid-cols-3 items-center border-b px-4 py-2 bg-background/80 backdrop-blur-sm">
-          <div className="flex items-center gap-1">
-            <Button
-              variant="ghost"
-              size="sm"
-              className="gap-1 text-muted-foreground hover:text-foreground"
-              onClick={() => navigate({ to: "/" })}
-            >
-              <ChevronLeft className="h-4 w-4" />
-              Budgets
-            </Button>
-            <span className="text-border mx-1">/</span>
-            <h1 className="text-sm font-semibold">{name}</h1>
+          <div className="flex items-center">
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                render={
+                  <Button variant="ghost" size="sm" className="gap-1.5 font-semibold" />
+                }
+              >
+                {shortenPath(path, 21)}
+                <ChevronDown className="h-3 w-3 text-muted-foreground" />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="min-w-48">
+                <DropdownMenuItem onClick={() => shellOpen(path)}>
+                  <FolderOpen className="h-4 w-4" />
+                  Reveal in Finder
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => navigate({ to: "/" })}>
+                  <LogOut className="h-4 w-4" />
+                  Close Budget
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
           <div className="flex justify-center">
             <button
