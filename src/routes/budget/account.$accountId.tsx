@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { TransactionList } from "@/components/budget/transaction-list";
-import { TransactionToolbar, type TransactionFilters } from "@/components/budget/transaction-toolbar";
+import { TransactionToolbar } from "@/components/budget/transaction-toolbar";
 import { DeleteTransactionDialog } from "@/components/budget/delete-transaction-dialog";
 import { AccountHeader } from "@/components/budget/account-header";
 import { useBudgetUI } from "@/contexts/budget-context";
-import { useAccounts, useTransactions } from "@/hooks/use-budget-data";
+import { useAccounts, useCategories, useTransactions } from "@/hooks/use-budget-data";
+import { useTransactionFilters } from "@/hooks/use-transaction-filters";
 import { getTransactionsForAccount, getAccountBalance } from "@/lib/queries";
 import type { Transaction } from "@/lib/types";
 
@@ -17,15 +18,13 @@ function AccountView() {
   const { accountId } = Route.useParams();
   const { data: accounts = [] } = useAccounts();
   const { data: transactions = [] } = useTransactions();
+  const { data: categories = [] } = useCategories();
   const { editingTxnId, editTransaction, deleteTransaction, setCurrentAccountId } = useBudgetUI();
   const account = accounts.find((a) => a.id === accountId);
 
+  const accountTransactions = getTransactionsForAccount(accountId, transactions);
+  const { filters, setFilters, filtered } = useTransactionFilters(accountTransactions, accounts, categories);
   const [deletingTxn, setDeletingTxn] = useState<Transaction | null>(null);
-  const [filters, setFilters] = useState<TransactionFilters>({
-    search: "",
-    categoryId: null,
-    dateRange: null,
-  });
 
   useEffect(() => {
     setCurrentAccountId(accountId);
@@ -40,7 +39,6 @@ function AccountView() {
     );
   }
 
-  const accountTransactions = getTransactionsForAccount(accountId, transactions);
   const balance = getAccountBalance(accountId, transactions);
 
   const handleDelete = () => {
@@ -56,7 +54,7 @@ function AccountView() {
         <TransactionToolbar filters={filters} onFiltersChange={setFilters} />
 
         <TransactionList
-          transactions={accountTransactions}
+          transactions={filtered}
           showAccountColumn={false}
           editingTransactionId={editingTxnId}
           onEdit={editTransaction}

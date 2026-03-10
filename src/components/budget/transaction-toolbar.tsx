@@ -1,24 +1,21 @@
 import { Input } from "@/components/ui/input";
 import { CategorySelector } from "@/components/budget/category-selector";
-import { DateRangePicker, type DateRangeValue } from "@/components/budget/date-range-picker";
+import { DateRangePicker } from "@/components/budget/date-range-picker";
 import { useCategories } from "@/hooks/use-budget-data";
+import type { TransactionFilterCriteria } from "@/lib/filter-transactions";
 import { Search, X } from "lucide-react";
 
-export interface TransactionFilters {
-  search: string;
-  categoryId: string | null;
-  dateRange: DateRangeValue | null;
-}
+export type { TransactionFilterCriteria as TransactionFilters };
 
 interface TransactionToolbarProps {
-  filters: TransactionFilters;
-  onFiltersChange: (filters: TransactionFilters) => void;
+  filters: TransactionFilterCriteria;
+  onFiltersChange: (filters: TransactionFilterCriteria) => void;
 }
 
 export function TransactionToolbar({ filters, onFiltersChange }: TransactionToolbarProps) {
   const { data: categories = [] } = useCategories();
 
-  const update = (patch: Partial<TransactionFilters>) =>
+  const update = (patch: Partial<TransactionFilterCriteria>) =>
     onFiltersChange({ ...filters, ...patch });
 
   return (

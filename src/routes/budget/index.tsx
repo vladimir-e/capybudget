@@ -1,10 +1,11 @@
 import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { TransactionList } from "@/components/budget/transaction-list";
-import { TransactionToolbar, type TransactionFilters } from "@/components/budget/transaction-toolbar";
+import { TransactionToolbar } from "@/components/budget/transaction-toolbar";
 import { DeleteTransactionDialog } from "@/components/budget/delete-transaction-dialog";
 import { useBudgetUI } from "@/contexts/budget-context";
-import { useTransactions } from "@/hooks/use-budget-data";
+import { useAccounts, useCategories, useTransactions } from "@/hooks/use-budget-data";
+import { useTransactionFilters } from "@/hooks/use-transaction-filters";
 import type { Transaction } from "@/lib/types";
 
 export const Route = createFileRoute("/budget/")({
@@ -13,13 +14,11 @@ export const Route = createFileRoute("/budget/")({
 
 function AllAccountsView() {
   const { data: transactions = [] } = useTransactions();
+  const { data: accounts = [] } = useAccounts();
+  const { data: categories = [] } = useCategories();
   const { editingTxnId, editTransaction, deleteTransaction } = useBudgetUI();
+  const { filters, setFilters, filtered } = useTransactionFilters(transactions, accounts, categories);
   const [deletingTxn, setDeletingTxn] = useState<Transaction | null>(null);
-  const [filters, setFilters] = useState<TransactionFilters>({
-    search: "",
-    categoryId: null,
-    dateRange: null,
-  });
 
   const handleDelete = () => {
     if (!deletingTxn) return;
@@ -40,7 +39,7 @@ function AllAccountsView() {
         <TransactionToolbar filters={filters} onFiltersChange={setFilters} />
 
         <TransactionList
-          transactions={transactions}
+          transactions={filtered}
           showAccountColumn={true}
           editingTransactionId={editingTxnId}
           onEdit={editTransaction}
