@@ -53,7 +53,6 @@ export function CategoryGroupSection({
           setAddName("");
           setAdding(false);
         },
-        onError: (err) => toast.error(err.message),
       },
     );
   }
@@ -75,7 +74,6 @@ export function CategoryGroupSection({
           toast.success("Category renamed");
           setRenamingId(null);
         },
-        onError: (err) => toast.error(err.message),
       },
     );
   }
@@ -84,12 +82,10 @@ export function CategoryGroupSection({
     if (category.archived) {
       unarchiveCategory.mutate(category.id, {
         onSuccess: () => toast.success(`${category.name} unarchived`),
-        onError: (err) => toast.error(err.message),
       });
     } else {
       archiveCategory.mutate(category.id, {
         onSuccess: () => toast.success(`${category.name} archived`),
-        onError: (err) => toast.error(err.message),
       });
     }
   }

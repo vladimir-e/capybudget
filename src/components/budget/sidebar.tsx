@@ -100,12 +100,10 @@ export function Sidebar({
     if (account.archived) {
       unarchiveAccount.mutate(account.id, {
         onSuccess: () => toast.success(`${account.name} unarchived`),
-        onError: (err) => toast.error(err.message),
       });
     } else {
       archiveAccount.mutate(account.id, {
         onSuccess: () => toast.success(`${account.name} archived`),
-        onError: (err) => toast.error(err.message),
       });
     }
   }
@@ -113,7 +111,6 @@ export function Sidebar({
   function handleDelete(account: Account) {
     deleteAccount.mutate(account.id, {
       onSuccess: () => toast.success(`${account.name} deleted`),
-      onError: (err) => toast.error(err.message),
     });
   }
 

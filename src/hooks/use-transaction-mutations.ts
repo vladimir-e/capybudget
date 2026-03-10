@@ -1,5 +1,4 @@
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useBudgetRepository } from "@/repositories";
+import { useMutation } from "@tanstack/react-query";
 import {
   createTransaction,
   updateTransaction,
@@ -7,13 +6,11 @@ import {
   type TransactionFormData,
 } from "@/services/transactions";
 import { budgetKeys } from "@/hooks/use-budget-data";
-import { useUndoRedo } from "@/hooks/use-undo-redo";
+import { useMutationDeps } from "@/hooks/use-mutation-deps";
 import type { Transaction } from "@/lib/types";
 
 export function useCreateTransaction() {
-  const queryClient = useQueryClient();
-  const repo = useBudgetRepository();
-  const { captureSnapshot } = useUndoRedo();
+  const { queryClient, repo, captureSnapshot } = useMutationDeps();
 
   return useMutation({
     mutationFn: async (data: TransactionFormData) => {
@@ -28,9 +25,7 @@ export function useCreateTransaction() {
 }
 
 export function useUpdateTransaction() {
-  const queryClient = useQueryClient();
-  const repo = useBudgetRepository();
-  const { captureSnapshot } = useUndoRedo();
+  const { queryClient, repo, captureSnapshot } = useMutationDeps();
 
   return useMutation({
     mutationFn: async (data: TransactionFormData) => {
@@ -45,9 +40,7 @@ export function useUpdateTransaction() {
 }
 
 export function useDeleteTransaction() {
-  const queryClient = useQueryClient();
-  const repo = useBudgetRepository();
-  const { captureSnapshot } = useUndoRedo();
+  const { queryClient, repo, captureSnapshot } = useMutationDeps();
 
   return useMutation({
     mutationFn: async (txn: Transaction) => {

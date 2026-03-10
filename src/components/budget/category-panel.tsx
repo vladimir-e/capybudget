@@ -41,7 +41,6 @@ export function CategoryPanel({ categories }: CategoryPanelProps) {
           setNewGroupName("");
           setAddingGroup(false);
         },
-        onError: (err) => toast.error(err.message),
       },
     );
   }

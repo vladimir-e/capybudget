@@ -49,7 +49,6 @@ export function AddAccountDialog({ open, onOpenChange }: AddAccountDialogProps) 
           toast.success("Account created");
           handleClose(false);
         },
-        onError: (err) => toast.error(err.message),
       },
     );
   }

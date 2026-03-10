@@ -1,7 +1,6 @@
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useBudgetRepository } from "@/repositories";
+import { useMutation } from "@tanstack/react-query";
 import { budgetKeys } from "@/hooks/use-budget-data";
-import { useUndoRedo } from "@/hooks/use-undo-redo";
+import { useMutationDeps } from "@/hooks/use-mutation-deps";
 import type { Category, Transaction } from "@/lib/types";
 import {
   type CategoryFormData,
@@ -14,9 +13,7 @@ import {
 } from "@/services/categories";
 
 export function useCreateCategory() {
-  const queryClient = useQueryClient();
-  const repo = useBudgetRepository();
-  const { captureSnapshot } = useUndoRedo();
+  const { queryClient, repo, captureSnapshot } = useMutationDeps();
   return useMutation({
     mutationFn: async (data: CategoryFormData) => {
       captureSnapshot();
@@ -31,9 +28,7 @@ export function useCreateCategory() {
 }
 
 export function useUpdateCategory() {
-  const queryClient = useQueryClient();
-  const repo = useBudgetRepository();
-  const { captureSnapshot } = useUndoRedo();
+  const { queryClient, repo, captureSnapshot } = useMutationDeps();
   return useMutation({
     mutationFn: async (data: CategoryFormData) => {
       captureSnapshot();
@@ -48,9 +43,7 @@ export function useUpdateCategory() {
 }
 
 export function useDeleteCategory() {
-  const queryClient = useQueryClient();
-  const repo = useBudgetRepository();
-  const { captureSnapshot } = useUndoRedo();
+  const { queryClient, repo, captureSnapshot } = useMutationDeps();
   return useMutation({
     mutationFn: async (categoryId: string) => {
       captureSnapshot();
@@ -74,9 +67,7 @@ export function useDeleteCategory() {
 }
 
 export function useArchiveCategory() {
-  const queryClient = useQueryClient();
-  const repo = useBudgetRepository();
-  const { captureSnapshot } = useUndoRedo();
+  const { queryClient, repo, captureSnapshot } = useMutationDeps();
   return useMutation({
     mutationFn: async (categoryId: string) => {
       captureSnapshot();
@@ -91,9 +82,7 @@ export function useArchiveCategory() {
 }
 
 export function useUnarchiveCategory() {
-  const queryClient = useQueryClient();
-  const repo = useBudgetRepository();
-  const { captureSnapshot } = useUndoRedo();
+  const { queryClient, repo, captureSnapshot } = useMutationDeps();
   return useMutation({
     mutationFn: async (categoryId: string) => {
       captureSnapshot();
@@ -108,9 +97,7 @@ export function useUnarchiveCategory() {
 }
 
 export function useReorderCategories() {
-  const queryClient = useQueryClient();
-  const repo = useBudgetRepository();
-  const { captureSnapshot } = useUndoRedo();
+  const { queryClient, repo, captureSnapshot } = useMutationDeps();
   return useMutation({
     mutationFn: async (data: { group: string; orderedIds: string[] }) => {
       captureSnapshot();

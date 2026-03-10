@@ -1,7 +1,6 @@
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useBudgetRepository } from "@/repositories";
+import { useMutation } from "@tanstack/react-query";
 import { budgetKeys } from "@/hooks/use-budget-data";
-import { useUndoRedo } from "@/hooks/use-undo-redo";
+import { useMutationDeps } from "@/hooks/use-mutation-deps";
 import type { Account, Transaction } from "@/lib/types";
 import {
   type AccountFormData,
@@ -15,9 +14,7 @@ import {
 } from "@/services/accounts";
 
 export function useCreateAccount() {
-  const queryClient = useQueryClient();
-  const repo = useBudgetRepository();
-  const { captureSnapshot } = useUndoRedo();
+  const { queryClient, repo, captureSnapshot } = useMutationDeps();
   return useMutation({
     mutationFn: async (data: AccountFormData) => {
       captureSnapshot();
@@ -48,9 +45,7 @@ export function useCreateAccount() {
 }
 
 export function useUpdateAccount() {
-  const queryClient = useQueryClient();
-  const repo = useBudgetRepository();
-  const { captureSnapshot } = useUndoRedo();
+  const { queryClient, repo, captureSnapshot } = useMutationDeps();
   return useMutation({
     mutationFn: async (data: AccountFormData) => {
       captureSnapshot();
@@ -65,9 +60,7 @@ export function useUpdateAccount() {
 }
 
 export function useDeleteAccount() {
-  const queryClient = useQueryClient();
-  const repo = useBudgetRepository();
-  const { captureSnapshot } = useUndoRedo();
+  const { queryClient, repo, captureSnapshot } = useMutationDeps();
   return useMutation({
     mutationFn: async (accountId: string) => {
       captureSnapshot();
@@ -87,9 +80,7 @@ export function useDeleteAccount() {
 }
 
 export function useArchiveAccount() {
-  const queryClient = useQueryClient();
-  const repo = useBudgetRepository();
-  const { captureSnapshot } = useUndoRedo();
+  const { queryClient, repo, captureSnapshot } = useMutationDeps();
   return useMutation({
     mutationFn: async (accountId: string) => {
       captureSnapshot();
@@ -107,15 +98,13 @@ export function useArchiveAccount() {
 }
 
 export function useReorderAccounts() {
-  const queryClient = useQueryClient();
-  const repo = useBudgetRepository();
-  const { captureSnapshot } = useUndoRedo();
+  const { queryClient, repo, captureSnapshot } = useMutationDeps();
   return useMutation({
-    mutationFn: async (data: { type: string; orderedIds: string[] }) => {
+    mutationFn: async (data: { type: Account["type"]; orderedIds: string[] }) => {
       captureSnapshot();
       const prev =
         queryClient.getQueryData<Account[]>(budgetKeys.accounts()) ?? [];
-      const next = reorderAccounts(data.type as Account["type"], data.orderedIds, prev);
+      const next = reorderAccounts(data.type, data.orderedIds, prev);
       queryClient.setQueryData(budgetKeys.accounts(), next);
       await repo.saveAccounts(next);
       return next;
@@ -124,9 +113,7 @@ export function useReorderAccounts() {
 }
 
 export function useUnarchiveAccount() {
-  const queryClient = useQueryClient();
-  const repo = useBudgetRepository();
-  const { captureSnapshot } = useUndoRedo();
+  const { queryClient, repo, captureSnapshot } = useMutationDeps();
   return useMutation({
     mutationFn: async (accountId: string) => {
       captureSnapshot();

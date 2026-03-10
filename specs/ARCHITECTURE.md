@@ -22,64 +22,6 @@
 | Folder picker     | `@tauri-apps/plugin-dialog` |
 | Spawn Claude Code | `@tauri-apps/plugin-shell`  |
 
-## Project Structure
-
-```
-capybudget/
-├── src-tauri/
-│   ├── src/lib.rs              ← Plugin registration only
-│   ├── Cargo.toml
-│   └── tauri.conf.json
-├── src/
-│   ├── routes/                 ← TanStack Router file-based routes
-│   │   ├── __root.tsx          ← Root layout (toaster, providers)
-│   │   ├── index.tsx           ← Budget selector (home screen)
-│   │   ├── budget.tsx          ← Budget workspace (RepositoryProvider + BudgetShell)
-│   │   └── budget/             ← Nested budget routes
-│   │       ├── index.tsx       ← All Accounts view
-│   │       ├── account.$accountId.tsx ← Single account view
-│   │       └── categories.tsx  ← Category management
-│   ├── components/
-│   │   ├── ui/                 ← shadcn components (owned, not imported)
-│   │   └── budget/             ← Budget-specific components
-│   │       ├── budget-shell.tsx      ← Layout, form state, keyboard shortcuts
-│   │       ├── transaction-view.tsx  ← Shared toolbar + list + delete pattern
-│   │       ├── sidebar.tsx           ← Account navigation
-│   │       ├── transaction-list.tsx  ← Transaction table
-│   │       ├── transaction-form.tsx  ← Add/edit transaction form
-│   │       └── ...
-│   ├── repositories/           ← Storage adapter pattern
-│   │   ├── types.ts            ← BudgetRepository interface
-│   │   ├── mock-repository.ts  ← Mock adapter (returns mock data)
-│   │   ├── repository-context.ts ← React context for DI
-│   │   └── index.ts            ← Barrel export
-│   ├── services/
-│   │   ├── budget.ts           ← Budget detection, bootstrap, migration
-│   │   └── transactions.ts     ← Pure transaction mutation functions
-│   ├── stores/
-│   │   └── app-store.ts        ← Zustand store (recent budgets, persisted)
-│   ├── contexts/
-│   │   └── budget-context.tsx   ← BudgetUIContext (UI state only)
-│   ├── hooks/
-│   │   ├── use-budget-data.ts  ← TanStack Query read hooks
-│   │   ├── use-transaction-mutations.ts ← TanStack Query mutation hooks
-│   │   └── use-transaction-filters.ts   ← Filter state + memoized filtering
-│   ├── lib/
-│   │   ├── types.ts            ← Shared TypeScript types
-│   │   ├── money.ts            ← Integer math, formatting, parsing
-│   │   ├── queries.ts          ← Pure query functions (balance, grouping)
-│   │   ├── default-categories.ts ← Single source of truth for category defaults
-│   │   ├── filter-transactions.ts ← Pure transaction filtering
-│   │   └── utils.ts            ← cn() helper, common utilities
-│   ├── main.tsx                ← App entry point
-│   └── index.css               ← Tailwind + shadcn theme
-├── specs/                      ← Architecture and product documentation
-├── components.json             ← shadcn/ui configuration
-├── vite.config.ts
-├── tsconfig.json
-└── package.json
-```
-
 ## Architecture Principles
 
 ### All Logic in TypeScript

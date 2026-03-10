@@ -1,7 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { useBudgetRepository } from "@/repositories";
+import { useAccounts } from "@/hooks/use-budget-data";
 import { budgetKeys } from "@/hooks/use-budget-data";
-import type { Transaction } from "@/lib/types";
+import { getAccountBalance, getNetWorth } from "@/lib/queries";
 
 export function useAccountBalance(accountId: string) {
   const repo = useBudgetRepository();
@@ -9,20 +10,17 @@ export function useAccountBalance(accountId: string) {
     queryKey: budgetKeys.transactions(),
     queryFn: () => repo.getTransactions(),
     staleTime: Infinity,
-    select: (transactions: Transaction[]) =>
-      transactions
-        .filter((t) => t.accountId === accountId)
-        .reduce((sum, t) => sum + t.amount, 0),
+    select: (transactions) => getAccountBalance(accountId, transactions),
   });
 }
 
 export function useNetWorth() {
+  const { data: accounts = [] } = useAccounts();
   const repo = useBudgetRepository();
   return useQuery({
     queryKey: budgetKeys.transactions(),
     queryFn: () => repo.getTransactions(),
     staleTime: Infinity,
-    select: (transactions: Transaction[]) =>
-      transactions.reduce((sum, t) => sum + t.amount, 0),
+    select: (transactions) => getNetWorth(accounts, transactions),
   });
 }
