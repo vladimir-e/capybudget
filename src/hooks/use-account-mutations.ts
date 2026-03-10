@@ -76,17 +76,12 @@ export function useDeleteAccount() {
       const prevTransactions =
         queryClient.getQueryData<Transaction[]>(budgetKeys.transactions()) ??
         [];
-      const nextAccounts = deleteAccount(accountId, prevAccounts, prevTransactions);
-      queryClient.setQueryData(budgetKeys.accounts(), nextAccounts);
-      await repo.saveAccounts(nextAccounts);
-
-      const nextTransactions = prevTransactions.filter(
-        (t) => t.accountId !== accountId,
-      );
-      queryClient.setQueryData(budgetKeys.transactions(), nextTransactions);
-      await repo.saveTransactions(nextTransactions);
-
-      return { accounts: nextAccounts, transactions: nextTransactions };
+      const { accounts, transactions } = deleteAccount(accountId, prevAccounts, prevTransactions);
+      queryClient.setQueryData(budgetKeys.accounts(), accounts);
+      queryClient.setQueryData(budgetKeys.transactions(), transactions);
+      await repo.saveAccounts(accounts);
+      await repo.saveTransactions(transactions);
+      return { accounts, transactions };
     },
   });
 }

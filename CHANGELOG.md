@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.3.0 — 2026-03-10
+
+CSV persistence, full CRUD, undo/redo.
+
+### Added
+- CSV persistence layer: generic read/write with atomic writes (temp→rename) and debounced flush
+- CsvRepository replacing MockRepository — data survives app restarts
+- Account CRUD: create with opening balance, edit, archive (blocked if balance non-zero), delete (blocked if has transactions), drag-and-drop reorder
+- Category CRUD: create, rename, archive/unarchive, delete (clears transaction refs), reorder within groups
+- Transaction CRUD wired to CSV persistence with optimistic cache updates
+- Derived queries: useAccountBalance, useNetWorth via TanStack Query select
+- Undo/redo: session-scoped 50-snapshot stack with Cmd+Z / Cmd+Shift+Z
+- "New Transaction" redirects to "Add Account" when no accounts exist
+- Enter-to-submit in Add Account dialog
+- Selected account type uses brand color for better visibility
+
+### Fixed
+- Account deletion no longer wipes all transactions — correctly blocked when >1 transaction exists, cleans up only the opening balance transaction
+- Opening balance transactions consistently use empty categoryId (was inconsistent in mock data)
+
 ## 0.2.0 — 2026-03-09
 
 UI shell with mock data: accounts, transactions, categories.

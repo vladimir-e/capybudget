@@ -144,14 +144,16 @@ describe("deleteAccount", () => {
   it("removes the account when it has no transactions", () => {
     const acc = makeAccount({ id: "acc-1" });
     const result = deleteAccount("acc-1", [acc], []);
-    expect(result).toHaveLength(0);
+    expect(result.accounts).toHaveLength(0);
+    expect(result.transactions).toHaveLength(0);
   });
 
-  it("removes the account when it has exactly 1 transaction (opening balance)", () => {
+  it("removes the account and its opening balance transaction", () => {
     const acc = makeAccount({ id: "acc-1" });
     const txns = [makeTxn({ accountId: "acc-1" })];
     const result = deleteAccount("acc-1", [acc], txns);
-    expect(result).toHaveLength(0);
+    expect(result.accounts).toHaveLength(0);
+    expect(result.transactions).toHaveLength(0);
   });
 
   it("throws when account has more than 1 transaction", () => {
@@ -165,12 +167,15 @@ describe("deleteAccount", () => {
     );
   });
 
-  it("does not remove other accounts", () => {
+  it("does not remove other accounts or their transactions", () => {
     const acc1 = makeAccount({ id: "acc-1" });
     const acc2 = makeAccount({ id: "acc-2" });
-    const result = deleteAccount("acc-1", [acc1, acc2], []);
-    expect(result).toHaveLength(1);
-    expect(result[0].id).toBe("acc-2");
+    const otherTxn = makeTxn({ accountId: "acc-2" });
+    const result = deleteAccount("acc-1", [acc1, acc2], [otherTxn]);
+    expect(result.accounts).toHaveLength(1);
+    expect(result.accounts[0].id).toBe("acc-2");
+    expect(result.transactions).toHaveLength(1);
+    expect(result.transactions[0].accountId).toBe("acc-2");
   });
 });
 

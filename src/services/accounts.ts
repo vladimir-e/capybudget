@@ -63,14 +63,17 @@ export function deleteAccount(
   accountId: string,
   accounts: Account[],
   transactions: Transaction[],
-): Account[] {
+): { accounts: Account[]; transactions: Transaction[] } {
   const accountTxns = transactions.filter((t) => t.accountId === accountId);
   if (accountTxns.length > 1) {
     throw new Error(
       "Cannot delete account with more than one transaction. Remove transactions first.",
     );
   }
-  return accounts.filter((a) => a.id !== accountId);
+  return {
+    accounts: accounts.filter((a) => a.id !== accountId),
+    transactions: transactions.filter((t) => t.accountId !== accountId),
+  };
 }
 
 export function archiveAccount(
