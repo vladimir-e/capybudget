@@ -12,6 +12,9 @@ import {
   useUpdateTransaction,
   useDeleteTransaction,
 } from "@/hooks/use-transaction-mutations";
+import { useUndoRedo } from "@/hooks/use-undo-redo";
+import { useReorderAccounts } from "@/hooks/use-account-mutations";
+import { useAccounts } from "@/hooks/use-budget-data";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -44,6 +47,10 @@ export function BudgetShell({ path, name }: BudgetShellProps) {
   const createTxn = useCreateTransaction();
   const updateTxn = useUpdateTransaction();
   const deleteTxnMutation = useDeleteTransaction();
+  const { undo, redo } = useUndoRedo();
+  const reorderAccounts = useReorderAccounts();
+  const { data: accounts = [] } = useAccounts();
+  const hasAccounts = accounts.some((a) => !a.archived);
 
   const [addAccountOpen, setAddAccountOpen] = useState(false);
   const [formOpen, setFormOpen] = useState(false);
@@ -55,22 +62,35 @@ export function BudgetShell({ path, name }: BudgetShellProps) {
   const isMac = navigator.userAgent.includes("Mac");
 
   const toggleForm = useCallback(() => {
+    if (!hasAccounts) {
+      setAddAccountOpen(true);
+      return;
+    }
     setFormOpen((prev) => {
       if (prev) setEditingTxn(null);
       return !prev;
     });
-  }, []);
+  }, [hasAccounts]);
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
-      if ((e.metaKey || e.ctrlKey) && e.key === "n") {
+      const mod = e.metaKey || e.ctrlKey;
+      if (mod && e.key === "n") {
         e.preventDefault();
         toggleForm();
+      }
+      if (mod && e.key === "z" && !e.shiftKey) {
+        e.preventDefault();
+        undo();
+      }
+      if (mod && e.key === "z" && e.shiftKey) {
+        e.preventDefault();
+        redo();
       }
     }
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [toggleForm]);
+  }, [toggleForm, undo, redo]);
 
   useEffect(() => {
     if (formOpen) {
@@ -80,10 +100,10 @@ export function BudgetShell({ path, name }: BudgetShellProps) {
   }, [formOpen, formKey]);
 
   const handleReorderAccounts = useCallback(
-    function reorder() {
-      // Account reordering will be wired with account mutations in Phase 2
+    (type: import("@/lib/types").AccountType, orderedIds: string[]) => {
+      reorderAccounts.mutate({ type, orderedIds });
     },
-    [],
+    [reorderAccounts],
   );
 
   const handleSave = useCallback((data: TransactionFormData) => {

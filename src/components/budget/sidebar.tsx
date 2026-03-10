@@ -1,5 +1,5 @@
 import { Link, useMatches } from "@tanstack/react-router";
-import { ChevronDown, ChevronLeft, ChevronRight, GripVertical, Layers, MoreHorizontal, Pencil, Archive, ArchiveRestore, Trash2, Plus, Settings } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight, GripVertical, Layers, MoreHorizontal, Archive, ArchiveRestore, Trash2, Plus, Settings } from "lucide-react";
 import { useState } from "react";
 import {
   DndContext,
@@ -31,6 +31,11 @@ import { formatMoney } from "@/lib/money";
 import { ACCOUNT_TYPE_LABELS } from "@/lib/account-type-labels";
 import { getAccountBalance, getAccountsByGroup, getNetWorth } from "@/lib/queries";
 import { useAccounts, useTransactions } from "@/hooks/use-budget-data";
+import {
+  useDeleteAccount,
+  useArchiveAccount,
+  useUnarchiveAccount,
+} from "@/hooks/use-account-mutations";
 import type { Account, AccountType } from "@/lib/types";
 import { toast } from "sonner";
 
@@ -49,6 +54,9 @@ export function Sidebar({
 }: SidebarProps) {
   const { data: accounts = [] } = useAccounts();
   const { data: transactions = [] } = useTransactions();
+  const deleteAccount = useDeleteAccount();
+  const archiveAccount = useArchiveAccount();
+  const unarchiveAccount = useUnarchiveAccount();
   const [collapsed, setCollapsed] = useState(false);
   const [showArchived, setShowArchived] = useState(false);
   const matches = useMatches();
@@ -83,6 +91,27 @@ export function Sidebar({
         break;
       }
     }
+  }
+
+  function handleArchive(account: Account) {
+    if (account.archived) {
+      unarchiveAccount.mutate(account.id, {
+        onSuccess: () => toast.success(`${account.name} unarchived`),
+        onError: (err) => toast.error(err.message),
+      });
+    } else {
+      archiveAccount.mutate(account.id, {
+        onSuccess: () => toast.success(`${account.name} archived`),
+        onError: (err) => toast.error(err.message),
+      });
+    }
+  }
+
+  function handleDelete(account: Account) {
+    deleteAccount.mutate(account.id, {
+      onSuccess: () => toast.success(`${account.name} deleted`),
+      onError: (err) => toast.error(err.message),
+    });
   }
 
   if (collapsed) {
@@ -187,6 +216,8 @@ export function Sidebar({
                           budgetPath={budgetPath}
                           budgetName={budgetName}
                           isActive={activeAccountId === account.id}
+                          onArchive={handleArchive}
+                          onDelete={handleDelete}
                         />
                       ))}
                     </div>
@@ -223,6 +254,8 @@ export function Sidebar({
                       budgetName={budgetName}
                       isActive={activeAccountId === account.id}
                       dimmed
+                      onArchive={handleArchive}
+                      onDelete={handleDelete}
                     />
                   ))}
                 </div>
@@ -269,6 +302,8 @@ interface AccountRowProps {
   budgetName: string;
   isActive: boolean;
   dimmed?: boolean;
+  onArchive: (account: Account) => void;
+  onDelete: (account: Account) => void;
 }
 
 function SortableAccountRow(props: AccountRowProps) {
@@ -302,6 +337,8 @@ function AccountRow({
   budgetName,
   isActive,
   dimmed,
+  onArchive,
+  onDelete,
   dragHandleProps,
 }: AccountRowProps & {
   dragHandleProps?: Record<string, unknown>;
@@ -354,11 +391,7 @@ function AccountRow({
           <MoreHorizontal className="h-3.5 w-3.5" />
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start" side="right" sideOffset={4}>
-          <DropdownMenuItem onClick={() => toast.info("Edit account — coming in Phase 2")}>
-            <Pencil className="mr-2 h-4 w-4" />
-            Edit
-          </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => toast.info(`${account.archived ? "Unarchive" : "Archive"} account — coming in Phase 2`)}>
+          <DropdownMenuItem onClick={() => onArchive(account)}>
             {account.archived ? (
               <ArchiveRestore className="mr-2 h-4 w-4" />
             ) : (
@@ -369,7 +402,7 @@ function AccountRow({
           <DropdownMenuSeparator />
           <DropdownMenuItem
             variant="destructive"
-            onClick={() => toast.info("Delete account — coming in Phase 2")}
+            onClick={() => onDelete(account)}
           >
             <Trash2 className="mr-2 h-4 w-4" />
             Delete
