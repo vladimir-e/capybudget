@@ -1,5 +1,5 @@
 import { Link, useMatches } from "@tanstack/react-router";
-import { ChevronDown, ChevronLeft, ChevronRight, GripVertical, Layers, MoreHorizontal, Archive, ArchiveRestore, Trash2, Plus, Settings } from "lucide-react";
+import { ChevronDown, ChevronRight, GripVertical, Layers, MoreHorizontal, Archive, ArchiveRestore, Trash2, Plus, Settings } from "lucide-react";
 import { useState } from "react";
 import {
   DndContext,
@@ -42,6 +42,8 @@ import { toast } from "sonner";
 interface SidebarProps {
   budgetPath: string;
   budgetName: string;
+  collapsed: boolean;
+  onCollapse: (collapsed: boolean) => void;
   onAddAccount: () => void;
   onReorderAccounts: (type: AccountType, orderedIds: string[]) => void;
 }
@@ -49,6 +51,8 @@ interface SidebarProps {
 export function Sidebar({
   budgetPath,
   budgetName,
+  collapsed,
+  onCollapse,
   onAddAccount,
   onReorderAccounts,
 }: SidebarProps) {
@@ -57,7 +61,6 @@ export function Sidebar({
   const deleteAccount = useDeleteAccount();
   const archiveAccount = useArchiveAccount();
   const unarchiveAccount = useUnarchiveAccount();
-  const [collapsed, setCollapsed] = useState(false);
   const [showArchived, setShowArchived] = useState(false);
   const matches = useMatches();
   const activeAccountId = matches.reduce<string | undefined>((found, m) => {
@@ -121,7 +124,7 @@ export function Sidebar({
           variant="ghost"
           size="icon"
           className="mb-4 h-8 w-8"
-          onClick={() => setCollapsed(false)}
+          onClick={() => onCollapse(false)}
         >
           <ChevronRight className="h-4 w-4" />
         </Button>
@@ -137,9 +140,9 @@ export function Sidebar({
   }
 
   return (
-    <div className="flex w-72 flex-col border-r border-sidebar-border bg-sidebar">
+    <div className="relative flex w-72 flex-col border-r border-sidebar-border bg-sidebar">
       {/* Net Worth — warm hero area */}
-      <div className="relative px-4 pt-4 pb-3">
+      <div className="px-4 pt-4 pb-3">
         <div className="rounded-lg bg-brand-subtle px-3 py-3">
           <div className="text-xs font-medium text-brand/70 uppercase tracking-wider">
             Net Worth
@@ -148,14 +151,6 @@ export function Sidebar({
             {formatMoney(netWorth)}
           </div>
         </div>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="absolute right-2 top-14 h-7 w-7 text-muted-foreground hover:text-foreground"
-          onClick={() => setCollapsed(true)}
-        >
-          <ChevronLeft className="h-3.5 w-3.5" />
-        </Button>
       </div>
 
       <ScrollArea className="flex-1 min-h-0">

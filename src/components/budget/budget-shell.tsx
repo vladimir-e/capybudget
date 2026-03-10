@@ -22,7 +22,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { ChevronDown, FolderOpen, LogOut } from "lucide-react";
+import { ChevronDown, ChevronLeft, FolderOpen, LogOut } from "lucide-react";
 import { open as shellOpen } from "@tauri-apps/plugin-shell";
 import type { Transaction } from "@/lib/types";
 import type { TransactionFormData } from "@/services/transactions";
@@ -52,6 +52,7 @@ export function BudgetShell({ path, name }: BudgetShellProps) {
   const { data: accounts = [] } = useAccounts();
   const hasAccounts = accounts.some((a) => !a.archived);
 
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [addAccountOpen, setAddAccountOpen] = useState(false);
   const [formOpen, setFormOpen] = useState(false);
   const [editingTxn, setEditingTxn] = useState<Transaction | null>(null);
@@ -209,10 +210,22 @@ export function BudgetShell({ path, name }: BudgetShellProps) {
           <Sidebar
             budgetPath={path}
             budgetName={name}
+            collapsed={sidebarCollapsed}
+            onCollapse={setSidebarCollapsed}
             onAddAccount={() => setAddAccountOpen(true)}
             onReorderAccounts={handleReorderAccounts}
           />
-          <main className="flex-1 overflow-auto bg-background">
+          <main className="relative flex-1 overflow-auto bg-background">
+            {!sidebarCollapsed && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="absolute right-3 top-3 z-10 h-7 w-7 text-muted-foreground hover:text-foreground"
+                onClick={() => setSidebarCollapsed(true)}
+              >
+                <ChevronLeft className="h-3.5 w-3.5" />
+              </Button>
+            )}
             <Outlet />
           </main>
           <div
