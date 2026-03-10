@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { open } from "@tauri-apps/plugin-dialog";
 import { toast } from "sonner";
+import { FolderOpen } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -11,6 +12,8 @@ import {
 } from "@/components/ui/card";
 import { useAppStore } from "@/stores/app-store";
 import { detectBudget, bootstrapBudget } from "@/services/budget";
+import { ThemeToggle } from "@/components/theme-toggle";
+import { ColorThemeSwitcher } from "@/components/color-theme-switcher";
 
 export function BudgetSelector() {
   const navigate = useNavigate();
@@ -71,6 +74,10 @@ export function BudgetSelector() {
 
   return (
     <div className="flex h-screen items-center justify-center">
+      <div className="absolute top-4 right-4 flex items-center gap-1">
+        <ColorThemeSwitcher />
+        <ThemeToggle />
+      </div>
       <div className="w-full max-w-lg space-y-8 px-6">
         <div className="text-center space-y-2">
           <h1 className="text-3xl font-bold tracking-tight">Capy Budget</h1>
@@ -80,28 +87,29 @@ export function BudgetSelector() {
         </div>
 
         <Button
-          className="w-full h-12 text-base"
+          className="w-full h-12 text-base gap-2 bg-primary hover:bg-primary/90"
           onClick={handlePickFolder}
           disabled={loading}
         >
+          <FolderOpen className="h-5 w-5" />
           {loading ? "Opening..." : "Open budget folder"}
         </Button>
 
         {recentBudgets.length > 0 && (
           <div className="space-y-3">
-            <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">
+            <h2 className="text-xs font-semibold text-muted-foreground/70 uppercase tracking-wider">
               Recent
             </h2>
             <div className="space-y-2">
               {recentBudgets.map((budget) => (
                 <Card
                   key={budget.path}
-                  className="cursor-pointer transition-colors hover:bg-accent py-0"
+                  className="cursor-pointer transition-all hover:bg-accent hover:shadow-sm py-0 border-border/70"
                   onClick={() => openBudget(budget.path)}
                 >
                   <CardHeader className="flex-row items-center justify-between p-4 space-y-0">
                     <div className="min-w-0">
-                      <CardTitle className="text-base truncate">
+                      <CardTitle className="text-base truncate font-semibold">
                         {budget.name}
                       </CardTitle>
                       <CardDescription className="truncate text-xs font-mono">
@@ -109,13 +117,13 @@ export function BudgetSelector() {
                       </CardDescription>
                     </div>
                     <div className="flex items-center gap-2 shrink-0 ml-4">
-                      <span className="text-xs text-muted-foreground">
+                      <span className="text-xs text-muted-foreground/60">
                         {formatDate(budget.lastOpened)}
                       </span>
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive"
+                        className="h-6 w-6 p-0 text-muted-foreground/40 hover:text-destructive"
                         onClick={(e) => handleRemoveRecent(e, budget.path)}
                       >
                         ×

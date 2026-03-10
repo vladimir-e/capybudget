@@ -1,6 +1,7 @@
 export interface BudgetMeta {
   schemaVersion: number;
   name: string;
+  currency: string;
   createdAt: string;
   lastModified: string;
 }
@@ -24,7 +25,7 @@ export interface Account {
   id: string;
   name: string;
   type: AccountType;
-  startBalance: number;
+  archived: boolean;
   sortOrder: number;
   createdAt: string;
 }
@@ -37,10 +38,10 @@ export type CategoryGroup =
   | "Irregular";
 
 export interface Category {
-  id: number;
+  id: string;
   name: string;
   group: CategoryGroup;
-  assigned: number;
+  archived: boolean;
   sortOrder: number;
 }
 
@@ -48,12 +49,13 @@ export type TransactionType = "income" | "expense" | "transfer";
 
 export interface Transaction {
   id: string;
-  date: string;
+  datetime: string;
   type: TransactionType;
   amount: number;
-  categoryId: number | null;
+  categoryId: string;
   accountId: string;
-  toAccountId: string | null;
+  transferPairId: string;
+  merchant: string;
   note: string;
   createdAt: string;
 }

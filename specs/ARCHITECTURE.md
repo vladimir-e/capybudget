@@ -34,18 +34,42 @@ capybudget/
 │   ├── routes/                 ← TanStack Router file-based routes
 │   │   ├── __root.tsx          ← Root layout (toaster, providers)
 │   │   ├── index.tsx           ← Budget selector (home screen)
-│   │   └── budget.tsx          ← Budget workspace
+│   │   ├── budget.tsx          ← Budget workspace (RepositoryProvider + BudgetShell)
+│   │   └── budget/             ← Nested budget routes
+│   │       ├── index.tsx       ← All Accounts view
+│   │       ├── account.$accountId.tsx ← Single account view
+│   │       └── categories.tsx  ← Category management
 │   ├── components/
 │   │   ├── ui/                 ← shadcn components (owned, not imported)
 │   │   └── budget/             ← Budget-specific components
+│   │       ├── budget-shell.tsx      ← Layout, form state, keyboard shortcuts
+│   │       ├── transaction-view.tsx  ← Shared toolbar + list + delete pattern
+│   │       ├── sidebar.tsx           ← Account navigation
+│   │       ├── transaction-list.tsx  ← Transaction table
+│   │       ├── transaction-form.tsx  ← Add/edit transaction form
+│   │       └── ...
+│   ├── repositories/           ← Storage adapter pattern
+│   │   ├── types.ts            ← BudgetRepository interface
+│   │   ├── mock-repository.ts  ← Mock adapter (returns mock data)
+│   │   ├── repository-context.ts ← React context for DI
+│   │   └── index.ts            ← Barrel export
 │   ├── services/
-│   │   └── budget.ts           ← Budget detection, bootstrap, migration
+│   │   ├── budget.ts           ← Budget detection, bootstrap, migration
+│   │   └── transactions.ts     ← Pure transaction mutation functions
 │   ├── stores/
 │   │   └── app-store.ts        ← Zustand store (recent budgets, persisted)
-│   ├── hooks/                  ← Custom hooks
+│   ├── contexts/
+│   │   └── budget-context.tsx   ← BudgetUIContext (UI state only)
+│   ├── hooks/
+│   │   ├── use-budget-data.ts  ← TanStack Query read hooks
+│   │   ├── use-transaction-mutations.ts ← TanStack Query mutation hooks
+│   │   └── use-transaction-filters.ts   ← Filter state + memoized filtering
 │   ├── lib/
 │   │   ├── types.ts            ← Shared TypeScript types
 │   │   ├── money.ts            ← Integer math, formatting, parsing
+│   │   ├── queries.ts          ← Pure query functions (balance, grouping)
+│   │   ├── default-categories.ts ← Single source of truth for category defaults
+│   │   ├── filter-transactions.ts ← Pure transaction filtering
 │   │   └── utils.ts            ← cn() helper, common utilities
 │   ├── main.tsx                ← App entry point
 │   └── index.css               ← Tailwind + shadcn theme
@@ -70,9 +94,19 @@ User picks folder
   → read CSVs via Tauri fs plugin
   → PapaParse into TypeScript objects
   → load into TanStack Query cache
-  → UI reads from cache
-  → mutations update cache optimistically + schedule debounced CSV flush
+  → UI reads from cache via query hooks
+  → mutations update cache optimistically + call repo.save*()
 ```
+
+### Repository Pattern
+
+Storage is abstracted behind the `BudgetRepository` interface (see `src/repositories/types.ts`). The interface will evolve as new adapters are needed — the current shape is designed for the CSV adapter; future backends (e.g. a database for a web version) may require a different contract.
+
+**Injection:** React context (`RepositoryProvider`) wraps the budget workspace. `useBudgetRepository()` hook provides the active adapter.
+
+### Data Hooks (TanStack Query)
+
+Query hooks (`useAccounts`, `useCategories`, `useTransactions`) wrap repository reads with `staleTime: Infinity`. Mutation hooks apply pure transformations, update the cache optimistically, then persist via the repository.
 
 ### Functional Style
 
@@ -84,7 +118,9 @@ User picks folder
 ### Single Responsibility
 
 Each module owns one concern:
-- A **service** parses CSV — it doesn't render UI
+- A **repository** handles storage I/O — it doesn't know about UI
+- A **service** contains pure data transformations — it doesn't do I/O
+- A **hook** bridges data to React — it doesn't contain business logic
 - A **component** displays data — it doesn't know about file I/O
 - The **intelligence layer** produces structured data — the app validates and writes
 
@@ -94,7 +130,7 @@ Each module owns one concern:
 
 1. Validate locally using shared schema. If invalid, show inline error immediately.
 2. Update in-memory state (TanStack Query cache) immediately. UI reflects change instantly.
-3. Persist to CSV in the background (debounced).
+3. Persist via repository in the background (debounced in CSV adapter).
 4. On write failure: show blocking error — "Something went wrong. Reload to continue." No retry logic, no partial rollback. Deliberately blunt because errors are rare in a local-first app.
 
 ### Undo / Redo
@@ -116,12 +152,12 @@ Route parameters use type-safe search params:
 
 ## State Management
 
-| Concern        | Solution        | Persistence        |
-|----------------|-----------------|---------------------|
-| Budget data    | TanStack Query  | CSV files via Tauri  |
-| Recent budgets | Zustand         | localStorage         |
-| Undo/redo      | Zustand         | None (session only)  |
-| UI state       | React state     | None (ephemeral)     |
+| Concern        | Solution           | Persistence        |
+|----------------|---------------------|---------------------|
+| Budget data    | TanStack Query      | Repository adapter   |
+| Recent budgets | Zustand             | localStorage         |
+| Undo/redo      | Zustand             | None (session only)  |
+| UI state       | BudgetUIContext     | None (ephemeral)     |
 
 ## Intelligence Layer (Future)
 

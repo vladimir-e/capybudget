@@ -1,0 +1,51 @@
+import { useState, type ReactNode } from "react";
+import { TransactionList } from "@/components/budget/transaction-list";
+import { TransactionToolbar } from "@/components/budget/transaction-toolbar";
+import { DeleteTransactionDialog } from "@/components/budget/delete-transaction-dialog";
+import { useBudgetUI } from "@/contexts/budget-context";
+import { useAccounts, useCategories } from "@/hooks/use-budget-data";
+import { useTransactionFilters } from "@/hooks/use-transaction-filters";
+import type { Transaction } from "@/lib/types";
+
+interface TransactionViewProps {
+  transactions: Transaction[];
+  header: ReactNode;
+  showAccountColumn: boolean;
+}
+
+export function TransactionView({ transactions, header, showAccountColumn }: TransactionViewProps) {
+  const { data: accounts = [] } = useAccounts();
+  const { data: categories = [] } = useCategories();
+  const { editingTxnId, editTransaction, deleteTransaction } = useBudgetUI();
+  const { filters, setFilters, filtered } = useTransactionFilters(transactions, accounts, categories);
+  const [deletingTxn, setDeletingTxn] = useState<Transaction | null>(null);
+
+  const handleDelete = () => {
+    if (!deletingTxn) return;
+    deleteTransaction(deletingTxn);
+    setDeletingTxn(null);
+  };
+
+  return (
+    <div>
+      {header}
+      <div className="p-6 space-y-4">
+        <TransactionToolbar filters={filters} onFiltersChange={setFilters} />
+
+        <TransactionList
+          transactions={filtered}
+          showAccountColumn={showAccountColumn}
+          editingTransactionId={editingTxnId}
+          onEdit={editTransaction}
+          onDelete={setDeletingTxn}
+        />
+
+        <DeleteTransactionDialog
+          transaction={deletingTxn}
+          onConfirm={handleDelete}
+          onCancel={() => setDeletingTxn(null)}
+        />
+      </div>
+    </div>
+  );
+}

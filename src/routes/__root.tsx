@@ -1,18 +1,19 @@
 import { createRootRoute, Outlet } from "@tanstack/react-router";
+import { ThemeProvider } from "next-themes";
+import { ColorThemeProvider } from "@/components/color-theme-provider";
 import { Toaster } from "@/components/ui/sonner";
-import { useDarkMode } from "@/hooks/use-dark-mode";
 
 export const Route = createRootRoute({
   component: RootLayout,
 });
 
 function RootLayout() {
-  useDarkMode();
-
   return (
-    <>
-      <Outlet />
-      <Toaster />
-    </>
+    <ThemeProvider attribute="class" defaultTheme="system">
+      <ColorThemeProvider>
+        <Outlet />
+        <Toaster />
+      </ColorThemeProvider>
+    </ThemeProvider>
   );
 }

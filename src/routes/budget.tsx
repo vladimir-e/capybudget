@@ -1,5 +1,8 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { Button } from "@/components/ui/button";
+import { useMemo } from "react";
+import { createFileRoute } from "@tanstack/react-router";
+import { BudgetShell } from "@/components/budget/budget-shell";
+import { RepositoryProvider } from "@/repositories";
+import { createMockRepository } from "@/repositories";
 
 interface BudgetSearch {
   path: string;
@@ -11,42 +14,16 @@ export const Route = createFileRoute("/budget")({
     path: (search.path as string) ?? "",
     name: (search.name as string) ?? "Budget",
   }),
-  component: BudgetView,
+  component: BudgetLayout,
 });
 
-function BudgetView() {
+function BudgetLayout() {
   const { path, name } = Route.useSearch();
-  const navigate = useNavigate();
+  const repo = useMemo(() => createMockRepository(), []);
 
   return (
-    <div className="flex h-screen flex-col">
-      <header className="flex items-center justify-between border-b px-6 py-3">
-        <div className="flex items-center gap-3">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => navigate({ to: "/" })}
-          >
-            &larr; Budgets
-          </Button>
-          <h1 className="text-lg font-semibold">{name}</h1>
-        </div>
-        <span className="text-muted-foreground text-xs font-mono truncate max-w-80">
-          {path}
-        </span>
-      </header>
-
-      <main className="flex flex-1 items-center justify-center">
-        <div className="text-center space-y-4">
-          <div className="text-6xl">🏗️</div>
-          <h2 className="text-2xl font-semibold">Budget workspace</h2>
-          <p className="text-muted-foreground max-w-md">
-            Accounts, transactions, and categories will live here.
-            <br />
-            This area is ready for the budget management UI.
-          </p>
-        </div>
-      </main>
-    </div>
+    <RepositoryProvider value={repo}>
+      <BudgetShell path={path} name={name} />
+    </RepositoryProvider>
   );
 }
