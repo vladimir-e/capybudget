@@ -1,14 +1,10 @@
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { TransactionList } from "@/components/budget/transaction-list";
-import { TransactionToolbar } from "@/components/budget/transaction-toolbar";
-import { DeleteTransactionDialog } from "@/components/budget/delete-transaction-dialog";
+import { TransactionView } from "@/components/budget/transaction-view";
 import { AccountHeader } from "@/components/budget/account-header";
 import { useBudgetUI } from "@/contexts/budget-context";
-import { useAccounts, useCategories, useTransactions } from "@/hooks/use-budget-data";
-import { useTransactionFilters } from "@/hooks/use-transaction-filters";
+import { useAccounts, useTransactions } from "@/hooks/use-budget-data";
 import { getTransactionsForAccount, getAccountBalance } from "@/lib/queries";
-import type { Transaction } from "@/lib/types";
 
 export const Route = createFileRoute("/budget/account/$accountId")({
   component: AccountView,
@@ -18,13 +14,8 @@ function AccountView() {
   const { accountId } = Route.useParams();
   const { data: accounts = [] } = useAccounts();
   const { data: transactions = [] } = useTransactions();
-  const { data: categories = [] } = useCategories();
-  const { editingTxnId, editTransaction, deleteTransaction, setCurrentAccountId } = useBudgetUI();
+  const { setCurrentAccountId } = useBudgetUI();
   const account = accounts.find((a) => a.id === accountId);
-
-  const accountTransactions = getTransactionsForAccount(accountId, transactions);
-  const { filters, setFilters, filtered } = useTransactionFilters(accountTransactions, accounts, categories);
-  const [deletingTxn, setDeletingTxn] = useState<Transaction | null>(null);
 
   useEffect(() => {
     setCurrentAccountId(accountId);
@@ -39,34 +30,14 @@ function AccountView() {
     );
   }
 
+  const accountTransactions = getTransactionsForAccount(accountId, transactions);
   const balance = getAccountBalance(accountId, transactions);
 
-  const handleDelete = () => {
-    if (!deletingTxn) return;
-    deleteTransaction(deletingTxn);
-    setDeletingTxn(null);
-  };
-
   return (
-    <div>
-      <AccountHeader account={account} balance={balance} />
-      <div className="p-6 space-y-4">
-        <TransactionToolbar filters={filters} onFiltersChange={setFilters} />
-
-        <TransactionList
-          transactions={filtered}
-          showAccountColumn={false}
-          editingTransactionId={editingTxnId}
-          onEdit={editTransaction}
-          onDelete={setDeletingTxn}
-        />
-
-        <DeleteTransactionDialog
-          transaction={deletingTxn}
-          onConfirm={handleDelete}
-          onCancel={() => setDeletingTxn(null)}
-        />
-      </div>
-    </div>
+    <TransactionView
+      transactions={accountTransactions}
+      showAccountColumn={false}
+      header={<AccountHeader account={account} balance={balance} />}
+    />
   );
 }
