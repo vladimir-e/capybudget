@@ -63,6 +63,9 @@ export function updateTransaction(
   const datetime = `${input.date}T12:00:00.000Z`;
 
   if (input.type === "transfer") {
+    // The form resolves transfer pairs so input.accountId = from (outflow),
+    // input.toAccountId = to (inflow), regardless of which leg was clicked.
+    // Both legs are fully rewritten based on the resolved from/to.
     const original = existing.find((t) => t.id === input.id);
     const pairId = original?.transferPairId;
     return existing.map((t) => {

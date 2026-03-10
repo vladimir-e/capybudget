@@ -110,7 +110,7 @@ export function Sidebar({
   return (
     <div className="flex w-72 flex-col border-r border-sidebar-border bg-sidebar">
       {/* Net Worth — warm hero area */}
-      <div className="px-4 pt-4 pb-3">
+      <div className="relative px-4 pt-4 pb-3">
         <div className="rounded-lg bg-brand-subtle px-3 py-3">
           <div className="text-xs font-medium text-brand/70 uppercase tracking-wider">
             Net Worth

@@ -26,7 +26,7 @@ export function CategoryGroupSection({
 
   return (
     <Collapsible open={open} onOpenChange={setOpen}>
-      <div className="flex items-center gap-1 rounded-md px-2 py-1.5 hover:bg-accent">
+      <div className="group flex items-center gap-1 rounded-md px-2 py-1.5 hover:bg-accent">
         <CollapsibleTrigger
           render={<Button variant="ghost" size="icon" className="h-6 w-6 shrink-0" />}
         >

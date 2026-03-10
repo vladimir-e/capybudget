@@ -4,8 +4,10 @@ import {
   getAccountsByGroup,
   getTransactionsForAccount,
   getNetWorth,
+  resolveTransferPair,
 } from "@/lib/queries";
 import { MOCK_ACCOUNTS, MOCK_TRANSACTIONS } from "@/lib/mock-data";
+import type { Transaction } from "@/lib/types";
 
 describe("getAccountBalance", () => {
   it("sums all transaction amounts for an account", () => {
@@ -62,5 +64,61 @@ describe("getNetWorth", () => {
     // Checking: 500000 + 420000 + 420000 - 185000 - 50000 - 50000 - 185000 - 25000 = 845000... let me just check it's a number
     expect(typeof netWorth).toBe("number");
     expect(netWorth).toBeGreaterThan(0);
+  });
+});
+
+describe("resolveTransferPair", () => {
+  const fromLeg: Transaction = {
+    id: "tf-from",
+    datetime: "2026-03-01T12:00:00.000Z",
+    type: "transfer",
+    amount: -25000,
+    categoryId: "",
+    accountId: "acc-checking",
+    transferPairId: "tf-to",
+    merchant: "",
+    note: "",
+    createdAt: "2026-03-01T00:00:00.000Z",
+  };
+
+  const toLeg: Transaction = {
+    id: "tf-to",
+    datetime: "2026-03-01T12:00:00.000Z",
+    type: "transfer",
+    amount: 25000,
+    categoryId: "",
+    accountId: "acc-savings",
+    transferPairId: "tf-from",
+    merchant: "",
+    note: "",
+    createdAt: "2026-03-01T00:00:00.000Z",
+  };
+
+  const allTxns = [fromLeg, toLeg];
+
+  it("resolves outflow leg: txn is 'from', pair is 'to'", () => {
+    const result = resolveTransferPair(fromLeg, allTxns);
+    expect(result.fromAccountId).toBe("acc-checking");
+    expect(result.toAccountId).toBe("acc-savings");
+    expect(result.pairTransaction).toBe(toLeg);
+  });
+
+  it("resolves inflow leg: pair is 'from', txn is 'to'", () => {
+    const result = resolveTransferPair(toLeg, allTxns);
+    expect(result.fromAccountId).toBe("acc-checking");
+    expect(result.toAccountId).toBe("acc-savings");
+    expect(result.pairTransaction).toBe(fromLeg);
+  });
+
+  it("returns fallback when pair is missing", () => {
+    const orphan: Transaction = {
+      ...fromLeg,
+      id: "orphan",
+      transferPairId: "nonexistent",
+    };
+    const result = resolveTransferPair(orphan, allTxns);
+    expect(result.fromAccountId).toBe("acc-checking");
+    expect(result.toAccountId).toBe("");
+    expect(result.pairTransaction).toBeUndefined();
   });
 });
