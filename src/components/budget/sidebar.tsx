@@ -30,7 +30,7 @@ import {
 import { formatMoney } from "@/lib/money";
 import { ACCOUNT_TYPE_LABELS } from "@/lib/account-type-labels";
 import { getAccountBalance, getAccountsByGroup, getNetWorth } from "@/lib/queries";
-import { useBudget } from "@/contexts/budget-context";
+import { useAccounts, useTransactions } from "@/hooks/use-budget-data";
 import type { Account, AccountType } from "@/lib/types";
 import { toast } from "sonner";
 
@@ -47,7 +47,8 @@ export function Sidebar({
   onAddAccount,
   onReorderAccounts,
 }: SidebarProps) {
-  const { accounts, transactions } = useBudget();
+  const { data: accounts = [] } = useAccounts();
+  const { data: transactions = [] } = useTransactions();
   const [collapsed, setCollapsed] = useState(false);
   const [showArchived, setShowArchived] = useState(false);
   const matches = useMatches();
@@ -70,7 +71,6 @@ export function Sidebar({
     const { active, over } = event;
     if (!over || active.id === over.id) return;
 
-    // Find which group the dragged account belongs to
     for (const [type, accts] of groupedAccounts) {
       const ids = accts.map((a) => a.id);
       const oldIndex = ids.indexOf(active.id as string);

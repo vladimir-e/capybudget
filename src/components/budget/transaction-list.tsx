@@ -15,7 +15,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { formatMoney } from "@/lib/money";
 import { resolveTransferPair } from "@/lib/queries";
-import { useBudget } from "@/contexts/budget-context";
+import { useAccounts, useCategories, useTransactions } from "@/hooks/use-budget-data";
 import type { Transaction } from "@/lib/types";
 import { ArrowRight, Inbox, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
 
@@ -48,7 +48,9 @@ export function TransactionList({
   onEdit,
   onDelete,
 }: TransactionListProps) {
-  const { accounts, categories, transactions: allTransactions } = useBudget();
+  const { data: accounts = [] } = useAccounts();
+  const { data: categories = [] } = useCategories();
+  const { data: allTransactions = [] } = useTransactions();
   const accountMap = new Map(accounts.map((a) => [a.id, a]));
   const categoryMap = new Map(categories.map((c) => [c.id, c]));
   const hasActions = !!(onEdit || onDelete);

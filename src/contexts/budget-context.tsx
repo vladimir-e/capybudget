@@ -1,24 +1,21 @@
 import { createContext, useContext } from "react";
-import type { Account, Category, Transaction } from "@/lib/types";
+import type { Transaction } from "@/lib/types";
 
-export interface BudgetContextValue {
-  transactions: Transaction[];
-  accounts: Account[];
-  categories: Category[];
-  deleteTransaction: (txn: Transaction) => void;
+export interface BudgetUIContextValue {
   editingTxnId: string | undefined;
   editTransaction: (txn: Transaction) => void;
   cancelEdit: () => void;
+  deleteTransaction: (txn: Transaction) => void;
   currentAccountId: string | undefined;
   setCurrentAccountId: (id: string | undefined) => void;
 }
 
-const BudgetContext = createContext<BudgetContextValue | null>(null);
+const BudgetUIContext = createContext<BudgetUIContextValue | null>(null);
 
-export const BudgetProvider = BudgetContext.Provider;
+export const BudgetUIProvider = BudgetUIContext.Provider;
 
-export function useBudget() {
-  const ctx = useContext(BudgetContext);
-  if (!ctx) throw new Error("useBudget must be used within BudgetProvider");
+export function useBudgetUI() {
+  const ctx = useContext(BudgetUIContext);
+  if (!ctx) throw new Error("useBudgetUI must be used within BudgetUIProvider");
   return ctx;
 }

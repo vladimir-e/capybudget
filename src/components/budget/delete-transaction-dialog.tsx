@@ -9,7 +9,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { formatMoney } from "@/lib/money";
 import { resolveTransferPair } from "@/lib/queries";
-import { useBudget } from "@/contexts/budget-context";
+import { useAccounts, useCategories, useTransactions } from "@/hooks/use-budget-data";
 import type { Transaction } from "@/lib/types";
 import { ArrowRight } from "lucide-react";
 
@@ -24,7 +24,9 @@ export function DeleteTransactionDialog({
   onConfirm,
   onCancel,
 }: DeleteTransactionDialogProps) {
-  const { accounts, categories, transactions: allTransactions } = useBudget();
+  const { data: accounts = [] } = useAccounts();
+  const { data: categories = [] } = useCategories();
+  const { data: allTransactions = [] } = useTransactions();
 
   if (!transaction) return null;
 

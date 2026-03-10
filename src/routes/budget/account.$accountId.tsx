@@ -4,7 +4,8 @@ import { TransactionList } from "@/components/budget/transaction-list";
 import { TransactionToolbar, type TransactionFilters } from "@/components/budget/transaction-toolbar";
 import { DeleteTransactionDialog } from "@/components/budget/delete-transaction-dialog";
 import { AccountHeader } from "@/components/budget/account-header";
-import { useBudget } from "@/contexts/budget-context";
+import { useBudgetUI } from "@/contexts/budget-context";
+import { useAccounts, useTransactions } from "@/hooks/use-budget-data";
 import { getTransactionsForAccount, getAccountBalance } from "@/lib/queries";
 import type { Transaction } from "@/lib/types";
 
@@ -14,7 +15,9 @@ export const Route = createFileRoute("/budget/account/$accountId")({
 
 function AccountView() {
   const { accountId } = Route.useParams();
-  const { accounts, transactions, editingTxnId, editTransaction, deleteTransaction, setCurrentAccountId } = useBudget();
+  const { data: accounts = [] } = useAccounts();
+  const { data: transactions = [] } = useTransactions();
+  const { editingTxnId, editTransaction, deleteTransaction, setCurrentAccountId } = useBudgetUI();
   const account = accounts.find((a) => a.id === accountId);
 
   const [deletingTxn, setDeletingTxn] = useState<Transaction | null>(null);
@@ -24,7 +27,6 @@ function AccountView() {
     dateRange: null,
   });
 
-  // Tell the layout which account we're on (for the global form)
   useEffect(() => {
     setCurrentAccountId(accountId);
     return () => setCurrentAccountId(undefined);

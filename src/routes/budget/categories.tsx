@@ -1,13 +1,13 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { CategoryPanel } from "@/components/budget/category-panel";
-import { useBudget } from "@/contexts/budget-context";
+import { useCategories } from "@/hooks/use-budget-data";
 
 export const Route = createFileRoute("/budget/categories")({
   component: CategoriesView,
 });
 
 function CategoriesView() {
-  const { categories } = useBudget();
+  const { data: categories = [] } = useCategories();
 
   return (
     <div className="p-6 max-w-2xl">

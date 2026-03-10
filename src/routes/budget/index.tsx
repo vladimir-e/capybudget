@@ -3,7 +3,8 @@ import { createFileRoute } from "@tanstack/react-router";
 import { TransactionList } from "@/components/budget/transaction-list";
 import { TransactionToolbar, type TransactionFilters } from "@/components/budget/transaction-toolbar";
 import { DeleteTransactionDialog } from "@/components/budget/delete-transaction-dialog";
-import { useBudget } from "@/contexts/budget-context";
+import { useBudgetUI } from "@/contexts/budget-context";
+import { useTransactions } from "@/hooks/use-budget-data";
 import type { Transaction } from "@/lib/types";
 
 export const Route = createFileRoute("/budget/")({
@@ -11,7 +12,8 @@ export const Route = createFileRoute("/budget/")({
 });
 
 function AllAccountsView() {
-  const { transactions, editingTxnId, editTransaction, deleteTransaction } = useBudget();
+  const { data: transactions = [] } = useTransactions();
+  const { editingTxnId, editTransaction, deleteTransaction } = useBudgetUI();
   const [deletingTxn, setDeletingTxn] = useState<Transaction | null>(null);
   const [filters, setFilters] = useState<TransactionFilters>({
     search: "",

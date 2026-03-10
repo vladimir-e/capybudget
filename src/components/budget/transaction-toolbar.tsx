@@ -1,7 +1,7 @@
 import { Input } from "@/components/ui/input";
 import { CategorySelector } from "@/components/budget/category-selector";
 import { DateRangePicker, type DateRangeValue } from "@/components/budget/date-range-picker";
-import { useBudget } from "@/contexts/budget-context";
+import { useCategories } from "@/hooks/use-budget-data";
 import { Search, X } from "lucide-react";
 
 export interface TransactionFilters {
@@ -16,7 +16,7 @@ interface TransactionToolbarProps {
 }
 
 export function TransactionToolbar({ filters, onFiltersChange }: TransactionToolbarProps) {
-  const { categories } = useBudget();
+  const { data: categories = [] } = useCategories();
 
   const update = (patch: Partial<TransactionFilters>) =>
     onFiltersChange({ ...filters, ...patch });

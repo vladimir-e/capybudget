@@ -5,7 +5,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar } from "@/components/ui/calendar";
 import { CategorySelector } from "@/components/budget/category-selector";
 import { AccountSelector } from "@/components/budget/account-selector";
-import { useBudget } from "@/contexts/budget-context";
+import { useAccounts, useCategories, useTransactions } from "@/hooks/use-budget-data";
 import { resolveTransferPair } from "@/lib/queries";
 import type { Transaction, TransactionType } from "@/lib/types";
 import type { TransactionFormData } from "@/services/transactions";
@@ -74,7 +74,9 @@ export function TransactionForm({
   onCancel,
   onDismiss,
 }: TransactionFormProps) {
-  const { accounts, categories, transactions: allTransactions } = useBudget();
+  const { data: accounts = [] } = useAccounts();
+  const { data: categories = [] } = useCategories();
+  const { data: allTransactions = [] } = useTransactions();
   const internalAmountRef = useRef<HTMLInputElement>(null);
   const amountRef = externalAmountRef ?? internalAmountRef;
   const panelMode = !!onDismiss;
