@@ -1,4 +1,5 @@
 import type { Account, Category, Transaction } from "@/lib/types";
+import { DEFAULT_CATEGORIES } from "@/lib/default-categories";
 
 // ── Accounts ──────────────────────────────────────────────
 
@@ -86,29 +87,11 @@ export const MOCK_ACCOUNTS: Account[] = [
   },
 ];
 
-// ── Categories ────────────────────────────────────────────
+// ── Categories (derived from shared defaults) ────────────
 
-export const MOCK_CATEGORIES: Category[] = [
-  { id: "cat-01", name: "Paycheck", group: "Income", archived: false, sortOrder: 0 },
-  { id: "cat-02", name: "Other Income", group: "Income", archived: false, sortOrder: 1 },
-  { id: "cat-03", name: "Housing", group: "Fixed", archived: false, sortOrder: 0 },
-  { id: "cat-04", name: "Bills & Utilities", group: "Fixed", archived: false, sortOrder: 1 },
-  { id: "cat-05", name: "Subscriptions", group: "Fixed", archived: false, sortOrder: 2 },
-  { id: "cat-06", name: "Groceries", group: "Daily Living", archived: false, sortOrder: 0 },
-  { id: "cat-07", name: "Dining Out", group: "Daily Living", archived: false, sortOrder: 1 },
-  { id: "cat-08", name: "Transportation", group: "Daily Living", archived: false, sortOrder: 2 },
-  { id: "cat-09", name: "Alcohol & Smoking", group: "Personal", archived: false, sortOrder: 0 },
-  { id: "cat-10", name: "Health & Beauty", group: "Personal", archived: false, sortOrder: 1 },
-  { id: "cat-11", name: "Clothing", group: "Personal", archived: false, sortOrder: 2 },
-  { id: "cat-12", name: "Fun & Hobbies", group: "Personal", archived: false, sortOrder: 3 },
-  { id: "cat-13", name: "Allowances", group: "Personal", archived: false, sortOrder: 4 },
-  { id: "cat-14", name: "Education & Business", group: "Personal", archived: false, sortOrder: 5 },
-  { id: "cat-15", name: "Gifts & Giving", group: "Personal", archived: false, sortOrder: 6 },
-  { id: "cat-16", name: "Housekeeping & Maintenance", group: "Irregular", archived: false, sortOrder: 0 },
-  { id: "cat-17", name: "Big Purchases", group: "Irregular", archived: false, sortOrder: 1 },
-  { id: "cat-18", name: "Travel", group: "Irregular", archived: false, sortOrder: 2 },
-  { id: "cat-19", name: "Taxes & Fees", group: "Irregular", archived: false, sortOrder: 3 },
-];
+export const MOCK_CATEGORIES: Category[] = DEFAULT_CATEGORIES.map(
+  (c, i) => ({ ...c, id: `cat-${String(i + 1).padStart(2, "0")}` }),
+);
 
 // ── Transactions ──────────────────────────────────────────
 
