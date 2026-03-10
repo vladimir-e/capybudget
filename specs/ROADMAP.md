@@ -1,6 +1,6 @@
 # Implementation Roadmap
 
-## Phase 1: UI Shell with Mock Data
+## Phase 1: UI Shell with Mock Data ✓
 
 Scaffold all screens, nail the layout and navigation. Everything renders from hardcoded mock data.
 
@@ -36,11 +36,21 @@ Scaffold all screens, nail the layout and navigation. Everything renders from ha
 - Three-state cycle: light → dark → system
 - Sun/moon/auto icon toggle
 
+### Architecture Foundation (Post-Phase 1)
+- Repository pattern (`BudgetRepository` interface + mock adapter)
+- TanStack Query data hooks (`useAccounts`, `useCategories`, `useTransactions`)
+- Mutation hooks with optimistic cache updates
+- Decomposed `budget.tsx` → `BudgetShell` + `BudgetUIContext`
+- Transaction filtering (search, category, date range) wired to UI
+- Shared `TransactionView` component (DRYed route views)
+- Unified default categories (single source of truth)
+
 ---
 
 ## Phase 2: Data Layer & CRUD
 
 Replace mock data with real CSV I/O. Every mutation writes through.
+Enabled by the repository pattern — create `CsvRepository`, swap in `budget.tsx`.
 
 ### 2.1 — CSV Service Layer
 - Generic CSV read/write service (PapaParse + Tauri fs)

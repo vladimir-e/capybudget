@@ -34,18 +34,42 @@ capybudget/
 │   ├── routes/                 ← TanStack Router file-based routes
 │   │   ├── __root.tsx          ← Root layout (toaster, providers)
 │   │   ├── index.tsx           ← Budget selector (home screen)
-│   │   └── budget.tsx          ← Budget workspace
+│   │   ├── budget.tsx          ← Budget workspace (RepositoryProvider + BudgetShell)
+│   │   └── budget/             ← Nested budget routes
+│   │       ├── index.tsx       ← All Accounts view
+│   │       ├── account.$accountId.tsx ← Single account view
+│   │       └── categories.tsx  ← Category management
 │   ├── components/
 │   │   ├── ui/                 ← shadcn components (owned, not imported)
 │   │   └── budget/             ← Budget-specific components
+│   │       ├── budget-shell.tsx      ← Layout, form state, keyboard shortcuts
+│   │       ├── transaction-view.tsx  ← Shared toolbar + list + delete pattern
+│   │       ├── sidebar.tsx           ← Account navigation
+│   │       ├── transaction-list.tsx  ← Transaction table
+│   │       ├── transaction-form.tsx  ← Add/edit transaction form
+│   │       └── ...
+│   ├── repositories/           ← Storage adapter pattern
+│   │   ├── types.ts            ← BudgetRepository interface
+│   │   ├── mock-repository.ts  ← Mock adapter (returns mock data)
+│   │   ├── repository-context.ts ← React context for DI
+│   │   └── index.ts            ← Barrel export
 │   ├── services/
-│   │   └── budget.ts           ← Budget detection, bootstrap, migration
+│   │   ├── budget.ts           ← Budget detection, bootstrap, migration
+│   │   └── transactions.ts     ← Pure transaction mutation functions
 │   ├── stores/
 │   │   └── app-store.ts        ← Zustand store (recent budgets, persisted)
-│   ├── hooks/                  ← Custom hooks
+│   ├── contexts/
+│   │   └── budget-context.tsx   ← BudgetUIContext (UI state only)
+│   ├── hooks/
+│   │   ├── use-budget-data.ts  ← TanStack Query read hooks
+│   │   ├── use-transaction-mutations.ts ← TanStack Query mutation hooks
+│   │   └── use-transaction-filters.ts   ← Filter state + memoized filtering
 │   ├── lib/
 │   │   ├── types.ts            ← Shared TypeScript types
 │   │   ├── money.ts            ← Integer math, formatting, parsing
+│   │   ├── queries.ts          ← Pure query functions (balance, grouping)
+│   │   ├── default-categories.ts ← Single source of truth for category defaults
+│   │   ├── filter-transactions.ts ← Pure transaction filtering
 │   │   └── utils.ts            ← cn() helper, common utilities
 │   ├── main.tsx                ← App entry point
 │   └── index.css               ← Tailwind + shadcn theme
@@ -70,9 +94,46 @@ User picks folder
   → read CSVs via Tauri fs plugin
   → PapaParse into TypeScript objects
   → load into TanStack Query cache
-  → UI reads from cache
-  → mutations update cache optimistically + schedule debounced CSV flush
+  → UI reads from cache via query hooks
+  → mutations update cache optimistically + call repo.save*()
 ```
+
+### Repository Pattern
+
+Storage is abstracted behind the `BudgetRepository` interface:
+
+```ts
+interface BudgetRepository {
+  getAccounts(): Promise<Account[]>;
+  getCategories(): Promise<Category[]>;
+  getTransactions(): Promise<Transaction[]>;
+  saveAccounts(accounts: Account[]): Promise<void>;
+  saveCategories(categories: Category[]): Promise<void>;
+  saveTransactions(transactions: Transaction[]): Promise<void>;
+}
+```
+
+**Design:** Document-oriented (read/write whole arrays), not entity-CRUD. This matches CSV's natural model — read the file, parse all rows, write the file. Entity operations stay as pure functions in `services/transactions.ts`.
+
+**Adapters:**
+- `MockRepository` — returns mock data, save methods are no-ops (current)
+- `CsvRepository` — reads/writes CSV files via Tauri fs plugin (Phase 2)
+
+**Injection:** React context (`RepositoryProvider`) wraps the budget workspace. `useBudgetRepository()` hook provides the active adapter.
+
+### Data Hooks (TanStack Query)
+
+Query hooks wrap repository reads:
+- `useAccounts()`, `useCategories()`, `useTransactions()` — `staleTime: Infinity` (desktop app, data doesn't change externally)
+- Query key factory: `budgetKeys.accounts()`, etc.
+
+Mutation hooks handle the write pipeline:
+1. Read current state from query cache
+2. Apply pure transformation (e.g., `createTransaction()`)
+3. Optimistic cache update via `queryClient.setQueryData()`
+4. Persist via `repo.saveTransactions()`
+
+This captures previous state on every mutation — the hook point for future undo/redo.
 
 ### Functional Style
 
@@ -84,7 +145,9 @@ User picks folder
 ### Single Responsibility
 
 Each module owns one concern:
-- A **service** parses CSV — it doesn't render UI
+- A **repository** handles storage I/O — it doesn't know about UI
+- A **service** contains pure data transformations — it doesn't do I/O
+- A **hook** bridges data to React — it doesn't contain business logic
 - A **component** displays data — it doesn't know about file I/O
 - The **intelligence layer** produces structured data — the app validates and writes
 
@@ -94,8 +157,19 @@ Each module owns one concern:
 
 1. Validate locally using shared schema. If invalid, show inline error immediately.
 2. Update in-memory state (TanStack Query cache) immediately. UI reflects change instantly.
-3. Persist to CSV in the background (debounced).
+3. Persist via repository in the background (debounced in CSV adapter).
 4. On write failure: show blocking error — "Something went wrong. Reload to continue." No retry logic, no partial rollback. Deliberately blunt because errors are rare in a local-first app.
+
+### Mutation Pipeline
+
+```
+User action
+  → mutation hook (useCreateTransaction, etc.)
+  → read current state from query cache
+  → pure function transforms state (services/transactions.ts)
+  → optimistic cache update (queryClient.setQueryData)
+  → repo.saveTransactions() (async, adapter-specific)
+```
 
 ### Undo / Redo
 
@@ -116,12 +190,12 @@ Route parameters use type-safe search params:
 
 ## State Management
 
-| Concern        | Solution        | Persistence        |
-|----------------|-----------------|---------------------|
-| Budget data    | TanStack Query  | CSV files via Tauri  |
-| Recent budgets | Zustand         | localStorage         |
-| Undo/redo      | Zustand         | None (session only)  |
-| UI state       | React state     | None (ephemeral)     |
+| Concern        | Solution           | Persistence        |
+|----------------|---------------------|---------------------|
+| Budget data    | TanStack Query      | Repository adapter   |
+| Recent budgets | Zustand             | localStorage         |
+| Undo/redo      | Zustand             | None (session only)  |
+| UI state       | BudgetUIContext     | None (ephemeral)     |
 
 ## Intelligence Layer (Future)
 
