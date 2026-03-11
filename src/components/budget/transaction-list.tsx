@@ -16,6 +16,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
+import { AccountSelector } from "@/components/budget/account-selector";
 import { CategorySelector } from "@/components/budget/category-selector";
 import { formatMoney, parseMoney } from "@/lib/money";
 import { parseLocalDate, toDateString, formatDateLabel } from "@/lib/date-utils";
@@ -40,7 +41,7 @@ import {
 // Types
 // ---------------------------------------------------------------------------
 
-type EditableColumn = "date" | "category" | "merchant" | "amount";
+type EditableColumn = "date" | "account" | "category" | "merchant" | "amount";
 
 interface TransactionListProps {
   transactions: Transaction[];
@@ -144,18 +145,20 @@ function SortableHeader({
 function InlineEditCell({
   txn,
   column,
+  accounts,
   categories,
   onSave,
   onCancel,
 }: {
   txn: Transaction;
   column: EditableColumn;
+  accounts: import("@/lib/types").Account[];
   categories: import("@/lib/types").Category[];
   onSave: (data: TransactionFormData) => void;
   onCancel: () => void;
 }) {
   const buildFormData = useCallback(
-    (patch: Partial<{ date: string; categoryId: string; merchant: string; amount: number }>) => {
+    (patch: Partial<{ date: string; accountId: string; categoryId: string; merchant: string; amount: number }>) => {
       const data: TransactionFormData = {
         id: txn.id,
         type: txn.type,
@@ -177,6 +180,9 @@ function InlineEditCell({
 
   if (column === "date") {
     return <DateEditCell txn={txn} onSave={(date) => buildFormData({ date })} onCancel={onCancel} />;
+  }
+  if (column === "account") {
+    return <AccountEditCell txn={txn} accounts={accounts} onSave={(accountId) => buildFormData({ accountId })} />;
   }
   if (column === "category") {
     return <CategoryEditCell txn={txn} categories={categories} onSave={(categoryId) => buildFormData({ categoryId })} />;
@@ -223,11 +229,23 @@ function DateEditCell({ txn, onSave, onCancel }: {
   );
 }
 
+function AccountEditCell({ txn, accounts, onSave }: {
+  txn: Transaction; accounts: import("@/lib/types").Account[];
+  onSave: (accountId: string) => void;
+}) {
+  return (
+    <AccountSelector
+      accounts={accounts}
+      value={txn.accountId}
+      onChange={(id) => onSave(id)}
+    />
+  );
+}
+
 function CategoryEditCell({ txn, categories, onSave }: {
   txn: Transaction; categories: import("@/lib/types").Category[];
   onSave: (categoryId: string) => void;
 }) {
-  // CategorySelector is a popover — selecting a value saves immediately
   const handleChange = (id: string | null) => {
     onSave(id ?? "");
   };
@@ -418,18 +436,25 @@ export function TransactionList({
                 onClick={() => handleCellClick(txn, "date")}
               >
                 {activeCol === "date" ? (
-                  <InlineEditCell txn={txn} column="date" categories={categories} onSave={handleInlineSave} onCancel={handleInlineCancel} />
+                  <InlineEditCell txn={txn} column="date" accounts={accounts} categories={categories} onSave={handleInlineSave} onCancel={handleInlineCancel} />
                 ) : formatDate(txn.datetime)}
               </TableCell>
               {showAccountColumn && (
-                <TableCell className="font-medium text-[13px]">{account?.name ?? "Unknown"}</TableCell>
+                <TableCell
+                  className={`font-medium text-[13px] ${cellClickClass}`}
+                  onClick={() => handleCellClick(txn, "account")}
+                >
+                  {activeCol === "account" ? (
+                    <InlineEditCell txn={txn} column="account" accounts={accounts} categories={categories} onSave={handleInlineSave} onCancel={handleInlineCancel} />
+                  ) : account?.name ?? "Unknown"}
+                </TableCell>
               )}
               <TableCell
                 className={`text-[13px] ${cellClickClass}`}
                 onClick={() => handleCellClick(txn, "category")}
               >
                 {activeCol === "category" ? (
-                  <InlineEditCell txn={txn} column="category" categories={categories} onSave={handleInlineSave} onCancel={handleInlineCancel} />
+                  <InlineEditCell txn={txn} column="category" accounts={accounts} categories={categories} onSave={handleInlineSave} onCancel={handleInlineCancel} />
                 ) : categoryDisplay}
               </TableCell>
               <TableCell
@@ -437,7 +462,7 @@ export function TransactionList({
                 onClick={() => handleCellClick(txn, "merchant")}
               >
                 {activeCol === "merchant" ? (
-                  <InlineEditCell txn={txn} column="merchant" categories={categories} onSave={handleInlineSave} onCancel={handleInlineCancel} />
+                  <InlineEditCell txn={txn} column="merchant" accounts={accounts} categories={categories} onSave={handleInlineSave} onCancel={handleInlineCancel} />
                 ) : txn.type === "transfer" ? (
                   <span className="text-muted-foreground/50">Transfer</span>
                 ) : txn.merchant}
@@ -447,7 +472,7 @@ export function TransactionList({
                 onClick={() => handleCellClick(txn, "amount")}
               >
                 {activeCol === "amount" ? (
-                  <InlineEditCell txn={txn} column="amount" categories={categories} onSave={handleInlineSave} onCancel={handleInlineCancel} />
+                  <InlineEditCell txn={txn} column="amount" accounts={accounts} categories={categories} onSave={handleInlineSave} onCancel={handleInlineCancel} />
                 ) : formatMoney(txn.amount)}
               </TableCell>
               {hasActions && (
