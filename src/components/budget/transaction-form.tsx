@@ -277,6 +277,12 @@ export function TransactionForm({
                 setDate(toDateString(d));
                 setDatePickerOpen(false);
               }}
+              onDayKeyDown={(day, _modifiers, e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  setDate(toDateString(day));
+                  setDatePickerOpen(false);
+                }
+              }}
               defaultMonth={parseLocalDate(date)}
             />
           </PopoverContent>
