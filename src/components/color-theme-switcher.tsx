@@ -7,7 +7,7 @@ import {
   DropdownMenuRadioItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { useColorTheme } from "@/components/color-theme-provider";
+import { useColorTheme } from "@/contexts/color-theme-context";
 import { COLOR_THEMES, type ColorTheme } from "@/lib/color-themes";
 
 const entries = Object.entries(COLOR_THEMES) as [
