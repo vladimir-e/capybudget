@@ -275,8 +275,10 @@ function InlineEditRow({
 
       {/* Amount */}
       <TableCell className="py-1">
-        <div className="flex items-center justify-end gap-0.5">
-          <span className={`text-[13px] font-semibold ${getAmountClass(txn)}`}>$</span>
+        <div className="relative flex items-center justify-end">
+          <span className={`pointer-events-none absolute left-1 text-[13px] font-semibold ${getAmountClass(txn)}`}>
+            {txn.amount < 0 ? "-$" : "$"}
+          </span>
           <input
             ref={amountRef}
             type="text"
@@ -284,7 +286,7 @@ function InlineEditRow({
             value={amountStr}
             onChange={(e) => setAmountStr(e.target.value)}
             onKeyDown={handleAmountKeyDown}
-            className={`${inputClass} text-right tabular-nums font-semibold w-[90px] ${getAmountClass(txn)}`}
+            className={`${inputClass} text-right tabular-nums font-semibold w-full ${getAmountClass(txn)}`}
             placeholder="0.00"
           />
         </div>
