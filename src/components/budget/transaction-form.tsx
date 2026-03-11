@@ -110,6 +110,7 @@ export function TransactionForm({
   const [note, setNote] = useState(editingTransaction?.note ?? "");
   const [datePickerOpen, setDatePickerOpen] = useState(false);
   const [accountError, setAccountError] = useState(false);
+  const [toAccountError, setToAccountError] = useState(false);
 
   // Sync account to current context when form has no content (e.g. navigating between accounts)
   useEffect(() => {
@@ -128,6 +129,7 @@ export function TransactionForm({
     setMerchant("");
     setNote("");
     setAccountError(false);
+    setToAccountError(false);
     setTimeout(() => amountRef.current?.focus(), 0);
   }
 
@@ -146,7 +148,10 @@ export function TransactionForm({
       setAccountError(true);
       return;
     }
-    if (type === "transfer" && !toAccountId) return;
+    if (type === "transfer" && !toAccountId) {
+      setToAccountError(true);
+      return;
+    }
 
     onSave({
       id: editingTransaction?.id,
@@ -320,18 +325,18 @@ export function TransactionForm({
                 />
               </div>
             <ArrowLeftRight className="h-4 w-4 text-muted-foreground/50 shrink-0" />
-            <div className="flex-1 min-w-0 [&>div]:w-full [&_button:first-of-type]:w-full">
+            <div className={`flex-1 min-w-0 [&>div]:w-full [&_button:first-of-type]:w-full ${toAccountError ? "[&_button:first-of-type]:border-destructive [&_button:first-of-type]:ring-1 [&_button:first-of-type]:ring-destructive/30" : ""}`}>
               <AccountSelector
                 accounts={accounts}
                 value={toAccountId}
-                onChange={setToAccountId}
+                onChange={(id) => { setToAccountId(id); setToAccountError(false); }}
                 placeholder="To…"
                 excludeIds={[accountId]}
               />
             </div>
           </div>
-          {accountError && (
-            <p className="text-xs text-destructive">Please select an account</p>
+          {(accountError || toAccountError) && (
+            <p className="text-xs text-destructive">Please select {accountError && toAccountError ? "both accounts" : "an account"}</p>
           )}
           </div>
         </>
