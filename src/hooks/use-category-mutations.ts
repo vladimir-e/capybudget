@@ -9,8 +9,6 @@ import {
   deleteCategory,
   archiveCategory,
   unarchiveCategory,
-  reorderCategories,
-  moveCategory,
 } from "@/services/categories";
 
 export function useCreateCategory() {
@@ -90,45 +88,6 @@ export function useUnarchiveCategory() {
       const prev =
         queryClient.getQueryData<Category[]>(budgetKeys.categories()) ?? [];
       const next = unarchiveCategory(categoryId, prev);
-      queryClient.setQueryData(budgetKeys.categories(), next);
-      await repo.saveCategories(next);
-      return next;
-    },
-  });
-}
-
-export function useReorderCategories() {
-  const { queryClient, repo, captureSnapshot } = useMutationDeps();
-  return useMutation({
-    mutationFn: async (data: { group: string; orderedIds: string[] }) => {
-      captureSnapshot();
-      const prev =
-        queryClient.getQueryData<Category[]>(budgetKeys.categories()) ?? [];
-      const next = reorderCategories(data.group, data.orderedIds, prev);
-      queryClient.setQueryData(budgetKeys.categories(), next);
-      await repo.saveCategories(next);
-      return next;
-    },
-  });
-}
-
-export function useMoveCategory() {
-  const { queryClient, repo, captureSnapshot } = useMutationDeps();
-  return useMutation({
-    mutationFn: async (data: {
-      categoryId: string;
-      targetGroup: string;
-      targetIndex: number;
-    }) => {
-      captureSnapshot();
-      const prev =
-        queryClient.getQueryData<Category[]>(budgetKeys.categories()) ?? [];
-      const next = moveCategory(
-        data.categoryId,
-        data.targetGroup,
-        data.targetIndex,
-        prev,
-      );
       queryClient.setQueryData(budgetKeys.categories(), next);
       await repo.saveCategories(next);
       return next;

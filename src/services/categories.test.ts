@@ -6,7 +6,6 @@ import {
   deleteCategory,
   archiveCategory,
   unarchiveCategory,
-  reorderCategories,
 } from "@/services/categories";
 
 function makeCategory(overrides: Partial<Category> = {}): Category {
@@ -180,35 +179,3 @@ describe("unarchiveCategory", () => {
   });
 });
 
-describe("reorderCategories", () => {
-  it("reassigns sortOrder based on orderedIds position", () => {
-    const existing = [
-      makeCategory({ id: "a", group: "Income", sortOrder: 1 }),
-      makeCategory({ id: "b", group: "Income", sortOrder: 2 }),
-      makeCategory({ id: "c", group: "Income", sortOrder: 3 }),
-    ];
-    const result = reorderCategories("Income", ["c", "a", "b"], existing);
-    expect(result.find((c) => c.id === "c")!.sortOrder).toBe(1);
-    expect(result.find((c) => c.id === "a")!.sortOrder).toBe(2);
-    expect(result.find((c) => c.id === "b")!.sortOrder).toBe(3);
-  });
-
-  it("does not affect categories in other groups", () => {
-    const existing = [
-      makeCategory({ id: "a", group: "Income", sortOrder: 1 }),
-      makeCategory({ id: "x", group: "Fixed", sortOrder: 5 }),
-    ];
-    const result = reorderCategories("Income", ["a"], existing);
-    expect(result.find((c) => c.id === "x")!.sortOrder).toBe(5);
-  });
-
-  it("does not modify the original array", () => {
-    const existing = [
-      makeCategory({ id: "a", group: "Income", sortOrder: 1 }),
-      makeCategory({ id: "b", group: "Income", sortOrder: 2 }),
-    ];
-    reorderCategories("Income", ["b", "a"], existing);
-    expect(existing[0].sortOrder).toBe(1);
-    expect(existing[1].sortOrder).toBe(2);
-  });
-});

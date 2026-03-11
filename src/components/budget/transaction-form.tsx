@@ -10,6 +10,7 @@ import { resolveTransferPair } from "@/lib/queries";
 import type { Transaction, TransactionType } from "@/lib/types";
 import type { TransactionFormData } from "@/services/transactions";
 import { parseMoney } from "@/lib/money";
+import { getToday, parseLocalDate, toDateString, formatDateLabel } from "@/lib/date-utils";
 import { Minus, Plus, ArrowLeftRight, Check, CalendarDays } from "lucide-react";
 
 interface TransactionFormProps {
@@ -22,27 +23,6 @@ interface TransactionFormProps {
   onCancel?: () => void;
   /** When provided, form runs in "panel mode": always expanded, Escape-with-no-content calls this. */
   onDismiss?: () => void;
-}
-
-function getToday(): string {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
-
-function parseLocalDate(s: string): Date {
-  return new Date(s + "T12:00:00");
-}
-
-function toDateString(d: Date): string {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
-
-function formatDateLabel(s: string): string {
-  return parseLocalDate(s).toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
 }
 
 const TYPES: { value: TransactionType; label: string; icon: typeof Minus }[] = [

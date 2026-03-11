@@ -1,4 +1,5 @@
 import type { Account, AccountType, Transaction } from "@/lib/types";
+import { localDateTime } from "@/lib/date-utils";
 
 export interface AccountFormData {
   id?: string;
@@ -25,12 +26,6 @@ export function createAccount(
     sortOrder: maxSort + 1,
     createdAt: new Date().toISOString(),
   };
-}
-
-function localDateTime(): string {
-  const d = new Date();
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}.${String(d.getMilliseconds()).padStart(3, "0")}`;
 }
 
 export function createOpeningBalanceTransaction(
