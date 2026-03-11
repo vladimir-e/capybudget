@@ -1,55 +1,32 @@
-import { useMutation } from "@tanstack/react-query";
 import {
   createTransaction,
   updateTransaction,
   deleteTransaction,
   type TransactionFormData,
 } from "@/services/transactions";
-import { budgetKeys } from "@/hooks/use-budget-data";
-import { useMutationDeps } from "@/hooks/use-mutation-deps";
+import { useBudgetMutation } from "@/hooks/use-budget-mutation";
 import type { Transaction } from "@/lib/types";
 
 export function useCreateTransaction() {
-  const { queryClient, repo, captureSnapshot } = useMutationDeps();
-
-  return useMutation({
-    mutationFn: async (data: TransactionFormData) => {
-      captureSnapshot();
-      const prev = queryClient.getQueryData<Transaction[]>(budgetKeys.transactions()) ?? [];
-      const next = createTransaction(data, prev);
-      queryClient.setQueryData(budgetKeys.transactions(), next);
-      await repo.saveTransactions(next);
-      return next;
-    },
+  return useBudgetMutation<TransactionFormData>(async (data, { transactions }) => {
+    const next = createTransaction(data, transactions.get());
+    transactions.set(next);
+    await transactions.save(next);
   });
 }
 
 export function useUpdateTransaction() {
-  const { queryClient, repo, captureSnapshot } = useMutationDeps();
-
-  return useMutation({
-    mutationFn: async (data: TransactionFormData) => {
-      captureSnapshot();
-      const prev = queryClient.getQueryData<Transaction[]>(budgetKeys.transactions()) ?? [];
-      const next = updateTransaction(data, prev);
-      queryClient.setQueryData(budgetKeys.transactions(), next);
-      await repo.saveTransactions(next);
-      return next;
-    },
+  return useBudgetMutation<TransactionFormData>(async (data, { transactions }) => {
+    const next = updateTransaction(data, transactions.get());
+    transactions.set(next);
+    await transactions.save(next);
   });
 }
 
 export function useDeleteTransaction() {
-  const { queryClient, repo, captureSnapshot } = useMutationDeps();
-
-  return useMutation({
-    mutationFn: async (txn: Transaction) => {
-      captureSnapshot();
-      const prev = queryClient.getQueryData<Transaction[]>(budgetKeys.transactions()) ?? [];
-      const next = deleteTransaction(txn, prev);
-      queryClient.setQueryData(budgetKeys.transactions(), next);
-      await repo.saveTransactions(next);
-      return next;
-    },
+  return useBudgetMutation<Transaction>(async (txn, { transactions }) => {
+    const next = deleteTransaction(txn, transactions.get());
+    transactions.set(next);
+    await transactions.save(next);
   });
 }
