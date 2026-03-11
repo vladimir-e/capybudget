@@ -17,7 +17,8 @@ import { formatMoney } from "@/lib/money";
 import { resolveTransferPair } from "@/lib/queries";
 import { useAccounts, useCategories, useTransactions } from "@/hooks/use-budget-data";
 import type { Transaction } from "@/lib/types";
-import { ArrowRight, Inbox, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
+import type { SortColumn, SortConfig } from "@/lib/filter-transactions";
+import { ArrowRight, ArrowUpDown, ChevronDown, ChevronUp, Inbox, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
 
 interface TransactionListProps {
   transactions: Transaction[];
@@ -25,6 +26,8 @@ interface TransactionListProps {
   editingTransactionId?: string | null;
   onEdit?: (transaction: Transaction) => void;
   onDelete?: (transaction: Transaction) => void;
+  sort: SortConfig;
+  onSortChange: (sort: SortConfig) => void;
 }
 
 function formatDate(iso: string): string {
@@ -43,12 +46,68 @@ function getAmountClass(txn: Transaction): string {
   return "text-amount-income";
 }
 
+/** Default sort direction when clicking a new column. Date defaults desc, others asc. */
+function defaultDirection(column: SortColumn): SortConfig["direction"] {
+  return column === "date" ? "desc" : "asc";
+}
+
+function SortableHeader({
+  column,
+  sort,
+  onSortChange,
+  align = "left",
+  className,
+  children,
+}: {
+  column: SortColumn;
+  sort: SortConfig;
+  onSortChange: (sort: SortConfig) => void;
+  align?: "left" | "right";
+  className?: string;
+  children: React.ReactNode;
+}) {
+  const isActive = sort.column === column;
+
+  const handleClick = () => {
+    if (isActive) {
+      onSortChange({ column, direction: sort.direction === "asc" ? "desc" : "asc" });
+    } else {
+      onSortChange({ column, direction: defaultDirection(column) });
+    }
+  };
+
+  const Icon = isActive
+    ? sort.direction === "asc" ? ChevronUp : ChevronDown
+    : ArrowUpDown;
+
+  return (
+    <TableHead className={`${className ?? ""} ${align === "right" ? "text-right" : ""}`}>
+      <button
+        type="button"
+        onClick={handleClick}
+        className={`group inline-flex items-center gap-1 cursor-pointer select-none text-xs font-semibold uppercase tracking-wider ${
+          isActive ? "text-foreground" : "text-muted-foreground/70"
+        } ${align === "right" ? "ml-auto" : ""}`}
+      >
+        {children}
+        <Icon
+          className={`h-3 w-3 shrink-0 ${
+            isActive ? "opacity-100" : "opacity-0 group-hover:opacity-50"
+          } transition-opacity`}
+        />
+      </button>
+    </TableHead>
+  );
+}
+
 export function TransactionList({
   transactions,
   showAccountColumn,
   editingTransactionId,
   onEdit,
   onDelete,
+  sort,
+  onSortChange,
 }: TransactionListProps) {
   const { data: accounts = [] } = useAccounts();
   const { data: categories = [] } = useCategories();
@@ -57,14 +116,7 @@ export function TransactionList({
   const categoryMap = new Map(categories.map((c) => [c.id, c]));
   const hasActions = !!(onEdit || onDelete);
 
-  // Sort by datetime descending, then by createdAt descending as tiebreaker
-  const sorted = [...transactions].sort((a, b) => {
-    const dateDiff = new Date(b.datetime).getTime() - new Date(a.datetime).getTime();
-    if (dateDiff !== 0) return dateDiff;
-    return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-  });
-
-  if (sorted.length === 0) {
+  if (transactions.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-24 text-muted-foreground">
         <Inbox className="h-12 w-12 mb-3 opacity-30" strokeWidth={1.5} />
@@ -78,16 +130,18 @@ export function TransactionList({
     <Table>
       <TableHeader>
         <TableRow className="hover:bg-transparent border-b-2 border-border">
-          <TableHead className="w-[120px] text-xs font-semibold uppercase tracking-wider text-muted-foreground/70">Date</TableHead>
-          {showAccountColumn && <TableHead className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/70">Account</TableHead>}
-          <TableHead className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/70">Category</TableHead>
-          <TableHead className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/70">Merchant</TableHead>
-          <TableHead className="text-right w-[130px] text-xs font-semibold uppercase tracking-wider text-muted-foreground/70">Amount</TableHead>
+          <SortableHeader column="date" sort={sort} onSortChange={onSortChange} className="w-[120px]">Date</SortableHeader>
+          {showAccountColumn && (
+            <SortableHeader column="account" sort={sort} onSortChange={onSortChange}>Account</SortableHeader>
+          )}
+          <SortableHeader column="category" sort={sort} onSortChange={onSortChange}>Category</SortableHeader>
+          <SortableHeader column="merchant" sort={sort} onSortChange={onSortChange}>Merchant</SortableHeader>
+          <SortableHeader column="amount" sort={sort} onSortChange={onSortChange} align="right" className="w-[130px]">Amount</SortableHeader>
           {hasActions && <TableHead className="w-[48px]" />}
         </TableRow>
       </TableHeader>
       <TableBody>
-        {sorted.map((txn, i) => {
+        {transactions.map((txn, i) => {
           const account = accountMap.get(txn.accountId);
           const isBeingEdited = txn.id === editingTransactionId;
 

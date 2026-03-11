@@ -72,6 +72,41 @@ describe("filterTransactions", () => {
     expect(result[0].id).toBe("t3");
   });
 
+  it("searches amount without commas", () => {
+    const result = filterTransactions(txns, { ...noFilter, search: "1850" }, accounts, categories);
+    expect(result).toHaveLength(1);
+    expect(result[0].id).toBe("t2");
+  });
+
+  it("searches amount without dollar sign", () => {
+    const result = filterTransactions(txns, { ...noFilter, search: "4200" }, accounts, categories);
+    expect(result).toHaveLength(1);
+    expect(result[0].id).toBe("t3");
+  });
+
+  it("searches negative amount by absolute value", () => {
+    // "50.00" matches both -$50.00 (t1) and -$1,850.00 (t2, since "1850.00" contains "50.00")
+    const result = filterTransactions(txns, { ...noFilter, search: "50.00" }, accounts, categories);
+    expect(result).toHaveLength(2);
+    expect(result.map((t) => t.id)).toEqual(["t1", "t2"]);
+    // A more specific search narrows it down
+    const exact = filterTransactions(txns, { ...noFilter, search: "$50.00" }, accounts, categories);
+    expect(exact).toHaveLength(1);
+    expect(exact[0].id).toBe("t1");
+  });
+
+  it("searches negative amount with minus sign", () => {
+    const result = filterTransactions(txns, { ...noFilter, search: "-50" }, accounts, categories);
+    expect(result).toHaveLength(1);
+    expect(result[0].id).toBe("t1");
+  });
+
+  it("searches partial decimal amount", () => {
+    const result = filterTransactions(txns, { ...noFilter, search: "1850.0" }, accounts, categories);
+    expect(result).toHaveLength(1);
+    expect(result[0].id).toBe("t2");
+  });
+
   it("combines multiple filters", () => {
     const result = filterTransactions(
       txns,
