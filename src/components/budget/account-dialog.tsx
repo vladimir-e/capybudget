@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -24,19 +24,12 @@ interface AccountDialogProps {
 
 export function AccountDialog({ open, onOpenChange, editingAccount }: AccountDialogProps) {
   const isEditing = !!editingAccount;
-  const [name, setName] = useState("");
-  const [type, setType] = useState<AccountType>("checking");
+  const [name, setName] = useState(editingAccount?.name ?? "");
+  const [type, setType] = useState<AccountType>(editingAccount?.type ?? "checking");
   const [balance, setBalance] = useState("");
   const [nameError, setNameError] = useState(false);
   const createAccount = useCreateAccount();
   const updateAccount = useUpdateAccount();
-
-  useEffect(() => {
-    if (open && editingAccount) {
-      setName(editingAccount.name);
-      setType(editingAccount.type);
-    }
-  }, [open, editingAccount]);
 
   function handleClose(nextOpen: boolean) {
     if (!nextOpen) {

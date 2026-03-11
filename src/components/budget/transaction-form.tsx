@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, type RefObject } from "react";
+import { useState, useRef, type RefObject } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -93,11 +93,13 @@ export function TransactionForm({
   const [toAccountError, setToAccountError] = useState(false);
 
   // Sync account to current context when form has no content (e.g. navigating between accounts)
-  useEffect(() => {
+  const [prevDefaultAccountId, setPrevDefaultAccountId] = useState(defaultAccountId);
+  if (defaultAccountId !== prevDefaultAccountId) {
+    setPrevDefaultAccountId(defaultAccountId);
     if (!amount) {
       setAccountId(defaultAccountId);
     }
-  }, [defaultAccountId]); // eslint-disable-line react-hooks/exhaustive-deps
+  }
 
   function resetForm() {
     setAmount("");

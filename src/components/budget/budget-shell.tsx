@@ -263,6 +263,7 @@ export function BudgetShell({ path, name }: BudgetShellProps) {
         </div>
 
         <AccountDialog
+          key={editingAccount?.id ?? "new"}
           open={accountDialogOpen}
           onOpenChange={(open) => {
             setAccountDialogOpen(open);
