@@ -14,8 +14,11 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
 import { CategorySelector } from "@/components/budget/category-selector";
 import { formatMoney, parseMoney } from "@/lib/money";
+import { parseLocalDate, toDateString, formatDateLabel } from "@/lib/date-utils";
 import { resolveTransferPair } from "@/lib/queries";
 import { useAccounts, useCategories, useTransactions } from "@/hooks/use-budget-data";
 import type { Transaction } from "@/lib/types";
@@ -173,7 +176,7 @@ function InlineEditCell({
     "h-7 w-full bg-transparent border-0 border-b border-brand/40 rounded-none px-1 text-[13px] focus:outline-none focus:ring-0 focus:border-brand/60 transition-colors";
 
   if (column === "date") {
-    return <DateEditCell txn={txn} inputClass={inputClass} onSave={(date) => buildFormData({ date })} onCancel={onCancel} />;
+    return <DateEditCell txn={txn} onSave={(date) => buildFormData({ date })} onCancel={onCancel} />;
   }
   if (column === "category") {
     return <CategoryEditCell txn={txn} categories={categories} onSave={(categoryId) => buildFormData({ categoryId })} />;
@@ -185,30 +188,38 @@ function InlineEditCell({
   return <AmountEditCell txn={txn} inputClass={inputClass} onSave={(amount) => buildFormData({ amount })} onCancel={onCancel} />;
 }
 
-function DateEditCell({ txn, inputClass, onSave, onCancel }: {
-  txn: Transaction; inputClass: string;
+function DateEditCell({ txn, onSave, onCancel }: {
+  txn: Transaction;
   onSave: (date: string) => void; onCancel: () => void;
 }) {
-  const [value, setValue] = useState(() => txn.datetime.slice(0, 10));
-  const ref = useRef<HTMLInputElement>(null);
-  useEffect(() => { ref.current?.focus(); ref.current?.select(); }, []);
-
-  const save = () => { if (value.match(/^\d{4}-\d{2}-\d{2}$/)) onSave(value); else onCancel(); };
+  const currentDate = txn.datetime.slice(0, 10);
 
   return (
-    <div className="flex items-center gap-1">
-      <CalendarDays className="h-3.5 w-3.5 shrink-0 text-muted-foreground/50" />
-      <input
-        ref={ref}
-        type="text"
-        value={value}
-        onChange={(e) => setValue(e.target.value)}
-        onBlur={save}
-        onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); save(); } if (e.key === "Escape") { e.preventDefault(); onCancel(); } }}
-        className={`${inputClass} text-muted-foreground w-[100px]`}
-        placeholder="YYYY-MM-DD"
-      />
-    </div>
+    <Popover defaultOpen onOpenChange={(open) => { if (!open) onCancel(); }}>
+      <PopoverTrigger
+        render={
+          <button
+            type="button"
+            className="inline-flex items-center gap-1.5 text-[13px] text-muted-foreground hover:text-foreground transition-colors"
+          />
+        }
+      >
+        <CalendarDays className="h-3.5 w-3.5 text-muted-foreground/50" />
+        <span>{formatDateLabel(currentDate)}</span>
+      </PopoverTrigger>
+      <PopoverContent className="w-auto p-0" align="start">
+        <Calendar
+          mode="single"
+          required
+          selected={parseLocalDate(currentDate)}
+          onSelect={(d) => onSave(toDateString(d))}
+          onDayKeyDown={(day, _modifiers, e) => {
+            if (e.key === "Enter" || e.key === " ") onSave(toDateString(day));
+          }}
+          defaultMonth={parseLocalDate(currentDate)}
+        />
+      </PopoverContent>
+    </Popover>
   );
 }
 
