@@ -58,18 +58,16 @@ export function createDebouncedWriter(
       timer = null;
     }
     if (pending) await pending;
-    pending = fn();
+    pending = fn().finally(() => { pending = null; });
     await pending;
-    pending = null;
   };
 
   const schedule = () => {
     if (timer !== null) clearTimeout(timer);
     timer = setTimeout(() => {
       timer = null;
-      pending = fn().finally(() => {
-        pending = null;
-      });
+      const prev = pending ?? Promise.resolve();
+      pending = prev.then(() => fn()).finally(() => { pending = null; });
     }, delayMs);
   };
 

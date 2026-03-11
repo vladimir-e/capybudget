@@ -26,7 +26,7 @@ function BudgetLayout() {
 
   useEffect(() => {
     return () => {
-      repo.dispose();
+      void repo.dispose().catch((err) => console.error("Failed to dispose repository", err));
       queryClient.removeQueries({ queryKey: budgetKeys.all });
     };
   }, [repo, queryClient]);

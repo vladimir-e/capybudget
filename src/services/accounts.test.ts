@@ -150,18 +150,21 @@ describe("deleteAccount", () => {
 
   it("removes the account and its opening balance transaction", () => {
     const acc = makeAccount({ id: "acc-1" });
-    const txns = [makeTxn({ accountId: "acc-1" })];
+    const txns = [makeTxn({
+      accountId: "acc-1",
+      type: "income",
+      merchant: "Opening Balance",
+      categoryId: "",
+      transferPairId: "",
+    })];
     const result = deleteAccount("acc-1", [acc], txns);
     expect(result.accounts).toHaveLength(0);
     expect(result.transactions).toHaveLength(0);
   });
 
-  it("throws when account has more than 1 transaction", () => {
+  it("throws when account has a non-opening-balance transaction", () => {
     const acc = makeAccount({ id: "acc-1" });
-    const txns = [
-      makeTxn({ accountId: "acc-1" }),
-      makeTxn({ accountId: "acc-1" }),
-    ];
+    const txns = [makeTxn({ accountId: "acc-1", merchant: "Grocery Store" })];
     expect(() => deleteAccount("acc-1", [acc], txns)).toThrow(
       /Cannot delete account/,
     );

@@ -60,15 +60,20 @@ export function updateAccount(
   );
 }
 
+function isOpeningBalanceTxn(t: Transaction): boolean {
+  return t.type === "income" && t.merchant === "Opening Balance" && t.categoryId === "" && t.transferPairId === "";
+}
+
 export function deleteAccount(
   accountId: string,
   accounts: Account[],
   transactions: Transaction[],
 ): { accounts: Account[]; transactions: Transaction[] } {
   const accountTxns = transactions.filter((t) => t.accountId === accountId);
-  if (accountTxns.length > 1) {
+  const hasNonOpeningTxns = accountTxns.some((t) => !isOpeningBalanceTxn(t));
+  if (hasNonOpeningTxns) {
     throw new Error(
-      "Cannot delete account with more than one transaction. Remove transactions first.",
+      "Cannot delete account with transactions. Remove transactions first.",
     );
   }
   return {

@@ -92,13 +92,12 @@ export function BudgetShell({ path, name }: BudgetShellProps) {
         handleDismissForm();
         return;
       }
-      if (mod && e.key === "z" && !e.shiftKey) {
+      if (mod && e.key === "z") {
+        const target = e.target as HTMLElement | null;
+        const tag = target?.tagName;
+        if (target?.isContentEditable || tag === "INPUT" || tag === "TEXTAREA") return;
         e.preventDefault();
-        undo();
-      }
-      if (mod && e.key === "z" && e.shiftKey) {
-        e.preventDefault();
-        redo();
+        if (e.shiftKey) redo(); else undo();
       }
     }
     window.addEventListener("keydown", handleKeyDown);
