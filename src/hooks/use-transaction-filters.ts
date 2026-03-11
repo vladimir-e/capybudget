@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useCallback } from "react";
 import type { Account, Category, Transaction } from "@/lib/types";
 import {
   filterTransactions,
@@ -6,6 +6,7 @@ import {
   type TransactionFilterCriteria,
   type SortConfig,
 } from "@/lib/filter-transactions";
+import { useAppStore } from "@/stores/app-store";
 
 export type { TransactionFilterCriteria, SortConfig };
 
@@ -15,6 +16,7 @@ export function useTransactionFilters(
   transactions: Transaction[],
   accounts: Account[],
   categories: Category[],
+  viewKey?: string,
 ) {
   const [filters, setFilters] = useState<TransactionFilterCriteria>({
     search: "",
@@ -22,7 +24,27 @@ export function useTransactionFilters(
     dateRange: null,
   });
 
-  const [sort, setSort] = useState<SortConfig>(DEFAULT_SORT);
+  // Persisted sort: read from store when viewKey is provided
+  const persistedSort = useAppStore((s) =>
+    viewKey ? s.sortPreferences[viewKey] : undefined,
+  );
+  const setSortPreference = useAppStore((s) => s.setSortPreference);
+
+  // Local-only sort: used when no viewKey
+  const [localSort, setLocalSort] = useState<SortConfig>(DEFAULT_SORT);
+
+  const sort = viewKey ? (persistedSort ?? DEFAULT_SORT) : localSort;
+
+  const setSort = useCallback(
+    (next: SortConfig) => {
+      if (viewKey) {
+        setSortPreference(viewKey, next);
+      } else {
+        setLocalSort(next);
+      }
+    },
+    [viewKey, setSortPreference],
+  );
 
   const filtered = useMemo(
     () => filterTransactions(transactions, filters, accounts, categories),
