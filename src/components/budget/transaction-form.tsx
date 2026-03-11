@@ -358,7 +358,7 @@ export function TransactionForm({
 
       {/* Submit */}
       <div className="flex items-center gap-2 pt-1">
-        <Button type="button" variant="ghost" size="sm" className="flex-1" onClick={isEditing ? handleCancel : () => onDismiss?.()}>
+        <Button type="button" variant="ghost" size="sm" className="flex-1" tabIndex={-1} onClick={() => { resetForm(); onDismiss?.(); }}>
           Cancel
         </Button>
         <Button type="submit" size="sm" className="flex-1">
