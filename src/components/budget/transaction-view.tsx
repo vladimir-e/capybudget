@@ -4,7 +4,7 @@ import { TransactionToolbar } from "@/components/budget/transaction-toolbar";
 import { DeleteTransactionDialog } from "@/components/budget/delete-transaction-dialog";
 import { useBudgetUI } from "@/contexts/budget-context";
 import { useAccounts, useCategories } from "@/hooks/use-budget-data";
-import { useUpdateTransaction } from "@/hooks/use-transaction-mutations";
+import { useUpdateTransaction, useDeleteTransaction } from "@/hooks/use-transaction-mutations";
 import { useTransactionFilters } from "@/hooks/use-transaction-filters";
 import type { Transaction } from "@/lib/types";
 import type { TransactionFormData } from "@/services/transactions";
@@ -21,15 +21,18 @@ interface TransactionViewProps {
 export function TransactionView({ transactions, header, showAccountColumn, readOnly, viewKey }: TransactionViewProps) {
   const { data: accounts = [] } = useAccounts();
   const { data: categories = [] } = useCategories();
-  const { editingTxnId, editTransaction, cancelEdit, deleteTransaction } = useBudgetUI();
+  const { editingTxnId, editTransaction, cancelEdit } = useBudgetUI();
   const { filters, setFilters, sort, setSort, filtered } = useTransactionFilters(transactions, accounts, categories, viewKey);
   const [deletingTxn, setDeletingTxn] = useState<Transaction | null>(null);
   const updateTxn = useUpdateTransaction();
+  const deleteTxn = useDeleteTransaction();
 
   const handleDelete = () => {
     if (!deletingTxn) return;
-    deleteTransaction(deletingTxn);
+    deleteTxn.mutate(deletingTxn);
+    if (editingTxnId === deletingTxn.id) cancelEdit();
     setDeletingTxn(null);
+    toast.success("Transaction deleted");
   };
 
   const handleInlineSave = useCallback(

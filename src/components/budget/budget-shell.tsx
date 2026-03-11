@@ -10,7 +10,6 @@ import { BudgetUIProvider, type BudgetUIContextValue } from "@/contexts/budget-c
 import {
   useCreateTransaction,
   useUpdateTransaction,
-  useDeleteTransaction,
 } from "@/hooks/use-transaction-mutations";
 import { useUndoRedo } from "@/hooks/use-undo-redo";
 import { useReorderAccounts } from "@/hooks/use-account-mutations";
@@ -46,7 +45,6 @@ export function BudgetShell({ path, name }: BudgetShellProps) {
   const navigate = useNavigate();
   const createTxn = useCreateTransaction();
   const updateTxn = useUpdateTransaction();
-  const deleteTxnMutation = useDeleteTransaction();
   const { undo, redo } = useUndoRedo();
   const reorderAccounts = useReorderAccounts();
   const { data: accounts = [] } = useAccounts();
@@ -137,18 +135,6 @@ export function BudgetShell({ path, name }: BudgetShellProps) {
     }
   }, [createTxn, updateTxn]);
 
-  const handleDelete = useCallback((txn: Transaction) => {
-    deleteTxnMutation.mutate(txn);
-    setEditingTxn((current) => {
-      if (current?.id === txn.id) {
-        setFormOpen(false);
-        return null;
-      }
-      return current;
-    });
-    toast.success("Transaction deleted");
-  }, [deleteTxnMutation]);
-
   const editTransaction = useCallback((txn: Transaction) => {
     setEditingTxn(txn);
     setFormOpen(true);
@@ -163,10 +149,9 @@ export function BudgetShell({ path, name }: BudgetShellProps) {
     editingTxnId: editingTxn?.id,
     editTransaction,
     cancelEdit,
-    deleteTransaction: handleDelete,
     currentAccountId,
     setCurrentAccountId,
-  }), [editingTxn?.id, editTransaction, cancelEdit, handleDelete, currentAccountId]);
+  }), [editingTxn?.id, editTransaction, cancelEdit, currentAccountId]);
 
   return (
     <BudgetUIProvider value={uiCtx}>

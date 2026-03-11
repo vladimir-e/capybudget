@@ -5,7 +5,6 @@ export interface BudgetUIContextValue {
   editingTxnId: string | undefined;
   editTransaction: (txn: Transaction) => void;
   cancelEdit: () => void;
-  deleteTransaction: (txn: Transaction) => void;
   currentAccountId: string | undefined;
   setCurrentAccountId: (id: string | undefined) => void;
 }
