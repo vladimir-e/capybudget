@@ -24,6 +24,10 @@ interface AccountSelectorProps {
   clearable?: boolean;
   /** Accounts to exclude from the list (e.g. the "from" account in transfers). */
   excludeIds?: string[];
+  /** Start with the popover open. */
+  defaultOpen?: boolean;
+  /** Called when the popover opens or closes. */
+  onOpenChange?: (open: boolean) => void;
 }
 
 export function AccountSelector({
@@ -34,8 +38,11 @@ export function AccountSelector({
   includeAll = false,
   clearable = false,
   excludeIds = [],
+  defaultOpen = false,
+  onOpenChange: onOpenChangeProp,
 }: AccountSelectorProps) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(defaultOpen);
+  const handleOpenChange = (next: boolean) => { setOpen(next); onOpenChangeProp?.(next); };
 
   const active = accounts
     .filter((a) => !a.archived)
@@ -53,7 +60,7 @@ export function AccountSelector({
   const showClear = clearable && value !== "";
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover open={open} onOpenChange={handleOpenChange}>
       <div className="flex items-center">
         <PopoverTrigger
           render={

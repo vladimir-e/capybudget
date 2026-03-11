@@ -182,10 +182,10 @@ function InlineEditCell({
     return <DateEditCell txn={txn} onSave={(date) => buildFormData({ date })} onCancel={onCancel} />;
   }
   if (column === "account") {
-    return <AccountEditCell txn={txn} accounts={accounts} onSave={(accountId) => buildFormData({ accountId })} />;
+    return <AccountEditCell txn={txn} accounts={accounts} onSave={(accountId) => buildFormData({ accountId })} onCancel={onCancel} />;
   }
   if (column === "category") {
-    return <CategoryEditCell txn={txn} categories={categories} onSave={(categoryId) => buildFormData({ categoryId })} />;
+    return <CategoryEditCell txn={txn} categories={categories} onSave={(categoryId) => buildFormData({ categoryId })} onCancel={onCancel} />;
   }
   if (column === "merchant") {
     return <MerchantEditCell txn={txn} inputClass={inputClass} onSave={(merchant) => buildFormData({ merchant })} onCancel={onCancel} />;
@@ -229,32 +229,34 @@ function DateEditCell({ txn, onSave, onCancel }: {
   );
 }
 
-function AccountEditCell({ txn, accounts, onSave }: {
+function AccountEditCell({ txn, accounts, onSave, onCancel }: {
   txn: Transaction; accounts: import("@/lib/types").Account[];
-  onSave: (accountId: string) => void;
+  onSave: (accountId: string) => void; onCancel: () => void;
 }) {
+  const saved = useRef(false);
   return (
     <AccountSelector
       accounts={accounts}
       value={txn.accountId}
-      onChange={(id) => onSave(id)}
+      defaultOpen
+      onChange={(id) => { saved.current = true; onSave(id); }}
+      onOpenChange={(open) => { if (!open && !saved.current) onCancel(); }}
     />
   );
 }
 
-function CategoryEditCell({ txn, categories, onSave }: {
+function CategoryEditCell({ txn, categories, onSave, onCancel }: {
   txn: Transaction; categories: import("@/lib/types").Category[];
-  onSave: (categoryId: string) => void;
+  onSave: (categoryId: string) => void; onCancel: () => void;
 }) {
-  const handleChange = (id: string | null) => {
-    onSave(id ?? "");
-  };
-
+  const saved = useRef(false);
   return (
     <CategorySelector
       categories={categories}
       value={txn.categoryId || null}
-      onChange={handleChange}
+      defaultOpen
+      onChange={(id) => { saved.current = true; onSave(id ?? ""); }}
+      onOpenChange={(open) => { if (!open && !saved.current) onCancel(); }}
       placeholder="Uncategorized"
       includeUncategorized
     />
