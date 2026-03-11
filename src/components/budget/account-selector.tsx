@@ -97,7 +97,7 @@ export function AccountSelector({
                   data-checked={value === ""}
                   onSelect={() => {
                     onChange("");
-                    setOpen(false);
+                    handleOpenChange(false);
                   }}
                 >
                   All Accounts
@@ -115,7 +115,7 @@ export function AccountSelector({
                       data-checked={a.id === value}
                       onSelect={() => {
                         onChange(a.id);
-                        setOpen(false);
+                        handleOpenChange(false);
                       }}
                     >
                       {a.name}

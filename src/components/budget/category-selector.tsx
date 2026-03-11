@@ -91,7 +91,7 @@ export function CategorySelector({
                   data-checked={value === null}
                   onSelect={() => {
                     onChange(null);
-                    setOpen(false);
+                    handleOpenChange(false);
                   }}
                 >
                   All Categories
@@ -105,7 +105,7 @@ export function CategorySelector({
                   data-checked={value === null}
                   onSelect={() => {
                     onChange(null);
-                    setOpen(false);
+                    handleOpenChange(false);
                   }}
                 >
                   <span className="text-muted-foreground italic">Uncategorized</span>
@@ -123,7 +123,7 @@ export function CategorySelector({
                       data-checked={c.id === value}
                       onSelect={() => {
                         onChange(c.id);
-                        setOpen(false);
+                        handleOpenChange(false);
                       }}
                     >
                       {c.name}
