@@ -58,6 +58,7 @@ export function BudgetShell({ path, name }: BudgetShellProps) {
   const [editingTxn, setEditingTxn] = useState<Transaction | null>(null);
   const [currentAccountId, setCurrentAccountId] = useState<string | undefined>();
   const amountRef = useRef<HTMLInputElement>(null);
+  const formPanelRef = useRef<HTMLDivElement>(null);
   const formKey = editingTxn?.id ?? "new";
 
   const isMac = navigator.userAgent.includes("Mac");
@@ -73,12 +74,22 @@ export function BudgetShell({ path, name }: BudgetShellProps) {
     });
   }, [hasAccounts]);
 
+  const handleDismissForm = useCallback(() => {
+    setFormOpen(false);
+    setEditingTxn(null);
+  }, []);
+
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
       const mod = e.metaKey || e.ctrlKey;
       if (mod && e.key === "n") {
         e.preventDefault();
         toggleForm();
+      }
+      if (e.key === "Escape" && formOpen && !formPanelRef.current?.contains(document.activeElement)) {
+        e.preventDefault();
+        handleDismissForm();
+        return;
       }
       if (mod && e.key === "z" && !e.shiftKey) {
         e.preventDefault();
@@ -91,7 +102,7 @@ export function BudgetShell({ path, name }: BudgetShellProps) {
     }
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [toggleForm, undo, redo]);
+  }, [toggleForm, undo, redo, formOpen, handleDismissForm]);
 
   useEffect(() => {
     if (formOpen) {
@@ -140,11 +151,6 @@ export function BudgetShell({ path, name }: BudgetShellProps) {
     setEditingTxn(null);
     setFormOpen(false);
   }, []);
-
-  const handleDismissForm = () => {
-    setFormOpen(false);
-    setEditingTxn(null);
-  };
 
   const uiCtx = useMemo<BudgetUIContextValue>(() => ({
     editingTxnId: editingTxn?.id,
@@ -228,7 +234,14 @@ export function BudgetShell({ path, name }: BudgetShellProps) {
             )}
             <Outlet />
           </main>
+          {formOpen && (
+            <div
+              className="absolute inset-0 z-[9] bg-black/5 backdrop-blur-[1px] transition-opacity"
+              onClick={handleDismissForm}
+            />
+          )}
           <div
+            ref={formPanelRef}
             className={`absolute top-0 inset-x-0 z-10 flex justify-center transition-transform duration-250 ease-out ${
               formOpen ? "translate-y-0" : "-translate-y-full"
             }`}

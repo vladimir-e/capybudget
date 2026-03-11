@@ -83,7 +83,7 @@ describe("createOpeningBalanceTransaction", () => {
     expect(result[0].amount).toBe(10000);
     expect(result[0].accountId).toBe("acc-new");
     expect(result[0].merchant).toBe("Opening Balance");
-    expect(result[0].datetime).toBe(account.createdAt);
+    expect(result[0].datetime).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}$/);
   });
 
   it("returns existing list unchanged when amount is 0", () => {

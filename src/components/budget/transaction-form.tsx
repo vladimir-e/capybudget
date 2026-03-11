@@ -1,4 +1,4 @@
-import { useState, useRef, type RefObject } from "react";
+import { useState, useRef, useEffect, type RefObject } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -81,7 +81,7 @@ export function TransactionForm({
   const amountRef = externalAmountRef ?? internalAmountRef;
   const panelMode = !!onDismiss;
   const activeAccounts = accounts.filter((a) => !a.archived);
-  const defaultAccountId = defaultAccountIdProp ?? activeAccounts[0]?.id ?? "";
+  const defaultAccountId = defaultAccountIdProp ?? (activeAccounts.length === 1 ? activeAccounts[0].id : "");
   const isEditing = !!editingTransaction;
 
   const [expanded, setExpanded] = useState(isEditing);
@@ -109,6 +109,14 @@ export function TransactionForm({
   const [merchant, setMerchant] = useState(editingTransaction?.merchant ?? "");
   const [note, setNote] = useState(editingTransaction?.note ?? "");
   const [datePickerOpen, setDatePickerOpen] = useState(false);
+  const [accountError, setAccountError] = useState(false);
+
+  // Sync account to current context when form has no content (e.g. navigating between accounts)
+  useEffect(() => {
+    if (!amount) {
+      setAccountId(defaultAccountId);
+    }
+  }, [defaultAccountId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function resetForm() {
     setAmount("");
@@ -119,6 +127,7 @@ export function TransactionForm({
     setDate(getToday());
     setMerchant("");
     setNote("");
+    setAccountError(false);
     setTimeout(() => amountRef.current?.focus(), 0);
   }
 
@@ -128,9 +137,13 @@ export function TransactionForm({
   }
 
   function handleSubmit() {
-    const cents = parseMoney(amount);
-    if (cents <= 0) {
+    if (amount.trim() === "") {
       amountRef.current?.focus();
+      return;
+    }
+    const cents = parseMoney(amount);
+    if (!accountId) {
+      setAccountError(true);
       return;
     }
     if (type === "transfer" && !toAccountId) return;
@@ -253,9 +266,10 @@ export function TransactionForm({
           <PopoverContent className="w-auto p-0" align="end">
             <Calendar
               mode="single"
+              required
               selected={parseLocalDate(date)}
               onSelect={(d) => {
-                if (d) setDate(toDateString(d));
+                setDate(toDateString(d));
                 setDatePickerOpen(false);
               }}
               defaultMonth={parseLocalDate(date)}
@@ -278,26 +292,33 @@ export function TransactionForm({
               value={categoryId}
               onChange={setCategoryId}
               placeholder="Category"
+              includeUncategorized
             />
           </div>
-          <div className="[&>div]:w-full [&_button:first-of-type]:w-full">
-            <AccountSelector
-              accounts={accounts}
-              value={accountId}
-              onChange={setAccountId}
-            />
+          <div className="space-y-1">
+            <div className={`[&>div]:w-full [&_button:first-of-type]:w-full ${accountError ? "[&_button:first-of-type]:border-destructive [&_button:first-of-type]:ring-1 [&_button:first-of-type]:ring-destructive/30" : ""}`}>
+              <AccountSelector
+                accounts={accounts}
+                value={accountId}
+                onChange={(id) => { setAccountId(id); setAccountError(false); }}
+              />
+            </div>
+            {accountError && (
+              <p className="text-xs text-destructive">Please select an account</p>
+            )}
           </div>
         </>
       ) : (
         <>
-          <div className="flex items-center gap-2">
-            <div className="flex-1 min-w-0 [&>div]:w-full [&_button:first-of-type]:w-full">
-              <AccountSelector
-                accounts={accounts}
-                value={accountId}
-                onChange={setAccountId}
-              />
-            </div>
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <div className={`flex-1 min-w-0 [&>div]:w-full [&_button:first-of-type]:w-full ${accountError ? "[&_button:first-of-type]:border-destructive [&_button:first-of-type]:ring-1 [&_button:first-of-type]:ring-destructive/30" : ""}`}>
+                <AccountSelector
+                  accounts={accounts}
+                  value={accountId}
+                  onChange={(id) => { setAccountId(id); setAccountError(false); }}
+                />
+              </div>
             <ArrowLeftRight className="h-4 w-4 text-muted-foreground/50 shrink-0" />
             <div className="flex-1 min-w-0 [&>div]:w-full [&_button:first-of-type]:w-full">
               <AccountSelector
@@ -308,6 +329,10 @@ export function TransactionForm({
                 excludeIds={[accountId]}
               />
             </div>
+          </div>
+          {accountError && (
+            <p className="text-xs text-destructive">Please select an account</p>
+          )}
           </div>
         </>
       )}

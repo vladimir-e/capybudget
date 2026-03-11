@@ -25,6 +25,7 @@ export function AddAccountDialog({ open, onOpenChange }: AddAccountDialogProps) 
   const [name, setName] = useState("");
   const [type, setType] = useState<AccountType>("checking");
   const [balance, setBalance] = useState("");
+  const [nameError, setNameError] = useState(false);
   const createAccount = useCreateAccount();
 
   function handleClose(nextOpen: boolean) {
@@ -32,13 +33,14 @@ export function AddAccountDialog({ open, onOpenChange }: AddAccountDialogProps) 
       setName("");
       setType("checking");
       setBalance("");
+      setNameError(false);
     }
     onOpenChange(nextOpen);
   }
 
   function handleCreate() {
     if (!name.trim()) {
-      toast.error("Account name is required");
+      setNameError(true);
       return;
     }
     const openingBalance = balance.trim() ? parseMoney(balance) : 0;
@@ -68,8 +70,12 @@ export function AddAccountDialog({ open, onOpenChange }: AddAccountDialogProps) 
                 id="account-name"
                 placeholder="e.g. BofA Checking"
                 value={name}
-                onChange={(e) => setName(e.target.value)}
+                onChange={(e) => { setName(e.target.value); setNameError(false); }}
+                aria-invalid={nameError}
               />
+              {nameError && (
+                <p className="text-xs text-destructive">Account name is required</p>
+              )}
             </div>
 
             <div className="space-y-2">

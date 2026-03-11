@@ -13,12 +13,21 @@ export interface TransactionFormData {
 }
 
 /** Create one (or two, for transfers) new transactions. Returns the new full list. */
+function localTimeString(d: Date): string {
+  const hh = String(d.getHours()).padStart(2, "0");
+  const mm = String(d.getMinutes()).padStart(2, "0");
+  const ss = String(d.getSeconds()).padStart(2, "0");
+  const ms = String(d.getMilliseconds()).padStart(3, "0");
+  return `${hh}:${mm}:${ss}.${ms}`;
+}
+
 export function createTransaction(
   input: TransactionFormData,
   existing: Transaction[],
 ): Transaction[] {
-  const now = new Date().toISOString();
-  const datetime = `${input.date}T12:00:00.000Z`;
+  const now = new Date();
+  const createdAt = now.toISOString();
+  const datetime = `${input.date}T${localTimeString(now)}`;
 
   if (input.type === "transfer") {
     const fromId = crypto.randomUUID();
@@ -29,7 +38,7 @@ export function createTransaction(
       categoryId: "",
       merchant: "",
       note: input.note,
-      createdAt: now,
+      createdAt,
     };
     return [
       ...existing,
@@ -50,7 +59,7 @@ export function createTransaction(
       transferPairId: "",
       merchant: input.merchant,
       note: input.note,
-      createdAt: now,
+      createdAt,
     },
   ];
 }
@@ -60,7 +69,7 @@ export function updateTransaction(
   input: TransactionFormData,
   existing: Transaction[],
 ): Transaction[] {
-  const datetime = `${input.date}T12:00:00.000Z`;
+  const datetime = `${input.date}T${localTimeString(new Date())}`;
 
   if (input.type === "transfer") {
     // The form resolves transfer pairs so input.accountId = from (outflow),

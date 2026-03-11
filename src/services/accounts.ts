@@ -27,6 +27,12 @@ export function createAccount(
   };
 }
 
+function localDateTime(): string {
+  const d = new Date();
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}.${String(d.getMilliseconds()).padStart(3, "0")}`;
+}
+
 export function createOpeningBalanceTransaction(
   account: Account,
   amount: number,
@@ -36,7 +42,7 @@ export function createOpeningBalanceTransaction(
 
   const txn: Transaction = {
     id: crypto.randomUUID(),
-    datetime: account.createdAt,
+    datetime: localDateTime(),
     type: "income",
     amount,
     categoryId: "",

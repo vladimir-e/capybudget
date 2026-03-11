@@ -45,7 +45,7 @@ export function DeleteTransactionDialog({
     );
   }
 
-  const formattedDate = new Date(transaction.datetime).toLocaleDateString("en-US", {
+  const formattedDate = new Date(transaction.datetime.slice(0, 10) + "T12:00:00").toLocaleDateString("en-US", {
     month: "short",
     day: "numeric",
     year: "numeric",
