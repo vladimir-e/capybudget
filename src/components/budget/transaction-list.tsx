@@ -233,14 +233,13 @@ function AccountEditCell({ txn, accounts, onSave, onCancel }: {
   txn: Transaction; accounts: import("@/lib/types").Account[];
   onSave: (accountId: string) => void; onCancel: () => void;
 }) {
-  const saved = useRef(false);
   return (
     <AccountSelector
       accounts={accounts}
       value={txn.accountId}
       defaultOpen
-      onChange={(id) => { saved.current = true; onSave(id); }}
-      onOpenChange={(open) => { if (!open && !saved.current) onCancel(); }}
+      onChange={(id) => onSave(id)}
+      onOpenChange={(open) => { if (!open) onCancel(); }}
     />
   );
 }
@@ -249,14 +248,13 @@ function CategoryEditCell({ txn, categories, onSave, onCancel }: {
   txn: Transaction; categories: import("@/lib/types").Category[];
   onSave: (categoryId: string) => void; onCancel: () => void;
 }) {
-  const saved = useRef(false);
   return (
     <CategorySelector
       categories={categories}
       value={txn.categoryId || null}
       defaultOpen
-      onChange={(id) => { saved.current = true; onSave(id ?? ""); }}
-      onOpenChange={(open) => { if (!open && !saved.current) onCancel(); }}
+      onChange={(id) => onSave(id ?? "")}
+      onOpenChange={(open) => { if (!open) onCancel(); }}
       placeholder="Uncategorized"
       includeUncategorized
     />
