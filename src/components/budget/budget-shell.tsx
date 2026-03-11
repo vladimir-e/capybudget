@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Outlet, useNavigate } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
 import { Sidebar } from "@/components/budget/sidebar";
-import { AddAccountDialog } from "@/components/budget/add-account-dialog";
+import { AccountDialog } from "@/components/budget/account-dialog";
 import { TransactionForm } from "@/components/budget/transaction-form";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { ColorThemeSwitcher } from "@/components/color-theme-switcher";
@@ -24,7 +24,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { ChevronDown, ChevronLeft, FolderOpen, LogOut } from "lucide-react";
 import { open as shellOpen } from "@tauri-apps/plugin-shell";
-import type { Transaction } from "@/lib/types";
+import type { Account, Transaction } from "@/lib/types";
 import type { TransactionFormData } from "@/services/transactions";
 import { toast } from "sonner";
 
@@ -53,7 +53,8 @@ export function BudgetShell({ path, name }: BudgetShellProps) {
   const hasAccounts = accounts.some((a) => !a.archived);
 
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [addAccountOpen, setAddAccountOpen] = useState(false);
+  const [accountDialogOpen, setAccountDialogOpen] = useState(false);
+  const [editingAccount, setEditingAccount] = useState<Account | null>(null);
   const [formOpen, setFormOpen] = useState(false);
   const [editingTxn, setEditingTxn] = useState<Transaction | null>(null);
   const [currentAccountId, setCurrentAccountId] = useState<string | undefined>();
@@ -65,7 +66,7 @@ export function BudgetShell({ path, name }: BudgetShellProps) {
 
   const toggleForm = useCallback(() => {
     if (!hasAccounts) {
-      setAddAccountOpen(true);
+      setAccountDialogOpen(true);
       return;
     }
     setFormOpen((prev) => {
@@ -218,7 +219,8 @@ export function BudgetShell({ path, name }: BudgetShellProps) {
             budgetName={name}
             collapsed={sidebarCollapsed}
             onCollapse={setSidebarCollapsed}
-            onAddAccount={() => setAddAccountOpen(true)}
+            onAddAccount={() => setAccountDialogOpen(true)}
+            onEditAccount={(account) => { setEditingAccount(account); setAccountDialogOpen(true); }}
             onReorderAccounts={handleReorderAccounts}
           />
           <main className="relative flex-1 overflow-auto bg-background">
@@ -260,9 +262,13 @@ export function BudgetShell({ path, name }: BudgetShellProps) {
           </div>
         </div>
 
-        <AddAccountDialog
-          open={addAccountOpen}
-          onOpenChange={setAddAccountOpen}
+        <AccountDialog
+          open={accountDialogOpen}
+          onOpenChange={(open) => {
+            setAccountDialogOpen(open);
+            if (!open) setEditingAccount(null);
+          }}
+          editingAccount={editingAccount}
         />
       </div>
     </BudgetUIProvider>

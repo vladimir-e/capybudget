@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -11,22 +11,32 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { ACCOUNT_TYPE_LABELS, ACCOUNT_TYPE_ORDER } from "@/lib/account-type-labels";
-import type { AccountType } from "@/lib/types";
+import type { Account, AccountType } from "@/lib/types";
 import { parseMoney } from "@/lib/money";
-import { useCreateAccount } from "@/hooks/use-account-mutations";
+import { useCreateAccount, useUpdateAccount } from "@/hooks/use-account-mutations";
 import { toast } from "sonner";
 
-interface AddAccountDialogProps {
+interface AccountDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  editingAccount?: Account | null;
 }
 
-export function AddAccountDialog({ open, onOpenChange }: AddAccountDialogProps) {
+export function AccountDialog({ open, onOpenChange, editingAccount }: AccountDialogProps) {
+  const isEditing = !!editingAccount;
   const [name, setName] = useState("");
   const [type, setType] = useState<AccountType>("checking");
   const [balance, setBalance] = useState("");
   const [nameError, setNameError] = useState(false);
   const createAccount = useCreateAccount();
+  const updateAccount = useUpdateAccount();
+
+  useEffect(() => {
+    if (open && editingAccount) {
+      setName(editingAccount.name);
+      setType(editingAccount.type);
+    }
+  }, [open, editingAccount]);
 
   function handleClose(nextOpen: boolean) {
     if (!nextOpen) {
@@ -38,29 +48,41 @@ export function AddAccountDialog({ open, onOpenChange }: AddAccountDialogProps) 
     onOpenChange(nextOpen);
   }
 
-  function handleCreate() {
+  function handleSubmit() {
     if (!name.trim()) {
       setNameError(true);
       return;
     }
-    const openingBalance = balance.trim() ? parseMoney(balance) : 0;
-    createAccount.mutate(
-      { name: name.trim(), type, openingBalance },
-      {
-        onSuccess: () => {
-          toast.success("Account created");
-          handleClose(false);
+    if (isEditing) {
+      updateAccount.mutate(
+        { id: editingAccount.id, name: name.trim(), type },
+        {
+          onSuccess: () => {
+            toast.success("Account updated");
+            handleClose(false);
+          },
         },
-      },
-    );
+      );
+    } else {
+      const openingBalance = balance.trim() ? parseMoney(balance) : 0;
+      createAccount.mutate(
+        { name: name.trim(), type, openingBalance },
+        {
+          onSuccess: () => {
+            toast.success("Account created");
+            handleClose(false);
+          },
+        },
+      );
+    }
   }
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="sm:max-w-md">
-        <form onSubmit={(e) => { e.preventDefault(); handleCreate(); }}>
+        <form onSubmit={(e) => { e.preventDefault(); handleSubmit(); }}>
           <DialogHeader>
-            <DialogTitle>Add Account</DialogTitle>
+            <DialogTitle>{isEditing ? "Edit Account" : "Add Account"}</DialogTitle>
           </DialogHeader>
 
           <div className="space-y-4 py-4">
@@ -99,23 +121,25 @@ export function AddAccountDialog({ open, onOpenChange }: AddAccountDialogProps) 
               </ToggleGroup>
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="opening-balance">Opening Balance</Label>
-              <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
-                  $
-                </span>
-                <Input
-                  id="opening-balance"
-                  type="text"
-                  inputMode="decimal"
-                  placeholder="0.00"
-                  className="pl-7 tabular-nums"
-                  value={balance}
-                  onChange={(e) => setBalance(e.target.value)}
-                />
+            {!isEditing && (
+              <div className="space-y-2">
+                <Label htmlFor="opening-balance">Opening Balance</Label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
+                    $
+                  </span>
+                  <Input
+                    id="opening-balance"
+                    type="text"
+                    inputMode="decimal"
+                    placeholder="0.00"
+                    className="pl-7 tabular-nums"
+                    value={balance}
+                    onChange={(e) => setBalance(e.target.value)}
+                  />
+                </div>
               </div>
-            </div>
+            )}
           </div>
 
           <DialogFooter>
@@ -123,7 +147,7 @@ export function AddAccountDialog({ open, onOpenChange }: AddAccountDialogProps) 
               Cancel
             </Button>
             <Button type="submit">
-              Create Account
+              {isEditing ? "Save" : "Create Account"}
             </Button>
           </DialogFooter>
         </form>

@@ -82,3 +82,48 @@ export function reorderCategories(
       : c,
   );
 }
+
+export function moveCategory(
+  categoryId: string,
+  targetGroup: string,
+  targetIndex: number,
+  existing: Category[],
+): Category[] {
+  const category = existing.find((c) => c.id === categoryId);
+  if (!category) return existing;
+
+  // Drag to "Archived" → archive, keep original group
+  if (targetGroup === "Archived") {
+    return existing.map((c) =>
+      c.id === categoryId ? { ...c, archived: true } : c,
+    );
+  }
+
+  // Get target group categories (excluding the moved one)
+  const targetCats = existing
+    .filter(
+      (c) => c.group === targetGroup && !c.archived && c.id !== categoryId,
+    )
+    .sort((a, b) => a.sortOrder - b.sortOrder);
+
+  const index = Math.max(0, Math.min(targetIndex, targetCats.length));
+  const orderedIds = targetCats.map((c) => c.id);
+  orderedIds.splice(index, 0, categoryId);
+
+  const orderMap = new Map(orderedIds.map((id, i) => [id, i + 1]));
+
+  return existing.map((c) => {
+    if (c.id === categoryId) {
+      return {
+        ...c,
+        group: targetGroup as Category["group"],
+        archived: false,
+        sortOrder: orderMap.get(c.id)!,
+      };
+    }
+    if (orderMap.has(c.id)) {
+      return { ...c, sortOrder: orderMap.get(c.id)! };
+    }
+    return c;
+  });
+}

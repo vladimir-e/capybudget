@@ -1,5 +1,5 @@
 import { Link, useMatches } from "@tanstack/react-router";
-import { ChevronDown, ChevronRight, GripVertical, Layers, MoreHorizontal, Archive, ArchiveRestore, Trash2, Plus, Settings } from "lucide-react";
+import { ChevronDown, ChevronRight, GripVertical, Layers, MoreHorizontal, Pencil, Archive, ArchiveRestore, Trash2, Plus, Settings } from "lucide-react";
 import { useState } from "react";
 import {
   DndContext,
@@ -45,6 +45,7 @@ interface SidebarProps {
   collapsed: boolean;
   onCollapse: (collapsed: boolean) => void;
   onAddAccount: () => void;
+  onEditAccount: (account: Account) => void;
   onReorderAccounts: (type: AccountType, orderedIds: string[]) => void;
 }
 
@@ -54,6 +55,7 @@ export function Sidebar({
   collapsed,
   onCollapse,
   onAddAccount,
+  onEditAccount,
   onReorderAccounts,
 }: SidebarProps) {
   const { data: accounts = [] } = useAccounts();
@@ -208,6 +210,7 @@ export function Sidebar({
                           budgetPath={budgetPath}
                           budgetName={budgetName}
                           isActive={activeAccountId === account.id}
+                          onEdit={onEditAccount}
                           onArchive={handleArchive}
                           onDelete={handleDelete}
                         />
@@ -246,6 +249,7 @@ export function Sidebar({
                       budgetName={budgetName}
                       isActive={activeAccountId === account.id}
                       dimmed
+                      onEdit={onEditAccount}
                       onArchive={handleArchive}
                       onDelete={handleDelete}
                     />
@@ -294,6 +298,7 @@ interface AccountRowProps {
   budgetName: string;
   isActive: boolean;
   dimmed?: boolean;
+  onEdit: (account: Account) => void;
   onArchive: (account: Account) => void;
   onDelete: (account: Account) => void;
 }
@@ -329,6 +334,7 @@ function AccountRow({
   budgetName,
   isActive,
   dimmed,
+  onEdit,
   onArchive,
   onDelete,
   dragHandleProps,
@@ -383,6 +389,11 @@ function AccountRow({
           <MoreHorizontal className="h-3.5 w-3.5" />
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start" side="right" sideOffset={4}>
+          <DropdownMenuItem onClick={() => onEdit(account)}>
+            <Pencil className="mr-2 h-4 w-4" />
+            Edit
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
           <DropdownMenuItem onClick={() => onArchive(account)}>
             {account.archived ? (
               <ArchiveRestore className="mr-2 h-4 w-4" />

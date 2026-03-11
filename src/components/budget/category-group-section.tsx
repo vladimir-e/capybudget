@@ -1,5 +1,12 @@
 import { useState } from "react";
-import { ChevronRight, GripVertical, MoreHorizontal, Plus } from "lucide-react";
+import { ChevronRight, GripVertical, MoreHorizontal, Plus, Trash2 } from "lucide-react";
+import {
+  SortableContext,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { useDroppable } from "@dnd-kit/core";
+import { CSS } from "@dnd-kit/utilities";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,11 +14,13 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
   useCreateCategory,
   useUpdateCategory,
+  useDeleteCategory,
   useArchiveCategory,
   useUnarchiveCategory,
 } from "@/hooks/use-category-mutations";
@@ -37,8 +46,13 @@ export function CategoryGroupSection({
 
   const createCategory = useCreateCategory();
   const updateCategory = useUpdateCategory();
+  const deleteCategory = useDeleteCategory();
   const archiveCategory = useArchiveCategory();
   const unarchiveCategory = useUnarchiveCategory();
+
+  const { setNodeRef: setDroppableRef } = useDroppable({
+    id: `group:${group}`,
+  });
 
   function handleAdd() {
     if (!addName.trim()) {
@@ -90,11 +104,20 @@ export function CategoryGroupSection({
     }
   }
 
+  function handleDelete(category: Category) {
+    deleteCategory.mutate(category.id, {
+      onSuccess: () => toast.success(`${category.name} deleted`),
+    });
+  }
+
   const isArchived = group === "Archived";
 
   return (
     <Collapsible open={open} onOpenChange={setOpen}>
-      <div className="group flex items-center gap-1 rounded-md px-2 py-1.5 hover:bg-accent">
+      <div
+        ref={setDroppableRef}
+        className="group flex items-center gap-1 rounded-md px-2 py-1.5 hover:bg-accent"
+      >
         <CollapsibleTrigger
           render={<Button variant="ghost" size="icon" className="h-6 w-6 shrink-0" />}
         >
@@ -114,7 +137,7 @@ export function CategoryGroupSection({
           <Button
             variant="ghost"
             size="icon"
-            className="h-6 w-6 shrink-0 opacity-0 group-hover:opacity-100"
+            className="h-6 w-6 shrink-0 text-muted-foreground/50 hover:text-muted-foreground"
             onClick={() => { setAdding(true); setOpen(true); }}
           >
             <Plus className="h-3.5 w-3.5" />
@@ -123,74 +146,153 @@ export function CategoryGroupSection({
       </div>
 
       <CollapsibleContent>
-        <div className="ml-4 space-y-0.5">
-          {categories.map((category) => (
-            <div
-              key={category.id}
-              className="group flex items-center gap-1 rounded-md px-2 py-1.5 hover:bg-accent"
-            >
-              <GripVertical className="h-3.5 w-3.5 shrink-0 text-muted-foreground opacity-0 group-hover:opacity-50 cursor-grab" />
+        <SortableContext
+          items={categories.map((c) => c.id)}
+          strategy={verticalListSortingStrategy}
+        >
+          <div className="ml-4 space-y-0.5">
+            {categories.map((category) => (
+              <SortableCategoryRow
+                key={category.id}
+                category={category}
+                isRenaming={renamingId === category.id}
+                renameValue={renameValue}
+                onRenameValueChange={setRenameValue}
+                onRenameConfirm={() => handleRename(category)}
+                onRenameCancel={() => setRenamingId(null)}
+                onStartRename={() => startRename(category)}
+                onArchive={() => handleArchive(category)}
+                onDelete={() => handleDelete(category)}
+                isArchived={isArchived}
+              />
+            ))}
 
-              {renamingId === category.id ? (
+            {adding && (
+              <div className="flex items-center gap-1 px-2 py-1.5">
                 <Input
                   autoFocus
-                  value={renameValue}
-                  onChange={(e) => setRenameValue(e.target.value)}
-                  onBlur={() => handleRename(category)}
+                  placeholder="Category name"
+                  value={addName}
+                  onChange={(e) => setAddName(e.target.value)}
+                  onBlur={handleAdd}
                   onKeyDown={(e) => {
-                    if (e.key === "Enter") handleRename(category);
-                    if (e.key === "Escape") setRenamingId(null);
+                    if (e.key === "Enter") handleAdd();
+                    if (e.key === "Escape") { setAdding(false); setAddName(""); }
                   }}
                   className="h-6 flex-1 text-sm px-1 py-0"
                 />
-              ) : (
-                <span className="flex-1 text-sm">{category.name}</span>
-              )}
-
-              <DropdownMenu>
-                <DropdownMenuTrigger
-                  render={
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-6 w-6 shrink-0 opacity-0 group-hover:opacity-100"
-                    />
-                  }
-                >
-                  <MoreHorizontal className="h-3.5 w-3.5" />
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  {!isArchived && (
-                    <DropdownMenuItem onClick={() => startRename(category)}>
-                      Rename
-                    </DropdownMenuItem>
-                  )}
-                  <DropdownMenuItem onClick={() => handleArchive(category)}>
-                    {category.archived ? "Unarchive" : "Archive"}
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
-          ))}
-
-          {adding && (
-            <div className="flex items-center gap-1 px-2 py-1.5">
-              <Input
-                autoFocus
-                placeholder="Category name"
-                value={addName}
-                onChange={(e) => setAddName(e.target.value)}
-                onBlur={handleAdd}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") handleAdd();
-                  if (e.key === "Escape") { setAdding(false); setAddName(""); }
-                }}
-                className="h-6 flex-1 text-sm px-1 py-0"
-              />
-            </div>
-          )}
-        </div>
+              </div>
+            )}
+          </div>
+        </SortableContext>
       </CollapsibleContent>
     </Collapsible>
+  );
+}
+
+// ── Sortable Category Row ──────────────────────────────────
+
+interface SortableCategoryRowProps {
+  category: Category;
+  isRenaming: boolean;
+  renameValue: string;
+  onRenameValueChange: (value: string) => void;
+  onRenameConfirm: () => void;
+  onRenameCancel: () => void;
+  onStartRename: () => void;
+  onArchive: () => void;
+  onDelete: () => void;
+  isArchived: boolean;
+}
+
+function SortableCategoryRow({
+  category,
+  isRenaming,
+  renameValue,
+  onRenameValueChange,
+  onRenameConfirm,
+  onRenameCancel,
+  onStartRename,
+  onArchive,
+  onDelete,
+  isArchived,
+}: SortableCategoryRowProps) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({
+    id: category.id,
+    data: { group: isArchived ? "Archived" : category.group },
+  });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.3 : undefined,
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className="group/row flex items-center gap-1 rounded-md px-2 py-1.5 hover:bg-accent"
+    >
+      <button
+        className="flex h-5 w-4 shrink-0 items-center justify-center text-muted-foreground/30 hover:text-muted-foreground/60 cursor-grab active:cursor-grabbing touch-none"
+        {...attributes}
+        {...listeners}
+      >
+        <GripVertical className="h-3.5 w-3.5" />
+      </button>
+
+      {isRenaming ? (
+        <Input
+          autoFocus
+          value={renameValue}
+          onChange={(e) => onRenameValueChange(e.target.value)}
+          onBlur={onRenameConfirm}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") onRenameConfirm();
+            if (e.key === "Escape") onRenameCancel();
+          }}
+          className="h-6 flex-1 text-sm px-1 py-0"
+        />
+      ) : (
+        <span className="flex-1 text-sm">{category.name}</span>
+      )}
+
+      <DropdownMenu>
+        <DropdownMenuTrigger
+          render={
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6 shrink-0 opacity-0 group-hover/row:opacity-100"
+            />
+          }
+        >
+          <MoreHorizontal className="h-3.5 w-3.5" />
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          {!isArchived && (
+            <DropdownMenuItem onClick={onStartRename}>
+              Rename
+            </DropdownMenuItem>
+          )}
+          <DropdownMenuItem onClick={onArchive}>
+            {isArchived ? "Unarchive" : "Archive"}
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem variant="destructive" onClick={onDelete}>
+            <Trash2 className="mr-2 h-4 w-4" />
+            Delete
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </div>
   );
 }
