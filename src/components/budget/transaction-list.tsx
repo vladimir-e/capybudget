@@ -159,20 +159,29 @@ function InlineEditCell({
 }) {
   const buildFormData = useCallback(
     (patch: Partial<{ date: string; accountId: string; categoryId: string; merchant: string; amount: number }>) => {
+      const current = {
+        date: txn.datetime.slice(0, 10),
+        accountId: txn.accountId,
+        categoryId: txn.categoryId,
+        merchant: txn.merchant,
+        amount: Math.abs(txn.amount),
+      };
+      // Skip save if nothing actually changed
+      const changed = Object.entries(patch).some(
+        ([k, v]) => current[k as keyof typeof current] !== v,
+      );
+      if (!changed) { onCancel(); return; }
+
       const data: TransactionFormData = {
         id: txn.id,
         type: txn.type,
-        amount: Math.abs(txn.amount),
-        categoryId: txn.categoryId,
-        accountId: txn.accountId,
-        date: txn.datetime.slice(0, 10),
-        merchant: txn.merchant,
+        ...current,
         note: txn.note,
         ...patch,
       };
       onSave(data);
     },
-    [txn, onSave],
+    [txn, onSave, onCancel],
   );
 
   const inputClass =
@@ -297,8 +306,8 @@ function AmountEditCell({ txn, inputClass, onSave, onCancel }: {
   const save = () => { const cents = parseMoney(value); if (cents > 0) onSave(cents); else onCancel(); };
 
   return (
-    <div className="flex items-center justify-end gap-0.5">
-      <span className={`text-[13px] font-semibold shrink-0 ${getAmountClass(txn)}`}>
+    <div className="inline-flex items-center justify-end">
+      <span className={`text-[13px] font-semibold ${getAmountClass(txn)}`}>
         {txn.amount < 0 ? "-$" : "$"}
       </span>
       <input
@@ -309,7 +318,8 @@ function AmountEditCell({ txn, inputClass, onSave, onCancel }: {
         onChange={(e) => setValue(e.target.value)}
         onBlur={save}
         onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); save(); } if (e.key === "Escape") { e.preventDefault(); onCancel(); } }}
-        className={`${inputClass} text-right tabular-nums font-semibold w-[90px] ${getAmountClass(txn)}`}
+        className={`${inputClass} text-right tabular-nums font-semibold ${getAmountClass(txn)}`}
+        style={{ width: `${Math.max(value.length, 4) + 1}ch` }}
         placeholder="0.00"
       />
     </div>
