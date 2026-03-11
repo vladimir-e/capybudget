@@ -7,6 +7,13 @@ export function formatMoney(cents: number): string {
   return `${sign}$${dollars.toLocaleString()}.${String(remainder).padStart(2, "0")}`;
 }
 
+/** CSS class for amount coloring based on transaction type */
+export function getAmountClass(txn: { type: string; amount: number }): string {
+  if (txn.type === "transfer") return "text-amount-transfer";
+  if (txn.amount < 0) return "text-amount-expense";
+  return "text-amount-income";
+}
+
 /** Parse a dollar string to cents: "$12.50" → 1250, "12.5" → 1250 */
 export function parseMoney(input: string): number {
   const cleaned = input.replace(/[^0-9.-]/g, "");
