@@ -135,3 +135,24 @@ export function useMoveCategory() {
     },
   });
 }
+
+export function useReorderCategoryDnd() {
+  const { queryClient, repo, captureSnapshot } = useMutationDeps();
+  return useMutation({
+    mutationFn: async (
+      patches: Array<{ id: string; changes: Partial<Category> }>,
+    ) => {
+      captureSnapshot();
+      const prev =
+        queryClient.getQueryData<Category[]>(budgetKeys.categories()) ?? [];
+      const patchMap = new Map(patches.map((p) => [p.id, p.changes]));
+      const next = prev.map((c) => {
+        const changes = patchMap.get(c.id);
+        return changes ? { ...c, ...changes } : c;
+      });
+      queryClient.setQueryData(budgetKeys.categories(), next);
+      await repo.saveCategories(next);
+      return next;
+    },
+  });
+}

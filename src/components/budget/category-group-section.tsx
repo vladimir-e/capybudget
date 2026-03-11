@@ -1,5 +1,11 @@
 import { useState } from "react";
-import { ChevronRight, GripVertical, MoreHorizontal, Plus, Trash2 } from "lucide-react";
+import {
+  ChevronRight,
+  GripVertical,
+  MoreHorizontal,
+  Plus,
+  Trash2,
+} from "lucide-react";
 import {
   SortableContext,
   useSortable,
@@ -7,7 +13,11 @@ import {
 } from "@dnd-kit/sortable";
 import { useDroppable } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -29,13 +39,15 @@ import { toast } from "sonner";
 
 interface CategoryGroupSectionProps {
   group: string;
-  categories: Category[];
+  itemIds: string[];
+  categoryById: Map<string, Category>;
   defaultOpen?: boolean;
 }
 
 export function CategoryGroupSection({
   group,
-  categories,
+  itemIds,
+  categoryById,
   defaultOpen = true,
 }: CategoryGroupSectionProps) {
   const [open, setOpen] = useState(defaultOpen);
@@ -50,9 +62,7 @@ export function CategoryGroupSection({
   const archiveCategory = useArchiveCategory();
   const unarchiveCategory = useUnarchiveCategory();
 
-  const { setNodeRef: setDroppableRef } = useDroppable({
-    id: `group:${group}`,
-  });
+  const { setNodeRef: setDroppableRef } = useDroppable({ id: group });
 
   function handleAdd() {
     if (!addName.trim()) {
@@ -113,80 +123,95 @@ export function CategoryGroupSection({
   const isArchived = group === "Archived";
 
   return (
-    <Collapsible open={open} onOpenChange={setOpen}>
-      <div
-        ref={setDroppableRef}
-        className="group flex items-center gap-1 rounded-md px-2 py-1.5 hover:bg-accent"
-      >
-        <CollapsibleTrigger
-          render={<Button variant="ghost" size="icon" className="h-6 w-6 shrink-0" />}
-        >
-          <ChevronRight
-            className={`h-4 w-4 transition-transform ${open ? "rotate-90" : ""}`}
-          />
-        </CollapsibleTrigger>
-
-        <CollapsibleTrigger className="flex-1 text-left">
-          <span className="text-sm font-medium">{group}</span>
-          <span className="text-muted-foreground text-xs ml-2">
-            ({categories.length})
-          </span>
-        </CollapsibleTrigger>
-
-        {!isArchived && (
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-6 w-6 shrink-0 text-muted-foreground/50 hover:text-muted-foreground"
-            onClick={() => { setAdding(true); setOpen(true); }}
-          >
-            <Plus className="h-3.5 w-3.5" />
-          </Button>
-        )}
-      </div>
-
-      <CollapsibleContent>
-        <SortableContext
-          items={categories.map((c) => c.id)}
-          strategy={verticalListSortingStrategy}
-        >
-          <div className="ml-4 space-y-0.5">
-            {categories.map((category) => (
-              <SortableCategoryRow
-                key={category.id}
-                category={category}
-                isRenaming={renamingId === category.id}
-                renameValue={renameValue}
-                onRenameValueChange={setRenameValue}
-                onRenameConfirm={() => handleRename(category)}
-                onRenameCancel={() => setRenamingId(null)}
-                onStartRename={() => startRename(category)}
-                onArchive={() => handleArchive(category)}
-                onDelete={() => handleDelete(category)}
-                isArchived={isArchived}
+    <div ref={setDroppableRef}>
+      <Collapsible open={open} onOpenChange={setOpen}>
+        <div className="group flex items-center gap-1 rounded-md px-2 py-1.5 hover:bg-accent">
+          <CollapsibleTrigger
+            render={
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-6 w-6 shrink-0"
               />
-            ))}
+            }
+          >
+            <ChevronRight
+              className={`h-4 w-4 transition-transform ${open ? "rotate-90" : ""}`}
+            />
+          </CollapsibleTrigger>
 
-            {adding && (
-              <div className="flex items-center gap-1 px-2 py-1.5">
-                <Input
-                  autoFocus
-                  placeholder="Category name"
-                  value={addName}
-                  onChange={(e) => setAddName(e.target.value)}
-                  onBlur={handleAdd}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") handleAdd();
-                    if (e.key === "Escape") { setAdding(false); setAddName(""); }
-                  }}
-                  className="h-6 flex-1 text-sm px-1 py-0"
-                />
-              </div>
-            )}
-          </div>
-        </SortableContext>
-      </CollapsibleContent>
-    </Collapsible>
+          <CollapsibleTrigger className="flex-1 text-left">
+            <span className="text-sm font-medium">{group}</span>
+            <span className="text-muted-foreground text-xs ml-2">
+              ({itemIds.length})
+            </span>
+          </CollapsibleTrigger>
+
+          {!isArchived && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6 shrink-0 text-muted-foreground/50 hover:text-muted-foreground"
+              onClick={() => {
+                setAdding(true);
+                setOpen(true);
+              }}
+            >
+              <Plus className="h-3.5 w-3.5" />
+            </Button>
+          )}
+        </div>
+
+        <CollapsibleContent>
+          <SortableContext
+            items={itemIds}
+            strategy={verticalListSortingStrategy}
+          >
+            <div className="ml-4 space-y-0.5">
+              {itemIds.map((id) => {
+                const category = categoryById.get(id);
+                if (!category) return null;
+                return (
+                  <SortableCategoryRow
+                    key={id}
+                    category={category}
+                    isRenaming={renamingId === id}
+                    renameValue={renameValue}
+                    onRenameValueChange={setRenameValue}
+                    onRenameConfirm={() => handleRename(category)}
+                    onRenameCancel={() => setRenamingId(null)}
+                    onStartRename={() => startRename(category)}
+                    onArchive={() => handleArchive(category)}
+                    onDelete={() => handleDelete(category)}
+                    isArchived={isArchived}
+                  />
+                );
+              })}
+
+              {adding && (
+                <div className="flex items-center gap-1 px-2 py-1.5">
+                  <Input
+                    autoFocus
+                    placeholder="Category name"
+                    value={addName}
+                    onChange={(e) => setAddName(e.target.value)}
+                    onBlur={handleAdd}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") handleAdd();
+                      if (e.key === "Escape") {
+                        setAdding(false);
+                        setAddName("");
+                      }
+                    }}
+                    className="h-6 flex-1 text-sm px-1 py-0"
+                  />
+                </div>
+              )}
+            </div>
+          </SortableContext>
+        </CollapsibleContent>
+      </Collapsible>
+    </div>
   );
 }
 
@@ -224,15 +249,12 @@ function SortableCategoryRow({
     transform,
     transition,
     isDragging,
-  } = useSortable({
-    id: category.id,
-    data: { group: isArchived ? "Archived" : category.group },
-  });
+  } = useSortable({ id: category.id });
 
   const style = {
-    transform: CSS.Transform.toString(transform),
+    transform: CSS.Translate.toString(transform),
     transition,
-    opacity: isDragging ? 0.3 : undefined,
+    opacity: isDragging ? 0.4 : undefined,
   };
 
   return (
