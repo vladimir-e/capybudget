@@ -1,3 +1,4 @@
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Table,
   TableBody,
@@ -13,12 +14,32 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
-import { formatMoney } from "@/lib/money";
+import { CategorySelector } from "@/components/budget/category-selector";
+import { formatMoney, parseMoney } from "@/lib/money";
 import { resolveTransferPair } from "@/lib/queries";
 import { useAccounts, useCategories, useTransactions } from "@/hooks/use-budget-data";
 import type { Transaction } from "@/lib/types";
+import type { TransactionFormData } from "@/services/transactions";
 import type { SortColumn, SortConfig } from "@/lib/filter-transactions";
-import { ArrowRight, ArrowUpDown, ChevronDown, ChevronUp, Inbox, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
+import {
+  ArrowRight,
+  ArrowUpDown,
+  CalendarDays,
+  Check,
+  ChevronDown,
+  ChevronUp,
+  Inbox,
+  MoreHorizontal,
+  Pencil,
+  Trash2,
+  X,
+} from "lucide-react";
+
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
+
+type EditableColumn = "date" | "category" | "merchant" | "amount";
 
 interface TransactionListProps {
   transactions: Transaction[];
@@ -26,12 +47,16 @@ interface TransactionListProps {
   editingTransactionId?: string | null;
   onEdit?: (transaction: Transaction) => void;
   onDelete?: (transaction: Transaction) => void;
+  onInlineSave?: (data: TransactionFormData) => void;
   sort: SortConfig;
   onSortChange: (sort: SortConfig) => void;
 }
 
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
 function formatDate(iso: string): string {
-  // Extract YYYY-MM-DD and interpret as local noon to avoid timezone shifts
   const datePart = iso.slice(0, 10);
   return new Date(datePart + "T12:00:00").toLocaleDateString("en-US", {
     month: "short",
@@ -46,10 +71,21 @@ function getAmountClass(txn: Transaction): string {
   return "text-amount-income";
 }
 
-/** Default sort direction when clicking a new column. Date defaults desc, others asc. */
 function defaultDirection(column: SortColumn): SortConfig["direction"] {
   return column === "date" ? "desc" : "asc";
 }
+
+/** Format cents as an unsigned dollar string for editing: 1250 → "12.50" */
+function centsToEditString(cents: number): string {
+  const abs = Math.abs(cents);
+  const dollars = Math.floor(abs / 100);
+  const remainder = abs % 100;
+  return `${dollars}.${String(remainder).padStart(2, "0")}`;
+}
+
+// ---------------------------------------------------------------------------
+// SortableHeader
+// ---------------------------------------------------------------------------
 
 function SortableHeader({
   column,
@@ -100,12 +136,198 @@ function SortableHeader({
   );
 }
 
+// ---------------------------------------------------------------------------
+// InlineEditRow
+// ---------------------------------------------------------------------------
+
+function InlineEditRow({
+  txn,
+  showAccountColumn,
+  accountName,
+  onSave,
+  onCancel,
+  focusColumn,
+}: {
+  txn: Transaction;
+  showAccountColumn: boolean;
+  accountName: string;
+  onSave: (data: TransactionFormData) => void;
+  onCancel: () => void;
+  focusColumn: EditableColumn;
+}) {
+  const { data: categories = [] } = useCategories();
+
+  // Local form state
+  const [date, setDate] = useState(() => txn.datetime.slice(0, 10));
+  const [categoryId, setCategoryId] = useState<string | null>(txn.categoryId || null);
+  const [merchant, setMerchant] = useState(txn.merchant);
+  const [amountStr, setAmountStr] = useState(() => centsToEditString(txn.amount));
+
+  // Refs for focusing
+  const dateRef = useRef<HTMLInputElement>(null);
+  const merchantRef = useRef<HTMLInputElement>(null);
+  const amountRef = useRef<HTMLInputElement>(null);
+  const rowRef = useRef<HTMLTableRowElement>(null);
+
+  // Focus the clicked column on mount
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      switch (focusColumn) {
+        case "date": dateRef.current?.focus(); dateRef.current?.select(); break;
+        case "category": break; // CategorySelector manages its own popover
+        case "merchant": merchantRef.current?.focus(); merchantRef.current?.select(); break;
+        case "amount": amountRef.current?.focus(); amountRef.current?.select(); break;
+      }
+    }, 30);
+    return () => clearTimeout(timer);
+  }, [focusColumn]);
+
+  const handleSave = useCallback(() => {
+    const cents = parseMoney(amountStr);
+    if (cents <= 0) return; // Don't save zero amounts
+
+    const data: TransactionFormData = {
+      id: txn.id,
+      type: txn.type,
+      amount: cents,
+      categoryId: categoryId ?? "",
+      accountId: txn.accountId,
+      toAccountId: txn.transferPairId ? undefined : undefined,
+      date,
+      merchant,
+      note: txn.note,
+    };
+    onSave(data);
+  }, [txn, date, categoryId, merchant, amountStr, onSave]);
+
+  // Handle Enter to save, Escape to cancel across the row
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      handleSave();
+    } else if (e.key === "Escape") {
+      e.preventDefault();
+      onCancel();
+    }
+  }, [handleSave, onCancel]);
+
+  // Tab from amount field saves
+  const handleAmountKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (e.key === "Tab" && !e.shiftKey) {
+      e.preventDefault();
+      handleSave();
+    }
+    handleKeyDown(e);
+  }, [handleSave, handleKeyDown]);
+
+  const inputClass = "h-7 w-full bg-transparent border-0 border-b border-border/50 rounded-none px-1 text-[13px] focus:outline-none focus:ring-0 focus:border-brand/50 transition-colors";
+
+  return (
+    <TableRow
+      ref={rowRef}
+      className="transition-colors border-border/50 bg-brand-subtle/40 ring-1 ring-brand/20"
+      onKeyDown={handleKeyDown}
+    >
+      {/* Date */}
+      <TableCell className="py-1">
+        <div className="flex items-center gap-1">
+          <CalendarDays className="h-3.5 w-3.5 shrink-0 text-muted-foreground/50" />
+          <input
+            ref={dateRef}
+            type="text"
+            value={date}
+            onChange={(e) => setDate(e.target.value)}
+            className={`${inputClass} text-muted-foreground w-[100px]`}
+            placeholder="YYYY-MM-DD"
+          />
+        </div>
+      </TableCell>
+
+      {/* Account (static) */}
+      {showAccountColumn && (
+        <TableCell className="font-medium text-[13px] py-1">
+          {accountName}
+        </TableCell>
+      )}
+
+      {/* Category */}
+      <TableCell className="text-[13px] py-1">
+        <CategorySelector
+          categories={categories}
+          value={categoryId}
+          onChange={setCategoryId}
+          placeholder="Uncategorized"
+          includeUncategorized
+        />
+      </TableCell>
+
+      {/* Merchant */}
+      <TableCell className="py-1">
+        <input
+          ref={merchantRef}
+          type="text"
+          value={merchant}
+          onChange={(e) => setMerchant(e.target.value)}
+          className={`${inputClass} text-muted-foreground`}
+          placeholder="Merchant"
+        />
+      </TableCell>
+
+      {/* Amount */}
+      <TableCell className="py-1">
+        <div className="flex items-center justify-end gap-0.5">
+          <span className={`text-[13px] font-semibold ${getAmountClass(txn)}`}>$</span>
+          <input
+            ref={amountRef}
+            type="text"
+            inputMode="decimal"
+            value={amountStr}
+            onChange={(e) => setAmountStr(e.target.value)}
+            onKeyDown={handleAmountKeyDown}
+            className={`${inputClass} text-right tabular-nums font-semibold w-[90px] ${getAmountClass(txn)}`}
+            placeholder="0.00"
+          />
+        </div>
+      </TableCell>
+
+      {/* Actions: Save / Cancel */}
+      <TableCell className="px-1 py-1">
+        <div className="flex items-center gap-0.5">
+          <Button
+            variant="ghost"
+            size="icon-xs"
+            className="text-brand hover:text-brand hover:bg-brand/10"
+            onClick={handleSave}
+            aria-label="Save"
+          >
+            <Check className="h-3.5 w-3.5" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon-xs"
+            className="text-muted-foreground/50 hover:text-foreground"
+            onClick={onCancel}
+            aria-label="Cancel"
+          >
+            <X className="h-3.5 w-3.5" />
+          </Button>
+        </div>
+      </TableCell>
+    </TableRow>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// TransactionList
+// ---------------------------------------------------------------------------
+
 export function TransactionList({
   transactions,
   showAccountColumn,
   editingTransactionId,
   onEdit,
   onDelete,
+  onInlineSave,
   sort,
   onSortChange,
 }: TransactionListProps) {
@@ -114,7 +336,42 @@ export function TransactionList({
   const { data: allTransactions = [] } = useTransactions();
   const accountMap = new Map(accounts.map((a) => [a.id, a]));
   const categoryMap = new Map(categories.map((c) => [c.id, c]));
-  const hasActions = !!(onEdit || onDelete);
+  const hasActions = !!(onEdit || onDelete || onInlineSave);
+
+  const [inlineEditingId, setInlineEditingId] = useState<string | null>(null);
+  const [focusColumn, setFocusColumn] = useState<EditableColumn>("date");
+
+  // If the panel form opens for the same txn, the inline edit is superseded
+  const effectiveInlineId =
+    editingTransactionId && editingTransactionId === inlineEditingId
+      ? null
+      : inlineEditingId;
+
+  const handleCellClick = useCallback(
+    (txn: Transaction, column: EditableColumn) => {
+      if (!onInlineSave) return;
+      // Transfers open the panel form instead
+      if (txn.type === "transfer") {
+        onEdit?.(txn);
+        return;
+      }
+      setInlineEditingId(txn.id);
+      setFocusColumn(column);
+    },
+    [onInlineSave, onEdit],
+  );
+
+  const handleInlineSave = useCallback(
+    (data: TransactionFormData) => {
+      onInlineSave?.(data);
+      setInlineEditingId(null);
+    },
+    [onInlineSave],
+  );
+
+  const handleInlineCancel = useCallback(() => {
+    setInlineEditingId(null);
+  }, []);
 
   if (transactions.length === 0) {
     return (
@@ -143,7 +400,24 @@ export function TransactionList({
       <TableBody>
         {transactions.map((txn, i) => {
           const account = accountMap.get(txn.accountId);
-          const isBeingEdited = txn.id === editingTransactionId;
+          const isInlineEditing = txn.id === effectiveInlineId;
+          const isPanelEditing = txn.id === editingTransactionId;
+          const isEditable = !!onInlineSave && txn.type !== "transfer";
+
+          // Render inline edit row
+          if (isInlineEditing && onInlineSave) {
+            return (
+              <InlineEditRow
+                key={txn.id}
+                txn={txn}
+                showAccountColumn={showAccountColumn}
+                accountName={account?.name ?? "Unknown"}
+                onSave={handleInlineSave}
+                onCancel={handleInlineCancel}
+                focusColumn={focusColumn}
+              />
+            );
+          }
 
           // Transfer display
           let categoryDisplay: React.ReactNode;
@@ -166,32 +440,46 @@ export function TransactionList({
             categoryDisplay = <span className="text-muted-foreground/50 italic">Uncategorized</span>;
           }
 
-          const rowBg = isBeingEdited
+          const rowBg = isPanelEditing
             ? "bg-brand-subtle/40 ring-1 ring-brand/20"
             : i % 2 === 0 ? "bg-transparent" : "bg-muted/30";
+
+          const cellClickClass = isEditable ? "cursor-pointer" : "";
 
           return (
             <TableRow
               key={txn.id}
               className={`transition-colors border-border/50 ${rowBg} ${
-                isBeingEdited ? "" : "hover:bg-brand-subtle/50"
+                isPanelEditing ? "" : "hover:bg-brand-subtle/50"
               }`}
             >
-              <TableCell className="text-muted-foreground text-[13px]">
+              <TableCell
+                className={`text-muted-foreground text-[13px] ${cellClickClass}`}
+                onClick={() => handleCellClick(txn, "date")}
+              >
                 {formatDate(txn.datetime)}
               </TableCell>
               {showAccountColumn && (
                 <TableCell className="font-medium text-[13px]">{account?.name ?? "Unknown"}</TableCell>
               )}
-              <TableCell className="text-[13px]">
+              <TableCell
+                className={`text-[13px] ${cellClickClass}`}
+                onClick={() => handleCellClick(txn, "category")}
+              >
                 {categoryDisplay}
               </TableCell>
-              <TableCell className="text-muted-foreground text-[13px]">
+              <TableCell
+                className={`text-muted-foreground text-[13px] ${cellClickClass}`}
+                onClick={() => handleCellClick(txn, "merchant")}
+              >
                 {txn.type === "transfer" ? (
                   <span className="text-muted-foreground/50">Transfer</span>
                 ) : txn.merchant}
               </TableCell>
-              <TableCell className={`text-right tabular-nums font-semibold text-[13px] ${getAmountClass(txn)}`}>
+              <TableCell
+                className={`text-right tabular-nums font-semibold text-[13px] ${getAmountClass(txn)} ${cellClickClass}`}
+                onClick={() => handleCellClick(txn, "amount")}
+              >
                 {formatMoney(txn.amount)}
               </TableCell>
               {hasActions && (
