@@ -46,7 +46,7 @@ describe("createTransaction", () => {
     expect(txn.merchant).toBe("Employer");
     expect(txn.note).toBe("salary");
     expect(txn.transferPairId).toBe("");
-    expect(txn.datetime).toBe("2026-03-01T12:00:00.000Z");
+    expect(txn.datetime).toMatch(/^2026-03-01T\d{2}:\d{2}:\d{2}\.\d{3}$/);
     expect(txn.id).toBeTruthy();
     expect(txn.createdAt).toBeTruthy();
   });
@@ -173,7 +173,7 @@ describe("updateTransaction", () => {
     expect(txn.accountId).toBe("acc-2");
     expect(txn.merchant).toBe("New Corp");
     expect(txn.note).toBe("raise");
-    expect(txn.datetime).toBe("2026-04-01T12:00:00.000Z");
+    expect(txn.datetime).toMatch(/^2026-04-01T\d{2}:\d{2}:\d{2}\.\d{3}$/);
   });
 
   it("updates expense transaction with negative amount", () => {
@@ -257,12 +257,12 @@ describe("updateTransaction", () => {
       expect(updatedFrom.amount).toBe(-30000);
       expect(updatedFrom.accountId).toBe("acc-new-from");
       expect(updatedFrom.note).toBe("updated note");
-      expect(updatedFrom.datetime).toBe("2026-05-01T12:00:00.000Z");
+      expect(updatedFrom.datetime).toMatch(/^2026-05-01T\d{2}:\d{2}:\d{2}\.\d{3}$/);
 
       expect(updatedTo.amount).toBe(30000);
       expect(updatedTo.accountId).toBe("acc-new-to");
       expect(updatedTo.note).toBe("updated note");
-      expect(updatedTo.datetime).toBe("2026-05-01T12:00:00.000Z");
+      expect(updatedTo.datetime).toMatch(/^2026-05-01T\d{2}:\d{2}:\d{2}\.\d{3}$/);
     });
 
     it("clears merchant on both transfer legs", () => {

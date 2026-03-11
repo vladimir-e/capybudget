@@ -1,5 +1,5 @@
 import { Link, useMatches } from "@tanstack/react-router";
-import { ChevronDown, ChevronLeft, ChevronRight, GripVertical, Layers, MoreHorizontal, Pencil, Archive, ArchiveRestore, Trash2, Plus, Settings } from "lucide-react";
+import { ChevronDown, ChevronRight, GripVertical, Layers, MoreHorizontal, Pencil, Archive, ArchiveRestore, Trash2, Plus, Settings } from "lucide-react";
 import { useState } from "react";
 import {
   DndContext,
@@ -31,25 +31,38 @@ import { formatMoney } from "@/lib/money";
 import { ACCOUNT_TYPE_LABELS } from "@/lib/account-type-labels";
 import { getAccountBalance, getAccountsByGroup, getNetWorth } from "@/lib/queries";
 import { useAccounts, useTransactions } from "@/hooks/use-budget-data";
+import {
+  useDeleteAccount,
+  useArchiveAccount,
+  useUnarchiveAccount,
+} from "@/hooks/use-account-mutations";
 import type { Account, AccountType } from "@/lib/types";
 import { toast } from "sonner";
 
 interface SidebarProps {
   budgetPath: string;
   budgetName: string;
+  collapsed: boolean;
+  onCollapse: (collapsed: boolean) => void;
   onAddAccount: () => void;
+  onEditAccount: (account: Account) => void;
   onReorderAccounts: (type: AccountType, orderedIds: string[]) => void;
 }
 
 export function Sidebar({
   budgetPath,
   budgetName,
+  collapsed,
+  onCollapse,
   onAddAccount,
+  onEditAccount,
   onReorderAccounts,
 }: SidebarProps) {
   const { data: accounts = [] } = useAccounts();
   const { data: transactions = [] } = useTransactions();
-  const [collapsed, setCollapsed] = useState(false);
+  const deleteAccount = useDeleteAccount();
+  const archiveAccount = useArchiveAccount();
+  const unarchiveAccount = useUnarchiveAccount();
   const [showArchived, setShowArchived] = useState(false);
   const matches = useMatches();
   const activeAccountId = matches.reduce<string | undefined>((found, m) => {
@@ -85,6 +98,24 @@ export function Sidebar({
     }
   }
 
+  function handleArchive(account: Account) {
+    if (account.archived) {
+      unarchiveAccount.mutate(account.id, {
+        onSuccess: () => toast.success(`${account.name} unarchived`),
+      });
+    } else {
+      archiveAccount.mutate(account.id, {
+        onSuccess: () => toast.success(`${account.name} archived`),
+      });
+    }
+  }
+
+  function handleDelete(account: Account) {
+    deleteAccount.mutate(account.id, {
+      onSuccess: () => toast.success(`${account.name} deleted`),
+    });
+  }
+
   if (collapsed) {
     return (
       <div className="flex w-12 flex-col items-center border-r border-sidebar-border bg-sidebar py-3">
@@ -92,7 +123,7 @@ export function Sidebar({
           variant="ghost"
           size="icon"
           className="mb-4 h-8 w-8"
-          onClick={() => setCollapsed(false)}
+          onClick={() => onCollapse(false)}
         >
           <ChevronRight className="h-4 w-4" />
         </Button>
@@ -108,9 +139,9 @@ export function Sidebar({
   }
 
   return (
-    <div className="flex w-72 flex-col border-r border-sidebar-border bg-sidebar">
+    <div className="relative flex w-72 flex-col border-r border-sidebar-border bg-sidebar">
       {/* Net Worth — warm hero area */}
-      <div className="relative px-4 pt-4 pb-3">
+      <div className="px-4 pt-4 pb-3">
         <div className="rounded-lg bg-brand-subtle px-3 py-3">
           <div className="text-xs font-medium text-brand/70 uppercase tracking-wider">
             Net Worth
@@ -119,14 +150,6 @@ export function Sidebar({
             {formatMoney(netWorth)}
           </div>
         </div>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="absolute right-2 top-14 h-7 w-7 text-muted-foreground hover:text-foreground"
-          onClick={() => setCollapsed(true)}
-        >
-          <ChevronLeft className="h-3.5 w-3.5" />
-        </Button>
       </div>
 
       <ScrollArea className="flex-1 min-h-0">
@@ -187,6 +210,9 @@ export function Sidebar({
                           budgetPath={budgetPath}
                           budgetName={budgetName}
                           isActive={activeAccountId === account.id}
+                          onEdit={onEditAccount}
+                          onArchive={handleArchive}
+                          onDelete={handleDelete}
                         />
                       ))}
                     </div>
@@ -223,6 +249,9 @@ export function Sidebar({
                       budgetName={budgetName}
                       isActive={activeAccountId === account.id}
                       dimmed
+                      onEdit={onEditAccount}
+                      onArchive={handleArchive}
+                      onDelete={handleDelete}
                     />
                   ))}
                 </div>
@@ -269,6 +298,9 @@ interface AccountRowProps {
   budgetName: string;
   isActive: boolean;
   dimmed?: boolean;
+  onEdit: (account: Account) => void;
+  onArchive: (account: Account) => void;
+  onDelete: (account: Account) => void;
 }
 
 function SortableAccountRow(props: AccountRowProps) {
@@ -302,6 +334,9 @@ function AccountRow({
   budgetName,
   isActive,
   dimmed,
+  onEdit,
+  onArchive,
+  onDelete,
   dragHandleProps,
 }: AccountRowProps & {
   dragHandleProps?: Record<string, unknown>;
@@ -354,11 +389,12 @@ function AccountRow({
           <MoreHorizontal className="h-3.5 w-3.5" />
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start" side="right" sideOffset={4}>
-          <DropdownMenuItem onClick={() => toast.info("Edit account — coming in Phase 2")}>
+          <DropdownMenuItem onClick={() => onEdit(account)}>
             <Pencil className="mr-2 h-4 w-4" />
             Edit
           </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => toast.info(`${account.archived ? "Unarchive" : "Archive"} account — coming in Phase 2`)}>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem onClick={() => onArchive(account)}>
             {account.archived ? (
               <ArchiveRestore className="mr-2 h-4 w-4" />
             ) : (
@@ -369,7 +405,7 @@ function AccountRow({
           <DropdownMenuSeparator />
           <DropdownMenuItem
             variant="destructive"
-            onClick={() => toast.info("Delete account — coming in Phase 2")}
+            onClick={() => onDelete(account)}
           >
             <Trash2 className="mr-2 h-4 w-4" />
             Delete

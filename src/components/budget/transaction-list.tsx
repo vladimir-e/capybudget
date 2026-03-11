@@ -28,7 +28,9 @@ interface TransactionListProps {
 }
 
 function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString("en-US", {
+  // Extract YYYY-MM-DD and interpret as local noon to avoid timezone shifts
+  const datePart = iso.slice(0, 10);
+  return new Date(datePart + "T12:00:00").toLocaleDateString("en-US", {
     month: "short",
     day: "numeric",
     year: "numeric",
@@ -55,10 +57,12 @@ export function TransactionList({
   const categoryMap = new Map(categories.map((c) => [c.id, c]));
   const hasActions = !!(onEdit || onDelete);
 
-  // Sort by datetime descending
-  const sorted = [...transactions].sort(
-    (a, b) => new Date(b.datetime).getTime() - new Date(a.datetime).getTime(),
-  );
+  // Sort by datetime descending, then by createdAt descending as tiebreaker
+  const sorted = [...transactions].sort((a, b) => {
+    const dateDiff = new Date(b.datetime).getTime() - new Date(a.datetime).getTime();
+    if (dateDiff !== 0) return dateDiff;
+    return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+  });
 
   if (sorted.length === 0) {
     return (

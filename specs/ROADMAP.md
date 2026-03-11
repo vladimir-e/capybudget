@@ -52,34 +52,34 @@ Scaffold all screens, nail the layout and navigation. Everything renders from ha
 Replace mock data with real CSV I/O. Every mutation writes through.
 Enabled by the repository pattern — create `CsvRepository`, swap in `budget.tsx`.
 
-- [ ] **2.1 — CSV Service Layer**
+- [x] **2.1 — CSV Service Layer**
   - Generic CSV read/write service (PapaParse + Tauri fs)
   - Atomic writes (temp file → rename)
   - Debounced flush strategy
 
-- [ ] **2.2 — TanStack Query Integration**
+- [x] **2.2 — TanStack Query Integration**
   - Query hooks: `useAccounts()`, `useCategories()`, `useTransactions()`
   - Derived queries: `useAccountBalance(id)`, `useNetWorth()`
   - Query invalidation on mutations
 
-- [ ] **2.3 — Account CRUD**
+- [x] **2.3 — Account CRUD**
   - Create account → writes accounts.csv + opening balance transaction
   - Edit account name/type
   - Archive (blocked if balance non-zero)
   - Delete (blocked if has transactions beyond opening balance)
 
-- [ ] **2.4 — Transaction CRUD**
+- [x] **2.4 — Transaction CRUD**
   - Create/edit/delete expense and income
   - Transfer creation (two linked legs)
   - Transfer delete cascades
   - Category clearing on category delete
   - Optimistic updates in query cache
 
-- [ ] **2.5 — Category CRUD**
+- [x] **2.5 — Category CRUD**
   - Create/rename/reorder categories and groups
   - Archive/delete with referential integrity
 
-- [ ] **2.6 — Undo/Redo**
+- [x] **2.6 — Undo/Redo**
   - Session-scoped state snapshot stack
   - Zustand store for past/present/future
   - Ctrl+Z / Ctrl+Shift+Z

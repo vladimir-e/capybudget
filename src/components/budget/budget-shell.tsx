@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Outlet, useNavigate } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
 import { Sidebar } from "@/components/budget/sidebar";
-import { AddAccountDialog } from "@/components/budget/add-account-dialog";
+import { AccountDialog } from "@/components/budget/account-dialog";
 import { TransactionForm } from "@/components/budget/transaction-form";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { ColorThemeSwitcher } from "@/components/color-theme-switcher";
@@ -12,6 +12,9 @@ import {
   useUpdateTransaction,
   useDeleteTransaction,
 } from "@/hooks/use-transaction-mutations";
+import { useUndoRedo } from "@/hooks/use-undo-redo";
+import { useReorderAccounts } from "@/hooks/use-account-mutations";
+import { useAccounts } from "@/hooks/use-budget-data";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -19,9 +22,9 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { ChevronDown, FolderOpen, LogOut } from "lucide-react";
+import { ChevronDown, ChevronLeft, FolderOpen, LogOut } from "lucide-react";
 import { open as shellOpen } from "@tauri-apps/plugin-shell";
-import type { Transaction } from "@/lib/types";
+import type { Account, Transaction } from "@/lib/types";
 import type { TransactionFormData } from "@/services/transactions";
 import { toast } from "sonner";
 
@@ -44,33 +47,62 @@ export function BudgetShell({ path, name }: BudgetShellProps) {
   const createTxn = useCreateTransaction();
   const updateTxn = useUpdateTransaction();
   const deleteTxnMutation = useDeleteTransaction();
+  const { undo, redo } = useUndoRedo();
+  const reorderAccounts = useReorderAccounts();
+  const { data: accounts = [] } = useAccounts();
+  const hasAccounts = accounts.some((a) => !a.archived);
 
-  const [addAccountOpen, setAddAccountOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [accountDialogOpen, setAccountDialogOpen] = useState(false);
+  const [editingAccount, setEditingAccount] = useState<Account | null>(null);
   const [formOpen, setFormOpen] = useState(false);
   const [editingTxn, setEditingTxn] = useState<Transaction | null>(null);
   const [currentAccountId, setCurrentAccountId] = useState<string | undefined>();
   const amountRef = useRef<HTMLInputElement>(null);
+  const formPanelRef = useRef<HTMLDivElement>(null);
   const formKey = editingTxn?.id ?? "new";
 
   const isMac = navigator.userAgent.includes("Mac");
 
   const toggleForm = useCallback(() => {
+    if (!hasAccounts) {
+      setAccountDialogOpen(true);
+      return;
+    }
     setFormOpen((prev) => {
       if (prev) setEditingTxn(null);
       return !prev;
     });
+  }, [hasAccounts]);
+
+  const handleDismissForm = useCallback(() => {
+    setFormOpen(false);
+    setEditingTxn(null);
   }, []);
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
-      if ((e.metaKey || e.ctrlKey) && e.key === "n") {
+      const mod = e.metaKey || e.ctrlKey;
+      if (mod && e.key === "n") {
         e.preventDefault();
         toggleForm();
+      }
+      if (e.key === "Escape" && formOpen && !formPanelRef.current?.contains(document.activeElement)) {
+        e.preventDefault();
+        handleDismissForm();
+        return;
+      }
+      if (mod && e.key === "z") {
+        const target = e.target as HTMLElement | null;
+        const tag = target?.tagName;
+        if (target?.isContentEditable || tag === "INPUT" || tag === "TEXTAREA") return;
+        e.preventDefault();
+        if (e.shiftKey) redo(); else undo();
       }
     }
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [toggleForm]);
+  }, [toggleForm, undo, redo, formOpen, handleDismissForm]);
 
   useEffect(() => {
     if (formOpen) {
@@ -80,10 +112,10 @@ export function BudgetShell({ path, name }: BudgetShellProps) {
   }, [formOpen, formKey]);
 
   const handleReorderAccounts = useCallback(
-    function reorder() {
-      // Account reordering will be wired with account mutations in Phase 2
+    (type: import("@/lib/types").AccountType, orderedIds: string[]) => {
+      reorderAccounts.mutate({ type, orderedIds });
     },
-    [],
+    [reorderAccounts],
   );
 
   const handleSave = useCallback((data: TransactionFormData) => {
@@ -119,11 +151,6 @@ export function BudgetShell({ path, name }: BudgetShellProps) {
     setEditingTxn(null);
     setFormOpen(false);
   }, []);
-
-  const handleDismissForm = () => {
-    setFormOpen(false);
-    setEditingTxn(null);
-  };
 
   const uiCtx = useMemo<BudgetUIContextValue>(() => ({
     editingTxnId: editingTxn?.id,
@@ -189,13 +216,33 @@ export function BudgetShell({ path, name }: BudgetShellProps) {
           <Sidebar
             budgetPath={path}
             budgetName={name}
-            onAddAccount={() => setAddAccountOpen(true)}
+            collapsed={sidebarCollapsed}
+            onCollapse={setSidebarCollapsed}
+            onAddAccount={() => setAccountDialogOpen(true)}
+            onEditAccount={(account) => { setEditingAccount(account); setAccountDialogOpen(true); }}
             onReorderAccounts={handleReorderAccounts}
           />
-          <main className="flex-1 overflow-auto bg-background">
+          <main className="relative flex-1 overflow-auto bg-background">
+            {!sidebarCollapsed && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="absolute right-3 top-3 z-10 h-7 w-7 text-muted-foreground hover:text-foreground"
+                onClick={() => setSidebarCollapsed(true)}
+              >
+                <ChevronLeft className="h-3.5 w-3.5" />
+              </Button>
+            )}
             <Outlet />
           </main>
+          {formOpen && (
+            <div
+              className="absolute inset-0 z-[9] bg-black/5 backdrop-blur-[1px] transition-opacity"
+              onClick={handleDismissForm}
+            />
+          )}
           <div
+            ref={formPanelRef}
             className={`absolute top-0 inset-x-0 z-10 flex justify-center transition-transform duration-250 ease-out ${
               formOpen ? "translate-y-0" : "-translate-y-full"
             }`}
@@ -214,9 +261,14 @@ export function BudgetShell({ path, name }: BudgetShellProps) {
           </div>
         </div>
 
-        <AddAccountDialog
-          open={addAccountOpen}
-          onOpenChange={setAddAccountOpen}
+        <AccountDialog
+          key={editingAccount?.id ?? "new"}
+          open={accountDialogOpen}
+          onOpenChange={(open) => {
+            setAccountDialogOpen(open);
+            if (!open) setEditingAccount(null);
+          }}
+          editingAccount={editingAccount}
         />
       </div>
     </BudgetUIProvider>

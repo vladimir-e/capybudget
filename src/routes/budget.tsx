@@ -1,8 +1,10 @@
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import { createFileRoute } from "@tanstack/react-router";
+import { useQueryClient } from "@tanstack/react-query";
 import { BudgetShell } from "@/components/budget/budget-shell";
 import { RepositoryProvider } from "@/repositories";
-import { createMockRepository } from "@/repositories";
+import { createCsvRepository } from "@/repositories";
+import { budgetKeys } from "@/hooks/use-budget-data";
 
 interface BudgetSearch {
   path: string;
@@ -19,7 +21,15 @@ export const Route = createFileRoute("/budget")({
 
 function BudgetLayout() {
   const { path, name } = Route.useSearch();
-  const repo = useMemo(() => createMockRepository(), []);
+  const queryClient = useQueryClient();
+  const repo = useMemo(() => createCsvRepository(path), [path]);
+
+  useEffect(() => {
+    return () => {
+      void repo.dispose().catch((err) => console.error("Failed to dispose repository", err));
+      queryClient.removeQueries({ queryKey: budgetKeys.all });
+    };
+  }, [repo, queryClient]);
 
   return (
     <RepositoryProvider value={repo}>

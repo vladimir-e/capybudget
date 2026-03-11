@@ -24,7 +24,7 @@ export function filterTransactions(
     const fromTime = filters.dateRange.from.getTime();
     const toTime = filters.dateRange.to.getTime();
     result = result.filter((t) => {
-      const time = new Date(t.datetime).getTime();
+      const time = new Date(t.datetime.slice(0, 10) + "T12:00:00").getTime();
       return time >= fromTime && time <= toTime;
     });
   }

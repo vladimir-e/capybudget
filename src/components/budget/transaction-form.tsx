@@ -10,6 +10,7 @@ import { resolveTransferPair } from "@/lib/queries";
 import type { Transaction, TransactionType } from "@/lib/types";
 import type { TransactionFormData } from "@/services/transactions";
 import { parseMoney } from "@/lib/money";
+import { getToday, parseLocalDate, toDateString, formatDateLabel } from "@/lib/date-utils";
 import { Minus, Plus, ArrowLeftRight, Check, CalendarDays } from "lucide-react";
 
 interface TransactionFormProps {
@@ -22,27 +23,6 @@ interface TransactionFormProps {
   onCancel?: () => void;
   /** When provided, form runs in "panel mode": always expanded, Escape-with-no-content calls this. */
   onDismiss?: () => void;
-}
-
-function getToday(): string {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
-
-function parseLocalDate(s: string): Date {
-  return new Date(s + "T12:00:00");
-}
-
-function toDateString(d: Date): string {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
-
-function formatDateLabel(s: string): string {
-  return parseLocalDate(s).toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
 }
 
 const TYPES: { value: TransactionType; label: string; icon: typeof Minus }[] = [
@@ -81,7 +61,7 @@ export function TransactionForm({
   const amountRef = externalAmountRef ?? internalAmountRef;
   const panelMode = !!onDismiss;
   const activeAccounts = accounts.filter((a) => !a.archived);
-  const defaultAccountId = defaultAccountIdProp ?? activeAccounts[0]?.id ?? "";
+  const defaultAccountId = defaultAccountIdProp ?? (activeAccounts.length === 1 ? activeAccounts[0].id : "");
   const isEditing = !!editingTransaction;
 
   const [expanded, setExpanded] = useState(isEditing);
@@ -109,6 +89,17 @@ export function TransactionForm({
   const [merchant, setMerchant] = useState(editingTransaction?.merchant ?? "");
   const [note, setNote] = useState(editingTransaction?.note ?? "");
   const [datePickerOpen, setDatePickerOpen] = useState(false);
+  const [accountError, setAccountError] = useState(false);
+  const [toAccountError, setToAccountError] = useState(false);
+
+  // Sync account to current context when form has no content (e.g. navigating between accounts)
+  const [prevDefaultAccountId, setPrevDefaultAccountId] = useState(defaultAccountId);
+  if (defaultAccountId !== prevDefaultAccountId) {
+    setPrevDefaultAccountId(defaultAccountId);
+    if (!amount) {
+      setAccountId(defaultAccountId);
+    }
+  }
 
   function resetForm() {
     setAmount("");
@@ -119,6 +110,8 @@ export function TransactionForm({
     setDate(getToday());
     setMerchant("");
     setNote("");
+    setAccountError(false);
+    setToAccountError(false);
     setTimeout(() => amountRef.current?.focus(), 0);
   }
 
@@ -128,12 +121,19 @@ export function TransactionForm({
   }
 
   function handleSubmit() {
-    const cents = parseMoney(amount);
-    if (cents <= 0) {
+    if (amount.trim() === "") {
       amountRef.current?.focus();
       return;
     }
-    if (type === "transfer" && !toAccountId) return;
+    const cents = parseMoney(amount);
+    if (!accountId) {
+      setAccountError(true);
+      return;
+    }
+    if (type === "transfer" && !toAccountId) {
+      setToAccountError(true);
+      return;
+    }
 
     onSave({
       id: editingTransaction?.id,
@@ -253,10 +253,17 @@ export function TransactionForm({
           <PopoverContent className="w-auto p-0" align="end">
             <Calendar
               mode="single"
+              required
               selected={parseLocalDate(date)}
               onSelect={(d) => {
-                if (d) setDate(toDateString(d));
+                setDate(toDateString(d));
                 setDatePickerOpen(false);
+              }}
+              onDayKeyDown={(day, _modifiers, e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  setDate(toDateString(day));
+                  setDatePickerOpen(false);
+                }
               }}
               defaultMonth={parseLocalDate(date)}
             />
@@ -278,36 +285,47 @@ export function TransactionForm({
               value={categoryId}
               onChange={setCategoryId}
               placeholder="Category"
+              includeUncategorized
             />
           </div>
-          <div className="[&>div]:w-full [&_button:first-of-type]:w-full">
-            <AccountSelector
-              accounts={accounts}
-              value={accountId}
-              onChange={setAccountId}
-            />
+          <div className="space-y-1">
+            <div className={`[&>div]:w-full [&_button:first-of-type]:w-full ${accountError ? "[&_button:first-of-type]:border-destructive [&_button:first-of-type]:ring-1 [&_button:first-of-type]:ring-destructive/30" : ""}`}>
+              <AccountSelector
+                accounts={accounts}
+                value={accountId}
+                onChange={(id) => { setAccountId(id); setAccountError(false); }}
+              />
+            </div>
+            {accountError && (
+              <p className="text-xs text-destructive">Please select an account</p>
+            )}
           </div>
         </>
       ) : (
         <>
-          <div className="flex items-center gap-2">
-            <div className="flex-1 min-w-0 [&>div]:w-full [&_button:first-of-type]:w-full">
-              <AccountSelector
-                accounts={accounts}
-                value={accountId}
-                onChange={setAccountId}
-              />
-            </div>
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <div className={`flex-1 min-w-0 [&>div]:w-full [&_button:first-of-type]:w-full ${accountError ? "[&_button:first-of-type]:border-destructive [&_button:first-of-type]:ring-1 [&_button:first-of-type]:ring-destructive/30" : ""}`}>
+                <AccountSelector
+                  accounts={accounts}
+                  value={accountId}
+                  onChange={(id) => { setAccountId(id); setAccountError(false); }}
+                />
+              </div>
             <ArrowLeftRight className="h-4 w-4 text-muted-foreground/50 shrink-0" />
-            <div className="flex-1 min-w-0 [&>div]:w-full [&_button:first-of-type]:w-full">
+            <div className={`flex-1 min-w-0 [&>div]:w-full [&_button:first-of-type]:w-full ${toAccountError ? "[&_button:first-of-type]:border-destructive [&_button:first-of-type]:ring-1 [&_button:first-of-type]:ring-destructive/30" : ""}`}>
               <AccountSelector
                 accounts={accounts}
                 value={toAccountId}
-                onChange={setToAccountId}
+                onChange={(id) => { setToAccountId(id); setToAccountError(false); }}
                 placeholder="To…"
                 excludeIds={[accountId]}
               />
             </div>
+          </div>
+          {(accountError || toAccountError) && (
+            <p className="text-xs text-destructive">Please select {accountError && toAccountError ? "both accounts" : "an account"}</p>
+          )}
           </div>
         </>
       )}
@@ -322,7 +340,7 @@ export function TransactionForm({
 
       {/* Submit */}
       <div className="flex items-center gap-2 pt-1">
-        <Button type="button" variant="ghost" size="sm" className="flex-1" onClick={isEditing ? handleCancel : () => onDismiss?.()}>
+        <Button type="button" variant="ghost" size="sm" className="flex-1" tabIndex={-1} onClick={() => { resetForm(); onDismiss?.(); }}>
           Cancel
         </Button>
         <Button type="submit" size="sm" className="flex-1">

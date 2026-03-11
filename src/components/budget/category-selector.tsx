@@ -19,6 +19,8 @@ interface CategorySelectorProps {
   placeholder?: string;
   /** Show "All Categories" as the first option (for filter use cases). */
   includeAll?: boolean;
+  /** Show "Uncategorized" option to clear the selection (for form use cases). */
+  includeUncategorized?: boolean;
   /** Show a clear button when a category is selected. */
   clearable?: boolean;
 }
@@ -29,6 +31,7 @@ export function CategorySelector({
   onChange,
   placeholder = "Select category…",
   includeAll = false,
+  includeUncategorized = false,
   clearable = false,
 }: CategorySelectorProps) {
   const [open, setOpen] = useState(false);
@@ -85,6 +88,20 @@ export function CategorySelector({
                   }}
                 >
                   All Categories
+                </CommandItem>
+              </CommandGroup>
+            )}
+            {includeUncategorized && (
+              <CommandGroup>
+                <CommandItem
+                  value="Uncategorized"
+                  data-checked={value === null}
+                  onSelect={() => {
+                    onChange(null);
+                    setOpen(false);
+                  }}
+                >
+                  <span className="text-muted-foreground italic">Uncategorized</span>
                 </CommandItem>
               </CommandGroup>
             )}
