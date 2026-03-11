@@ -178,20 +178,23 @@ function InlineEditCell({
   const inputClass =
     "h-7 w-full bg-transparent border-0 border-b border-brand/40 rounded-none px-1 text-[13px] focus:outline-none focus:ring-0 focus:border-brand/60 transition-colors";
 
+  // Stop click propagation so the parent TableCell's onClick doesn't re-enter edit mode
+  const stop = (e: React.MouseEvent) => e.stopPropagation();
+
   if (column === "date") {
-    return <DateEditCell txn={txn} onSave={(date) => buildFormData({ date })} onCancel={onCancel} />;
+    return <div onClick={stop}><DateEditCell txn={txn} onSave={(date) => buildFormData({ date })} onCancel={onCancel} /></div>;
   }
   if (column === "account") {
-    return <AccountEditCell txn={txn} accounts={accounts} onSave={(accountId) => buildFormData({ accountId })} onCancel={onCancel} />;
+    return <div onClick={stop}><AccountEditCell txn={txn} accounts={accounts} onSave={(accountId) => buildFormData({ accountId })} onCancel={onCancel} /></div>;
   }
   if (column === "category") {
-    return <CategoryEditCell txn={txn} categories={categories} onSave={(categoryId) => buildFormData({ categoryId })} onCancel={onCancel} />;
+    return <div onClick={stop}><CategoryEditCell txn={txn} categories={categories} onSave={(categoryId) => buildFormData({ categoryId })} onCancel={onCancel} /></div>;
   }
   if (column === "merchant") {
-    return <MerchantEditCell txn={txn} inputClass={inputClass} onSave={(merchant) => buildFormData({ merchant })} onCancel={onCancel} />;
+    return <div onClick={stop}><MerchantEditCell txn={txn} inputClass={inputClass} onSave={(merchant) => buildFormData({ merchant })} onCancel={onCancel} /></div>;
   }
   // amount
-  return <AmountEditCell txn={txn} inputClass={inputClass} onSave={(amount) => buildFormData({ amount })} onCancel={onCancel} />;
+  return <div onClick={stop}><AmountEditCell txn={txn} inputClass={inputClass} onSave={(amount) => buildFormData({ amount })} onCancel={onCancel} /></div>;
 }
 
 function DateEditCell({ txn, onSave, onCancel }: {
@@ -349,7 +352,10 @@ export function TransactionList({
         onEdit?.(txn);
         return;
       }
-      setEditingCell({ txnId: txn.id, column });
+      // Prevent re-entry if this cell is already being edited
+      setEditingCell((prev) =>
+        prev?.txnId === txn.id && prev?.column === column ? prev : { txnId: txn.id, column },
+      );
     },
     [onInlineSave, onEdit],
   );
