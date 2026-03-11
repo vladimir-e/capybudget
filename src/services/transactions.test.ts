@@ -215,6 +215,45 @@ describe("updateTransaction", () => {
     expect(result[1].amount).toBe(2000);
   });
 
+  it("preserves original time when date is unchanged", () => {
+    const existing = [
+      makeTxn({ id: "txn-keep-time", datetime: "2026-01-15T21:30:45.123", type: "expense", amount: -5000 }),
+    ];
+    const input: TransactionFormData = {
+      id: "txn-keep-time",
+      type: "expense",
+      amount: 7500,
+      categoryId: "cat-food",
+      accountId: "acc-1",
+      date: "2026-01-15", // same date as original
+      merchant: "Updated Store",
+      note: "updated",
+    };
+
+    const result = updateTransaction(input, existing);
+    expect(result[0].datetime).toBe("2026-01-15T21:30:45.123");
+  });
+
+  it("generates new time when date changes", () => {
+    const existing = [
+      makeTxn({ id: "txn-new-time", datetime: "2026-01-15T21:30:45.123", type: "expense", amount: -5000 }),
+    ];
+    const input: TransactionFormData = {
+      id: "txn-new-time",
+      type: "expense",
+      amount: 7500,
+      categoryId: "cat-food",
+      accountId: "acc-1",
+      date: "2026-01-20", // different date
+      merchant: "Updated Store",
+      note: "updated",
+    };
+
+    const result = updateTransaction(input, existing);
+    expect(result[0].datetime).toMatch(/^2026-01-20T\d{2}:\d{2}:\d{2}\.\d{3}$/);
+    expect(result[0].datetime).not.toBe("2026-01-15T21:30:45.123");
+  });
+
   describe("transfer update", () => {
     const fromLeg = makeTxn({
       id: "tf-from",
@@ -263,6 +302,44 @@ describe("updateTransaction", () => {
       expect(updatedTo.accountId).toBe("acc-new-to");
       expect(updatedTo.note).toBe("updated note");
       expect(updatedTo.datetime).toMatch(/^2026-05-01T\d{2}:\d{2}:\d{2}\.\d{3}$/);
+    });
+
+    it("preserves original time on both legs when date is unchanged", () => {
+      const fromLegSameDate = makeTxn({
+        id: "tf-from",
+        type: "transfer",
+        amount: -25000,
+        accountId: "acc-checking",
+        transferPairId: "tf-to",
+        merchant: "",
+        categoryId: "",
+        datetime: "2026-01-15T21:30:45.123",
+      });
+      const toLegSameDate = makeTxn({
+        id: "tf-to",
+        type: "transfer",
+        amount: 25000,
+        accountId: "acc-savings",
+        transferPairId: "tf-from",
+        merchant: "",
+        categoryId: "",
+        datetime: "2026-01-15T21:30:45.123",
+      });
+      const input: TransactionFormData = {
+        id: "tf-from",
+        type: "transfer",
+        amount: 30000,
+        categoryId: "",
+        accountId: "acc-checking",
+        toAccountId: "acc-savings",
+        date: "2026-01-15", // same date
+        merchant: "",
+        note: "updated",
+      };
+
+      const result = updateTransaction(input, [fromLegSameDate, toLegSameDate]);
+      expect(result.find((t) => t.id === "tf-from")!.datetime).toBe("2026-01-15T21:30:45.123");
+      expect(result.find((t) => t.id === "tf-to")!.datetime).toBe("2026-01-15T21:30:45.123");
     });
 
     it("clears merchant on both transfer legs", () => {

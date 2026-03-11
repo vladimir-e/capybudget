@@ -21,6 +21,14 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -55,6 +63,11 @@ export function CategoryGroupSection({
   const [addName, setAddName] = useState("");
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
+  const [pendingAction, setPendingAction] = useState<{
+    type: "archive" | "delete";
+    categoryId: string;
+    categoryName: string;
+  } | null>(null);
 
   const createCategory = useCreateCategory();
   const updateCategory = useUpdateCategory();
@@ -108,16 +121,34 @@ export function CategoryGroupSection({
         onSuccess: () => toast.success(`${category.name} unarchived`),
       });
     } else {
-      archiveCategory.mutate(category.id, {
-        onSuccess: () => toast.success(`${category.name} archived`),
+      setPendingAction({
+        type: "archive",
+        categoryId: category.id,
+        categoryName: category.name,
       });
     }
   }
 
   function handleDelete(category: Category) {
-    deleteCategory.mutate(category.id, {
-      onSuccess: () => toast.success(`${category.name} deleted`),
+    setPendingAction({
+      type: "delete",
+      categoryId: category.id,
+      categoryName: category.name,
     });
+  }
+
+  function confirmPendingAction() {
+    if (!pendingAction) return;
+    if (pendingAction.type === "archive") {
+      archiveCategory.mutate(pendingAction.categoryId, {
+        onSuccess: () => toast.success(`${pendingAction.categoryName} archived`),
+      });
+    } else {
+      deleteCategory.mutate(pendingAction.categoryId, {
+        onSuccess: () => toast.success(`${pendingAction.categoryName} deleted`),
+      });
+    }
+    setPendingAction(null);
   }
 
   const isArchived = group === "Archived";
@@ -211,6 +242,36 @@ export function CategoryGroupSection({
           </SortableContext>
         </CollapsibleContent>
       </Collapsible>
+
+      <Dialog
+        open={pendingAction !== null}
+        onOpenChange={(isOpen) => { if (!isOpen) setPendingAction(null); }}
+      >
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>
+              {pendingAction?.type === "archive" ? "Archive" : "Delete"}{" "}
+              {pendingAction?.categoryName}
+            </DialogTitle>
+            <DialogDescription>
+              {pendingAction?.type === "archive"
+                ? "Archived categories won't appear in selectors."
+                : "This will remove the category. Transactions using it will become uncategorized."}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPendingAction(null)}>
+              Cancel
+            </Button>
+            <Button
+              variant={pendingAction?.type === "delete" ? "destructive" : "default"}
+              onClick={confirmPendingAction}
+            >
+              {pendingAction?.type === "archive" ? "Archive" : "Delete"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

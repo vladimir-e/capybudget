@@ -58,6 +58,9 @@ export function BudgetShell({ path, name }: BudgetShellProps) {
   const [formOpen, setFormOpen] = useState(false);
   const [editingTxn, setEditingTxn] = useState<Transaction | null>(null);
   const [currentAccountId, setCurrentAccountId] = useState<string | undefined>();
+
+  const currentAccount = accounts.find((a) => a.id === currentAccountId);
+  const isArchivedView = currentAccount?.archived === true;
   const amountRef = useRef<HTMLInputElement>(null);
   const formPanelRef = useRef<HTMLDivElement>(null);
   const formKey = editingTxn?.id ?? "new";
@@ -65,6 +68,7 @@ export function BudgetShell({ path, name }: BudgetShellProps) {
   const isMac = navigator.userAgent.includes("Mac");
 
   const toggleForm = useCallback(() => {
+    if (isArchivedView) return;
     if (!hasAccounts) {
       setAccountDialogOpen(true);
       return;
@@ -73,12 +77,15 @@ export function BudgetShell({ path, name }: BudgetShellProps) {
       if (prev) setEditingTxn(null);
       return !prev;
     });
-  }, [hasAccounts]);
+  }, [hasAccounts, isArchivedView]);
 
   const handleDismissForm = useCallback(() => {
     setFormOpen(false);
     setEditingTxn(null);
   }, []);
+
+  // Suppress form when viewing an archived account
+  const effectiveFormOpen = formOpen && !isArchivedView;
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
@@ -87,7 +94,7 @@ export function BudgetShell({ path, name }: BudgetShellProps) {
         e.preventDefault();
         toggleForm();
       }
-      if (e.key === "Escape" && formOpen && !formPanelRef.current?.contains(document.activeElement)) {
+      if (e.key === "Escape" && effectiveFormOpen && !formPanelRef.current?.contains(document.activeElement)) {
         e.preventDefault();
         handleDismissForm();
         return;
@@ -102,14 +109,14 @@ export function BudgetShell({ path, name }: BudgetShellProps) {
     }
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [toggleForm, undo, redo, formOpen, handleDismissForm]);
+  }, [toggleForm, undo, redo, effectiveFormOpen, handleDismissForm]);
 
   useEffect(() => {
-    if (formOpen) {
+    if (effectiveFormOpen) {
       const timer = setTimeout(() => amountRef.current?.focus(), 80);
       return () => clearTimeout(timer);
     }
-  }, [formOpen, formKey]);
+  }, [effectiveFormOpen, formKey]);
 
   const handleReorderAccounts = useCallback(
     (type: import("@/lib/types").AccountType, orderedIds: string[]) => {
@@ -189,22 +196,24 @@ export function BudgetShell({ path, name }: BudgetShellProps) {
             </DropdownMenu>
           </div>
           <div className="flex justify-center">
-            <button
-              type="button"
-              onClick={toggleForm}
-              className={`group flex items-center gap-2 rounded-full px-3 py-1 text-xs font-medium transition-all ${
-                formOpen
-                  ? "bg-muted text-foreground"
-                  : "text-muted-foreground hover:text-foreground hover:bg-muted/30"
-              }`}
-              aria-label={formOpen ? "Close transaction form" : "Add transaction"}
-            >
-              <ChevronDown className={`h-3.5 w-3.5 transition-transform duration-200 ${formOpen ? "rotate-180" : ""}`} />
-              <span>New Transaction</span>
-              <kbd className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-mono text-muted-foreground/70 border border-border/50">
-                {isMac ? "\u2318" : "Ctrl+"}N
-              </kbd>
-            </button>
+            {!isArchivedView && (
+              <button
+                type="button"
+                onClick={toggleForm}
+                className={`group flex items-center gap-2 rounded-full px-3 py-1 text-xs font-medium transition-all ${
+                  effectiveFormOpen
+                    ? "bg-muted text-foreground"
+                    : "text-muted-foreground hover:text-foreground hover:bg-muted/30"
+                }`}
+                aria-label={effectiveFormOpen ? "Close transaction form" : "Add transaction"}
+              >
+                <ChevronDown className={`h-3.5 w-3.5 transition-transform duration-200 ${effectiveFormOpen ? "rotate-180" : ""}`} />
+                <span>New Transaction</span>
+                <kbd className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-mono text-muted-foreground/70 border border-border/50">
+                  {isMac ? "\u2318" : "Ctrl+"}N
+                </kbd>
+              </button>
+            )}
           </div>
           <div className="flex items-center justify-end gap-1">
             <ColorThemeSwitcher />
@@ -235,7 +244,7 @@ export function BudgetShell({ path, name }: BudgetShellProps) {
             )}
             <Outlet />
           </main>
-          {formOpen && (
+          {effectiveFormOpen && (
             <div
               className="absolute inset-0 z-[9] bg-black/5 backdrop-blur-[1px] transition-opacity"
               onClick={handleDismissForm}
@@ -244,7 +253,7 @@ export function BudgetShell({ path, name }: BudgetShellProps) {
           <div
             ref={formPanelRef}
             className={`absolute top-0 inset-x-0 z-10 flex justify-center transition-transform duration-250 ease-out ${
-              formOpen ? "translate-y-0" : "-translate-y-full"
+              effectiveFormOpen ? "translate-y-0" : "-translate-y-full"
             }`}
           >
             <div className="w-full max-w-sm rounded-b-2xl border-x border-b bg-background shadow-2xl px-6 pt-5 pb-4">

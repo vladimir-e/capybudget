@@ -64,19 +64,25 @@ export function createTransaction(
   ];
 }
 
+/** If the date portion changed, generate a new datetime with current time; otherwise keep the original. */
+function resolveDateTime(inputDate: string, originalDatetime: string): string {
+  const originalDate = originalDatetime.split("T")[0];
+  if (inputDate === originalDate) return originalDatetime;
+  return `${inputDate}T${localTimeString(new Date())}`;
+}
+
 /** Update an existing transaction (and its transfer pair if applicable). Returns the new full list. */
 export function updateTransaction(
   input: TransactionFormData,
   existing: Transaction[],
 ): Transaction[] {
-  const datetime = `${input.date}T${localTimeString(new Date())}`;
-
   if (input.type === "transfer") {
     // The form resolves transfer pairs so input.accountId = from (outflow),
     // input.toAccountId = to (inflow), regardless of which leg was clicked.
     // Both legs are fully rewritten based on the resolved from/to.
     const original = existing.find((t) => t.id === input.id);
     const pairId = original?.transferPairId;
+    const datetime = resolveDateTime(input.date, original?.datetime ?? "");
     return existing.map((t) => {
       if (t.id === input.id) {
         return { ...t, amount: -input.amount, accountId: input.accountId, datetime, merchant: "", note: input.note };
@@ -87,6 +93,9 @@ export function updateTransaction(
       return t;
     });
   }
+
+  const original = existing.find((t) => t.id === input.id);
+  const datetime = resolveDateTime(input.date, original?.datetime ?? "");
 
   return existing.map((t) =>
     t.id === input.id

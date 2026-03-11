@@ -11,13 +11,14 @@ interface TransactionViewProps {
   transactions: Transaction[];
   header: ReactNode;
   showAccountColumn: boolean;
+  readOnly?: boolean;
 }
 
-export function TransactionView({ transactions, header, showAccountColumn }: TransactionViewProps) {
+export function TransactionView({ transactions, header, showAccountColumn, readOnly }: TransactionViewProps) {
   const { data: accounts = [] } = useAccounts();
   const { data: categories = [] } = useCategories();
   const { editingTxnId, editTransaction, deleteTransaction } = useBudgetUI();
-  const { filters, setFilters, filtered } = useTransactionFilters(transactions, accounts, categories);
+  const { filters, setFilters, sort, setSort, filtered } = useTransactionFilters(transactions, accounts, categories);
   const [deletingTxn, setDeletingTxn] = useState<Transaction | null>(null);
 
   const handleDelete = () => {
@@ -35,16 +36,20 @@ export function TransactionView({ transactions, header, showAccountColumn }: Tra
         <TransactionList
           transactions={filtered}
           showAccountColumn={showAccountColumn}
-          editingTransactionId={editingTxnId}
-          onEdit={editTransaction}
-          onDelete={setDeletingTxn}
+          editingTransactionId={readOnly ? undefined : editingTxnId}
+          onEdit={readOnly ? undefined : editTransaction}
+          onDelete={readOnly ? undefined : setDeletingTxn}
+          sort={sort}
+          onSortChange={setSort}
         />
 
-        <DeleteTransactionDialog
-          transaction={deletingTxn}
-          onConfirm={handleDelete}
-          onCancel={() => setDeletingTxn(null)}
-        />
+        {!readOnly && (
+          <DeleteTransactionDialog
+            transaction={deletingTxn}
+            onConfirm={handleDelete}
+            onCancel={() => setDeletingTxn(null)}
+          />
+        )}
       </div>
     </div>
   );
