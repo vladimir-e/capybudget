@@ -25,14 +25,12 @@ import {
   ArrowRight,
   ArrowUpDown,
   CalendarDays,
-  Check,
   ChevronDown,
   ChevronUp,
   Inbox,
   MoreHorizontal,
   Pencil,
   Trash2,
-  X,
 } from "lucide-react";
 
 // ---------------------------------------------------------------------------
@@ -137,185 +135,152 @@ function SortableHeader({
 }
 
 // ---------------------------------------------------------------------------
-// InlineEditRow
+// InlineEditCell — renders a single editable cell, saves on Enter/blur
 // ---------------------------------------------------------------------------
 
-function InlineEditRow({
+function InlineEditCell({
   txn,
-  showAccountColumn,
-  accountName,
+  column,
+  categories,
   onSave,
   onCancel,
-  focusColumn,
 }: {
   txn: Transaction;
-  showAccountColumn: boolean;
-  accountName: string;
+  column: EditableColumn;
+  categories: import("@/lib/types").Category[];
   onSave: (data: TransactionFormData) => void;
   onCancel: () => void;
-  focusColumn: EditableColumn;
 }) {
-  const { data: categories = [] } = useCategories();
+  const buildFormData = useCallback(
+    (patch: Partial<{ date: string; categoryId: string; merchant: string; amount: number }>) => {
+      const data: TransactionFormData = {
+        id: txn.id,
+        type: txn.type,
+        amount: Math.abs(txn.amount),
+        categoryId: txn.categoryId,
+        accountId: txn.accountId,
+        date: txn.datetime.slice(0, 10),
+        merchant: txn.merchant,
+        note: txn.note,
+        ...patch,
+      };
+      onSave(data);
+    },
+    [txn, onSave],
+  );
 
-  // Local form state
-  const [date, setDate] = useState(() => txn.datetime.slice(0, 10));
-  const [categoryId, setCategoryId] = useState<string | null>(txn.categoryId || null);
-  const [merchant, setMerchant] = useState(txn.merchant);
-  const [amountStr, setAmountStr] = useState(() => centsToEditString(txn.amount));
+  const inputClass =
+    "h-7 w-full bg-transparent border-0 border-b border-brand/40 rounded-none px-1 text-[13px] focus:outline-none focus:ring-0 focus:border-brand/60 transition-colors";
 
-  // Refs for focusing
-  const dateRef = useRef<HTMLInputElement>(null);
-  const merchantRef = useRef<HTMLInputElement>(null);
-  const amountRef = useRef<HTMLInputElement>(null);
-  const rowRef = useRef<HTMLTableRowElement>(null);
+  if (column === "date") {
+    return <DateEditCell txn={txn} inputClass={inputClass} onSave={(date) => buildFormData({ date })} onCancel={onCancel} />;
+  }
+  if (column === "category") {
+    return <CategoryEditCell txn={txn} categories={categories} onSave={(categoryId) => buildFormData({ categoryId })} />;
+  }
+  if (column === "merchant") {
+    return <MerchantEditCell txn={txn} inputClass={inputClass} onSave={(merchant) => buildFormData({ merchant })} onCancel={onCancel} />;
+  }
+  // amount
+  return <AmountEditCell txn={txn} inputClass={inputClass} onSave={(amount) => buildFormData({ amount })} onCancel={onCancel} />;
+}
 
-  // Focus the clicked column on mount
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      switch (focusColumn) {
-        case "date": dateRef.current?.focus(); dateRef.current?.select(); break;
-        case "category": break; // CategorySelector manages its own popover
-        case "merchant": merchantRef.current?.focus(); merchantRef.current?.select(); break;
-        case "amount": amountRef.current?.focus(); amountRef.current?.select(); break;
-      }
-    }, 30);
-    return () => clearTimeout(timer);
-  }, [focusColumn]);
+function DateEditCell({ txn, inputClass, onSave, onCancel }: {
+  txn: Transaction; inputClass: string;
+  onSave: (date: string) => void; onCancel: () => void;
+}) {
+  const [value, setValue] = useState(() => txn.datetime.slice(0, 10));
+  const ref = useRef<HTMLInputElement>(null);
+  useEffect(() => { ref.current?.focus(); ref.current?.select(); }, []);
 
-  const handleSave = useCallback(() => {
-    const cents = parseMoney(amountStr);
-    if (cents <= 0) return; // Don't save zero amounts
-
-    const data: TransactionFormData = {
-      id: txn.id,
-      type: txn.type,
-      amount: cents,
-      categoryId: categoryId ?? "",
-      accountId: txn.accountId,
-      toAccountId: txn.transferPairId ? undefined : undefined,
-      date,
-      merchant,
-      note: txn.note,
-    };
-    onSave(data);
-  }, [txn, date, categoryId, merchant, amountStr, onSave]);
-
-  // Handle Enter to save, Escape to cancel across the row
-  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
-    if (e.key === "Enter") {
-      e.preventDefault();
-      handleSave();
-    } else if (e.key === "Escape") {
-      e.preventDefault();
-      onCancel();
-    }
-  }, [handleSave, onCancel]);
-
-  // Tab from amount field saves
-  const handleAmountKeyDown = useCallback((e: React.KeyboardEvent) => {
-    if (e.key === "Tab" && !e.shiftKey) {
-      e.preventDefault();
-      handleSave();
-    }
-    handleKeyDown(e);
-  }, [handleSave, handleKeyDown]);
-
-  const inputClass = "h-7 w-full bg-transparent border-0 border-b border-border/50 rounded-none px-1 text-[13px] focus:outline-none focus:ring-0 focus:border-brand/50 transition-colors";
+  const save = () => { if (value.match(/^\d{4}-\d{2}-\d{2}$/)) onSave(value); else onCancel(); };
 
   return (
-    <TableRow
-      ref={rowRef}
-      className="transition-colors border-border/50 bg-brand-subtle/40 ring-1 ring-brand/20"
-      onKeyDown={handleKeyDown}
-    >
-      {/* Date */}
-      <TableCell className="py-1">
-        <div className="flex items-center gap-1">
-          <CalendarDays className="h-3.5 w-3.5 shrink-0 text-muted-foreground/50" />
-          <input
-            ref={dateRef}
-            type="text"
-            value={date}
-            onChange={(e) => setDate(e.target.value)}
-            className={`${inputClass} text-muted-foreground w-[100px]`}
-            placeholder="YYYY-MM-DD"
-          />
-        </div>
-      </TableCell>
+    <div className="flex items-center gap-1">
+      <CalendarDays className="h-3.5 w-3.5 shrink-0 text-muted-foreground/50" />
+      <input
+        ref={ref}
+        type="text"
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        onBlur={save}
+        onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); save(); } if (e.key === "Escape") { e.preventDefault(); onCancel(); } }}
+        className={`${inputClass} text-muted-foreground w-[100px]`}
+        placeholder="YYYY-MM-DD"
+      />
+    </div>
+  );
+}
 
-      {/* Account (static) */}
-      {showAccountColumn && (
-        <TableCell className="font-medium text-[13px] py-1">
-          {accountName}
-        </TableCell>
-      )}
+function CategoryEditCell({ txn, categories, onSave }: {
+  txn: Transaction; categories: import("@/lib/types").Category[];
+  onSave: (categoryId: string) => void;
+}) {
+  // CategorySelector is a popover — selecting a value saves immediately
+  const handleChange = (id: string | null) => {
+    onSave(id ?? "");
+  };
 
-      {/* Category */}
-      <TableCell className="text-[13px] py-1">
-        <CategorySelector
-          categories={categories}
-          value={categoryId}
-          onChange={setCategoryId}
-          placeholder="Uncategorized"
-          includeUncategorized
-        />
-      </TableCell>
+  return (
+    <CategorySelector
+      categories={categories}
+      value={txn.categoryId || null}
+      onChange={handleChange}
+      placeholder="Uncategorized"
+      includeUncategorized
+    />
+  );
+}
 
-      {/* Merchant */}
-      <TableCell className="py-1">
-        <input
-          ref={merchantRef}
-          type="text"
-          value={merchant}
-          onChange={(e) => setMerchant(e.target.value)}
-          className={`${inputClass} text-muted-foreground`}
-          placeholder="Merchant"
-        />
-      </TableCell>
+function MerchantEditCell({ txn, inputClass, onSave, onCancel }: {
+  txn: Transaction; inputClass: string;
+  onSave: (merchant: string) => void; onCancel: () => void;
+}) {
+  const [value, setValue] = useState(txn.merchant);
+  const ref = useRef<HTMLInputElement>(null);
+  useEffect(() => { ref.current?.focus(); ref.current?.select(); }, []);
 
-      {/* Amount */}
-      <TableCell className="py-1">
-        <div className="relative flex items-center justify-end">
-          <span className={`pointer-events-none absolute left-1 text-[13px] font-semibold ${getAmountClass(txn)}`}>
-            {txn.amount < 0 ? "-$" : "$"}
-          </span>
-          <input
-            ref={amountRef}
-            type="text"
-            inputMode="decimal"
-            value={amountStr}
-            onChange={(e) => setAmountStr(e.target.value)}
-            onKeyDown={handleAmountKeyDown}
-            className={`${inputClass} text-right tabular-nums font-semibold w-full ${getAmountClass(txn)}`}
-            placeholder="0.00"
-          />
-        </div>
-      </TableCell>
+  return (
+    <input
+      ref={ref}
+      type="text"
+      value={value}
+      onChange={(e) => setValue(e.target.value)}
+      onBlur={() => onSave(value.trim())}
+      onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); onSave(value.trim()); } if (e.key === "Escape") { e.preventDefault(); onCancel(); } }}
+      className={`${inputClass} text-muted-foreground`}
+      placeholder="Merchant"
+    />
+  );
+}
 
-      {/* Actions: Save / Cancel */}
-      <TableCell className="px-1 py-1">
-        <div className="flex items-center gap-0.5">
-          <Button
-            variant="ghost"
-            size="icon-xs"
-            className="text-brand hover:text-brand hover:bg-brand/10"
-            onClick={handleSave}
-            aria-label="Save"
-          >
-            <Check className="h-3.5 w-3.5" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon-xs"
-            className="text-muted-foreground/50 hover:text-foreground"
-            onClick={onCancel}
-            aria-label="Cancel"
-          >
-            <X className="h-3.5 w-3.5" />
-          </Button>
-        </div>
-      </TableCell>
-    </TableRow>
+function AmountEditCell({ txn, inputClass, onSave, onCancel }: {
+  txn: Transaction; inputClass: string;
+  onSave: (amount: number) => void; onCancel: () => void;
+}) {
+  const [value, setValue] = useState(() => centsToEditString(txn.amount));
+  const ref = useRef<HTMLInputElement>(null);
+  useEffect(() => { ref.current?.focus(); ref.current?.select(); }, []);
+
+  const save = () => { const cents = parseMoney(value); if (cents > 0) onSave(cents); else onCancel(); };
+
+  return (
+    <div className="flex items-center justify-end gap-0.5">
+      <span className={`text-[13px] font-semibold shrink-0 ${getAmountClass(txn)}`}>
+        {txn.amount < 0 ? "-$" : "$"}
+      </span>
+      <input
+        ref={ref}
+        type="text"
+        inputMode="decimal"
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        onBlur={save}
+        onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); save(); } if (e.key === "Escape") { e.preventDefault(); onCancel(); } }}
+        className={`${inputClass} text-right tabular-nums font-semibold w-[90px] ${getAmountClass(txn)}`}
+        placeholder="0.00"
+      />
+    </div>
   );
 }
 
@@ -340,25 +305,22 @@ export function TransactionList({
   const categoryMap = new Map(categories.map((c) => [c.id, c]));
   const hasActions = !!(onEdit || onDelete || onInlineSave);
 
-  const [inlineEditingId, setInlineEditingId] = useState<string | null>(null);
-  const [focusColumn, setFocusColumn] = useState<EditableColumn>("date");
+  const [editingCell, setEditingCell] = useState<{ txnId: string; column: EditableColumn } | null>(null);
 
-  // If the panel form opens for the same txn, the inline edit is superseded
-  const effectiveInlineId =
-    editingTransactionId && editingTransactionId === inlineEditingId
+  // If the panel form opens for the same txn, cancel inline edit
+  const effectiveEditingCell =
+    editingTransactionId && editingCell?.txnId === editingTransactionId
       ? null
-      : inlineEditingId;
+      : editingCell;
 
   const handleCellClick = useCallback(
     (txn: Transaction, column: EditableColumn) => {
       if (!onInlineSave) return;
-      // Transfers open the panel form instead
       if (txn.type === "transfer") {
         onEdit?.(txn);
         return;
       }
-      setInlineEditingId(txn.id);
-      setFocusColumn(column);
+      setEditingCell({ txnId: txn.id, column });
     },
     [onInlineSave, onEdit],
   );
@@ -366,13 +328,13 @@ export function TransactionList({
   const handleInlineSave = useCallback(
     (data: TransactionFormData) => {
       onInlineSave?.(data);
-      setInlineEditingId(null);
+      setEditingCell(null);
     },
     [onInlineSave],
   );
 
   const handleInlineCancel = useCallback(() => {
-    setInlineEditingId(null);
+    setEditingCell(null);
   }, []);
 
   if (transactions.length === 0) {
@@ -402,24 +364,9 @@ export function TransactionList({
       <TableBody>
         {transactions.map((txn, i) => {
           const account = accountMap.get(txn.accountId);
-          const isInlineEditing = txn.id === effectiveInlineId;
           const isPanelEditing = txn.id === editingTransactionId;
           const isEditable = !!onInlineSave && txn.type !== "transfer";
-
-          // Render inline edit row
-          if (isInlineEditing && onInlineSave) {
-            return (
-              <InlineEditRow
-                key={txn.id}
-                txn={txn}
-                showAccountColumn={showAccountColumn}
-                accountName={account?.name ?? "Unknown"}
-                onSave={handleInlineSave}
-                onCancel={handleInlineCancel}
-                focusColumn={focusColumn}
-              />
-            );
-          }
+          const activeCol = effectiveEditingCell?.txnId === txn.id ? effectiveEditingCell.column : null;
 
           // Transfer display
           let categoryDisplay: React.ReactNode;
@@ -459,7 +406,9 @@ export function TransactionList({
                 className={`text-muted-foreground text-[13px] ${cellClickClass}`}
                 onClick={() => handleCellClick(txn, "date")}
               >
-                {formatDate(txn.datetime)}
+                {activeCol === "date" ? (
+                  <InlineEditCell txn={txn} column="date" categories={categories} onSave={handleInlineSave} onCancel={handleInlineCancel} />
+                ) : formatDate(txn.datetime)}
               </TableCell>
               {showAccountColumn && (
                 <TableCell className="font-medium text-[13px]">{account?.name ?? "Unknown"}</TableCell>
@@ -468,13 +417,17 @@ export function TransactionList({
                 className={`text-[13px] ${cellClickClass}`}
                 onClick={() => handleCellClick(txn, "category")}
               >
-                {categoryDisplay}
+                {activeCol === "category" ? (
+                  <InlineEditCell txn={txn} column="category" categories={categories} onSave={handleInlineSave} onCancel={handleInlineCancel} />
+                ) : categoryDisplay}
               </TableCell>
               <TableCell
                 className={`text-muted-foreground text-[13px] ${cellClickClass}`}
                 onClick={() => handleCellClick(txn, "merchant")}
               >
-                {txn.type === "transfer" ? (
+                {activeCol === "merchant" ? (
+                  <InlineEditCell txn={txn} column="merchant" categories={categories} onSave={handleInlineSave} onCancel={handleInlineCancel} />
+                ) : txn.type === "transfer" ? (
                   <span className="text-muted-foreground/50">Transfer</span>
                 ) : txn.merchant}
               </TableCell>
@@ -482,7 +435,9 @@ export function TransactionList({
                 className={`text-right tabular-nums font-semibold text-[13px] ${getAmountClass(txn)} ${cellClickClass}`}
                 onClick={() => handleCellClick(txn, "amount")}
               >
-                {formatMoney(txn.amount)}
+                {activeCol === "amount" ? (
+                  <InlineEditCell txn={txn} column="amount" categories={categories} onSave={handleInlineSave} onCancel={handleInlineCancel} />
+                ) : formatMoney(txn.amount)}
               </TableCell>
               {hasActions && (
                 <TableCell className="px-1">
