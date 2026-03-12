@@ -109,9 +109,7 @@ AI generates structured data. The app validates and writes — AI never has dire
 
 ## Testing & Linting
 
-**Vitest** for unit tests — colocated with source files as `*.test.ts`. Shares `vite.config.ts` so path aliases and transforms work automatically.
-
-**ESLint 9** (flat config) with TypeScript, React Hooks, and React Refresh rules. The `react-refresh/only-export-components` rule is disabled for route files and shadcn components since those patterns require multi-export files.
+See `specs/TESTING.md` for the full testing strategy, infrastructure, and how to write journey tests.
 
 ## Conventions
 
