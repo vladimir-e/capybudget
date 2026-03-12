@@ -321,7 +321,12 @@ export function TransactionList({
                     {txn.note && (
                       <Tooltip>
                         <TooltipTrigger
-                          render={<span className="ml-auto pl-2 inline-flex shrink-0 cursor-default p-1.5 -m-1.5" />}
+                          render={
+                            <span
+                              className="ml-auto pl-2 inline-flex shrink-0 cursor-pointer p-1.5 -m-1.5"
+                              onClick={(e) => { e.stopPropagation(); onEdit?.(txn); }}
+                            />
+                          }
                         >
                           <span className="h-1.5 w-1.5 rounded-full bg-brand/50 inline-block" />
                         </TooltipTrigger>
