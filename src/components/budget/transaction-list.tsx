@@ -1,3 +1,4 @@
+import { useCallback, useState } from "react";
 import {
   Table,
   TableBody,
@@ -13,11 +14,24 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
-import { formatMoney } from "@/lib/money";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { InlineEditCell, type EditableColumn } from "@/components/budget/inline-edit-cells";
+import { formatMoney, getAmountClass } from "@/lib/money";
 import { resolveTransferPair } from "@/lib/queries";
 import { useAccounts, useCategories, useTransactions } from "@/hooks/use-budget-data";
 import type { Transaction } from "@/lib/types";
-import { ArrowRight, Inbox, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
+import type { TransactionFormData } from "@/services/transactions";
+import type { SortColumn, SortConfig } from "@/lib/filter-transactions";
+import {
+  ArrowRight,
+  ArrowUpDown,
+  ChevronDown,
+  ChevronUp,
+  Inbox,
+  MoreHorizontal,
+  Pencil,
+  Trash2,
+} from "lucide-react";
 
 interface TransactionListProps {
   transactions: Transaction[];
@@ -25,10 +39,16 @@ interface TransactionListProps {
   editingTransactionId?: string | null;
   onEdit?: (transaction: Transaction) => void;
   onDelete?: (transaction: Transaction) => void;
+  onInlineSave?: (data: TransactionFormData) => void;
+  sort: SortConfig;
+  onSortChange: (sort: SortConfig) => void;
 }
 
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
 function formatDate(iso: string): string {
-  // Extract YYYY-MM-DD and interpret as local noon to avoid timezone shifts
   const datePart = iso.slice(0, 10);
   return new Date(datePart + "T12:00:00").toLocaleDateString("en-US", {
     month: "short",
@@ -37,11 +57,66 @@ function formatDate(iso: string): string {
   });
 }
 
-function getAmountClass(txn: Transaction): string {
-  if (txn.type === "transfer") return "text-amount-transfer";
-  if (txn.amount < 0) return "text-amount-expense";
-  return "text-amount-income";
+function defaultDirection(column: SortColumn): SortConfig["direction"] {
+  return column === "date" ? "desc" : "asc";
 }
+
+// ---------------------------------------------------------------------------
+// SortableHeader
+// ---------------------------------------------------------------------------
+
+function SortableHeader({
+  column,
+  sort,
+  onSortChange,
+  align = "left",
+  className,
+  children,
+}: {
+  column: SortColumn;
+  sort: SortConfig;
+  onSortChange: (sort: SortConfig) => void;
+  align?: "left" | "right";
+  className?: string;
+  children: React.ReactNode;
+}) {
+  const isActive = sort.column === column;
+
+  const handleClick = () => {
+    if (isActive) {
+      onSortChange({ column, direction: sort.direction === "asc" ? "desc" : "asc" });
+    } else {
+      onSortChange({ column, direction: defaultDirection(column) });
+    }
+  };
+
+  const Icon = isActive
+    ? sort.direction === "asc" ? ChevronUp : ChevronDown
+    : ArrowUpDown;
+
+  return (
+    <TableHead className={`${className ?? ""} ${align === "right" ? "text-right" : ""}`}>
+      <button
+        type="button"
+        onClick={handleClick}
+        className={`group inline-flex items-center gap-1 cursor-pointer select-none text-xs font-semibold uppercase tracking-wider ${
+          isActive ? "text-foreground" : "text-muted-foreground/70"
+        } ${align === "right" ? "ml-auto" : ""}`}
+      >
+        {children}
+        <Icon
+          className={`h-3 w-3 shrink-0 ${
+            isActive ? "opacity-100" : "opacity-0 group-hover:opacity-50"
+          } transition-opacity`}
+        />
+      </button>
+    </TableHead>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// TransactionList
+// ---------------------------------------------------------------------------
 
 export function TransactionList({
   transactions,
@@ -49,22 +124,53 @@ export function TransactionList({
   editingTransactionId,
   onEdit,
   onDelete,
+  onInlineSave,
+  sort,
+  onSortChange,
 }: TransactionListProps) {
   const { data: accounts = [] } = useAccounts();
   const { data: categories = [] } = useCategories();
   const { data: allTransactions = [] } = useTransactions();
   const accountMap = new Map(accounts.map((a) => [a.id, a]));
   const categoryMap = new Map(categories.map((c) => [c.id, c]));
-  const hasActions = !!(onEdit || onDelete);
+  const hasActions = !!(onEdit || onDelete || onInlineSave);
 
-  // Sort by datetime descending, then by createdAt descending as tiebreaker
-  const sorted = [...transactions].sort((a, b) => {
-    const dateDiff = new Date(b.datetime).getTime() - new Date(a.datetime).getTime();
-    if (dateDiff !== 0) return dateDiff;
-    return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-  });
+  const [editingCell, setEditingCell] = useState<{ txnId: string; column: EditableColumn } | null>(null);
 
-  if (sorted.length === 0) {
+  // If the panel form opens for the same txn, cancel inline edit
+  const effectiveEditingCell =
+    editingTransactionId && editingCell?.txnId === editingTransactionId
+      ? null
+      : editingCell;
+
+  const handleCellClick = useCallback(
+    (txn: Transaction, column: EditableColumn) => {
+      if (!onInlineSave) return;
+      if (txn.type === "transfer") {
+        onEdit?.(txn);
+        return;
+      }
+      // Prevent re-entry if this cell is already being edited
+      setEditingCell((prev) =>
+        prev?.txnId === txn.id && prev?.column === column ? prev : { txnId: txn.id, column },
+      );
+    },
+    [onInlineSave, onEdit],
+  );
+
+  const handleInlineSave = useCallback(
+    (data: TransactionFormData) => {
+      onInlineSave?.(data);
+      setEditingCell(null);
+    },
+    [onInlineSave],
+  );
+
+  const handleInlineCancel = useCallback(() => {
+    setEditingCell(null);
+  }, []);
+
+  if (transactions.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-24 text-muted-foreground">
         <Inbox className="h-12 w-12 mb-3 opacity-30" strokeWidth={1.5} />
@@ -78,18 +184,22 @@ export function TransactionList({
     <Table>
       <TableHeader>
         <TableRow className="hover:bg-transparent border-b-2 border-border">
-          <TableHead className="w-[120px] text-xs font-semibold uppercase tracking-wider text-muted-foreground/70">Date</TableHead>
-          {showAccountColumn && <TableHead className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/70">Account</TableHead>}
-          <TableHead className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/70">Category</TableHead>
-          <TableHead className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/70">Merchant</TableHead>
-          <TableHead className="text-right w-[130px] text-xs font-semibold uppercase tracking-wider text-muted-foreground/70">Amount</TableHead>
+          <SortableHeader column="date" sort={sort} onSortChange={onSortChange} className="w-[120px]">Date</SortableHeader>
+          {showAccountColumn && (
+            <SortableHeader column="account" sort={sort} onSortChange={onSortChange}>Account</SortableHeader>
+          )}
+          <SortableHeader column="category" sort={sort} onSortChange={onSortChange}>Category</SortableHeader>
+          <SortableHeader column="merchant" sort={sort} onSortChange={onSortChange}>Merchant</SortableHeader>
+          <SortableHeader column="amount" sort={sort} onSortChange={onSortChange} align="right" className="w-[130px]">Amount</SortableHeader>
           {hasActions && <TableHead className="w-[48px]" />}
         </TableRow>
       </TableHeader>
       <TableBody>
-        {sorted.map((txn, i) => {
+        {transactions.map((txn, i) => {
           const account = accountMap.get(txn.accountId);
-          const isBeingEdited = txn.id === editingTransactionId;
+          const isPanelEditing = txn.id === editingTransactionId;
+          const isEditable = !!onInlineSave && txn.type !== "transfer";
+          const activeCol = effectiveEditingCell?.txnId === txn.id ? effectiveEditingCell.column : null;
 
           // Transfer display
           let categoryDisplay: React.ReactNode;
@@ -112,33 +222,77 @@ export function TransactionList({
             categoryDisplay = <span className="text-muted-foreground/50 italic">Uncategorized</span>;
           }
 
-          const rowBg = isBeingEdited
+          const rowBg = isPanelEditing
             ? "bg-brand-subtle/40 ring-1 ring-brand/20"
             : i % 2 === 0 ? "bg-transparent" : "bg-muted/30";
+
+          const isCellClickable = isEditable || (!!onEdit && txn.type === "transfer");
+          const cellClickClass = isCellClickable ? "cursor-pointer" : "";
 
           return (
             <TableRow
               key={txn.id}
               className={`transition-colors border-border/50 ${rowBg} ${
-                isBeingEdited ? "" : "hover:bg-brand-subtle/50"
+                isPanelEditing ? "" : "hover:bg-brand-subtle/50"
               }`}
             >
-              <TableCell className="text-muted-foreground text-[13px]">
-                {formatDate(txn.datetime)}
+              <TableCell
+                className={`text-muted-foreground text-[13px] ${cellClickClass}`}
+                onClick={() => handleCellClick(txn, "date")}
+              >
+                {activeCol === "date" ? (
+                  <InlineEditCell txn={txn} column="date" accounts={accounts} categories={categories} onSave={handleInlineSave} onCancel={handleInlineCancel} />
+                ) : formatDate(txn.datetime)}
               </TableCell>
               {showAccountColumn && (
-                <TableCell className="font-medium text-[13px]">{account?.name ?? "Unknown"}</TableCell>
+                <TableCell
+                  className={`font-medium text-[13px] ${cellClickClass}`}
+                  onClick={() => handleCellClick(txn, "account")}
+                >
+                  {activeCol === "account" ? (
+                    <InlineEditCell txn={txn} column="account" accounts={accounts} categories={categories} onSave={handleInlineSave} onCancel={handleInlineCancel} />
+                  ) : account?.name ?? "Unknown"}
+                </TableCell>
               )}
-              <TableCell className="text-[13px]">
-                {categoryDisplay}
+              <TableCell
+                className={`text-[13px] ${cellClickClass}`}
+                onClick={() => handleCellClick(txn, "category")}
+              >
+                {activeCol === "category" ? (
+                  <InlineEditCell txn={txn} column="category" accounts={accounts} categories={categories} onSave={handleInlineSave} onCancel={handleInlineCancel} />
+                ) : categoryDisplay}
               </TableCell>
-              <TableCell className="text-muted-foreground text-[13px]">
-                {txn.type === "transfer" ? (
-                  <span className="text-muted-foreground/50">Transfer</span>
-                ) : txn.merchant}
+              <TableCell
+                className={`text-muted-foreground text-[13px] ${cellClickClass}`}
+                onClick={() => handleCellClick(txn, "merchant")}
+              >
+                {activeCol === "merchant" ? (
+                  <InlineEditCell txn={txn} column="merchant" accounts={accounts} categories={categories} onSave={handleInlineSave} onCancel={handleInlineCancel} />
+                ) : (
+                  <span className="inline-flex items-center gap-1.5">
+                    {txn.type === "transfer" ? (
+                      <span className="text-muted-foreground/50">Transfer</span>
+                    ) : txn.merchant}
+                    {txn.note && (
+                      <Tooltip>
+                        <TooltipTrigger
+                          render={<span className="inline-flex shrink-0 cursor-default" />}
+                        >
+                          <span className="h-1.5 w-1.5 rounded-full bg-brand/50 inline-block" />
+                        </TooltipTrigger>
+                        <TooltipContent>{txn.note}</TooltipContent>
+                      </Tooltip>
+                    )}
+                  </span>
+                )}
               </TableCell>
-              <TableCell className={`text-right tabular-nums font-semibold text-[13px] ${getAmountClass(txn)}`}>
-                {formatMoney(txn.amount)}
+              <TableCell
+                className={`text-right tabular-nums font-semibold text-[13px] ${getAmountClass(txn)} ${cellClickClass}`}
+                onClick={() => handleCellClick(txn, "amount")}
+              >
+                {activeCol === "amount" ? (
+                  <InlineEditCell txn={txn} column="amount" accounts={accounts} categories={categories} onSave={handleInlineSave} onCancel={handleInlineCancel} />
+                ) : formatMoney(txn.amount)}
               </TableCell>
               {hasActions && (
                 <TableCell className="px-1">

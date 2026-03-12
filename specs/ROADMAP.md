@@ -90,7 +90,7 @@ Enabled by the repository pattern — create `CsvRepository`, swap in `budget.ts
 
 Fast entry, filtering, bulk operations.
 
-- [ ] **3.1 — Transaction Entry Form**
+- [x] **3.1 — Transaction Entry Form**
   - Hero amount input with large text
   - Segmented type control (expense/income/transfer) with semantic colors
   - `-` / `+` shortcuts in amount field
@@ -98,19 +98,19 @@ Fast entry, filtering, bulk operations.
   - Pre-select currently viewed account
   - Keyboard-first flow (Tab through fields, Enter to save)
 
-- [ ] **3.2 — Inline Editing**
+- [x] **3.2 — Inline Editing**
   - Click-to-edit cells in transaction list
   - Tab between editable cells
   - Escape to cancel, Enter to confirm
 
-- [ ] **3.3 — Search & Filtering**
+- [x] **3.3 — Search & Filtering**
   - Full-text search across all visible fields
   - Money search ("12.50" finds amount=1250)
   - Category filter dropdown
   - Date range picker
   - Clear filters / active filter indicators
 
-- [ ] **3.4 — Sorting**
+- [x] **3.4 — Sorting**
   - Click column headers to sort
   - Multi-column sort support
   - Persist sort preference per view

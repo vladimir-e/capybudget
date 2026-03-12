@@ -1,22 +1,10 @@
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useState,
-} from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   type ColorTheme,
   DEFAULT_COLOR_THEME,
   COLOR_THEME_STORAGE_KEY,
 } from "@/lib/color-themes";
-
-interface ColorThemeContext {
-  colorTheme: ColorTheme;
-  setColorTheme: (theme: ColorTheme) => void;
-}
-
-const Ctx = createContext<ColorThemeContext | null>(null);
+import { ColorThemeContext } from "@/contexts/color-theme-context";
 
 function getStoredTheme(): ColorTheme {
   try {
@@ -43,14 +31,8 @@ export function ColorThemeProvider({ children }: { children: React.ReactNode }) 
   }, [colorTheme]);
 
   return (
-    <Ctx.Provider value={{ colorTheme, setColorTheme }}>
+    <ColorThemeContext.Provider value={{ colorTheme, setColorTheme }}>
       {children}
-    </Ctx.Provider>
+    </ColorThemeContext.Provider>
   );
-}
-
-export function useColorTheme() {
-  const ctx = useContext(Ctx);
-  if (!ctx) throw new Error("useColorTheme must be used within ColorThemeProvider");
-  return ctx;
 }

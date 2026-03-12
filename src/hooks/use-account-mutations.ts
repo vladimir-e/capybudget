@@ -1,7 +1,5 @@
-import { useMutation } from "@tanstack/react-query";
-import { budgetKeys } from "@/hooks/use-budget-data";
-import { useMutationDeps } from "@/hooks/use-mutation-deps";
-import type { Account, Transaction } from "@/lib/types";
+import { useBudgetMutation } from "@/hooks/use-budget-mutation";
+import type { Account } from "@/lib/types";
 import {
   type AccountFormData,
   createAccount,
@@ -14,115 +12,63 @@ import {
 } from "@/services/accounts";
 
 export function useCreateAccount() {
-  const { queryClient, repo, captureSnapshot } = useMutationDeps();
-  return useMutation({
-    mutationFn: async (data: AccountFormData) => {
-      captureSnapshot();
-      const prevAccounts =
-        queryClient.getQueryData<Account[]>(budgetKeys.accounts()) ?? [];
-      const account = createAccount(data, prevAccounts);
-      const nextAccounts = [...prevAccounts, account];
-      queryClient.setQueryData(budgetKeys.accounts(), nextAccounts);
-      await repo.saveAccounts(nextAccounts);
+  return useBudgetMutation<AccountFormData, Account>(async (data, { accounts, transactions }) => {
+    const prev = accounts.get();
+    const account = createAccount(data, prev);
+    const nextAccounts = [...prev, account];
+    accounts.set(nextAccounts);
+    await accounts.save(nextAccounts);
 
-      if (data.openingBalance && data.openingBalance !== 0) {
-        const prevTransactions =
-          queryClient.getQueryData<Transaction[]>(
-            budgetKeys.transactions(),
-          ) ?? [];
-        const nextTransactions = createOpeningBalanceTransaction(
-          account,
-          data.openingBalance,
-          prevTransactions,
-        );
-        queryClient.setQueryData(budgetKeys.transactions(), nextTransactions);
-        await repo.saveTransactions(nextTransactions);
-      }
+    if (data.openingBalance && data.openingBalance !== 0) {
+      const nextTxns = createOpeningBalanceTransaction(account, data.openingBalance, transactions.get());
+      transactions.set(nextTxns);
+      await transactions.save(nextTxns);
+    }
 
-      return account;
-    },
+    return account;
   });
 }
 
 export function useUpdateAccount() {
-  const { queryClient, repo, captureSnapshot } = useMutationDeps();
-  return useMutation({
-    mutationFn: async (data: AccountFormData) => {
-      captureSnapshot();
-      const prev =
-        queryClient.getQueryData<Account[]>(budgetKeys.accounts()) ?? [];
-      const next = updateAccount(data, prev);
-      queryClient.setQueryData(budgetKeys.accounts(), next);
-      await repo.saveAccounts(next);
-      return next;
-    },
+  return useBudgetMutation<AccountFormData>(async (data, { accounts }) => {
+    const next = updateAccount(data, accounts.get());
+    accounts.set(next);
+    await accounts.save(next);
   });
 }
 
 export function useDeleteAccount() {
-  const { queryClient, repo, captureSnapshot } = useMutationDeps();
-  return useMutation({
-    mutationFn: async (accountId: string) => {
-      captureSnapshot();
-      const prevAccounts =
-        queryClient.getQueryData<Account[]>(budgetKeys.accounts()) ?? [];
-      const prevTransactions =
-        queryClient.getQueryData<Transaction[]>(budgetKeys.transactions()) ??
-        [];
-      const { accounts, transactions } = deleteAccount(accountId, prevAccounts, prevTransactions);
-      queryClient.setQueryData(budgetKeys.accounts(), accounts);
-      queryClient.setQueryData(budgetKeys.transactions(), transactions);
-      await repo.saveAccounts(accounts);
-      await repo.saveTransactions(transactions);
-      return { accounts, transactions };
-    },
+  return useBudgetMutation<string>(async (accountId, { accounts, transactions }) => {
+    const result = deleteAccount(accountId, accounts.get(), transactions.get());
+    accounts.set(result.accounts);
+    transactions.set(result.transactions);
+    await accounts.save(result.accounts);
+    await transactions.save(result.transactions);
   });
 }
 
 export function useArchiveAccount() {
-  const { queryClient, repo, captureSnapshot } = useMutationDeps();
-  return useMutation({
-    mutationFn: async (accountId: string) => {
-      captureSnapshot();
-      const prevAccounts =
-        queryClient.getQueryData<Account[]>(budgetKeys.accounts()) ?? [];
-      const prevTransactions =
-        queryClient.getQueryData<Transaction[]>(budgetKeys.transactions()) ??
-        [];
-      const next = archiveAccount(accountId, prevAccounts, prevTransactions);
-      queryClient.setQueryData(budgetKeys.accounts(), next);
-      await repo.saveAccounts(next);
-      return next;
-    },
+  return useBudgetMutation<string>(async (accountId, { accounts, transactions }) => {
+    const next = archiveAccount(accountId, accounts.get(), transactions.get());
+    accounts.set(next);
+    await accounts.save(next);
   });
 }
 
 export function useReorderAccounts() {
-  const { queryClient, repo, captureSnapshot } = useMutationDeps();
-  return useMutation({
-    mutationFn: async (data: { type: Account["type"]; orderedIds: string[] }) => {
-      captureSnapshot();
-      const prev =
-        queryClient.getQueryData<Account[]>(budgetKeys.accounts()) ?? [];
-      const next = reorderAccounts(data.type, data.orderedIds, prev);
-      queryClient.setQueryData(budgetKeys.accounts(), next);
-      await repo.saveAccounts(next);
-      return next;
+  return useBudgetMutation<{ type: Account["type"]; orderedIds: string[] }>(
+    async (data, { accounts }) => {
+      const next = reorderAccounts(data.type, data.orderedIds, accounts.get());
+      accounts.set(next);
+      await accounts.save(next);
     },
-  });
+  );
 }
 
 export function useUnarchiveAccount() {
-  const { queryClient, repo, captureSnapshot } = useMutationDeps();
-  return useMutation({
-    mutationFn: async (accountId: string) => {
-      captureSnapshot();
-      const prev =
-        queryClient.getQueryData<Account[]>(budgetKeys.accounts()) ?? [];
-      const next = unarchiveAccount(accountId, prev);
-      queryClient.setQueryData(budgetKeys.accounts(), next);
-      await repo.saveAccounts(next);
-      return next;
-    },
+  return useBudgetMutation<string>(async (accountId, { accounts }) => {
+    const next = unarchiveAccount(accountId, accounts.get());
+    accounts.set(next);
+    await accounts.save(next);
   });
 }

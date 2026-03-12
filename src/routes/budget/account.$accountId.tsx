@@ -37,6 +37,7 @@ function AccountView() {
     <TransactionView
       transactions={accountTransactions}
       showAccountColumn={false}
+      readOnly={account.archived}
       header={<AccountHeader account={account} balance={balance} />}
     />
   );

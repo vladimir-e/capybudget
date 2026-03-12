@@ -23,6 +23,10 @@ interface CategorySelectorProps {
   includeUncategorized?: boolean;
   /** Show a clear button when a category is selected. */
   clearable?: boolean;
+  /** Start with the popover open. */
+  defaultOpen?: boolean;
+  /** Called when the popover opens or closes. */
+  onOpenChange?: (open: boolean) => void;
 }
 
 export function CategorySelector({
@@ -33,8 +37,11 @@ export function CategorySelector({
   includeAll = false,
   includeUncategorized = false,
   clearable = false,
+  defaultOpen = false,
+  onOpenChange: onOpenChangeProp,
 }: CategorySelectorProps) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(defaultOpen);
+  const handleOpenChange = (next: boolean) => { setOpen(next); onOpenChangeProp?.(next); };
 
   const active = categories.filter((c) => !c.archived);
   const groups = [...new Set(active.map((c) => c.group))];
@@ -47,7 +54,7 @@ export function CategorySelector({
   const showClear = clearable && value !== null;
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover open={open} onOpenChange={handleOpenChange}>
       <div className="flex items-center">
         <PopoverTrigger
           render={
@@ -84,7 +91,7 @@ export function CategorySelector({
                   data-checked={value === null}
                   onSelect={() => {
                     onChange(null);
-                    setOpen(false);
+                    handleOpenChange(false);
                   }}
                 >
                   All Categories
@@ -98,7 +105,7 @@ export function CategorySelector({
                   data-checked={value === null}
                   onSelect={() => {
                     onChange(null);
-                    setOpen(false);
+                    handleOpenChange(false);
                   }}
                 >
                   <span className="text-muted-foreground italic">Uncategorized</span>
@@ -116,7 +123,7 @@ export function CategorySelector({
                       data-checked={c.id === value}
                       onSelect={() => {
                         onChange(c.id);
-                        setOpen(false);
+                        handleOpenChange(false);
                       }}
                     >
                       {c.name}

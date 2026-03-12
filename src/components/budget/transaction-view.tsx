@@ -1,30 +1,50 @@
-import { useState, type ReactNode } from "react";
+import { useCallback, useState, type ReactNode } from "react";
 import { TransactionList } from "@/components/budget/transaction-list";
 import { TransactionToolbar } from "@/components/budget/transaction-toolbar";
 import { DeleteTransactionDialog } from "@/components/budget/delete-transaction-dialog";
 import { useBudgetUI } from "@/contexts/budget-context";
 import { useAccounts, useCategories } from "@/hooks/use-budget-data";
+import { useUpdateTransaction, useDeleteTransaction } from "@/hooks/use-transaction-mutations";
 import { useTransactionFilters } from "@/hooks/use-transaction-filters";
 import type { Transaction } from "@/lib/types";
+import type { TransactionFormData } from "@/services/transactions";
+import { toast } from "sonner";
 
 interface TransactionViewProps {
   transactions: Transaction[];
   header: ReactNode;
   showAccountColumn: boolean;
+  readOnly?: boolean;
 }
 
-export function TransactionView({ transactions, header, showAccountColumn }: TransactionViewProps) {
+export function TransactionView({ transactions, header, showAccountColumn, readOnly }: TransactionViewProps) {
   const { data: accounts = [] } = useAccounts();
   const { data: categories = [] } = useCategories();
-  const { editingTxnId, editTransaction, deleteTransaction } = useBudgetUI();
-  const { filters, setFilters, filtered } = useTransactionFilters(transactions, accounts, categories);
+  const { editingTxnId, editTransaction, cancelEdit } = useBudgetUI();
+  const { filters, setFilters, sort, setSort, filtered } = useTransactionFilters(transactions, accounts, categories);
   const [deletingTxn, setDeletingTxn] = useState<Transaction | null>(null);
+  const updateTxn = useUpdateTransaction();
+  const deleteTxn = useDeleteTransaction();
 
   const handleDelete = () => {
     if (!deletingTxn) return;
-    deleteTransaction(deletingTxn);
+    deleteTxn.mutate(deletingTxn);
+    if (editingTxnId === deletingTxn.id) cancelEdit();
     setDeletingTxn(null);
+    toast.success("Transaction deleted");
   };
+
+  const handleInlineSave = useCallback(
+    (data: TransactionFormData) => {
+      // If the panel form is open for this transaction, close it
+      if (editingTxnId === data.id) {
+        cancelEdit();
+      }
+      updateTxn.mutate(data);
+      toast.success("Transaction updated");
+    },
+    [updateTxn, editingTxnId, cancelEdit],
+  );
 
   return (
     <div>
@@ -35,16 +55,21 @@ export function TransactionView({ transactions, header, showAccountColumn }: Tra
         <TransactionList
           transactions={filtered}
           showAccountColumn={showAccountColumn}
-          editingTransactionId={editingTxnId}
-          onEdit={editTransaction}
-          onDelete={setDeletingTxn}
+          editingTransactionId={readOnly ? undefined : editingTxnId}
+          onEdit={readOnly ? undefined : editTransaction}
+          onDelete={readOnly ? undefined : setDeletingTxn}
+          onInlineSave={readOnly ? undefined : handleInlineSave}
+          sort={sort}
+          onSortChange={setSort}
         />
 
-        <DeleteTransactionDialog
-          transaction={deletingTxn}
-          onConfirm={handleDelete}
-          onCancel={() => setDeletingTxn(null)}
-        />
+        {!readOnly && (
+          <DeleteTransactionDialog
+            transaction={deletingTxn}
+            onConfirm={handleDelete}
+            onCancel={() => setDeletingTxn(null)}
+          />
+        )}
       </div>
     </div>
   );

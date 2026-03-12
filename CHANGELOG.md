@@ -1,5 +1,32 @@
 # Changelog
 
+## 0.4.0 — 2026-03-11
+
+Data entry, inline editing, search & sort.
+
+### Added
+- Inline editing: click any cell (date, account, category, merchant, amount) to edit in-place
+- Calendar popover for inline date editing
+- Account/category selectors open immediately in inline edit mode
+- Sortable column headers with per-view sort persistence (Zustand)
+- Full-text search across all visible fields including money amounts ("12.50" finds 1250 cents)
+- Category filter dropdown and date range picker in toolbar
+- Clear filters button with active filter indicators
+- Compact amount input that skips save when value unchanged
+
+### Fixed
+- Inline edit cells no longer get stuck after save (click propagation fix)
+- Selector dropdowns (account/category) no longer stay stuck in edit mode after value selection
+- Dismiss (click-away) on selectors correctly cancels editing
+- Transaction form datetime timezone handling on edit
+- Archived account views are read-only (no editing, no "New Transaction")
+
+### Changed
+- Extracted inline edit cells to dedicated module (`inline-edit-cells.tsx`)
+- Introduced `useBudgetMutation` factory — all 16 mutation hooks reduced to pure transform logic
+- Removed `deleteTransaction` from BudgetUIContext — context is now pure UI state
+- Deleted `use-mutation-deps.ts` (absorbed into mutation factory)
+
 ## 0.3.0 — 2026-03-10
 
 CSV persistence, full CRUD, undo/redo.

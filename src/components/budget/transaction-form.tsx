@@ -200,15 +200,17 @@ export function TransactionForm({
         <div className="flex gap-0.5 rounded-lg bg-muted/50 p-0.5">
           {TYPES.map(({ value, label, icon: Icon }) => {
             const active = type === value;
+            const locked = isEditing && editingTransaction?.type === "transfer" && value !== "transfer";
             return (
               <button
                 key={value}
                 type="button"
                 tabIndex={-1}
+                disabled={locked}
                 onClick={() => setType(value)}
                 className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-all ${
                   active ? TYPE_COLORS[value].pill : "text-muted-foreground hover:text-foreground"
-                }`}
+                } ${locked ? "opacity-30 cursor-not-allowed" : ""}`}
               >
                 <Icon className="h-3 w-3" />
                 {label}

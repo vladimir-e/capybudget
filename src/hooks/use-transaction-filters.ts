@@ -1,8 +1,16 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useCallback } from "react";
 import type { Account, Category, Transaction } from "@/lib/types";
-import { filterTransactions, type TransactionFilterCriteria } from "@/lib/filter-transactions";
+import {
+  filterTransactions,
+  sortTransactions,
+  type TransactionFilterCriteria,
+  type SortConfig,
+} from "@/lib/filter-transactions";
+import { useAppStore } from "@/stores/app-store";
 
-export type { TransactionFilterCriteria };
+export type { TransactionFilterCriteria, SortConfig };
+
+const DEFAULT_SORT: SortConfig = { column: "date", direction: "desc" };
 
 export function useTransactionFilters(
   transactions: Transaction[],
@@ -15,10 +23,26 @@ export function useTransactionFilters(
     dateRange: null,
   });
 
+  // Sort is a property of the grid instrument, shared across all views
+  const persistedSort = useAppStore((s) => s.sortPreferences["global"]);
+  const setSortPreference = useAppStore((s) => s.setSortPreference);
+
+  const sort = persistedSort ?? DEFAULT_SORT;
+
+  const setSort = useCallback(
+    (next: SortConfig) => setSortPreference("global", next),
+    [setSortPreference],
+  );
+
   const filtered = useMemo(
     () => filterTransactions(transactions, filters, accounts, categories),
     [transactions, filters, accounts, categories],
   );
 
-  return { filters, setFilters, filtered };
+  const sorted = useMemo(
+    () => sortTransactions(filtered, sort, accounts, categories),
+    [filtered, sort, accounts, categories],
+  );
+
+  return { filters, setFilters, sort, setSort, filtered: sorted };
 }
