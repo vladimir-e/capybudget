@@ -312,21 +312,23 @@ export function TransactionList({
                 {activeCol === "merchant" ? (
                   <InlineEditCell txn={txn} column="merchant" accounts={accounts} categories={categories} onSave={handleInlineSave} onCancel={handleInlineCancel} />
                 ) : (
-                  <span className="inline-flex items-center gap-1.5">
-                    {txn.type === "transfer" ? (
-                      <span className="text-muted-foreground/50">Transfer</span>
-                    ) : txn.merchant}
+                  <div className="flex items-center">
+                    <span className="truncate">
+                      {txn.type === "transfer" ? (
+                        <span className="text-muted-foreground/50">Transfer</span>
+                      ) : txn.merchant}
+                    </span>
                     {txn.note && (
                       <Tooltip>
                         <TooltipTrigger
-                          render={<span className="inline-flex shrink-0 cursor-default" />}
+                          render={<span className="ml-auto pl-2 inline-flex shrink-0 cursor-default p-1.5 -m-1.5" />}
                         >
                           <span className="h-1.5 w-1.5 rounded-full bg-brand/50 inline-block" />
                         </TooltipTrigger>
                         <TooltipContent>{txn.note}</TooltipContent>
                       </Tooltip>
                     )}
-                  </span>
+                  </div>
                 )}
               </TableCell>
               <TableCell
