@@ -1,27 +1,11 @@
 import { describe, it, expect } from "vitest";
-import type { Transaction } from "@/lib/types";
 import {
   createTransaction,
   updateTransaction,
   deleteTransaction,
   type TransactionFormData,
 } from "@/services/transactions";
-
-function makeTxn(overrides: Partial<Transaction> = {}): Transaction {
-  return {
-    id: "txn-1",
-    datetime: "2026-01-15T12:00:00.000Z",
-    type: "expense",
-    amount: -5000,
-    categoryId: "cat-1",
-    accountId: "acc-1",
-    transferPairId: "",
-    merchant: "Store",
-    note: "",
-    createdAt: "2026-01-15T00:00:00.000Z",
-    ...overrides,
-  };
-}
+import { makeTransaction as makeTxn } from "@/test/factories";
 
 describe("createTransaction", () => {
   it("creates an income transaction with positive amount", () => {

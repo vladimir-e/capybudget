@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-import type { Category, Transaction } from "@/lib/types";
 import {
   createCategory,
   updateCategory,
@@ -7,33 +6,7 @@ import {
   archiveCategory,
   unarchiveCategory,
 } from "@/services/categories";
-
-function makeCategory(overrides: Partial<Category> = {}): Category {
-  return {
-    id: "cat-1",
-    name: "Groceries",
-    group: "Daily Living",
-    archived: false,
-    sortOrder: 1,
-    ...overrides,
-  };
-}
-
-function makeTxn(overrides: Partial<Transaction> = {}): Transaction {
-  return {
-    id: "txn-1",
-    datetime: "2026-01-15T10:00:00Z",
-    type: "expense" as Transaction["type"],
-    amount: 5000,
-    categoryId: "cat-1",
-    accountId: "acc-1",
-    transferPairId: "",
-    merchant: "Store",
-    note: "",
-    createdAt: "2026-01-15T10:00:00Z",
-    ...overrides,
-  };
-}
+import { makeCategory, makeTransaction as makeTxn } from "@/test/factories";
 
 describe("createCategory", () => {
   it("assigns a UUID id", () => {
