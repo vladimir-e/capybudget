@@ -27,6 +27,8 @@ Full-app integration tests in `src/test/journeys/`. Mount the entire component t
 
 ```
 src/test/journeys/transaction-lifecycle.test.tsx
+src/test/journeys/fresh-start.test.tsx
+src/test/journeys/account-lifecycle.test.tsx
 ```
 
 Journey tests exercise real user interactions (open form, type, click, submit) against the complete component tree including routing, TanStack Query, mutations, and undo/redo. They run in ~3s.
