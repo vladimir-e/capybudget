@@ -5,6 +5,9 @@ import type { UserEvent } from "@testing-library/user-event";
 import { renderApp } from "@/test/render-app";
 import { makeAccount, makeTransaction } from "@/test/factories";
 
+// CI runners are ~2-3x slower than local; give journey tests breathing room.
+const TIMEOUT = 15_000;
+
 // ── Helpers ─────────────────────────────────────────────────
 
 async function waitForApp() {
@@ -59,7 +62,7 @@ describe("Account lifecycle", () => {
     expect(repo.data.accounts).toHaveLength(1);
     expect(repo.data.accounts[0].name).toBe("Primary Checking");
     expect(repo.data.accounts[0].type).toBe("checking");
-  });
+  }, TIMEOUT);
 
   it("creates account with opening balance", async () => {
     const { user, repo } = await renderApp({
@@ -75,17 +78,18 @@ describe("Account lifecycle", () => {
     await user.type(within(dialog).getByLabelText("Opening Balance"), "5000");
     await user.click(within(dialog).getByRole("button", { name: "Create Account" }));
 
+    // Wait for dialog close and mutation to fully settle (account + opening balance txn)
     await waitFor(() => {
       expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+      expect(repo.data.transactions).toHaveLength(1);
     });
 
     expect(repo.data.accounts).toHaveLength(1);
     expect(repo.data.accounts[0].type).toBe("savings");
-    expect(repo.data.transactions).toHaveLength(1);
     expect(repo.data.transactions[0].merchant).toBe("Opening Balance");
     expect(repo.data.transactions[0].amount).toBe(500000);
     expect(repo.data.transactions[0].type).toBe("income");
-  });
+  }, TIMEOUT);
 
   // ── Deleting ──────────────────────────────────────────────
 
@@ -105,7 +109,7 @@ describe("Account lifecycle", () => {
     });
     // Gone from sidebar and form selector
     expect(screen.queryAllByText("Empty Account")).toHaveLength(0);
-  });
+  }, TIMEOUT);
 
   it("cannot delete account with transactions", async () => {
     const account = makeAccount({ id: "acc-1", name: "Active Account" });
@@ -129,7 +133,7 @@ describe("Account lifecycle", () => {
       expect(repo.data.accounts).toHaveLength(1);
       expect(repo.data.transactions).toHaveLength(1);
     });
-  });
+  }, TIMEOUT);
 
   // ── Archiving ─────────────────────────────────────────────
 
@@ -155,7 +159,7 @@ describe("Account lifecycle", () => {
     await waitFor(() => {
       expect(repo.data.accounts[0].archived).toBe(false);
     });
-  });
+  }, TIMEOUT);
 
   it("archives a zero-balance account", async () => {
     const account = makeAccount({ id: "acc-1", name: "Idle Account" });
@@ -176,7 +180,7 @@ describe("Account lifecycle", () => {
     expect(screen.getByText("Archived")).toBeInTheDocument();
     await user.click(screen.getByText("Archived"));
     expect(screen.getByText("Idle Account")).toBeInTheDocument();
-  });
+  }, TIMEOUT);
 
   it("unarchives an account", async () => {
     const account = makeAccount({
@@ -203,5 +207,5 @@ describe("Account lifecycle", () => {
 
     // Archived section gone (no more archived accounts)
     expect(screen.queryByText("Archived")).not.toBeInTheDocument();
-  });
+  }, TIMEOUT);
 });

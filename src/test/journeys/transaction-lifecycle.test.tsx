@@ -50,6 +50,9 @@ async function openTransactionForm(user: ReturnType<typeof import("@testing-libr
   });
 }
 
+// CI runners are ~2-3x slower than local; give journey tests breathing room.
+const TIMEOUT = 15_000;
+
 // ── Tests ───────────────────────────────────────────────────
 
 describe("Transaction lifecycle", () => {
@@ -61,7 +64,7 @@ describe("Transaction lifecycle", () => {
     expect(within(table).getByText("Whole Foods")).toBeInTheDocument();
     expect(within(table).getByText("-$42.00")).toBeInTheDocument();
     expect(within(table).getByText("Groceries")).toBeInTheDocument();
-  });
+  }, TIMEOUT);
 
   it("adds a new expense transaction via the form", async () => {
     const { user, repo } = await renderApp({ seed });
@@ -89,7 +92,7 @@ describe("Transaction lifecycle", () => {
     expect(newTxn).toBeDefined();
     expect(newTxn!.amount).toBe(-2550);
     expect(newTxn!.type).toBe("expense");
-  });
+  }, TIMEOUT);
 
   it("adds an income transaction", async () => {
     const { user, repo } = await renderApp({ seed });
@@ -113,7 +116,7 @@ describe("Transaction lifecycle", () => {
     const newTxn = repo.data.transactions.find((t) => t.merchant === "Employer Inc");
     expect(newTxn!.amount).toBe(300000);
     expect(newTxn!.type).toBe("income");
-  });
+  }, TIMEOUT);
 
   it("deletes a transaction via the row action menu", async () => {
     const { user, repo } = await renderApp({ seed });
@@ -137,7 +140,7 @@ describe("Transaction lifecycle", () => {
       expect(within(table).queryByText("Whole Foods")).not.toBeInTheDocument();
     });
     expect(repo.data.transactions).toHaveLength(0);
-  });
+  }, TIMEOUT);
 
   it("form resets after adding a transaction (ready for the next one)", async () => {
     const { user } = await renderApp({ seed });
@@ -154,5 +157,5 @@ describe("Transaction lifecycle", () => {
       expect(screen.getByPlaceholderText("0.00")).toHaveValue("");
     });
     expect(screen.getByPlaceholderText("Merchant")).toHaveValue("");
-  });
+  }, TIMEOUT);
 });

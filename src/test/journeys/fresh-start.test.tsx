@@ -14,6 +14,9 @@ async function waitForApp() {
 
 // ── Tests ───────────────────────────────────────────────────
 
+// CI runners are ~2-3x slower than local; give journey tests breathing room.
+const TIMEOUT = 15_000;
+
 describe("Fresh start", () => {
   it("prompts to create an account when adding a transaction with no accounts", async () => {
     const { user } = await renderApp({
@@ -26,7 +29,7 @@ describe("Fresh start", () => {
 
     const dialog = await screen.findByRole("dialog");
     expect(within(dialog).getByText("Add Account")).toBeInTheDocument();
-  });
+  }, TIMEOUT);
 
   it("creates first account then adds first transaction", async () => {
     const groceries = makeCategory({ id: "cat-groceries", name: "Groceries" });
@@ -70,5 +73,5 @@ describe("Fresh start", () => {
     expect(repo.data.accounts[0].name).toBe("My Checking");
     expect(repo.data.transactions).toHaveLength(1);
     expect(repo.data.transactions[0].amount).toBe(-4250);
-  });
+  }, TIMEOUT);
 });
