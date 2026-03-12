@@ -90,7 +90,7 @@ Enabled by the repository pattern — create `CsvRepository`, swap in `budget.ts
 
 Fast entry, filtering, bulk operations.
 
-- [ ] **3.1 — Transaction Entry Form** *(deferred to Phase 4)*
+- [x] **3.1 — Transaction Entry Form**
   - Hero amount input with large text
   - Segmented type control (expense/income/transfer) with semantic colors
   - `-` / `+` shortcuts in amount field
