@@ -25,6 +25,7 @@ import {
   useBulkChangeDate,
   useBulkChangeMerchant,
 } from "@/hooks/use-bulk-transaction-mutations";
+import { pluralize } from "@/lib/format";
 import { formatMoney } from "@/lib/money";
 import { toDateString, formatDateLabel } from "@/lib/date-utils";
 import type { Transaction } from "@/lib/types";
@@ -72,13 +73,13 @@ export function BulkActionBar({ selectedIds, transactions, onClear }: BulkAction
     bulkDelete.mutate(selectedIds);
     onClear();
     setShowDeleteDialog(false);
-    toast.success(`Deleted ${count} transaction${count !== 1 ? "s" : ""}`);
+    toast.success(`Deleted ${pluralize(count, "transaction")}`);
   };
 
   const handleCategoryChange = (categoryId: string | null) => {
     bulkCategory.mutate({ ids: selectedIds, categoryId: categoryId ?? "" });
     const label = categories.find((c) => c.id === categoryId)?.name ?? "Uncategorized";
-    toast.success(`Categorized ${count} transaction${count !== 1 ? "s" : ""} as ${label}`);
+    toast.success(`Categorized ${pluralize(nonTransferCount, "transaction")} as ${label}`);
   };
 
   const handleMoveAccount = (accountId: string) => {
@@ -86,13 +87,13 @@ export function BulkActionBar({ selectedIds, transactions, onClear }: BulkAction
     bulkMove.mutate({ ids: selectedIds, accountId });
     setOverflowDialog(null);
     const label = accounts.find((a) => a.id === accountId)?.name ?? "account";
-    toast.success(`Moved ${count} transaction${count !== 1 ? "s" : ""} to ${label}`);
+    toast.success(`Moved ${pluralize(nonTransferCount, "transaction")} to ${label}`);
   };
 
   const handleDateChange = (date: Date) => {
     bulkDate.mutate({ ids: selectedIds, date: toDateString(date) });
     setOverflowDialog(null);
-    toast.success(`Changed date for ${count} transaction${count !== 1 ? "s" : ""} to ${formatDateLabel(toDateString(date))}`);
+    toast.success(`Changed date for ${pluralize(count, "transaction")} to ${formatDateLabel(toDateString(date))}`);
   };
 
   const handleMerchantSubmit = () => {
@@ -101,7 +102,7 @@ export function BulkActionBar({ selectedIds, transactions, onClear }: BulkAction
     bulkMerchant.mutate({ ids: selectedIds, merchant: trimmed });
     setOverflowDialog(null);
     setMerchantValue("");
-    toast.success(`Changed merchant for ${count} transaction${count !== 1 ? "s" : ""}`);
+    toast.success(`Changed merchant for ${pluralize(nonTransferCount, "transaction")}`);
   };
 
   if (count === 0) return null;
@@ -193,16 +194,16 @@ export function BulkActionBar({ selectedIds, transactions, onClear }: BulkAction
         <Dialog open onOpenChange={(open) => { if (!open) setShowDeleteDialog(false); }}>
           <DialogContent className="sm:max-w-sm">
             <DialogHeader>
-              <DialogTitle>Delete {count} transaction{count !== 1 ? "s" : ""}?</DialogTitle>
+              <DialogTitle>Delete {pluralize(count, "transaction")}?</DialogTitle>
               <DialogDescription>
-                This will permanently delete {count} transaction{count !== 1 ? "s" : ""} totalling {formatMoney(totalAmount)}.
+                This will permanently delete {pluralize(count, "transaction")} totalling {formatMoney(totalAmount)}.
                 {hasTransfers && " Transfer pairs will be deleted on both sides."}
               </DialogDescription>
             </DialogHeader>
             <DialogFooter>
               <Button variant="outline" onClick={() => setShowDeleteDialog(false)}>Cancel</Button>
               <Button variant="destructive" onClick={handleDelete}>
-                Delete {count} transaction{count !== 1 ? "s" : ""}
+                Delete {pluralize(count, "transaction")}
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -216,7 +217,7 @@ export function BulkActionBar({ selectedIds, transactions, onClear }: BulkAction
             <DialogHeader>
               <DialogTitle>Move to account</DialogTitle>
               <DialogDescription>
-                Move {nonTransferCount} transaction{nonTransferCount !== 1 ? "s" : ""} to another account.
+                Move {pluralize(nonTransferCount, "transaction")} to another account.
                 {hasTransfers && " Transfers will be skipped."}
               </DialogDescription>
             </DialogHeader>
@@ -238,7 +239,7 @@ export function BulkActionBar({ selectedIds, transactions, onClear }: BulkAction
             <DialogHeader>
               <DialogTitle>Change date</DialogTitle>
               <DialogDescription>
-                Set a new date for {count} transaction{count !== 1 ? "s" : ""}.
+                Set a new date for {pluralize(count, "transaction")}.
               </DialogDescription>
             </DialogHeader>
             <Calendar
@@ -256,7 +257,7 @@ export function BulkActionBar({ selectedIds, transactions, onClear }: BulkAction
             <DialogHeader>
               <DialogTitle>Change merchant</DialogTitle>
               <DialogDescription>
-                Set a new merchant name for {nonTransferCount} transaction{nonTransferCount !== 1 ? "s" : ""}.
+                Set a new merchant name for {pluralize(nonTransferCount, "transaction")}.
                 {hasTransfers && " Transfers will be skipped."}
               </DialogDescription>
             </DialogHeader>
