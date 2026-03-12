@@ -15,14 +15,13 @@ interface TransactionViewProps {
   header: ReactNode;
   showAccountColumn: boolean;
   readOnly?: boolean;
-  viewKey?: string;
 }
 
-export function TransactionView({ transactions, header, showAccountColumn, readOnly, viewKey }: TransactionViewProps) {
+export function TransactionView({ transactions, header, showAccountColumn, readOnly }: TransactionViewProps) {
   const { data: accounts = [] } = useAccounts();
   const { data: categories = [] } = useCategories();
   const { editingTxnId, editTransaction, cancelEdit } = useBudgetUI();
-  const { filters, setFilters, sort, setSort, filtered } = useTransactionFilters(transactions, accounts, categories, viewKey);
+  const { filters, setFilters, sort, setSort, filtered } = useTransactionFilters(transactions, accounts, categories);
   const [deletingTxn, setDeletingTxn] = useState<Transaction | null>(null);
   const updateTxn = useUpdateTransaction();
   const deleteTxn = useDeleteTransaction();

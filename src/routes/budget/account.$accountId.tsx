@@ -38,7 +38,6 @@ function AccountView() {
       transactions={accountTransactions}
       showAccountColumn={false}
       readOnly={account.archived}
-      viewKey={accountId}
       header={<AccountHeader account={account} balance={balance} />}
     />
   );

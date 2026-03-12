@@ -16,7 +16,6 @@ export function useTransactionFilters(
   transactions: Transaction[],
   accounts: Account[],
   categories: Category[],
-  viewKey?: string,
 ) {
   const [filters, setFilters] = useState<TransactionFilterCriteria>({
     search: "",
@@ -24,26 +23,15 @@ export function useTransactionFilters(
     dateRange: null,
   });
 
-  // Persisted sort: read from store when viewKey is provided
-  const persistedSort = useAppStore((s) =>
-    viewKey ? s.sortPreferences[viewKey] : undefined,
-  );
+  // Sort is a property of the grid instrument, shared across all views
+  const persistedSort = useAppStore((s) => s.sortPreferences["global"]);
   const setSortPreference = useAppStore((s) => s.setSortPreference);
 
-  // Local-only sort: used when no viewKey
-  const [localSort, setLocalSort] = useState<SortConfig>(DEFAULT_SORT);
-
-  const sort = viewKey ? (persistedSort ?? DEFAULT_SORT) : localSort;
+  const sort = persistedSort ?? DEFAULT_SORT;
 
   const setSort = useCallback(
-    (next: SortConfig) => {
-      if (viewKey) {
-        setSortPreference(viewKey, next);
-      } else {
-        setLocalSort(next);
-      }
-    },
-    [viewKey, setSortPreference],
+    (next: SortConfig) => setSortPreference("global", next),
+    [setSortPreference],
   );
 
   const filtered = useMemo(

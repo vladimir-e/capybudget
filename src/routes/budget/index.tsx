@@ -13,7 +13,6 @@ function AllAccountsView() {
     <TransactionView
       transactions={transactions}
       showAccountColumn={true}
-      viewKey="all"
       header={
         <div className="px-6 py-5 border-b bg-gradient-to-b from-brand-subtle/40 to-transparent">
           <h2 className="text-xl font-bold tracking-tight">All Accounts</h2>
