@@ -27,7 +27,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { formatMoney } from "@/lib/money";
+import { formatMoney, formatMoneyCompact } from "@/lib/money";
 import { ACCOUNT_TYPE_LABELS } from "@/lib/account-type-labels";
 import { getAccountBalance, getAccountsByGroup, getNetWorth } from "@/lib/queries";
 import { useAccounts, useTransactions } from "@/hooks/use-budget-data";
@@ -147,7 +147,7 @@ export function Sidebar({
             Net Worth
           </div>
           <div className="text-2xl font-bold tabular-nums text-brand mt-0.5">
-            {formatMoney(netWorth)}
+            {formatMoneyCompact(netWorth)}
           </div>
         </div>
       </div>

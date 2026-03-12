@@ -14,6 +14,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { InlineEditCell, type EditableColumn } from "@/components/budget/inline-edit-cells";
 import { formatMoney, getAmountClass } from "@/lib/money";
 import { resolveTransferPair } from "@/lib/queries";
@@ -266,9 +267,23 @@ export function TransactionList({
               >
                 {activeCol === "merchant" ? (
                   <InlineEditCell txn={txn} column="merchant" accounts={accounts} categories={categories} onSave={handleInlineSave} onCancel={handleInlineCancel} />
-                ) : txn.type === "transfer" ? (
-                  <span className="text-muted-foreground/50">Transfer</span>
-                ) : txn.merchant}
+                ) : (
+                  <span className="inline-flex items-center gap-1.5">
+                    {txn.type === "transfer" ? (
+                      <span className="text-muted-foreground/50">Transfer</span>
+                    ) : txn.merchant}
+                    {txn.note && (
+                      <Tooltip>
+                        <TooltipTrigger
+                          render={<span className="inline-flex shrink-0 cursor-default" />}
+                        >
+                          <span className="h-1.5 w-1.5 rounded-full bg-brand/50 inline-block" />
+                        </TooltipTrigger>
+                        <TooltipContent>{txn.note}</TooltipContent>
+                      </Tooltip>
+                    )}
+                  </span>
+                )}
               </TableCell>
               <TableCell
                 className={`text-right tabular-nums font-semibold text-[13px] ${getAmountClass(txn)} ${cellClickClass}`}
