@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.5.0 — 2026-03-12
+
+Transaction multi-select and bulk actions.
+
+### Added
+- Checkbox column with select-all (indeterminate state) and shift-click range selection
+- Floating bulk action bar: shows count + sum of selected transactions
+- Bulk categorize with mixed-category indicator
+- Bulk delete with confirmation dialog
+- Bulk move to account, change date, change merchant via overflow menu
+- All bulk operations integrate with undo/redo
+- Note indicator dot click opens edit form for quick note access
+
+### Changed
+- Note indicator dots aligned to right edge of merchant column (no longer diagonal)
+- Enlarged note indicator hover target for easier tooltip access
+- Bulk value changes (categorize, move, date, merchant) preserve selection; only delete clears it
+- Text selection prevented during shift-click in transaction table
+
 ## 0.4.0 — 2026-03-11
 
 Data entry, inline editing, search & sort.

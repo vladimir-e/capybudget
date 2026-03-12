@@ -115,6 +115,11 @@ Fast entry, filtering, bulk operations.
   - Multi-column sort support
   - Persist sort preference per view
 
+- [x] **3.5 — Transaction Multi-Select & Bulk Actions**
+  - Checkbox column with select-all and shift-click range selection
+  - Floating bulk action bar (categorize, delete, move account, change date, change merchant)
+  - All bulk operations integrate with undo/redo
+
 ---
 
 ## Phase 4: Intelligence Layer
