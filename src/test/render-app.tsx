@@ -24,15 +24,16 @@ export interface RenderAppResult extends RenderResult {
 // Track the active QueryClient so we can tear it down between tests.
 let activeQueryClient: QueryClient | null = null;
 
-afterEach(() => {
+afterEach(async () => {
   // Unmount React tree first, then cancel any in-flight queries/mutations.
   cleanup();
   if (activeQueryClient) {
-    activeQueryClient.cancelQueries();
+    await activeQueryClient.cancelQueries();
     activeQueryClient.clear();
     activeQueryClient = null;
   }
   useUndoStore.getState().reset();
+  delete (globalThis as Record<string, unknown>).__testRepo;
 });
 
 /**
@@ -49,7 +50,7 @@ export async function renderApp(options: RenderAppOptions = {}): Promise<RenderA
 
   const repo = createMemoryRepository(seed);
 
-  // Inject repo so the mocked createCsvRepository returns it (see setup.ts)
+  // Inject repo so the mocked createCsvRepository returns it (see journeys/setup.ts)
   (globalThis as Record<string, unknown>).__testRepo = repo;
 
   const queryClient = new QueryClient({

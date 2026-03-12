@@ -124,9 +124,11 @@ describe("Account lifecycle", () => {
     const deleteItem = await screen.findByRole("menuitem", { name: /delete/i });
     await user.click(deleteItem);
 
-    // Account and transaction remain unchanged
-    expect(repo.data.accounts).toHaveLength(1);
-    expect(repo.data.transactions).toHaveLength(1);
+    // Account and transaction remain unchanged after mutation settles
+    await waitFor(() => {
+      expect(repo.data.accounts).toHaveLength(1);
+      expect(repo.data.transactions).toHaveLength(1);
+    });
   });
 
   // ── Archiving ─────────────────────────────────────────────
@@ -149,8 +151,10 @@ describe("Account lifecycle", () => {
     const archiveItem = await screen.findByRole("menuitem", { name: "Archive" });
     await user.click(archiveItem);
 
-    // Account stays active
-    expect(repo.data.accounts[0].archived).toBe(false);
+    // Account stays active after mutation settles
+    await waitFor(() => {
+      expect(repo.data.accounts[0].archived).toBe(false);
+    });
   });
 
   it("archives a zero-balance account", async () => {
