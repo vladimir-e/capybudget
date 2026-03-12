@@ -196,7 +196,7 @@ function AmountEditCell({ txn, onSave, onCancel }: {
   const ref = useRef<HTMLInputElement>(null);
   useEffect(() => { ref.current?.focus(); ref.current?.select(); }, []);
 
-  const save = () => { const cents = parseMoney(value); if (cents > 0) onSave(cents); else onCancel(); };
+  const save = () => { const cents = parseMoney(value); if (cents >= 0) onSave(cents); else onCancel(); };
 
   return (
     <div className="inline-flex items-center justify-end">

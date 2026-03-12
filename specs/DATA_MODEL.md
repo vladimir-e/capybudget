@@ -93,6 +93,8 @@ The core entity. Every financial event is a transaction.
 - **Transfer outflow leg**: amount is negative on source account.
 - **Transfer inflow leg**: amount is positive on destination account.
 
+Zero-amount transactions are allowed — useful for tracking non-monetary events or placeholder entries.
+
 An account's balance = `sum(amount)` for all its transactions. No special cases.
 
 ### Transfer Architecture

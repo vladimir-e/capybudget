@@ -226,7 +226,8 @@ export function TransactionList({
             ? "bg-brand-subtle/40 ring-1 ring-brand/20"
             : i % 2 === 0 ? "bg-transparent" : "bg-muted/30";
 
-          const cellClickClass = isEditable ? "cursor-pointer" : "";
+          const isCellClickable = isEditable || (!!onEdit && txn.type === "transfer");
+          const cellClickClass = isCellClickable ? "cursor-pointer" : "";
 
           return (
             <TableRow
