@@ -29,6 +29,7 @@ import {
   ChevronDown,
   ChevronUp,
   Inbox,
+  Info,
   MoreHorizontal,
   Pencil,
   Trash2,
@@ -321,7 +322,7 @@ export function TransactionList({
                             />
                           }
                         >
-                          <span className="h-1.5 w-1.5 rounded-full bg-brand/50 inline-block" />
+                          <Info className="h-3.5 w-3.5 text-muted-foreground/40 hover:text-muted-foreground transition-colors" />
                         </TooltipTrigger>
                         <TooltipContent>{txn.note}</TooltipContent>
                       </Tooltip>

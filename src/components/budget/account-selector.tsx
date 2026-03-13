@@ -85,7 +85,7 @@ export function AccountSelector({
           </button>
         )}
       </div>
-      <PopoverContent className="w-52 p-0" align="start">
+      <PopoverContent className="w-64 p-0" align="start">
         <Command>
           <CommandInput placeholder="Search accounts…" />
           <CommandList>
