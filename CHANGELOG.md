@@ -1,10 +1,16 @@
 # Changelog
 
+## 0.6.0 — 2026-03-12
+
+Merchant autocomplete and auto-categorization.
+
+- Merchant typeahead in transaction form and inline editing — suggests past merchants with word-start priority
+- Auto-categorization: selecting a known merchant fills the category from the most recent matching transaction
+
 ## 0.5.0 — 2026-03-12
 
 Transaction multi-select and bulk actions.
 
-### Added
 - Checkbox column with select-all (indeterminate state) and shift-click range selection
 - Floating bulk action bar: shows count + sum of selected transactions
 - Bulk categorize with mixed-category indicator
@@ -13,17 +19,11 @@ Transaction multi-select and bulk actions.
 - All bulk operations integrate with undo/redo
 - Note indicator dot click opens edit form for quick note access
 
-### Changed
-- Note indicator dots aligned to right edge of merchant column (no longer diagonal)
-- Enlarged note indicator hover target for easier tooltip access
-- Bulk value changes (categorize, move, date, merchant) preserve selection; only delete clears it
-- Text selection prevented during shift-click in transaction table
 
 ## 0.4.0 — 2026-03-11
 
 Data entry, inline editing, search & sort.
 
-### Added
 - Inline editing: click any cell (date, account, category, merchant, amount) to edit in-place
 - Calendar popover for inline date editing
 - Account/category selectors open immediately in inline edit mode
@@ -33,24 +33,11 @@ Data entry, inline editing, search & sort.
 - Clear filters button with active filter indicators
 - Compact amount input that skips save when value unchanged
 
-### Fixed
-- Inline edit cells no longer get stuck after save (click propagation fix)
-- Selector dropdowns (account/category) no longer stay stuck in edit mode after value selection
-- Dismiss (click-away) on selectors correctly cancels editing
-- Transaction form datetime timezone handling on edit
-- Archived account views are read-only (no editing, no "New Transaction")
-
-### Changed
-- Extracted inline edit cells to dedicated module (`inline-edit-cells.tsx`)
-- Introduced `useBudgetMutation` factory — all 16 mutation hooks reduced to pure transform logic
-- Removed `deleteTransaction` from BudgetUIContext — context is now pure UI state
-- Deleted `use-mutation-deps.ts` (absorbed into mutation factory)
 
 ## 0.3.0 — 2026-03-10
 
 CSV persistence, full CRUD, undo/redo.
 
-### Added
 - CSV persistence layer: generic read/write with atomic writes (temp→rename) and debounced flush
 - CsvRepository replacing MockRepository — data survives app restarts
 - Account CRUD: create with opening balance, edit name/type, archive (blocked if balance non-zero), delete (blocked if has transactions), drag-and-drop reorder
@@ -64,17 +51,11 @@ CSV persistence, full CRUD, undo/redo.
 - Query error surface: toast notifications on data fetch failures
 - Inline validation for transfer account selectors
 
-### Fixed
-- Account deletion no longer wipes all transactions — correctly blocked when >1 transaction exists, cleans up only the opening balance transaction
-- Opening balance transactions consistently use empty categoryId (was inconsistent in mock data)
-- Date picker keyboard selection (Enter/Space) now works correctly
-- Transaction form resets on cancel
 
 ## 0.2.0 — 2026-03-09
 
 UI shell with mock data: accounts, transactions, categories.
 
-### Added
 - Sidebar with account groups, drag-and-drop reorder, net worth display
 - Transaction list with date, merchant, category, and amount columns
 - Slide-down transaction form (Cmd+N) with expense/income/transfer modes

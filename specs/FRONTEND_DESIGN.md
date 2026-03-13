@@ -42,12 +42,13 @@ Keyboard-first workflow for the majority of user actions. Controls are intuitive
 - **Hero amount input**: large text, type-aware coloring (red/green/neutral).
 - **Segmented type control** (expense/income/transfer) with semantic colors.
 - **Keyboard shortcuts in amount field**: `-` → expense, `+` → income.
+- **Merchant autocomplete**: typeahead from past merchants (word-start priority), selecting a known merchant auto-fills the category.
 - **Convenient date input.**
 - **Pre-select the currently viewed account.**
 
 ### Transaction List
 
-- Columns: date, account, category, merchant, amount.
+- Columns: date, account, merchant, category, amount.
 - Sortable by any column. Inline editing — click to edit.
 - Full-text search across all visible fields, including money e.g. "12.50" finds transactions with amount=1250. Category filter, date range picker.
 - "All Accounts" view for cross-account overview.

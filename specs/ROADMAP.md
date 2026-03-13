@@ -120,6 +120,11 @@ Fast entry, filtering, bulk operations.
   - Floating bulk action bar (categorize, delete, move account, change date, change merchant)
   - All bulk operations integrate with undo/redo
 
+- [x] **3.6 — Merchant Autocomplete & Auto-Categorization**
+  - Typeahead suggestions from past merchants (word-start priority, then substring)
+  - Selecting a known merchant auto-fills category from most recent matching transaction
+  - Works in both transaction form and inline table editing
+
 ---
 
 ## Phase 4: Intelligence Layer
