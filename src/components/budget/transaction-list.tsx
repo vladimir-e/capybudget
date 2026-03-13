@@ -273,8 +273,7 @@ export function TransactionList({
                 >
                   <Checkbox
                     checked={isSelected}
-                    tabIndex={-1}
-                    className="pointer-events-none"
+                    onCheckedChange={() => onToggleSelect(txn.id, false)}
                     aria-label={`Select transaction`}
                   />
                 </TableCell>
@@ -322,9 +321,11 @@ export function TransactionList({
                       <Tooltip>
                         <TooltipTrigger
                           render={
-                            <span
+                            <button
+                              type="button"
                               className="ml-auto pl-2 inline-flex shrink-0 cursor-pointer p-1.5 -m-1.5"
                               onClick={(e) => { e.stopPropagation(); onEdit?.(txn); }}
+                              aria-label="Edit transaction note"
                             />
                           }
                         >
