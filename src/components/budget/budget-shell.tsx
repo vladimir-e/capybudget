@@ -131,6 +131,7 @@ export function BudgetShell({ path, name }: BudgetShellProps) {
       toast.success("Transaction updated");
     } else {
       createTxn.mutate(data);
+      setFormOpen(false);
       toast.success("Transaction added");
     }
   }, [createTxn, updateTxn]);

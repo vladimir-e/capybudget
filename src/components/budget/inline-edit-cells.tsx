@@ -3,8 +3,11 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar } from "@/components/ui/calendar";
 import { AccountSelector } from "@/components/budget/account-selector";
 import { CategorySelector } from "@/components/budget/category-selector";
+import { MerchantInput } from "@/components/budget/merchant-input";
 import { parseMoney, getAmountClass } from "@/lib/money";
 import { parseLocalDate, toDateString, formatDateLabel } from "@/lib/date-utils";
+import { findCategoryForMerchant } from "@/services/merchant-categorization";
+import { useTransactions } from "@/hooks/use-budget-data";
 import type { Account, Category, Transaction } from "@/lib/types";
 import type { TransactionFormData } from "@/services/transactions";
 import { CalendarDays } from "lucide-react";
@@ -89,7 +92,11 @@ export function InlineEditCell({
     return <div onClick={stop}><CategoryEditCell txn={txn} categories={categories} onSave={(categoryId) => buildFormData({ categoryId })} onCancel={onCancel} /></div>;
   }
   if (column === "merchant") {
-    return <div onClick={stop}><MerchantEditCell txn={txn} onSave={(merchant) => buildFormData({ merchant })} onCancel={onCancel} /></div>;
+    return <div onClick={stop}><MerchantEditCell txn={txn} onSave={(merchant, categoryId) => {
+      const patch: Record<string, string> = { merchant };
+      if (categoryId && !txn.categoryId) patch.categoryId = categoryId;
+      buildFormData(patch);
+    }} onCancel={onCancel} /></div>;
   }
   // amount
   return <div onClick={stop}><AmountEditCell txn={txn} onSave={(amount) => buildFormData({ amount })} onCancel={onCancel} /></div>;
@@ -168,20 +175,26 @@ function CategoryEditCell({ txn, categories, onSave, onCancel }: {
 
 function MerchantEditCell({ txn, onSave, onCancel }: {
   txn: Transaction;
-  onSave: (merchant: string) => void; onCancel: () => void;
+  onSave: (merchant: string, categoryId?: string) => void; onCancel: () => void;
 }) {
+  const { data: allTransactions = [] } = useTransactions();
   const [value, setValue] = useState(txn.merchant);
-  const ref = useRef<HTMLInputElement>(null);
-  useEffect(() => { ref.current?.focus(); ref.current?.select(); }, []);
 
   return (
-    <input
-      ref={ref}
-      type="text"
+    <MerchantInput
       value={value}
-      onChange={(e) => setValue(e.target.value)}
+      onChange={setValue}
+      onSelect={(merchant) => {
+        const categoryId = findCategoryForMerchant(allTransactions, merchant);
+        onSave(merchant, categoryId || undefined);
+      }}
+      transactions={allTransactions}
+      autoFocus
       onBlur={() => onSave(value.trim())}
-      onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); onSave(value.trim()); } if (e.key === "Escape") { e.preventDefault(); onCancel(); } }}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") { e.preventDefault(); onSave(value.trim()); }
+        if (e.key === "Escape") { e.preventDefault(); onCancel(); }
+      }}
       className={`${inputClass} text-muted-foreground`}
       placeholder="Merchant"
     />

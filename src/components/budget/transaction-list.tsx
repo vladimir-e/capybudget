@@ -29,6 +29,7 @@ import {
   ChevronDown,
   ChevronUp,
   Inbox,
+  Info,
   MoreHorizontal,
   Pencil,
   Trash2,
@@ -211,8 +212,8 @@ export function TransactionList({
           {showAccountColumn && (
             <SortableHeader column="account" sort={sort} onSortChange={onSortChange}>Account</SortableHeader>
           )}
-          <SortableHeader column="category" sort={sort} onSortChange={onSortChange}>Category</SortableHeader>
           <SortableHeader column="merchant" sort={sort} onSortChange={onSortChange}>Merchant</SortableHeader>
+          <SortableHeader column="category" sort={sort} onSortChange={onSortChange}>Category</SortableHeader>
           <SortableHeader column="amount" sort={sort} onSortChange={onSortChange} align="right" className="w-[130px]">Amount</SortableHeader>
           {hasActions && <TableHead className="w-[48px]" />}
         </TableRow>
@@ -297,14 +298,6 @@ export function TransactionList({
                 </TableCell>
               )}
               <TableCell
-                className={`text-[13px] ${cellClickClass}`}
-                onClick={() => handleCellClick(txn, "category")}
-              >
-                {activeCol === "category" ? (
-                  <InlineEditCell txn={txn} column="category" accounts={accounts} categories={categories} onSave={handleInlineSave} onCancel={handleInlineCancel} />
-                ) : categoryDisplay}
-              </TableCell>
-              <TableCell
                 className={`text-muted-foreground text-[13px] ${cellClickClass}`}
                 onClick={() => handleCellClick(txn, "merchant")}
               >
@@ -329,13 +322,21 @@ export function TransactionList({
                             />
                           }
                         >
-                          <span className="h-1.5 w-1.5 rounded-full bg-brand/50 inline-block" />
+                          <Info className="h-3.5 w-3.5 text-muted-foreground/40 hover:text-muted-foreground transition-colors" />
                         </TooltipTrigger>
                         <TooltipContent>{txn.note}</TooltipContent>
                       </Tooltip>
                     )}
                   </div>
                 )}
+              </TableCell>
+              <TableCell
+                className={`text-[13px] ${cellClickClass}`}
+                onClick={() => handleCellClick(txn, "category")}
+              >
+                {activeCol === "category" ? (
+                  <InlineEditCell txn={txn} column="category" accounts={accounts} categories={categories} onSave={handleInlineSave} onCancel={handleInlineCancel} />
+                ) : categoryDisplay}
               </TableCell>
               <TableCell
                 className={`text-right tabular-nums font-semibold text-[13px] ${getAmountClass(txn)} ${cellClickClass}`}

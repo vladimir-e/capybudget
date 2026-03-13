@@ -161,7 +161,7 @@ export function BulkActionBar({ selectedIds, transactions, onClear }: BulkAction
             >
               <MoreHorizontal className="h-3.5 w-3.5" />
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" side="top">
+            <DropdownMenuContent align="end" side="top" className="min-w-48">
               <DropdownMenuItem onClick={() => setOverflowDialog("move")}>
                 <FolderInput className="h-3.5 w-3.5" />
                 Move to account

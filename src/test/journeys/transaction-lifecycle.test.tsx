@@ -142,7 +142,7 @@ describe("Transaction lifecycle", () => {
     expect(repo.data.transactions).toHaveLength(0);
   }, TIMEOUT);
 
-  it("form resets after adding a transaction (ready for the next one)", async () => {
+  it("form dismisses after adding a transaction", async () => {
     const { user } = await renderApp({ seed });
     await waitForApp();
 
@@ -152,10 +152,10 @@ describe("Transaction lifecycle", () => {
     await user.type(screen.getByPlaceholderText("Merchant"), "Coffee Shop");
     await user.keyboard("{Enter}");
 
-    // After submission, form should stay open with fields cleared
+    // After submission, form panel should slide away (not visible)
     await waitFor(() => {
-      expect(screen.getByPlaceholderText("0.00")).toHaveValue("");
+      const formPanel = screen.getByPlaceholderText("0.00").closest("[class*='translate']");
+      expect(formPanel?.className).toContain("-translate-y-full");
     });
-    expect(screen.getByPlaceholderText("Merchant")).toHaveValue("");
   }, TIMEOUT);
 });

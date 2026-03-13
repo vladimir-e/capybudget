@@ -5,7 +5,9 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar } from "@/components/ui/calendar";
 import { CategorySelector } from "@/components/budget/category-selector";
 import { AccountSelector } from "@/components/budget/account-selector";
+import { MerchantInput } from "@/components/budget/merchant-input";
 import { useAccounts, useCategories, useTransactions } from "@/hooks/use-budget-data";
+import { findCategoryForMerchant } from "@/services/merchant-categorization";
 import { resolveTransferPair } from "@/lib/queries";
 import type { Transaction, TransactionType } from "@/lib/types";
 import type { TransactionFormData } from "@/services/transactions";
@@ -276,9 +278,17 @@ export function TransactionForm({
       {/* Context fields */}
       {type !== "transfer" ? (
         <>
-          <Input
+          <MerchantInput
             value={merchant}
-            onChange={(e) => setMerchant(e.target.value)}
+            onChange={setMerchant}
+            onSelect={(m) => {
+              if (!categoryId) {
+                const catId = findCategoryForMerchant(allTransactions, m);
+                if (catId) setCategoryId(catId);
+              }
+            }}
+            transactions={allTransactions}
+            className="h-8 w-full min-w-0 rounded-lg border border-input bg-transparent px-2.5 py-1 text-base transition-colors outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 md:text-sm dark:bg-input/30"
             placeholder="Merchant"
           />
           <div className="[&>div]:w-full [&_button:first-of-type]:w-full">
