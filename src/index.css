@@ -507,3 +507,23 @@
     @apply font-sans antialiased;
     }
 }
+
+/* ── Capy AI overlay ──────────────────────────────────────────── */
+
+.capy-glow {
+  background: var(--brand);
+  opacity: 0;
+  filter: blur(8px);
+  animation: capy-pulse 3s ease-in-out infinite;
+  pointer-events: none;
+}
+
+@keyframes capy-pulse {
+  0%, 100% { opacity: 0.15; }
+  50% { opacity: 0.4; }
+}
+
+.capy-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
