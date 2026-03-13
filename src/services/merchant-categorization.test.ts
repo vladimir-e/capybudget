@@ -108,8 +108,16 @@ describe("matchMerchants", () => {
 describe("findCategoryForMerchant", () => {
   it("returns categoryId from the most recent matching transaction", () => {
     const txns = [
-      txn({ merchant: "Subway", categoryId: "cat-old" }),
-      txn({ merchant: "Subway", categoryId: "cat-new" }),
+      txn({ merchant: "Subway", categoryId: "cat-old", datetime: "2024-01-10T10:00:00.000" }),
+      txn({ merchant: "Subway", categoryId: "cat-new", datetime: "2024-01-15T10:00:00.000" }),
+    ];
+    expect(findCategoryForMerchant(txns, "Subway")).toBe("cat-new");
+  });
+
+  it("picks most recent by datetime regardless of array order", () => {
+    const txns = [
+      txn({ merchant: "Subway", categoryId: "cat-new", datetime: "2024-01-15T10:00:00.000" }),
+      txn({ merchant: "Subway", categoryId: "cat-old", datetime: "2024-01-10T10:00:00.000" }),
     ];
     expect(findCategoryForMerchant(txns, "Subway")).toBe("cat-new");
   });

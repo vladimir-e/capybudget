@@ -47,7 +47,7 @@ export function MerchantInput({
     const matches = matchMerchants(merchants, value.trim());
     // Don't show dropdown if the only match is exactly what's typed
     if (matches.length === 1 && matches[0].toLowerCase() === value.trim().toLowerCase()) return [];
-    return matches;
+    return matches.slice(0, 20);
   }, [merchants, value]);
 
   // Auto-focus + select
@@ -94,9 +94,14 @@ export function MerchantInput({
     onKeyDown?.(e);
   };
 
+  const blurTimerRef = useRef<ReturnType<typeof setTimeout>>();
+
+  // Clean up pending blur timer on unmount
+  useEffect(() => () => clearTimeout(blurTimerRef.current), []);
+
   const handleBlur = (e: React.FocusEvent<HTMLInputElement>) => {
     // Delay close so mousedown on a suggestion can fire first
-    setTimeout(() => setOpen(false), 150);
+    blurTimerRef.current = setTimeout(() => setOpen(false), 150);
     onBlur?.(e);
   };
 
@@ -123,7 +128,7 @@ export function MerchantInput({
       left: rect.left,
       width: Math.max(rect.width, 200),
     });
-  }, [showDropdown, value]);
+  }, [showDropdown]);
 
   return (
     <>

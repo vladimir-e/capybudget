@@ -45,6 +45,7 @@ export function matchMerchants(
  * Find the categoryId from the most recent transaction with the given merchant.
  * Returns empty string if no match or the matched transaction has no category.
  *
+ * Compares by datetime so the result is correct regardless of input order.
  * Designed to be reusable for auto-categorization during CSV import.
  */
 export function findCategoryForMerchant(
@@ -54,13 +55,18 @@ export function findCategoryForMerchant(
   if (!merchant) return "";
   const normalized = merchant.toLowerCase();
 
-  // Walk backwards — transactions are typically ordered chronologically,
-  // so the last match is the most recent.
-  for (let i = transactions.length - 1; i >= 0; i--) {
-    const t = transactions[i];
-    if (t.merchant.toLowerCase() === normalized && t.categoryId) {
-      return t.categoryId;
+  let bestCategoryId = "";
+  let bestDatetime = "";
+
+  for (const t of transactions) {
+    if (
+      t.merchant.toLowerCase() === normalized &&
+      t.categoryId &&
+      t.datetime > bestDatetime
+    ) {
+      bestCategoryId = t.categoryId;
+      bestDatetime = t.datetime;
     }
   }
-  return "";
+  return bestCategoryId;
 }
