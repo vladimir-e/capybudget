@@ -14,6 +14,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { InlineEditCell, type EditableColumn } from "@/components/budget/inline-edit-cells";
 import { formatMoney, getAmountClass } from "@/lib/money";
@@ -42,6 +43,12 @@ interface TransactionListProps {
   onInlineSave?: (data: TransactionFormData) => void;
   sort: SortConfig;
   onSortChange: (sort: SortConfig) => void;
+  /** Selection state — omit to hide checkboxes. */
+  selectedIds?: Set<string>;
+  onToggleSelect?: (txnId: string, shiftKey: boolean) => void;
+  onToggleAll?: () => void;
+  allSelected?: boolean;
+  indeterminate?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -127,6 +134,11 @@ export function TransactionList({
   onInlineSave,
   sort,
   onSortChange,
+  selectedIds,
+  onToggleSelect,
+  onToggleAll,
+  allSelected,
+  indeterminate,
 }: TransactionListProps) {
   const { data: accounts = [] } = useAccounts();
   const { data: categories = [] } = useCategories();
@@ -134,6 +146,7 @@ export function TransactionList({
   const accountMap = new Map(accounts.map((a) => [a.id, a]));
   const categoryMap = new Map(categories.map((c) => [c.id, c]));
   const hasActions = !!(onEdit || onDelete || onInlineSave);
+  const hasSelection = !!(selectedIds && onToggleSelect);
 
   const [editingCell, setEditingCell] = useState<{ txnId: string; column: EditableColumn } | null>(null);
 
@@ -181,9 +194,19 @@ export function TransactionList({
   }
 
   return (
-    <Table>
+    <Table className={hasSelection ? "select-none" : ""}>
       <TableHeader>
         <TableRow className="hover:bg-transparent border-b-2 border-border">
+          {hasSelection && (
+            <TableHead className="w-[40px] px-3">
+              <Checkbox
+                checked={allSelected}
+                indeterminate={indeterminate}
+                onCheckedChange={() => onToggleAll?.()}
+                aria-label="Select all transactions"
+              />
+            </TableHead>
+          )}
           <SortableHeader column="date" sort={sort} onSortChange={onSortChange} className="w-[120px]">Date</SortableHeader>
           {showAccountColumn && (
             <SortableHeader column="account" sort={sort} onSortChange={onSortChange}>Account</SortableHeader>
@@ -222,9 +245,13 @@ export function TransactionList({
             categoryDisplay = <span className="text-muted-foreground/50 italic">Uncategorized</span>;
           }
 
-          const rowBg = isPanelEditing
-            ? "bg-brand-subtle/40 ring-1 ring-brand/20"
-            : i % 2 === 0 ? "bg-transparent" : "bg-muted/30";
+          const isSelected = hasSelection && selectedIds.has(txn.id);
+
+          const rowBg = isSelected
+            ? "bg-brand-subtle/50"
+            : isPanelEditing
+              ? "bg-brand-subtle/40 ring-1 ring-brand/20"
+              : i % 2 === 0 ? "bg-transparent" : "bg-muted/30";
 
           const isCellClickable = isEditable || (!!onEdit && txn.type === "transfer");
           const cellClickClass = isCellClickable ? "cursor-pointer" : "";
@@ -236,6 +263,21 @@ export function TransactionList({
                 isPanelEditing ? "" : "hover:bg-brand-subtle/50"
               }`}
             >
+              {hasSelection && (
+                <TableCell
+                  className="px-3 cursor-pointer"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onToggleSelect(txn.id, e.shiftKey);
+                  }}
+                >
+                  <Checkbox
+                    checked={isSelected}
+                    onCheckedChange={() => onToggleSelect(txn.id, false)}
+                    aria-label={`Select transaction`}
+                  />
+                </TableCell>
+              )}
               <TableCell
                 className={`text-muted-foreground text-[13px] ${cellClickClass}`}
                 onClick={() => handleCellClick(txn, "date")}
@@ -269,21 +311,30 @@ export function TransactionList({
                 {activeCol === "merchant" ? (
                   <InlineEditCell txn={txn} column="merchant" accounts={accounts} categories={categories} onSave={handleInlineSave} onCancel={handleInlineCancel} />
                 ) : (
-                  <span className="inline-flex items-center gap-1.5">
-                    {txn.type === "transfer" ? (
-                      <span className="text-muted-foreground/50">Transfer</span>
-                    ) : txn.merchant}
+                  <div className="flex items-center">
+                    <span className="truncate">
+                      {txn.type === "transfer" ? (
+                        <span className="text-muted-foreground/50">Transfer</span>
+                      ) : txn.merchant}
+                    </span>
                     {txn.note && (
                       <Tooltip>
                         <TooltipTrigger
-                          render={<span className="inline-flex shrink-0 cursor-default" />}
+                          render={
+                            <button
+                              type="button"
+                              className="ml-auto pl-2 inline-flex shrink-0 cursor-pointer p-1.5 -m-1.5"
+                              onClick={(e) => { e.stopPropagation(); onEdit?.(txn); }}
+                              aria-label="Edit transaction note"
+                            />
+                          }
                         >
                           <span className="h-1.5 w-1.5 rounded-full bg-brand/50 inline-block" />
                         </TooltipTrigger>
                         <TooltipContent>{txn.note}</TooltipContent>
                       </Tooltip>
                     )}
-                  </span>
+                  </div>
                 )}
               </TableCell>
               <TableCell
