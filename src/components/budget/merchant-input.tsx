@@ -76,7 +76,7 @@ export function MerchantInput({
         setHighlightIndex((i) => Math.max(i - 1, -1));
         return;
       }
-      if (e.key === "Enter" && highlightIndex >= 0) {
+      if (e.key === "Enter" && highlightIndex >= 0 && highlightIndex < suggestions.length) {
         e.preventDefault();
         selectSuggestion(suggestions[highlightIndex]);
         return;
@@ -94,7 +94,7 @@ export function MerchantInput({
     onKeyDown?.(e);
   };
 
-  const blurTimerRef = useRef<ReturnType<typeof setTimeout>>();
+  const blurTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   // Clean up pending blur timer on unmount
   useEffect(() => () => clearTimeout(blurTimerRef.current), []);
@@ -121,13 +121,24 @@ export function MerchantInput({
 
   useLayoutEffect(() => {
     if (!showDropdown || !inputRef.current) return;
-    const rect = inputRef.current.getBoundingClientRect();
-    setDropdownStyle({
-      position: "fixed",
-      top: rect.bottom + 4,
-      left: rect.left,
-      width: Math.max(rect.width, 200),
-    });
+
+    const updatePosition = () => {
+      const rect = inputRef.current!.getBoundingClientRect();
+      setDropdownStyle({
+        position: "fixed",
+        top: rect.bottom + 4,
+        left: rect.left,
+        width: Math.max(rect.width, 200),
+      });
+    };
+
+    updatePosition();
+    window.addEventListener("scroll", updatePosition, true);
+    window.addEventListener("resize", updatePosition);
+    return () => {
+      window.removeEventListener("scroll", updatePosition, true);
+      window.removeEventListener("resize", updatePosition);
+    };
   }, [showDropdown]);
 
   return (
