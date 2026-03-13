@@ -50,11 +50,6 @@ export function MerchantInput({
     return matches;
   }, [merchants, value]);
 
-  // Reset highlight when suggestions change
-  useEffect(() => {
-    setHighlightIndex(-1);
-  }, [suggestions]);
-
   // Auto-focus + select
   useEffect(() => {
     if (autoFocus) {
@@ -139,6 +134,7 @@ export function MerchantInput({
         onChange={(e) => {
           onChange(e.target.value);
           setOpen(true);
+          setHighlightIndex(-1);
         }}
         onFocus={() => {
           if (suggestions.length > 0) setOpen(true);
