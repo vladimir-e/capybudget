@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.8.0 — 2026-03-14
+
+Monorepo extraction — shared packages for code reuse across desktop, MCP, and future web demo.
+
+- npm workspaces monorepo with 5 packages: core, persistence, intelligence, app, mcp
+- `@capybudget/core`: types, money utilities, pure entity services extracted from app
+- `@capybudget/persistence`: repository interface, FileAdapter abstraction, CSV implementation decoupled from Tauri
+- `@capybudget/intelligence`: CapySession interface, stream event types, system prompt
+- `@capybudget/app`: full React application (components, hooks, stores, routes)
+- `@capybudget/mcp`: standalone MCP server rebuilt on shared packages — zero duplicated code, works with any MCP-compatible AI agent
+- Desktop shell reduced to 4 files: main.tsx, TauriFileAdapter, budget service, type declarations
+- Adapter pattern: FileAdapter, CapySession, BudgetService for platform decoupling
+
 ## 0.7.0 — 2026-03-13
 
 Capy intelligence layer — AI assistant powered by Claude Code CLI.

@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { detectBudget, bootstrapBudget } from "@/services/budget";
-import { DEFAULT_CATEGORIES } from "@/lib/default-categories";
+import { detectBudget, bootstrapBudget } from "./budget";
+import { DEFAULT_CATEGORIES } from "@capybudget/core";
 
 vi.mock("@tauri-apps/api/path", () => ({
   join: vi.fn((...parts: string[]) => Promise.resolve(parts.join("/"))),

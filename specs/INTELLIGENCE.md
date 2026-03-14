@@ -1,151 +1,156 @@
 # Intelligence Layer
 
-Capy is an AI financial assistant that lives inside the budget app. It's powered by Claude Code CLI running as a subprocess — the app sends messages, Claude streams responses, and an MCP server gives Claude structured access to the user's financial data.
-
-The app is fully functional without it. Intelligence is additive.
+Capy is an AI financial assistant. The app communicates with AI through the `CapySession` interface defined in `@capybudget/intelligence`. The desktop shell implements this with Claude Code CLI as a subprocess. The app is fully functional without intelligence — it's additive.
 
 ## Architecture
 
 ```
-┌──────────────────────────────────────────────────────────┐
-│  Capy Overlay (React)                                    │
-│  Messages, input, rich content blocks                    │
-└────────────┬─────────────────────────────────────────────┘
-             │ Tauri shell plugin
-             ▼
-┌──────────────────────────────────────────────────────────┐
-│  claude CLI (long-lived subprocess)                       │
-│  stream-json stdin/stdout, session persistence            │
-│                                                          │
-│  ┌────────────────────────────────────────────────────┐  │
-│  │  MCP Server (TypeScript)                           │  │
-│  │  Exposes domain data as structured tools           │  │
-│  │  Shares service layer with the UI                  │  │
-│  └────────────────────────────────────────────────────┘  │
-└──────────────────────────────────────────────────────────┘
-             │
-             ▼
-┌──────────────────────────────────────────────────────────┐
-│  Budget Data (CSV files)                                 │
-│  accounts.csv, transactions.csv, categories.csv          │
-└──────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────┐
+│  Capy Overlay (@capybudget/app)              │
+│  Messages, input, rich content blocks        │
+└──────────────┬───────────────────────────────┘
+               │ CapySession interface
+               ▼
+┌──────────────────────────────────────────────┐
+│  Session Adapter (shell-specific)            │
+│  Desktop: Claude CLI via Tauri shell         │
+│  Demo: stub with sample responses            │
+└──────────────┬───────────────────────────────┘
+               │
+               ▼
+┌──────────────────────────────────────────────┐
+│  MCP Server (@capybudget/mcp, standalone)    │
+└──────────────┬───────────────────────────────┘
+               │
+               ▼
+┌──────────────────────────────────────────────┐
+│  Budget Data (via @capybudget/persistence)   │
+└──────────────────────────────────────────────┘
 ```
 
-The MCP server mirrors the CSV reading logic from the UI's service layer. It runs as a standalone Node/tsx process (outside Vite), so it duplicates type definitions and CSV parsing rather than importing from `src/`. The data model is the single source of truth — the MCP server is a read-only consumer.
+## Session Interface
 
-## Claude CLI Process
+`CapySession` in `@capybudget/intelligence` defines the contract:
 
-Spawn once via Tauri's shell plugin. The process lives in the background for the lifetime of the budget — not tied to the overlay being open.
+- `send(message)` — send user message (enriched with context)
+- `restart()` — kill session and start fresh
+- `kill()` — terminate
+- `onEvent(callback)` — receive stream events
 
-```
-claude -p \
-  --input-format stream-json \
-  --output-format stream-json \
-  --verbose \
-  --mcp-config <json> \
-  --system-prompt <prompt> \
-  --session-id <uuid> \
-  --allowedTools "mcp__capy__*" \
-  --setting-sources ""
-```
+### Stream Events
 
-Key flags:
-- `-p` — pipe mode (non-interactive)
-- `--session-id` — new UUID per spawn, maintains conversation context
-- `--allowedTools` — allowlist MCP tools so Claude doesn't prompt for permission
-- `--setting-sources ""` — skip CLAUDE.md files, we control the prompt
-- Remove `CLAUDECODE` env var before spawning to prevent nested session detection
+| Event | Meaning |
+|---|---|
+| `text` | Streamed text (cumulative — replace, don't append) |
+| `render` | Rich content block (table, chart) |
+| `tool-activity` | AI is calling a data tool (show activity indicator) |
+| `done` | Turn complete |
+| `error` | Error message |
 
-### Lifecycle
+### Content Blocks
 
-- Spawn on first message (not on overlay open — lazy)
-- Generate fresh session ID on each spawn
-- Take stdout once, pipe into a background event reader
-- Process stays alive in the background regardless of overlay state — the user can close and reopen the overlay without losing conversation context
-- "New Chat" kills the current process and respawns with a fresh session ID
-- On budget close / unmount: kill process
+| Type | Data |
+|---|---|
+| `text` | Markdown string |
+| `table` | Headers + rows (amounts get semantic coloring) |
+| `bar-chart` | Title + label/value pairs |
+| `donut-chart` | Title + label/value pairs |
+
+`BlockRenderer` routes each block to its specialized renderer. New types are added by extending the union and adding a renderer.
+
+## Desktop Adapter: Claude CLI
+
+The desktop shell spawns Claude Code CLI as a long-lived subprocess via Tauri's shell plugin.
+
+### CLI Flags
+
+- `-p` — pipe mode
+- `--input-format stream-json` / `--output-format stream-json`
+- `--session-id <uuid>` — conversation context
+- `--mcp-config <path>` — points to MCP server
+- `--allowedTools "mcp__capy__*"` — allowlist MCP tools
+- `--setting-sources ""` — skip CLAUDE.md files
+- `CLAUDECODE` env var removed to prevent nested detection
+
+### Process Lifecycle
+
+- Spawn on first message (lazy, not on overlay open)
+- Fresh session ID (UUID) on each spawn
+- Process stays alive regardless of overlay state — close/reopen preserves conversation
+- "New Chat" kills and respawns with fresh session ID
+- On budget close: kill process
 
 ### Error Recovery
 
-When the CLI process dies unexpectedly:
+When the process dies unexpectedly:
+1. Detect via process exit event
+2. Show notice prompting user to send a message
+3. Next `send()` lazily spawns a fresh process
+4. Chat keeps old messages for display, but AI conversation starts fresh
 
-1. Detect via the process exit event from Tauri's shell plugin
-2. Show a non-blocking notice in the chat prompting the user to send a message
-3. The next `send()` call lazily spawns a fresh process with a new session ID
-4. The chat UI keeps the old messages for display (scrollback), but Claude has no memory of them — the conversation effectively starts fresh
+No retry logic, no history replay. A crash is a clean slate.
 
-No retry logic, no history replay, no auto-respawn. A crash is a clean slate. This is simple, predictable, and avoids the complexity of serializing conversation state.
+### Streaming Protocol (CLI-specific)
 
-## Streaming Protocol
-
-### Sending (stdin)
-
+Sending (stdin):
 ```json
 {"type":"user","message":{"role":"user","content":"What did I spend on food?"}}
 ```
 
-### Receiving (stdout)
+Receiving (stdout) — each line is a JSON object:
 
-Each line is a JSON object. The app cares about:
-
-| `type` | Meaning | Action |
-|--------|---------|--------|
-| `assistant` | Content chunk | Extract last content block from `.message.content[]` |
-| `result` | Turn complete | Mark streaming done |
-| `error` | Error | Show error in chat |
+| `type` | Action |
+|---|---|
+| `assistant` | Extract content blocks from `.message.content[]` |
+| `result` | Mark turn complete |
+| `error` | Show error in chat |
 
 Content blocks within `assistant` messages:
-- `text` — cumulative text (replace, don't append)
-- `tool_use` — Claude is calling an MCP tool (show activity indicator)
-
-### Frontend Event Types
-
-```typescript
-type StreamEvent =
-  | { type: "text"; text: string }
-  | { type: "tool-activity"; tool: string }
-  | { type: "done" }
-  | { type: "error"; message: string }
-```
+- `text` — cumulative text
+- `tool_use` — MCP tool call (render tool → content block, data tool → activity indicator)
 
 ## MCP Server
 
-A TypeScript MCP server that the `claude` CLI spawns as a child process. It exposes budget data through structured tools.
+`@capybudget/mcp` is a standalone TypeScript MCP server communicating over stdio. It works with any MCP-compatible AI agent — Claude Desktop, Cursor, VS Code Copilot, or any tool supporting the protocol.
 
-### Why TypeScript
-
-All domain logic already lives in `src/services/` as pure functions. The MCP server imports and reuses them — no duplication, no cross-language type sync. The server runs as a Node/tsx process, communicating with `claude` over stdio.
-
-### Tools (initial set)
-
-| Tool | Purpose |
-|------|---------|
-| `list_accounts` | All accounts with balances |
-| `list_transactions` | Transactions with filters (account, category, date range, merchant) |
-| `list_categories` | Category tree (groups and categories) |
-| `spending_summary` | Aggregated spending by category for a date range |
-
-Tools are read-only initially. Write tools (add transaction, categorize, etc.) come later.
-
-### MCP Config
+The desktop app spawns it automatically. External agents configure it manually:
 
 ```json
 {
   "mcpServers": {
-    "capy": {
-      "command": "tsx",
-      "args": ["path/to/capy-mcp-server.ts"],
-      "env": { "BUDGET_PATH": "/path/to/budget/folder" }
+    "capybudget": {
+      "command": "npx",
+      "args": ["@capybudget/mcp"],
+      "env": { "BUDGET_PATH": "/path/to/budget" }
     }
   }
 }
 ```
 
-The budget path is injected as an env var so the MCP server can read CSV files independently.
+### Data Tools
+
+| Tool | Purpose |
+|---|---|
+| `list_accounts` | All accounts with balances |
+| `list_transactions` | Transactions with filters (account, category, date range, merchant) |
+| `list_categories` | Category tree grouped by group |
+| `spending_summary` | Aggregated spending by category for a date range |
+
+Read-only. The MCP server reads budget data through `@capybudget/persistence` with a Node.js file adapter.
+
+### Render Tools
+
+| Tool | Input | Renders as |
+|---|---|---|
+| `render_table` | `{ headers, rows }` | Data table with amount coloring |
+| `render_bar_chart` | `{ title, data: [{label, value}] }` | Horizontal bar chart |
+| `render_donut_chart` | `{ title, data: [{label, value}] }` | SVG donut chart with legend |
+
+No-ops on the server — they carry structured data from AI to frontend via tool_use events. The system prompt instructs the AI to use render tools for structured data rather than markdown tables.
 
 ## Context Enrichment
 
-Each user message is wrapped with current app context before sending to Claude:
+Each user message is wrapped with app context before sending:
 
 ```
 [Context]
@@ -156,61 +161,13 @@ Date: March 13, 2026
 What did I spend on food this month?
 ```
 
-Currently includes budget name and date. Future enrichment (current view, account balances, transaction count) can be added as `buildContext()` grows.
-
-## Rich Content Blocks
-
-Claude's responses are rendered as a sequence of typed content blocks:
-
-| Block type | Renders as |
-|------------|------------|
-| `text` | Markdown paragraph |
-| `table` | Data table with typed columns (amounts get coloring) |
-| `bar-chart` | Horizontal bars with labels and values |
-| `donut-chart` | SVG pie chart with legend |
-
-The `BlockRenderer` component routes each block to its specialized renderer. New block types are added by extending the union type and adding a renderer — the overlay doesn't change.
-
-### Structured Output via Render Tools
-
-Claude uses MCP tools to emit rich content. Text is streamed naturally; structured blocks (tables, charts) arrive as tool calls with typed JSON payloads. The frontend intercepts these and renders them inline in the message.
-
-#### Render Tools
-
-| Tool | Input schema | Renders as |
-|------|-------------|------------|
-| `render_table` | `{ headers: string[], rows: string[][] }` | Data table with amount coloring |
-| `render_bar_chart` | `{ title: string, data: { label: string, value: number }[] }` | Horizontal bar chart |
-| `render_donut_chart` | `{ title: string, data: { label: string, value: number }[] }` | SVG donut chart with legend |
-
-These tools are no-ops on the MCP server side — they return an empty acknowledgment. Their only purpose is to carry structured data from Claude to the frontend via the `tool_use` / `tool_result` stream events.
-
-#### Stream Integration
-
-Within a single assistant turn, the stream interleaves text and tool calls:
-
-1. `assistant` event with `text` content block → append to current message text
-2. `assistant` event with `tool_use` block for `render_*` → parse input, push a rich content block into the message
-3. `assistant` event with `tool_use` block for data tools (`list_transactions`, etc.) → show activity indicator ("Reading transactions...")
-4. `result` event → mark turn complete
-
-The system prompt instructs Claude to use render tools for any structured data rather than formatting tables as markdown. This keeps the rendering pipeline clean — text is text, structured data is structured data.
-
 ## System Prompt
 
-The system prompt establishes Capy's personality and capabilities:
-
+Establishes Capy's personality:
 - Financial assistant for personal budgeting
-- Has access to the user's transaction, account, and category data via tools
+- Uses tools for data access, render tools for structured output
 - Defaults to current month when no date range specified
-- Shows amounts formatted as currency
-- Concise — answers directly, avoids filler
-- When suggesting changes (categorization, etc.), always present a preview for user confirmation
+- Concise, direct answers
+- Previews changes before applying
 
-The prompt includes a description of the data model (account types, transaction types, category structure) so Claude can interpret tool results correctly.
-
-## Language Boundary
-
-The Tauri shell plugin handles process spawning from the Rust side transparently. All orchestration logic (message formatting, stream parsing, state management) stays in TypeScript. The MCP server is TypeScript. No data structures cross the Rust/TypeScript boundary beyond the shell plugin's built-in event types (stdout line, stderr line, process exit).
-
-If the shell plugin's JS API proves insufficient for reliable streaming (buffering issues, etc.), the fallback is a thin Rust command that manages the subprocess and emits Tauri events — but the parsed/typed data structures still live only in TypeScript.
+Includes a data model description so the AI interprets tool results correctly.

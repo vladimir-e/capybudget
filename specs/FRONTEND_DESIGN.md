@@ -30,8 +30,8 @@ The app uses **OKLCh color space** for perceptually uniform colors. Every theme 
 
 ### Adding a New Theme
 
-1. Add an entry to `src/lib/color-themes.ts` with a label and swatch color.
-2. Add `[data-theme="<name>"]` and `[data-theme="<name>"].dark` blocks in `src/index.css`, following the existing pattern (shift hue, keep luminance/chroma structure).
+1. Add an entry to `packages/app/src/lib/color-themes.ts` with a label and swatch color.
+2. Add `[data-theme="<name>"]` and `[data-theme="<name>"].dark` blocks in `packages/app/src/styles/index.css`, following the existing pattern (shift hue, keep luminance/chroma structure).
 
 ## UX Principles
 

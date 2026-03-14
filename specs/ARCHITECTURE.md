@@ -2,128 +2,122 @@
 
 ## Tech Stack
 
-| Layer           | Technology             | Version | Purpose                                     |
-|-----------------|------------------------|---------|---------------------------------------------|
-| Desktop shell   | Tauri v2               | 2.x     | Lightweight native wrapper, ~15 lines Rust  |
-| Frontend        | React + TypeScript     | 19.x    | UI components and application logic         |
-| Bundler         | Vite                   | 7.x     | Fast dev server and production builds       |
-| Routing         | TanStack Router        | 1.x     | Type-safe file-based routing                |
-| Data cache      | TanStack Query         | 5.x     | Async cache for CSV data (fetch, invalidate, loading states) |
-| App state       | Zustand                | 5.x     | Lightweight store for app-level state       |
-| UI primitives   | shadcn/ui (Radix)      | —       | Accessible components, copied into project  |
-| Styling         | Tailwind CSS           | 4.x     | Utility-first CSS, zero-config in v4        |
-| CSV             | PapaParse              | 5.x     | Parse/unparse CSV with type coercion        |
+| Layer | Technology | Purpose |
+|---|---|---|
+| Monorepo | npm workspaces | Package management, dependency hoisting |
+| Desktop shell | Tauri v2 | Lightweight native wrapper (~15 lines Rust) |
+| Frontend | React 19 + TypeScript | UI components and application logic |
+| Bundler | Vite 7 | Dev server and production builds |
+| Routing | TanStack Router | Type-safe file-based routing |
+| Data cache | TanStack Query 5 | Async cache with fetch, invalidate, loading states |
+| App state | Zustand 5 | Lightweight stores (app state, undo/redo) |
+| UI primitives | shadcn/ui (Radix) | Accessible components, owned by the project |
+| Styling | Tailwind CSS 4 | Utility-first CSS |
+| CSV | PapaParse | Parse/unparse CSV with type coercion |
 
-### Tauri Plugins
+### Tauri Plugins (Desktop Shell)
 
-| Need              | Plugin                      |
-|-------------------|-----------------------------|
-| File read/write   | `@tauri-apps/plugin-fs`     |
-| Folder picker     | `@tauri-apps/plugin-dialog` |
-| Spawn Claude Code | `@tauri-apps/plugin-shell`  |
+| Need | Plugin |
+|---|---|
+| File read/write | `@tauri-apps/plugin-fs` |
+| Folder picker | `@tauri-apps/plugin-dialog` |
+| Spawn Claude CLI | `@tauri-apps/plugin-shell` |
 
-## Architecture Principles
+## Principles
 
 ### All Logic in TypeScript
 
-Rust is only used for Tauri plugin registration (~15 lines). All application logic — data parsing, validation, queries, UI — lives in TypeScript. This keeps the codebase accessible and the iteration cycle fast.
-
-### Data Flow
-
-```
-User picks folder
-  → detect budget.json or bootstrap new
-  → read CSVs via Tauri fs plugin
-  → PapaParse into TypeScript objects
-  → load into TanStack Query cache
-  → UI reads from cache via query hooks
-  → mutations update cache optimistically + call repo.save*()
-```
-
-### Repository Pattern
-
-Storage is abstracted behind the `BudgetRepository` interface (see `src/repositories/types.ts`). The interface will evolve as new adapters are needed — the current shape is designed for the CSV adapter; future backends (e.g. a database for a web version) may require a different contract.
-
-**Injection:** React context (`RepositoryProvider`) wraps the budget workspace. `useBudgetRepository()` hook provides the active adapter.
-
-### Data Hooks (TanStack Query)
-
-Query hooks (`useAccounts`, `useCategories`, `useTransactions`) wrap repository reads with `staleTime: Infinity`. Mutation hooks apply pure transformations, update the cache optimistically, then persist via the repository.
+Rust is only used for Tauri plugin registration. All application logic — data parsing, validation, queries, UI — lives in TypeScript.
 
 ### Functional Style
 
-- Pure functions for data transformations and queries
-- Immutable data structures in the store
-- Side effects (file writes, process spawning) isolated to service boundaries
+- Pure functions for data transformations
+- Immutable data structures
+- Side effects isolated to adapter boundaries
 - Composable utilities over class hierarchies
 
 ### Single Responsibility
 
-Each module owns one concern:
-- A **repository** handles storage I/O — it doesn't know about UI
-- A **service** contains pure data transformations — it doesn't do I/O
-- A **hook** bridges data to React — it doesn't contain business logic
-- A **component** displays data — it doesn't know about file I/O
+- A **service** (core) contains pure data transformations — no I/O
+- A **repository** (persistence) handles storage — doesn't know about UI
+- A **hook** (app) bridges data to React — no business logic
+- A **component** (app) displays data — no file I/O
 - The **intelligence layer** produces structured data — the app validates and writes
+
+### Monorepo
+
+See `MONOREPO.md` for package layout, dependency graph, and adapter pattern.
+
+## Data Flow
+
+```
+User picks folder (or demo loads preset data)
+  → BudgetService adapter detects/bootstraps budget
+  → CsvRepository reads CSVs via FileAdapter
+  → PapaParse with typed coercion → domain objects
+  → TanStack Query cache
+  → UI reads via query hooks
+  → mutations apply pure service functions from @capybudget/core
+  → optimistic cache update → repo.save*()
+```
 
 ## Mutation Strategy
 
 ### Optimistic Updates
 
-1. Validate locally using shared schema. If invalid, show inline error immediately.
-2. Update in-memory state (TanStack Query cache) immediately. UI reflects change instantly.
-3. Persist via repository in the background (debounced in CSV adapter).
-4. On write failure: show blocking error — "Something went wrong. Reload to continue." No retry logic, no partial rollback. Deliberately blunt because errors are rare in a local-first app.
+1. Validate locally. If invalid, show inline error immediately.
+2. Apply pure service function from `@capybudget/core`.
+3. Update TanStack Query cache immediately.
+4. Persist via repository in the background (debounced).
+5. On write failure: show blocking error. No retry, no partial rollback.
 
 ### Undo / Redo
 
-Session-scoped stack of state snapshots (past, present, future). On mutation: push present to past, replace present with new state. On undo: pop from past, push present to future. Undo triggers the appropriate write to re-sync CSV files. Not persisted across sessions.
+Session-scoped stack of state snapshots (past, present, future). Mutations push present to past. Undo pops past and triggers repository write to re-sync. Not persisted across sessions.
 
 ### Write Safety
 
-- Mutations write to a temp file first, then atomic rename
-- Writes are debounced — rapid changes batched into a single flush
+- Atomic writes (temp file → rename)
+- Debounced flush (rapid mutations batched)
 
 ## Routing
 
-TanStack Router with file-based routing. Routes are defined in `src/routes/` and the route tree is auto-generated by the Vite plugin.
+TanStack Router with file-based routing. Routes live in `packages/app/src/routes/`.
 
-Route parameters use type-safe search params:
 - `/` — Budget selector
 - `/budget?path=...&name=...` — Budget workspace
 
 ## State Management
 
-| Concern        | Solution           | Persistence        |
-|----------------|---------------------|---------------------|
-| Budget data    | TanStack Query      | Repository adapter   |
-| Recent budgets | Zustand             | localStorage         |
-| Undo/redo      | Zustand             | None (session only)  |
-| UI state       | BudgetUIContext     | None (ephemeral)     |
+| Concern | Solution | Persistence |
+|---|---|---|
+| Budget data | TanStack Query | Repository adapter |
+| Recent budgets | Zustand | localStorage |
+| Undo/redo | Zustand | None (session only) |
+| UI state | BudgetUIContext | None (ephemeral) |
 
-## Intelligence Layer (Future)
+## Intelligence
 
-Claude Code CLI orchestrated as a subprocess via Tauri's shell plugin. Soft dependency — the app is fully functional without it. Architecture is message-passing: compose prompt with context, shell out to `claude` CLI with streaming, pipe response back to UI.
+See `INTELLIGENCE.md` for the full intelligence layer architecture.
 
-AI generates structured data. The app validates and writes — AI never has direct storage access.
+## Testing
 
-## Testing & Linting
-
-See `specs/TESTING.md` for the full testing strategy, infrastructure, and how to write journey tests.
+See `TESTING.md` for testing strategy and infrastructure.
 
 ## Conventions
 
 ### File Naming
-- Components: `kebab-case.tsx` (e.g. `budget-selector.tsx`)
-- Services: `kebab-case.ts` (e.g. `budget.ts`)
-- Types: defined in `lib/types.ts`, exported as named types
+
+kebab-case for all files (e.g. `budget-shell.tsx`, `csv-repository.ts`).
 
 ### Imports
-- Use `@/` path alias for all internal imports
-- Group imports: React/external → internal → types
+
+- `@capybudget/*` for shared packages
+- `@/` alias for app-internal imports within `packages/app`
 
 ### Components
+
 - Functional components only
-- Co-locate component-specific logic in the same file
-- Extract to separate files when reused or > ~150 lines
-- shadcn components live in `components/ui/` and are customized freely
+- Co-locate component logic in the same file
+- Extract when reused or > ~150 lines
+- shadcn components in `components/ui/`, customized freely

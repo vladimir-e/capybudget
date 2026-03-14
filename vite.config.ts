@@ -12,18 +12,23 @@ export default defineConfig(async () => ({
     __PROJECT_ROOT__: JSON.stringify(process.cwd()),
   },
   plugins: [
-    TanStackRouterVite({ target: "react", autoCodeSplitting: true }),
+    TanStackRouterVite({
+      target: "react",
+      autoCodeSplitting: true,
+      routesDirectory: "./packages/app/src/routes",
+      generatedRouteTree: "./src/routeTree.gen.ts",
+    }),
     tailwindcss(),
     react(),
   ],
   resolve: {
     alias: {
-      "@": path.resolve(__dirname, "./src"),
+      "@": path.resolve(__dirname, "./packages/app/src"),
     },
   },
   test: {
     environment: "jsdom",
-    setupFiles: ["./src/test/setup.ts"],
+    setupFiles: ["./packages/app/src/test/setup.ts"],
   },
   clearScreen: false,
   server: {
