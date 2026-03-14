@@ -54,7 +54,7 @@ export function CapyOverlay({
 
   const handleSend = () => {
     const text = input.trim()
-    if (!text || isStreaming) return
+    if (!text) return
     onSend(text)
     setInput("")
   }
@@ -66,8 +66,7 @@ export function CapyOverlay({
     }
   }
 
-  const lastMsg = messages[messages.length - 1]
-  const showThinking = isStreaming && lastMsg?.role === "assistant" && lastMsg.blocks.length === 0
+  const showThinking = isStreaming
 
   return (
     <div
@@ -186,26 +185,27 @@ export function CapyOverlay({
               rows={3}
               className="w-full resize-none rounded-2xl bg-transparent px-5 py-4 pr-14 text-base text-foreground placeholder:text-muted-foreground/50 focus:outline-none"
             />
-            {isStreaming ? (
-              <button
-                type="button"
-                onClick={onStop}
-                className="absolute right-3 bottom-3 rounded-xl p-2.5 text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
-                aria-label="Stop response"
-              >
-                <Square className="h-4 w-4 fill-current" />
-              </button>
-            ) : (
+            <div className="absolute right-3 bottom-3 flex items-center gap-1">
+              {isStreaming && (
+                <button
+                  type="button"
+                  onClick={onStop}
+                  className="rounded-xl p-2.5 text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
+                  aria-label="Stop response"
+                >
+                  <Square className="h-4 w-4 fill-current" />
+                </button>
+              )}
               <button
                 type="button"
                 onClick={handleSend}
                 disabled={!input.trim()}
-                className="absolute right-3 bottom-3 rounded-xl p-2.5 text-brand hover:bg-brand/10 disabled:opacity-25 disabled:hover:bg-transparent transition-colors"
+                className="rounded-xl p-2.5 text-brand hover:bg-brand/10 disabled:opacity-25 disabled:hover:bg-transparent transition-colors"
                 aria-label="Send message"
               >
                 <Send className="h-5 w-5" />
               </button>
-            )}
+            </div>
           </div>
           <div className="mt-1.5 flex items-center justify-between px-1">
             <CommandPicker onSelect={setInput} />

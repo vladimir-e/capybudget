@@ -222,8 +222,6 @@ export function useCapySession(opts: UseCapySessionOptions): UseCapySessionRetur
 
   const sendMessage = useCallback(
     (text: string) => {
-      if (isStreaming) return
-
       const o = optsRef.current
       const context = buildContext({
         budgetName: o.budgetName,
@@ -256,7 +254,7 @@ export function useCapySession(opts: UseCapySessionOptions): UseCapySessionRetur
         })
       })
     },
-    [isStreaming, ensureSession, handleStreamEvent],
+    [ensureSession, handleStreamEvent],
   )
 
   const stopStreaming = useCallback(() => {
