@@ -151,7 +151,7 @@ Capy — an AI assistant powered by Claude Code CLI. Chat overlay with streaming
   - Tools: transactions, accounts, categories, spending summary
   - Claude calls structured tools instead of reading raw files
 
-- [ ] **4.4 — Building Blocks for AI Output**
+- [x] **4.4 — Building Blocks for AI Output**
   - [x] Structured output parsing from Claude → typed content blocks
   - [x] Charts and visualizations rendered from structured data
   - [x] Actionable suggestions (apply categorization, confirm import)
