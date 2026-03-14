@@ -6,6 +6,9 @@ import { AccountDialog } from "@/components/budget/account-dialog";
 import { TransactionForm } from "@/components/budget/transaction-form";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { ColorThemeSwitcher } from "@/components/color-theme-switcher";
+import { CapyButton } from "@/components/capy/capy-button";
+import { CapyOverlay } from "@/components/capy/capy-overlay";
+import { useCapySession } from "@/hooks/use-capy-session";
 import { BudgetUIProvider, type BudgetUIContextValue } from "@/contexts/budget-context";
 import {
   useCreateTransaction,
@@ -54,8 +57,15 @@ export function BudgetShell({ path, name }: BudgetShellProps) {
   const [accountDialogOpen, setAccountDialogOpen] = useState(false);
   const [editingAccount, setEditingAccount] = useState<Account | null>(null);
   const [formOpen, setFormOpen] = useState(false);
+  const [capyOpen, setCapyOpen] = useState(false);
   const [editingTxn, setEditingTxn] = useState<Transaction | null>(null);
   const [currentAccountId, setCurrentAccountId] = useState<string | undefined>();
+
+  const capy = useCapySession({
+    budgetPath: path,
+    budgetName: name,
+    mcpServerPath: "mcp/server.ts",
+  });
 
   const currentAccount = accounts.find((a) => a.id === currentAccountId);
   const isArchivedView = currentAccount?.archived === true;
@@ -92,6 +102,15 @@ export function BudgetShell({ path, name }: BudgetShellProps) {
         e.preventDefault();
         toggleForm();
       }
+      if (mod && e.key === "i") {
+        e.preventDefault();
+        setCapyOpen((prev) => !prev);
+      }
+      if (e.key === "Escape" && capyOpen) {
+        e.preventDefault();
+        setCapyOpen(false);
+        return;
+      }
       if (e.key === "Escape" && effectiveFormOpen && !formPanelRef.current?.contains(document.activeElement)) {
         e.preventDefault();
         handleDismissForm();
@@ -107,7 +126,7 @@ export function BudgetShell({ path, name }: BudgetShellProps) {
     }
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [toggleForm, undo, redo, effectiveFormOpen, handleDismissForm]);
+  }, [toggleForm, undo, redo, effectiveFormOpen, handleDismissForm, capyOpen]);
 
   useEffect(() => {
     if (effectiveFormOpen) {
@@ -204,6 +223,12 @@ export function BudgetShell({ path, name }: BudgetShellProps) {
           <div className="flex items-center justify-end gap-1">
             <ColorThemeSwitcher />
             <ThemeToggle />
+            <div className="ml-1.5 border-l border-border/50 pl-2.5">
+              <CapyButton
+                active={capyOpen}
+                onClick={() => setCapyOpen((prev) => !prev)}
+              />
+            </div>
           </div>
         </header>
 
@@ -255,6 +280,15 @@ export function BudgetShell({ path, name }: BudgetShellProps) {
             </div>
           </div>
         </div>
+
+        <CapyOverlay
+          open={capyOpen}
+          onClose={() => setCapyOpen(false)}
+          messages={capy.messages}
+          isStreaming={capy.isStreaming}
+          onSend={capy.sendMessage}
+          onNewChat={capy.newChat}
+        />
 
         <AccountDialog
           key={editingAccount?.id ?? "new"}

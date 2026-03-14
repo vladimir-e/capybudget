@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.7.0 — 2026-03-13
+
+Capy intelligence layer — AI assistant powered by Claude Code CLI.
+
+- Full-viewport chat overlay with rich content rendering (donut charts, bar charts, data tables)
+- Glowing Capy button in topbar with brand-aware pulse animation
+- Command picker for prompt templates
+- Claude CLI integration: long-lived subprocess via Tauri shell plugin, stream-json I/O, session management with auto-restart on crash
+- MCP server exposing budget data as structured tools (accounts, transactions, categories, spending summary)
+- Tool-based rendering: Claude emits charts and tables via render tools, frontend intercepts and displays them as rich blocks
+- System prompt with financial assistant personality, context enrichment per message
+- "New Chat" to reset session, empty state, streaming indicator
+
 ## 0.6.0 — 2026-03-12
 
 Merchant autocomplete and auto-categorization.

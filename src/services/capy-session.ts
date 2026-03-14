@@ -1,0 +1,146 @@
+/**
+ * Manages a long-lived Claude CLI subprocess via Tauri's shell plugin.
+ *
+ * Lifecycle:
+ * - Lazy spawn on first message
+ * - Stays alive in background (independent of overlay open/close)
+ * - "New chat" kills and respawns with a fresh session ID
+ * - Auto-restarts on unexpected process death
+ */
+
+import { Command, type Child } from "@tauri-apps/plugin-shell"
+import { writeTextFile } from "@tauri-apps/plugin-fs"
+import { tempDir, join as joinPath } from "@tauri-apps/api/path"
+import { SYSTEM_PROMPT } from "./capy-prompt"
+
+declare const __PROJECT_ROOT__: string
+
+export type SessionEvent =
+  | { type: "stdout"; line: string }
+  | { type: "stderr"; line: string }
+  | { type: "exit"; code: number | null }
+  | { type: "error"; message: string }
+
+export interface CapySessionOptions {
+  budgetPath: string
+  mcpServerPath: string
+  onEvent: (event: SessionEvent) => void
+}
+
+export class CapySession {
+  private child: Child | null = null
+  private sessionId: string = crypto.randomUUID()
+  private readonly budgetPath: string
+  private readonly mcpServerPath: string
+  private readonly onEvent: (event: SessionEvent) => void
+  private killed = false
+
+  constructor(opts: CapySessionOptions) {
+    this.budgetPath = opts.budgetPath
+    this.mcpServerPath = opts.mcpServerPath
+    this.onEvent = opts.onEvent
+  }
+
+  get isAlive(): boolean {
+    return this.child !== null
+  }
+
+  /** Spawn the Claude CLI process. Idempotent — no-op if already alive. */
+  async spawn(): Promise<void> {
+    if (this.child) return
+
+    this.killed = false
+    this.sessionId = crypto.randomUUID()
+
+    const absoluteServerPath = `${__PROJECT_ROOT__}/${this.mcpServerPath}`
+
+    const mcpConfig = JSON.stringify({
+      mcpServers: {
+        capy: {
+          command: "npx",
+          args: ["tsx", absoluteServerPath],
+          cwd: __PROJECT_ROOT__,
+          env: { BUDGET_PATH: this.budgetPath },
+        },
+      },
+    })
+
+    // --mcp-config expects a file path, not inline JSON
+    const tmp = await tempDir()
+    const configPath = await joinPath(tmp, `capy-mcp-${this.sessionId}.json`)
+    await writeTextFile(configPath, mcpConfig)
+
+    const command = Command.create("claude", [
+      "-p",
+      "--input-format",
+      "stream-json",
+      "--output-format",
+      "stream-json",
+      "--verbose",
+      "--mcp-config",
+      configPath,
+      "--system-prompt",
+      SYSTEM_PROMPT,
+      "--session-id",
+      this.sessionId,
+      "--allowedTools",
+      "mcp__capy__*",
+      "--setting-sources",
+      "",
+    ])
+
+    command.stdout.on("data", (line: string) => {
+      this.onEvent({ type: "stdout", line })
+    })
+
+    command.stderr.on("data", (line: string) => {
+      this.onEvent({ type: "stderr", line })
+    })
+
+    command.on("close", (data) => {
+      this.child = null
+      if (!this.killed) {
+        this.onEvent({ type: "exit", code: data.code })
+      }
+    })
+
+    command.on("error", (error) => {
+      this.onEvent({ type: "error", message: error })
+    })
+
+    this.child = await command.spawn()
+  }
+
+  /** Send a user message to Claude. Spawns the process if not alive. */
+  async send(message: string): Promise<void> {
+    if (!this.child) {
+      await this.spawn()
+    }
+
+    const payload = JSON.stringify({
+      type: "user",
+      message: { role: "user", content: message },
+    })
+
+    await this.child!.write(payload + "\n")
+  }
+
+  /** Kill the process and start fresh on next send(). */
+  async restart(): Promise<void> {
+    await this.kill()
+    // Process will be respawned on next send()
+  }
+
+  /** Kill the process. */
+  async kill(): Promise<void> {
+    this.killed = true
+    if (this.child) {
+      try {
+        await this.child.kill()
+      } catch {
+        // Process may already be dead
+      }
+      this.child = null
+    }
+  }
+}

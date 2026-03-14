@@ -129,19 +129,68 @@ Fast entry, filtering, bulk operations.
 
 ## Phase 4: Intelligence Layer
 
-Claude Code as optional subprocess.
+Capy — an AI assistant powered by Claude Code CLI. Chat overlay with streaming responses, tool-based domain access, and rich content. See `INTELLIGENCE.md` for architecture.
 
-- [ ] **4.1 — Smart Import**
-  - Paste bank CSV or screenshot
-  - Claude parses → structured preview
-  - User reviews and confirms
+- [x] **4.1 — Overlay UI**
+  - Full-viewport overlay with blurred backdrop
+  - Chat message list with user/assistant bubbles
+  - Input area with Enter to send, Shift+Enter for newline
+  - Command picker with prompt templates
+  - Rich content blocks: text, tables, bar charts, donut charts
 
-- [ ] **4.2 — Auto-Categorization**
-  - Learn from existing patterns
-  - Suggest categories for uncategorized transactions
-  - Batch apply with review
+- [x] **4.2 — Claude CLI Integration**
+  - Spawn `claude` CLI as long-lived subprocess via Tauri shell plugin
+  - JSON streaming I/O (`--input-format stream-json --output-format stream-json`)
+  - Session management (session ID per spawn, respawn on death)
+  - Stream parsing: text deltas, tool calls, completion, errors
+  - Context enrichment (current view, account, date range with each message)
 
-- [ ] **4.3 — Insights & Anomalies**
-  - Natural language queries about spending
+- [x] **4.3 — MCP Server**
+  - TypeScript MCP server exposing domain data as tools
+  - Shares pure service functions with the UI (single source of truth)
+  - Tools: transactions, accounts, categories, spending summary
+  - Claude calls structured tools instead of reading raw files
+
+- [x] **4.4 — Building Blocks for AI Output**
+  - [x] Structured output parsing from Claude → typed content blocks
+  - [x] Charts and visualizations rendered from structured data
+  - [x] Actionable suggestions (apply categorization, confirm import)
+
+---
+
+## Phase 5: Smart Import
+
+Paste or drop bank data, Claude parses it, you review and confirm.
+
+- [ ] **5.1 — CSV Import**
+  - Drop bank-exported CSV
+  - Claude maps varied bank formats into internal transaction schema and saves to a file, ready to pass to the app
+    - ensure idempotency 
+    - transfers will be especially tricky
+  - When file is ready, display a button in the chat to preview the data
+
+- [ ] **5.2 — Preview Area**
+  - preview area is an independent front-end module that operates on the normalized import file
+  - provides table with transactions data using same UX as the main transactions table
+  - user can edit information and changes will be saved to the file
+  - has a button to confirm import of transactions that will store information from the file in our database
+
+- [ ] **5.3 — Other formats**
+- [ ] Screenshot Import
+- [ ] PDF Import
+
+---
+
+## Phase 6: Analytics & Budgeting
+
+- [ ] **6.1 — Analytics**
+  - Spending breakdowns by month, year, custom date range
+  - Category trends over time
+
+- [ ] **6.2 — AI Insights**
+  - Capy builds custom visualizations and analyses on demand
   - Anomaly detection (unusual amounts, spending spikes)
-  - Streaming response UI
+
+- [ ] **6.3 — Budget**
+  - Assign monthly amounts per category
+  - Assigned vs. spent tracking
