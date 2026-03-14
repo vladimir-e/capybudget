@@ -125,7 +125,7 @@ All domain logic already lives in `src/services/` as pure functions. The MCP ser
 | `list_categories` | Category tree (groups and categories) |
 | `spending_summary` | Aggregated spending by category for a date range |
 
-Tools are read-only initially. Write tools (add transaction, categorize, etc.) come later and always require user confirmation in the UI before committing.
+Tools are read-only initially. Write tools (add transaction, categorize, etc.) come later.
 
 ### MCP Config
 
