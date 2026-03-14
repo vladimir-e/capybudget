@@ -19,6 +19,7 @@ import { useUndoRedo } from "@/hooks/use-undo-redo";
 import { useReorderAccounts } from "@/hooks/use-account-mutations";
 import { useAccounts, budgetKeys } from "@/hooks/use-budget-data";
 import { useCustomInstructions } from "@/hooks/use-custom-instructions";
+import { useCustomCommands } from "@/hooks/use-custom-commands";
 import { useBudgetRepository } from "@/providers/repository-provider";
 import type { DisposableRepository } from "@capybudget/persistence";
 import {
@@ -66,6 +67,7 @@ export function BudgetShell({ path, name }: BudgetShellProps) {
   const [currentAccountId, setCurrentAccountId] = useState<string | undefined>();
 
   const customInstructions = useCustomInstructions(path);
+  const customCommands = useCustomCommands(path);
 
   const repo = useBudgetRepository();
 
@@ -308,6 +310,8 @@ export function BudgetShell({ path, name }: BudgetShellProps) {
           onNewChat={capy.newChat}
           instructions={customInstructions.instructions}
           onSaveInstructions={customInstructions.save}
+          commands={customCommands.commands}
+          onSaveCommands={customCommands.save}
         />
 
         <AccountDialog
