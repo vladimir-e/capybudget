@@ -14,7 +14,7 @@ import type {
   BarChartBlock,
   DonutChartBlock,
   TableBlock,
-} from "@/components/capy/mock-data"
+} from "@/components/capy/types"
 
 // ── Stream event types ───────────────────────────────────────────
 
@@ -75,15 +75,17 @@ export function parseStreamLine(line: string): StreamEvent[] {
         if (block.type === "text") {
           events.push({ type: "text", text: block.text as string })
         } else if (block.type === "tool_use") {
-          const toolName = block.name as string
+          // MCP tools are prefixed as "mcp__<server>__<tool>" — strip to base name
+          const rawName = block.name as string
+          const baseName = rawName.replace(/^mcp__\w+__/, "")
           const input = block.input as Record<string, unknown>
 
-          const renderFn = RENDER_TOOL_MAP[toolName]
+          const renderFn = RENDER_TOOL_MAP[baseName]
           if (renderFn) {
             const rendered = renderFn(input)
             if (rendered) events.push({ type: "render", block: rendered })
           } else {
-            events.push({ type: "tool-activity", tool: toolName })
+            events.push({ type: "tool-activity", tool: baseName })
           }
         }
       }

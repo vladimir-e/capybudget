@@ -258,14 +258,17 @@ function handleListAccounts() {
   const accounts = getAccounts();
   const transactions = getTransactions();
 
-  const result = accounts.map((a) => ({
-    id: a.id,
-    name: a.name,
-    type: a.type,
-    balance: formatMoney(accountBalance(a.id, transactions)),
-    balanceCents: accountBalance(a.id, transactions),
-    archived: a.archived,
-  }));
+  const result = accounts.map((a) => {
+    const bal = accountBalance(a.id, transactions);
+    return {
+      id: a.id,
+      name: a.name,
+      type: a.type,
+      balance: formatMoney(bal),
+      balanceCents: bal,
+      archived: a.archived,
+    };
+  });
 
   return JSON.stringify(result, null, 2);
 }
@@ -392,28 +395,36 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     return { content: [{ type: "text", text: "Rendered." }] };
   }
 
-  let text: string;
-  switch (name) {
-    case "list_accounts":
-      text = handleListAccounts();
-      break;
-    case "list_transactions":
-      text = handleListTransactions(args ?? {});
-      break;
-    case "list_categories":
-      text = handleListCategories();
-      break;
-    case "spending_summary":
-      text = handleSpendingSummary(args ?? {});
-      break;
-    default:
-      return {
-        content: [{ type: "text", text: `Unknown tool: ${name}` }],
-        isError: true,
-      };
-  }
+  try {
+    let text: string;
+    switch (name) {
+      case "list_accounts":
+        text = handleListAccounts();
+        break;
+      case "list_transactions":
+        text = handleListTransactions(args ?? {});
+        break;
+      case "list_categories":
+        text = handleListCategories();
+        break;
+      case "spending_summary":
+        text = handleSpendingSummary(args ?? {});
+        break;
+      default:
+        return {
+          content: [{ type: "text", text: `Unknown tool: ${name}` }],
+          isError: true,
+        };
+    }
 
-  return { content: [{ type: "text", text }] };
+    return { content: [{ type: "text", text }] };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return {
+      content: [{ type: "text", text: `Error: ${message}` }],
+      isError: true,
+    };
+  }
 });
 
 // ── Start ────────────────────────────────────────────────────────

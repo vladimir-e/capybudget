@@ -10,7 +10,7 @@ import { useCallback, useEffect, useRef, useState } from "react"
 import { CapySession, type SessionEvent } from "@/services/capy-session"
 import { parseStreamLine, type StreamEvent } from "@/services/capy-stream"
 import { buildContext } from "@/services/capy-prompt"
-import type { ChatMessage } from "@/components/capy/mock-data"
+import type { ChatMessage } from "@/components/capy/types"
 
 interface UseCapySessionOptions {
   budgetPath: string
@@ -97,7 +97,7 @@ export function useCapySession(opts: UseCapySessionOptions): UseCapySessionRetur
             return [
               ...prev,
               {
-                id: String(Date.now()),
+                id: crypto.randomUUID(),
                 role: "assistant" as const,
                 blocks: [{ type: "text" as const, content: `Error: ${event.message}` }],
               },
@@ -132,10 +132,11 @@ export function useCapySession(opts: UseCapySessionOptions): UseCapySessionRetur
         case "exit":
           // Unexpected exit — notify user
           setIsStreaming(false)
+          currentTextRef.current = ""
           setMessages((prev) => [
             ...prev,
             {
-              id: String(Date.now()),
+              id: crypto.randomUUID(),
               role: "assistant",
               blocks: [
                 {
@@ -182,7 +183,6 @@ export function useCapySession(opts: UseCapySessionOptions): UseCapySessionRetur
 
       const o = optsRef.current
       const context = buildContext({
-        budgetPath: o.budgetPath,
         budgetName: o.budgetName,
       })
 
@@ -190,12 +190,12 @@ export function useCapySession(opts: UseCapySessionOptions): UseCapySessionRetur
 
       // Push user message + empty assistant shell
       const userMsg: ChatMessage = {
-        id: String(Date.now()),
+        id: crypto.randomUUID(),
         role: "user",
         blocks: [{ type: "text", content: text }],
       }
       const assistantMsg: ChatMessage = {
-        id: String(Date.now() + 1),
+        id: crypto.randomUUID(),
         role: "assistant",
         blocks: [],
       }

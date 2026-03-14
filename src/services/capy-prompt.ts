@@ -37,7 +37,6 @@ export const SYSTEM_PROMPT = `You are Capy, a financial assistant built into a p
  * Build context header to prepend to the user's message.
  */
 export function buildContext(opts: {
-  budgetPath: string
   budgetName: string
 }): string {
   const date = new Date().toLocaleDateString("en-US", {

@@ -7,7 +7,7 @@ import type {
   BarChartBlock,
   DonutChartBlock,
   TableBlock,
-} from "./mock-data"
+} from "./types"
 
 interface CapyOverlayProps {
   open: boolean
@@ -293,7 +293,9 @@ const CHART_COLORS = [
 ]
 
 function BarChart({ title, data }: Pick<BarChartBlock, "title" | "data">) {
+  if (data.length === 0) return null
   const max = Math.max(...data.map((d) => d.value))
+  if (max === 0) return null
 
   return (
     <div className="rounded-xl border border-border/30 bg-card/40 p-5">
@@ -329,6 +331,7 @@ function BarChart({ title, data }: Pick<BarChartBlock, "title" | "data">) {
 
 function DonutChart({ title, data }: Pick<DonutChartBlock, "title" | "data">) {
   const total = data.reduce((sum, d) => sum + d.value, 0)
+  if (data.length === 0 || total === 0) return null
   const size = 140
   const cx = size / 2
   const cy = size / 2
