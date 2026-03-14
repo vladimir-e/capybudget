@@ -1,5 +1,5 @@
 import { createContext, useContext } from "react";
-import type { BudgetRepository } from "@/repositories/types";
+import type { BudgetRepository } from "@capybudget/persistence";
 
 const RepositoryContext = createContext<BudgetRepository | null>(null);
 

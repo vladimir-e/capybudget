@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { createDebouncedWriter } from "@/services/csv";
+import { createDebouncedWriter } from "./debounced-writer";
 
 describe("createDebouncedWriter", () => {
   beforeEach(() => {

@@ -7,7 +7,7 @@ import type {
   BarChartBlock,
   DonutChartBlock,
   TableBlock,
-} from "./types"
+} from "@capybudget/intelligence"
 
 interface CapyOverlayProps {
   open: boolean

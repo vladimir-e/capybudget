@@ -1,22 +1,24 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import type { Account, Category, Transaction } from "@capybudget/core";
+import type { FileAdapter } from "./file-adapter";
+import { createCsvRepository } from "./csv-repository";
 
-// Mock @tauri-apps/api/path
-vi.mock("@tauri-apps/api/path", () => ({
-  join: vi.fn((...parts: string[]) => Promise.resolve(parts.join("/"))),
-}));
+function createMockFileAdapter() {
+  const mockReadFile = vi.fn<FileAdapter["readFile"]>();
+  const mockWriteFile = vi.fn<FileAdapter["writeFile"]>().mockResolvedValue(undefined);
+  const mockRename = vi.fn<FileAdapter["rename"]>().mockResolvedValue(undefined);
 
-// Mock @tauri-apps/plugin-fs (used by csv service)
-vi.mock("@tauri-apps/plugin-fs", () => ({
-  readTextFile: vi.fn(),
-  writeTextFile: vi.fn().mockResolvedValue(undefined),
-  rename: vi.fn().mockResolvedValue(undefined),
-}));
+  const adapter: FileAdapter = {
+    readFile: mockReadFile,
+    writeFile: mockWriteFile,
+    rename: mockRename,
+    join: (...parts: string[]) => Promise.resolve(parts.join("/")),
+  };
 
-import { createCsvRepository } from "@/repositories/csv-repository";
-import { readTextFile } from "@tauri-apps/plugin-fs";
+  return { adapter, mockReadFile, mockWriteFile, mockRename };
+}
 
-const mockReadTextFile = vi.mocked(readTextFile);
+let mockAdapter: ReturnType<typeof createMockFileAdapter>;
 
 function makeAccountCsv(accounts: Partial<Account>[]): string {
   const headers = "id,name,type,archived,sortOrder,createdAt";
@@ -78,7 +80,7 @@ function stubCsvReads(options?: {
   categories?: Partial<Category>[];
   transactions?: Partial<Transaction>[];
 }) {
-  mockReadTextFile.mockImplementation(async (path) => {
+  mockAdapter.mockReadFile.mockImplementation(async (path) => {
     const p = String(path);
     if (p.endsWith("accounts.csv")) {
       return makeAccountCsv(options?.accounts ?? [{ id: "acc-1", name: "Cash" }]);
@@ -100,7 +102,7 @@ function stubCsvReads(options?: {
 describe("createCsvRepository", () => {
   beforeEach(() => {
     vi.useFakeTimers();
-    vi.clearAllMocks();
+    mockAdapter = createMockFileAdapter();
   });
 
   afterEach(() => {
@@ -110,21 +112,21 @@ describe("createCsvRepository", () => {
   describe("file path construction", () => {
     it("constructs correct paths from folder path", async () => {
       stubCsvReads();
-      const repo = createCsvRepository("/home/user/budgets/mybudget");
+      const repo = createCsvRepository("/home/user/budgets/mybudget", mockAdapter.adapter);
       await repo.getAccounts();
-      expect(mockReadTextFile).toHaveBeenCalledWith(
+      expect(mockAdapter.mockReadFile).toHaveBeenCalledWith(
         "/home/user/budgets/mybudget/accounts.csv",
       );
     });
 
     it("constructs separate paths for each data type", async () => {
       stubCsvReads();
-      const repo = createCsvRepository("/budgets/test");
+      const repo = createCsvRepository("/budgets/test", mockAdapter.adapter);
       await repo.getAccounts();
       await repo.getCategories();
       await repo.getTransactions();
 
-      const calls = mockReadTextFile.mock.calls.map((c) => c[0]);
+      const calls = mockAdapter.mockReadFile.mock.calls.map((c) => c[0]);
       expect(calls).toContain("/budgets/test/accounts.csv");
       expect(calls).toContain("/budgets/test/categories.csv");
       expect(calls).toContain("/budgets/test/transactions.csv");
@@ -134,29 +136,29 @@ describe("createCsvRepository", () => {
   describe("lazy loading and caching", () => {
     it("does not read any file until getter is called", () => {
       stubCsvReads();
-      createCsvRepository("/budgets/test");
-      expect(mockReadTextFile).not.toHaveBeenCalled();
+      createCsvRepository("/budgets/test", mockAdapter.adapter);
+      expect(mockAdapter.mockReadFile).not.toHaveBeenCalled();
     });
 
     it("getAccounts reads CSV on first call", async () => {
       stubCsvReads({ accounts: [{ id: "acc-1", name: "Checking" }] });
-      const repo = createCsvRepository("/budgets/test");
+      const repo = createCsvRepository("/budgets/test", mockAdapter.adapter);
 
       const accounts = await repo.getAccounts();
       expect(accounts).toHaveLength(1);
       expect(accounts[0].name).toBe("Checking");
-      expect(mockReadTextFile).toHaveBeenCalledTimes(1);
+      expect(mockAdapter.mockReadFile).toHaveBeenCalledTimes(1);
     });
 
     it("getAccounts returns cached data on second call (no re-read)", async () => {
       stubCsvReads({ accounts: [{ id: "acc-1", name: "Checking" }] });
-      const repo = createCsvRepository("/budgets/test");
+      const repo = createCsvRepository("/budgets/test", mockAdapter.adapter);
 
       const first = await repo.getAccounts();
       const second = await repo.getAccounts();
 
       expect(first).toBe(second); // Same reference — cached
-      expect(mockReadTextFile).toHaveBeenCalledTimes(1);
+      expect(mockAdapter.mockReadFile).toHaveBeenCalledTimes(1);
     });
 
     it("getCategories lazily loads and caches", async () => {
@@ -166,46 +168,46 @@ describe("createCsvRepository", () => {
           { id: "cat-2", name: "Transport" },
         ],
       });
-      const repo = createCsvRepository("/budgets/test");
+      const repo = createCsvRepository("/budgets/test", mockAdapter.adapter);
 
       const cats1 = await repo.getCategories();
       const cats2 = await repo.getCategories();
 
       expect(cats1).toHaveLength(2);
       expect(cats1).toBe(cats2);
-      expect(mockReadTextFile).toHaveBeenCalledTimes(1);
+      expect(mockAdapter.mockReadFile).toHaveBeenCalledTimes(1);
     });
 
     it("getTransactions lazily loads and caches", async () => {
       stubCsvReads({ transactions: [{ id: "txn-1", amount: -1000 }] });
-      const repo = createCsvRepository("/budgets/test");
+      const repo = createCsvRepository("/budgets/test", mockAdapter.adapter);
 
       const txns1 = await repo.getTransactions();
       const txns2 = await repo.getTransactions();
 
       expect(txns1).toHaveLength(1);
       expect(txns1).toBe(txns2);
-      expect(mockReadTextFile).toHaveBeenCalledTimes(1);
+      expect(mockAdapter.mockReadFile).toHaveBeenCalledTimes(1);
     });
 
     it("each data type has independent cache", async () => {
       stubCsvReads();
-      const repo = createCsvRepository("/budgets/test");
+      const repo = createCsvRepository("/budgets/test", mockAdapter.adapter);
 
       await repo.getAccounts();
-      expect(mockReadTextFile).toHaveBeenCalledTimes(1);
+      expect(mockAdapter.mockReadFile).toHaveBeenCalledTimes(1);
 
       await repo.getCategories();
-      expect(mockReadTextFile).toHaveBeenCalledTimes(2);
+      expect(mockAdapter.mockReadFile).toHaveBeenCalledTimes(2);
 
       await repo.getTransactions();
-      expect(mockReadTextFile).toHaveBeenCalledTimes(3);
+      expect(mockAdapter.mockReadFile).toHaveBeenCalledTimes(3);
 
       // Second round — all cached, no more reads
       await repo.getAccounts();
       await repo.getCategories();
       await repo.getTransactions();
-      expect(mockReadTextFile).toHaveBeenCalledTimes(3);
+      expect(mockAdapter.mockReadFile).toHaveBeenCalledTimes(3);
     });
   });
 
@@ -214,7 +216,7 @@ describe("createCsvRepository", () => {
       stubCsvReads({
         accounts: [{ id: "acc-1", archived: true, sortOrder: 5 }],
       });
-      const repo = createCsvRepository("/budgets/test");
+      const repo = createCsvRepository("/budgets/test", mockAdapter.adapter);
       const accounts = await repo.getAccounts();
 
       expect(accounts[0].archived).toBe(true);
@@ -225,7 +227,7 @@ describe("createCsvRepository", () => {
 
     it("coerces transaction amount to integer", async () => {
       stubCsvReads({ transactions: [{ id: "txn-1", amount: -12345 }] });
-      const repo = createCsvRepository("/budgets/test");
+      const repo = createCsvRepository("/budgets/test", mockAdapter.adapter);
       const txns = await repo.getTransactions();
 
       expect(txns[0].amount).toBe(-12345);
@@ -236,7 +238,7 @@ describe("createCsvRepository", () => {
   describe("saveAccounts / saveCategories / saveTransactions", () => {
     it("saveAccounts updates in-memory cache so next get returns saved data", async () => {
       stubCsvReads({ accounts: [{ id: "acc-1", name: "Old" }] });
-      const repo = createCsvRepository("/budgets/test");
+      const repo = createCsvRepository("/budgets/test", mockAdapter.adapter);
 
       await repo.getAccounts(); // populate cache
 
@@ -257,12 +259,12 @@ describe("createCsvRepository", () => {
       expect(result[0].id).toBe("acc-2");
       expect(result[0].name).toBe("New");
       // No additional CSV read — data came from in-memory save
-      expect(mockReadTextFile).toHaveBeenCalledTimes(1);
+      expect(mockAdapter.mockReadFile).toHaveBeenCalledTimes(1);
     });
 
     it("saveCategories updates in-memory cache", async () => {
       stubCsvReads({ categories: [{ id: "cat-1", name: "Old" }] });
-      const repo = createCsvRepository("/budgets/test");
+      const repo = createCsvRepository("/budgets/test", mockAdapter.adapter);
 
       await repo.getCategories();
 
@@ -284,7 +286,7 @@ describe("createCsvRepository", () => {
 
     it("saveTransactions updates in-memory cache", async () => {
       stubCsvReads({ transactions: [{ id: "txn-old" }] });
-      const repo = createCsvRepository("/budgets/test");
+      const repo = createCsvRepository("/budgets/test", mockAdapter.adapter);
 
       await repo.getTransactions();
 
@@ -312,10 +314,8 @@ describe("createCsvRepository", () => {
 
   describe("debounced writes", () => {
     it("save schedules a debounced write, not an immediate one", async () => {
-      const { writeTextFile } = await import("@tauri-apps/plugin-fs");
-      const mockWrite = vi.mocked(writeTextFile);
       stubCsvReads();
-      const repo = createCsvRepository("/budgets/test");
+      const repo = createCsvRepository("/budgets/test", mockAdapter.adapter);
 
       await repo.saveAccounts([
         {
@@ -329,14 +329,12 @@ describe("createCsvRepository", () => {
       ]);
 
       // Write should NOT have happened yet (debounced)
-      expect(mockWrite).not.toHaveBeenCalled();
+      expect(mockAdapter.mockWriteFile).not.toHaveBeenCalled();
     });
 
     it("debounced write fires after delay", async () => {
-      const { writeTextFile } = await import("@tauri-apps/plugin-fs");
-      const mockWrite = vi.mocked(writeTextFile);
       stubCsvReads();
-      const repo = createCsvRepository("/budgets/test");
+      const repo = createCsvRepository("/budgets/test", mockAdapter.adapter);
 
       await repo.saveAccounts([
         {
@@ -350,16 +348,14 @@ describe("createCsvRepository", () => {
       ]);
 
       await vi.advanceTimersByTimeAsync(300);
-      expect(mockWrite).toHaveBeenCalled();
+      expect(mockAdapter.mockWriteFile).toHaveBeenCalled();
     });
   });
 
   describe("dispose", () => {
     it("flushes all pending writes immediately", async () => {
-      const { writeTextFile } = await import("@tauri-apps/plugin-fs");
-      const mockWrite = vi.mocked(writeTextFile);
       stubCsvReads();
-      const repo = createCsvRepository("/budgets/test");
+      const repo = createCsvRepository("/budgets/test", mockAdapter.adapter);
 
       // Save all three data types — each schedules a debounced write
       await repo.saveAccounts([
@@ -397,29 +393,27 @@ describe("createCsvRepository", () => {
       ]);
 
       // Nothing written yet
-      expect(mockWrite).not.toHaveBeenCalled();
+      expect(mockAdapter.mockWriteFile).not.toHaveBeenCalled();
 
       // Dispose flushes everything
       await repo.dispose();
 
-      // Each save type should have triggered a writeTextFile (to .tmp)
+      // Each save type should have triggered a writeFile (to .tmp)
       // 3 data types = 3 writes
-      expect(mockWrite).toHaveBeenCalledTimes(3);
+      expect(mockAdapter.mockWriteFile).toHaveBeenCalledTimes(3);
     });
 
     it("dispose is safe when nothing was saved", async () => {
       stubCsvReads();
-      const repo = createCsvRepository("/budgets/test");
+      const repo = createCsvRepository("/budgets/test", mockAdapter.adapter);
 
       // Dispose with no prior saves should not throw
       await expect(repo.dispose()).resolves.toBeUndefined();
     });
 
     it("after dispose, advancing timers does not cause duplicate writes", async () => {
-      const { writeTextFile } = await import("@tauri-apps/plugin-fs");
-      const mockWrite = vi.mocked(writeTextFile);
       stubCsvReads();
-      const repo = createCsvRepository("/budgets/test");
+      const repo = createCsvRepository("/budgets/test", mockAdapter.adapter);
 
       await repo.saveAccounts([
         {
@@ -433,11 +427,11 @@ describe("createCsvRepository", () => {
       ]);
 
       await repo.dispose();
-      const writeCountAfterDispose = mockWrite.mock.calls.length;
+      const writeCountAfterDispose = mockAdapter.mockWriteFile.mock.calls.length;
 
       // Advancing timers should NOT cause another write
       await vi.advanceTimersByTimeAsync(1000);
-      expect(mockWrite).toHaveBeenCalledTimes(writeCountAfterDispose);
+      expect(mockAdapter.mockWriteFile).toHaveBeenCalledTimes(writeCountAfterDispose);
     });
   });
 
@@ -446,14 +440,14 @@ describe("createCsvRepository", () => {
       stubCsvReads({
         accounts: [{ id: "acc-1", name: "Budget A" }],
       });
-      const repoA = createCsvRepository("/budgets/a");
-      const repoB = createCsvRepository("/budgets/b");
+      const repoA = createCsvRepository("/budgets/a", mockAdapter.adapter);
+      const repoB = createCsvRepository("/budgets/b", mockAdapter.adapter);
 
       const accountsA = await repoA.getAccounts();
       const accountsB = await repoB.getAccounts();
 
       // Both should have triggered their own read
-      expect(mockReadTextFile).toHaveBeenCalledTimes(2);
+      expect(mockAdapter.mockReadFile).toHaveBeenCalledTimes(2);
 
       // Different references (independent caches)
       expect(accountsA).not.toBe(accountsB);

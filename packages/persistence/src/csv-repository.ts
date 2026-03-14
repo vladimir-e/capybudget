@@ -1,20 +1,32 @@
-import { join } from "@tauri-apps/api/path";
 import type { Account, Category, Transaction } from "@capybudget/core";
-import type { BudgetRepository } from "@/repositories/types";
+import type { FileAdapter } from "./file-adapter";
+import type { BudgetRepository } from "./repository";
 import {
-  readCsv,
-  writeCsvAtomic,
-  createDebouncedWriter,
+  parseCsv,
+  unparseCsv,
   ACCOUNT_COERCE,
   CATEGORY_COERCE,
   TRANSACTION_COERCE,
-} from "@/services/csv";
+} from "./csv-parse";
+import { createDebouncedWriter } from "./debounced-writer";
 
 export interface DisposableRepository extends BudgetRepository {
   dispose(): Promise<void>;
 }
 
-export function createCsvRepository(folderPath: string): DisposableRepository {
+/** Write data to a CSV file atomically (write .tmp then rename). */
+async function writeCsvAtomic(
+  filePath: string,
+  data: unknown[],
+  fileAdapter: FileAdapter,
+): Promise<void> {
+  const csv = unparseCsv(data);
+  const tmpPath = `${filePath}.tmp`;
+  await fileAdapter.writeFile(tmpPath, csv);
+  await fileAdapter.rename(tmpPath, filePath);
+}
+
+export function createCsvRepository(folderPath: string, fileAdapter: FileAdapter): DisposableRepository {
   let accounts: Account[] | null = null;
   let categories: Category[] | null = null;
   let transactions: Transaction[] | null = null;
@@ -28,7 +40,7 @@ export function createCsvRepository(folderPath: string): DisposableRepository {
 
   async function getPath(file: "accounts" | "categories" | "transactions") {
     if (!paths[file]) {
-      paths[file] = await join(folderPath, `${file}.csv`);
+      paths[file] = await fileAdapter.join(folderPath, `${file}.csv`);
     }
     return paths[file];
   }
@@ -36,34 +48,37 @@ export function createCsvRepository(folderPath: string): DisposableRepository {
   // Debounced writers — created lazily after first save
   const writers = {
     accounts: createDebouncedWriter(async () => {
-      if (accounts) await writeCsvAtomic(await getPath("accounts"), accounts);
+      if (accounts) await writeCsvAtomic(await getPath("accounts"), accounts, fileAdapter);
     }),
     categories: createDebouncedWriter(async () => {
-      if (categories) await writeCsvAtomic(await getPath("categories"), categories);
+      if (categories) await writeCsvAtomic(await getPath("categories"), categories, fileAdapter);
     }),
     transactions: createDebouncedWriter(async () => {
-      if (transactions) await writeCsvAtomic(await getPath("transactions"), transactions);
+      if (transactions) await writeCsvAtomic(await getPath("transactions"), transactions, fileAdapter);
     }),
   };
 
   return {
     async getAccounts() {
       if (!accounts) {
-        accounts = await readCsv<Account>(await getPath("accounts"), ACCOUNT_COERCE);
+        const content = await fileAdapter.readFile(await getPath("accounts"));
+        accounts = parseCsv<Account>(content, ACCOUNT_COERCE);
       }
       return accounts;
     },
 
     async getCategories() {
       if (!categories) {
-        categories = await readCsv<Category>(await getPath("categories"), CATEGORY_COERCE);
+        const content = await fileAdapter.readFile(await getPath("categories"));
+        categories = parseCsv<Category>(content, CATEGORY_COERCE);
       }
       return categories;
     },
 
     async getTransactions() {
       if (!transactions) {
-        transactions = await readCsv<Transaction>(await getPath("transactions"), TRANSACTION_COERCE);
+        const content = await fileAdapter.readFile(await getPath("transactions"));
+        transactions = parseCsv<Transaction>(content, TRANSACTION_COERCE);
       }
       return transactions;
     },

@@ -4,6 +4,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { BudgetShell } from "@/components/budget/budget-shell";
 import { RepositoryProvider } from "@/repositories";
 import { createCsvRepository } from "@/repositories";
+import { tauriFileAdapter } from "@/adapters/tauri-file-adapter";
 import { budgetKeys } from "@/hooks/use-budget-data";
 
 interface BudgetSearch {
@@ -22,7 +23,7 @@ export const Route = createFileRoute("/budget")({
 function BudgetLayout() {
   const { path, name } = Route.useSearch();
   const queryClient = useQueryClient();
-  const repo = useMemo(() => createCsvRepository(path), [path]);
+  const repo = useMemo(() => createCsvRepository(path, tauriFileAdapter), [path]);
 
   useEffect(() => {
     return () => {

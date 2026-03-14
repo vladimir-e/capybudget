@@ -1,5 +1,5 @@
 import type { Account, Category, Transaction } from "@capybudget/core";
-import type { BudgetRepository } from "@/repositories/types";
+import type { BudgetRepository } from "@capybudget/persistence";
 
 export interface MemoryRepositoryData {
   accounts?: Account[];

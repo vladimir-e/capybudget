@@ -13,17 +13,11 @@ import type {
   ContentBlock,
   BarChartBlock,
   DonutChartBlock,
+  StreamEvent,
   TableBlock,
-} from "@/components/capy/types"
+} from "@capybudget/intelligence"
 
-// ── Stream event types ───────────────────────────────────────────
-
-export type StreamEvent =
-  | { type: "text"; text: string }
-  | { type: "render"; block: ContentBlock }
-  | { type: "tool-activity"; tool: string }
-  | { type: "done" }
-  | { type: "error"; message: string }
+export type { StreamEvent }
 
 // ── Render tool → ContentBlock mapping ───────────────────────────
 

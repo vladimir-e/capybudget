@@ -11,21 +11,15 @@
 import { Command, type Child } from "@tauri-apps/plugin-shell"
 import { writeTextFile } from "@tauri-apps/plugin-fs"
 import { tempDir, join as joinPath } from "@tauri-apps/api/path"
-import { SYSTEM_PROMPT } from "./capy-prompt"
+import {
+  SYSTEM_PROMPT,
+  type SessionEvent,
+  type CapySessionOptions,
+} from "@capybudget/intelligence"
+
+export type { SessionEvent, CapySessionOptions }
 
 declare const __PROJECT_ROOT__: string
-
-export type SessionEvent =
-  | { type: "stdout"; line: string }
-  | { type: "stderr"; line: string }
-  | { type: "exit"; code: number | null }
-  | { type: "error"; message: string }
-
-export interface CapySessionOptions {
-  budgetPath: string
-  mcpServerPath: string
-  onEvent: (event: SessionEvent) => void
-}
 
 export class CapySession {
   private child: Child | null = null

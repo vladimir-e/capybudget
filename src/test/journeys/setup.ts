@@ -10,10 +10,14 @@
  */
 import { vi } from "vitest";
 
-vi.mock("@/repositories/csv-repository", () => ({
-  createCsvRepository: () => {
-    const repo = (globalThis as Record<string, unknown>).__testRepo;
-    if (!repo) throw new Error("Test repo not set — call renderApp() first");
-    return repo;
-  },
-}));
+vi.mock("@capybudget/persistence", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@capybudget/persistence")>();
+  return {
+    ...actual,
+    createCsvRepository: () => {
+      const repo = (globalThis as Record<string, unknown>).__testRepo;
+      if (!repo) throw new Error("Test repo not set — call renderApp() first");
+      return repo;
+    },
+  };
+});

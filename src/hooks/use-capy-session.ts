@@ -7,10 +7,14 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from "react"
-import { CapySession, type SessionEvent } from "@/services/capy-session"
-import { parseStreamLine, type StreamEvent } from "@/services/capy-stream"
-import { buildContext } from "@/services/capy-prompt"
-import type { ChatMessage } from "@/components/capy/types"
+import { CapySession } from "@/services/capy-session"
+import { parseStreamLine } from "@/services/capy-stream"
+import {
+  buildContext,
+  type SessionEvent,
+  type StreamEvent,
+  type ChatMessage,
+} from "@capybudget/intelligence"
 
 interface UseCapySessionOptions {
   budgetPath: string

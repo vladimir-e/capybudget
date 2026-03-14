@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { buildContext } from "@/services/capy-prompt";
+import { buildContext } from "./prompt";
 
 describe("buildContext", () => {
   afterEach(() => {
