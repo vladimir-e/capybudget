@@ -154,8 +154,7 @@ Capy — an AI assistant powered by Claude Code CLI. Chat overlay with streaming
 - [ ] **4.4 — Building Blocks for AI Output**
   - [x] Structured output parsing from Claude → typed content blocks
   - [x] Charts and visualizations rendered from structured data
-  - [ ] Transaction tables with amount coloring and action buttons
-  - [ ] Actionable suggestions (apply categorization, confirm import)
+  - [x] Actionable suggestions (apply categorization, confirm import)
 
 ---
 
@@ -164,15 +163,21 @@ Capy — an AI assistant powered by Claude Code CLI. Chat overlay with streaming
 Paste or drop bank data, Claude parses it, you review and confirm.
 
 - [ ] **5.1 — CSV Import**
-  - Paste or select bank-exported CSV
-  - Claude maps varied bank formats into transaction schema
-  - Preview table with field mapping review
-  - Confirm to write transactions
+  - Drop bank-exported CSV
+  - Claude maps varied bank formats into internal transaction schema and saves to a file, ready to pass to the app
+    - ensure idempotency 
+    - transfers will be especially tricky
+  - When file is ready, display a button in the chat to preview the data
 
-- [ ] **5.2 — Screenshot Import**
-  - Paste bank statement screenshot
-  - Claude extracts transaction data from image
-  - Same preview and confirm flow
+- [ ] **5.2 — Preview Area**
+  - preview area is an independent front-end module that operates on the normalized import file
+  - provides table with transactions data using same UX as the main transactions table
+  - user can edit information and changes will be saved to the file
+  - has a button to confirm import of transactions that will store information from the file in our database
+
+- [ ] **5.3 — Other formats**
+- [ ] Screenshot Import
+- [ ] PDF Import
 
 ---
 
