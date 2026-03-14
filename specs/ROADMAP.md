@@ -156,11 +156,11 @@ Capy — an AI assistant with streaming responses, tool-based domain access, and
 
 ---
 
-## Phase 5: Monorepo & Code Sharing
+## Phase 5: Monorepo & Code Sharing ✓
 
-Extract shared logic into packages, decouple from Tauri. See `MONOREPO.md` for target architecture, `REFACTOR.md` for implementation guide.
+Extract shared logic into packages, decouple from Tauri. See `MONOREPO.md` for architecture.
 
-- [ ] **5.1 — Package Extraction**
+- [x] **5.1 — Package Extraction**
   - npm workspaces with shared packages (core, persistence, intelligence, app, mcp)
   - Pure business logic in `@capybudget/core`
   - Repository + CSV adapter with FileAdapter interface in `@capybudget/persistence`
@@ -168,7 +168,7 @@ Extract shared logic into packages, decouple from Tauri. See `MONOREPO.md` for t
   - Full React application in `@capybudget/app`
   - MCP server standalone in `@capybudget/mcp`, reuses core + persistence
 
-- [ ] **5.2 — Adapter Pattern**
+- [x] **5.2 — Adapter Pattern**
   - FileAdapter, CapySession, BudgetService interfaces
   - Desktop shell provides Tauri adapters
   - Desktop and demo shells mount the same `@capybudget/app`
