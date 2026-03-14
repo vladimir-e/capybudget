@@ -6,37 +6,81 @@ import {
   getNetWorth,
   resolveTransferPair,
 } from "./queries";
-import { MOCK_ACCOUNTS, MOCK_TRANSACTIONS } from "@/lib/mock-data";
-import type { Transaction } from "./types";
+import type { Account, Transaction } from "./types";
+
+// ── Test fixtures (self-contained, no external deps) ─────
+
+const ACCOUNTS: Account[] = [
+  { id: "acc-cash-01", name: "Cash Wallet", type: "cash", archived: false, sortOrder: 0, createdAt: "2026-01-01T00:00:00.000Z" },
+  { id: "acc-checking-01", name: "BofA Checking", type: "checking", archived: false, sortOrder: 0, createdAt: "2026-01-01T00:00:00.000Z" },
+  { id: "acc-savings-01", name: "High Yield Savings", type: "savings", archived: false, sortOrder: 0, createdAt: "2026-01-01T00:00:00.000Z" },
+  { id: "acc-credit-01", name: "Chase Sapphire", type: "credit_card", archived: false, sortOrder: 0, createdAt: "2026-01-01T00:00:00.000Z" },
+  { id: "acc-loan-01", name: "Student Loan", type: "loan", archived: false, sortOrder: 0, createdAt: "2026-01-01T00:00:00.000Z" },
+  { id: "acc-crypto-01", name: "Coinbase", type: "crypto", archived: false, sortOrder: 0, createdAt: "2026-01-01T00:00:00.000Z" },
+  { id: "acc-checking-old", name: "Old Wells Fargo", type: "checking", archived: true, sortOrder: 0, createdAt: "2025-06-01T00:00:00.000Z" },
+];
+
+const txn = (overrides: Partial<Transaction> & Pick<Transaction, "id" | "amount" | "accountId">): Transaction => ({
+  datetime: "2026-02-01T00:00:00.000Z",
+  type: "expense",
+  categoryId: "",
+  transferPairId: "",
+  merchant: "",
+  note: "",
+  createdAt: "2026-02-01T00:00:00.000Z",
+  ...overrides,
+});
+
+const TRANSACTIONS: Transaction[] = [
+  // Cash: 20000 - 3500 = 16500
+  txn({ id: "txn-01", type: "income", amount: 20000, accountId: "acc-cash-01" }),
+  txn({ id: "txn-02", amount: -3500, accountId: "acc-cash-01" }),
+  // Credit card: -85000 - 8500 - 4200 - 1599 - 12000 - 7500 - 4999 + 50000 = -73798
+  txn({ id: "txn-03", amount: -85000, accountId: "acc-credit-01" }),
+  txn({ id: "txn-04", amount: -8500, accountId: "acc-credit-01" }),
+  txn({ id: "txn-05", amount: -4200, accountId: "acc-credit-01" }),
+  txn({ id: "txn-06", amount: -1599, accountId: "acc-credit-01" }),
+  txn({ id: "txn-07", amount: -12000, accountId: "acc-credit-01" }),
+  txn({ id: "txn-08", amount: -7500, accountId: "acc-credit-01" }),
+  txn({ id: "txn-09", amount: -4999, accountId: "acc-credit-01" }),
+  txn({ id: "txn-10", type: "transfer", amount: 50000, accountId: "acc-credit-01", transferPairId: "txn-11" }),
+  // Checking: 500000
+  txn({ id: "txn-11", type: "transfer", amount: -50000, accountId: "acc-checking-01", transferPairId: "txn-10" }),
+  txn({ id: "txn-12", type: "income", amount: 500000, accountId: "acc-checking-01" }),
+  // Savings: 100000
+  txn({ id: "txn-13", type: "income", amount: 100000, accountId: "acc-savings-01" }),
+  // Loan: -50000
+  txn({ id: "txn-14", amount: -50000, accountId: "acc-loan-01" }),
+];
 
 describe("getAccountBalance", () => {
   it("sums all transaction amounts for an account", () => {
-    const balance = getAccountBalance("acc-cash-01", MOCK_TRANSACTIONS);
+    const balance = getAccountBalance("acc-cash-01", TRANSACTIONS);
     // 20000 (opening) - 3500 (gas) = 16500
     expect(balance).toBe(16500);
   });
 
   it("returns 0 for an account with no transactions", () => {
-    expect(getAccountBalance("nonexistent", MOCK_TRANSACTIONS)).toBe(0);
+    expect(getAccountBalance("nonexistent", TRANSACTIONS)).toBe(0);
   });
 
   it("handles credit card with negative opening + expenses + payment", () => {
-    const balance = getAccountBalance("acc-credit-01", MOCK_TRANSACTIONS);
-    // -85000 (opening) - 8500 - 4200 - 1599 - 12000 - 7500 - 4999 + 50000 (payment)
+    const balance = getAccountBalance("acc-credit-01", TRANSACTIONS);
+    // -85000 - 8500 - 4200 - 1599 - 12000 - 7500 - 4999 + 50000 = -73798
     expect(balance).toBe(-73798);
   });
 });
 
 describe("getAccountsByGroup", () => {
   it("groups accounts by type in display order", () => {
-    const groups = getAccountsByGroup(MOCK_ACCOUNTS);
+    const groups = getAccountsByGroup(ACCOUNTS);
     const keys = [...groups.keys()];
     expect(keys).toEqual(["cash", "checking", "savings", "credit_card", "loan", "crypto"]);
   });
 
   it("excludes archived accounts", () => {
     const archived = [
-      ...MOCK_ACCOUNTS,
+      ...ACCOUNTS,
       { id: "arc-1", name: "Old", type: "checking" as const, archived: true, sortOrder: 99, createdAt: "" },
     ];
     const groups = getAccountsByGroup(archived);
@@ -47,11 +91,11 @@ describe("getAccountsByGroup", () => {
 
 describe("getTransactionsForAccount", () => {
   it("returns all transactions when accountId is null", () => {
-    expect(getTransactionsForAccount(null, MOCK_TRANSACTIONS)).toBe(MOCK_TRANSACTIONS);
+    expect(getTransactionsForAccount(null, TRANSACTIONS)).toBe(TRANSACTIONS);
   });
 
   it("filters to a specific account", () => {
-    const txns = getTransactionsForAccount("acc-cash-01", MOCK_TRANSACTIONS);
+    const txns = getTransactionsForAccount("acc-cash-01", TRANSACTIONS);
     expect(txns.every((t) => t.accountId === "acc-cash-01")).toBe(true);
     expect(txns.length).toBe(2);
   });
@@ -59,11 +103,9 @@ describe("getTransactionsForAccount", () => {
 
 describe("getNetWorth", () => {
   it("sums non-archived account balances", () => {
-    const netWorth = getNetWorth(MOCK_ACCOUNTS, MOCK_TRANSACTIONS);
-    // Cash: 16500, Checking: 345000, Savings: 1050000, Credit: -73798, Crypto: 0
-    // Checking: 500000 + 420000 + 420000 - 185000 - 50000 - 50000 - 185000 - 25000 = 845000... let me just check it's a number
-    expect(typeof netWorth).toBe("number");
-    expect(netWorth).toBeGreaterThan(0);
+    const netWorth = getNetWorth(ACCOUNTS, TRANSACTIONS);
+    // Cash: 16500, Checking: 450000, Savings: 100000, Credit: -73798, Loan: -50000, Crypto: 0
+    expect(netWorth).toBe(16500 + 450000 + 100000 + -73798 + -50000);
   });
 });
 
