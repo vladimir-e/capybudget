@@ -67,7 +67,7 @@ export class CapySession {
 
     // --mcp-config expects a file path, not inline JSON
     const tmp = await tempDir()
-    const configPath = await joinPath(tmp, "capy-mcp-config.json")
+    const configPath = await joinPath(tmp, `capy-mcp-${this.sessionId}.json`)
     await writeTextFile(configPath, mcpConfig)
 
     const command = Command.create("claude", [

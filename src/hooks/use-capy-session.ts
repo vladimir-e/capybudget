@@ -142,7 +142,7 @@ export function useCapySession(opts: UseCapySessionOptions): UseCapySessionRetur
                 {
                   type: "text",
                   content:
-                    "Session restarted — previous context was lost. You can continue chatting and I'll start fresh.",
+                    "Session ended unexpectedly. Send a message to start a new conversation.",
                 },
               ],
             },

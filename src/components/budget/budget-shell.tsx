@@ -281,16 +281,14 @@ export function BudgetShell({ path, name }: BudgetShellProps) {
           </div>
         </div>
 
-        {capyOpen && (
-          <CapyOverlay
-            open={capyOpen}
-            onClose={() => setCapyOpen(false)}
-            messages={capy.messages}
-            isStreaming={capy.isStreaming}
-            onSend={capy.sendMessage}
-            onNewChat={capy.newChat}
-          />
-        )}
+        <CapyOverlay
+          open={capyOpen}
+          onClose={() => setCapyOpen(false)}
+          messages={capy.messages}
+          isStreaming={capy.isStreaming}
+          onSend={capy.sendMessage}
+          onNewChat={capy.newChat}
+        />
 
         <AccountDialog
           key={editingAccount?.id ?? "new"}

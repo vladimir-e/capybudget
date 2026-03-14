@@ -31,7 +31,7 @@ The app is fully functional without it. Intelligence is additive.
 └──────────────────────────────────────────────────────────┘
 ```
 
-The MCP server and the UI share the same pure service functions (`src/services/`). One source of truth, two consumers. And the tools call the same validated logic the UI uses.
+The MCP server mirrors the CSV reading logic from the UI's service layer. It runs as a standalone Node/tsx process (outside Vite), so it duplicates type definitions and CSV parsing rather than importing from `src/`. The data model is the single source of truth — the MCP server is a read-only consumer.
 
 ## Claude CLI Process
 
@@ -70,11 +70,11 @@ Key flags:
 When the CLI process dies unexpectedly:
 
 1. Detect via the process exit event from Tauri's shell plugin
-2. Automatically respawn with a new session ID
-3. Show a non-blocking notice in the chat: "Session restarted — previous context was lost"
+2. Show a non-blocking notice in the chat prompting the user to send a message
+3. The next `send()` call lazily spawns a fresh process with a new session ID
 4. The chat UI keeps the old messages for display (scrollback), but Claude has no memory of them — the conversation effectively starts fresh
 
-No retry logic, no history replay. A crash is a clean slate. This is simple, predictable, and avoids the complexity of serializing conversation state.
+No retry logic, no history replay, no auto-respawn. A crash is a clean slate. This is simple, predictable, and avoids the complexity of serializing conversation state.
 
 ## Streaming Protocol
 
@@ -103,7 +103,7 @@ Content blocks within `assistant` messages:
 ```typescript
 type StreamEvent =
   | { type: "text"; text: string }
-  | { type: "tool-call"; tool: string }
+  | { type: "tool-activity"; tool: string }
   | { type: "done" }
   | { type: "error"; message: string }
 ```
@@ -149,16 +149,14 @@ Each user message is wrapped with current app context before sending to Claude:
 
 ```
 [Context]
-Budget: ~/budgets/personal
-Viewing: All Accounts (31 transactions)
+Budget: personal
 Date: March 13, 2026
-Accounts: Wallet ($25,957), Bank of America ($337), Stash (-$11.47), BAGG ($986,700)
 
 [User message]
 What did I spend on food this month?
 ```
 
-This lets Claude answer contextually without the user restating where they are.
+Currently includes budget name and date. Future enrichment (current view, account balances, transaction count) can be added as `buildContext()` grows.
 
 ## Rich Content Blocks
 

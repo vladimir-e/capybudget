@@ -374,6 +374,72 @@ describe("parseStreamLine", () => {
     });
   });
 
+  describe("render tool input validation", () => {
+    it("returns null for render_table with missing headers", () => {
+      const line = JSON.stringify({
+        type: "assistant",
+        message: {
+          content: [
+            {
+              type: "tool_use",
+              name: "render_table",
+              input: { rows: [["a"]] },
+            },
+          ],
+        },
+      });
+      expect(parseStreamLine(line)).toEqual([]);
+    });
+
+    it("returns null for render_table with missing rows", () => {
+      const line = JSON.stringify({
+        type: "assistant",
+        message: {
+          content: [
+            {
+              type: "tool_use",
+              name: "render_table",
+              input: { headers: ["A"] },
+            },
+          ],
+        },
+      });
+      expect(parseStreamLine(line)).toEqual([]);
+    });
+
+    it("returns null for render_bar_chart with missing title", () => {
+      const line = JSON.stringify({
+        type: "assistant",
+        message: {
+          content: [
+            {
+              type: "tool_use",
+              name: "render_bar_chart",
+              input: { data: [{ label: "X", value: 1 }] },
+            },
+          ],
+        },
+      });
+      expect(parseStreamLine(line)).toEqual([]);
+    });
+
+    it("returns null for render_donut_chart with missing data", () => {
+      const line = JSON.stringify({
+        type: "assistant",
+        message: {
+          content: [
+            {
+              type: "tool_use",
+              name: "render_donut_chart",
+              input: { title: "Test" },
+            },
+          ],
+        },
+      });
+      expect(parseStreamLine(line)).toEqual([]);
+    });
+  });
+
   describe("assistant with empty / missing content", () => {
     it("returns [] when message has no content array", () => {
       const line = JSON.stringify({

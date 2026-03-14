@@ -28,23 +28,20 @@ export type StreamEvent =
 // ── Render tool → ContentBlock mapping ───────────────────────────
 
 const RENDER_TOOL_MAP: Record<string, (input: Record<string, unknown>) => ContentBlock | null> = {
-  render_table: (input) => ({
-    type: "table",
-    headers: input.headers as string[],
-    rows: input.rows as string[][],
-  }) satisfies TableBlock,
+  render_table: (input) => {
+    if (!Array.isArray(input.headers) || !Array.isArray(input.rows)) return null
+    return { type: "table", headers: input.headers, rows: input.rows } satisfies TableBlock
+  },
 
-  render_bar_chart: (input) => ({
-    type: "bar-chart",
-    title: input.title as string,
-    data: input.data as BarChartBlock["data"],
-  }) satisfies BarChartBlock,
+  render_bar_chart: (input) => {
+    if (typeof input.title !== "string" || !Array.isArray(input.data)) return null
+    return { type: "bar-chart", title: input.title, data: input.data } satisfies BarChartBlock
+  },
 
-  render_donut_chart: (input) => ({
-    type: "donut-chart",
-    title: input.title as string,
-    data: input.data as DonutChartBlock["data"],
-  }) satisfies DonutChartBlock,
+  render_donut_chart: (input) => {
+    if (typeof input.title !== "string" || !Array.isArray(input.data)) return null
+    return { type: "donut-chart", title: input.title, data: input.data } satisfies DonutChartBlock
+  },
 }
 
 // ── Parser ───────────────────────────────────────────────────────
