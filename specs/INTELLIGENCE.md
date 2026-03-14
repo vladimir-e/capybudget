@@ -173,14 +173,30 @@ Claude's responses are rendered as a sequence of typed content blocks:
 
 The `BlockRenderer` component routes each block to its specialized renderer. New block types are added by extending the union type and adding a renderer — the overlay doesn't change.
 
-### Structured Output Strategy
+### Structured Output via Render Tools
 
-Claude returns plain text with optional structured blocks. Two approaches (to be validated):
+Claude uses MCP tools to emit rich content. Text is streamed naturally; structured blocks (tables, charts) arrive as tool calls with typed JSON payloads. The frontend intercepts these and renders them inline in the message.
 
-1. **Markdown with fenced blocks** — Claude wraps structured data in code fences with a type tag (```capy-table, ```capy-chart). The frontend parses these out of the text stream.
-2. **Tool-based rendering** — Claude calls MCP tools like `render_table` or `render_chart` with structured data. The frontend intercepts these tool calls and renders them as blocks.
+#### Render Tools
 
-Option 2 is cleaner because the data is already structured JSON. Option 1 is simpler for initial implementation.
+| Tool | Input schema | Renders as |
+|------|-------------|------------|
+| `render_table` | `{ headers: string[], rows: string[][] }` | Data table with amount coloring |
+| `render_bar_chart` | `{ title: string, data: { label: string, value: number }[] }` | Horizontal bar chart |
+| `render_donut_chart` | `{ title: string, data: { label: string, value: number }[] }` | SVG donut chart with legend |
+
+These tools are no-ops on the MCP server side — they return an empty acknowledgment. Their only purpose is to carry structured data from Claude to the frontend via the `tool_use` / `tool_result` stream events.
+
+#### Stream Integration
+
+Within a single assistant turn, the stream interleaves text and tool calls:
+
+1. `assistant` event with `text` content block → append to current message text
+2. `assistant` event with `tool_use` block for `render_*` → parse input, push a rich content block into the message
+3. `assistant` event with `tool_use` block for data tools (`list_transactions`, etc.) → show activity indicator ("Reading transactions...")
+4. `result` event → mark turn complete
+
+The system prompt instructs Claude to use render tools for any structured data rather than formatting tables as markdown. This keeps the rendering pipeline clean — text is text, structured data is structured data.
 
 ## System Prompt
 
