@@ -63,7 +63,7 @@ export function BudgetShell({ path, name }: BudgetShellProps) {
   const capy = useCapySession({
     budgetPath: path,
     budgetName: name,
-    mcpServerPath: "mcp/server.ts",
+    mcpServerPath: "packages/mcp/src/server.ts",
   });
 
   const currentAccount = accounts.find((a) => a.id === currentAccountId);
