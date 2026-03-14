@@ -19,6 +19,8 @@ import { useUndoRedo } from "@/hooks/use-undo-redo";
 import { useReorderAccounts } from "@/hooks/use-account-mutations";
 import { useAccounts, budgetKeys } from "@/hooks/use-budget-data";
 import { useCustomInstructions } from "@/hooks/use-custom-instructions";
+import { useBudgetRepository } from "@/providers/repository-provider";
+import type { DisposableRepository } from "@capybudget/persistence";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -65,9 +67,14 @@ export function BudgetShell({ path, name }: BudgetShellProps) {
 
   const customInstructions = useCustomInstructions(path);
 
+  const repo = useBudgetRepository();
+
   const invalidateBudgetData = useCallback(() => {
+    // Clear the repo's in-memory cache so it re-reads from disk
+    // (the MCP server wrote directly to the CSV files)
+    (repo as DisposableRepository).invalidateCache?.();
     queryClient.invalidateQueries({ queryKey: budgetKeys.all });
-  }, [queryClient]);
+  }, [queryClient, repo]);
 
   const capy = useCapySession({
     budgetPath: path,

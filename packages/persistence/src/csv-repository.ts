@@ -11,6 +11,8 @@ import {
 import { createDebouncedWriter } from "./debounced-writer";
 
 export interface DisposableRepository extends BudgetRepository {
+  /** Clear in-memory cache so next get*() re-reads from disk. */
+  invalidateCache(): void;
   dispose(): Promise<void>;
 }
 
@@ -103,6 +105,12 @@ export function createCsvRepository(
       transactions = data;
       if (options?.immediate) await writers.transactions.flush();
       else writers.transactions.schedule();
+    },
+
+    invalidateCache() {
+      accounts = null;
+      categories = null;
+      transactions = null;
     },
 
     async dispose() {

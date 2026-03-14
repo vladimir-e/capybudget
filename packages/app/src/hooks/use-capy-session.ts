@@ -55,12 +55,8 @@ export function useCapySession(opts: UseCapySessionOptions): UseCapySessionRetur
   const sessionRef = useRef<CapySession | null>(null)
   const hadMutationsRef = useRef(false)
 
-  // Track sub-message boundaries within a single assistant turn.
-  // Claude CLI sends multiple sub-messages (text → tool call → tool result → text),
-  // each starting with a fresh cumulative block array. We detect when a new sub-message
-  // starts (block count drops) and append rather than replace.
-  const committedBlocksRef = useRef(0)
-  const prevEventBlockCountRef = useRef(0)
+  // Track the last text content to detect cumulative text growth vs new text blocks
+  const lastTextContentRef = useRef("")
 
   // Stable reference to options
   const optsRef = useRef(opts)
@@ -71,42 +67,41 @@ export function useCapySession(opts: UseCapySessionOptions): UseCapySessionRetur
   const handleStreamEvent = useCallback((event: StreamEvent) => {
     switch (event.type) {
       case "content": {
-        // Detect sub-message boundary: block count dropping means a new sub-message
-        // started with its own fresh cumulative block array.
-        const isNewSubMessage =
-          event.blocks.length < prevEventBlockCountRef.current
-        prevEventBlockCountRef.current = event.blocks.length
+        // Pure append-only: never replace existing blocks.
+        // Text blocks: update last text block in-place if it's cumulative growth.
+        // Everything else: always append.
+        setMessages((prev) => {
+          const updated = [...prev]
+          const last = updated[updated.length - 1]
+          if (last?.role !== "assistant") return prev
 
-        if (isNewSubMessage) {
-          // Finalize previous sub-message blocks and append new ones
-          setMessages((prev) => {
-            const updated = [...prev]
-            const last = updated[updated.length - 1]
-            if (last?.role !== "assistant") return prev
+          const blocks = [...last.blocks]
 
-            committedBlocksRef.current = last.blocks.length
-            updated[updated.length - 1] = {
-              ...last,
-              blocks: [...last.blocks, ...event.blocks],
+          for (const block of event.blocks) {
+            if (block.type === "text") {
+              const prevText = lastTextContentRef.current
+              // Cumulative text growth — update last text block in place
+              if (prevText && block.content.startsWith(prevText)) {
+                const lastTextIdx = findLastIndex(blocks, (b) => b.type === "text")
+                if (lastTextIdx >= 0) {
+                  blocks[lastTextIdx] = block
+                } else {
+                  blocks.push(block)
+                }
+              } else {
+                // New text block (new sub-message or first text)
+                blocks.push(block)
+              }
+              lastTextContentRef.current = block.content
+            } else {
+              // Non-text blocks: always append
+              blocks.push(block)
             }
-            return updated
-          })
-        } else {
-          // Cumulative update within the same sub-message:
-          // keep committed blocks, replace the rest with the latest cumulative snapshot
-          const committed = committedBlocksRef.current
-          setMessages((prev) => {
-            const updated = [...prev]
-            const last = updated[updated.length - 1]
-            if (last?.role !== "assistant") return prev
+          }
 
-            updated[updated.length - 1] = {
-              ...last,
-              blocks: [...last.blocks.slice(0, committed), ...event.blocks],
-            }
-            return updated
-          })
-        }
+          updated[updated.length - 1] = { ...last, blocks }
+          return updated
+        })
 
         // Track if any mutation tools were called during this turn
         for (const block of event.blocks) {
@@ -120,8 +115,7 @@ export function useCapySession(opts: UseCapySessionOptions): UseCapySessionRetur
 
       case "done":
         setIsStreaming(false)
-        committedBlocksRef.current = 0
-        prevEventBlockCountRef.current = 0
+        lastTextContentRef.current = ""
         if (hadMutationsRef.current) {
           hadMutationsRef.current = false
           optsRef.current.onDataChanged?.()
@@ -131,8 +125,7 @@ export function useCapySession(opts: UseCapySessionOptions): UseCapySessionRetur
       case "error":
         setIsStreaming(false)
         hadMutationsRef.current = false
-        committedBlocksRef.current = 0
-        prevEventBlockCountRef.current = 0
+        lastTextContentRef.current = ""
         setMessages((prev) => {
           const updated = [...prev]
           const last = updated[updated.length - 1]
@@ -176,8 +169,7 @@ export function useCapySession(opts: UseCapySessionOptions): UseCapySessionRetur
           // Unexpected exit — notify user
           setIsStreaming(false)
           hadMutationsRef.current = false
-          committedBlocksRef.current = 0
-          prevEventBlockCountRef.current = 0
+          lastTextContentRef.current = ""
           setMessages((prev) => [
             ...prev,
             {
@@ -254,8 +246,7 @@ export function useCapySession(opts: UseCapySessionOptions): UseCapySessionRetur
       setMessages((prev) => [...prev, userMsg, assistantMsg])
       setIsStreaming(true)
       hadMutationsRef.current = false
-      committedBlocksRef.current = 0
-      prevEventBlockCountRef.current = 0
+      lastTextContentRef.current = ""
 
       const session = ensureSession()
       session.send(enrichedMessage).catch((err) => {
@@ -272,8 +263,7 @@ export function useCapySession(opts: UseCapySessionOptions): UseCapySessionRetur
     if (!isStreaming) return
     sessionRef.current?.stop()
     setIsStreaming(false)
-    committedBlocksRef.current = 0
-    prevEventBlockCountRef.current = 0
+    lastTextContentRef.current = ""
     if (hadMutationsRef.current) {
       hadMutationsRef.current = false
       optsRef.current.onDataChanged?.()
@@ -286,9 +276,16 @@ export function useCapySession(opts: UseCapySessionOptions): UseCapySessionRetur
     setMessages([])
     setIsStreaming(false)
     hadMutationsRef.current = false
-    committedBlocksRef.current = 0
-    prevEventBlockCountRef.current = 0
+    lastTextContentRef.current = ""
   }, [])
 
   return { messages, isStreaming, sendMessage, stopStreaming, newChat }
+}
+
+// Array.findLastIndex polyfill (not available in all targets)
+function findLastIndex<T>(arr: T[], predicate: (item: T) => boolean): number {
+  for (let i = arr.length - 1; i >= 0; i--) {
+    if (predicate(arr[i])) return i
+  }
+  return -1
 }
