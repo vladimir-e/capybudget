@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState } from "react";
-import type { Transaction } from "@/lib/types";
+import type { Transaction } from "@capybudget/core";
 
 export interface TransactionSelection {
   selectedIds: Set<string>;

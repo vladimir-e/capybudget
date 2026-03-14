@@ -1,5 +1,5 @@
 import { useMemo, useState, useCallback } from "react";
-import type { Account, Category, Transaction } from "@/lib/types";
+import type { Account, Category, Transaction } from "@capybudget/core";
 import {
   filterTransactions,
   sortTransactions,

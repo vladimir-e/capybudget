@@ -1,4 +1,4 @@
-import type { Account, Category, Transaction } from "@/lib/types";
+import type { Account, Category, Transaction } from "@capybudget/core";
 
 /** Create a test account with sensible defaults. Override any field. */
 export function makeAccount(overrides: Partial<Account> = {}): Account {

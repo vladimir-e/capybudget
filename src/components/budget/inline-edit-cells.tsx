@@ -4,12 +4,9 @@ import { Calendar } from "@/components/ui/calendar";
 import { AccountSelector } from "@/components/budget/account-selector";
 import { CategorySelector } from "@/components/budget/category-selector";
 import { MerchantInput } from "@/components/budget/merchant-input";
-import { parseMoney, getAmountClass } from "@/lib/money";
-import { parseLocalDate, toDateString, formatDateLabel } from "@/lib/date-utils";
-import { findCategoryForMerchant } from "@/services/merchant-categorization";
+import type { Account, Category, Transaction, TransactionFormData } from "@capybudget/core";
+import { parseMoney, getAmountClass, parseLocalDate, toDateString, formatDateLabel, findCategoryForMerchant } from "@capybudget/core";
 import { useTransactions } from "@/hooks/use-budget-data";
-import type { Account, Category, Transaction } from "@/lib/types";
-import type { TransactionFormData } from "@/services/transactions";
 import { CalendarDays } from "lucide-react";
 
 // ---------------------------------------------------------------------------

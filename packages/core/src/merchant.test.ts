@@ -3,8 +3,8 @@ import {
   findCategoryForMerchant,
   getUniqueMerchants,
   matchMerchants,
-} from "@/services/merchant-categorization";
-import type { Transaction } from "@/lib/types";
+} from "./merchant";
+import type { Transaction } from "./types";
 
 function txn(
   overrides: Partial<Transaction> & Pick<Transaction, "merchant">,

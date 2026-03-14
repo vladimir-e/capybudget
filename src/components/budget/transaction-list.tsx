@@ -17,11 +17,9 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { InlineEditCell, type EditableColumn } from "@/components/budget/inline-edit-cells";
-import { formatMoney, getAmountClass } from "@/lib/money";
-import { resolveTransferPair } from "@/lib/queries";
+import type { Transaction, TransactionFormData } from "@capybudget/core";
+import { formatMoney, getAmountClass, resolveTransferPair } from "@capybudget/core";
 import { useAccounts, useCategories, useTransactions } from "@/hooks/use-budget-data";
-import type { Transaction } from "@/lib/types";
-import type { TransactionFormData } from "@/services/transactions";
 import type { SortColumn, SortConfig } from "@/lib/filter-transactions";
 import {
   ArrowRight,

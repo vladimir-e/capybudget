@@ -26,8 +26,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { ChevronDown, ChevronLeft, FolderOpen, LogOut } from "lucide-react";
 import { open as shellOpen } from "@tauri-apps/plugin-shell";
-import type { Account, Transaction } from "@/lib/types";
-import type { TransactionFormData } from "@/services/transactions";
+import type { Account, Transaction, TransactionFormData } from "@capybudget/core";
 import { toast } from "sonner";
 
 interface BudgetShellProps {
@@ -136,7 +135,7 @@ export function BudgetShell({ path, name }: BudgetShellProps) {
   }, [effectiveFormOpen, formKey]);
 
   const handleReorderAccounts = useCallback(
-    (type: import("@/lib/types").AccountType, orderedIds: string[]) => {
+    (type: import("@capybudget/core").AccountType, orderedIds: string[]) => {
       reorderAccounts.mutate({ type, orderedIds });
     },
     [reorderAccounts],

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import type { Account, Category, Transaction } from "@/lib/types";
+import type { Account, Category, Transaction } from "@capybudget/core";
 
 // Mock @tauri-apps/api/path
 vi.mock("@tauri-apps/api/path", () => ({

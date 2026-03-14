@@ -5,8 +5,8 @@ import {
   bulkMoveAccount,
   bulkChangeDate,
   bulkChangeMerchant,
-} from "@/services/bulk-transactions";
-import type { Transaction } from "@/lib/types";
+} from "./bulk-transactions";
+import type { Transaction } from "./types";
 
 const base: Omit<Transaction, "id" | "amount" | "type" | "categoryId" | "accountId"> = {
   datetime: "2025-01-15T10:00:00",

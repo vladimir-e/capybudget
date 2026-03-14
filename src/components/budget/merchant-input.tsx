@@ -1,10 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import type { Transaction } from "@/lib/types";
-import {
-  getUniqueMerchants,
-  matchMerchants,
-} from "@/services/merchant-categorization";
+import type { Transaction } from "@capybudget/core";
+import { getUniqueMerchants, matchMerchants } from "@capybudget/core";
 
 interface MerchantInputProps {
   value: string;

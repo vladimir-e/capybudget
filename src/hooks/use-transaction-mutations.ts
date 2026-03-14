@@ -1,11 +1,10 @@
+import type { Transaction, TransactionFormData } from "@capybudget/core";
 import {
   createTransaction,
   updateTransaction,
   deleteTransaction,
-  type TransactionFormData,
-} from "@/services/transactions";
+} from "@capybudget/core";
 import { useBudgetMutation } from "@/hooks/use-budget-mutation";
-import type { Transaction } from "@/lib/types";
 
 export function useCreateTransaction() {
   return useBudgetMutation<TransactionFormData>(async (data, { transactions }) => {

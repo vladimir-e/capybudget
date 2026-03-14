@@ -1,4 +1,4 @@
-import type { Account, Category, Transaction } from "@/lib/types";
+import type { Account, Category, Transaction } from "@capybudget/core";
 import type { BudgetRepository } from "@/repositories/types";
 
 export interface MemoryRepositoryData {

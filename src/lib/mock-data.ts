@@ -1,5 +1,5 @@
-import type { Account, Category, Transaction } from "@/lib/types";
-import { DEFAULT_CATEGORIES } from "@/lib/default-categories";
+import type { Account, Category, Transaction } from "@capybudget/core";
+import { DEFAULT_CATEGORIES } from "@capybudget/core";
 
 // ── Accounts ──────────────────────────────────────────────
 

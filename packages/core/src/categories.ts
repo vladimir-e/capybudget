@@ -1,4 +1,4 @@
-import type { Category, Transaction } from "@/lib/types";
+import type { Category, Transaction } from "./types";
 
 export interface CategoryFormData {
   id?: string;

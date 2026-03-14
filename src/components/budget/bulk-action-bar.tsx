@@ -26,9 +26,8 @@ import {
   useBulkChangeMerchant,
 } from "@/hooks/use-bulk-transaction-mutations";
 import { pluralize } from "@/lib/format";
-import { formatMoney } from "@/lib/money";
-import { toDateString, formatDateLabel } from "@/lib/date-utils";
-import type { Transaction } from "@/lib/types";
+import type { Transaction } from "@capybudget/core";
+import { formatMoney, toDateString, formatDateLabel } from "@capybudget/core";
 import {
   CalendarDays,
   FolderInput,

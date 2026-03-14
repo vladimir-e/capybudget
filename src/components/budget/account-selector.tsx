@@ -9,8 +9,8 @@ import {
   CommandList,
 } from "@/components/ui/command";
 import { Button } from "@/components/ui/button";
-import type { Account } from "@/lib/types";
-import { ACCOUNT_TYPE_LABELS, ACCOUNT_TYPE_ORDER } from "@/lib/account-type-labels";
+import type { Account } from "@capybudget/core";
+import { ACCOUNT_TYPE_LABELS, ACCOUNT_TYPE_ORDER } from "@capybudget/core";
 import { ChevronDown, X } from "lucide-react";
 
 interface AccountSelectorProps {

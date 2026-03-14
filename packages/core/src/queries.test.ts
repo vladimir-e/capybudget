@@ -5,9 +5,9 @@ import {
   getTransactionsForAccount,
   getNetWorth,
   resolveTransferPair,
-} from "@/lib/queries";
+} from "./queries";
 import { MOCK_ACCOUNTS, MOCK_TRANSACTIONS } from "@/lib/mock-data";
-import type { Transaction } from "@/lib/types";
+import type { Transaction } from "./types";
 
 describe("getAccountBalance", () => {
   it("sums all transaction amounts for an account", () => {

@@ -5,13 +5,13 @@ import { restrictToVerticalAxis } from "@dnd-kit/modifiers";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { CategoryGroupSection } from "@/components/budget/category-group-section";
-import { CATEGORY_GROUP_ORDER } from "@/lib/queries";
+import type { Category } from "@capybudget/core";
+import { CATEGORY_GROUP_ORDER } from "@capybudget/core";
 import {
   useCreateCategory,
   useReorderCategoryDnd,
 } from "@/hooks/use-category-mutations";
 import { useCategoryDnd, type ReorderPatch } from "@/hooks/use-category-dnd";
-import type { Category } from "@/lib/types";
 import { toast } from "sonner";
 
 interface CategoryPanelProps {

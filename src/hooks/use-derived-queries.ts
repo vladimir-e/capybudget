@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useBudgetRepository } from "@/repositories";
 import { useAccounts } from "@/hooks/use-budget-data";
 import { budgetKeys } from "@/hooks/use-budget-data";
-import { getAccountBalance, getNetWorth } from "@/lib/queries";
+import { getAccountBalance, getNetWorth } from "@capybudget/core";
 
 export function useAccountBalance(accountId: string) {
   const repo = useBudgetRepository();

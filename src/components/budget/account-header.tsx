@@ -1,7 +1,6 @@
 import { Badge } from "@/components/ui/badge";
-import { formatMoney } from "@/lib/money";
-import { ACCOUNT_TYPE_LABELS } from "@/lib/account-type-labels";
-import type { Account } from "@/lib/types";
+import type { Account } from "@capybudget/core";
+import { formatMoney, ACCOUNT_TYPE_LABELS } from "@capybudget/core";
 
 interface AccountHeaderProps {
   account: Account;

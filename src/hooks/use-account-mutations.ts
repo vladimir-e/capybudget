@@ -1,7 +1,5 @@
-import { useBudgetMutation } from "@/hooks/use-budget-mutation";
-import type { Account } from "@/lib/types";
+import type { Account, AccountFormData } from "@capybudget/core";
 import {
-  type AccountFormData,
   createAccount,
   createOpeningBalanceTransaction,
   updateAccount,
@@ -9,7 +7,8 @@ import {
   archiveAccount,
   unarchiveAccount,
   reorderAccounts,
-} from "@/services/accounts";
+} from "@capybudget/core";
+import { useBudgetMutation } from "@/hooks/use-budget-mutation";
 
 export function useCreateAccount() {
   return useBudgetMutation<AccountFormData, Account>(async (data, { accounts, transactions }) => {

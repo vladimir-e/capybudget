@@ -3,7 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useBudgetRepository } from "@/repositories";
 import { useUndoRedo } from "@/hooks/use-undo-redo";
 import { budgetKeys } from "@/hooks/use-budget-data";
-import type { Account, Category, Transaction } from "@/lib/types";
+import type { Account, Category, Transaction } from "@capybudget/core";
 
 export interface EntityHelper<T> {
   get(): T[];

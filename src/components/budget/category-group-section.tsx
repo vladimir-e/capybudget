@@ -42,7 +42,7 @@ import {
   useArchiveCategory,
   useUnarchiveCategory,
 } from "@/hooks/use-category-mutations";
-import type { Category } from "@/lib/types";
+import type { Category } from "@capybudget/core";
 import { toast } from "sonner";
 
 interface CategoryGroupSectionProps {

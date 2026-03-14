@@ -7,10 +7,9 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { formatMoney } from "@/lib/money";
-import { resolveTransferPair } from "@/lib/queries";
+import type { Transaction } from "@capybudget/core";
+import { formatMoney, resolveTransferPair } from "@capybudget/core";
 import { useAccounts, useCategories, useTransactions } from "@/hooks/use-budget-data";
-import type { Transaction } from "@/lib/types";
 import { ArrowRight } from "lucide-react";
 
 interface DeleteTransactionDialogProps {

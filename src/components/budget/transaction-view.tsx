@@ -8,8 +8,7 @@ import { useAccounts, useCategories } from "@/hooks/use-budget-data";
 import { useUpdateTransaction, useDeleteTransaction } from "@/hooks/use-transaction-mutations";
 import { useTransactionFilters } from "@/hooks/use-transaction-filters";
 import { useTransactionSelection } from "@/hooks/use-transaction-selection";
-import type { Transaction } from "@/lib/types";
-import type { TransactionFormData } from "@/services/transactions";
+import type { Transaction, TransactionFormData } from "@capybudget/core";
 import { toast } from "sonner";
 
 interface TransactionViewProps {

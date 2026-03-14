@@ -1,13 +1,12 @@
-import { useBudgetMutation } from "@/hooks/use-budget-mutation";
-import type { Category } from "@/lib/types";
+import type { Category, CategoryFormData } from "@capybudget/core";
 import {
-  type CategoryFormData,
   createCategory,
   updateCategory,
   deleteCategory,
   archiveCategory,
   unarchiveCategory,
-} from "@/services/categories";
+} from "@capybudget/core";
+import { useBudgetMutation } from "@/hooks/use-budget-mutation";
 
 export function useCreateCategory() {
   return useBudgetMutation<CategoryFormData>(async (data, { categories }) => {

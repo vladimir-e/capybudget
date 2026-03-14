@@ -1,4 +1,4 @@
-import type { Transaction, TransactionType } from "@/lib/types";
+import type { Transaction, TransactionType } from "./types";
 
 export interface TransactionFormData {
   id?: string;

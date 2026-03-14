@@ -7,12 +7,8 @@ import { CategorySelector } from "@/components/budget/category-selector";
 import { AccountSelector } from "@/components/budget/account-selector";
 import { MerchantInput } from "@/components/budget/merchant-input";
 import { useAccounts, useCategories, useTransactions } from "@/hooks/use-budget-data";
-import { findCategoryForMerchant } from "@/services/merchant-categorization";
-import { resolveTransferPair } from "@/lib/queries";
-import type { Transaction, TransactionType } from "@/lib/types";
-import type { TransactionFormData } from "@/services/transactions";
-import { parseMoney } from "@/lib/money";
-import { getToday, parseLocalDate, toDateString, formatDateLabel } from "@/lib/date-utils";
+import type { Transaction, TransactionType, TransactionFormData } from "@capybudget/core";
+import { findCategoryForMerchant, resolveTransferPair, parseMoney, getToday, parseLocalDate, toDateString, formatDateLabel } from "@capybudget/core";
 import { Minus, Plus, ArrowLeftRight, Check, CalendarDays } from "lucide-react";
 
 interface TransactionFormProps {

@@ -9,7 +9,7 @@ import {
   type DragEndEvent,
 } from "@dnd-kit/core";
 import { sortableKeyboardCoordinates, arrayMove } from "@dnd-kit/sortable";
-import type { Category, CategoryGroup } from "@/lib/types";
+import type { Category, CategoryGroup } from "@capybudget/core";
 
 const ARCHIVED_GROUP = "Archived";
 

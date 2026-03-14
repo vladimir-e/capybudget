@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { renderHook, act } from "@testing-library/react";
 import { useTransactionSelection } from "@/hooks/use-transaction-selection";
 import { makeTransaction } from "@/test/factories";
-import type { Transaction } from "@/lib/types";
+import type { Transaction } from "@capybudget/core";
 
 function makeTxns(ids: string[]): Transaction[] {
   return ids.map((id) => makeTransaction({ id }));

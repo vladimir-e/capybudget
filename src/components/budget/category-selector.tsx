@@ -9,7 +9,7 @@ import {
   CommandList,
 } from "@/components/ui/command";
 import { Button } from "@/components/ui/button";
-import type { Category } from "@/lib/types";
+import type { Category } from "@capybudget/core";
 import { ChevronDown, X } from "lucide-react";
 
 interface CategorySelectorProps {

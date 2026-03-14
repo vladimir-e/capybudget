@@ -1,5 +1,5 @@
 import { createContext, useContext } from "react";
-import type { Transaction } from "@/lib/types";
+import type { Transaction } from "@capybudget/core";
 
 export interface BudgetUIContextValue {
   editingTxnId: string | undefined;

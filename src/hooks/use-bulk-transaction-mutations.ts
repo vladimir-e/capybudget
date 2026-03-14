@@ -5,7 +5,7 @@ import {
   bulkMoveAccount,
   bulkChangeDate,
   bulkChangeMerchant,
-} from "@/services/bulk-transactions";
+} from "@capybudget/core";
 
 export function useBulkDeleteTransactions() {
   return useBudgetMutation<Set<string>>(async (ids, { transactions }) => {

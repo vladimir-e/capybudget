@@ -1,4 +1,4 @@
-import type { Transaction } from "@/lib/types";
+import type { Transaction } from "./types";
 
 /** Delete multiple transactions by ID. Transfers: both legs are removed. */
 export function bulkDeleteTransactions(

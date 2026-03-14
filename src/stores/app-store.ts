@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import type { RecentBudget } from "@/lib/types";
+import type { RecentBudget } from "@capybudget/core";
 import type { SortConfig } from "@/lib/filter-transactions";
 
 const DEFAULT_SORT: SortConfig = { column: "date", direction: "desc" };

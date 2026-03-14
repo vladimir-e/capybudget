@@ -27,16 +27,14 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { formatMoney, formatMoneyCompact } from "@/lib/money";
-import { ACCOUNT_TYPE_LABELS } from "@/lib/account-type-labels";
-import { getAccountBalance, getAccountsByGroup, getNetWorth } from "@/lib/queries";
+import type { Account, AccountType } from "@capybudget/core";
+import { formatMoney, formatMoneyCompact, ACCOUNT_TYPE_LABELS, getAccountBalance, getAccountsByGroup, getNetWorth } from "@capybudget/core";
 import { useAccounts, useTransactions } from "@/hooks/use-budget-data";
 import {
   useDeleteAccount,
   useArchiveAccount,
   useUnarchiveAccount,
 } from "@/hooks/use-account-mutations";
-import type { Account, AccountType } from "@/lib/types";
 import { toast } from "sonner";
 
 interface SidebarProps {

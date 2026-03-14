@@ -1,4 +1,4 @@
-import type { Transaction } from "@/lib/types";
+import type { Transaction } from "./types";
 
 /**
  * Extract unique, non-empty merchant names from transactions.

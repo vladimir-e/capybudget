@@ -1,5 +1,5 @@
-import type { Account, AccountType, Transaction } from "@/lib/types";
-import { localDateTime } from "@/lib/date-utils";
+import type { Account, AccountType, Transaction } from "./types";
+import { localDateTime } from "./date-utils";
 
 export interface AccountFormData {
   id?: string;

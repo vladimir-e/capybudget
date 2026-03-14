@@ -6,8 +6,36 @@ import {
   deleteAccount,
   archiveAccount,
   unarchiveAccount,
-} from "@/services/accounts";
-import { makeAccount, makeTransaction as makeTxn } from "@/test/factories";
+} from "./accounts";
+import type { Account, Transaction } from "./types";
+
+function makeAccount(overrides: Partial<Account> = {}): Account {
+  return {
+    id: crypto.randomUUID(),
+    name: "Test Account",
+    type: "checking",
+    archived: false,
+    sortOrder: 1,
+    createdAt: "2026-01-01T00:00:00.000Z",
+    ...overrides,
+  };
+}
+
+function makeTxn(overrides: Partial<Transaction> = {}): Transaction {
+  return {
+    id: crypto.randomUUID(),
+    datetime: "2026-01-15T12:00:00.000Z",
+    type: "expense",
+    amount: -5000,
+    categoryId: "cat-1",
+    accountId: "acc-1",
+    transferPairId: "",
+    merchant: "Store",
+    note: "",
+    createdAt: "2026-01-15T00:00:00.000Z",
+    ...overrides,
+  };
+}
 
 describe("createAccount", () => {
   it("assigns a UUID and createdAt", () => {

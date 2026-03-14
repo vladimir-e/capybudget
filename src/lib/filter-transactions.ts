@@ -1,5 +1,5 @@
-import type { Account, Category, Transaction } from "@/lib/types";
-import { formatMoney } from "@/lib/money";
+import type { Account, Category, Transaction } from "@capybudget/core";
+import { formatMoney } from "@capybudget/core";
 import type { DateRangeValue } from "@/components/budget/date-range-picker";
 
 /**

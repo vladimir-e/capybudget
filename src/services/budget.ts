@@ -1,7 +1,7 @@
 import { exists, readTextFile, writeTextFile, mkdir } from "@tauri-apps/plugin-fs";
 import { join } from "@tauri-apps/api/path";
-import type { BudgetMeta, Category } from "@/lib/types";
-import { DEFAULT_CATEGORIES } from "@/lib/default-categories";
+import type { BudgetMeta, Category } from "@capybudget/core";
+import { DEFAULT_CATEGORIES } from "@capybudget/core";
 import Papa from "papaparse";
 
 const SCHEMA_VERSION = 1;

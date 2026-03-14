@@ -10,9 +10,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { ACCOUNT_TYPE_LABELS, ACCOUNT_TYPE_ORDER } from "@/lib/account-type-labels";
-import type { Account, AccountType } from "@/lib/types";
-import { parseMoney } from "@/lib/money";
+import type { Account, AccountType } from "@capybudget/core";
+import { ACCOUNT_TYPE_LABELS, ACCOUNT_TYPE_ORDER, parseMoney } from "@capybudget/core";
 import { useCreateAccount, useUpdateAccount } from "@/hooks/use-account-mutations";
 import { toast } from "sonner";
 

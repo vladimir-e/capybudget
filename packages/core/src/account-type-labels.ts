@@ -1,4 +1,4 @@
-import type { AccountType } from "@/lib/types";
+import type { AccountType } from "./types";
 
 export const ACCOUNT_TYPE_LABELS: Record<AccountType, string> = {
   cash: "Cash",

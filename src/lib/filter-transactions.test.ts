@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { filterTransactions, sortTransactions, type TransactionFilterCriteria, type SortConfig } from "@/lib/filter-transactions";
-import type { Account, Category, Transaction } from "@/lib/types";
+import type { Account, Category, Transaction } from "@capybudget/core";
 
 const accounts: Account[] = [
   { id: "acc-1", name: "Checking", type: "checking", archived: false, sortOrder: 0, createdAt: "" },
