@@ -8,6 +8,7 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { ColorThemeSwitcher } from "@/components/color-theme-switcher";
 import { CapyButton } from "@/components/capy/capy-button";
 import { CapyOverlay } from "@/components/capy/capy-overlay";
+import { useCapySession } from "@/hooks/use-capy-session";
 import { BudgetUIProvider, type BudgetUIContextValue } from "@/contexts/budget-context";
 import {
   useCreateTransaction,
@@ -59,6 +60,12 @@ export function BudgetShell({ path, name }: BudgetShellProps) {
   const [capyOpen, setCapyOpen] = useState(false);
   const [editingTxn, setEditingTxn] = useState<Transaction | null>(null);
   const [currentAccountId, setCurrentAccountId] = useState<string | undefined>();
+
+  const capy = useCapySession({
+    budgetPath: path,
+    budgetName: name,
+    mcpServerPath: "mcp/server.ts",
+  });
 
   const currentAccount = accounts.find((a) => a.id === currentAccountId);
   const isArchivedView = currentAccount?.archived === true;
@@ -271,7 +278,14 @@ export function BudgetShell({ path, name }: BudgetShellProps) {
         </div>
 
         {capyOpen && (
-          <CapyOverlay open={capyOpen} onClose={() => setCapyOpen(false)} />
+          <CapyOverlay
+            open={capyOpen}
+            onClose={() => setCapyOpen(false)}
+            messages={capy.messages}
+            isStreaming={capy.isStreaming}
+            onSend={capy.sendMessage}
+            onNewChat={capy.newChat}
+          />
         )}
 
         <AccountDialog

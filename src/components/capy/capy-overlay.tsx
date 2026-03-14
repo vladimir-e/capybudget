@@ -1,22 +1,31 @@
 import { useRef, useEffect, useState, type KeyboardEvent } from "react"
-import { Send, Sparkles, X } from "lucide-react"
+import { RotateCcw, Send, Sparkles, X } from "lucide-react"
 import { CommandPicker } from "./command-picker"
-import {
-  MOCK_CONVERSATION,
-  type ChatMessage,
-  type ContentBlock,
-  type BarChartBlock,
-  type DonutChartBlock,
-  type TableBlock,
+import type {
+  ChatMessage,
+  ContentBlock,
+  BarChartBlock,
+  DonutChartBlock,
+  TableBlock,
 } from "./mock-data"
 
 interface CapyOverlayProps {
   open: boolean
   onClose: () => void
+  messages: ChatMessage[]
+  isStreaming: boolean
+  onSend: (text: string) => void
+  onNewChat: () => void
 }
 
-export function CapyOverlay({ open, onClose }: CapyOverlayProps) {
-  const [messages, setMessages] = useState<ChatMessage[]>(MOCK_CONVERSATION)
+export function CapyOverlay({
+  open,
+  onClose,
+  messages,
+  isStreaming,
+  onSend,
+  onNewChat,
+}: CapyOverlayProps) {
   const [input, setInput] = useState("")
   const scrollRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
@@ -36,32 +45,9 @@ export function CapyOverlay({ open, onClose }: CapyOverlayProps) {
 
   const handleSend = () => {
     const text = input.trim()
-    if (!text) return
-    setMessages((prev) => [
-      ...prev,
-      {
-        id: String(Date.now()),
-        role: "user",
-        blocks: [{ type: "text", content: text }],
-      },
-    ])
+    if (!text || isStreaming) return
+    onSend(text)
     setInput("")
-    setTimeout(() => {
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: String(Date.now()),
-          role: "assistant",
-          blocks: [
-            {
-              type: "text",
-              content:
-                "I'm a mock response — the real Capy intelligence layer will stream responses from Claude here. Try asking about spending patterns, categorization, or financial insights!",
-            },
-          ],
-        },
-      ])
-    }, 800)
   }
 
   const handleKeyDown = (e: KeyboardEvent) => {
@@ -106,14 +92,27 @@ export function CapyOverlay({ open, onClose }: CapyOverlayProps) {
               </p>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-xl p-2.5 text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
-            aria-label="Close Capy"
-          >
-            <X className="h-5 w-5" />
-          </button>
+          <div className="flex items-center gap-1">
+            {messages.length > 0 && (
+              <button
+                type="button"
+                onClick={onNewChat}
+                className="rounded-xl px-3 py-2 text-xs text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors flex items-center gap-1.5"
+                aria-label="New chat"
+              >
+                <RotateCcw className="h-3.5 w-3.5" />
+                New Chat
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-xl p-2.5 text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
+              aria-label="Close Capy"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          </div>
         </div>
 
         {/* Messages */}
@@ -122,9 +121,36 @@ export function CapyOverlay({ open, onClose }: CapyOverlayProps) {
           className="flex-1 overflow-y-auto px-6 pb-4 capy-scroll"
         >
           <div className="space-y-5 py-4">
+            {messages.length === 0 && (
+              <div className="flex flex-col items-center justify-center py-20 text-center">
+                <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-brand/10 text-brand mb-4">
+                  <Sparkles className="h-7 w-7" />
+                </div>
+                <p className="text-lg font-medium text-foreground/80">
+                  Ask me anything about your finances
+                </p>
+                <p className="mt-1 text-sm text-muted-foreground/60">
+                  Spending breakdowns, categorization, trends, and more
+                </p>
+              </div>
+            )}
             {messages.map((msg) => (
               <MessageBubble key={msg.id} message={msg} />
             ))}
+            {isStreaming && messages[messages.length - 1]?.blocks.length === 0 && (
+              <div className="flex justify-start">
+                <div className="rounded-2xl rounded-bl-sm bg-muted/40 px-5 py-4">
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <div className="capy-thinking flex gap-1">
+                      <span className="h-1.5 w-1.5 rounded-full bg-brand/60" />
+                      <span className="h-1.5 w-1.5 rounded-full bg-brand/60" />
+                      <span className="h-1.5 w-1.5 rounded-full bg-brand/60" />
+                    </div>
+                    Thinking...
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
@@ -143,7 +169,7 @@ export function CapyOverlay({ open, onClose }: CapyOverlayProps) {
             <button
               type="button"
               onClick={handleSend}
-              disabled={!input.trim()}
+              disabled={!input.trim() || isStreaming}
               className="absolute right-3 bottom-3 rounded-xl p-2.5 text-brand hover:bg-brand/10 disabled:opacity-25 disabled:hover:bg-transparent transition-colors"
               aria-label="Send message"
             >
