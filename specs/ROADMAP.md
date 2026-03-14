@@ -138,24 +138,24 @@ Capy — an AI assistant powered by Claude Code CLI. Chat overlay with streaming
   - Command picker with prompt templates
   - Rich content blocks: text, tables, bar charts, donut charts
 
-- [ ] **4.2 — Claude CLI Integration**
+- [x] **4.2 — Claude CLI Integration**
   - Spawn `claude` CLI as long-lived subprocess via Tauri shell plugin
   - JSON streaming I/O (`--input-format stream-json --output-format stream-json`)
   - Session management (session ID per spawn, respawn on death)
   - Stream parsing: text deltas, tool calls, completion, errors
   - Context enrichment (current view, account, date range with each message)
 
-- [ ] **4.3 — MCP Server**
+- [x] **4.3 — MCP Server**
   - TypeScript MCP server exposing domain data as tools
   - Shares pure service functions with the UI (single source of truth)
   - Tools: transactions, accounts, categories, spending summary
   - Claude calls structured tools instead of reading raw files
 
 - [ ] **4.4 — Building Blocks for AI Output**
-  - Structured output parsing from Claude → typed content blocks
-  - Transaction tables with amount coloring and action buttons
-  - Charts and visualizations rendered from structured data
-  - Actionable suggestions (apply categorization, confirm import)
+  - [x] Structured output parsing from Claude → typed content blocks
+  - [x] Charts and visualizations rendered from structured data
+  - [ ] Transaction tables with amount coloring and action buttons
+  - [ ] Actionable suggestions (apply categorization, confirm import)
 
 ---
 
