@@ -1,6 +1,6 @@
 import { useCallback } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { useBudgetRepository } from "@/repositories";
+import { useBudgetRepository } from "@/providers/repository-provider";
 import { budgetKeys } from "@/hooks/use-budget-data";
 import { useUndoStore } from "@/stores/undo-store";
 import type { Account, Category, Transaction } from "@capybudget/core";

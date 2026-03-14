@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { detectBudget, bootstrapBudget } from "@/services/budget";
+import { detectBudget, bootstrapBudget } from "./budget";
 import { DEFAULT_CATEGORIES } from "@capybudget/core";
 
 vi.mock("@tauri-apps/api/path", () => ({

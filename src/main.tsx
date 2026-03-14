@@ -4,7 +4,7 @@ import { RouterProvider, createRouter } from "@tanstack/react-router";
 import { MutationCache, QueryCache, QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { routeTree } from "./routeTree.gen";
-import "./index.css";
+import "../packages/app/src/styles/index.css";
 
 const queryClient = new QueryClient({
   queryCache: new QueryCache({

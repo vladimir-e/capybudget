@@ -4,7 +4,7 @@ import userEvent, { type UserEvent } from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createMemoryHistory, createRouter, RouterProvider } from "@tanstack/react-router";
 import { afterEach } from "vitest";
-import { routeTree } from "@/routeTree.gen";
+import { routeTree } from "../../../../src/routeTree.gen";
 import { createMemoryRepository, type MemoryRepository, type MemoryRepositoryData } from "@/test/memory-repository";
 import { useUndoStore } from "@/stores/undo-store";
 

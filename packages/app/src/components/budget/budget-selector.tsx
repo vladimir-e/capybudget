@@ -11,7 +11,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { useAppStore } from "@/stores/app-store";
-import { detectBudget, bootstrapBudget } from "@/services/budget";
+import { detectBudget, bootstrapBudget } from "../../../../../src/services/budget";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { ColorThemeSwitcher } from "@/components/color-theme-switcher";
 
