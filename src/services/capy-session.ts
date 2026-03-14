@@ -9,7 +9,11 @@
  */
 
 import { Command, type Child } from "@tauri-apps/plugin-shell"
+import { writeTextFile } from "@tauri-apps/plugin-fs"
+import { tempDir, join as joinPath } from "@tauri-apps/api/path"
 import { SYSTEM_PROMPT } from "./capy-prompt"
+
+declare const __PROJECT_ROOT__: string
 
 export type SessionEvent =
   | { type: "stdout"; line: string }
@@ -48,15 +52,23 @@ export class CapySession {
     this.killed = false
     this.sessionId = crypto.randomUUID()
 
+    const absoluteServerPath = `${__PROJECT_ROOT__}/${this.mcpServerPath}`
+
     const mcpConfig = JSON.stringify({
       mcpServers: {
         capy: {
           command: "npx",
-          args: ["tsx", this.mcpServerPath],
+          args: ["tsx", absoluteServerPath],
+          cwd: __PROJECT_ROOT__,
           env: { BUDGET_PATH: this.budgetPath },
         },
       },
     })
+
+    // --mcp-config expects a file path, not inline JSON
+    const tmp = await tempDir()
+    const configPath = await joinPath(tmp, "capy-mcp-config.json")
+    await writeTextFile(configPath, mcpConfig)
 
     const command = Command.create("claude", [
       "-p",
@@ -66,7 +78,7 @@ export class CapySession {
       "stream-json",
       "--verbose",
       "--mcp-config",
-      mcpConfig,
+      configPath,
       "--system-prompt",
       SYSTEM_PROMPT,
       "--session-id",

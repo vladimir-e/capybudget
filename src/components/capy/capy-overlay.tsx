@@ -223,7 +223,7 @@ function BlockRenderer({
     case "text":
       return (
         <p
-          className={`text-[15px] leading-relaxed ${
+          className={`text-[15px] leading-relaxed whitespace-pre-wrap ${
             isUser ? "text-foreground" : "text-foreground/90"
           }`}
         >

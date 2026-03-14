@@ -52,7 +52,8 @@ interface Transaction {
 type Coerce = Record<string, (v: string) => unknown>;
 
 function readCsv<T>(filename: string, coerce: Coerce): T[] {
-  const raw = readFileSync(join(BUDGET_PATH, filename), "utf-8");
+  const filePath = join(BUDGET_PATH, filename);
+  const raw = readFileSync(filePath, "utf-8");
   const { data } = Papa.parse<Record<string, string>>(raw, {
     header: true,
     skipEmptyLines: true,

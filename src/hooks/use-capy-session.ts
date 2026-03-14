@@ -16,12 +16,6 @@ interface UseCapySessionOptions {
   budgetPath: string
   budgetName: string
   mcpServerPath: string
-  /** Current view label, e.g. "All Accounts" */
-  currentView?: string
-  /** Number of transactions in current view */
-  transactionCount?: number
-  /** Short account summary, e.g. "Wallet ($25,957), BoA ($337)" */
-  accountsSummary?: string
 }
 
 interface UseCapySessionReturn {
@@ -132,7 +126,7 @@ export function useCapySession(opts: UseCapySessionOptions): UseCapySessionRetur
           break
 
         case "stderr":
-          // Claude CLI sends progress info on stderr — ignore for now
+          console.debug("[capy-stderr]", event.line)
           break
 
         case "exit":
@@ -190,9 +184,6 @@ export function useCapySession(opts: UseCapySessionOptions): UseCapySessionRetur
       const context = buildContext({
         budgetPath: o.budgetPath,
         budgetName: o.budgetName,
-        currentView: o.currentView ?? "All Accounts",
-        transactionCount: o.transactionCount ?? 0,
-        accountsSummary: o.accountsSummary ?? "",
       })
 
       const enrichedMessage = `${context}\n${text}`

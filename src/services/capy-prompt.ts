@@ -39,9 +39,6 @@ export const SYSTEM_PROMPT = `You are Capy, a financial assistant built into a p
 export function buildContext(opts: {
   budgetPath: string
   budgetName: string
-  currentView: string
-  transactionCount: number
-  accountsSummary: string
 }): string {
   const date = new Date().toLocaleDateString("en-US", {
     year: "numeric",
@@ -51,10 +48,8 @@ export function buildContext(opts: {
 
   return [
     "[Context]",
-    `Budget: ${opts.budgetName} (${opts.budgetPath})`,
-    `Viewing: ${opts.currentView} (${opts.transactionCount} transactions)`,
+    `Budget: ${opts.budgetName}`,
     `Date: ${date}`,
-    `Accounts: ${opts.accountsSummary}`,
     "",
     "[User message]",
   ].join("\n")
