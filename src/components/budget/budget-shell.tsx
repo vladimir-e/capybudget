@@ -102,6 +102,10 @@ export function BudgetShell({ path, name }: BudgetShellProps) {
         e.preventDefault();
         toggleForm();
       }
+      if (mod && e.key === "i") {
+        e.preventDefault();
+        setCapyOpen((prev) => !prev);
+      }
       if (e.key === "Escape" && capyOpen) {
         e.preventDefault();
         setCapyOpen(false);
