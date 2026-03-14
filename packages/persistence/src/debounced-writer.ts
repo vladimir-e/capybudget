@@ -2,6 +2,7 @@
 export function createDebouncedWriter(
   fn: () => Promise<void>,
   delayMs = 300,
+  onError?: (error: unknown) => void,
 ): { schedule(): void; flush(): Promise<void> } {
   let timer: ReturnType<typeof setTimeout> | null = null;
   let pending: Promise<void> | null = null;
@@ -21,7 +22,10 @@ export function createDebouncedWriter(
     timer = setTimeout(() => {
       timer = null;
       const prev = pending ?? Promise.resolve();
-      pending = prev.then(() => fn()).finally(() => { pending = null; });
+      pending = prev
+        .then(() => fn())
+        .catch((err) => { onError?.(err); })
+        .finally(() => { pending = null; });
     }, delayMs);
   };
 

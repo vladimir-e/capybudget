@@ -8,9 +8,6 @@
   "exports": {
     ".": "./src/index.ts"
   },
-  "bin": {
-    "capybudget-mcp": "src/server.ts"
-  },
   "dependencies": {
     "@capybudget/core": "*",
     "@capybudget/persistence": "*",

@@ -56,4 +56,15 @@ describe("createDebouncedWriter", () => {
     await writer.flush();
     expect(fn).toHaveBeenCalledOnce();
   });
+
+  it("routes scheduled write errors to onError callback", async () => {
+    const error = new Error("disk full");
+    const fn = vi.fn().mockRejectedValue(error);
+    const onError = vi.fn();
+    const writer = createDebouncedWriter(fn, 300, onError);
+    writer.schedule();
+    vi.advanceTimersByTime(300);
+    await vi.runAllTimersAsync();
+    expect(onError).toHaveBeenCalledWith(error);
+  });
 });
