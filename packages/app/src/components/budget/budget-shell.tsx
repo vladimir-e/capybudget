@@ -286,6 +286,7 @@ export function BudgetShell({ path, name }: BudgetShellProps) {
           messages={capy.messages}
           isStreaming={capy.isStreaming}
           onSend={capy.sendMessage}
+          onStop={capy.stopStreaming}
           onNewChat={capy.newChat}
         />
 

@@ -1,61 +1,64 @@
-import { describe, it, expect } from "vitest";
-import { parseStreamLine } from "@/services/capy-stream";
+import { describe, it, expect } from "vitest"
+import { parseStreamLine, getToolLabel } from "@/services/capy-stream"
 
 describe("parseStreamLine", () => {
   describe("empty / invalid input", () => {
     it("returns [] for empty string", () => {
-      expect(parseStreamLine("")).toEqual([]);
-    });
+      expect(parseStreamLine("")).toEqual([])
+    })
 
     it("returns [] for whitespace-only string", () => {
-      expect(parseStreamLine("   \t\n  ")).toEqual([]);
-    });
+      expect(parseStreamLine("   \t\n  ")).toEqual([])
+    })
 
     it("returns [] for invalid JSON", () => {
-      expect(parseStreamLine("not json at all")).toEqual([]);
-    });
+      expect(parseStreamLine("not json at all")).toEqual([])
+    })
 
     it("returns [] for unknown event type", () => {
-      expect(parseStreamLine(JSON.stringify({ type: "ping" }))).toEqual([]);
-    });
-  });
+      expect(parseStreamLine(JSON.stringify({ type: "ping" }))).toEqual([])
+    })
+  })
 
   describe("assistant text blocks", () => {
-    it("parses a text block", () => {
+    it("parses a text block into a content event", () => {
       const line = JSON.stringify({
         type: "assistant",
         message: {
           content: [{ type: "text", text: "Hello there" }],
         },
-      });
+      })
 
       expect(parseStreamLine(line)).toEqual([
-        { type: "text", text: "Hello there" },
-      ]);
-    });
+        {
+          type: "content",
+          blocks: [{ type: "text", content: "Hello there" }],
+        },
+      ])
+    })
 
-    it("passes text through as-is (cumulative — parser just relays)", () => {
+    it("cumulative text replaces — parser just relays full blocks", () => {
       const first = JSON.stringify({
         type: "assistant",
         message: {
           content: [{ type: "text", text: "Hel" }],
         },
-      });
+      })
       const second = JSON.stringify({
         type: "assistant",
         message: {
           content: [{ type: "text", text: "Hello world" }],
         },
-      });
+      })
 
       expect(parseStreamLine(first)).toEqual([
-        { type: "text", text: "Hel" },
-      ]);
+        { type: "content", blocks: [{ type: "text", content: "Hel" }] },
+      ])
       expect(parseStreamLine(second)).toEqual([
-        { type: "text", text: "Hello world" },
-      ]);
-    });
-  });
+        { type: "content", blocks: [{ type: "text", content: "Hello world" }] },
+      ])
+    })
+  })
 
   describe("render tools — unprefixed names", () => {
     it("maps render_table to a table ContentBlock", () => {
@@ -73,25 +76,27 @@ describe("parseStreamLine", () => {
             },
           ],
         },
-      });
+      })
 
       expect(parseStreamLine(line)).toEqual([
         {
-          type: "render",
-          block: {
-            type: "table",
-            headers: ["Account", "Balance"],
-            rows: [["Checking", "$1,000.00"]],
-          },
+          type: "content",
+          blocks: [
+            {
+              type: "table",
+              headers: ["Account", "Balance"],
+              rows: [["Checking", "$1,000.00"]],
+            },
+          ],
         },
-      ]);
-    });
+      ])
+    })
 
     it("maps render_bar_chart to a bar-chart ContentBlock", () => {
       const data = [
         { label: "Food", value: 450 },
         { label: "Rent", value: 1200 },
-      ];
+      ]
       const line = JSON.stringify({
         type: "assistant",
         message: {
@@ -103,21 +108,21 @@ describe("parseStreamLine", () => {
             },
           ],
         },
-      });
+      })
 
       expect(parseStreamLine(line)).toEqual([
         {
-          type: "render",
-          block: { type: "bar-chart", title: "Spending by Category", data },
+          type: "content",
+          blocks: [{ type: "bar-chart", title: "Spending by Category", data }],
         },
-      ]);
-    });
+      ])
+    })
 
     it("maps render_donut_chart to a donut-chart ContentBlock", () => {
       const data = [
         { label: "Fixed", value: 60 },
         { label: "Variable", value: 40 },
-      ];
+      ]
       const line = JSON.stringify({
         type: "assistant",
         message: {
@@ -129,16 +134,16 @@ describe("parseStreamLine", () => {
             },
           ],
         },
-      });
+      })
 
       expect(parseStreamLine(line)).toEqual([
         {
-          type: "render",
-          block: { type: "donut-chart", title: "Budget Split", data },
+          type: "content",
+          blocks: [{ type: "donut-chart", title: "Budget Split", data }],
         },
-      ]);
-    });
-  });
+      ])
+    })
+  })
 
   describe("render tools — MCP-prefixed names", () => {
     it("strips mcp__capy__ prefix from render_table", () => {
@@ -156,73 +161,25 @@ describe("parseStreamLine", () => {
             },
           ],
         },
-      });
+      })
 
       expect(parseStreamLine(line)).toEqual([
         {
-          type: "render",
-          block: {
-            type: "table",
-            headers: ["Month", "Total"],
-            rows: [["Jan", "$500"]],
-          },
-        },
-      ]);
-    });
-
-    it("strips mcp__capy__ prefix from render_bar_chart", () => {
-      const data = [{ label: "March", value: 800 }];
-      const line = JSON.stringify({
-        type: "assistant",
-        message: {
-          content: [
+          type: "content",
+          blocks: [
             {
-              type: "tool_use",
-              name: "mcp__capy__render_bar_chart",
-              input: { title: "Monthly Totals", data },
+              type: "table",
+              headers: ["Month", "Total"],
+              rows: [["Jan", "$500"]],
             },
           ],
         },
-      });
+      ])
+    })
+  })
 
-      expect(parseStreamLine(line)).toEqual([
-        {
-          type: "render",
-          block: { type: "bar-chart", title: "Monthly Totals", data },
-        },
-      ]);
-    });
-
-    it("strips mcp__capy__ prefix from render_donut_chart", () => {
-      const data = [
-        { label: "Needs", value: 50 },
-        { label: "Wants", value: 30 },
-        { label: "Savings", value: 20 },
-      ];
-      const line = JSON.stringify({
-        type: "assistant",
-        message: {
-          content: [
-            {
-              type: "tool_use",
-              name: "mcp__capy__render_donut_chart",
-              input: { title: "50/30/20 Rule", data },
-            },
-          ],
-        },
-      });
-
-      expect(parseStreamLine(line)).toEqual([
-        {
-          type: "render",
-          block: { type: "donut-chart", title: "50/30/20 Rule", data },
-        },
-      ]);
-    });
-  });
-
-  describe("non-render tool_use → tool-activity", () => {
-    it("emits tool-activity for a non-render tool with MCP prefix", () => {
+  describe("non-render tool_use → tool-activity block", () => {
+    it("emits tool-activity block for a non-render tool with MCP prefix", () => {
       const line = JSON.stringify({
         type: "assistant",
         message: {
@@ -234,14 +191,17 @@ describe("parseStreamLine", () => {
             },
           ],
         },
-      });
+      })
 
       expect(parseStreamLine(line)).toEqual([
-        { type: "tool-activity", tool: "list_accounts" },
-      ]);
-    });
+        {
+          type: "content",
+          blocks: [{ type: "tool-activity", tool: "list_accounts" }],
+        },
+      ])
+    })
 
-    it("emits tool-activity for a non-render tool without prefix", () => {
+    it("emits tool-activity block for a non-render tool without prefix", () => {
       const line = JSON.stringify({
         type: "assistant",
         message: {
@@ -253,16 +213,19 @@ describe("parseStreamLine", () => {
             },
           ],
         },
-      });
+      })
 
       expect(parseStreamLine(line)).toEqual([
-        { type: "tool-activity", tool: "get_transactions" },
-      ]);
-    });
-  });
+        {
+          type: "content",
+          blocks: [{ type: "tool-activity", tool: "get_transactions" }],
+        },
+      ])
+    })
+  })
 
-  describe("multiple content blocks", () => {
-    it("returns multiple events for text + tool_use blocks", () => {
+  describe("multiple content blocks — preserved in order", () => {
+    it("preserves text + render blocks together", () => {
       const line = JSON.stringify({
         type: "assistant",
         message: {
@@ -278,25 +241,52 @@ describe("parseStreamLine", () => {
             },
           ],
         },
-      });
+      })
 
-      const events = parseStreamLine(line);
-      expect(events).toHaveLength(2);
+      const events = parseStreamLine(line)
+      expect(events).toHaveLength(1)
       expect(events[0]).toEqual({
-        type: "text",
-        text: "Here's your spending:",
-      });
-      expect(events[1]).toEqual({
-        type: "render",
-        block: {
-          type: "table",
-          headers: ["Category", "Amount"],
-          rows: [["Food", "$200"]],
-        },
-      });
-    });
+        type: "content",
+        blocks: [
+          { type: "text", content: "Here's your spending:" },
+          {
+            type: "table",
+            headers: ["Category", "Amount"],
+            rows: [["Food", "$200"]],
+          },
+        ],
+      })
+    })
 
-    it("handles multiple tool_use blocks in one message", () => {
+    it("preserves text before and after tool calls", () => {
+      const line = JSON.stringify({
+        type: "assistant",
+        message: {
+          content: [
+            { type: "text", text: "Pretty light last week." },
+            {
+              type: "tool_use",
+              name: "mcp__capy__list_transactions",
+              input: {},
+            },
+            { type: "text", text: "Here are the details:" },
+          ],
+        },
+      })
+
+      const events = parseStreamLine(line)
+      expect(events).toHaveLength(1)
+      expect(events[0]).toEqual({
+        type: "content",
+        blocks: [
+          { type: "text", content: "Pretty light last week." },
+          { type: "tool-activity", tool: "list_transactions" },
+          { type: "text", content: "Here are the details:" },
+        ],
+      })
+    })
+
+    it("handles tool-activity + render blocks together", () => {
       const line = JSON.stringify({
         type: "assistant",
         message: {
@@ -316,66 +306,65 @@ describe("parseStreamLine", () => {
             },
           ],
         },
-      });
+      })
 
-      const events = parseStreamLine(line);
-      expect(events).toHaveLength(2);
+      const events = parseStreamLine(line)
+      expect(events).toHaveLength(1)
       expect(events[0]).toEqual({
-        type: "tool-activity",
-        tool: "list_accounts",
-      });
-      expect(events[1]).toEqual({
-        type: "render",
-        block: {
-          type: "bar-chart",
-          title: "Balances",
-          data: [{ label: "Checking", value: 5000 }],
-        },
-      });
-    });
-  });
+        type: "content",
+        blocks: [
+          { type: "tool-activity", tool: "list_accounts" },
+          {
+            type: "bar-chart",
+            title: "Balances",
+            data: [{ label: "Checking", value: 5000 }],
+          },
+        ],
+      })
+    })
+  })
 
   describe("result event", () => {
     it("emits done", () => {
-      const line = JSON.stringify({ type: "result" });
-      expect(parseStreamLine(line)).toEqual([{ type: "done" }]);
-    });
-  });
+      const line = JSON.stringify({ type: "result" })
+      expect(parseStreamLine(line)).toEqual([{ type: "done" }])
+    })
+  })
 
   describe("error event", () => {
     it("emits error with message", () => {
       const line = JSON.stringify({
         type: "error",
         error: { message: "Rate limit exceeded" },
-      });
+      })
 
       expect(parseStreamLine(line)).toEqual([
         { type: "error", message: "Rate limit exceeded" },
-      ]);
-    });
+      ])
+    })
 
     it("falls back to 'Unknown error' when message is missing", () => {
       const line = JSON.stringify({
         type: "error",
         error: {},
-      });
+      })
 
       expect(parseStreamLine(line)).toEqual([
         { type: "error", message: "Unknown error" },
-      ]);
-    });
+      ])
+    })
 
     it("falls back to 'Unknown error' when error object is missing", () => {
-      const line = JSON.stringify({ type: "error" });
+      const line = JSON.stringify({ type: "error" })
 
       expect(parseStreamLine(line)).toEqual([
         { type: "error", message: "Unknown error" },
-      ]);
-    });
-  });
+      ])
+    })
+  })
 
   describe("render tool input validation", () => {
-    it("returns null for render_table with missing headers", () => {
+    it("skips render_table with missing headers", () => {
       const line = JSON.stringify({
         type: "assistant",
         message: {
@@ -387,11 +376,11 @@ describe("parseStreamLine", () => {
             },
           ],
         },
-      });
-      expect(parseStreamLine(line)).toEqual([]);
-    });
+      })
+      expect(parseStreamLine(line)).toEqual([])
+    })
 
-    it("returns null for render_table with missing rows", () => {
+    it("skips render_table with missing rows", () => {
       const line = JSON.stringify({
         type: "assistant",
         message: {
@@ -403,11 +392,11 @@ describe("parseStreamLine", () => {
             },
           ],
         },
-      });
-      expect(parseStreamLine(line)).toEqual([]);
-    });
+      })
+      expect(parseStreamLine(line)).toEqual([])
+    })
 
-    it("returns null for render_bar_chart with missing title", () => {
+    it("skips render_bar_chart with missing title", () => {
       const line = JSON.stringify({
         type: "assistant",
         message: {
@@ -419,11 +408,11 @@ describe("parseStreamLine", () => {
             },
           ],
         },
-      });
-      expect(parseStreamLine(line)).toEqual([]);
-    });
+      })
+      expect(parseStreamLine(line)).toEqual([])
+    })
 
-    it("returns null for render_donut_chart with missing data", () => {
+    it("skips render_donut_chart with missing data", () => {
       const line = JSON.stringify({
         type: "assistant",
         message: {
@@ -435,31 +424,42 @@ describe("parseStreamLine", () => {
             },
           ],
         },
-      });
-      expect(parseStreamLine(line)).toEqual([]);
-    });
-  });
+      })
+      expect(parseStreamLine(line)).toEqual([])
+    })
+  })
 
   describe("assistant with empty / missing content", () => {
     it("returns [] when message has no content array", () => {
       const line = JSON.stringify({
         type: "assistant",
         message: {},
-      });
-      expect(parseStreamLine(line)).toEqual([]);
-    });
+      })
+      expect(parseStreamLine(line)).toEqual([])
+    })
 
     it("returns [] when message is missing", () => {
-      const line = JSON.stringify({ type: "assistant" });
-      expect(parseStreamLine(line)).toEqual([]);
-    });
+      const line = JSON.stringify({ type: "assistant" })
+      expect(parseStreamLine(line)).toEqual([])
+    })
 
     it("returns [] when content array is empty", () => {
       const line = JSON.stringify({
         type: "assistant",
         message: { content: [] },
-      });
-      expect(parseStreamLine(line)).toEqual([]);
-    });
-  });
-});
+      })
+      expect(parseStreamLine(line)).toEqual([])
+    })
+  })
+})
+
+describe("getToolLabel", () => {
+  it("returns human label for known tools", () => {
+    expect(getToolLabel("list_accounts")).toBe("Querying accounts")
+    expect(getToolLabel("create_transaction")).toBe("Creating transaction")
+  })
+
+  it("returns raw name for unknown tools", () => {
+    expect(getToolLabel("some_custom_tool")).toBe("some_custom_tool")
+  })
+})

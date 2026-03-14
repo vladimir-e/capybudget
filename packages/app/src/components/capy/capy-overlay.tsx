@@ -1,6 +1,7 @@
 import { useRef, useEffect, useState, type KeyboardEvent } from "react"
-import { RotateCcw, Send, Sparkles, X } from "lucide-react"
+import { RotateCcw, Send, Sparkles, Square, X, Wrench } from "lucide-react"
 import { CommandPicker } from "./command-picker"
+import { getToolLabel } from "@/services/capy-stream"
 import type {
   ChatMessage,
   ContentBlock,
@@ -15,6 +16,7 @@ interface CapyOverlayProps {
   messages: ChatMessage[]
   isStreaming: boolean
   onSend: (text: string) => void
+  onStop: () => void
   onNewChat: () => void
 }
 
@@ -24,6 +26,7 @@ export function CapyOverlay({
   messages,
   isStreaming,
   onSend,
+  onStop,
   onNewChat,
 }: CapyOverlayProps) {
   const [input, setInput] = useState("")
@@ -56,6 +59,9 @@ export function CapyOverlay({
       handleSend()
     }
   }
+
+  const lastMsg = messages[messages.length - 1]
+  const showThinking = isStreaming && lastMsg?.role === "assistant" && lastMsg.blocks.length === 0
 
   return (
     <div
@@ -137,7 +143,7 @@ export function CapyOverlay({
             {messages.map((msg) => (
               <MessageBubble key={msg.id} message={msg} />
             ))}
-            {isStreaming && messages[messages.length - 1]?.blocks.length === 0 && (
+            {showThinking && (
               <div className="flex justify-start">
                 <div className="rounded-2xl rounded-bl-sm bg-muted/40 px-5 py-4">
                   <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -166,15 +172,26 @@ export function CapyOverlay({
               rows={3}
               className="w-full resize-none rounded-2xl bg-transparent px-5 py-4 pr-14 text-base text-foreground placeholder:text-muted-foreground/50 focus:outline-none"
             />
-            <button
-              type="button"
-              onClick={handleSend}
-              disabled={!input.trim() || isStreaming}
-              className="absolute right-3 bottom-3 rounded-xl p-2.5 text-brand hover:bg-brand/10 disabled:opacity-25 disabled:hover:bg-transparent transition-colors"
-              aria-label="Send message"
-            >
-              <Send className="h-5 w-5" />
-            </button>
+            {isStreaming ? (
+              <button
+                type="button"
+                onClick={onStop}
+                className="absolute right-3 bottom-3 rounded-xl p-2.5 text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
+                aria-label="Stop response"
+              >
+                <Square className="h-4 w-4 fill-current" />
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={handleSend}
+                disabled={!input.trim()}
+                className="absolute right-3 bottom-3 rounded-xl p-2.5 text-brand hover:bg-brand/10 disabled:opacity-25 disabled:hover:bg-transparent transition-colors"
+                aria-label="Send message"
+              >
+                <Send className="h-5 w-5" />
+              </button>
+            )}
           </div>
           <div className="mt-1.5 flex items-center justify-between px-1">
             <CommandPicker onSelect={setInput} />
@@ -236,7 +253,20 @@ function BlockRenderer({
       return <BarChart title={block.title} data={block.data} />
     case "donut-chart":
       return <DonutChart title={block.title} data={block.data} />
+    case "tool-activity":
+      return <ToolActivity tool={block.tool} />
   }
+}
+
+/* ── Tool Activity ────────────────────────────────────────────── */
+
+function ToolActivity({ tool }: { tool: string }) {
+  return (
+    <div className="flex items-center gap-2 text-xs text-muted-foreground/60">
+      <Wrench className="h-3 w-3" />
+      <span>{getToolLabel(tool)}</span>
+    </div>
+  )
 }
 
 /* ── Table ─────────────────────────────────────────────────────── */

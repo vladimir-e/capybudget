@@ -5,7 +5,7 @@
  * - Lazy spawn on first message
  * - Stays alive in background (independent of overlay open/close)
  * - "New chat" kills and respawns with a fresh session ID
- * - Auto-restarts on unexpected process death
+ * - stop() kills the process but preserves session ID for continuity
  */
 
 import { Command, type Child } from "@tauri-apps/plugin-shell"
@@ -44,7 +44,6 @@ export class CapySession {
     if (this.child) return
 
     this.killed = false
-    this.sessionId = crypto.randomUUID()
 
     const absoluteServerPath = `${__PROJECT_ROOT__}/${this.mcpServerPath}`
 
@@ -119,10 +118,28 @@ export class CapySession {
     await this.child!.write(payload + "\n")
   }
 
+  /**
+   * Stop the current response without resetting the session.
+   * Kills the process but preserves the session ID so conversation
+   * history continues on next send().
+   */
+  async stop(): Promise<void> {
+    this.killed = true
+    if (this.child) {
+      try {
+        await this.child.kill()
+      } catch {
+        // Process may already be dead
+      }
+      this.child = null
+    }
+    // Session ID preserved — next spawn() reuses it
+  }
+
   /** Kill the process and start fresh on next send(). */
   async restart(): Promise<void> {
     await this.kill()
-    // Process will be respawned on next send()
+    this.sessionId = crypto.randomUUID()
   }
 
   /** Kill the process. */

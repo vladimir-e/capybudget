@@ -1,12 +1,10 @@
 /**
  * Parses Claude CLI stream-json stdout lines into typed events.
  *
- * Claude's assistant messages contain cumulative content blocks:
- * - text blocks: full text so far (replace, don't append)
- * - tool_use blocks: MCP tool calls with structured input
- *
- * Render tools (render_table, render_bar_chart, render_donut_chart) carry
- * structured data for the UI. Data tools show activity indicators.
+ * Claude's assistant messages are cumulative — each event contains ALL content
+ * blocks so far. We reconstruct the full block list and emit a single "content"
+ * event, preserving all text blocks (before/after tool calls) and recording
+ * tool activity as persistent blocks in chat history.
  */
 
 import type {
@@ -38,11 +36,36 @@ const RENDER_TOOL_MAP: Record<string, (input: Record<string, unknown>) => Conten
   },
 }
 
+// ── Tool name labels for display ─────────────────────────────────
+
+const TOOL_LABELS: Record<string, string> = {
+  list_accounts: "Querying accounts",
+  list_transactions: "Querying transactions",
+  list_categories: "Querying categories",
+  spending_summary: "Calculating spending",
+  create_transaction: "Creating transaction",
+  update_transaction: "Updating transaction",
+  delete_transactions: "Deleting transactions",
+  create_account: "Creating account",
+  update_account: "Updating account",
+  delete_account: "Deleting account",
+  archive_account: "Archiving account",
+  create_category: "Creating category",
+  update_category: "Updating category",
+  delete_category: "Deleting category",
+  archive_category: "Archiving category",
+  assign_categories: "Assigning categories",
+}
+
+export function getToolLabel(tool: string): string {
+  return TOOL_LABELS[tool] ?? tool
+}
+
 // ── Parser ───────────────────────────────────────────────────────
 
 /**
  * Parse a single stdout JSON line from the Claude CLI.
- * Returns an array of StreamEvents (one line can produce multiple events).
+ * Returns an array of StreamEvents (typically one per line).
  */
 export function parseStreamLine(line: string): StreamEvent[] {
   const trimmed = line.trim()
@@ -60,13 +83,13 @@ export function parseStreamLine(line: string): StreamEvent[] {
   switch (event.type) {
     case "assistant": {
       const message = event.message as { content?: Array<Record<string, unknown>> } | undefined
-      const blocks = message?.content ?? []
+      const rawBlocks = message?.content ?? []
+      const blocks: ContentBlock[] = []
 
-      for (const block of blocks) {
+      for (const block of rawBlocks) {
         if (block.type === "text") {
-          events.push({ type: "text", text: block.text as string })
+          blocks.push({ type: "text", content: block.text as string })
         } else if (block.type === "tool_use") {
-          // MCP tools are prefixed as "mcp__<server>__<tool>" — strip to base name
           const rawName = block.name as string
           const baseName = rawName.replace(/^mcp__\w+__/, "")
           const input = block.input as Record<string, unknown>
@@ -74,11 +97,15 @@ export function parseStreamLine(line: string): StreamEvent[] {
           const renderFn = RENDER_TOOL_MAP[baseName]
           if (renderFn) {
             const rendered = renderFn(input)
-            if (rendered) events.push({ type: "render", block: rendered })
+            if (rendered) blocks.push(rendered)
           } else {
-            events.push({ type: "tool-activity", tool: baseName })
+            blocks.push({ type: "tool-activity", tool: baseName })
           }
         }
+      }
+
+      if (blocks.length > 0) {
+        events.push({ type: "content", blocks })
       }
       break
     }

@@ -5,6 +5,7 @@ export type {
   TableBlock,
   BarChartBlock,
   DonutChartBlock,
+  ToolActivityBlock,
   ContentBlock,
   ChatMessage,
   StreamEvent,

@@ -25,11 +25,17 @@ export interface DonutChartBlock {
   data: { label: string; value: number }[]
 }
 
+export interface ToolActivityBlock {
+  type: "tool-activity"
+  tool: string
+}
+
 export type ContentBlock =
   | TextBlock
   | TableBlock
   | BarChartBlock
   | DonutChartBlock
+  | ToolActivityBlock
 
 export interface ChatMessage {
   id: string
@@ -40,9 +46,7 @@ export interface ChatMessage {
 // ── Stream event types ──────────────────────────────────────────
 
 export type StreamEvent =
-  | { type: "text"; text: string }
-  | { type: "render"; block: ContentBlock }
-  | { type: "tool-activity"; tool: string }
+  | { type: "content"; blocks: ContentBlock[] }
   | { type: "done" }
   | { type: "error"; message: string }
 

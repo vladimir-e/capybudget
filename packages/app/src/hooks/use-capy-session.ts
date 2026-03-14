@@ -26,6 +26,7 @@ interface UseCapySessionReturn {
   messages: ChatMessage[]
   isStreaming: boolean
   sendMessage: (text: string) => void
+  stopStreaming: () => void
   newChat: () => void
 }
 
@@ -33,8 +34,6 @@ export function useCapySession(opts: UseCapySessionOptions): UseCapySessionRetur
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [isStreaming, setIsStreaming] = useState(false)
   const sessionRef = useRef<CapySession | null>(null)
-  // Track the latest text per assistant turn to handle cumulative replacement
-  const currentTextRef = useRef("")
 
   // Stable reference to options for context enrichment
   const optsRef = useRef(opts)
@@ -44,56 +43,24 @@ export function useCapySession(opts: UseCapySessionOptions): UseCapySessionRetur
 
   const handleStreamEvent = useCallback((event: StreamEvent) => {
     switch (event.type) {
-      case "text":
-        // Text is cumulative — replace the text block in the last assistant message
-        currentTextRef.current = event.text
+      case "content":
+        // Replace all blocks on the last assistant message from the cumulative message
         setMessages((prev) => {
           const updated = [...prev]
           const last = updated[updated.length - 1]
           if (last?.role !== "assistant") return prev
 
-          const blocks = [...last.blocks]
-          const textIdx = blocks.findIndex((b) => b.type === "text")
-          const textBlock = { type: "text" as const, content: event.text }
-
-          if (textIdx >= 0) {
-            blocks[textIdx] = textBlock
-          } else {
-            // Insert text before any render blocks
-            blocks.unshift(textBlock)
-          }
-
-          updated[updated.length - 1] = { ...last, blocks }
+          updated[updated.length - 1] = { ...last, blocks: event.blocks }
           return updated
         })
-        break
-
-      case "render":
-        setMessages((prev) => {
-          const updated = [...prev]
-          const last = updated[updated.length - 1]
-          if (last?.role !== "assistant") return prev
-
-          updated[updated.length - 1] = {
-            ...last,
-            blocks: [...last.blocks, event.block],
-          }
-          return updated
-        })
-        break
-
-      case "tool-activity":
-        // Could show a typing indicator with tool name — for now, no-op
         break
 
       case "done":
         setIsStreaming(false)
-        currentTextRef.current = ""
         break
 
       case "error":
         setIsStreaming(false)
-        currentTextRef.current = ""
         setMessages((prev) => {
           const updated = [...prev]
           const last = updated[updated.length - 1]
@@ -136,7 +103,6 @@ export function useCapySession(opts: UseCapySessionOptions): UseCapySessionRetur
         case "exit":
           // Unexpected exit — notify user
           setIsStreaming(false)
-          currentTextRef.current = ""
           setMessages((prev) => [
             ...prev,
             {
@@ -161,9 +127,8 @@ export function useCapySession(opts: UseCapySessionOptions): UseCapySessionRetur
     [handleStreamEvent],
   )
 
-  // Create session on mount, kill on unmount
+  // Kill session on unmount
   useEffect(() => {
-    // Session is created lazily but we need the event handler ready
     return () => {
       sessionRef.current?.kill()
       sessionRef.current = null
@@ -206,7 +171,6 @@ export function useCapySession(opts: UseCapySessionOptions): UseCapySessionRetur
 
       setMessages((prev) => [...prev, userMsg, assistantMsg])
       setIsStreaming(true)
-      currentTextRef.current = ""
 
       const session = ensureSession()
       session.send(enrichedMessage).catch((err) => {
@@ -219,13 +183,18 @@ export function useCapySession(opts: UseCapySessionOptions): UseCapySessionRetur
     [isStreaming, ensureSession, handleStreamEvent],
   )
 
+  const stopStreaming = useCallback(() => {
+    if (!isStreaming) return
+    sessionRef.current?.stop()
+    setIsStreaming(false)
+  }, [isStreaming])
+
   const newChat = useCallback(() => {
     sessionRef.current?.restart()
     sessionRef.current = null
     setMessages([])
     setIsStreaming(false)
-    currentTextRef.current = ""
   }, [])
 
-  return { messages, isStreaming, sendMessage, newChat }
+  return { messages, isStreaming, sendMessage, stopStreaming, newChat }
 }
