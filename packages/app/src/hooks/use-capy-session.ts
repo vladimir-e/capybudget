@@ -4,6 +4,7 @@
  * - Lazy-spawns Claude CLI on first message
  * - Parses streaming events into ChatMessage[]
  * - Handles session restart on crash or "New Chat"
+ * - Detects mutation tool calls and notifies for cache invalidation
  */
 
 import { useCallback, useEffect, useRef, useState } from "react"
@@ -16,10 +17,26 @@ import {
   type ChatMessage,
 } from "@capybudget/intelligence"
 
+const MUTATION_TOOLS = new Set([
+  "create_transaction",
+  "update_transaction",
+  "delete_transactions",
+  "create_account",
+  "update_account",
+  "delete_account",
+  "archive_account",
+  "create_category",
+  "update_category",
+  "delete_category",
+  "archive_category",
+  "assign_categories",
+])
+
 interface UseCapySessionOptions {
   budgetPath: string
   budgetName: string
   mcpServerPath: string
+  onDataChanged?: () => void
 }
 
 interface UseCapySessionReturn {
@@ -34,8 +51,9 @@ export function useCapySession(opts: UseCapySessionOptions): UseCapySessionRetur
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [isStreaming, setIsStreaming] = useState(false)
   const sessionRef = useRef<CapySession | null>(null)
+  const hadMutationsRef = useRef(false)
 
-  // Stable reference to options for context enrichment
+  // Stable reference to options
   const optsRef = useRef(opts)
   useEffect(() => {
     optsRef.current = opts
@@ -53,14 +71,27 @@ export function useCapySession(opts: UseCapySessionOptions): UseCapySessionRetur
           updated[updated.length - 1] = { ...last, blocks: event.blocks }
           return updated
         })
+
+        // Track if any mutation tools were called during this turn
+        for (const block of event.blocks) {
+          if (block.type === "tool-activity" && MUTATION_TOOLS.has(block.tool)) {
+            hadMutationsRef.current = true
+            break
+          }
+        }
         break
 
       case "done":
         setIsStreaming(false)
+        if (hadMutationsRef.current) {
+          hadMutationsRef.current = false
+          optsRef.current.onDataChanged?.()
+        }
         break
 
       case "error":
         setIsStreaming(false)
+        hadMutationsRef.current = false
         setMessages((prev) => {
           const updated = [...prev]
           const last = updated[updated.length - 1]
@@ -103,6 +134,7 @@ export function useCapySession(opts: UseCapySessionOptions): UseCapySessionRetur
         case "exit":
           // Unexpected exit — notify user
           setIsStreaming(false)
+          hadMutationsRef.current = false
           setMessages((prev) => [
             ...prev,
             {
@@ -171,6 +203,7 @@ export function useCapySession(opts: UseCapySessionOptions): UseCapySessionRetur
 
       setMessages((prev) => [...prev, userMsg, assistantMsg])
       setIsStreaming(true)
+      hadMutationsRef.current = false
 
       const session = ensureSession()
       session.send(enrichedMessage).catch((err) => {
@@ -187,6 +220,10 @@ export function useCapySession(opts: UseCapySessionOptions): UseCapySessionRetur
     if (!isStreaming) return
     sessionRef.current?.stop()
     setIsStreaming(false)
+    if (hadMutationsRef.current) {
+      hadMutationsRef.current = false
+      optsRef.current.onDataChanged?.()
+    }
   }, [isStreaming])
 
   const newChat = useCallback(() => {
@@ -194,6 +231,7 @@ export function useCapySession(opts: UseCapySessionOptions): UseCapySessionRetur
     sessionRef.current = null
     setMessages([])
     setIsStreaming(false)
+    hadMutationsRef.current = false
   }, [])
 
   return { messages, isStreaming, sendMessage, stopStreaming, newChat }
