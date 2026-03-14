@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.7.0 — 2026-03-13
+
+Capy intelligence overlay.
+
+- Full-viewport AI chat overlay with rich content rendering (donut charts, bar charts, data tables)
+- Glowing Capy button in topbar with brand-aware pulse animation
+- Command picker for prompt templates
+
 ## 0.6.0 — 2026-03-12
 
 Merchant autocomplete and auto-categorization.
