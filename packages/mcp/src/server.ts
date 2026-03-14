@@ -39,7 +39,7 @@ if (!BUDGET_PATH) {
 
 // ── Repository ───────────────────────────────────────────────────
 
-const repo = createCsvRepository(BUDGET_PATH, nodeFileAdapter)
+const repo = createCsvRepository(BUDGET_PATH, nodeFileAdapter, { immediate: true })
 
 // ── Server setup ─────────────────────────────────────────────────
 
@@ -120,6 +120,15 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     }
   }
 })
+
+// ── Graceful shutdown ────────────────────────────────────────────
+
+async function shutdown() {
+  await repo.dispose()
+  process.exit(0)
+}
+process.on("SIGTERM", shutdown)
+process.on("SIGINT", shutdown)
 
 // ── Start ────────────────────────────────────────────────────────
 
