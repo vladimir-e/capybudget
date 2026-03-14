@@ -47,13 +47,12 @@ Scaffold all screens, nail the layout and navigation. Everything renders from ha
 
 ---
 
-## Phase 2: Data Layer & CRUD
+## Phase 2: Data Layer & CRUD ✓
 
 Replace mock data with real CSV I/O. Every mutation writes through.
-Enabled by the repository pattern — create `CsvRepository`, swap in `budget.tsx`.
 
 - [x] **2.1 — CSV Service Layer**
-  - Generic CSV read/write service (PapaParse + Tauri fs)
+  - Generic CSV read/write service (PapaParse + file adapter)
   - Atomic writes (temp file → rename)
   - Debounced flush strategy
 
@@ -86,7 +85,7 @@ Enabled by the repository pattern — create `CsvRepository`, swap in `budget.ts
 
 ---
 
-## Phase 3: Data Entry & Search
+## Phase 3: Data Entry & Search ✓
 
 Fast entry, filtering, bulk operations.
 
@@ -127,9 +126,9 @@ Fast entry, filtering, bulk operations.
 
 ---
 
-## Phase 4: Intelligence Layer
+## Phase 4: Intelligence MVP ✓
 
-Capy — an AI assistant powered by Claude Code CLI. Chat overlay with streaming responses, tool-based domain access, and rich content. See `INTELLIGENCE.md` for architecture.
+Capy — an AI assistant with streaming responses, tool-based domain access, and rich content. See `INTELLIGENCE.md` for architecture.
 
 - [x] **4.1 — Overlay UI**
   - Full-viewport overlay with blurred backdrop
@@ -140,57 +139,87 @@ Capy — an AI assistant powered by Claude Code CLI. Chat overlay with streaming
 
 - [x] **4.2 — Claude CLI Integration**
   - Spawn `claude` CLI as long-lived subprocess via Tauri shell plugin
-  - JSON streaming I/O (`--input-format stream-json --output-format stream-json`)
-  - Session management (session ID per spawn, respawn on death)
+  - JSON streaming I/O (stream-json protocol)
+  - Session management (session ID per spawn, lazy respawn on death)
   - Stream parsing: text deltas, tool calls, completion, errors
-  - Context enrichment (current view, account, date range with each message)
+  - Context enrichment (budget name, date with each message)
 
 - [x] **4.3 — MCP Server**
   - TypeScript MCP server exposing domain data as tools
-  - Shares pure service functions with the UI (single source of truth)
   - Tools: transactions, accounts, categories, spending summary
-  - Claude calls structured tools instead of reading raw files
+  - Render tools for structured output (table, bar chart, donut chart)
 
-- [x] **4.4 — Building Blocks for AI Output**
-  - [x] Structured output parsing from Claude → typed content blocks
-  - [x] Charts and visualizations rendered from structured data
-  - [x] Actionable suggestions (apply categorization, confirm import)
+- [x] **4.4 — Rich Content Blocks**
+  - Structured output parsing from Claude → typed content blocks
+  - BlockRenderer routing to specialized renderers
+  - Charts and visualizations rendered from structured data
 
 ---
 
-## Phase 5: Smart Import
+## Phase 5: Monorepo & Code Sharing
+
+Extract shared logic into packages, decouple from Tauri. See `MONOREPO.md` for target architecture, `REFACTOR.md` for implementation guide.
+
+- [ ] **5.1 — Package Extraction**
+  - npm workspaces with shared packages (core, persistence, intelligence, app, mcp)
+  - Pure business logic in `@capybudget/core`
+  - Repository + CSV adapter with FileAdapter interface in `@capybudget/persistence`
+  - Session interface + prompt in `@capybudget/intelligence`
+  - Full React application in `@capybudget/app`
+  - MCP server standalone in `@capybudget/mcp`, reuses core + persistence
+
+- [ ] **5.2 — Adapter Pattern**
+  - FileAdapter, CapySession, BudgetService interfaces
+  - Desktop shell provides Tauri adapters
+  - Desktop and demo shells mount the same `@capybudget/app`
+
+---
+
+## Phase 6: Demo & Distribution
+
+- [ ] **6.1 — Web Demo**
+  - Browser-based demo deployed to GitHub Pages
+  - Preset budget data via in-memory repository
+  - Stub intelligence layer (prompts local install for AI features, shows sample render tool output)
+  - deploy on a PR for testing
+
+---
+
+## Phase 7: Smart Import
 
 Paste or drop bank data, Claude parses it, you review and confirm.
 
-- [ ] **5.1 — CSV Import**
+- [ ] **7.1 — CSV Import**
   - Drop bank-exported CSV
   - Claude maps varied bank formats into internal transaction schema and saves to a file, ready to pass to the app
-    - ensure idempotency 
+    - ensure idempotency
     - transfers will be especially tricky
   - When file is ready, display a button in the chat to preview the data
 
-- [ ] **5.2 — Preview Area**
+- [ ] **7.2 — Preview Area**
   - preview area is an independent front-end module that operates on the normalized import file
   - provides table with transactions data using same UX as the main transactions table
   - user can edit information and changes will be saved to the file
   - has a button to confirm import of transactions that will store information from the file in our database
 
-- [ ] **5.3 — Other formats**
+- [ ] **7.3 — Other formats**
 - [ ] Screenshot Import
 - [ ] PDF Import
 
 ---
 
-## Phase 6: Analytics & Budgeting
+## Phase 8: Analytics & Budgeting
 
-- [ ] **6.1 — Analytics**
+- [ ] **8.1 — Analytics**
   - Spending breakdowns by month, year, custom date range
   - Category trends over time
 
-- [ ] **6.2 — AI Insights**
+- [ ] **8.2 — AI Insights**
   - Capy builds custom visualizations and analyses on demand
   - Anomaly detection (unusual amounts, spending spikes)
 
-- [ ] **6.3 — Budget**
+- [ ] **8.3 — Budget**
   - Assign monthly amounts per category
   - Assigned vs. spent tracking
+
+## Phase 9: Promo website

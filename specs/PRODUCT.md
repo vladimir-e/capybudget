@@ -53,10 +53,11 @@ Accounts grouped by type: Cash, Checking, Savings, Credit, Investment, Loans, Ar
 
 See `FRONTEND_DESIGN.md` for interaction patterns, color scheme, typography, and accessibility guidelines.
 
-## Target Platform
+## Target Platforms
 
-macOS first (native .dmg via Tauri). Windows and Linux possible via Tauri cross-compilation.
+- **Desktop** — macOS first (native .dmg via Tauri). Windows and Linux via Tauri cross-compilation.
+- **Web demo** — browser-based demo with preset data, deployed to GitHub Pages. Full UI, no persistence, stub intelligence layer.
 
 ## Distribution
 
-Open source, MIT license. Public GitHub repo with a clean README and architecture docs.
+Open source, MIT license. Public GitHub repo with architecture docs, web demo, and a standalone MCP server (`@capybudget/mcp`) that works with any MCP-compatible AI agent.
