@@ -12,7 +12,6 @@ import { Command, type Child } from "@tauri-apps/plugin-shell"
 import { writeTextFile } from "@tauri-apps/plugin-fs"
 import { tempDir, join as joinPath } from "@tauri-apps/api/path"
 import {
-  SYSTEM_PROMPT,
   type SessionEvent,
   type CapySessionOptions,
 } from "@capybudget/intelligence"
@@ -26,12 +25,14 @@ export class CapySession {
   private sessionId: string = crypto.randomUUID()
   private readonly budgetPath: string
   private readonly mcpServerPath: string
+  private readonly systemPrompt: string
   private readonly onEvent: (event: SessionEvent) => void
   private killed = false
 
-  constructor(opts: CapySessionOptions) {
+  constructor(opts: CapySessionOptions & { systemPrompt: string }) {
     this.budgetPath = opts.budgetPath
     this.mcpServerPath = opts.mcpServerPath
+    this.systemPrompt = opts.systemPrompt
     this.onEvent = opts.onEvent
   }
 
@@ -73,7 +74,7 @@ export class CapySession {
       "--mcp-config",
       configPath,
       "--system-prompt",
-      SYSTEM_PROMPT,
+      this.systemPrompt,
       "--session-id",
       this.sessionId,
       "--allowedTools",

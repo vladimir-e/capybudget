@@ -12,6 +12,7 @@ import { CapySession } from "@/services/capy-session"
 import { parseStreamLine } from "@/services/capy-stream"
 import {
   buildContext,
+  SYSTEM_PROMPT,
   type SessionEvent,
   type StreamEvent,
   type ChatMessage,
@@ -36,6 +37,7 @@ interface UseCapySessionOptions {
   budgetPath: string
   budgetName: string
   mcpServerPath: string
+  customInstructions?: string
   onDataChanged?: () => void
 }
 
@@ -169,9 +171,16 @@ export function useCapySession(opts: UseCapySessionOptions): UseCapySessionRetur
 
   const ensureSession = useCallback(() => {
     if (!sessionRef.current) {
+      const o = optsRef.current
+      const customInstructions = o.customInstructions?.trim()
+      const systemPrompt = customInstructions
+        ? `${SYSTEM_PROMPT}\n\n## User instructions\n${customInstructions}`
+        : SYSTEM_PROMPT
+
       sessionRef.current = new CapySession({
-        budgetPath: optsRef.current.budgetPath,
-        mcpServerPath: optsRef.current.mcpServerPath,
+        budgetPath: o.budgetPath,
+        mcpServerPath: o.mcpServerPath,
+        systemPrompt,
         onEvent: handleSessionEvent,
       })
     }

@@ -1,6 +1,7 @@
 import { useRef, useEffect, useState, type KeyboardEvent } from "react"
-import { RotateCcw, Send, Sparkles, Square, X, Wrench } from "lucide-react"
+import { RotateCcw, Send, Settings2, Sparkles, Square, X, Wrench } from "lucide-react"
 import { CommandPicker } from "./command-picker"
+import { InstructionsDialog } from "./instructions-dialog"
 import { getToolLabel } from "@/services/capy-stream"
 import type {
   ChatMessage,
@@ -18,6 +19,8 @@ interface CapyOverlayProps {
   onSend: (text: string) => void
   onStop: () => void
   onNewChat: () => void
+  instructions: string
+  onSaveInstructions: (text: string) => Promise<void>
 }
 
 export function CapyOverlay({
@@ -28,8 +31,11 @@ export function CapyOverlay({
   onSend,
   onStop,
   onNewChat,
+  instructions,
+  onSaveInstructions,
 }: CapyOverlayProps) {
   const [input, setInput] = useState("")
+  const [instructionsOpen, setInstructionsOpen] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
 
@@ -99,6 +105,14 @@ export function CapyOverlay({
             </div>
           </div>
           <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => setInstructionsOpen(true)}
+              className="rounded-xl p-2.5 text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
+              aria-label="Custom instructions"
+            >
+              <Settings2 className="h-4 w-4" />
+            </button>
             {messages.length > 0 && (
               <button
                 type="button"
@@ -201,6 +215,13 @@ export function CapyOverlay({
           </div>
         </div>
       </div>
+
+      <InstructionsDialog
+        open={instructionsOpen}
+        onOpenChange={setInstructionsOpen}
+        instructions={instructions}
+        onSave={onSaveInstructions}
+      />
     </div>
   )
 }

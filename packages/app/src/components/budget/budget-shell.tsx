@@ -18,6 +18,7 @@ import {
 import { useUndoRedo } from "@/hooks/use-undo-redo";
 import { useReorderAccounts } from "@/hooks/use-account-mutations";
 import { useAccounts, budgetKeys } from "@/hooks/use-budget-data";
+import { useCustomInstructions } from "@/hooks/use-custom-instructions";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -62,6 +63,8 @@ export function BudgetShell({ path, name }: BudgetShellProps) {
   const [editingTxn, setEditingTxn] = useState<Transaction | null>(null);
   const [currentAccountId, setCurrentAccountId] = useState<string | undefined>();
 
+  const customInstructions = useCustomInstructions(path);
+
   const invalidateBudgetData = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: budgetKeys.all });
   }, [queryClient]);
@@ -70,6 +73,7 @@ export function BudgetShell({ path, name }: BudgetShellProps) {
     budgetPath: path,
     budgetName: name,
     mcpServerPath: "packages/mcp/src/server.ts",
+    customInstructions: customInstructions.instructions,
     onDataChanged: invalidateBudgetData,
   });
 
@@ -295,6 +299,8 @@ export function BudgetShell({ path, name }: BudgetShellProps) {
           onSend={capy.sendMessage}
           onStop={capy.stopStreaming}
           onNewChat={capy.newChat}
+          instructions={customInstructions.instructions}
+          onSaveInstructions={customInstructions.save}
         />
 
         <AccountDialog
