@@ -5,6 +5,7 @@
  * - Parses streaming events into ChatMessage[]
  * - Handles session restart on crash or "New Chat"
  * - Detects mutation tool calls and notifies for cache invalidation
+ * - On stop: forwards conversation context to the next session
  */
 
 import { useCallback, useEffect, useRef, useState } from "react"
@@ -33,6 +34,8 @@ const MUTATION_TOOLS = new Set([
   "assign_categories",
 ])
 
+const CONTEXT_MAX_CHARS = 5000
+
 interface UseCapySessionOptions {
   budgetPath: string
   budgetName: string
@@ -49,14 +52,40 @@ interface UseCapySessionReturn {
   newChat: () => void
 }
 
+/** Serialize chat messages into a text summary for context forwarding. */
+function serializeConversation(messages: ChatMessage[], maxChars: number): string {
+  const lines: string[] = []
+
+  for (const msg of messages) {
+    const role = msg.role === "user" ? "User" : "Capy"
+    for (const block of msg.blocks) {
+      if (block.type === "text") {
+        lines.push(`${role}: ${block.content}`)
+      } else if (block.type === "tool-activity") {
+        lines.push(`[Tool: ${block.tool}]`)
+      }
+      // Skip tables/charts — too verbose for context
+    }
+  }
+
+  let text = lines.join("\n")
+  if (text.length > maxChars) {
+    text = "...\n" + text.slice(-maxChars)
+  }
+  return text
+}
+
 export function useCapySession(opts: UseCapySessionOptions): UseCapySessionReturn {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [isStreaming, setIsStreaming] = useState(false)
   const sessionRef = useRef<CapySession | null>(null)
   const hadMutationsRef = useRef(false)
-
-  // Track the last text content to detect cumulative text growth vs new text blocks
   const lastTextContentRef = useRef("")
+  const sessionInterruptedRef = useRef(false)
+
+  // Keep a ref to current messages for context serialization on stop recovery
+  const messagesRef = useRef(messages)
+  messagesRef.current = messages
 
   // Stable reference to options
   const optsRef = useRef(opts)
@@ -67,9 +96,6 @@ export function useCapySession(opts: UseCapySessionOptions): UseCapySessionRetur
   const handleStreamEvent = useCallback((event: StreamEvent) => {
     switch (event.type) {
       case "content": {
-        // Pure append-only: never replace existing blocks.
-        // Text blocks: update last text block in-place if it's cumulative growth.
-        // Everything else: always append.
         setMessages((prev) => {
           const updated = [...prev]
           const last = updated[updated.length - 1]
@@ -80,7 +106,6 @@ export function useCapySession(opts: UseCapySessionOptions): UseCapySessionRetur
           for (const block of event.blocks) {
             if (block.type === "text") {
               const prevText = lastTextContentRef.current
-              // Cumulative text growth — update last text block in place
               if (prevText && block.content.startsWith(prevText)) {
                 const lastTextIdx = findLastIndex(blocks, (b) => b.type === "text")
                 if (lastTextIdx >= 0) {
@@ -89,12 +114,10 @@ export function useCapySession(opts: UseCapySessionOptions): UseCapySessionRetur
                   blocks.push(block)
                 }
               } else {
-                // New text block (new sub-message or first text)
                 blocks.push(block)
               }
               lastTextContentRef.current = block.content
             } else {
-              // Non-text blocks: always append
               blocks.push(block)
             }
           }
@@ -103,7 +126,6 @@ export function useCapySession(opts: UseCapySessionOptions): UseCapySessionRetur
           return updated
         })
 
-        // Track if any mutation tools were called during this turn
         for (const block of event.blocks) {
           if (block.type === "tool-activity" && MUTATION_TOOLS.has(block.tool)) {
             hadMutationsRef.current = true
@@ -166,7 +188,6 @@ export function useCapySession(opts: UseCapySessionOptions): UseCapySessionRetur
           break
 
         case "exit":
-          // Unexpected exit — notify user
           setIsStreaming(false)
           hadMutationsRef.current = false
           lastTextContentRef.current = ""
@@ -194,7 +215,6 @@ export function useCapySession(opts: UseCapySessionOptions): UseCapySessionRetur
     [handleStreamEvent],
   )
 
-  // Kill session on unmount
   useEffect(() => {
     return () => {
       sessionRef.current?.kill()
@@ -227,9 +247,23 @@ export function useCapySession(opts: UseCapySessionOptions): UseCapySessionRetur
         budgetName: o.budgetName,
       })
 
-      const enrichedMessage = `${context}\n${text}`
+      // If recovering from an interrupted session, forward conversation context
+      let enrichedMessage: string
+      if (sessionInterruptedRef.current && messagesRef.current.length > 0) {
+        const prevContext = serializeConversation(messagesRef.current, CONTEXT_MAX_CHARS)
+        enrichedMessage = [
+          context,
+          "[Previous conversation — session was interrupted by user]",
+          prevContext,
+          "[Session was interrupted. This is a fresh session. The user may want to continue the conversation — pick up where you left off or ask for clarification if needed.]",
+          "",
+          text,
+        ].join("\n")
+        sessionInterruptedRef.current = false
+      } else {
+        enrichedMessage = `${context}\n${text}`
+      }
 
-      // Push user message + empty assistant shell
       const userMsg: ChatMessage = {
         id: crypto.randomUUID(),
         role: "user",
@@ -261,6 +295,18 @@ export function useCapySession(opts: UseCapySessionOptions): UseCapySessionRetur
     sessionRef.current?.stop()
     setIsStreaming(false)
     lastTextContentRef.current = ""
+    sessionInterruptedRef.current = true
+
+    // Add visual separator
+    setMessages((prev) => [
+      ...prev,
+      {
+        id: crypto.randomUUID(),
+        role: "assistant",
+        blocks: [{ type: "text", content: "Session interrupted. Send a message to continue." }],
+      },
+    ])
+
     if (hadMutationsRef.current) {
       hadMutationsRef.current = false
       optsRef.current.onDataChanged?.()
@@ -274,12 +320,12 @@ export function useCapySession(opts: UseCapySessionOptions): UseCapySessionRetur
     setIsStreaming(false)
     hadMutationsRef.current = false
     lastTextContentRef.current = ""
+    sessionInterruptedRef.current = false
   }, [])
 
   return { messages, isStreaming, sendMessage, stopStreaming, newChat }
 }
 
-// Array.findLastIndex polyfill (not available in all targets)
 function findLastIndex<T>(arr: T[], predicate: (item: T) => boolean): number {
   for (let i = arr.length - 1; i >= 0; i--) {
     if (predicate(arr[i])) return i
