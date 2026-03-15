@@ -5,7 +5,7 @@
  * - Lazy spawn on first message
  * - Stays alive in background (independent of overlay open/close)
  * - "New chat" kills and respawns with a fresh session ID
- * - stop() kills the process but preserves session ID for continuity
+ * - stop() kills the process and generates a new session ID (old one may be broken)
  */
 
 import { Command, type Child } from "@tauri-apps/plugin-shell"

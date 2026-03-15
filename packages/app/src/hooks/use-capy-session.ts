@@ -47,13 +47,11 @@ export function useCapySession(opts: UseCapySessionOptions): UseCapySessionRetur
   const lastTextContentRef = useRef("")
   const sessionInterruptedRef = useRef(false)
 
-  // Keep a ref to current messages for context serialization on stop recovery
+  // Keep refs to current values for use in callbacks without stale closures
   const messagesRef = useRef(messages)
-  messagesRef.current = messages
-
-  // Stable reference to options
   const optsRef = useRef(opts)
   useEffect(() => {
+    messagesRef.current = messages
     optsRef.current = opts
   })
 
