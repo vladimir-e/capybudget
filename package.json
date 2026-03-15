@@ -4,7 +4,8 @@
   "version": "0.1.0",
   "type": "module",
   "workspaces": [
-    "packages/*"
+    "packages/*",
+    "apps/*"
   ],
   "scripts": {
     "dev": "vite",
@@ -13,7 +14,10 @@
     "tauri": "tauri",
     "test": "vitest run",
     "test:watch": "vitest",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "demo": "npm run dev --workspace=@capybudget/demo",
+    "demo:build": "npm run build --workspace=@capybudget/demo",
+    "demo:preview": "npm run preview --workspace=@capybudget/demo"
   },
   "dependencies": {
     "@base-ui/react": "^1.2.0",

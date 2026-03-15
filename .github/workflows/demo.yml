@@ -1,0 +1,63 @@
+name: Deploy Demo
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build Demo
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Generate demo route tree
+        run: npx @tanstack/router-cli@1.166.8 generate --routesDirectory apps/demo/src/routes --generatedRouteTree apps/demo/src/routeTree.gen.ts
+
+      - name: Build demo
+        run: npm run demo:build
+        env:
+          DEMO_BASE_PATH: /capybudget/
+
+      - name: SPA fallback
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: cp apps/demo/dist/index.html apps/demo/dist/404.html
+
+      - name: Upload artifact
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: apps/demo/dist
+
+  deploy:
+    name: Deploy to GitHub Pages
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Deploy
+        id: deployment
+        uses: actions/deploy-pages@v4
