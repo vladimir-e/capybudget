@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Outlet, useNavigate } from "@tanstack/react-router";
+import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Sidebar } from "@/components/budget/sidebar";
 import { AccountDialog } from "@/components/budget/account-dialog";
@@ -16,7 +17,11 @@ import {
 } from "@/hooks/use-transaction-mutations";
 import { useUndoRedo } from "@/hooks/use-undo-redo";
 import { useReorderAccounts } from "@/hooks/use-account-mutations";
-import { useAccounts } from "@/hooks/use-budget-data";
+import { useAccounts, budgetKeys } from "@/hooks/use-budget-data";
+import { useCustomInstructions } from "@/hooks/use-custom-instructions";
+import { useCustomCommands } from "@/hooks/use-custom-commands";
+import { useBudgetRepository } from "@/providers/repository-provider";
+import type { DisposableRepository } from "@capybudget/persistence";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -45,6 +50,7 @@ function shortenPath(path: string, maxLen: number): string {
 
 export function BudgetShell({ path, name }: BudgetShellProps) {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const createTxn = useCreateTransaction();
   const updateTxn = useUpdateTransaction();
   const { undo, redo } = useUndoRedo();
@@ -60,10 +66,24 @@ export function BudgetShell({ path, name }: BudgetShellProps) {
   const [editingTxn, setEditingTxn] = useState<Transaction | null>(null);
   const [currentAccountId, setCurrentAccountId] = useState<string | undefined>();
 
+  const customInstructions = useCustomInstructions(path);
+  const customCommands = useCustomCommands(path);
+
+  const repo = useBudgetRepository();
+
+  const invalidateBudgetData = useCallback(() => {
+    // Clear the repo's in-memory cache so it re-reads from disk
+    // (the MCP server wrote directly to the CSV files)
+    (repo as DisposableRepository).invalidateCache?.();
+    queryClient.invalidateQueries({ queryKey: budgetKeys.all });
+  }, [queryClient, repo]);
+
   const capy = useCapySession({
     budgetPath: path,
     budgetName: name,
     mcpServerPath: "packages/mcp/src/server.ts",
+    customInstructions: customInstructions.instructions,
+    onDataChanged: invalidateBudgetData,
   });
 
   const currentAccount = accounts.find((a) => a.id === currentAccountId);
@@ -286,7 +306,12 @@ export function BudgetShell({ path, name }: BudgetShellProps) {
           messages={capy.messages}
           isStreaming={capy.isStreaming}
           onSend={capy.sendMessage}
+          onStop={capy.stopStreaming}
           onNewChat={capy.newChat}
+          instructions={customInstructions.instructions}
+          onSaveInstructions={customInstructions.save}
+          commands={customCommands.commands}
+          onSaveCommands={customCommands.save}
         />
 
         <AccountDialog

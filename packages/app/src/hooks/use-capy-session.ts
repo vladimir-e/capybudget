@@ -4,6 +4,8 @@
  * - Lazy-spawns Claude CLI on first message
  * - Parses streaming events into ChatMessage[]
  * - Handles session restart on crash or "New Chat"
+ * - Detects mutation tool calls and notifies for cache invalidation
+ * - On stop: forwards conversation context to the next session
  */
 
 import { useCallback, useEffect, useRef, useState } from "react"
@@ -11,89 +13,110 @@ import { CapySession } from "@/services/capy-session"
 import { parseStreamLine } from "@/services/capy-stream"
 import {
   buildContext,
+  SYSTEM_PROMPT,
+  MUTATION_TOOL_NAMES,
   type SessionEvent,
   type StreamEvent,
   type ChatMessage,
 } from "@capybudget/intelligence"
+import { serializeConversation } from "@/services/serialize-conversation"
+
+const CONTEXT_MAX_CHARS = 5000
 
 interface UseCapySessionOptions {
   budgetPath: string
   budgetName: string
   mcpServerPath: string
+  customInstructions?: string
+  onDataChanged?: () => void
 }
 
 interface UseCapySessionReturn {
   messages: ChatMessage[]
   isStreaming: boolean
   sendMessage: (text: string) => void
+  stopStreaming: () => void
   newChat: () => void
 }
 
 export function useCapySession(opts: UseCapySessionOptions): UseCapySessionReturn {
   const [messages, setMessages] = useState<ChatMessage[]>([])
-  const [isStreaming, setIsStreaming] = useState(false)
+  const [isStreaming, _setIsStreaming] = useState(false)
+  const isStreamingRef = useRef(false)
   const sessionRef = useRef<CapySession | null>(null)
-  // Track the latest text per assistant turn to handle cumulative replacement
-  const currentTextRef = useRef("")
+  const hadMutationsRef = useRef(false)
+  const lastTextContentRef = useRef("")
+  const sessionInterruptedRef = useRef(false)
 
-  // Stable reference to options for context enrichment
+  // Keep ref and state in sync so callbacks can check without stale closures
+  const setIsStreaming = useCallback((value: boolean) => {
+    isStreamingRef.current = value
+    _setIsStreaming(value)
+  }, [])
+
+  // Keep refs to current values for use in callbacks without stale closures
+  const messagesRef = useRef(messages)
   const optsRef = useRef(opts)
   useEffect(() => {
+    messagesRef.current = messages
     optsRef.current = opts
   })
 
   const handleStreamEvent = useCallback((event: StreamEvent) => {
     switch (event.type) {
-      case "text":
-        // Text is cumulative — replace the text block in the last assistant message
-        currentTextRef.current = event.text
+      case "content": {
         setMessages((prev) => {
           const updated = [...prev]
           const last = updated[updated.length - 1]
           if (last?.role !== "assistant") return prev
 
           const blocks = [...last.blocks]
-          const textIdx = blocks.findIndex((b) => b.type === "text")
-          const textBlock = { type: "text" as const, content: event.text }
 
-          if (textIdx >= 0) {
-            blocks[textIdx] = textBlock
-          } else {
-            // Insert text before any render blocks
-            blocks.unshift(textBlock)
+          for (const block of event.blocks) {
+            if (block.type === "text") {
+              const prevText = lastTextContentRef.current
+              if (prevText && block.content.startsWith(prevText)) {
+                const lastTextIdx = blocks.findLastIndex((b) => b.type === "text")
+                if (lastTextIdx >= 0) {
+                  blocks[lastTextIdx] = block
+                } else {
+                  blocks.push(block)
+                }
+              } else {
+                blocks.push(block)
+              }
+              lastTextContentRef.current = block.content
+            } else {
+              blocks.push(block)
+            }
           }
 
           updated[updated.length - 1] = { ...last, blocks }
           return updated
         })
-        break
 
-      case "render":
-        setMessages((prev) => {
-          const updated = [...prev]
-          const last = updated[updated.length - 1]
-          if (last?.role !== "assistant") return prev
-
-          updated[updated.length - 1] = {
-            ...last,
-            blocks: [...last.blocks, event.block],
+        for (const block of event.blocks) {
+          if (block.type === "tool-activity" && MUTATION_TOOL_NAMES.has(block.tool)) {
+            hadMutationsRef.current = true
+            break
           }
-          return updated
-        })
+        }
         break
-
-      case "tool-activity":
-        // Could show a typing indicator with tool name — for now, no-op
-        break
+      }
 
       case "done":
         setIsStreaming(false)
-        currentTextRef.current = ""
+        lastTextContentRef.current = ""
+        if (hadMutationsRef.current) {
+          hadMutationsRef.current = false
+          optsRef.current.onDataChanged?.()
+        }
         break
 
       case "error":
         setIsStreaming(false)
-        currentTextRef.current = ""
+        hadMutationsRef.current = false
+        lastTextContentRef.current = ""
         setMessages((prev) => {
           const updated = [...prev]
           const last = updated[updated.length - 1]
@@ -118,7 +141,7 @@ export function useCapySession(opts: UseCapySessionOptions): UseCapySessionRetur
         })
         break
     }
-  }, [])
+  }, [setIsStreaming])
 
   const handleSessionEvent = useCallback(
     (event: SessionEvent) => {
@@ -134,9 +157,9 @@ export function useCapySession(opts: UseCapySessionOptions): UseCapySessionRetur
           break
 
         case "exit":
-          // Unexpected exit — notify user
           setIsStreaming(false)
-          currentTextRef.current = ""
+          hadMutationsRef.current = false
+          lastTextContentRef.current = ""
           setMessages((prev) => [
             ...prev,
             {
@@ -158,12 +181,10 @@ export function useCapySession(opts: UseCapySessionOptions): UseCapySessionRetur
           break
       }
     },
-    [handleStreamEvent],
+    [handleStreamEvent, setIsStreaming],
   )
 
-  // Create session on mount, kill on unmount
   useEffect(() => {
-    // Session is created lazily but we need the event handler ready
     return () => {
       sessionRef.current?.kill()
       sessionRef.current = null
@@ -172,9 +193,16 @@ export function useCapySession(opts: UseCapySessionOptions): UseCapySessionRetur
 
   const ensureSession = useCallback(() => {
     if (!sessionRef.current) {
+      const o = optsRef.current
+      const customInstructions = o.customInstructions?.trim()
+      const systemPrompt = customInstructions
+        ? `${SYSTEM_PROMPT}\n\n## User instructions\n${customInstructions}`
+        : SYSTEM_PROMPT
+
       sessionRef.current = new CapySession({
-        budgetPath: optsRef.current.budgetPath,
-        mcpServerPath: optsRef.current.mcpServerPath,
+        budgetPath: o.budgetPath,
+        mcpServerPath: o.mcpServerPath,
+        systemPrompt,
         onEvent: handleSessionEvent,
       })
     }
@@ -183,16 +211,30 @@ export function useCapySession(opts: UseCapySessionOptions): UseCapySessionRetur
 
   const sendMessage = useCallback(
     (text: string) => {
-      if (isStreaming) return
-
+      if (isStreamingRef.current) return
       const o = optsRef.current
       const context = buildContext({
         budgetName: o.budgetName,
+        budgetPath: o.budgetPath,
       })
 
-      const enrichedMessage = `${context}\n${text}`
+      // If recovering from an interrupted session, forward conversation context
+      let enrichedMessage: string
+      if (sessionInterruptedRef.current && messagesRef.current.length > 0) {
+        const prevContext = serializeConversation(messagesRef.current, CONTEXT_MAX_CHARS)
+        enrichedMessage = [
+          context,
+          "[Previous conversation — session was interrupted by user]",
+          prevContext,
+          "[Session was interrupted. This is a fresh session. The user may want to continue the conversation — pick up where you left off or ask for clarification if needed.]",
+          "",
+          text,
+        ].join("\n")
+        sessionInterruptedRef.current = false
+      } else {
+        enrichedMessage = `${context}\n${text}`
+      }
 
-      // Push user message + empty assistant shell
       const userMsg: ChatMessage = {
         id: crypto.randomUUID(),
         role: "user",
@@ -206,7 +248,8 @@ export function useCapySession(opts: UseCapySessionOptions): UseCapySessionRetur
 
       setMessages((prev) => [...prev, userMsg, assistantMsg])
       setIsStreaming(true)
-      currentTextRef.current = ""
+      hadMutationsRef.current = false
+      lastTextContentRef.current = ""
 
       const session = ensureSession()
       session.send(enrichedMessage).catch((err) => {
@@ -216,16 +259,45 @@ export function useCapySession(opts: UseCapySessionOptions): UseCapySessionRetur
         })
       })
     },
-    [isStreaming, ensureSession, handleStreamEvent],
+    [ensureSession, handleStreamEvent, setIsStreaming],
   )
+
+  const stopStreaming = useCallback(() => {
+    sessionRef.current?.stop()
+    setIsStreaming(false)
+    lastTextContentRef.current = ""
+    sessionInterruptedRef.current = true
+
+    // Replace empty in-flight assistant bubble or append separator
+    const interruptBlock = { type: "text" as const, content: "Session interrupted. Send a message to continue." }
+    setMessages((prev) => {
+      const last = prev[prev.length - 1]
+      if (last?.role === "assistant" && last.blocks.length === 0) {
+        const updated = [...prev]
+        updated[updated.length - 1] = { ...last, blocks: [interruptBlock] }
+        return updated
+      }
+      return [
+        ...prev,
+        { id: crypto.randomUUID(), role: "assistant" as const, blocks: [interruptBlock] },
+      ]
+    })
+
+    if (hadMutationsRef.current) {
+      hadMutationsRef.current = false
+      optsRef.current.onDataChanged?.()
+    }
+  }, [setIsStreaming])
 
   const newChat = useCallback(() => {
     sessionRef.current?.restart()
     sessionRef.current = null
     setMessages([])
     setIsStreaming(false)
-    currentTextRef.current = ""
-  }, [])
+    hadMutationsRef.current = false
+    lastTextContentRef.current = ""
+    sessionInterruptedRef.current = false
+  }, [setIsStreaming])
 
-  return { messages, isStreaming, sendMessage, newChat }
+  return { messages, isStreaming, sendMessage, stopStreaming, newChat }
 }

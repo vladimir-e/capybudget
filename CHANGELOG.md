@@ -1,5 +1,24 @@
 # Changelog
 
+<!--
+CHANGELOG PHILOSOPHY:
+- This file is a chronological summary for understanding the app's history at a glance.
+- Each version should be ~3-8 short bullet points, one line each, NO sub-bullets.
+- Describe WHAT was added, not HOW it works.
+- Implementation details belong in specs/. Debugging details are in commits.
+- Resist the urge to be thorough here. Thoroughness goes in specs, not changelog.
+-->
+
+## 0.9.0 — 2026-03-15
+
+Intelligence layer polish — full CRUD, streaming fixes, session management.
+
+- Full CRUD via Capy: 12 mutation MCP tools so Claude can do everything the UI can
+- Streaming rework: append-only rendering, persistent tool activity in chat history
+- Stop button with session recovery: interrupts response, forwards conversation context to next session
+- Custom instructions and editable quick commands, stored in budget folder
+- Claude can read budget CSV files directly for debugging
+
 ## 0.8.0 — 2026-03-14
 
 Monorepo extraction — shared packages for code reuse across desktop, MCP, and future web demo.

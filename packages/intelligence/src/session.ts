@@ -8,6 +8,7 @@ export interface CapySessionOptions {
 
 export interface CapySession {
   send(message: string): Promise<void>
+  stop(): Promise<void>
   restart(): Promise<void>
   kill(): Promise<void>
   readonly isAlive: boolean

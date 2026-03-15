@@ -11,6 +11,8 @@ import {
 import { createDebouncedWriter } from "./debounced-writer";
 
 export interface DisposableRepository extends BudgetRepository {
+  /** Clear in-memory cache so next get*() re-reads from disk. */
+  invalidateCache(): void;
   dispose(): Promise<void>;
 }
 
@@ -26,7 +28,11 @@ async function writeCsvAtomic(
   await fileAdapter.rename(tmpPath, filePath);
 }
 
-export function createCsvRepository(folderPath: string, fileAdapter: FileAdapter): DisposableRepository {
+export function createCsvRepository(
+  folderPath: string,
+  fileAdapter: FileAdapter,
+  options?: { immediate?: boolean },
+): DisposableRepository {
   let accounts: Account[] | null = null;
   let categories: Category[] | null = null;
   let transactions: Transaction[] | null = null;
@@ -85,17 +91,26 @@ export function createCsvRepository(folderPath: string, fileAdapter: FileAdapter
 
     async saveAccounts(data: Account[]) {
       accounts = data;
-      writers.accounts.schedule();
+      if (options?.immediate) await writers.accounts.flush();
+      else writers.accounts.schedule();
     },
 
     async saveCategories(data: Category[]) {
       categories = data;
-      writers.categories.schedule();
+      if (options?.immediate) await writers.categories.flush();
+      else writers.categories.schedule();
     },
 
     async saveTransactions(data: Transaction[]) {
       transactions = data;
-      writers.transactions.schedule();
+      if (options?.immediate) await writers.transactions.flush();
+      else writers.transactions.schedule();
+    },
+
+    invalidateCache() {
+      accounts = null;
+      categories = null;
+      transactions = null;
     },
 
     async dispose() {

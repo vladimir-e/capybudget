@@ -5,14 +5,13 @@
  * - Lazy spawn on first message
  * - Stays alive in background (independent of overlay open/close)
  * - "New chat" kills and respawns with a fresh session ID
- * - Auto-restarts on unexpected process death
+ * - stop() kills the process and generates a new session ID (old one may be broken)
  */
 
 import { Command, type Child } from "@tauri-apps/plugin-shell"
 import { writeTextFile } from "@tauri-apps/plugin-fs"
 import { tempDir, join as joinPath } from "@tauri-apps/api/path"
 import {
-  SYSTEM_PROMPT,
   type SessionEvent,
   type CapySessionOptions,
 } from "@capybudget/intelligence"
@@ -26,12 +25,14 @@ export class CapySession {
   private sessionId: string = crypto.randomUUID()
   private readonly budgetPath: string
   private readonly mcpServerPath: string
+  private readonly systemPrompt: string
   private readonly onEvent: (event: SessionEvent) => void
   private killed = false
 
-  constructor(opts: CapySessionOptions) {
+  constructor(opts: CapySessionOptions & { systemPrompt: string }) {
     this.budgetPath = opts.budgetPath
     this.mcpServerPath = opts.mcpServerPath
+    this.systemPrompt = opts.systemPrompt
     this.onEvent = opts.onEvent
   }
 
@@ -44,7 +45,6 @@ export class CapySession {
     if (this.child) return
 
     this.killed = false
-    this.sessionId = crypto.randomUUID()
 
     const absoluteServerPath = `${__PROJECT_ROOT__}/${this.mcpServerPath}`
 
@@ -74,11 +74,13 @@ export class CapySession {
       "--mcp-config",
       configPath,
       "--system-prompt",
-      SYSTEM_PROMPT,
+      this.systemPrompt,
       "--session-id",
       this.sessionId,
       "--allowedTools",
-      "mcp__capy__*",
+      "mcp__capy__*,Read",
+      "--add-dir",
+      this.budgetPath,
       "--setting-sources",
       "",
     ])
@@ -119,10 +121,29 @@ export class CapySession {
     await this.child!.write(payload + "\n")
   }
 
+  /**
+   * Stop the current response.
+   * Kills the process and generates a new session ID because Claude CLI
+   * can't reliably resume a session that was interrupted mid-turn.
+   * The UI keeps its own message history, so nothing is lost visually.
+   */
+  async stop(): Promise<void> {
+    this.killed = true
+    if (this.child) {
+      try {
+        await this.child.kill()
+      } catch {
+        // Process may already be dead
+      }
+      this.child = null
+    }
+    this.sessionId = crypto.randomUUID()
+  }
+
   /** Kill the process and start fresh on next send(). */
   async restart(): Promise<void> {
     await this.kill()
-    // Process will be respawned on next send()
+    this.sessionId = crypto.randomUUID()
   }
 
   /** Kill the process. */

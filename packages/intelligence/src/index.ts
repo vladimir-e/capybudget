@@ -5,6 +5,7 @@ export type {
   TableBlock,
   BarChartBlock,
   DonutChartBlock,
+  ToolActivityBlock,
   ContentBlock,
   ChatMessage,
   StreamEvent,
@@ -16,3 +17,6 @@ export type { CapySessionOptions, CapySession } from "./session"
 
 // Prompt
 export { SYSTEM_PROMPT, buildContext } from "./prompt"
+
+// Tool metadata
+export { MUTATION_TOOL_NAMES } from "./tools"
