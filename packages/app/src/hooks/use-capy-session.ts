@@ -292,20 +292,23 @@ export function useCapySession(opts: UseCapySessionOptions): UseCapySessionRetur
   )
 
   const stopStreaming = useCallback(() => {
-    sessionRef.current?.stop()
+    const session = sessionRef.current
+    if (!session) return
+
+    session.stop().then(() => {
+      // If SIGINT worked, the process is still alive — Claude CLI will
+      // emit a result event and the done handler will fire naturally.
+      // If SIGINT failed and we fell back to hard kill, the exit handler
+      // will show "Session ended unexpectedly" and sessionInterruptedRef
+      // will be set when the user sends the next message.
+      if (!session.isAlive) {
+        // Hard kill happened — mark as interrupted for context forwarding
+        sessionInterruptedRef.current = true
+      }
+    })
+
     setIsStreaming(false)
     lastTextContentRef.current = ""
-    sessionInterruptedRef.current = true
-
-    // Add visual separator
-    setMessages((prev) => [
-      ...prev,
-      {
-        id: crypto.randomUUID(),
-        role: "assistant",
-        blocks: [{ type: "text", content: "Session interrupted. Send a message to continue." }],
-      },
-    ])
 
     if (hadMutationsRef.current) {
       hadMutationsRef.current = false
