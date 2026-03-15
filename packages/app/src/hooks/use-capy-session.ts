@@ -258,7 +258,6 @@ export function useCapySession(opts: UseCapySessionOptions): UseCapySessionRetur
   )
 
   const stopStreaming = useCallback(() => {
-    if (!isStreaming) return
     sessionRef.current?.stop()
     setIsStreaming(false)
     lastTextContentRef.current = ""
@@ -266,7 +265,7 @@ export function useCapySession(opts: UseCapySessionOptions): UseCapySessionRetur
       hadMutationsRef.current = false
       optsRef.current.onDataChanged?.()
     }
-  }, [isStreaming])
+  }, [])
 
   const newChat = useCallback(() => {
     sessionRef.current?.restart()
