@@ -15,8 +15,6 @@ import type {
   TableBlock,
 } from "@capybudget/intelligence"
 
-export type { StreamEvent }
-
 // ── Render tool → ContentBlock mapping ───────────────────────────
 
 const RENDER_TOOL_MAP: Record<string, (input: Record<string, unknown>) => ContentBlock | null> = {

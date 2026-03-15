@@ -3,12 +3,14 @@
  * Stored as capy-commands.json in the budget folder.
  */
 
-import { useState, useEffect, useCallback, useRef } from "react"
-import { readTextFile, writeTextFile } from "@tauri-apps/plugin-fs"
-import { join as joinPath } from "@tauri-apps/api/path"
-import type { CapyCommand } from "@/components/capy/capy-commands"
+import { useCallback } from "react"
+import { useBudgetFile } from "./use-budget-file"
 
-const COMMANDS_FILE = "capy-commands.json"
+export interface CapyCommand {
+  id: string
+  name: string
+  prompt: string
+}
 
 const DEFAULT_COMMANDS: CapyCommand[] = [
   {
@@ -32,45 +34,19 @@ function sortCommands(commands: CapyCommand[]): CapyCommand[] {
   return [...commands].sort((a, b) => a.name.localeCompare(b.name))
 }
 
-interface UseCustomCommandsReturn {
-  commands: CapyCommand[]
-  isLoading: boolean
-  save: (commands: CapyCommand[]) => Promise<void>
-}
+export function useCustomCommands(budgetPath: string) {
+  const { data, isLoading, save } = useBudgetFile(
+    budgetPath,
+    "capy-commands.json",
+    sortCommands(DEFAULT_COMMANDS),
+    (text) => sortCommands(JSON.parse(text) as CapyCommand[]),
+    (v) => JSON.stringify(v, null, 2),
+  )
 
-export function useCustomCommands(budgetPath: string): UseCustomCommandsReturn {
-  const [commands, setCommands] = useState<CapyCommand[]>([])
-  const [isLoading, setIsLoading] = useState(true)
-  const pathRef = useRef(budgetPath)
-  pathRef.current = budgetPath
+  const saveCommands = useCallback(
+    (commands: CapyCommand[]) => save(sortCommands(commands)),
+    [save],
+  )
 
-  useEffect(() => {
-    let cancelled = false
-
-    async function load() {
-      try {
-        const filePath = await joinPath(budgetPath, COMMANDS_FILE)
-        const text = await readTextFile(filePath)
-        const parsed = JSON.parse(text) as CapyCommand[]
-        if (!cancelled) setCommands(sortCommands(parsed))
-      } catch {
-        // File doesn't exist — use defaults
-        if (!cancelled) setCommands(sortCommands(DEFAULT_COMMANDS))
-      } finally {
-        if (!cancelled) setIsLoading(false)
-      }
-    }
-
-    load()
-    return () => { cancelled = true }
-  }, [budgetPath])
-
-  const save = useCallback(async (next: CapyCommand[]) => {
-    const sorted = sortCommands(next)
-    const filePath = await joinPath(pathRef.current, COMMANDS_FILE)
-    await writeTextFile(filePath, JSON.stringify(sorted, null, 2))
-    setCommands(sorted)
-  }, [])
-
-  return { commands, isLoading, save }
+  return { commands: data, isLoading, save: saveCommands }
 }

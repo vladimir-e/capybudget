@@ -14,25 +14,12 @@ import { parseStreamLine } from "@/services/capy-stream"
 import {
   buildContext,
   SYSTEM_PROMPT,
+  MUTATION_TOOL_NAMES,
   type SessionEvent,
   type StreamEvent,
   type ChatMessage,
 } from "@capybudget/intelligence"
-
-const MUTATION_TOOLS = new Set([
-  "create_transaction",
-  "update_transaction",
-  "delete_transactions",
-  "create_account",
-  "update_account",
-  "delete_account",
-  "archive_account",
-  "create_category",
-  "update_category",
-  "delete_category",
-  "archive_category",
-  "assign_categories",
-])
+import { serializeConversation } from "@/services/serialize-conversation"
 
 const CONTEXT_MAX_CHARS = 5000
 
@@ -50,29 +37,6 @@ interface UseCapySessionReturn {
   sendMessage: (text: string) => void
   stopStreaming: () => void
   newChat: () => void
-}
-
-/** Serialize chat messages into a text summary for context forwarding. */
-function serializeConversation(messages: ChatMessage[], maxChars: number): string {
-  const lines: string[] = []
-
-  for (const msg of messages) {
-    const role = msg.role === "user" ? "User" : "Capy"
-    for (const block of msg.blocks) {
-      if (block.type === "text") {
-        lines.push(`${role}: ${block.content}`)
-      } else if (block.type === "tool-activity") {
-        lines.push(`[Tool: ${block.tool}]`)
-      }
-      // Skip tables/charts — too verbose for context
-    }
-  }
-
-  let text = lines.join("\n")
-  if (text.length > maxChars) {
-    text = "...\n" + text.slice(-maxChars)
-  }
-  return text
 }
 
 export function useCapySession(opts: UseCapySessionOptions): UseCapySessionReturn {
@@ -107,7 +71,7 @@ export function useCapySession(opts: UseCapySessionOptions): UseCapySessionRetur
             if (block.type === "text") {
               const prevText = lastTextContentRef.current
               if (prevText && block.content.startsWith(prevText)) {
-                const lastTextIdx = findLastIndex(blocks, (b) => b.type === "text")
+                const lastTextIdx = blocks.findLastIndex((b) => b.type === "text")
                 if (lastTextIdx >= 0) {
                   blocks[lastTextIdx] = block
                 } else {
@@ -127,7 +91,7 @@ export function useCapySession(opts: UseCapySessionOptions): UseCapySessionRetur
         })
 
         for (const block of event.blocks) {
-          if (block.type === "tool-activity" && MUTATION_TOOLS.has(block.tool)) {
+          if (block.type === "tool-activity" && MUTATION_TOOL_NAMES.has(block.tool)) {
             hadMutationsRef.current = true
             break
           }
@@ -325,11 +289,4 @@ export function useCapySession(opts: UseCapySessionOptions): UseCapySessionRetur
   }, [])
 
   return { messages, isStreaming, sendMessage, stopStreaming, newChat }
-}
-
-function findLastIndex<T>(arr: T[], predicate: (item: T) => boolean): number {
-  for (let i = arr.length - 1; i >= 0; i--) {
-    if (predicate(arr[i])) return i
-  }
-  return -1
 }

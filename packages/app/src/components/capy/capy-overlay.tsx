@@ -3,7 +3,7 @@ import { RotateCcw, Send, Settings2, Sparkles, Square, X, Wrench } from "lucide-
 import { CommandPicker } from "./command-picker"
 import { InstructionsDialog } from "./instructions-dialog"
 import { getToolLabel } from "@/services/capy-stream"
-import type { CapyCommand } from "./capy-commands"
+import type { CapyCommand } from "@/hooks/use-custom-commands"
 import type {
   ChatMessage,
   ContentBlock,

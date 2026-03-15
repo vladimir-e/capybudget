@@ -1,7 +1,7 @@
 import { useState } from "react"
 import { ChevronUp, Pencil, Plus, Trash2, X, Check } from "lucide-react"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import type { CapyCommand } from "./capy-commands"
+import type { CapyCommand } from "@/hooks/use-custom-commands"
 
 interface CommandPickerProps {
   commands: CapyCommand[]
