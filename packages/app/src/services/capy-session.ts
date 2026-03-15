@@ -120,9 +120,10 @@ export class CapySession {
   }
 
   /**
-   * Stop the current response without resetting the session.
-   * Kills the process but preserves the session ID so conversation
-   * history continues on next send().
+   * Stop the current response.
+   * Kills the process and generates a new session ID because Claude CLI
+   * can't reliably resume a session that was interrupted mid-turn.
+   * The UI keeps its own message history, so nothing is lost visually.
    */
   async stop(): Promise<void> {
     this.killed = true
@@ -134,7 +135,7 @@ export class CapySession {
       }
       this.child = null
     }
-    // Session ID preserved — next spawn() reuses it
+    this.sessionId = crypto.randomUUID()
   }
 
   /** Kill the process and start fresh on next send(). */
