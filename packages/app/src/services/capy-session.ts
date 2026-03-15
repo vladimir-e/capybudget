@@ -79,6 +79,8 @@ export class CapySession {
       this.sessionId,
       "--allowedTools",
       "mcp__capy__*,Read",
+      "--add-dir",
+      this.budgetPath,
       "--setting-sources",
       "",
     ])

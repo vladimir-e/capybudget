@@ -245,6 +245,7 @@ export function useCapySession(opts: UseCapySessionOptions): UseCapySessionRetur
       const o = optsRef.current
       const context = buildContext({
         budgetName: o.budgetName,
+        budgetPath: o.budgetPath,
       })
 
       // If recovering from an interrupted session, forward conversation context

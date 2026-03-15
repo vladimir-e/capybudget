@@ -71,6 +71,7 @@ All amounts for write tools are in positive integer cents (e.g. 1250 = $12.50). 
  */
 export function buildContext(opts: {
   budgetName: string
+  budgetPath?: string
 }): string {
   const date = new Date().toLocaleDateString("en-US", {
     year: "numeric",
@@ -78,11 +79,16 @@ export function buildContext(opts: {
     day: "numeric",
   })
 
-  return [
+  const lines = [
     "[Context]",
     `Budget: ${opts.budgetName}`,
     `Date: ${date}`,
-    "",
-    "[User message]",
-  ].join("\n")
+  ]
+
+  if (opts.budgetPath) {
+    lines.push(`Budget folder: ${opts.budgetPath}`)
+  }
+
+  lines.push("", "[User message]")
+  return lines.join("\n")
 }
