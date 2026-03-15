@@ -41,11 +41,18 @@ interface UseCapySessionReturn {
 
 export function useCapySession(opts: UseCapySessionOptions): UseCapySessionReturn {
   const [messages, setMessages] = useState<ChatMessage[]>([])
-  const [isStreaming, setIsStreaming] = useState(false)
+  const [isStreaming, _setIsStreaming] = useState(false)
+  const isStreamingRef = useRef(false)
   const sessionRef = useRef<CapySession | null>(null)
   const hadMutationsRef = useRef(false)
   const lastTextContentRef = useRef("")
   const sessionInterruptedRef = useRef(false)
+
+  // Keep ref and state in sync so callbacks can check without stale closures
+  const setIsStreaming = useCallback((value: boolean) => {
+    isStreamingRef.current = value
+    _setIsStreaming(value)
+  }, [])
 
   // Keep refs to current values for use in callbacks without stale closures
   const messagesRef = useRef(messages)
@@ -134,7 +141,7 @@ export function useCapySession(opts: UseCapySessionOptions): UseCapySessionRetur
         })
         break
     }
-  }, [])
+  }, [setIsStreaming])
 
   const handleSessionEvent = useCallback(
     (event: SessionEvent) => {
@@ -174,7 +181,7 @@ export function useCapySession(opts: UseCapySessionOptions): UseCapySessionRetur
           break
       }
     },
-    [handleStreamEvent],
+    [handleStreamEvent, setIsStreaming],
   )
 
   useEffect(() => {
@@ -204,6 +211,7 @@ export function useCapySession(opts: UseCapySessionOptions): UseCapySessionRetur
 
   const sendMessage = useCallback(
     (text: string) => {
+      if (isStreamingRef.current) return
       const o = optsRef.current
       const context = buildContext({
         budgetName: o.budgetName,
@@ -251,7 +259,7 @@ export function useCapySession(opts: UseCapySessionOptions): UseCapySessionRetur
         })
       })
     },
-    [ensureSession, handleStreamEvent],
+    [ensureSession, handleStreamEvent, setIsStreaming],
   )
 
   const stopStreaming = useCallback(() => {
@@ -260,21 +268,26 @@ export function useCapySession(opts: UseCapySessionOptions): UseCapySessionRetur
     lastTextContentRef.current = ""
     sessionInterruptedRef.current = true
 
-    // Add visual separator
-    setMessages((prev) => [
-      ...prev,
-      {
-        id: crypto.randomUUID(),
-        role: "assistant",
-        blocks: [{ type: "text", content: "Session interrupted. Send a message to continue." }],
-      },
-    ])
+    // Replace empty in-flight assistant bubble or append separator
+    const interruptBlock = { type: "text" as const, content: "Session interrupted. Send a message to continue." }
+    setMessages((prev) => {
+      const last = prev[prev.length - 1]
+      if (last?.role === "assistant" && last.blocks.length === 0) {
+        const updated = [...prev]
+        updated[updated.length - 1] = { ...last, blocks: [interruptBlock] }
+        return updated
+      }
+      return [
+        ...prev,
+        { id: crypto.randomUUID(), role: "assistant" as const, blocks: [interruptBlock] },
+      ]
+    })
 
     if (hadMutationsRef.current) {
       hadMutationsRef.current = false
       optsRef.current.onDataChanged?.()
     }
-  }, [])
+  }, [setIsStreaming])
 
   const newChat = useCallback(() => {
     sessionRef.current?.restart()
@@ -284,7 +297,7 @@ export function useCapySession(opts: UseCapySessionOptions): UseCapySessionRetur
     hadMutationsRef.current = false
     lastTextContentRef.current = ""
     sessionInterruptedRef.current = false
-  }, [])
+  }, [setIsStreaming])
 
   return { messages, isStreaming, sendMessage, stopStreaming, newChat }
 }

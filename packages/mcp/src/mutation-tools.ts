@@ -35,7 +35,8 @@ export const MUTATION_TOOLS = [
           description: "Transaction type",
         },
         amount: {
-          type: "number",
+          type: "integer",
+          minimum: 0,
           description: "Amount in positive cents (e.g. 1250 = $12.50)",
         },
         accountId: {
@@ -83,7 +84,8 @@ export const MUTATION_TOOLS = [
           description: "New transaction type",
         },
         amount: {
-          type: "number",
+          type: "integer",
+          minimum: 0,
           description: "New amount in positive cents",
         },
         accountId: {
@@ -149,7 +151,8 @@ export const MUTATION_TOOLS = [
           description: "Account type",
         },
         openingBalance: {
-          type: "number",
+          type: "integer",
+          minimum: 0,
           description: "Opening balance in positive cents (optional)",
         },
       },
@@ -312,10 +315,15 @@ export async function handleCreateTransaction(
   repo: BudgetRepository,
   args: Record<string, unknown>,
 ): Promise<string> {
+  const type = args.type as TransactionType
+  if (type === "transfer" && !args.toAccountId) {
+    return JSON.stringify({ error: "toAccountId is required for transfers" })
+  }
+
   const existing = await repo.getTransactions()
   const next = createTransaction(
     {
-      type: args.type as TransactionType,
+      type,
       amount: args.amount as number,
       accountId: args.accountId as string,
       categoryId: (args.categoryId as string) ?? "",
@@ -348,14 +356,26 @@ export async function handleUpdateTransaction(
   const original = existing.find((t) => t.id === args.id)
   if (!original) return JSON.stringify({ error: `Transaction ${args.id} not found` })
 
+  const effectiveType = (args.type as TransactionType) ?? original.type
+
+  // Infer toAccountId from the existing transfer pair if not provided
+  let toAccountId = args.toAccountId as string | undefined
+  if (effectiveType === "transfer" && !toAccountId && original.transferPairId) {
+    const pair = existing.find((t) => t.id === original.transferPairId)
+    if (pair) toAccountId = pair.accountId
+  }
+  if (effectiveType === "transfer" && !toAccountId) {
+    return JSON.stringify({ error: "toAccountId is required for transfers" })
+  }
+
   const next = updateTransaction(
     {
       id: args.id as string,
-      type: (args.type as TransactionType) ?? original.type,
+      type: effectiveType,
       amount: (args.amount as number) ?? Math.abs(original.amount),
       accountId: (args.accountId as string) ?? original.accountId,
       categoryId: (args.categoryId as string) ?? original.categoryId,
-      toAccountId: args.toAccountId as string | undefined,
+      toAccountId,
       date: (args.date as string) ?? original.datetime.slice(0, 10),
       merchant: (args.merchant as string) ?? original.merchant,
       note: (args.note as string) ?? original.note,

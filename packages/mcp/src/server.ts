@@ -124,7 +124,12 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 // ── Graceful shutdown ────────────────────────────────────────────
 
 async function shutdown() {
-  await repo.dispose()
+  try {
+    await repo.dispose()
+  } catch (err) {
+    console.error("Error during shutdown:", err)
+    process.exit(1)
+  }
   process.exit(0)
 }
 process.on("SIGTERM", shutdown)

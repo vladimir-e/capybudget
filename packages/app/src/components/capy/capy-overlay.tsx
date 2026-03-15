@@ -59,7 +59,7 @@ export function CapyOverlay({
 
   const handleSend = () => {
     const text = input.trim()
-    if (!text) return
+    if (!text || isStreaming) return
     onSend(text)
     setInput("")
   }
@@ -70,8 +70,6 @@ export function CapyOverlay({
       handleSend()
     }
   }
-
-  const showThinking = isStreaming
 
   return (
     <div
@@ -153,7 +151,7 @@ export function CapyOverlay({
             {messages.map((msg) => (
               <MessageBubble key={msg.id} message={msg} />
             ))}
-            {showThinking && (
+            {isStreaming && (
               <div className="flex justify-start">
                 <div className="rounded-2xl rounded-bl-sm bg-muted/40 px-5 py-4">
                   <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -196,7 +194,7 @@ export function CapyOverlay({
               <button
                 type="button"
                 onClick={handleSend}
-                disabled={!input.trim()}
+                disabled={!input.trim() || isStreaming}
                 className="rounded-xl p-2.5 text-brand hover:bg-brand/10 disabled:opacity-25 disabled:hover:bg-transparent transition-colors"
                 aria-label="Send message"
               >

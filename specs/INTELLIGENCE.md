@@ -170,7 +170,7 @@ Each user message is wrapped with app context before sending:
 [Context]
 Budget: personal
 Date: March 15, 2026
-Budget folder: /Users/vlad/budgets/capy
+Budget folder: /path/to/budget
 
 [User message]
 What did I spend on food this month?
