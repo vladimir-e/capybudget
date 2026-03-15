@@ -210,11 +210,11 @@ export function CapyOverlay({
               <button
                 type="button"
                 onClick={() => setInstructionsOpen(true)}
-                className="text-muted-foreground/40 hover:text-muted-foreground transition-colors cursor-pointer"
+                className="inline-flex items-center gap-1 text-xs text-muted-foreground/40 hover:text-muted-foreground transition-colors cursor-pointer"
                 aria-label="Custom instructions"
-                title="Custom instructions"
               >
-                <Settings2 className="h-3.5 w-3.5" />
+                <Settings2 className="h-3 w-3" />
+                Instructions
               </button>
             </div>
             <p className="text-xs text-muted-foreground/40">
