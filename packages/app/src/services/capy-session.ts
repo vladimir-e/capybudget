@@ -4,13 +4,11 @@
  * Lifecycle:
  * - Lazy spawn on first message
  * - Stays alive in background (independent of overlay open/close)
- * - stop() sends SIGINT to gracefully interrupt the current response
- *   while keeping the process and session alive
  * - "New chat" kills and respawns with a fresh session ID
+ * - stop() kills the process but preserves session ID for continuity
  */
 
 import { Command, type Child } from "@tauri-apps/plugin-shell"
-import { invoke } from "@tauri-apps/api/core"
 import { writeTextFile } from "@tauri-apps/plugin-fs"
 import { tempDir, join as joinPath } from "@tauri-apps/api/path"
 import {
@@ -80,7 +78,7 @@ export class CapySession {
       "--session-id",
       this.sessionId,
       "--allowedTools",
-      "mcp__capy__*,Read",
+      "mcp__capy__*",
       "--setting-sources",
       "",
     ])
@@ -122,28 +120,22 @@ export class CapySession {
   }
 
   /**
-   * Interrupt the current response via SIGINT.
-   * Claude CLI handles SIGINT gracefully — stops the current turn
-   * but keeps the process alive with session history intact.
-   * Falls back to kill + new session if SIGINT fails.
+   * Stop the current response.
+   * Kills the process and generates a new session ID because Claude CLI
+   * can't reliably resume a session that was interrupted mid-turn.
+   * The UI keeps its own message history, so nothing is lost visually.
    */
   async stop(): Promise<void> {
-    if (!this.child) return
-
-    try {
-      await invoke("send_sigint", { pid: this.child.pid })
-      // Process stays alive — session continues on next send()
-    } catch {
-      // SIGINT failed — fall back to hard kill + new session
-      this.killed = true
+    this.killed = true
+    if (this.child) {
       try {
         await this.child.kill()
       } catch {
         // Process may already be dead
       }
       this.child = null
-      this.sessionId = crypto.randomUUID()
     }
+    this.sessionId = crypto.randomUUID()
   }
 
   /** Kill the process and start fresh on next send(). */
