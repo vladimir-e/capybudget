@@ -78,7 +78,7 @@ export class CapySession {
       "--session-id",
       this.sessionId,
       "--allowedTools",
-      "mcp__capy__*",
+      "mcp__capy__*,Read",
       "--setting-sources",
       "",
     ])
