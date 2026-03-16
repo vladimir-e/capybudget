@@ -115,7 +115,7 @@ export function Sidebar({
       if (balance !== 0) {
         setErrorDialog({
           title: "Cannot Archive Account",
-          description: `${account.name} has a balance of ${formatMoney(balance)}. Clear the balance first.`,
+          description: `${account.name} still has a ${formatMoney(Math.abs(balance))} balance. Add a transaction to bring it to zero first — archived accounts are hidden from your budget.`,
         });
         return;
       }
@@ -133,7 +133,7 @@ export function Sidebar({
     if (hasRealTxns) {
       setErrorDialog({
         title: "Cannot Delete Account",
-        description: `${account.name} has transactions. Remove them first.`,
+        description: `${account.name} has transactions that would be lost. Delete or move them first, or archive the account instead.`,
       });
       return;
     }
