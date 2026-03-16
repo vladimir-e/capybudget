@@ -43,7 +43,7 @@ function DemoBudgetLayout() {
 
   return (
     <RepositoryProvider key={presetId} value={repo}>
-      <BudgetShell path={`/home/${presetId}`} name={name} />
+      <BudgetShell path={`/home/demo/documents/${presetId}`} name={name} />
     </RepositoryProvider>
   );
 }
