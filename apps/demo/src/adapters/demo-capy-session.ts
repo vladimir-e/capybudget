@@ -3,6 +3,7 @@
  *
  * Instead of spawning Claude CLI, it emits pre-built sample responses
  * that showcase the rich content rendering (donut chart).
+ * Simulates realistic streaming timing.
  */
 
 import type { SessionEvent } from "@capybudget/intelligence";
@@ -31,87 +32,58 @@ export class CapySession {
   async send(_message: string): Promise<void> {
     this.alive = true;
 
-    // Simulate streaming with small delays
-    const emit = (line: string) =>
-      new Promise<void>((resolve) => {
-        setTimeout(() => {
-          this.onEvent({ type: "stdout", line });
-          resolve();
-        }, 100);
+    const delay = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+    const emit = (content: unknown[]) =>
+      this.onEvent({
+        type: "stdout",
+        line: JSON.stringify({ type: "assistant", message: { content } }),
       });
 
-    // Step 1: Tool activity
-    await emit(JSON.stringify({
-      type: "assistant",
-      message: {
-        content: [
-          { type: "tool_use", name: "mcp__capy__spending_summary", input: {} },
-        ],
-      },
-    }));
+    // Step 1: Tool activity — "Calculating spending" spinner
+    emit([{ type: "tool_use", name: "mcp__capy__spending_summary", input: {} }]);
+    await delay(2000);
 
-    // Step 2: Text + donut chart
-    await emit(JSON.stringify({
-      type: "assistant",
-      message: {
-        content: [
-          { type: "tool_use", name: "mcp__capy__spending_summary", input: {} },
-          {
-            type: "text",
-            text: "Here's a sample of what Capy can do with your budget data. In the full desktop app, I analyze your actual transactions in real time.",
-          },
-          {
-            type: "tool_use",
-            name: "mcp__capy__render_donut_chart",
-            input: {
-              title: "Spending Distribution",
-              data: [
-                { label: "Housing", value: 1950.0 },
-                { label: "Groceries", value: 265.0 },
-                { label: "Big Purchases", value: 350.0 },
-                { label: "Dining Out", value: 236.0 },
-                { label: "Other", value: 538.0 },
-              ],
-            },
-          },
-        ],
-      },
-    }));
+    // Step 2: Intro text
+    emit([{
+      type: "text",
+      text: "Here's a sample of what Capy can do with your budget data. In the full desktop app, I analyze your actual transactions in real time.",
+    }]);
+    await delay(200);
 
-    // Step 3: Add closing text
-    await emit(JSON.stringify({
-      type: "assistant",
-      message: {
-        content: [
-          { type: "tool_use", name: "mcp__capy__spending_summary", input: {} },
-          {
-            type: "text",
-            text: "Here's a sample of what Capy can do with your budget data. In the full desktop app, I analyze your actual transactions in real time.",
-          },
-          {
-            type: "tool_use",
-            name: "mcp__capy__render_donut_chart",
-            input: {
-              title: "Spending Distribution",
-              data: [
-                { label: "Housing", value: 1950.0 },
-                { label: "Groceries", value: 265.0 },
-                { label: "Big Purchases", value: 350.0 },
-                { label: "Dining Out", value: 236.0 },
-                { label: "Other", value: 538.0 },
-              ],
-            },
-          },
-          {
-            type: "text",
-            text: "This is a demo — AI features require the Capy Budget desktop app with Claude CLI installed. Download it to get personalized insights, spending analysis, and natural-language budget management.",
-          },
+    // Step 3: Donut chart
+    emit([{
+      type: "tool_use",
+      name: "mcp__capy__render_donut_chart",
+      input: {
+        title: "Spending Distribution",
+        data: [
+          { label: "Housing", value: 1950.0 },
+          { label: "Groceries", value: 265.0 },
+          { label: "Big Purchases", value: 350.0 },
+          { label: "Dining Out", value: 236.0 },
+          { label: "Other", value: 538.0 },
         ],
       },
-    }));
+    }]);
+    await delay(1000);
+
+    // Step 4: Closing text — streamed in chunks
+    const closingText =
+      "This is a demo — AI features require the Capy Budget desktop app with Claude CLI installed. Download it to get personalized insights, spending analysis, and natural-language budget management.";
+    const words = closingText.split(" ");
+    let accumulated = "";
+    for (let i = 0; i < words.length; i += 3) {
+      const chunk = words.slice(i, i + 3).join(" ");
+      accumulated += (accumulated ? " " : "") + chunk;
+      emit([{ type: "text", text: accumulated }]);
+      await delay(100);
+    }
 
     // Done
-    await emit(JSON.stringify({ type: "result" }));
+    this.onEvent({
+      type: "stdout",
+      line: JSON.stringify({ type: "result" }),
+    });
     this.alive = false;
   }
 
