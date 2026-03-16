@@ -14,10 +14,10 @@ CHANGELOG PHILOSOPHY:
 Web demo — browser-based demo deployed to GitHub Pages.
 
 - Demo shell at `apps/demo/` mounts the same `@capybudget/app` with no Tauri dependency
-- In-memory repository with preset budget data (4 accounts, ~45 transactions)
+- Three budget presets (underwater, paycheck-to-paycheck, no-stress) with in-memory repository
 - Stub intelligence layer showcasing rich content rendering, prompts desktop install for real AI
 - Tauri module stubs so shared app code runs unmodified in the browser
-- GitHub Actions workflow: builds on PR, deploys to GitHub Pages on push to main
+- GitHub Actions workflow: deploys to GitHub Pages on push to main
 
 ## 0.9.0 — 2026-03-15
 

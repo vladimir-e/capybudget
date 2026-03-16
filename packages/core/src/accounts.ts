@@ -60,7 +60,7 @@ export function updateAccount(
   );
 }
 
-function isOpeningBalanceTxn(t: Transaction): boolean {
+export function isOpeningBalanceTxn(t: Transaction): boolean {
   return t.type === "income" && t.merchant === "Opening Balance" && t.categoryId === "" && t.transferPairId === "";
 }
 

@@ -36,7 +36,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { formatMoney, formatMoneyCompact, ACCOUNT_TYPE_LABELS, getAccountBalance, getAccountsByGroup, getNetWorth } from "@capybudget/core";
+import { formatMoney, formatMoneyCompact, ACCOUNT_TYPE_LABELS, getAccountBalance, getAccountsByGroup, getNetWorth, isOpeningBalanceTxn } from "@capybudget/core";
 import { useAccounts, useTransactions } from "@/hooks/use-budget-data";
 import {
   useDeleteAccount,
@@ -127,9 +127,7 @@ export function Sidebar({
 
   function handleDelete(account: Account) {
     const accountTxns = transactions.filter((t) => t.accountId === account.id);
-    const hasRealTxns = accountTxns.some(
-      (t) => !(t.type === "income" && t.merchant === "Opening Balance" && t.categoryId === "" && t.transferPairId === ""),
-    );
+    const hasRealTxns = accountTxns.some((t) => !isOpeningBalanceTxn(t));
     if (hasRealTxns) {
       setErrorDialog({
         title: "Cannot Delete Account",

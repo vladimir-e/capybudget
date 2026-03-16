@@ -41,6 +41,7 @@ export type { AccountFormData } from "./accounts";
 export {
   createAccount,
   createOpeningBalanceTransaction,
+  isOpeningBalanceTxn,
   updateAccount,
   deleteAccount,
   archiveAccount,
