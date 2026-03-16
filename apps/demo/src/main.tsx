@@ -1,4 +1,4 @@
-import "../packages/app/src/styles/index.css";
+import "./styles.css";
 import { routeTree } from "./routeTree.gen";
 import { bootstrapApp } from "@/bootstrap";
 

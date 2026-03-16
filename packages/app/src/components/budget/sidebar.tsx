@@ -28,6 +28,14 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import type { Account, AccountType } from "@capybudget/core";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { formatMoney, formatMoneyCompact, ACCOUNT_TYPE_LABELS, getAccountBalance, getAccountsByGroup, getNetWorth } from "@capybudget/core";
 import { useAccounts, useTransactions } from "@/hooks/use-budget-data";
 import {
@@ -62,6 +70,7 @@ export function Sidebar({
   const archiveAccount = useArchiveAccount();
   const unarchiveAccount = useUnarchiveAccount();
   const [showArchived, setShowArchived] = useState(false);
+  const [errorDialog, setErrorDialog] = useState<{ title: string; description: string } | null>(null);
   const matches = useMatches();
   const activeAccountId = matches.reduce<string | undefined>((found, m) => {
     const params = m.params as Record<string, unknown>;
@@ -102,6 +111,14 @@ export function Sidebar({
         onSuccess: () => toast.success(`${account.name} unarchived`),
       });
     } else {
+      const balance = getAccountBalance(account.id, transactions);
+      if (balance !== 0) {
+        setErrorDialog({
+          title: "Cannot Archive Account",
+          description: `${account.name} still has a ${formatMoney(Math.abs(balance))} balance. Add a transaction to bring it to zero first — archived accounts are hidden from your budget.`,
+        });
+        return;
+      }
       archiveAccount.mutate(account.id, {
         onSuccess: () => toast.success(`${account.name} archived`),
       });
@@ -109,6 +126,17 @@ export function Sidebar({
   }
 
   function handleDelete(account: Account) {
+    const accountTxns = transactions.filter((t) => t.accountId === account.id);
+    const hasRealTxns = accountTxns.some(
+      (t) => !(t.type === "income" && t.merchant === "Opening Balance" && t.categoryId === "" && t.transferPairId === ""),
+    );
+    if (hasRealTxns) {
+      setErrorDialog({
+        title: "Cannot Delete Account",
+        description: `${account.name} has transactions that would be lost. Delete or move them first, or archive the account instead.`,
+      });
+      return;
+    }
     deleteAccount.mutate(account.id, {
       onSuccess: () => toast.success(`${account.name} deleted`),
     });
@@ -283,6 +311,16 @@ export function Sidebar({
           Categories
         </Link>
       </div>
+
+      <Dialog open={!!errorDialog} onOpenChange={(open) => { if (!open) setErrorDialog(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{errorDialog?.title}</DialogTitle>
+            <DialogDescription>{errorDialog?.description}</DialogDescription>
+          </DialogHeader>
+          <DialogFooter showCloseButton />
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

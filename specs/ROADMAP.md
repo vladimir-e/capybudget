@@ -179,7 +179,7 @@ Extract shared logic into packages, decouple from Tauri. See `MONOREPO.md` for a
 
 - [ ] **6.1 — Web Demo**
   - Browser-based demo deployed to GitHub Pages
-  - Preset budget data via in-memory repository
+  - Three budget presets via in-memory repository
   - Stub intelligence layer (prompts local install for AI features, shows sample render tool output)
   - deploy on a PR for testing
 

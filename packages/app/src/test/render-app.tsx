@@ -5,7 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createMemoryHistory, createRouter, RouterProvider } from "@tanstack/react-router";
 import { afterEach } from "vitest";
 import { routeTree } from "../../../../src/routeTree.gen";
-import { createMemoryRepository, type MemoryRepository, type MemoryRepositoryData } from "@/test/memory-repository";
+import { createInMemoryRepository, type InMemoryRepository, type MemoryRepositoryData } from "@capybudget/persistence";
 import { useUndoStore } from "@/stores/undo-store";
 
 export interface RenderAppOptions {
@@ -17,7 +17,7 @@ export interface RenderAppOptions {
 
 export interface RenderAppResult extends RenderResult {
   user: UserEvent;
-  repo: MemoryRepository;
+  repo: InMemoryRepository;
   queryClient: QueryClient;
 }
 
@@ -48,7 +48,7 @@ export async function renderApp(options: RenderAppOptions = {}): Promise<RenderA
     url = "/budget?path=/test-budget&name=Test+Budget",
   } = options;
 
-  const repo = createMemoryRepository(seed);
+  const repo = createInMemoryRepository(seed);
 
   // Inject repo so the mocked createCsvRepository returns it (see journeys/setup.ts)
   (globalThis as Record<string, unknown>).__testRepo = repo;

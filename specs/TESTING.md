@@ -39,7 +39,7 @@ Journey tests exercise real user interactions (open form, type, click, submit) a
 |------|---------|
 | `src/test/setup.ts` | Global setup: jest-dom matchers, browser API polyfills, Tauri API mocks |
 | `src/test/factories.ts` | `makeAccount()`, `makeCategory()`, `makeTransaction()` — test data builders |
-| `src/test/memory-repository.ts` | `BudgetRepository` backed by plain arrays (no persistence) |
+| `@capybudget/persistence` (`createInMemoryRepository`) | `DisposableRepository` backed by plain arrays (no persistence) |
 | `src/test/render-app.tsx` | `renderApp()` — mounts full app with memory router, fresh QueryClient, cleanup |
 | `src/test/journeys/setup.ts` | Mocks `createCsvRepository` → memory repo (import in journey tests only) |
 
