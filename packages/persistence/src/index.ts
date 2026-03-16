@@ -20,3 +20,7 @@ export {
 
 // Debounced writer
 export { createDebouncedWriter } from "./debounced-writer";
+
+// Memory repository (demo + tests)
+export type { MemoryRepositoryData, InMemoryRepository } from "./memory-repository";
+export { createInMemoryRepository } from "./memory-repository";

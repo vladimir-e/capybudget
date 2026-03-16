@@ -17,7 +17,8 @@
     "noFallthroughCasesInSwitch": true,
     "baseUrl": ".",
     "paths": {
-      "@/*": ["./packages/app/src/*"]
+      "@/*": ["./packages/app/src/*"],
+      "@demo/*": ["./apps/demo/src/*"]
     }
   },
   "include": ["src", "packages"],

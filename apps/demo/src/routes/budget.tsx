@@ -1,9 +1,10 @@
-import { useMemo, useRef } from "react";
+import { useEffect, useMemo } from "react";
 import { createFileRoute, Navigate } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { BudgetShell } from "@/components/budget/budget-shell";
 import { RepositoryProvider } from "@/providers/repository-provider";
-import { createInMemoryRepository } from "../adapters/in-memory-repository";
+import { budgetKeys } from "@/hooks/use-budget-data";
+import { createInMemoryRepository } from "@capybudget/persistence";
 import { PRESETS } from "../data/presets";
 
 interface BudgetSearch {
@@ -23,18 +24,18 @@ function DemoBudgetLayout() {
   const { path: presetId, name } = Route.useSearch();
   const preset = PRESETS[presetId];
   const queryClient = useQueryClient();
-  const prevPresetRef = useRef<string | null>(null);
-
-  // Clear stale budget data when switching presets
-  if (prevPresetRef.current !== presetId) {
-    prevPresetRef.current = presetId;
-    queryClient.removeQueries({ queryKey: ["budget"] });
-  }
 
   const repo = useMemo(() => {
     if (!preset) return null;
-    return createInMemoryRepository(preset.accounts, preset.categories, preset.transactions);
+    return createInMemoryRepository(preset);
   }, [preset]);
+
+  useEffect(() => {
+    return () => {
+      void repo?.dispose();
+      queryClient.removeQueries({ queryKey: budgetKeys.all });
+    };
+  }, [repo, queryClient]);
 
   if (!preset || !repo) {
     return <Navigate to="/" />;
