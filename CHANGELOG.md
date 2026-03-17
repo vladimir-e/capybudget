@@ -9,6 +9,16 @@ CHANGELOG PHILOSOPHY:
 - Resist the urge to be thorough here. Thoroughness goes in specs, not changelog.
 -->
 
+## 0.11.0 — 2026-03-16
+
+File attachments for Capy intelligence — upload bank imports, screenshots, and other files.
+
+- Attach files to chat messages via paperclip button or drag-and-drop anywhere on the overlay
+- Image files sent as multimodal content (base64) so Claude can see screenshots
+- Text files (CSV, OFX, QFX, etc.) inlined in the message with filename markers
+- Attachment chips with file size, type-aware icons, and remove button
+- Size limits: 5MB per file, 10MB total
+
 ## 0.10.0 — 2026-03-15
 
 Web demo — browser-based demo deployed to GitHub Pages.
