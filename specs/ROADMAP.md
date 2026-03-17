@@ -177,7 +177,7 @@ Extract shared logic into packages, decouple from Tauri. See `MONOREPO.md` for a
 
 ## Phase 6: Demo & Distribution
 
-- [ ] **6.1 — Web Demo**
+- [x] **6.1 — Web Demo**
   - Browser-based demo deployed to GitHub Pages
   - Three budget presets via in-memory repository
   - Stub intelligence layer (prompts local install for AI features, shows sample render tool output)
@@ -187,24 +187,14 @@ Extract shared logic into packages, decouple from Tauri. See `MONOREPO.md` for a
 
 ## Phase 7: Smart Import
 
-Paste or drop bank data, Claude parses it, you review and confirm.
+Drop a file, intelligence normalizes it, you review and merge. See `SMART_IMPORT.md`.
 
-- [ ] **7.1 — CSV Import**
-  - Drop bank-exported CSV
-  - Claude maps varied bank formats into internal transaction schema and saves to a file, ready to pass to the app
-    - ensure idempotency
-    - transfers will be especially tricky
-  - When file is ready, display a button in the chat to preview the data
-
-- [ ] **7.2 — Preview Area**
-  - preview area is an independent front-end module that operates on the normalized import file
-  - provides table with transactions data using same UX as the main transactions table
-  - user can edit information and changes will be saved to the file
-  - has a button to confirm import of transactions that will store information from the file in our database
-
-- [ ] **7.3 — Other formats**
-- [ ] Screenshot Import
-- [ ] PDF Import
+- [x] **7.1 — File upload**
+- [ ] **7.2 — Import tools** — read/write/append for import working directory, `search_merchants`
+- [ ] **7.3 — Normalize** — intelligence extracts dropped file into uniform CSV
+- [ ] **7.4 — Preview area** — editable table, account/category mapping, skip toggles
+- [ ] **7.5 — Enrich** — merchant matching, auto-categorization, transfer detection
+- [ ] **7.6 — Merge** — create entities from mappings, bulk-insert transactions
 
 ---
 
