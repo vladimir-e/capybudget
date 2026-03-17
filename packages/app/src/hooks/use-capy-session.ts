@@ -13,11 +13,14 @@ import { CapySession } from "@/services/capy-session"
 import { parseStreamLine } from "@/services/capy-stream"
 import {
   buildContext,
+  formatAttachments,
   SYSTEM_PROMPT,
   MUTATION_TOOL_NAMES,
+  type FileAttachment,
   type SessionEvent,
   type StreamEvent,
   type ChatMessage,
+  type ContentBlock,
 } from "@capybudget/intelligence"
 import { serializeConversation } from "@/services/serialize-conversation"
 
@@ -34,7 +37,7 @@ interface UseCapySessionOptions {
 interface UseCapySessionReturn {
   messages: ChatMessage[]
   isStreaming: boolean
-  sendMessage: (text: string) => void
+  sendMessage: (text: string, files?: FileAttachment[]) => void
   stopStreaming: () => void
   newChat: () => void
 }
@@ -210,13 +213,15 @@ export function useCapySession(opts: UseCapySessionOptions): UseCapySessionRetur
   }, [handleSessionEvent])
 
   const sendMessage = useCallback(
-    (text: string) => {
+    (text: string, files?: FileAttachment[]) => {
       if (isStreamingRef.current) return
       const o = optsRef.current
       const context = buildContext({
         budgetName: o.budgetName,
         budgetPath: o.budgetPath,
       })
+
+      const attachmentText = formatAttachments(files ?? [])
 
       // If recovering from an interrupted session, forward conversation context
       let enrichedMessage: string
@@ -235,10 +240,22 @@ export function useCapySession(opts: UseCapySessionOptions): UseCapySessionRetur
         enrichedMessage = `${context}\n${text}`
       }
 
+      if (attachmentText) {
+        enrichedMessage += "\n\n" + attachmentText
+      }
+
+      const blocks: ContentBlock[] = []
+      if (text) {
+        blocks.push({ type: "text", content: text })
+      }
+      for (const f of files ?? []) {
+        blocks.push({ type: "file-attachment", name: f.name, size: f.size })
+      }
+
       const userMsg: ChatMessage = {
         id: crypto.randomUUID(),
         role: "user",
-        blocks: [{ type: "text", content: text }],
+        blocks,
       }
       const assistantMsg: ChatMessage = {
         id: crypto.randomUUID(),

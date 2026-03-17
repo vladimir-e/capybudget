@@ -15,6 +15,8 @@ export function serializeConversation(messages: ChatMessage[], maxChars: number)
         lines.push(`${role}: ${block.content}`)
       } else if (block.type === "tool-activity") {
         lines.push(`[Tool: ${block.tool}]`)
+      } else if (block.type === "file-attachment") {
+        lines.push(`[Attached: ${block.name}]`)
       }
       // Skip tables/charts — too verbose for context
     }

@@ -1,3 +1,11 @@
+// ── File attachment ──────────────────────────────────────────────
+
+export interface FileAttachment {
+  name: string
+  content: string
+  size: number
+}
+
 // ── Content block types (UI rendering) ──────────────────────────
 
 export type MessageRole = "user" | "assistant"
@@ -30,12 +38,19 @@ export interface ToolActivityBlock {
   tool: string
 }
 
+export interface FileAttachmentBlock {
+  type: "file-attachment"
+  name: string
+  size: number
+}
+
 export type ContentBlock =
   | TextBlock
   | TableBlock
   | BarChartBlock
   | DonutChartBlock
   | ToolActivityBlock
+  | FileAttachmentBlock
 
 export interface ChatMessage {
   id: string

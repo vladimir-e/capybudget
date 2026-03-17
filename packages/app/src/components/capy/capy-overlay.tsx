@@ -1,15 +1,19 @@
-import { useRef, useEffect, useState, type KeyboardEvent } from "react"
-import { RotateCcw, Send, Settings2, Sparkles, Square, X, Wrench } from "lucide-react"
+import { useRef, useEffect, useState, type KeyboardEvent, type ChangeEvent } from "react"
+import { File, Paperclip, RotateCcw, Send, Settings2, Sparkles, Square, X, Wrench } from "lucide-react"
+import { toast } from "sonner"
 import { CommandPicker } from "./command-picker"
 import { InstructionsDialog } from "./instructions-dialog"
 import { getToolLabel } from "@/services/capy-stream"
 import type { CapyCommand } from "@/hooks/use-custom-commands"
-import type {
-  ChatMessage,
-  ContentBlock,
-  BarChartBlock,
-  DonutChartBlock,
-  TableBlock,
+import {
+  MAX_ATTACHMENT_SIZE,
+  MAX_TOTAL_ATTACHMENT_SIZE,
+  type FileAttachment,
+  type ChatMessage,
+  type ContentBlock,
+  type BarChartBlock,
+  type DonutChartBlock,
+  type TableBlock,
 } from "@capybudget/intelligence"
 
 interface CapyOverlayProps {
@@ -17,7 +21,7 @@ interface CapyOverlayProps {
   onClose: () => void
   messages: ChatMessage[]
   isStreaming: boolean
-  onSend: (text: string) => void
+  onSend: (text: string, files?: FileAttachment[]) => void
   onStop: () => void
   onNewChat: () => void
   instructions: string
@@ -40,9 +44,11 @@ export function CapyOverlay({
   onSaveCommands,
 }: CapyOverlayProps) {
   const [input, setInput] = useState("")
+  const [attachments, setAttachments] = useState<FileAttachment[]>([])
   const [instructionsOpen, setInstructionsOpen] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     if (open) {
@@ -59,9 +65,10 @@ export function CapyOverlay({
 
   const handleSend = () => {
     const text = input.trim()
-    if (!text || isStreaming) return
-    onSend(text)
+    if ((!text && attachments.length === 0) || isStreaming) return
+    onSend(text, attachments.length > 0 ? attachments : undefined)
     setInput("")
+    setAttachments([])
   }
 
   const handleKeyDown = (e: KeyboardEvent) => {
@@ -69,6 +76,41 @@ export function CapyOverlay({
       e.preventDefault()
       handleSend()
     }
+  }
+
+  const handleFileSelect = async (e: ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files ?? [])
+    e.target.value = ""
+
+    const currentTotal = attachments.reduce((s, a) => s + a.size, 0)
+    const added: FileAttachment[] = []
+    let runningTotal = currentTotal
+
+    for (const file of files) {
+      if (file.size > MAX_ATTACHMENT_SIZE) {
+        toast.error(`${file.name} exceeds 500KB limit`)
+        continue
+      }
+      if (runningTotal + file.size > MAX_TOTAL_ATTACHMENT_SIZE) {
+        toast.error("Total attachment size exceeds 1MB")
+        break
+      }
+      const content = await file.text()
+      if (content.slice(0, 8192).includes("\0")) {
+        toast.error(`${file.name} appears to be a binary file`)
+        continue
+      }
+      added.push({ name: file.name, content, size: file.size })
+      runningTotal += file.size
+    }
+
+    if (added.length > 0) {
+      setAttachments((prev) => [...prev, ...added])
+    }
+  }
+
+  const removeAttachment = (index: number) => {
+    setAttachments((prev) => prev.filter((_, i) => i !== index))
   }
 
   return (
@@ -171,6 +213,30 @@ export function CapyOverlay({
         {/* Input */}
         <div className="px-6 pb-8 pt-2">
           <div className="relative rounded-2xl border border-border/50 bg-card/80 shadow-2xl backdrop-blur-sm">
+            {attachments.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 px-5 pt-3.5 pb-0">
+                {attachments.map((att, i) => (
+                  <span
+                    key={i}
+                    className="inline-flex items-center gap-1.5 rounded-lg bg-brand/8 px-2.5 py-1 text-xs text-foreground/70"
+                  >
+                    <File className="h-3 w-3 text-muted-foreground" />
+                    {att.name}
+                    <span className="text-muted-foreground/50">
+                      {formatFileSize(att.size)}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => removeAttachment(i)}
+                      className="ml-0.5 text-muted-foreground/40 hover:text-muted-foreground transition-colors"
+                      aria-label={`Remove ${att.name}`}
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
             <textarea
               ref={inputRef}
               value={input}
@@ -194,7 +260,7 @@ export function CapyOverlay({
               <button
                 type="button"
                 onClick={handleSend}
-                disabled={!input.trim() || isStreaming}
+                disabled={(!input.trim() && attachments.length === 0) || isStreaming}
                 className="rounded-xl p-2.5 text-brand hover:bg-brand/10 disabled:opacity-25 disabled:hover:bg-transparent transition-colors"
                 aria-label="Send message"
               >
@@ -202,8 +268,25 @@ export function CapyOverlay({
               </button>
             </div>
           </div>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".csv,.ofx,.qfx,.qbo,.txt,.tsv"
+            multiple
+            className="hidden"
+            onChange={handleFileSelect}
+          />
           <div className="mt-1.5 flex items-center justify-between px-1">
             <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="inline-flex items-center gap-1 text-xs text-muted-foreground/40 hover:text-muted-foreground transition-colors cursor-pointer"
+                aria-label="Attach file"
+              >
+                <Paperclip className="h-3 w-3" />
+                Attach
+              </button>
               <CommandPicker commands={commands} onSelect={setInput} onSave={onSaveCommands} />
               <button
                 type="button"
@@ -282,7 +365,24 @@ function BlockRenderer({
       return <DonutChart title={block.title} data={block.data} />
     case "tool-activity":
       return <ToolActivity tool={block.tool} />
+    case "file-attachment":
+      return (
+        <span className="inline-flex items-center gap-1.5 rounded-lg bg-brand/8 px-2.5 py-1 text-xs text-foreground/70">
+          <File className="h-3 w-3 text-muted-foreground" />
+          {block.name}
+          <span className="text-muted-foreground/50">
+            {formatFileSize(block.size)}
+          </span>
+        </span>
+      )
   }
+}
+
+/* ── Helpers ──────────────────────────────────────────────────── */
+
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes}B`
+  return `${(bytes / 1024).toFixed(0)}KB`
 }
 
 /* ── Tool Activity ────────────────────────────────────────────── */
