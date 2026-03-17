@@ -6,7 +6,7 @@
  * Simulates realistic streaming timing.
  */
 
-import type { SessionEvent } from "@capybudget/intelligence";
+import type { SessionEvent, MessageContent } from "@capybudget/intelligence";
 
 export type { SessionEvent };
 
@@ -29,7 +29,7 @@ export class CapySession {
     return this.alive;
   }
 
-  async send(_message: string): Promise<void> {
+  async send(_content: MessageContent): Promise<void> {
     this.alive = true;
 
     const delay = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));

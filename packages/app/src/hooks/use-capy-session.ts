@@ -14,9 +14,11 @@ import { parseStreamLine } from "@/services/capy-stream"
 import {
   buildContext,
   formatAttachments,
+  isImageAttachment,
   SYSTEM_PROMPT,
   MUTATION_TOOL_NAMES,
   type FileAttachment,
+  type MessageContent,
   type SessionEvent,
   type StreamEvent,
   type ChatMessage,
@@ -221,13 +223,15 @@ export function useCapySession(opts: UseCapySessionOptions): UseCapySessionRetur
         budgetPath: o.budgetPath,
       })
 
-      const attachmentText = formatAttachments(files ?? [])
+      const allFiles = files ?? []
+      const imageFiles = allFiles.filter(isImageAttachment)
+      const attachmentText = formatAttachments(allFiles)
 
       // If recovering from an interrupted session, forward conversation context
-      let enrichedMessage: string
+      let enrichedText: string
       if (sessionInterruptedRef.current && messagesRef.current.length > 0) {
         const prevContext = serializeConversation(messagesRef.current, CONTEXT_MAX_CHARS)
-        enrichedMessage = [
+        enrichedText = [
           context,
           "[Previous conversation — session was interrupted by user]",
           prevContext,
@@ -237,11 +241,29 @@ export function useCapySession(opts: UseCapySessionOptions): UseCapySessionRetur
         ].join("\n")
         sessionInterruptedRef.current = false
       } else {
-        enrichedMessage = `${context}\n${text}`
+        enrichedText = `${context}\n${text}`
       }
 
       if (attachmentText) {
-        enrichedMessage += "\n\n" + attachmentText
+        enrichedText += "\n\n" + attachmentText
+      }
+
+      // Build multimodal content when images are attached
+      let content: MessageContent
+      if (imageFiles.length > 0) {
+        content = [
+          { type: "text", text: enrichedText },
+          ...imageFiles.map((f) => ({
+            type: "image" as const,
+            source: {
+              type: "base64" as const,
+              media_type: f.mediaType,
+              data: f.content,
+            },
+          })),
+        ]
+      } else {
+        content = enrichedText
       }
 
       const blocks: ContentBlock[] = []
@@ -269,7 +291,7 @@ export function useCapySession(opts: UseCapySessionOptions): UseCapySessionRetur
       lastTextContentRef.current = ""
 
       const session = ensureSession()
-      session.send(enrichedMessage).catch((err) => {
+      session.send(content).catch((err) => {
         handleStreamEvent({
           type: "error",
           message: err instanceof Error ? err.message : "Failed to send message",

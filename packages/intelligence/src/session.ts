@@ -1,4 +1,4 @@
-import type { SessionEvent } from "./types"
+import type { SessionEvent, MessageContent } from "./types"
 
 export interface CapySessionOptions {
   budgetPath: string
@@ -7,7 +7,7 @@ export interface CapySessionOptions {
 }
 
 export interface CapySession {
-  send(message: string): Promise<void>
+  send(content: MessageContent): Promise<void>
   stop(): Promise<void>
   restart(): Promise<void>
   kill(): Promise<void>

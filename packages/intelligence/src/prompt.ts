@@ -70,12 +70,18 @@ All amounts for write tools are in positive integer cents (e.g. 1250 = $12.50). 
 
 // ── File attachment formatting ───────────────────────────────────
 
-export const MAX_ATTACHMENT_SIZE = 512_000 // 500KB per file
-export const MAX_TOTAL_ATTACHMENT_SIZE = 1_048_576 // 1MB total
+export const MAX_ATTACHMENT_SIZE = 5_242_880 // 5MB per file
+export const MAX_TOTAL_ATTACHMENT_SIZE = 10_485_760 // 10MB total
 
+export function isImageAttachment(file: FileAttachment): boolean {
+  return file.mediaType.startsWith("image/")
+}
+
+/** Format text-based attachments for inlining in the message. */
 export function formatAttachments(files: FileAttachment[]): string {
-  if (files.length === 0) return ""
-  return files
+  const textFiles = files.filter((f) => !isImageAttachment(f))
+  if (textFiles.length === 0) return ""
+  return textFiles
     .map(
       (f) =>
         `[Attached file: ${f.name}]\n${f.content}\n[End of file: ${f.name}]`,

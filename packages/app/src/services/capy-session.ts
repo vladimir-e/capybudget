@@ -14,6 +14,7 @@ import { tempDir, join as joinPath } from "@tauri-apps/api/path"
 import {
   type SessionEvent,
   type CapySessionOptions,
+  type MessageContent,
 } from "@capybudget/intelligence"
 
 export type { SessionEvent, CapySessionOptions }
@@ -108,14 +109,14 @@ export class CapySession {
   }
 
   /** Send a user message to Claude. Spawns the process if not alive. */
-  async send(message: string): Promise<void> {
+  async send(content: MessageContent): Promise<void> {
     if (!this.child) {
       await this.spawn()
     }
 
     const payload = JSON.stringify({
       type: "user",
-      message: { role: "user", content: message },
+      message: { role: "user", content },
     })
 
     await this.child!.write(payload + "\n")

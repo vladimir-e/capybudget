@@ -1,6 +1,9 @@
 // Types
 export type {
   FileAttachment,
+  TextContentBlock,
+  ImageContentBlock,
+  MessageContent,
   MessageRole,
   TextBlock,
   TableBlock,
@@ -22,6 +25,7 @@ export {
   SYSTEM_PROMPT,
   buildContext,
   formatAttachments,
+  isImageAttachment,
   MAX_ATTACHMENT_SIZE,
   MAX_TOTAL_ATTACHMENT_SIZE,
 } from "./prompt"
