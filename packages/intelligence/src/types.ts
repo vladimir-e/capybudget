@@ -9,14 +9,14 @@ export interface FileAttachment {
 
 // ── CLI message content (stream-json protocol) ──────────────────
 
-export type TextContentBlock = { type: "text"; text: string }
-export type ImageContentBlock = {
+export type CliTextContent = { type: "text"; text: string }
+export type CliImageContent = {
   type: "image"
   source: { type: "base64"; media_type: string; data: string }
 }
 export type MessageContent =
   | string
-  | Array<TextContentBlock | ImageContentBlock>
+  | Array<CliTextContent | CliImageContent>
 
 // ── Content block types (UI rendering) ──────────────────────────
 
@@ -54,6 +54,7 @@ export interface FileAttachmentBlock {
   type: "file-attachment"
   name: string
   size: number
+  mediaType: string
 }
 
 export type ContentBlock =

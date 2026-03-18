@@ -32,7 +32,7 @@ Capy is an AI financial assistant. The app communicates with AI through the `Cap
 
 `CapySession` in `@capybudget/intelligence` defines the contract:
 
-- `send(message)` — send user message (enriched with context)
+- `send(content)` — send user message (`MessageContent`: plain string or multimodal array with text + base64 images)
 - `stop()` — interrupt current response (kills process, preserves messages)
 - `restart()` — kill session and start fresh
 - `kill()` — terminate
@@ -55,6 +55,7 @@ Capy is an AI financial assistant. The app communicates with AI through the `Cap
 | `bar-chart` | Title + label/value pairs |
 | `donut-chart` | Title + label/value pairs |
 | `tool-activity` | Tool name (persists in chat history) |
+| `file-attachment` | File name, size, mediaType (rendered as chip) |
 
 `BlockRenderer` routes each block to its specialized renderer. New types are added by extending the union and adding a renderer.
 
@@ -107,9 +108,14 @@ No retry logic, no history replay. A crash is a clean slate.
 
 ### Streaming Protocol (CLI-specific)
 
-Sending (stdin):
+Sending (stdin) — plain text:
 ```json
 {"type":"user","message":{"role":"user","content":"What did I spend on food?"}}
+```
+
+Sending (stdin) — multimodal (text + image):
+```json
+{"type":"user","message":{"role":"user","content":[{"type":"text","text":"What's on this receipt?"},{"type":"image","source":{"type":"base64","media_type":"image/png","data":"..."}}]}}
 ```
 
 Receiving (stdout) — each line is a JSON object:

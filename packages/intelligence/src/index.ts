@@ -1,8 +1,8 @@
 // Types
 export type {
   FileAttachment,
-  TextContentBlock,
-  ImageContentBlock,
+  CliTextContent,
+  CliImageContent,
   MessageContent,
   MessageRole,
   TextBlock,
@@ -21,14 +21,16 @@ export type {
 export type { CapySessionOptions, CapySession } from "./session"
 
 // Prompt
+export { SYSTEM_PROMPT, buildContext } from "./prompt"
+
+// Attachments
 export {
-  SYSTEM_PROMPT,
-  buildContext,
   formatAttachments,
+  formatFileSize,
   isImageAttachment,
   MAX_ATTACHMENT_SIZE,
   MAX_TOTAL_ATTACHMENT_SIZE,
-} from "./prompt"
+} from "./attachments"
 
 // Tool metadata
 export { MUTATION_TOOL_NAMES } from "./tools"

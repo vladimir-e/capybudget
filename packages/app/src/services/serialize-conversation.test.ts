@@ -70,4 +70,11 @@ describe("serializeConversation", () => {
     expect(result).toBe("User: Short")
     expect(result.startsWith("...")).toBe(false)
   })
+
+  it("serializes file-attachment blocks", () => {
+    const messages: ChatMessage[] = [
+      msg("user", { type: "file-attachment", name: "bank-export.csv", size: 1024, mediaType: "text/csv" }),
+    ]
+    expect(serializeConversation(messages, 5000)).toBe("[Attached: bank-export.csv]")
+  })
 })

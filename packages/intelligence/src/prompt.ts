@@ -2,8 +2,6 @@
  * System prompt and context enrichment for the Capy intelligence layer.
  */
 
-import type { FileAttachment } from "./types"
-
 export const SYSTEM_PROMPT = `You are Capy, a financial assistant built into a personal budgeting app called Capy Budget. You have full control over the user's budget — you can read, create, update, and delete anything.
 
 ## Who you are
@@ -67,27 +65,6 @@ All amounts for write tools are in positive integer cents (e.g. 1250 = $12.50). 
 - When creating transactions, always verify the account and category exist first by listing them
 - For bulk categorization, list uncategorized transactions first, then assign categories based on merchant names
 - Confirm destructive actions (deleting accounts, bulk deletes) with the user before executing`
-
-// ── File attachment formatting ───────────────────────────────────
-
-export const MAX_ATTACHMENT_SIZE = 5_242_880 // 5MB per file
-export const MAX_TOTAL_ATTACHMENT_SIZE = 10_485_760 // 10MB total
-
-export function isImageAttachment(file: FileAttachment): boolean {
-  return file.mediaType.startsWith("image/")
-}
-
-/** Format text-based attachments for inlining in the message. */
-export function formatAttachments(files: FileAttachment[]): string {
-  const textFiles = files.filter((f) => !isImageAttachment(f))
-  if (textFiles.length === 0) return ""
-  return textFiles
-    .map(
-      (f) =>
-        `[Attached file: ${f.name}]\n${f.content}\n[End of file: ${f.name}]`,
-    )
-    .join("\n\n")
-}
 
 /**
  * Build context header to prepend to the user's message.

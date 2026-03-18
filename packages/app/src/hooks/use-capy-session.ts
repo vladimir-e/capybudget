@@ -270,8 +270,8 @@ export function useCapySession(opts: UseCapySessionOptions): UseCapySessionRetur
       if (text) {
         blocks.push({ type: "text", content: text })
       }
-      for (const f of files ?? []) {
-        blocks.push({ type: "file-attachment", name: f.name, size: f.size })
+      for (const f of allFiles) {
+        blocks.push({ type: "file-attachment", name: f.name, size: f.size, mediaType: f.mediaType })
       }
 
       const userMsg: ChatMessage = {

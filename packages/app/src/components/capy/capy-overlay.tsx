@@ -8,6 +8,7 @@ import type { CapyCommand } from "@/hooks/use-custom-commands"
 import {
   MAX_ATTACHMENT_SIZE,
   MAX_TOTAL_ATTACHMENT_SIZE,
+  formatFileSize,
   type FileAttachment,
   type ChatMessage,
   type ContentBlock,
@@ -66,41 +67,40 @@ export function CapyOverlay({
   }, [messages])
 
   const processFiles = useCallback(async (files: File[]) => {
-    const currentTotal = attachments.reduce((s, a) => s + a.size, 0)
-    const added: FileAttachment[] = []
-    let runningTotal = currentTotal
-
+    // Phase 1: read files (no state dependency)
+    const candidates: FileAttachment[] = []
     for (const file of files) {
       if (file.size > MAX_ATTACHMENT_SIZE) {
         toast.error(`${file.name} exceeds 5MB limit`)
         continue
       }
-      if (runningTotal + file.size > MAX_TOTAL_ATTACHMENT_SIZE) {
-        toast.error("Total attachment size exceeds 10MB")
-        break
-      }
-
       const isImage = file.type.startsWith("image/")
-      let content: string
-      if (isImage) {
-        content = await readFileAsBase64(file)
-      } else {
-        content = await file.text()
-      }
-
-      added.push({
+      const content = isImage ? await readFileAsBase64(file) : await file.text()
+      candidates.push({
         name: file.name,
         content,
         size: file.size,
         mediaType: file.type || "application/octet-stream",
       })
-      runningTotal += file.size
     }
 
-    if (added.length > 0) {
-      setAttachments((prev) => [...prev, ...added])
+    // Phase 2: validate totals against actual state (avoids stale closure)
+    if (candidates.length > 0) {
+      setAttachments((prev) => {
+        let runningTotal = prev.reduce((s, a) => s + a.size, 0)
+        const accepted: FileAttachment[] = []
+        for (const c of candidates) {
+          if (runningTotal + c.size > MAX_TOTAL_ATTACHMENT_SIZE) {
+            toast.error("Total attachment size exceeds 10MB")
+            break
+          }
+          accepted.push(c)
+          runningTotal += c.size
+        }
+        return accepted.length > 0 ? [...prev, ...accepted] : prev
+      })
     }
-  }, [attachments])
+  }, [])
 
   const handleSend = () => {
     const text = input.trim()
@@ -274,9 +274,11 @@ export function CapyOverlay({
             {attachments.length > 0 && (
               <div className="flex flex-wrap gap-1.5 px-5 pt-3.5 pb-0">
                 {attachments.map((att, i) => (
-                  <AttachmentChip
+                  <FileChip
                     key={i}
-                    attachment={att}
+                    name={att.name}
+                    size={att.size}
+                    mediaType={att.mediaType}
                     onRemove={() => removeAttachment(i)}
                   />
                 ))}
@@ -403,64 +405,47 @@ function BlockRenderer({
       return <DonutChart title={block.title} data={block.data} />
     case "tool-activity":
       return <ToolActivity tool={block.tool} />
-    case "file-attachment": {
-      const Icon = isImageName(block.name) ? Image : File
-      return (
-        <span className="inline-flex items-center gap-1.5 rounded-lg bg-brand/8 px-2.5 py-1 text-xs text-foreground/70">
-          <Icon className="h-3 w-3 text-muted-foreground" />
-          {block.name}
-          <span className="text-muted-foreground/50">
-            {formatFileSize(block.size)}
-          </span>
-        </span>
-      )
-    }
+    case "file-attachment":
+      return <FileChip name={block.name} size={block.size} mediaType={block.mediaType} />
   }
 }
 
-/* ── Attachment Chip ──────────────────────────────────────────── */
+/* ── File Chip ────────────────────────────────────────────────── */
 
-function AttachmentChip({
-  attachment,
+function FileChip({
+  name,
+  size,
+  mediaType,
   onRemove,
 }: {
-  attachment: FileAttachment
-  onRemove: () => void
+  name: string
+  size: number
+  mediaType: string
+  onRemove?: () => void
 }) {
-  const Icon = attachment.mediaType.startsWith("image/") ? Image : File
+  const Icon = mediaType.startsWith("image/") ? Image : File
   return (
     <span className="inline-flex items-center gap-1.5 rounded-lg bg-brand/8 px-2.5 py-1 text-xs text-foreground/70">
       <Icon className="h-3 w-3 text-muted-foreground" />
-      {attachment.name}
+      {name}
       <span className="text-muted-foreground/50">
-        {formatFileSize(attachment.size)}
+        {formatFileSize(size)}
       </span>
-      <button
-        type="button"
-        onClick={onRemove}
-        className="ml-0.5 text-muted-foreground/40 hover:text-muted-foreground transition-colors"
-        aria-label={`Remove ${attachment.name}`}
-      >
-        <X className="h-3 w-3" />
-      </button>
+      {onRemove && (
+        <button
+          type="button"
+          onClick={onRemove}
+          className="ml-0.5 text-muted-foreground/40 hover:text-muted-foreground transition-colors"
+          aria-label={`Remove ${name}`}
+        >
+          <X className="h-3 w-3" />
+        </button>
+      )}
     </span>
   )
 }
 
 /* ── Helpers ──────────────────────────────────────────────────── */
-
-function formatFileSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes}B`
-  if (bytes < 1_048_576) return `${(bytes / 1024).toFixed(0)}KB`
-  return `${(bytes / 1_048_576).toFixed(1)}MB`
-}
-
-const IMAGE_EXTENSIONS = new Set(["jpg", "jpeg", "png", "gif", "webp", "svg", "bmp", "heic"])
-
-function isImageName(name: string): boolean {
-  const ext = name.split(".").pop()?.toLowerCase() ?? ""
-  return IMAGE_EXTENSIONS.has(ext)
-}
 
 function readFileAsBase64(file: Blob): Promise<string> {
   return new Promise((resolve, reject) => {
