@@ -1,5 +1,5 @@
 import { Link, useMatches } from "@tanstack/react-router";
-import { ChevronDown, ChevronRight, GripVertical, Layers, MoreHorizontal, Pencil, Archive, ArchiveRestore, Trash2, Plus, Settings } from "lucide-react";
+import { ChevronDown, ChevronRight, GripVertical, Layers, MoreHorizontal, Pencil, Archive, ArchiveRestore, Trash2, Plus, Settings, FileUp } from "lucide-react";
 import { useState } from "react";
 import {
   DndContext,
@@ -44,6 +44,7 @@ import {
   useUnarchiveAccount,
 } from "@/hooks/use-account-mutations";
 import { toast } from "sonner";
+import { useImportStore } from "@/stores/import-store";
 
 interface SidebarProps {
   budgetPath: string;
@@ -77,6 +78,8 @@ export function Sidebar({
     return found ?? (params.accountId as string | undefined);
   }, undefined);
   const isCategoriesRoute = matches.some((m) => m.routeId?.includes("/categories"));
+  const isImportRoute = matches.some((m) => m.routeId?.includes("/import"));
+  const importPhase = useImportStore((s) => s.phase);
 
   const netWorth = getNetWorth(accounts, transactions);
   const groupedAccounts = getAccountsByGroup(accounts);
@@ -307,6 +310,21 @@ export function Sidebar({
         >
           <Settings className="h-4 w-4" />
           Categories
+        </Link>
+        <Link
+          to="/budget/import"
+          search={{ path: budgetPath, name: budgetName }}
+          className={`flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm transition-colors ${
+            isImportRoute
+              ? "bg-sidebar-accent text-sidebar-accent-foreground shadow-sm font-medium"
+              : "text-sidebar-foreground/70 hover:bg-sidebar-accent/60 hover:text-sidebar-foreground"
+          }`}
+        >
+          <FileUp className="h-4 w-4" />
+          Import
+          {importPhase !== "idle" && importPhase !== "upload" && (
+            <span className="ml-auto flex h-2 w-2 rounded-full bg-brand animate-pulse" />
+          )}
         </Link>
       </div>
 
