@@ -1,5 +1,5 @@
 import { useRef, useEffect, useState, useCallback, type KeyboardEvent, type ChangeEvent, type DragEvent } from "react"
-import { File, Image, Paperclip, RotateCcw, Send, Settings2, Sparkles, Square, X, Wrench } from "lucide-react"
+import { File as FileIcon, Image, Paperclip, RotateCcw, Send, Settings2, Sparkles, Square, X, Wrench } from "lucide-react"
 import { toast } from "sonner"
 import { CommandPicker } from "./command-picker"
 import { InstructionsDialog } from "./instructions-dialog"
@@ -75,12 +75,16 @@ export function CapyOverlay({
         continue
       }
       const isImage = file.type.startsWith("image/")
+      if (!isImage && !isTextFile(file)) {
+        toast.error(`${file.name} is not a supported file type`)
+        continue
+      }
       const content = isImage ? await readFileAsBase64(file) : await file.text()
       candidates.push({
         name: file.name,
         content,
         size: file.size,
-        mediaType: file.type || "application/octet-stream",
+        mediaType: file.type || "text/plain",
       })
     }
 
@@ -131,7 +135,7 @@ export function CapyOverlay({
 
   const handleDragLeave = useCallback((e: DragEvent) => {
     e.preventDefault()
-    dragCounterRef.current--
+    dragCounterRef.current = Math.max(0, dragCounterRef.current - 1)
     if (dragCounterRef.current === 0) setIsDragging(false)
   }, [])
 
@@ -423,7 +427,7 @@ function FileChip({
   mediaType: string
   onRemove?: () => void
 }) {
-  const Icon = mediaType.startsWith("image/") ? Image : File
+  const Icon = mediaType.startsWith("image/") ? Image : FileIcon
   return (
     <span className="inline-flex items-center gap-1.5 rounded-lg bg-brand/8 px-2.5 py-1 text-xs text-foreground/70">
       <Icon className="h-3 w-3 text-muted-foreground" />
@@ -446,6 +450,15 @@ function FileChip({
 }
 
 /* ── Helpers ──────────────────────────────────────────────────── */
+
+const TEXT_EXTENSIONS = new Set([".csv", ".tsv", ".json", ".xml", ".md", ".txt", ".log"])
+
+function isTextFile(file: File): boolean {
+  if (file.type.startsWith("text/")) return true
+  if (file.type === "application/json" || file.type === "application/xml") return true
+  const ext = file.name.slice(file.name.lastIndexOf(".")).toLowerCase()
+  return TEXT_EXTENSIONS.has(ext)
+}
 
 function readFileAsBase64(file: Blob): Promise<string> {
   return new Promise((resolve, reject) => {
