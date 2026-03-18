@@ -14,7 +14,6 @@ import {
   Image,
   Loader2,
   Square,
-  CheckCircle2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
@@ -33,6 +32,7 @@ import {
   type ContentBlock,
 } from "@capybudget/intelligence";
 import type { ImportPhase } from "@capybudget/core";
+import { ImportPreview } from "./import-preview";
 import { Wrench } from "lucide-react";
 
 const TEXT_EXTENSIONS = new Set([
@@ -289,7 +289,7 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
             <p className="text-sm text-muted-foreground">
               {effectivePhase === "upload" && "Drop files to import transactions"}
               {effectivePhase === "normalizing" && "Processing your files..."}
-              {effectivePhase === "preview" && "Normalization complete"}
+              {effectivePhase === "preview" && "Review and edit imported transactions"}
               {effectivePhase === "enriching" && "Enriching transactions..."}
               {effectivePhase === "review" && "Ready for review"}
             </p>
@@ -298,7 +298,7 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
       </div>
 
       <div className="flex-1 overflow-auto p-6">
-        <div className="mx-auto max-w-2xl space-y-6">
+        <div className={`mx-auto space-y-6 ${effectivePhase === "preview" ? "max-w-6xl" : "max-w-2xl"}`}>
           {/* Upload phase */}
           {effectivePhase === "upload" && (
             <>
@@ -461,27 +461,12 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
             </>
           )}
 
-          {/* Preview phase (placeholder for 7.5) */}
+          {/* Preview phase */}
           {effectivePhase === "preview" && (
-            <div className="flex flex-col items-center justify-center py-16 text-center">
-              <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-amount-income/10 text-amount-income">
-                <CheckCircle2 className="h-7 w-7" />
-              </div>
-              <p className="text-lg font-medium text-foreground/80">
-                Transactions normalized
-              </p>
-              <p className="mt-1.5 text-sm text-muted-foreground/60 max-w-sm">
-                Your files have been processed. The preview and enrichment steps
-                are coming soon.
-              </p>
-              <Button
-                variant="outline"
-                onClick={handleCancel}
-                className="mt-6 rounded-xl"
-              >
-                Start Over
-              </Button>
-            </div>
+            <ImportPreview
+              budgetPath={budgetPath}
+              onStartOver={handleCancel}
+            />
           )}
         </div>
       </div>
