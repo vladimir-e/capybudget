@@ -29,6 +29,13 @@ import {
   handleAssignCategories,
 } from "./mutation-tools.js"
 import { RENDER_TOOLS } from "./render-tools.js"
+import {
+  IMPORT_TOOLS,
+  handleReadImportFile,
+  handleWriteImportFile,
+  handleAppendImportFile,
+  handleListImportFiles,
+} from "./import-tools.js"
 
 // ── Budget path ──────────────────────────────────────────────────
 
@@ -49,7 +56,7 @@ const server = new Server(
 )
 
 server.setRequestHandler(ListToolsRequestSchema, async () => ({
-  tools: [...DATA_TOOLS, ...MUTATION_TOOLS, ...RENDER_TOOLS],
+  tools: [...DATA_TOOLS, ...MUTATION_TOOLS, ...RENDER_TOOLS, ...IMPORT_TOOLS],
 }))
 
 // ── Mutation tool dispatch ───────────────────────────────────────
@@ -72,6 +79,18 @@ const MUTATION_HANDLERS: Record<
   assign_categories: (r, a) => handleAssignCategories(r, a),
 }
 
+// ── Import tool dispatch ────────────────────────────────────────
+
+const IMPORT_HANDLERS: Record<
+  string,
+  (budgetPath: string, args: Record<string, unknown>) => Promise<string>
+> = {
+  read_import_file: (p, a) => handleReadImportFile(p, a),
+  write_import_file: (p, a) => handleWriteImportFile(p, a),
+  append_import_file: (p, a) => handleAppendImportFile(p, a),
+  list_import_files: (p) => handleListImportFiles(p),
+}
+
 server.setRequestHandler(CallToolRequestSchema, async (request) => {
   const { name, arguments: args } = request.params
 
@@ -87,6 +106,13 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     const mutationHandler = MUTATION_HANDLERS[name]
     if (mutationHandler) {
       text = await mutationHandler(repo, args ?? {})
+      return { content: [{ type: "text", text }] }
+    }
+
+    // Import tools
+    const importHandler = IMPORT_HANDLERS[name]
+    if (importHandler) {
+      text = await importHandler(BUDGET_PATH, args ?? {})
       return { content: [{ type: "text", text }] }
     }
 
