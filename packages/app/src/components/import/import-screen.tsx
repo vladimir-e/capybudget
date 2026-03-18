@@ -13,7 +13,6 @@ import {
   File as FileIcon,
   Image,
   Loader2,
-  Square,
 } from "lucide-react";
 import { toast } from "sonner";
 import { readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
@@ -103,11 +102,29 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
     [budgetPath],
   );
 
-  // Check for existing import state on mount
+  // Check for existing import data on mount — resume if transactions.csv exists
   useEffect(() => {
     let cancelled = false;
 
     async function checkExistingImport() {
+      // Primary check: does a transactions.csv exist? If so, go to preview.
+      try {
+        const csvPath = await joinPath(
+          budgetPath,
+          ".capy",
+          "import",
+          "transactions.csv",
+        );
+        const content = await readTextFile(csvPath);
+        if (!cancelled && content.trim().length > 0) {
+          setPhase("preview");
+          return;
+        }
+      } catch {
+        // No CSV — check state.json as fallback
+      }
+
+      // Fallback: check state.json for in-progress normalization
       try {
         const statePath = await joinPath(
           budgetPath,
@@ -256,23 +273,18 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
     importSession.startNormalization(files);
   };
 
-  const handleCancel = async () => {
+  const handleCancel = useCallback(async () => {
     importSession.cancel();
     setPhase("upload");
     setFiles([]);
-    // Clean up import directory
-    try {
-      const statePath = await joinPath(
-        budgetPath,
-        ".capy",
-        "import",
-        "state.json",
-      );
-      await writeTextFile(statePath, "");
-    } catch {
-      // ignore
-    }
-  };
+    // Clean up import directory — blank out both files
+    const dir = await joinPath(budgetPath, ".capy", "import").catch(() => "");
+    if (!dir) return;
+    await Promise.allSettled([
+      writeTextFile(await joinPath(dir, "state.json"), ""),
+      writeTextFile(await joinPath(dir, "transactions.csv"), ""),
+    ]);
+  }, [importSession, setPhase, budgetPath]);
 
   const effectivePhase = phase === "idle" ? "upload" : phase;
 
@@ -284,7 +296,7 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
           <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand/15 text-brand">
             <FileUp className="h-4.5 w-4.5" />
           </div>
-          <div>
+          <div className="flex-1">
             <h2 className="text-xl font-bold tracking-tight">Import</h2>
             <p className="text-sm text-muted-foreground">
               {effectivePhase === "upload" && "Drop files to import transactions"}
@@ -294,6 +306,17 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
               {effectivePhase === "review" && "Ready for review"}
             </p>
           </div>
+          {effectivePhase !== "upload" && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleCancel}
+              className="text-muted-foreground gap-1.5 shrink-0"
+            >
+              <X className="h-3.5 w-3.5" />
+              Cancel Import
+            </Button>
+          )}
         </div>
       </div>
 
@@ -447,26 +470,12 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
                 </div>
               </div>
 
-              {/* Cancel button */}
-              <div className="flex justify-center">
-                <Button
-                  variant="outline"
-                  onClick={handleCancel}
-                  className="gap-2 rounded-xl"
-                >
-                  <Square className="h-3.5 w-3.5 fill-current" />
-                  Cancel
-                </Button>
-              </div>
             </>
           )}
 
           {/* Preview phase */}
           {effectivePhase === "preview" && (
-            <ImportPreview
-              budgetPath={budgetPath}
-              onStartOver={handleCancel}
-            />
+            <ImportPreview budgetPath={budgetPath} />
           )}
         </div>
       </div>

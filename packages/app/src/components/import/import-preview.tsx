@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
 import { join as joinPath } from "@tauri-apps/api/path";
 import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
 import { useAccounts, useCategories } from "@/hooks/use-budget-data";
 import { parseCsv, unparseCsv } from "@capybudget/persistence";
 import type { ImportTransaction } from "@capybudget/core";
@@ -13,16 +12,15 @@ import {
   type ImportSortConfig,
 } from "./import-table";
 import { ImportMapping, type EntityMapping } from "./import-mapping";
-import { Search, X, FileUp, RotateCcw } from "lucide-react";
+import { Search, X, FileUp } from "lucide-react";
 
 const IMPORT_COERCE = { amount: (v: string) => parseInt(v, 10) };
 
 interface ImportPreviewProps {
   budgetPath: string;
-  onStartOver: () => void;
 }
 
-export function ImportPreview({ budgetPath, onStartOver }: ImportPreviewProps) {
+export function ImportPreview({ budgetPath }: ImportPreviewProps) {
   const [transactions, setTransactions] = useState<ImportTransaction[]>([]);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [sort, setSort] = useState<ImportSortConfig>({
@@ -215,16 +213,9 @@ export function ImportPreview({ budgetPath, onStartOver }: ImportPreviewProps) {
           No transactions found
         </p>
         <p className="mt-1.5 text-sm text-muted-foreground/60">
-          The normalization didn't produce any transactions.
+          The normalization didn't produce any transactions. Cancel the import
+          to start over.
         </p>
-        <Button
-          variant="outline"
-          onClick={onStartOver}
-          className="mt-4 rounded-xl gap-2"
-        >
-          <RotateCcw className="h-3.5 w-3.5" />
-          Start Over
-        </Button>
       </div>
     );
   }
@@ -241,15 +232,6 @@ export function ImportPreview({ budgetPath, onStartOver }: ImportPreviewProps) {
           <span className="tabular-nums">{totalCount}</span> transactions
           selected for import
         </p>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={onStartOver}
-          className="text-muted-foreground gap-1.5"
-        >
-          <RotateCcw className="h-3.5 w-3.5" />
-          Start Over
-        </Button>
       </div>
 
       {/* Mapping section */}
