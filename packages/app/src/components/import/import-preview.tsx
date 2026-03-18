@@ -40,20 +40,23 @@ export function ImportPreview({ budgetPath }: ImportPreviewProps) {
   const transactionsRef = useRef(transactions);
   transactionsRef.current = transactions;
 
+  const resolveImportPath = useCallback(
+    async (filename: string) => {
+      const dir = await joinPath(budgetPath, ".capy/import");
+      return joinPath(dir, filename);
+    },
+    [budgetPath],
+  );
+
   const writeBack = useCallback(async () => {
     try {
-      const csvPath = await joinPath(
-        budgetPath,
-        ".capy",
-        "import",
-        "transactions.csv",
-      );
+      const csvPath = await resolveImportPath("transactions.csv");
       const csv = unparseCsv(transactionsRef.current);
       await writeTextFile(csvPath, csv);
     } catch (err) {
       console.error("Failed to write import CSV:", err);
     }
-  }, [budgetPath]);
+  }, [resolveImportPath]);
 
   const scheduleWriteBack = useCallback(() => {
     if (writeTimerRef.current) clearTimeout(writeTimerRef.current);
@@ -66,12 +69,7 @@ export function ImportPreview({ budgetPath }: ImportPreviewProps) {
 
     async function load() {
       try {
-        const csvPath = await joinPath(
-          budgetPath,
-          ".capy",
-          "import",
-          "transactions.csv",
-        );
+        const csvPath = await resolveImportPath("transactions.csv");
         const content = await readTextFile(csvPath);
         const parsed = parseCsv<ImportTransaction>(content, IMPORT_COERCE);
         if (!cancelled) {
@@ -88,7 +86,7 @@ export function ImportPreview({ budgetPath }: ImportPreviewProps) {
     return () => {
       cancelled = true;
     };
-  }, [budgetPath]);
+  }, [resolveImportPath]);
 
   // Flush on unmount
   useEffect(() => {

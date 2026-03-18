@@ -83,12 +83,20 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
 
   const customInstructions = useCustomInstructions(budgetPath);
 
+  // Resolve import directory path (two-step join — proven pattern in this codebase)
+  const resolveImportPath = useCallback(
+    async (filename: string) => {
+      const dir = await joinPath(budgetPath, ".capy/import");
+      return joinPath(dir, filename);
+    },
+    [budgetPath],
+  );
+
   // Persist import state to disk
   const persistState = useCallback(
     async (newPhase: ImportPhase, sourceFiles: { name: string; size: number }[]) => {
       try {
-        const dir = await joinPath(budgetPath, ".capy", "import");
-        const statePath = await joinPath(dir, "state.json");
+        const statePath = await resolveImportPath("state.json");
         const state = {
           phase: newPhase,
           sourceFiles,
@@ -99,7 +107,7 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
         // Directory might not exist yet — that's OK, MCP tools create it
       }
     },
-    [budgetPath],
+    [resolveImportPath],
   );
 
   // Check for existing import data on mount — resume if transactions.csv exists
@@ -107,38 +115,21 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
     let cancelled = false;
 
     async function checkExistingImport() {
-      // Primary check: does a transactions.csv exist? If so, go to preview.
       try {
-        const csvPath = await joinPath(
-          budgetPath,
-          ".capy",
-          "import",
-          "transactions.csv",
-        );
+        const csvPath = await resolveImportPath("transactions.csv");
         const content = await readTextFile(csvPath);
         if (!cancelled && content.trim().length > 0) {
           setPhase("preview");
           return;
         }
       } catch {
-        // No CSV — check state.json as fallback
+        // No CSV
       }
 
-      // Fallback: check state.json for in-progress normalization
-      try {
-        const statePath = await joinPath(
-          budgetPath,
-          ".capy",
-          "import",
-          "state.json",
-        );
-        const text = await readTextFile(statePath);
-        const state = JSON.parse(text);
-        if (!cancelled && state.phase && state.phase !== "upload") {
-          setPhase(state.phase as ImportPhase);
-        }
-      } catch {
-        // No existing import
+      // If store says normalizing but we're not streaming, reset to upload
+      // (previous normalization was interrupted)
+      if (!cancelled && phase === "normalizing") {
+        setPhase("upload");
       }
     }
 
@@ -146,30 +137,13 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
     return () => {
       cancelled = true;
     };
-  }, [budgetPath, setPhase]);
+  }, [budgetPath, setPhase, resolveImportPath]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const handleNormalizationComplete = useCallback(async () => {
-    // Check if transactions.csv was written
-    try {
-      const csvPath = await joinPath(
-        budgetPath,
-        ".capy",
-        "import",
-        "transactions.csv",
-      );
-      await readTextFile(csvPath);
-      // CSV exists — transition to preview
-      setPhase("preview");
-      await persistState(
-        "preview",
-        files.map((f) => ({ name: f.name, size: f.size })),
-      );
-      toast.success("Normalization complete");
-    } catch {
-      // CSV wasn't written — stay in normalizing phase but stop streaming
-      // The error/status message from the agent should explain what happened
-    }
-  }, [budgetPath, setPhase, persistState, files]);
+  // Transition to preview when normalization stream completes
+  const handleNormalizationComplete = useCallback(() => {
+    setPhase("preview");
+    toast.success("Normalization complete");
+  }, [setPhase]);
 
   const importSession = useImportSession({
     budgetPath,
@@ -278,13 +252,11 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
     setPhase("upload");
     setFiles([]);
     // Clean up import directory — blank out both files
-    const dir = await joinPath(budgetPath, ".capy", "import").catch(() => "");
-    if (!dir) return;
     await Promise.allSettled([
-      writeTextFile(await joinPath(dir, "state.json"), ""),
-      writeTextFile(await joinPath(dir, "transactions.csv"), ""),
+      resolveImportPath("state.json").then((p) => writeTextFile(p, "")),
+      resolveImportPath("transactions.csv").then((p) => writeTextFile(p, "")),
     ]);
-  }, [importSession, setPhase, budgetPath]);
+  }, [importSession, setPhase, resolveImportPath]);
 
   const effectivePhase = phase === "idle" ? "upload" : phase;
 
