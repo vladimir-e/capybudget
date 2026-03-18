@@ -187,14 +187,15 @@ Extract shared logic into packages, decouple from Tauri. See `MONOREPO.md` for a
 
 ## Phase 7: Smart Import
 
-Drop a file, intelligence normalizes it, you review and merge. See `SMART_IMPORT.md`.
+Drop a file, intelligence normalizes it, you review and merge.
 
 - [x] **7.1 — File upload**
-- [ ] **7.2 — Import tools** — read/write/append for import working directory, `search_merchants`
-- [ ] **7.3 — Normalize** — intelligence extracts dropped file into uniform CSV
-- [ ] **7.4 — Preview area** — editable table, account/category mapping, skip toggles
-- [ ] **7.5 — Enrich** — merchant matching, auto-categorization, transfer detection
-- [ ] **7.6 — Merge** — create entities from mappings, bulk-insert transactions
+- [ ] **7.2 — Import screen**
+- [ ] **7.3 — Import tools** — read/write/append for import working directory, matching tools e.g. `search_merchants`
+- [ ] **7.4 — Normalize** — intelligence extracts dropped file into uniform CSV, transfer detection
+- [ ] **7.5 — Preview area** — editable table, account/category mapping, skip toggles
+- [ ] **7.6 — Enrich** — merchant matching, auto-categorization
+- [ ] **7.7 — Merge** — create entities from mappings, bulk-insert transactions
 
 ---
 
