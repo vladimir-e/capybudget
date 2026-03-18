@@ -190,11 +190,11 @@ Extract shared logic into packages, decouple from Tauri. See `MONOREPO.md` for a
 Drop a file, intelligence normalizes it, you review and merge.
 
 - [x] **7.1 — File upload**
-- [ ] **7.2 — Import screen**
-- [ ] **7.3 — Import tools** — read/write/append for import working directory, matching tools e.g. `search_merchants`
-- [ ] **7.4 — Normalize** — intelligence extracts dropped file into uniform CSV, transfer detection
+- [x] **7.2 — Import screen**
+- [x] **7.3 — Import tools** — read/write/append for import working directory
+- [x] **7.4 — Normalize** — intelligence extracts dropped file into uniform CSV, transfer detection
 - [ ] **7.5 — Preview area** — editable table, account/category mapping, skip toggles
-- [ ] **7.6 — Enrich** — merchant matching, auto-categorization
+- [ ] **7.6 — Enrich** — merchant matching, auto-categorization, matching tools e.g. `search_merchants`
 - [ ] **7.7 — Merge** — create entities from mappings, bulk-insert transactions
 
 ---
