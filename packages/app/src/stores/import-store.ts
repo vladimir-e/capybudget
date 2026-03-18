@@ -1,20 +1,17 @@
 import { create } from "zustand";
-import type { ImportPhase, ImportSourceFile } from "@capybudget/core";
 
+/**
+ * Minimal store — just the signals the sidebar needs.
+ * The import screen derives its view from disk state + session state,
+ * not from a phase machine.
+ */
 interface ImportStore {
-  phase: ImportPhase | "idle";
-  sourceFiles: ImportSourceFile[];
-
-  setPhase: (phase: ImportPhase | "idle") => void;
-  setSourceFiles: (files: ImportSourceFile[]) => void;
-  reset: () => void;
+  /** True when .capy/import/transactions.csv exists with content. */
+  hasImportData: boolean;
+  setHasImportData: (v: boolean) => void;
 }
 
 export const useImportStore = create<ImportStore>((set) => ({
-  phase: "idle",
-  sourceFiles: [],
-
-  setPhase: (phase) => set({ phase }),
-  setSourceFiles: (sourceFiles) => set({ sourceFiles }),
-  reset: () => set({ phase: "idle", sourceFiles: [] }),
+  hasImportData: false,
+  setHasImportData: (hasImportData) => set({ hasImportData }),
 }));

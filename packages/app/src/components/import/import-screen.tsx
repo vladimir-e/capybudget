@@ -30,27 +30,18 @@ import {
   type FileAttachment,
   type ContentBlock,
 } from "@capybudget/intelligence";
-import type { ImportPhase } from "@capybudget/core";
 import { ImportPreview } from "./import-preview";
 import { Wrench } from "lucide-react";
 
+// ── Helpers ─────────────────────────────────────────────────────
+
 const TEXT_EXTENSIONS = new Set([
-  ".csv",
-  ".tsv",
-  ".json",
-  ".xml",
-  ".md",
-  ".txt",
-  ".log",
-  ".ofx",
-  ".qfx",
-  ".qif",
+  ".csv", ".tsv", ".json", ".xml", ".md", ".txt", ".log", ".ofx", ".qfx", ".qif",
 ]);
 
 function isTextFile(file: File): boolean {
   if (file.type.startsWith("text/")) return true;
-  if (file.type === "application/json" || file.type === "application/xml")
-    return true;
+  if (file.type === "application/json" || file.type === "application/xml") return true;
   if (file.type === "application/pdf") return true;
   const ext = file.name.slice(file.name.lastIndexOf(".")).toLowerCase();
   return TEXT_EXTENSIONS.has(ext);
@@ -59,14 +50,13 @@ function isTextFile(file: File): boolean {
 function readFileAsBase64(file: Blob): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
-    reader.onload = () => {
-      const result = reader.result as string;
-      resolve(result.split(",")[1]);
-    };
+    reader.onload = () => resolve((reader.result as string).split(",")[1]);
     reader.onerror = reject;
     reader.readAsDataURL(file);
   });
 }
+
+// ── Component ───────────────────────────────────────────────────
 
 interface ImportScreenProps {
   budgetPath: string;
@@ -74,16 +64,18 @@ interface ImportScreenProps {
 }
 
 export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
-  const { phase, setPhase } = useImportStore();
-  const [files, setFiles] = useState<FileAttachment[]>([]);
-  const [isDragging, setIsDragging] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const dragCounterRef = useRef(0);
-  const scrollRef = useRef<HTMLDivElement>(null);
+  // ── Disk state (source of truth) ────────────────────────────
+  const [hasImportData, setLocalHasImportData] = useState<boolean | null>(null);
+  const setGlobalHasImportData = useImportStore((s) => s.setHasImportData);
 
-  const customInstructions = useCustomInstructions(budgetPath);
+  const setHasImportData = useCallback(
+    (v: boolean) => {
+      setLocalHasImportData(v);
+      setGlobalHasImportData(v);
+    },
+    [setGlobalHasImportData],
+  );
 
-  // Resolve import directory path (two-step join — proven pattern in this codebase)
   const resolveImportPath = useCallback(
     async (filename: string) => {
       const dir = await joinPath(budgetPath, ".capy/import");
@@ -92,74 +84,49 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
     [budgetPath],
   );
 
-  // Persist import state to disk
-  const persistState = useCallback(
-    async (newPhase: ImportPhase, sourceFiles: { name: string; size: number }[]) => {
-      try {
-        const statePath = await resolveImportPath("state.json");
-        const state = {
-          phase: newPhase,
-          sourceFiles,
-          startedAt: new Date().toISOString(),
-        };
-        await writeTextFile(statePath, JSON.stringify(state, null, 2));
-      } catch {
-        // Directory might not exist yet — that's OK, MCP tools create it
-      }
-    },
-    [resolveImportPath],
-  );
-
-  // Check for existing import data on mount — resume if transactions.csv exists
-  useEffect(() => {
-    let cancelled = false;
-
-    async function checkExistingImport() {
-      try {
-        const csvPath = await resolveImportPath("transactions.csv");
-        const content = await readTextFile(csvPath);
-        if (!cancelled && content.trim().length > 0) {
-          setPhase("preview");
-          return;
-        }
-      } catch {
-        // No CSV
-      }
-
-      // If store says normalizing but we're not streaming, reset to upload
-      // (previous normalization was interrupted)
-      if (!cancelled && phase === "normalizing") {
-        setPhase("upload");
-      }
+  const checkDisk = useCallback(async () => {
+    try {
+      const csvPath = await resolveImportPath("transactions.csv");
+      const content = await readTextFile(csvPath);
+      setHasImportData(content.trim().length > 0);
+    } catch {
+      setHasImportData(false);
     }
+  }, [resolveImportPath, setHasImportData]);
 
-    checkExistingImport();
-    return () => {
-      cancelled = true;
-    };
-  }, [budgetPath, setPhase, resolveImportPath]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Check disk on mount
+  useEffect(() => {
+    checkDisk();
+  }, [checkDisk]);
 
-  // Transition to preview when normalization stream completes
-  const handleNormalizationComplete = useCallback(() => {
-    setPhase("preview");
-    toast.success("Normalization complete");
-  }, [setPhase]);
+  // ── Local UI state ──────────────────────────────────────────
+  const [files, setFiles] = useState<FileAttachment[]>([]);
+  const [isDragging, setIsDragging] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const dragCounterRef = useRef(0);
+  const scrollRef = useRef<HTMLDivElement>(null);
 
+  const customInstructions = useCustomInstructions(budgetPath);
+
+  // ── Intelligence session ────────────────────────────────────
   const importSession = useImportSession({
     budgetPath,
     budgetName,
     mcpServerPath: "packages/mcp/src/server.ts",
     customInstructions: customInstructions.instructions,
-    onNormalizationComplete: handleNormalizationComplete,
+    onNormalizationComplete: checkDisk,
   });
 
-  // Auto-scroll messages
+  const isProcessing = importSession.isStreaming;
+
+  // Auto-scroll processing messages
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
   }, [importSession.messages]);
 
+  // ── File handling ───────────────────────────────────────────
   const processFiles = useCallback(async (rawFiles: File[]) => {
     const candidates: FileAttachment[] = [];
     for (const file of rawFiles) {
@@ -172,9 +139,7 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
         toast.error(`${file.name} is not a supported file type`);
         continue;
       }
-      const content = isImage
-        ? await readFileAsBase64(file)
-        : await file.text();
+      const content = isImage ? await readFileAsBase64(file) : await file.text();
       candidates.push({
         name: file.name,
         content,
@@ -182,7 +147,6 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
         mediaType: file.type || "text/plain",
       });
     }
-
     if (candidates.length > 0) {
       setFiles((prev) => {
         let runningTotal = prev.reduce((s, a) => s + a.size, 0);
@@ -221,8 +185,7 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
       e.preventDefault();
       dragCounterRef.current = 0;
       setIsDragging(false);
-      const droppedFiles = Array.from(e.dataTransfer.files);
-      await processFiles(droppedFiles);
+      await processFiles(Array.from(e.dataTransfer.files));
     },
     [processFiles],
   );
@@ -237,28 +200,45 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
     setFiles((prev) => prev.filter((_, i) => i !== index));
   };
 
-  const handleStart = async () => {
-    if (files.length === 0 || importSession.isStreaming) return;
-    setPhase("normalizing");
-    await persistState(
-      "normalizing",
-      files.map((f) => ({ name: f.name, size: f.size })),
-    );
+  // ── Actions ─────────────────────────────────────────────────
+  const handleStart = () => {
+    if (files.length === 0 || isProcessing) return;
     importSession.startNormalization(files);
   };
 
   const handleCancel = useCallback(async () => {
     importSession.cancel();
-    setPhase("upload");
     setFiles([]);
-    // Clean up import directory — blank out both files
+    // Wipe import files on disk
     await Promise.allSettled([
       resolveImportPath("state.json").then((p) => writeTextFile(p, "")),
       resolveImportPath("transactions.csv").then((p) => writeTextFile(p, "")),
     ]);
-  }, [importSession, setPhase, resolveImportPath]);
+    setHasImportData(false);
+  }, [importSession, resolveImportPath, setHasImportData]);
 
-  const effectivePhase = phase === "idle" ? "upload" : phase;
+  // ── Derived view ────────────────────────────────────────────
+  // no files  → drop zone + Start
+  // processing → processing output
+  // has files  → preview area
+  const showProcessing = isProcessing;
+  const showPreview = !isProcessing && hasImportData === true;
+  const showDropZone = !isProcessing && !hasImportData;
+
+  const subtitle = showProcessing
+    ? "Processing your files..."
+    : showPreview
+      ? "Review and edit imported transactions"
+      : "Drop files to import transactions";
+
+  // Loading state (initial disk check)
+  if (hasImportData === null) {
+    return (
+      <div className="flex h-full items-center justify-center text-muted-foreground">
+        <Loader2 className="h-5 w-5 animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-full flex-col">
@@ -270,15 +250,9 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
           </div>
           <div className="flex-1">
             <h2 className="text-xl font-bold tracking-tight">Import</h2>
-            <p className="text-sm text-muted-foreground">
-              {effectivePhase === "upload" && "Drop files to import transactions"}
-              {effectivePhase === "normalizing" && "Processing your files..."}
-              {effectivePhase === "preview" && "Review and edit imported transactions"}
-              {effectivePhase === "enriching" && "Enriching transactions..."}
-              {effectivePhase === "review" && "Ready for review"}
-            </p>
+            <p className="text-sm text-muted-foreground">{subtitle}</p>
           </div>
-          {effectivePhase !== "upload" && (
+          {(showProcessing || showPreview) && (
             <Button
               variant="ghost"
               size="sm"
@@ -293,11 +267,11 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
       </div>
 
       <div className="flex-1 overflow-auto p-6">
-        <div className={`mx-auto space-y-6 ${effectivePhase === "preview" ? "max-w-6xl" : "max-w-2xl"}`}>
-          {/* Upload phase */}
-          {effectivePhase === "upload" && (
+        <div className={`mx-auto space-y-6 ${showPreview ? "max-w-6xl" : "max-w-2xl"}`}>
+
+          {/* ── Drop zone ──────────────────────────────────── */}
+          {showDropZone && (
             <>
-              {/* Drop zone */}
               <input
                 ref={fileInputRef}
                 type="file"
@@ -330,9 +304,7 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
                     <FileUp className="h-7 w-7" />
                   </div>
                   <p className="text-base font-medium text-foreground/80">
-                    {isDragging
-                      ? "Drop files here"
-                      : "Drop files or click to browse"}
+                    {isDragging ? "Drop files here" : "Drop files or click to browse"}
                   </p>
                   <p className="mt-1.5 text-sm text-muted-foreground/60">
                     CSV, PDF, images of bank statements
@@ -340,7 +312,6 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
                 </div>
               </div>
 
-              {/* File list */}
               {files.length > 0 && (
                 <div className="space-y-2">
                   <div className="text-xs font-medium uppercase tracking-wider text-muted-foreground/70">
@@ -365,10 +336,7 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
                         </span>
                         <button
                           type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            removeFile(i);
-                          }}
+                          onClick={(e) => { e.stopPropagation(); removeFile(i); }}
                           className="rounded-lg p-1 text-muted-foreground/40 hover:text-muted-foreground hover:bg-muted/50 transition-colors"
                           aria-label={`Remove ${file.name}`}
                         >
@@ -377,28 +345,23 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
                       </div>
                     ))}
                   </div>
-                </div>
-              )}
-
-              {/* Start button */}
-              {files.length > 0 && (
-                <div className="flex justify-center pt-2">
-                  <Button
-                    onClick={handleStart}
-                    className="gap-2 rounded-xl px-8 py-5 text-base font-semibold shadow-lg shadow-brand/20"
-                  >
-                    <Sparkles className="h-4.5 w-4.5" />
-                    Start Import
-                  </Button>
+                  <div className="flex justify-center pt-2">
+                    <Button
+                      onClick={handleStart}
+                      className="gap-2 rounded-xl px-8 py-5 text-base font-semibold shadow-lg shadow-brand/20"
+                    >
+                      <Sparkles className="h-4.5 w-4.5" />
+                      Start Import
+                    </Button>
+                  </div>
                 </div>
               )}
             </>
           )}
 
-          {/* Normalizing phase */}
-          {effectivePhase === "normalizing" && (
+          {/* ── Processing output ──────────────────────────── */}
+          {showProcessing && (
             <>
-              {/* File chips */}
               <div className="flex flex-wrap gap-2">
                 {files.map((file, i) => (
                   <span
@@ -411,14 +374,10 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
                       <FileIcon className="h-3 w-3 text-muted-foreground" />
                     )}
                     {file.name}
-                    <span className="text-muted-foreground/50">
-                      {formatFileSize(file.size)}
-                    </span>
+                    <span className="text-muted-foreground/50">{formatFileSize(file.size)}</span>
                   </span>
                 ))}
               </div>
-
-              {/* Progress / messages */}
               <div
                 ref={scrollRef}
                 className="rounded-2xl border border-border/30 bg-card/30 p-5 max-h-[60vh] overflow-y-auto"
@@ -433,29 +392,25 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
                         ))}
                       </div>
                     ))}
-                  {importSession.isStreaming && (
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <Loader2 className="h-3.5 w-3.5 animate-spin text-brand" />
-                      Processing...
-                    </div>
-                  )}
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Loader2 className="h-3.5 w-3.5 animate-spin text-brand" />
+                    Processing...
+                  </div>
                 </div>
               </div>
-
             </>
           )}
 
-          {/* Preview phase */}
-          {effectivePhase === "preview" && (
-            <ImportPreview budgetPath={budgetPath} />
-          )}
+          {/* ── Preview area ───────────────────────────────── */}
+          {showPreview && <ImportPreview budgetPath={budgetPath} />}
+
         </div>
       </div>
     </div>
   );
 }
 
-/* ── Normalization Block Renderer ────────────────────────────────── */
+/* ── Block Renderer ──────────────────────────────────────────────── */
 
 function NormalizationBlock({ block }: { block: ContentBlock }) {
   switch (block.type) {
@@ -477,9 +432,7 @@ function NormalizationBlock({ block }: { block: ContentBlock }) {
         <span className="inline-flex items-center gap-1.5 rounded-lg bg-brand/8 px-2.5 py-1 text-xs text-foreground/70">
           <FileIcon className="h-3 w-3 text-muted-foreground" />
           {block.name}
-          <span className="text-muted-foreground/50">
-            {formatFileSize(block.size)}
-          </span>
+          <span className="text-muted-foreground/50">{formatFileSize(block.size)}</span>
         </span>
       );
     default:

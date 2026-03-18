@@ -79,7 +79,7 @@ export function Sidebar({
   }, undefined);
   const isCategoriesRoute = matches.some((m) => m.routeId?.includes("/categories"));
   const isImportRoute = matches.some((m) => m.routeId?.includes("/import"));
-  const importPhase = useImportStore((s) => s.phase);
+  const hasImportData = useImportStore((s) => s.hasImportData);
 
   const netWorth = getNetWorth(accounts, transactions);
   const groupedAccounts = getAccountsByGroup(accounts);
@@ -322,7 +322,7 @@ export function Sidebar({
         >
           <FileUp className="h-4 w-4" />
           Import
-          {importPhase !== "idle" && importPhase !== "upload" && (
+          {hasImportData && (
             <span className="ml-auto flex h-2 w-2 rounded-full bg-brand animate-pulse" />
           )}
         </Link>
