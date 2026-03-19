@@ -15,6 +15,7 @@ import type { ImportTransaction } from "@capybudget/core";
 import {
   formatMoney,
   parseMoney,
+  centsToEditString,
   parseLocalDate,
   toDateString,
   formatDateLabel,
@@ -65,10 +66,6 @@ interface ImportTableProps {
 
 // ── Helpers ─────────────────────────────────────────────────────
 
-function formatDate(dateStr: string): string {
-  return formatDateLabel(dateStr);
-}
-
 function amountColorClass(txn: ImportTransaction): string {
   if (txn.type === "income") return "text-amount-income";
   if (txn.type === "expense") return "text-amount-expense";
@@ -77,13 +74,6 @@ function amountColorClass(txn: ImportTransaction): string {
 
 function defaultDirection(column: ImportSortColumn): "asc" | "desc" {
   return column === "date" ? "desc" : "asc";
-}
-
-function centsToEditString(cents: number): string {
-  const abs = Math.abs(cents);
-  const dollars = Math.floor(abs / 100);
-  const remainder = abs % 100;
-  return `${dollars}.${String(remainder).padStart(2, "0")}`;
 }
 
 const inputClass =
@@ -426,7 +416,7 @@ export function ImportTable({
                     onCancel={handleCancel}
                   />
                 ) : (
-                  formatDate(txn.date)
+                  formatDateLabel(txn.date)
                 )}
               </TableCell>
 

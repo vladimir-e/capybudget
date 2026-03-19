@@ -25,6 +25,14 @@ export function getAmountClass(txn: { type: string; amount: number }): string {
   return "text-amount-income";
 }
 
+/** Format cents as an unsigned dollar string for editing: 1250 → "12.50" */
+export function centsToEditString(cents: number): string {
+  const abs = Math.abs(cents);
+  const dollars = Math.floor(abs / 100);
+  const remainder = abs % 100;
+  return `${dollars}.${String(remainder).padStart(2, "0")}`;
+}
+
 /** Parse a dollar string to cents: "$12.50" → 1250, "12.5" → 1250 */
 export function parseMoney(input: string): number {
   const cleaned = input.replace(/[^0-9.-]/g, "");

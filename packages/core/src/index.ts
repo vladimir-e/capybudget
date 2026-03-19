@@ -15,6 +15,7 @@ export {
   formatMoney,
   formatMoneyCompact,
   getAmountClass,
+  centsToEditString,
   parseMoney,
 } from "./money";
 
@@ -98,6 +99,4 @@ export {
 export type {
   ImportTransaction,
   ImportPhase,
-  ImportSourceFile,
-  ImportState,
 } from "./import-types";

@@ -5,7 +5,7 @@ import { AccountSelector } from "@/components/budget/account-selector";
 import { CategorySelector } from "@/components/budget/category-selector";
 import { MerchantInput } from "@/components/budget/merchant-input";
 import type { Account, Category, Transaction, TransactionFormData } from "@capybudget/core";
-import { parseMoney, getAmountClass, parseLocalDate, toDateString, formatDateLabel, findCategoryForMerchant } from "@capybudget/core";
+import { parseMoney, getAmountClass, centsToEditString, parseLocalDate, toDateString, formatDateLabel, findCategoryForMerchant } from "@capybudget/core";
 import { useTransactions } from "@/hooks/use-budget-data";
 import { CalendarDays } from "lucide-react";
 
@@ -18,14 +18,6 @@ export type EditableColumn = "date" | "account" | "category" | "merchant" | "amo
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-
-/** Format cents as an unsigned dollar string for editing: 1250 → "12.50" */
-function centsToEditString(cents: number): string {
-  const abs = Math.abs(cents);
-  const dollars = Math.floor(abs / 100);
-  const remainder = abs % 100;
-  return `${dollars}.${String(remainder).padStart(2, "0")}`;
-}
 
 const inputClass =
   "h-7 w-full bg-transparent border-0 border-b border-brand/40 rounded-none px-1 text-[13px] focus:outline-none focus:ring-0 focus:border-brand/60 transition-colors";
