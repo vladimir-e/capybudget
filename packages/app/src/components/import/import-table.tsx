@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Table,
   TableBody,
@@ -7,12 +7,22 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Input } from "@/components/ui/input";
+import { MerchantInput } from "@/components/budget/merchant-input";
 import type { ImportTransaction } from "@capybudget/core";
-import { formatMoney } from "@capybudget/core";
+import {
+  formatMoney,
+  parseMoney,
+  parseLocalDate,
+  toDateString,
+  formatDateLabel,
+} from "@capybudget/core";
+import { useTransactions } from "@/hooks/use-budget-data";
 import {
   ArrowUpDown,
+  CalendarDays,
   ChevronDown,
   ChevronUp,
   Inbox,
@@ -34,7 +44,13 @@ export interface ImportSortConfig {
   direction: "asc" | "desc";
 }
 
-type EditableColumn = Exclude<ImportSortColumn, never> | "memo";
+type EditableColumn =
+  | "date"
+  | "description"
+  | "amount"
+  | "type"
+  | "sourceAccount"
+  | "sourceCategory";
 
 interface ImportTableProps {
   transactions: ImportTransaction[];
@@ -52,11 +68,7 @@ interface ImportTableProps {
 // ── Helpers ─────────────────────────────────────────────────────
 
 function formatDate(dateStr: string): string {
-  return new Date(dateStr + "T12:00:00").toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
+  return formatDateLabel(dateStr);
 }
 
 function amountColorClass(txn: ImportTransaction): string {
@@ -68,6 +80,16 @@ function amountColorClass(txn: ImportTransaction): string {
 function defaultDirection(column: ImportSortColumn): "asc" | "desc" {
   return column === "date" ? "desc" : "asc";
 }
+
+function centsToEditString(cents: number): string {
+  const abs = Math.abs(cents);
+  const dollars = Math.floor(abs / 100);
+  const remainder = abs % 100;
+  return `${dollars}.${String(remainder).padStart(2, "0")}`;
+}
+
+const inputClass =
+  "h-7 w-full bg-transparent border-0 border-b border-brand/40 rounded-none px-1 text-[13px] focus:outline-none focus:ring-0 focus:border-brand/60 transition-colors";
 
 // ── SortableHeader ──────────────────────────────────────────────
 
@@ -127,76 +149,149 @@ function SortableHeader({
   );
 }
 
-// ── Inline Edit Cell ────────────────────────────────────────────
+// ── Inline edit cells (reuse existing UI building blocks) ───────
 
-function InlineInput({
+function DateEdit({
   value,
-  onCommit,
+  onSave,
   onCancel,
-  type = "text",
-  align,
 }: {
   value: string;
-  onCommit: (value: string) => void;
+  onSave: (date: string) => void;
   onCancel: () => void;
-  type?: "text" | "date";
-  align?: "right";
 }) {
-  const inputRef = useRef<HTMLInputElement>(null);
-  const [draft, setDraft] = useState(value);
-
-  const commit = () => {
-    if (draft !== value) onCommit(draft);
-    else onCancel();
-  };
-
   return (
-    <Input
-      ref={inputRef}
-      autoFocus
-      type={type}
-      value={draft}
-      onChange={(e) => setDraft(e.target.value)}
-      onBlur={commit}
-      onKeyDown={(e) => {
-        if (e.key === "Enter") {
-          e.preventDefault();
-          commit();
-        }
-        if (e.key === "Escape") {
-          e.preventDefault();
-          onCancel();
-        }
-      }}
-      className={`h-7 text-[13px] px-1.5 ${align === "right" ? "text-right" : ""}`}
-    />
+    <div onClick={(e) => e.stopPropagation()}>
+      <Popover defaultOpen onOpenChange={(open) => { if (!open) onCancel(); }}>
+        <PopoverTrigger
+          render={
+            <button
+              type="button"
+              className="inline-flex items-center gap-1.5 text-[13px] text-muted-foreground hover:text-foreground transition-colors"
+            />
+          }
+        >
+          <CalendarDays className="h-3.5 w-3.5 text-muted-foreground/50" />
+          <span>{formatDateLabel(value)}</span>
+        </PopoverTrigger>
+        <PopoverContent className="w-auto p-0" align="start">
+          <Calendar
+            mode="single"
+            required
+            selected={parseLocalDate(value)}
+            onSelect={(d) => onSave(toDateString(d))}
+            onDayKeyDown={(day, _modifiers, e) => {
+              if (e.key === "Enter" || e.key === " ") onSave(toDateString(day));
+            }}
+            defaultMonth={parseLocalDate(value)}
+          />
+        </PopoverContent>
+      </Popover>
+    </div>
   );
 }
 
-function TypeSelect({
+function DescriptionEdit({
   value,
-  onCommit,
+  onSave,
   onCancel,
 }: {
   value: string;
-  onCommit: (value: string) => void;
+  onSave: (v: string) => void;
+  onCancel: () => void;
+}) {
+  const { data: allTransactions = [] } = useTransactions();
+  const [draft, setDraft] = useState(value);
+
+  return (
+    <div onClick={(e) => e.stopPropagation()}>
+      <MerchantInput
+        value={draft}
+        onChange={setDraft}
+        onSelect={(merchant) => onSave(merchant)}
+        transactions={allTransactions}
+        autoFocus
+        onBlur={() => onSave(draft.trim() || value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") { e.preventDefault(); onSave(draft.trim() || value); }
+          if (e.key === "Escape") { e.preventDefault(); onCancel(); }
+        }}
+        className={`${inputClass} text-foreground/80`}
+        placeholder="Description"
+      />
+    </div>
+  );
+}
+
+function AmountEdit({
+  txn,
+  onSave,
+  onCancel,
+}: {
+  txn: ImportTransaction;
+  onSave: (cents: number) => void;
+  onCancel: () => void;
+}) {
+  const [value, setValue] = useState(() => centsToEditString(txn.amount));
+  const ref = useRef<HTMLInputElement>(null);
+  useEffect(() => { ref.current?.focus(); ref.current?.select(); }, []);
+
+  const save = () => {
+    const cents = parseMoney(value);
+    if (cents >= 0) {
+      onSave(txn.type === "expense" ? -cents : cents);
+    } else {
+      onCancel();
+    }
+  };
+
+  return (
+    <div onClick={(e) => e.stopPropagation()} className="inline-flex items-center justify-end">
+      <span className={`text-[13px] font-semibold ${amountColorClass(txn)}`}>
+        {txn.amount < 0 ? "-$" : "$"}
+      </span>
+      <input
+        ref={ref}
+        type="text"
+        inputMode="decimal"
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        onBlur={save}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") { e.preventDefault(); save(); }
+          if (e.key === "Escape") { e.preventDefault(); onCancel(); }
+        }}
+        className={`${inputClass} text-right tabular-nums font-semibold ${amountColorClass(txn)}`}
+        style={{ width: `${Math.max(value.length, 4) + 1}ch` }}
+        placeholder="0.00"
+      />
+    </div>
+  );
+}
+
+function TypeEdit({
+  value,
+  onSave,
+  onCancel,
+}: {
+  value: string;
+  onSave: (v: string) => void;
   onCancel: () => void;
 }) {
   return (
-    <select
-      autoFocus
-      value={value}
-      onChange={(e) => onCommit(e.target.value)}
-      onBlur={onCancel}
-      onKeyDown={(e) => {
-        if (e.key === "Escape") onCancel();
-      }}
-      className="h-7 rounded-md border border-input bg-background px-1.5 text-[13px] focus:outline-none focus:ring-1 focus:ring-ring"
-    >
-      <option value="expense">expense</option>
-      <option value="income">income</option>
-      <option value="transfer">transfer</option>
-    </select>
+    <div onClick={(e) => e.stopPropagation()}>
+      <select
+        autoFocus
+        value={value}
+        onChange={(e) => onSave(e.target.value)}
+        onBlur={onCancel}
+        onKeyDown={(e) => { if (e.key === "Escape") onCancel(); }}
+        className="h-7 rounded-md border border-input bg-background px-1.5 text-[13px] focus:outline-none focus:ring-1 focus:ring-ring"
+      >
+        <option value="expense">expense</option>
+        <option value="income">income</option>
+      </select>
+    </div>
   );
 }
 
@@ -218,15 +313,6 @@ export function ImportTable({
     rowId: string;
     column: EditableColumn;
   } | null>(null);
-  const lastToggledRef = useRef<string | null>(null);
-
-  const handleToggle = useCallback(
-    (id: string, shiftKey: boolean) => {
-      onToggleSelect(id, shiftKey);
-      lastToggledRef.current = id;
-    },
-    [onToggleSelect],
-  );
 
   const handleCellClick = useCallback(
     (rowId: string, column: EditableColumn) => {
@@ -239,14 +325,13 @@ export function ImportTable({
     [],
   );
 
-  const handleCommit = useCallback(
-    (id: string, column: EditableColumn, value: string) => {
+  const handleSave = useCallback(
+    (id: string, column: EditableColumn, value: string | number) => {
       const patch: Partial<ImportTransaction> = {};
       if (column === "amount") {
-        const cents = Math.round(parseFloat(value) * 100);
-        if (!isNaN(cents)) patch.amount = cents;
+        patch.amount = value as number;
       } else {
-        (patch as Record<string, string>)[column] = value;
+        (patch as Record<string, string>)[column] = value as string;
       }
       onUpdateTransaction(id, patch);
       setEditingCell(null);
@@ -263,9 +348,7 @@ export function ImportTable({
       <div className="flex flex-col items-center justify-center py-24 text-muted-foreground">
         <Inbox className="h-12 w-12 mb-3 opacity-30" strokeWidth={1.5} />
         <p className="text-base font-medium">No transactions found</p>
-        <p className="text-sm mt-1 opacity-70">
-          Try adjusting your search.
-        </p>
+        <p className="text-sm mt-1 opacity-70">Try adjusting your search.</p>
       </div>
     );
   }
@@ -282,50 +365,22 @@ export function ImportTable({
               aria-label="Select all transactions"
             />
           </TableHead>
-          <SortableHeader
-            column="date"
-            sort={sort}
-            onSortChange={onSortChange}
-            className="w-[110px]"
-          >
+          <SortableHeader column="date" sort={sort} onSortChange={onSortChange} className="w-[120px]">
             Date
           </SortableHeader>
-          <SortableHeader
-            column="description"
-            sort={sort}
-            onSortChange={onSortChange}
-          >
+          <SortableHeader column="description" sort={sort} onSortChange={onSortChange}>
             Description
           </SortableHeader>
-          <SortableHeader
-            column="amount"
-            sort={sort}
-            onSortChange={onSortChange}
-            align="right"
-            className="w-[120px]"
-          >
+          <SortableHeader column="amount" sort={sort} onSortChange={onSortChange} align="right" className="w-[130px]">
             Amount
           </SortableHeader>
-          <SortableHeader
-            column="type"
-            sort={sort}
-            onSortChange={onSortChange}
-            className="w-[100px]"
-          >
+          <SortableHeader column="type" sort={sort} onSortChange={onSortChange} className="w-[100px]">
             Type
           </SortableHeader>
-          <SortableHeader
-            column="sourceAccount"
-            sort={sort}
-            onSortChange={onSortChange}
-          >
+          <SortableHeader column="sourceAccount" sort={sort} onSortChange={onSortChange}>
             Account
           </SortableHeader>
-          <SortableHeader
-            column="sourceCategory"
-            sort={sort}
-            onSortChange={onSortChange}
-          >
+          <SortableHeader column="sourceCategory" sort={sort} onSortChange={onSortChange}>
             Category
           </SortableHeader>
           <TableHead className="w-[40px]" />
@@ -353,12 +408,12 @@ export function ImportTable({
                 className="px-3 cursor-pointer"
                 onClick={(e) => {
                   e.stopPropagation();
-                  handleToggle(txn.id, e.shiftKey);
+                  onToggleSelect(txn.id, e.shiftKey);
                 }}
               >
                 <Checkbox
                   checked={isSelected}
-                  onCheckedChange={() => handleToggle(txn.id, false)}
+                  onCheckedChange={() => onToggleSelect(txn.id, false)}
                   aria-label="Include transaction"
                 />
               </TableCell>
@@ -369,10 +424,9 @@ export function ImportTable({
                 onClick={() => handleCellClick(txn.id, "date")}
               >
                 {activeCol === "date" ? (
-                  <InlineInput
+                  <DateEdit
                     value={txn.date}
-                    type="date"
-                    onCommit={(v) => handleCommit(txn.id, "date", v)}
+                    onSave={(d) => handleSave(txn.id, "date", d)}
                     onCancel={handleCancel}
                   />
                 ) : (
@@ -386,9 +440,9 @@ export function ImportTable({
                 onClick={() => handleCellClick(txn.id, "description")}
               >
                 {activeCol === "description" ? (
-                  <InlineInput
+                  <DescriptionEdit
                     value={txn.description}
-                    onCommit={(v) => handleCommit(txn.id, "description", v)}
+                    onSave={(v) => handleSave(txn.id, "description", v)}
                     onCancel={handleCancel}
                   />
                 ) : (
@@ -402,10 +456,9 @@ export function ImportTable({
                 onClick={() => handleCellClick(txn.id, "amount")}
               >
                 {activeCol === "amount" ? (
-                  <InlineInput
-                    value={(txn.amount / 100).toFixed(2)}
-                    align="right"
-                    onCommit={(v) => handleCommit(txn.id, "amount", v)}
+                  <AmountEdit
+                    txn={txn}
+                    onSave={(cents) => handleSave(txn.id, "amount", cents)}
                     onCancel={handleCancel}
                   />
                 ) : (
@@ -419,9 +472,9 @@ export function ImportTable({
                 onClick={() => handleCellClick(txn.id, "type")}
               >
                 {activeCol === "type" ? (
-                  <TypeSelect
+                  <TypeEdit
                     value={txn.type}
-                    onCommit={(v) => handleCommit(txn.id, "type", v)}
+                    onSave={(v) => handleSave(txn.id, "type", v)}
                     onCancel={handleCancel}
                   />
                 ) : (
@@ -435,20 +488,14 @@ export function ImportTable({
                 onClick={() => handleCellClick(txn.id, "sourceAccount")}
               >
                 {activeCol === "sourceAccount" ? (
-                  <InlineInput
+                  <TextEdit
                     value={txn.sourceAccount}
-                    onCommit={(v) =>
-                      handleCommit(txn.id, "sourceAccount", v)
-                    }
+                    onSave={(v) => handleSave(txn.id, "sourceAccount", v)}
                     onCancel={handleCancel}
                   />
                 ) : (
                   <span className="truncate block">
-                    {txn.sourceAccount || (
-                      <span className="text-muted-foreground/40 italic">
-                        none
-                      </span>
-                    )}
+                    {txn.sourceAccount || <span className="text-muted-foreground/40 italic">none</span>}
                   </span>
                 )}
               </TableCell>
@@ -459,20 +506,14 @@ export function ImportTable({
                 onClick={() => handleCellClick(txn.id, "sourceCategory")}
               >
                 {activeCol === "sourceCategory" ? (
-                  <InlineInput
+                  <TextEdit
                     value={txn.sourceCategory}
-                    onCommit={(v) =>
-                      handleCommit(txn.id, "sourceCategory", v)
-                    }
+                    onSave={(v) => handleSave(txn.id, "sourceCategory", v)}
                     onCancel={handleCancel}
                   />
                 ) : (
                   <span className="truncate block">
-                    {txn.sourceCategory || (
-                      <span className="text-muted-foreground/40 italic">
-                        none
-                      </span>
-                    )}
+                    {txn.sourceCategory || <span className="text-muted-foreground/40 italic">none</span>}
                   </span>
                 )}
               </TableCell>
@@ -493,6 +534,44 @@ export function ImportTable({
         })}
       </TableBody>
     </Table>
+  );
+}
+
+// ── Simple text editor (for source account/category) ────────────
+
+function TextEdit({
+  value,
+  onSave,
+  onCancel,
+}: {
+  value: string;
+  onSave: (v: string) => void;
+  onCancel: () => void;
+}) {
+  const [draft, setDraft] = useState(value);
+  const ref = useRef<HTMLInputElement>(null);
+  useEffect(() => { ref.current?.focus(); ref.current?.select(); }, []);
+
+  const save = () => {
+    if (draft !== value) onSave(draft);
+    else onCancel();
+  };
+
+  return (
+    <div onClick={(e) => e.stopPropagation()}>
+      <input
+        ref={ref}
+        type="text"
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={save}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") { e.preventDefault(); save(); }
+          if (e.key === "Escape") { e.preventDefault(); onCancel(); }
+        }}
+        className={inputClass}
+      />
+    </div>
   );
 }
 
