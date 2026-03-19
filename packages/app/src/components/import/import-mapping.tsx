@@ -1,17 +1,11 @@
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { AccountSelector } from "@/components/budget/account-selector";
+import { CategorySelector } from "@/components/budget/category-selector";
 import type { Account, Category } from "@capybudget/core";
-import { ACCOUNT_TYPE_LABELS } from "@capybudget/core";
-import { Building2, Tag } from "lucide-react";
+import { Building2, Plus, Tag } from "lucide-react";
 
 // ── Types ───────────────────────────────────────────────────────
 
-/** Maps a source string → existing entity ID, or "" for "create new" */
+/** Maps a source string → existing entity ID, or "__create__" for new */
 export type EntityMapping = Record<string, string>;
 
 interface ImportMappingProps {
@@ -37,9 +31,6 @@ export function ImportMapping({
   onAccountMappingChange,
   onCategoryMappingChange,
 }: ImportMappingProps) {
-  const activeAccounts = accounts.filter((a) => !a.archived);
-  const activeCategories = categories.filter((c) => !c.archived);
-
   const hasAccounts = sourceAccounts.length > 0;
   const hasCategories = sourceCategories.length > 0;
 
@@ -75,24 +66,19 @@ export function ImportMapping({
                 </span>
               )}
             </div>
-            <div className="space-y-2">
+            <div className="space-y-2.5">
               {sourceAccounts.map((source) => (
-                <MappingRow
+                <AccountMappingRow
                   key={source}
                   sourceLabel={source}
-                  value={accountMapping[source] ?? undefined}
+                  value={accountMapping[source]}
+                  accounts={accounts}
                   onChange={(value) =>
                     onAccountMappingChange({
                       ...accountMapping,
                       [source]: value,
                     })
                   }
-                  options={activeAccounts.map((a) => ({
-                    id: a.id,
-                    label: a.name,
-                    detail: ACCOUNT_TYPE_LABELS[a.type],
-                  }))}
-                  createLabel="Create new account"
                 />
               ))}
             </div>
@@ -111,24 +97,19 @@ export function ImportMapping({
                 </span>
               )}
             </div>
-            <div className="space-y-2">
+            <div className="space-y-2.5">
               {sourceCategories.map((source) => (
-                <MappingRow
+                <CategoryMappingRow
                   key={source}
                   sourceLabel={source}
-                  value={categoryMapping[source] ?? undefined}
+                  value={categoryMapping[source]}
+                  categories={categories}
                   onChange={(value) =>
                     onCategoryMappingChange({
                       ...categoryMapping,
                       [source]: value,
                     })
                   }
-                  options={activeCategories.map((c) => ({
-                    id: c.id,
-                    label: c.name,
-                    detail: c.group,
-                  }))}
-                  createLabel="Create new category"
                 />
               ))}
             </div>
@@ -139,47 +120,90 @@ export function ImportMapping({
   );
 }
 
-// ── Mapping Row ─────────────────────────────────────────────────
+// ── Account Mapping Row ─────────────────────────────────────────
 
-function MappingRow({
+function AccountMappingRow({
   sourceLabel,
   value,
+  accounts,
   onChange,
-  options,
-  createLabel,
 }: {
   sourceLabel: string;
   value: string | undefined;
+  accounts: Account[];
   onChange: (value: string) => void;
-  options: { id: string; label: string; detail?: string }[];
-  createLabel: string;
 }) {
+  const isCreateNew = value === "__create__";
   return (
     <div className="flex items-center gap-3">
       <span className="flex-1 min-w-0 truncate text-sm text-foreground/80">
         {sourceLabel}
       </span>
-      <div className="w-48 shrink-0">
-        <Select value={value ?? ""} onValueChange={(v) => { if (v) onChange(v); }}>
-          <SelectTrigger className="h-8 text-xs">
-            <SelectValue placeholder="Select..." />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="__create__">
-              <span className="text-brand font-medium">+ {createLabel}</span>
-            </SelectItem>
-            {options.map((opt) => (
-              <SelectItem key={opt.id} value={opt.id}>
-                <span>{opt.label}</span>
-                {opt.detail && (
-                  <span className="ml-1.5 text-muted-foreground text-[10px]">
-                    {opt.detail}
-                  </span>
-                )}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+      <div className="w-52 shrink-0">
+        {isCreateNew ? (
+          <button
+            type="button"
+            onClick={() => onChange("")}
+            className="flex h-8 w-full items-center gap-1.5 rounded-lg border border-dashed border-brand/40 bg-brand/5 px-3 text-xs text-brand font-medium hover:bg-brand/10 transition-colors"
+          >
+            <Plus className="h-3 w-3" />
+            Create &ldquo;{sourceLabel}&rdquo;
+          </button>
+        ) : (
+          <div className="[&_button:first-of-type]:w-full [&_button:first-of-type]:min-w-0">
+            <AccountSelector
+              accounts={accounts}
+              value={value ?? ""}
+              onChange={(id) => onChange(id || "__create__")}
+              placeholder="Select account..."
+            />
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Category Mapping Row ────────────────────────────────────────
+
+function CategoryMappingRow({
+  sourceLabel,
+  value,
+  categories,
+  onChange,
+}: {
+  sourceLabel: string;
+  value: string | undefined;
+  categories: Category[];
+  onChange: (value: string) => void;
+}) {
+  const isCreateNew = value === "__create__";
+
+  return (
+    <div className="flex items-center gap-3">
+      <span className="flex-1 min-w-0 truncate text-sm text-foreground/80">
+        {sourceLabel}
+      </span>
+      <div className="w-52 shrink-0">
+        {isCreateNew ? (
+          <button
+            type="button"
+            onClick={() => onChange("")}
+            className="flex h-8 w-full items-center gap-1.5 rounded-lg border border-dashed border-brand/40 bg-brand/5 px-3 text-xs text-brand font-medium hover:bg-brand/10 transition-colors"
+          >
+            <Plus className="h-3 w-3" />
+            Create &ldquo;{sourceLabel}&rdquo;
+          </button>
+        ) : (
+          <div className="[&_button:first-of-type]:w-full [&_button:first-of-type]:min-w-0">
+            <CategorySelector
+              categories={categories}
+              value={value ?? null}
+              onChange={(id) => onChange(id ?? "__create__")}
+              placeholder="Select category..."
+            />
+          </div>
+        )}
       </div>
     </div>
   );
