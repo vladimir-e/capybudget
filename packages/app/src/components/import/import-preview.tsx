@@ -71,34 +71,7 @@ export function ImportPreview({ budgetPath }: ImportPreviewProps) {
     return joinPath(capyDir, "aliases.json");
   }, [budgetPath]);
 
-  /** Save current mappings as aliases for future imports. */
-  // Save aliases when mappings change (debounced, skips empty)
-  const aliasTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const accountMappingRef = useRef(accountMapping);
-  const categoryMappingRef = useRef(categoryMapping);
-  accountMappingRef.current = accountMapping;
-  categoryMappingRef.current = categoryMapping;
-
-  const flushAliases = useCallback(async () => {
-    const am = accountMappingRef.current;
-    const cm = categoryMappingRef.current;
-    if (Object.keys(am).length === 0 && Object.keys(cm).length === 0) return;
-    try {
-      const path = await resolveAliasPath();
-      const aliases: ImportAliases = { accounts: am, categories: cm };
-      await writeTextFile(path, JSON.stringify(aliases, null, 2));
-      console.log("[import] aliases saved", aliases);
-    } catch (err) {
-      console.warn("[import] failed to save aliases:", err);
-    }
-  }, [resolveAliasPath]);
-
-  useEffect(() => {
-    // Don't save the initial empty state or the freshly-loaded aliases
-    if (Object.keys(accountMapping).length === 0 && Object.keys(categoryMapping).length === 0) return;
-    if (aliasTimerRef.current) clearTimeout(aliasTimerRef.current);
-    aliasTimerRef.current = setTimeout(flushAliases, 1000);
-  }, [accountMapping, categoryMapping, flushAliases]);
+  // Alias saving will happen at merge time (7.7).
 
   const writeBack = useCallback(async () => {
     try {
@@ -191,19 +164,15 @@ export function ImportPreview({ budgetPath }: ImportPreviewProps) {
     applyAliases();
   }, [transactions, accounts, categories, resolveAliasPath]);
 
-  // Flush CSV on unmount + flush pending alias save
+  // Flush pending CSV write on unmount
   useEffect(() => {
     return () => {
       if (writeTimerRef.current) {
         clearTimeout(writeTimerRef.current);
         writeBack();
       }
-      if (aliasTimerRef.current) {
-        clearTimeout(aliasTimerRef.current);
-        flushAliases();
-      }
     };
-  }, [writeBack, flushAliases]);
+  }, [writeBack]);
 
   // Derived data
   const sourceAccounts = useMemo(
