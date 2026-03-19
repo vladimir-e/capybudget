@@ -17,15 +17,3 @@ export type ImportPhase =
   | "preview"
   | "enriching"
   | "review";
-
-export interface ImportSourceFile {
-  name: string;
-  size: number;
-}
-
-export interface ImportState {
-  phase: ImportPhase;
-  sourceFiles: ImportSourceFile[];
-  startedAt?: string;
-  normalizedAt?: string;
-}
