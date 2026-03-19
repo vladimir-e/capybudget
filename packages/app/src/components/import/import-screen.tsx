@@ -13,6 +13,7 @@ import {
   File as FileIcon,
   Image,
   Loader2,
+  Wrench,
 } from "lucide-react";
 import { toast } from "sonner";
 import { readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
@@ -31,7 +32,6 @@ import {
   type ContentBlock,
 } from "@capybudget/intelligence";
 import { ImportPreview } from "./import-preview";
-import { Wrench } from "lucide-react";
 
 // ── Helpers ─────────────────────────────────────────────────────
 

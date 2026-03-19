@@ -227,7 +227,9 @@ function AmountEdit({
   const save = () => {
     const cents = parseMoney(value);
     if (cents >= 0) {
-      onSave(txn.type === "expense" ? -cents : cents);
+      if (txn.type === "expense") onSave(-cents);
+      else if (txn.type === "transfer") onSave(txn.amount < 0 ? -cents : cents);
+      else onSave(cents);
     } else {
       onCancel();
     }
@@ -278,6 +280,7 @@ function TypeEdit({
       >
         <option value="expense">expense</option>
         <option value="income">income</option>
+        <option value="transfer">transfer</option>
       </select>
     </div>
   );
