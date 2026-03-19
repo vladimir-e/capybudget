@@ -72,19 +72,33 @@ export function ImportPreview({ budgetPath }: ImportPreviewProps) {
   }, [budgetPath]);
 
   /** Save current mappings as aliases for future imports. */
-  const saveAliases = useCallback(async () => {
+  // Save aliases when mappings change (debounced, skips empty)
+  const aliasTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const accountMappingRef = useRef(accountMapping);
+  const categoryMappingRef = useRef(categoryMapping);
+  accountMappingRef.current = accountMapping;
+  categoryMappingRef.current = categoryMapping;
+
+  const flushAliases = useCallback(async () => {
+    const am = accountMappingRef.current;
+    const cm = categoryMappingRef.current;
+    if (Object.keys(am).length === 0 && Object.keys(cm).length === 0) return;
     try {
       const path = await resolveAliasPath();
-      const aliases: ImportAliases = {
-        accounts: { ...accountMapping },
-        categories: { ...categoryMapping },
-      };
+      const aliases: ImportAliases = { accounts: am, categories: cm };
       await writeTextFile(path, JSON.stringify(aliases, null, 2));
       console.log("[import] aliases saved", aliases);
     } catch (err) {
       console.warn("[import] failed to save aliases:", err);
     }
-  }, [resolveAliasPath, accountMapping, categoryMapping]);
+  }, [resolveAliasPath]);
+
+  useEffect(() => {
+    // Don't save the initial empty state or the freshly-loaded aliases
+    if (Object.keys(accountMapping).length === 0 && Object.keys(categoryMapping).length === 0) return;
+    if (aliasTimerRef.current) clearTimeout(aliasTimerRef.current);
+    aliasTimerRef.current = setTimeout(flushAliases, 1000);
+  }, [accountMapping, categoryMapping, flushAliases]);
 
   const writeBack = useCallback(async () => {
     try {
@@ -177,18 +191,19 @@ export function ImportPreview({ budgetPath }: ImportPreviewProps) {
     applyAliases();
   }, [transactions, accounts, categories, resolveAliasPath]);
 
-  // Flush CSV + save aliases on unmount
-  const saveAliasesRef = useRef(saveAliases);
-  saveAliasesRef.current = saveAliases;
+  // Flush CSV on unmount + flush pending alias save
   useEffect(() => {
     return () => {
       if (writeTimerRef.current) {
         clearTimeout(writeTimerRef.current);
         writeBack();
       }
-      saveAliasesRef.current();
+      if (aliasTimerRef.current) {
+        clearTimeout(aliasTimerRef.current);
+        flushAliases();
+      }
     };
-  }, [writeBack]);
+  }, [writeBack, flushAliases]);
 
   // Derived data
   const sourceAccounts = useMemo(
