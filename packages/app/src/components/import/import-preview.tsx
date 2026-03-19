@@ -101,76 +101,81 @@ export function ImportPreview({ budgetPath }: ImportPreviewProps) {
     writeTimerRef.current = setTimeout(writeBack, 500);
   }, [writeBack]);
 
-  // Load CSV + aliases on mount
+  // Load CSV on mount (runs once)
   useEffect(() => {
     let cancelled = false;
-
     async function load() {
       try {
         const csvPath = await resolveImportPath("transactions.csv");
         const content = await readTextFile(csvPath);
         const parsed = parseCsv<ImportTransaction>(content, IMPORT_COERCE);
-        if (cancelled) return;
-
-        setTransactions(parsed);
-        setSelectedIds(new Set(parsed.map((t) => t.id)));
-
-        // Pre-populate mappings from saved aliases (defensive)
-        try {
-          const aliasPath = await resolveAliasPath();
-          const aliasContent = await readTextFile(aliasPath);
-          const aliases: ImportAliases = JSON.parse(aliasContent);
-
-          // Collect source strings that appear in this import
-          const importAccounts = new Set(parsed.map((t) => t.sourceAccount).filter(Boolean));
-          const importCategories = new Set(parsed.map((t) => t.sourceCategory).filter(Boolean));
-
-          // Only keep aliases that: (a) match a source string in this import,
-          // (b) point to an entity that still exists (or "__create__")
-          if (aliases.accounts && typeof aliases.accounts === "object") {
-            const accountIds = new Set(accounts.map((a) => a.id));
-            const valid: EntityMapping = {};
-            for (const [source, targetId] of Object.entries(aliases.accounts)) {
-              if (!importAccounts.has(source)) continue;
-              if (targetId === "__create__" || accountIds.has(targetId)) {
-                valid[source] = targetId;
-              }
-            }
-            if (!cancelled && Object.keys(valid).length > 0) {
-              console.log("[import] pre-populated account mappings:", valid);
-              setAccountMapping(valid);
-            }
-          }
-
-          if (aliases.categories && typeof aliases.categories === "object") {
-            const categoryIds = new Set(categories.map((c) => c.id));
-            const valid: EntityMapping = {};
-            for (const [source, targetId] of Object.entries(aliases.categories)) {
-              if (!importCategories.has(source)) continue;
-              if (targetId === "__create__" || categoryIds.has(targetId)) {
-                valid[source] = targetId;
-              }
-            }
-            if (!cancelled && Object.keys(valid).length > 0) {
-              console.log("[import] pre-populated category mappings:", valid);
-              setCategoryMapping(valid);
-            }
-          }
-        } catch {
-          // No aliases file or invalid — that's fine, user maps manually
+        if (!cancelled) {
+          setTransactions(parsed);
+          setSelectedIds(new Set(parsed.map((t) => t.id)));
+          setLoading(false);
         }
-
-        if (!cancelled) setLoading(false);
       } catch {
         if (!cancelled) setLoading(false);
       }
     }
-
     load();
-    return () => {
-      cancelled = true;
-    };
-  }, [resolveImportPath, resolveAliasPath, accounts, categories]);
+    return () => { cancelled = true; };
+  }, [resolveImportPath]);
+
+  // Pre-populate mappings from aliases (runs when budget data is ready)
+  const aliasesAppliedRef = useRef(false);
+  useEffect(() => {
+    // Wait until both transactions and budget data are loaded, apply once
+    if (aliasesAppliedRef.current || transactions.length === 0 || accounts.length === 0) return;
+    aliasesAppliedRef.current = true;
+
+    async function applyAliases() {
+      try {
+        const aliasPath = await resolveAliasPath();
+        const content = await readTextFile(aliasPath);
+        const aliases: ImportAliases = JSON.parse(content);
+
+        const importAccounts = new Set(transactions.map((t) => t.sourceAccount).filter(Boolean));
+        const importCategories = new Set(transactions.map((t) => t.sourceCategory).filter(Boolean));
+
+        const accountIds = new Set(accounts.map((a) => a.id));
+        const categoryIds = new Set(categories.map((c) => c.id));
+
+        const validAccounts: EntityMapping = {};
+        if (aliases.accounts && typeof aliases.accounts === "object") {
+          for (const [source, targetId] of Object.entries(aliases.accounts)) {
+            if (!importAccounts.has(source)) continue;
+            if (targetId === "__create__" || accountIds.has(targetId)) {
+              validAccounts[source] = targetId;
+            }
+          }
+        }
+
+        const validCategories: EntityMapping = {};
+        if (aliases.categories && typeof aliases.categories === "object") {
+          for (const [source, targetId] of Object.entries(aliases.categories)) {
+            if (!importCategories.has(source)) continue;
+            if (targetId === "__create__" || categoryIds.has(targetId)) {
+              validCategories[source] = targetId;
+            }
+          }
+        }
+
+        if (Object.keys(validAccounts).length > 0) {
+          console.log("[import] pre-populated account mappings:", validAccounts);
+          setAccountMapping(validAccounts);
+        }
+        if (Object.keys(validCategories).length > 0) {
+          console.log("[import] pre-populated category mappings:", validCategories);
+          setCategoryMapping(validCategories);
+        }
+      } catch {
+        // No aliases file — user maps manually
+      }
+    }
+
+    applyAliases();
+  }, [transactions, accounts, categories, resolveAliasPath]);
 
   // Flush CSV + save aliases on unmount
   const saveAliasesRef = useRef(saveAliases);
