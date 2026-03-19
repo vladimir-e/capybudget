@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
-import { join as joinPath } from "@tauri-apps/api/path";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
@@ -12,6 +11,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useAccounts, useCategories } from "@/hooks/use-budget-data";
+import { useImportPaths } from "@/hooks/use-import-paths";
 import { parseCsv, unparseCsv } from "@capybudget/persistence";
 import { formatMoney } from "@capybudget/core";
 import type { ImportTransaction } from "@capybudget/core";
@@ -56,21 +56,7 @@ export function ImportPreview({ budgetPath }: ImportPreviewProps) {
   const transactionsRef = useRef(transactions);
   transactionsRef.current = transactions;
 
-  const resolveImportPath = useCallback(
-    async (filename: string) => {
-      const capyDir = await joinPath(budgetPath, ".capy");
-      const importDir = await joinPath(capyDir, "import");
-      return joinPath(importDir, filename);
-    },
-    [budgetPath],
-  );
-
-  const resolveAliasPath = useCallback(async () => {
-    const capyDir = await joinPath(budgetPath, ".capy");
-    return joinPath(capyDir, "aliases.json");
-  }, [budgetPath]);
-
-  // Alias saving will happen at merge time (7.7).
+  const { resolveImportPath, resolveAliasPath } = useImportPaths(budgetPath);
 
   const writeBack = useCallback(async () => {
     try {

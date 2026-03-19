@@ -16,9 +16,9 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
-import { join as joinPath } from "@tauri-apps/api/path";
 import { Button } from "@/components/ui/button";
 import { useImportSession } from "@/hooks/use-import-session";
+import { useImportPaths } from "@/hooks/use-import-paths";
 import { useImportStore } from "@/stores/import-store";
 import { useCustomInstructions } from "@/hooks/use-custom-instructions";
 import { getToolLabel } from "@/services/capy-stream";
@@ -76,14 +76,7 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
     [setGlobalHasImportData],
   );
 
-  const resolveImportPath = useCallback(
-    async (filename: string) => {
-      const capyDir = await joinPath(budgetPath, ".capy");
-      const importDir = await joinPath(capyDir, "import");
-      return joinPath(importDir, filename);
-    },
-    [budgetPath],
-  );
+  const { resolveImportPath } = useImportPaths(budgetPath);
 
   const checkDisk = useCallback(async () => {
     try {
