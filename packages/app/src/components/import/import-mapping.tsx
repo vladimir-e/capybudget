@@ -1,7 +1,17 @@
-import { AccountSelector } from "@/components/budget/account-selector";
-import { CategorySelector } from "@/components/budget/category-selector";
+import { useState } from "react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import { Button } from "@/components/ui/button";
 import type { Account, Category } from "@capybudget/core";
-import { Building2, Plus, Tag } from "lucide-react";
+import { ACCOUNT_TYPE_LABELS, ACCOUNT_TYPE_ORDER } from "@capybudget/core";
+import { Building2, ChevronDown, Plus, Tag } from "lucide-react";
 
 // ── Types ───────────────────────────────────────────────────────
 
@@ -54,7 +64,6 @@ export function ImportMapping({
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-border/30">
-        {/* Account mappings */}
         {hasAccounts && (
           <div className="p-4 space-y-3">
             <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground/70">
@@ -68,24 +77,29 @@ export function ImportMapping({
             </div>
             <div className="space-y-2.5">
               {sourceAccounts.map((source) => (
-                <AccountMappingRow
-                  key={source}
-                  sourceLabel={source}
-                  value={accountMapping[source]}
-                  accounts={accounts}
-                  onChange={(value) =>
-                    onAccountMappingChange({
-                      ...accountMapping,
-                      [source]: value,
-                    })
-                  }
-                />
+                <div key={source} className="flex items-center gap-3">
+                  <span className="flex-1 min-w-0 truncate text-sm text-foreground/80">
+                    {source}
+                  </span>
+                  <div className="w-52 shrink-0 [&_button:first-of-type]:w-full [&_button:first-of-type]:min-w-0">
+                    <AccountMappingSelector
+                      accounts={accounts}
+                      value={accountMapping[source]}
+                      sourceLabel={source}
+                      onChange={(v) =>
+                        onAccountMappingChange({
+                          ...accountMapping,
+                          [source]: v,
+                        })
+                      }
+                    />
+                  </div>
+                </div>
               ))}
             </div>
           </div>
         )}
 
-        {/* Category mappings */}
         {hasCategories && (
           <div className="p-4 space-y-3">
             <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground/70">
@@ -99,18 +113,24 @@ export function ImportMapping({
             </div>
             <div className="space-y-2.5">
               {sourceCategories.map((source) => (
-                <CategoryMappingRow
-                  key={source}
-                  sourceLabel={source}
-                  value={categoryMapping[source]}
-                  categories={categories}
-                  onChange={(value) =>
-                    onCategoryMappingChange({
-                      ...categoryMapping,
-                      [source]: value,
-                    })
-                  }
-                />
+                <div key={source} className="flex items-center gap-3">
+                  <span className="flex-1 min-w-0 truncate text-sm text-foreground/80">
+                    {source}
+                  </span>
+                  <div className="w-52 shrink-0 [&_button:first-of-type]:w-full [&_button:first-of-type]:min-w-0">
+                    <CategoryMappingSelector
+                      categories={categories}
+                      value={categoryMapping[source]}
+                      sourceLabel={source}
+                      onChange={(v) =>
+                        onCategoryMappingChange({
+                          ...categoryMapping,
+                          [source]: v,
+                        })
+                      }
+                    />
+                  </div>
+                </div>
               ))}
             </div>
           </div>
@@ -120,91 +140,160 @@ export function ImportMapping({
   );
 }
 
-// ── Account Mapping Row ─────────────────────────────────────────
+// ── Account Mapping Selector ────────────────────────────────────
 
-function AccountMappingRow({
-  sourceLabel,
-  value,
+function AccountMappingSelector({
   accounts,
+  value,
+  sourceLabel,
   onChange,
 }: {
-  sourceLabel: string;
-  value: string | undefined;
   accounts: Account[];
+  value: string | undefined;
+  sourceLabel: string;
   onChange: (value: string) => void;
 }) {
-  const isCreateNew = value === "__create__";
+  const [open, setOpen] = useState(false);
+  const active = accounts.filter((a) => !a.archived);
+  const groups = ACCOUNT_TYPE_ORDER.filter((type) =>
+    active.some((a) => a.type === type),
+  );
+
+  const isCreate = !value || value === "__create__";
+  const selectedLabel = isCreate
+    ? undefined
+    : accounts.find((a) => a.id === value)?.name;
+
   return (
-    <div className="flex items-center gap-3">
-      <span className="flex-1 min-w-0 truncate text-sm text-foreground/80">
-        {sourceLabel}
-      </span>
-      <div className="w-52 shrink-0">
-        {isCreateNew ? (
-          <button
-            type="button"
-            onClick={() => onChange("")}
-            className="flex h-8 w-full items-center gap-1.5 rounded-lg border border-dashed border-brand/40 bg-brand/5 px-3 text-xs text-brand font-medium hover:bg-brand/10 transition-colors"
-          >
-            <Plus className="h-3 w-3" />
-            Create &ldquo;{sourceLabel}&rdquo;
-          </button>
-        ) : (
-          <div className="[&_button:first-of-type]:w-full [&_button:first-of-type]:min-w-0">
-            <AccountSelector
-              accounts={accounts}
-              value={value ?? ""}
-              onChange={(id) => onChange(id || "__create__")}
-              placeholder="Select account..."
-            />
-          </div>
-        )}
-      </div>
-    </div>
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger
+        render={
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8 justify-between gap-1.5 font-normal"
+          />
+        }
+      >
+        <span className={`truncate ${selectedLabel ? "" : "text-muted-foreground"}`}>
+          {selectedLabel ?? `+ Create "${sourceLabel}"`}
+        </span>
+        <ChevronDown className="h-3.5 w-3.5 shrink-0 opacity-50" />
+      </PopoverTrigger>
+      <PopoverContent className="w-64 p-0" align="start">
+        <Command>
+          <CommandInput placeholder="Search accounts…" />
+          <CommandList>
+            <CommandEmpty>No accounts found.</CommandEmpty>
+            <CommandGroup>
+              <CommandItem
+                value={`+ Create "${sourceLabel}"`}
+                data-checked={isCreate}
+                onSelect={() => { onChange("__create__"); setOpen(false); }}
+              >
+                <span className="text-brand font-medium">
+                  <Plus className="inline h-3 w-3 mr-1" />
+                  Create &ldquo;{sourceLabel}&rdquo;
+                </span>
+              </CommandItem>
+            </CommandGroup>
+            {groups.map((type) => (
+              <CommandGroup key={type} heading={ACCOUNT_TYPE_LABELS[type]}>
+                {active
+                  .filter((a) => a.type === type)
+                  .map((a) => (
+                    <CommandItem
+                      key={a.id}
+                      value={a.name}
+                      data-checked={a.id === value}
+                      onSelect={() => { onChange(a.id); setOpen(false); }}
+                    >
+                      {a.name}
+                    </CommandItem>
+                  ))}
+              </CommandGroup>
+            ))}
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
   );
 }
 
-// ── Category Mapping Row ────────────────────────────────────────
+// ── Category Mapping Selector ───────────────────────────────────
 
-function CategoryMappingRow({
-  sourceLabel,
-  value,
+function CategoryMappingSelector({
   categories,
+  value,
+  sourceLabel,
   onChange,
 }: {
-  sourceLabel: string;
-  value: string | undefined;
   categories: Category[];
+  value: string | undefined;
+  sourceLabel: string;
   onChange: (value: string) => void;
 }) {
-  const isCreateNew = value === "__create__";
+  const [open, setOpen] = useState(false);
+  const active = categories.filter((c) => !c.archived);
+  const groups = [...new Set(active.map((c) => c.group))];
+
+  const isCreate = !value || value === "__create__";
+  const selectedLabel = isCreate
+    ? undefined
+    : categories.find((c) => c.id === value)?.name;
 
   return (
-    <div className="flex items-center gap-3">
-      <span className="flex-1 min-w-0 truncate text-sm text-foreground/80">
-        {sourceLabel}
-      </span>
-      <div className="w-52 shrink-0">
-        {isCreateNew ? (
-          <button
-            type="button"
-            onClick={() => onChange("")}
-            className="flex h-8 w-full items-center gap-1.5 rounded-lg border border-dashed border-brand/40 bg-brand/5 px-3 text-xs text-brand font-medium hover:bg-brand/10 transition-colors"
-          >
-            <Plus className="h-3 w-3" />
-            Create &ldquo;{sourceLabel}&rdquo;
-          </button>
-        ) : (
-          <div className="[&_button:first-of-type]:w-full [&_button:first-of-type]:min-w-0">
-            <CategorySelector
-              categories={categories}
-              value={value ?? null}
-              onChange={(id) => onChange(id ?? "__create__")}
-              placeholder="Select category..."
-            />
-          </div>
-        )}
-      </div>
-    </div>
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger
+        render={
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8 justify-between gap-1.5 font-normal"
+          />
+        }
+      >
+        <span className={`truncate ${selectedLabel ? "" : "text-muted-foreground"}`}>
+          {selectedLabel ?? `+ Create "${sourceLabel}"`}
+        </span>
+        <ChevronDown className="h-3.5 w-3.5 shrink-0 opacity-50" />
+      </PopoverTrigger>
+      <PopoverContent className="w-64 p-0" align="start">
+        <Command>
+          <CommandInput placeholder="Search categories…" />
+          <CommandList>
+            <CommandEmpty>No categories found.</CommandEmpty>
+            <CommandGroup>
+              <CommandItem
+                value={`+ Create "${sourceLabel}"`}
+                data-checked={isCreate}
+                onSelect={() => { onChange("__create__"); setOpen(false); }}
+              >
+                <span className="text-brand font-medium">
+                  <Plus className="inline h-3 w-3 mr-1" />
+                  Create &ldquo;{sourceLabel}&rdquo;
+                </span>
+              </CommandItem>
+            </CommandGroup>
+            {groups.map((group) => (
+              <CommandGroup key={group} heading={group}>
+                {active
+                  .filter((c) => c.group === group)
+                  .map((c) => (
+                    <CommandItem
+                      key={c.id}
+                      value={c.name}
+                      data-checked={c.id === value}
+                      onSelect={() => { onChange(c.id); setOpen(false); }}
+                    >
+                      {c.name}
+                    </CommandItem>
+                  ))}
+              </CommandGroup>
+            ))}
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
   );
 }
