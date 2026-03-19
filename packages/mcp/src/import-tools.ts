@@ -6,7 +6,7 @@
  */
 
 import { mkdir, readFile, writeFile, appendFile, readdir } from "node:fs/promises"
-import { join } from "node:path"
+import { join, resolve } from "node:path"
 
 const IMPORT_DIR = ".capy/import"
 
@@ -14,6 +14,17 @@ async function resolveImportDir(budgetPath: string): Promise<string> {
   const dir = join(budgetPath, IMPORT_DIR)
   await mkdir(dir, { recursive: true })
   return dir
+}
+
+function safeFilePath(dir: string, filename: string): string {
+  if (!filename || filename.startsWith("/") || filename.includes("..")) {
+    throw new Error(`Invalid filename: ${filename}`)
+  }
+  const filePath = join(dir, filename)
+  if (!resolve(filePath).startsWith(resolve(dir) + "/")) {
+    throw new Error(`Invalid filename: ${filename}`)
+  }
+  return filePath
 }
 
 // ── Tool schemas ─────────────────────────────────────────────────
@@ -90,7 +101,7 @@ export async function handleReadImportFile(
   args: Record<string, unknown>,
 ): Promise<string> {
   const dir = await resolveImportDir(budgetPath)
-  const filePath = join(dir, args.filename as string)
+  const filePath = safeFilePath(dir, args.filename as string)
   return await readFile(filePath, "utf-8")
 }
 
@@ -99,7 +110,7 @@ export async function handleWriteImportFile(
   args: Record<string, unknown>,
 ): Promise<string> {
   const dir = await resolveImportDir(budgetPath)
-  const filePath = join(dir, args.filename as string)
+  const filePath = safeFilePath(dir, args.filename as string)
   await writeFile(filePath, args.content as string, "utf-8")
   return JSON.stringify({ success: true, filename: args.filename })
 }
@@ -109,7 +120,7 @@ export async function handleAppendImportFile(
   args: Record<string, unknown>,
 ): Promise<string> {
   const dir = await resolveImportDir(budgetPath)
-  const filePath = join(dir, args.filename as string)
+  const filePath = safeFilePath(dir, args.filename as string)
   await appendFile(filePath, args.content as string, "utf-8")
   return JSON.stringify({ success: true, filename: args.filename })
 }

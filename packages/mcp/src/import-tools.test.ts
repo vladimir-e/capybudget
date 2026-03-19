@@ -144,6 +144,40 @@ describe("handleListImportFiles", () => {
   })
 })
 
+// ── Path traversal protection ─────────────────────────────────
+
+describe("path traversal protection", () => {
+  it("rejects ../ in filename for read", async () => {
+    await expect(
+      handleReadImportFile(budgetPath, { filename: "../../etc/passwd" }),
+    ).rejects.toThrow("Invalid filename")
+  })
+
+  it("rejects ../ in filename for write", async () => {
+    await expect(
+      handleWriteImportFile(budgetPath, {
+        filename: "../escape.txt",
+        content: "malicious",
+      }),
+    ).rejects.toThrow("Invalid filename")
+  })
+
+  it("rejects ../ in filename for append", async () => {
+    await expect(
+      handleAppendImportFile(budgetPath, {
+        filename: "subdir/../../escape.txt",
+        content: "malicious",
+      }),
+    ).rejects.toThrow("Invalid filename")
+  })
+
+  it("rejects absolute paths", async () => {
+    await expect(
+      handleReadImportFile(budgetPath, { filename: "/etc/passwd" }),
+    ).rejects.toThrow("Invalid filename")
+  })
+})
+
 // ── Import directory auto-creation ────────────────────────────
 
 describe("import directory auto-creation", () => {
