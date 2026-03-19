@@ -3,7 +3,14 @@ import { readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
 import { join as joinPath } from "@tauri-apps/api/path";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { useAccounts, useCategories } from "@/hooks/use-budget-data";
 import { parseCsv, unparseCsv } from "@capybudget/persistence";
 import { formatMoney } from "@capybudget/core";
@@ -15,15 +22,7 @@ import {
   type ImportSortConfig,
 } from "./import-table";
 import { ImportMapping, type EntityMapping } from "./import-mapping";
-import {
-  Search,
-  X,
-  FileUp,
-  Sparkles,
-  Loader2,
-  GitMerge,
-  AlertCircle,
-} from "lucide-react";
+import { Search, X, FileUp, Sparkles, Loader2, GitMerge } from "lucide-react";
 
 const IMPORT_COERCE = { amount: (v: string) => parseInt(v, 10) };
 
@@ -266,25 +265,16 @@ export function ImportPreview({ budgetPath }: ImportPreviewProps) {
   const totalCount = transactions.length;
   const selectedTotal = selected.reduce((sum, t) => sum + t.amount, 0);
 
-  // Mapping completeness check
-  const unmappedAccounts = sourceAccounts.filter(
-    (s) => !(s in accountMapping),
-  );
-  const unmappedCategories = sourceCategories.filter(
-    (s) => !(s in categoryMapping),
-  );
-  const allMapped =
-    unmappedAccounts.length === 0 && unmappedCategories.length === 0;
+  // Merge confirmation
+  const [showMergeDialog, setShowMergeDialog] = useState(false);
 
-  const missingItems: string[] = [];
-  if (unmappedAccounts.length > 0)
-    missingItems.push(
-      `${unmappedAccounts.length} account${unmappedAccounts.length > 1 ? "s" : ""}`,
-    );
-  if (unmappedCategories.length > 0)
-    missingItems.push(
-      `${unmappedCategories.length} categor${unmappedCategories.length > 1 ? "ies" : "y"}`,
-    );
+  // Count how many new entities will be created
+  const newAccountCount = sourceAccounts.filter(
+    (s) => !accountMapping[s] || accountMapping[s] === "__create__",
+  ).length;
+  const newCategoryCount = sourceCategories.filter(
+    (s) => !categoryMapping[s] || categoryMapping[s] === "__create__",
+  ).length;
 
   if (loading) {
     return (
@@ -395,37 +385,14 @@ export function ImportPreview({ budgetPath }: ImportPreviewProps) {
             </Button>
 
             {/* Merge button */}
-            {allMapped ? (
-              <Button size="sm" className="gap-1.5" disabled>
-                <GitMerge className="h-3.5 w-3.5" />
-                Merge
-              </Button>
-            ) : (
-              <Tooltip>
-                <TooltipTrigger
-                  render={
-                    <span className="inline-flex">
-                      <Button
-                        size="sm"
-                        className="gap-1.5"
-                        disabled
-                      >
-                        <GitMerge className="h-3.5 w-3.5" />
-                        Merge
-                      </Button>
-                    </span>
-                  }
-                />
-                <TooltipContent>
-                  <div className="flex items-start gap-1.5 max-w-xs">
-                    <AlertCircle className="h-3.5 w-3.5 text-amber-500 shrink-0 mt-0.5" />
-                    <span>
-                      Map {missingItems.join(" and ")} before merging
-                    </span>
-                  </div>
-                </TooltipContent>
-              </Tooltip>
-            )}
+            <Button
+              size="sm"
+              className="gap-1.5"
+              onClick={() => setShowMergeDialog(true)}
+            >
+              <GitMerge className="h-3.5 w-3.5" />
+              Merge
+            </Button>
 
             {/* Dismiss */}
             <button
@@ -438,6 +405,66 @@ export function ImportPreview({ budgetPath }: ImportPreviewProps) {
             </button>
           </div>
         </div>
+      )}
+
+      {/* ── Merge confirmation dialog ────────────────────── */}
+      {showMergeDialog && (
+        <Dialog
+          open
+          onOpenChange={(open) => {
+            if (!open) setShowMergeDialog(false);
+          }}
+        >
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Merge {selectedCount} transactions?</DialogTitle>
+              <DialogDescription>
+                <span className="space-y-2 block">
+                  <span className="block">
+                    This will add{" "}
+                    <strong>
+                      {selectedCount} transaction
+                      {selectedCount !== 1 ? "s" : ""}
+                    </strong>{" "}
+                    ({formatMoney(selectedTotal)}) to your budget.
+                  </span>
+                  {(newAccountCount > 0 || newCategoryCount > 0) && (
+                    <span className="block">
+                      New entities will be created:{" "}
+                      {[
+                        newAccountCount > 0 &&
+                          `${newAccountCount} account${newAccountCount > 1 ? "s" : ""}`,
+                        newCategoryCount > 0 &&
+                          `${newCategoryCount} categor${newCategoryCount > 1 ? "ies" : "y"}`,
+                      ]
+                        .filter(Boolean)
+                        .join(" and ")}
+                      .
+                    </span>
+                  )}
+                </span>
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => setShowMergeDialog(false)}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={() => {
+                  setShowMergeDialog(false);
+                  // TODO: implement merge (7.7)
+                }}
+                className="gap-1.5"
+              >
+                <GitMerge className="h-3.5 w-3.5" />
+                Merge
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       )}
     </div>
   );

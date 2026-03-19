@@ -46,10 +46,6 @@ export function ImportMapping({
 
   if (!hasAccounts && !hasCategories) return null;
 
-  const allAccountsMapped = sourceAccounts.every((s) => s in accountMapping);
-  const allCategoriesMapped = sourceCategories.every(
-    (s) => s in categoryMapping,
-  );
 
   return (
     <div className="rounded-xl border border-border/40 bg-card/30 overflow-hidden">
@@ -69,11 +65,6 @@ export function ImportMapping({
             <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground/70">
               <Building2 className="h-3.5 w-3.5" />
               Accounts
-              {allAccountsMapped && (
-                <span className="ml-auto text-amount-income text-[10px] font-medium normal-case tracking-normal">
-                  All mapped
-                </span>
-              )}
             </div>
             <div className="space-y-2.5">
               {sourceAccounts.map((source) => (
@@ -105,11 +96,6 @@ export function ImportMapping({
             <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground/70">
               <Tag className="h-3.5 w-3.5" />
               Categories
-              {allCategoriesMapped && (
-                <span className="ml-auto text-amount-income text-[10px] font-medium normal-case tracking-normal">
-                  All mapped
-                </span>
-              )}
             </div>
             <div className="space-y-2.5">
               {sourceCategories.map((source) => (
