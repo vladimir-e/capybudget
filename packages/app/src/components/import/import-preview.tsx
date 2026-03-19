@@ -27,6 +27,12 @@ import {
 
 const IMPORT_COERCE = { amount: (v: string) => parseInt(v, 10) };
 
+/** Stored in .capy/aliases.json — survives across imports. */
+interface ImportAliases {
+  accounts: Record<string, string>; // sourceString → accountId | "__create__"
+  categories: Record<string, string>; // sourceString → categoryId | "__create__"
+}
+
 interface ImportPreviewProps {
   budgetPath: string;
 }
@@ -60,6 +66,26 @@ export function ImportPreview({ budgetPath }: ImportPreviewProps) {
     [budgetPath],
   );
 
+  const resolveAliasPath = useCallback(async () => {
+    const capyDir = await joinPath(budgetPath, ".capy");
+    return joinPath(capyDir, "aliases.json");
+  }, [budgetPath]);
+
+  /** Save current mappings as aliases for future imports. */
+  const saveAliases = useCallback(async () => {
+    try {
+      const path = await resolveAliasPath();
+      const aliases: ImportAliases = {
+        accounts: { ...accountMapping },
+        categories: { ...categoryMapping },
+      };
+      await writeTextFile(path, JSON.stringify(aliases, null, 2));
+      console.log("[import] aliases saved", aliases);
+    } catch (err) {
+      console.warn("[import] failed to save aliases:", err);
+    }
+  }, [resolveAliasPath, accountMapping, categoryMapping]);
+
   const writeBack = useCallback(async () => {
     try {
       const csvPath = await resolveImportPath("transactions.csv");
@@ -75,7 +101,7 @@ export function ImportPreview({ budgetPath }: ImportPreviewProps) {
     writeTimerRef.current = setTimeout(writeBack, 500);
   }, [writeBack]);
 
-  // Load CSV on mount
+  // Load CSV + aliases on mount
   useEffect(() => {
     let cancelled = false;
 
@@ -84,11 +110,57 @@ export function ImportPreview({ budgetPath }: ImportPreviewProps) {
         const csvPath = await resolveImportPath("transactions.csv");
         const content = await readTextFile(csvPath);
         const parsed = parseCsv<ImportTransaction>(content, IMPORT_COERCE);
-        if (!cancelled) {
-          setTransactions(parsed);
-          setSelectedIds(new Set(parsed.map((t) => t.id)));
-          setLoading(false);
+        if (cancelled) return;
+
+        setTransactions(parsed);
+        setSelectedIds(new Set(parsed.map((t) => t.id)));
+
+        // Pre-populate mappings from saved aliases (defensive)
+        try {
+          const aliasPath = await resolveAliasPath();
+          const aliasContent = await readTextFile(aliasPath);
+          const aliases: ImportAliases = JSON.parse(aliasContent);
+
+          // Collect source strings that appear in this import
+          const importAccounts = new Set(parsed.map((t) => t.sourceAccount).filter(Boolean));
+          const importCategories = new Set(parsed.map((t) => t.sourceCategory).filter(Boolean));
+
+          // Only keep aliases that: (a) match a source string in this import,
+          // (b) point to an entity that still exists (or "__create__")
+          if (aliases.accounts && typeof aliases.accounts === "object") {
+            const accountIds = new Set(accounts.map((a) => a.id));
+            const valid: EntityMapping = {};
+            for (const [source, targetId] of Object.entries(aliases.accounts)) {
+              if (!importAccounts.has(source)) continue;
+              if (targetId === "__create__" || accountIds.has(targetId)) {
+                valid[source] = targetId;
+              }
+            }
+            if (!cancelled && Object.keys(valid).length > 0) {
+              console.log("[import] pre-populated account mappings:", valid);
+              setAccountMapping(valid);
+            }
+          }
+
+          if (aliases.categories && typeof aliases.categories === "object") {
+            const categoryIds = new Set(categories.map((c) => c.id));
+            const valid: EntityMapping = {};
+            for (const [source, targetId] of Object.entries(aliases.categories)) {
+              if (!importCategories.has(source)) continue;
+              if (targetId === "__create__" || categoryIds.has(targetId)) {
+                valid[source] = targetId;
+              }
+            }
+            if (!cancelled && Object.keys(valid).length > 0) {
+              console.log("[import] pre-populated category mappings:", valid);
+              setCategoryMapping(valid);
+            }
+          }
+        } catch {
+          // No aliases file or invalid — that's fine, user maps manually
         }
+
+        if (!cancelled) setLoading(false);
       } catch {
         if (!cancelled) setLoading(false);
       }
@@ -98,15 +170,18 @@ export function ImportPreview({ budgetPath }: ImportPreviewProps) {
     return () => {
       cancelled = true;
     };
-  }, [resolveImportPath]);
+  }, [resolveImportPath, resolveAliasPath, accounts, categories]);
 
-  // Flush on unmount
+  // Flush CSV + save aliases on unmount
+  const saveAliasesRef = useRef(saveAliases);
+  saveAliasesRef.current = saveAliases;
   useEffect(() => {
     return () => {
       if (writeTimerRef.current) {
         clearTimeout(writeTimerRef.current);
         writeBack();
       }
+      saveAliasesRef.current();
     };
   }, [writeBack]);
 
