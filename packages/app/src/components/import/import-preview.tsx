@@ -54,7 +54,7 @@ export function ImportPreview({ budgetPath }: ImportPreviewProps) {
   // Write-back debounce
   const writeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const transactionsRef = useRef(transactions);
-  transactionsRef.current = transactions;
+  useEffect(() => { transactionsRef.current = transactions; }, [transactions]);
 
   const { resolveImportPath, resolveAliasPath } = useImportPaths(budgetPath);
 

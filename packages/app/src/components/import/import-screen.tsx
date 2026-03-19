@@ -94,9 +94,20 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
 
   // Check disk on mount
   useEffect(() => {
-    console.log("[import] mount: checking disk for existing import data");
-    checkDisk();
-  }, [checkDisk]);
+    let cancelled = false;
+    async function run() {
+      console.log("[import] mount: checking disk for existing import data");
+      try {
+        const csvPath = await resolveImportPath("transactions.csv");
+        const content = await readTextFile(csvPath);
+        if (!cancelled) setHasImportData(content.trim().length > 0);
+      } catch {
+        if (!cancelled) setHasImportData(false);
+      }
+    }
+    run();
+    return () => { cancelled = true; };
+  }, [resolveImportPath, setHasImportData]);
 
   // ── Local UI state ──────────────────────────────────────────
   const [files, setFiles] = useState<FileAttachment[]>([]);
