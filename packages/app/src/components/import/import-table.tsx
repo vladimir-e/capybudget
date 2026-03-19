@@ -26,7 +26,6 @@ import {
   ChevronDown,
   ChevronUp,
   Inbox,
-  Trash2,
 } from "lucide-react";
 
 // ── Types ───────────────────────────────────────────────────────
@@ -62,7 +61,6 @@ interface ImportTableProps {
   allSelected: boolean;
   indeterminate: boolean;
   onUpdateTransaction: (id: string, patch: Partial<ImportTransaction>) => void;
-  onDeleteTransaction: (id: string) => void;
 }
 
 // ── Helpers ─────────────────────────────────────────────────────
@@ -307,7 +305,6 @@ export function ImportTable({
   allSelected,
   indeterminate,
   onUpdateTransaction,
-  onDeleteTransaction,
 }: ImportTableProps) {
   const [editingCell, setEditingCell] = useState<{
     rowId: string;
@@ -383,7 +380,6 @@ export function ImportTable({
           <SortableHeader column="sourceCategory" sort={sort} onSortChange={onSortChange}>
             Category
           </SortableHeader>
-          <TableHead className="w-[40px]" />
         </TableRow>
       </TableHeader>
       <TableBody>
@@ -518,17 +514,6 @@ export function ImportTable({
                 )}
               </TableCell>
 
-              {/* Delete */}
-              <TableCell className="px-1">
-                <button
-                  type="button"
-                  onClick={() => onDeleteTransaction(txn.id)}
-                  className="rounded-md p-1 text-muted-foreground/30 hover:text-destructive hover:bg-destructive/10 transition-colors"
-                  aria-label="Delete transaction"
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                </button>
-              </TableCell>
             </TableRow>
           );
         })}

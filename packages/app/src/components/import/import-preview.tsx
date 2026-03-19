@@ -2,8 +2,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
 import { join as joinPath } from "@tauri-apps/api/path";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useAccounts, useCategories } from "@/hooks/use-budget-data";
 import { parseCsv, unparseCsv } from "@capybudget/persistence";
+import { formatMoney } from "@capybudget/core";
 import type { ImportTransaction } from "@capybudget/core";
 import {
   ImportTable,
@@ -12,7 +15,15 @@ import {
   type ImportSortConfig,
 } from "./import-table";
 import { ImportMapping, type EntityMapping } from "./import-mapping";
-import { Search, X, FileUp } from "lucide-react";
+import {
+  Search,
+  X,
+  FileUp,
+  Sparkles,
+  Loader2,
+  GitMerge,
+  AlertCircle,
+} from "lucide-react";
 
 const IMPORT_COERCE = { amount: (v: string) => parseInt(v, 10) };
 
@@ -101,11 +112,17 @@ export function ImportPreview({ budgetPath }: ImportPreviewProps) {
 
   // Derived data
   const sourceAccounts = useMemo(
-    () => [...new Set(transactions.map((t) => t.sourceAccount).filter(Boolean))].sort(),
+    () =>
+      [
+        ...new Set(transactions.map((t) => t.sourceAccount).filter(Boolean)),
+      ].sort(),
     [transactions],
   );
   const sourceCategories = useMemo(
-    () => [...new Set(transactions.map((t) => t.sourceCategory).filter(Boolean))].sort(),
+    () =>
+      [
+        ...new Set(transactions.map((t) => t.sourceCategory).filter(Boolean)),
+      ].sort(),
     [transactions],
   );
 
@@ -179,27 +196,36 @@ export function ImportPreview({ budgetPath }: ImportPreviewProps) {
     [scheduleWriteBack],
   );
 
-  const handleDelete = useCallback(
-    (id: string) => {
-      setTransactions((prev) => prev.filter((t) => t.id !== id));
-      setSelectedIds((prev) => {
-        const next = new Set(prev);
-        next.delete(id);
-        return next;
-      });
-      scheduleWriteBack();
-    },
-    [scheduleWriteBack],
-  );
-
   // Stats
-  const selectedCount = sorted.filter((t) => selectedIds.has(t.id)).length;
+  const selected = transactions.filter((t) => selectedIds.has(t.id));
+  const selectedCount = selected.length;
   const totalCount = transactions.length;
+  const selectedTotal = selected.reduce((sum, t) => sum + t.amount, 0);
+
+  // Mapping completeness check
+  const unmappedAccounts = sourceAccounts.filter(
+    (s) => !(s in accountMapping),
+  );
+  const unmappedCategories = sourceCategories.filter(
+    (s) => !(s in categoryMapping),
+  );
+  const allMapped =
+    unmappedAccounts.length === 0 && unmappedCategories.length === 0;
+
+  const missingItems: string[] = [];
+  if (unmappedAccounts.length > 0)
+    missingItems.push(
+      `${unmappedAccounts.length} account${unmappedAccounts.length > 1 ? "s" : ""}`,
+    );
+  if (unmappedCategories.length > 0)
+    missingItems.push(
+      `${unmappedCategories.length} categor${unmappedCategories.length > 1 ? "ies" : "y"}`,
+    );
 
   if (loading) {
     return (
       <div className="flex items-center justify-center py-24 text-muted-foreground">
-        Loading import data...
+        <Loader2 className="h-5 w-5 animate-spin" />
       </div>
     );
   }
@@ -220,15 +246,14 @@ export function ImportPreview({ budgetPath }: ImportPreviewProps) {
   }
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-5 pb-20">
       {/* Stats bar */}
       <div className="flex items-center justify-between">
         <p className="text-sm text-muted-foreground">
           <span className="font-medium text-foreground tabular-nums">
             {selectedCount}
           </span>{" "}
-          of{" "}
-          <span className="tabular-nums">{totalCount}</span> transactions
+          of <span className="tabular-nums">{totalCount}</span> transactions
           selected for import
         </p>
       </div>
@@ -282,9 +307,74 @@ export function ImportPreview({ budgetPath }: ImportPreviewProps) {
           allSelected={allSelected}
           indeterminate={indeterminate}
           onUpdateTransaction={handleUpdate}
-          onDeleteTransaction={handleDelete}
         />
       </div>
+
+      {/* ── Floating action bar ──────────────────────────────── */}
+      {selectedCount > 0 && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 animate-in slide-in-from-bottom-4 fade-in duration-200">
+          <div className="flex items-center gap-3 rounded-xl border border-border/60 bg-background/95 backdrop-blur-sm shadow-xl px-4 py-2.5">
+            {/* Summary */}
+            <div className="flex items-center gap-3 border-r border-border/40 pr-3">
+              <span className="text-sm font-medium tabular-nums">
+                {selectedCount} selected
+              </span>
+              <span className="text-sm text-muted-foreground tabular-nums font-semibold">
+                {formatMoney(selectedTotal)}
+              </span>
+            </div>
+
+            {/* Enrich (magic) button */}
+            <Button size="sm" variant="outline" className="gap-1.5" disabled>
+              <Sparkles className="h-3.5 w-3.5" />
+              Enrich
+            </Button>
+
+            {/* Merge button */}
+            {allMapped ? (
+              <Button size="sm" className="gap-1.5" disabled>
+                <GitMerge className="h-3.5 w-3.5" />
+                Merge
+              </Button>
+            ) : (
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <span className="inline-flex">
+                      <Button
+                        size="sm"
+                        className="gap-1.5"
+                        disabled
+                      >
+                        <GitMerge className="h-3.5 w-3.5" />
+                        Merge
+                      </Button>
+                    </span>
+                  }
+                />
+                <TooltipContent>
+                  <div className="flex items-start gap-1.5 max-w-xs">
+                    <AlertCircle className="h-3.5 w-3.5 text-amber-500 shrink-0 mt-0.5" />
+                    <span>
+                      Map {missingItems.join(" and ")} before merging
+                    </span>
+                  </div>
+                </TooltipContent>
+              </Tooltip>
+            )}
+
+            {/* Dismiss */}
+            <button
+              type="button"
+              onClick={() => setSelectedIds(new Set())}
+              className="ml-1 text-muted-foreground/60 hover:text-foreground transition-colors"
+              aria-label="Clear selection"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
