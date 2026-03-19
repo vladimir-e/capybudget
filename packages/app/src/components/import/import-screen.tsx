@@ -78,8 +78,9 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
 
   const resolveImportPath = useCallback(
     async (filename: string) => {
-      const dir = await joinPath(budgetPath, ".capy/import");
-      return joinPath(dir, filename);
+      const capyDir = await joinPath(budgetPath, ".capy");
+      const importDir = await joinPath(capyDir, "import");
+      return joinPath(importDir, filename);
     },
     [budgetPath],
   );
@@ -87,15 +88,20 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
   const checkDisk = useCallback(async () => {
     try {
       const csvPath = await resolveImportPath("transactions.csv");
+      console.log("[import] checkDisk: reading", csvPath);
       const content = await readTextFile(csvPath);
-      setHasImportData(content.trim().length > 0);
-    } catch {
+      const has = content.trim().length > 0;
+      console.log("[import] checkDisk: hasImportData =", has, `(${content.length} bytes)`);
+      setHasImportData(has);
+    } catch (err) {
+      console.log("[import] checkDisk: no CSV found", err);
       setHasImportData(false);
     }
   }, [resolveImportPath, setHasImportData]);
 
   // Check disk on mount
   useEffect(() => {
+    console.log("[import] mount: checking disk for existing import data");
     checkDisk();
   }, [checkDisk]);
 
@@ -203,13 +209,14 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
   // ── Actions ─────────────────────────────────────────────────
   const handleStart = () => {
     if (files.length === 0 || isProcessing) return;
+    console.log("[import] starting normalization with", files.length, "files");
     importSession.startNormalization(files);
   };
 
   const handleCancel = useCallback(async () => {
+    console.log("[import] cancelling import");
     importSession.cancel();
     setFiles([]);
-    // Wipe import files on disk
     await Promise.allSettled([
       resolveImportPath("state.json").then((p) => writeTextFile(p, "")),
       resolveImportPath("transactions.csv").then((p) => writeTextFile(p, "")),
@@ -382,21 +389,7 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
                 ref={scrollRef}
                 className="rounded-2xl border border-border/30 bg-card/30 p-5 max-h-[60vh] overflow-y-auto"
               >
-                <div className="space-y-4">
-                  {importSession.messages
-                    .filter((m) => m.role === "assistant")
-                    .map((msg) => (
-                      <div key={msg.id} className="space-y-3">
-                        {msg.blocks.map((block, i) => (
-                          <NormalizationBlock key={i} block={block} />
-                        ))}
-                      </div>
-                    ))}
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <Loader2 className="h-3.5 w-3.5 animate-spin text-brand" />
-                    Processing...
-                  </div>
-                </div>
+                <ProcessingStatus messages={importSession.messages} />
               </div>
             </>
           )}
@@ -438,4 +431,38 @@ function NormalizationBlock({ block }: { block: ContentBlock }) {
     default:
       return null;
   }
+}
+
+/* ── Processing Status ───────────────────────────────────────────── */
+
+function ProcessingStatus({ messages }: { messages: import("@capybudget/intelligence").ChatMessage[] }) {
+  const assistantBlocks = messages
+    .filter((m) => m.role === "assistant")
+    .flatMap((m) => m.blocks);
+
+  const hasContent = assistantBlocks.length > 0;
+  const hasToolActivity = assistantBlocks.some((b) => b.type === "tool-activity");
+
+  // Derive status label from what's happened so far
+  let statusLabel = "Summoning Capy...";
+  if (hasContent && !hasToolActivity) statusLabel = "Analyzing files...";
+  if (hasToolActivity) statusLabel = "Writing results...";
+
+  return (
+    <div className="space-y-4">
+      {messages
+        .filter((m) => m.role === "assistant")
+        .map((msg) => (
+          <div key={msg.id} className="space-y-3">
+            {msg.blocks.map((block, i) => (
+              <NormalizationBlock key={i} block={block} />
+            ))}
+          </div>
+        ))}
+      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+        <Loader2 className="h-3.5 w-3.5 animate-spin text-brand" />
+        {statusLabel}
+      </div>
+    </div>
+  );
 }

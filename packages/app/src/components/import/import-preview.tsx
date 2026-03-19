@@ -42,8 +42,9 @@ export function ImportPreview({ budgetPath }: ImportPreviewProps) {
 
   const resolveImportPath = useCallback(
     async (filename: string) => {
-      const dir = await joinPath(budgetPath, ".capy/import");
-      return joinPath(dir, filename);
+      const capyDir = await joinPath(budgetPath, ".capy");
+      const importDir = await joinPath(capyDir, "import");
+      return joinPath(importDir, filename);
     },
     [budgetPath],
   );

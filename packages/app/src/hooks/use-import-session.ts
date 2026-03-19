@@ -96,12 +96,14 @@ export function useImportSession(
         }
 
         case "done":
+          console.log("[import-session] stream done — calling onNormalizationComplete");
           setIsStreaming(false);
           lastTextContentRef.current = "";
           optsRef.current.onNormalizationComplete?.();
           break;
 
         case "error":
+          console.log("[import-session] stream error:", event.message);
           setIsStreaming(false);
           lastTextContentRef.current = "";
           setMessages((prev) => {
@@ -154,11 +156,13 @@ export function useImportSession(
           break;
 
         case "exit":
+          console.log("[import-session] process exited");
           setIsStreaming(false);
           lastTextContentRef.current = "";
           break;
 
         case "error":
+          console.log("[import-session] session error:", event.message);
           handleStreamEvent({ type: "error", message: event.message });
           break;
       }
@@ -176,6 +180,7 @@ export function useImportSession(
   const startNormalization = useCallback(
     (files: FileAttachment[]) => {
       if (isStreamingRef.current) return;
+      console.log("[import-session] starting normalization, files:", files.map((f) => f.name));
 
       const o = optsRef.current;
       const customInstructions = o.customInstructions?.trim();
