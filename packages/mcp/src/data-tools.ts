@@ -1,5 +1,5 @@
 import type { Account, Category, Transaction } from "@capybudget/core"
-import { formatMoney, getAccountBalance, matchMerchants, getUniqueMerchants, findCategoryForMerchant } from "@capybudget/core"
+import { formatMoney, getAccountBalance, getUniqueMerchants, findCategoryForMerchant } from "@capybudget/core"
 import type { BudgetRepository } from "@capybudget/persistence"
 
 // ── Tool schemas ─────────────────────────────────────────────────
@@ -78,17 +78,17 @@ export const DATA_TOOLS = [
   {
     name: "search_merchants",
     description:
-      "Search for merchants in the budget's transaction history. Returns matching merchant names with their most recently used category. Use this to match import descriptions to known merchants.",
+      "Search for merchants in the budget's transaction history. Searches both merchant names and raw transaction notes/descriptions. Returns matching merchants with their most recent category and match quality (full, word, fuzzy). Use this to identify merchants from import descriptions — try multiple query chunks for cryptic descriptions (e.g. for 'RBHOOD HGSTS LLC' try 'RBHOOD' and 'HOOD').",
     inputSchema: {
       type: "object" as const,
       properties: {
         query: {
           type: "string",
-          description: "Search query (case-insensitive, matches against merchant names)",
+          description: "Search query — a merchant name, abbreviation, or chunk from a bank description. Case-insensitive.",
         },
         limit: {
           type: "number",
-          description: "Maximum results to return (default: 10)",
+          description: "Maximum merchant results to return (default: 10)",
         },
       },
       required: ["query"],
@@ -233,18 +233,64 @@ export async function handleSearchMerchants(
 ): Promise<string> {
   const query = args.query as string
   const limit = (args.limit as number) || 10
+  const q = query.toLowerCase()
 
   const transactions = await repo.getTransactions()
   const categories = await repo.getCategories()
   const categoryMap = new Map(categories.map((c: Category) => [c.id, c.name]))
 
-  const merchants = getUniqueMerchants(transactions)
-  const matched = matchMerchants(merchants, query).slice(0, limit)
+  // Collect matches with quality scores: 1=full, 2=word-start, 3=substring
+  type Match = { merchant: string; matchType: string; matchScore: number }
+  const seen = new Set<string>()
+  const matches: Match[] = []
 
-  const result = matched.map((merchant) => {
+  function addMatch(merchant: string, matchType: string, matchScore: number) {
+    const key = merchant.toLowerCase()
+    if (seen.has(key)) return
+    seen.add(key)
+    matches.push({ merchant, matchType, matchScore })
+  }
+
+  // 1. Search merchant names (clean names from budget)
+  const merchants = getUniqueMerchants(transactions)
+  for (const m of merchants) {
+    const lower = m.toLowerCase()
+    if (lower === q) {
+      addMatch(m, "full match on merchant name", 1)
+    } else if (lower.split(/\s+/).some((w) => w.startsWith(q))) {
+      addMatch(m, "word-start match on merchant name", 2)
+    } else if (lower.includes(q)) {
+      addMatch(m, "substring match on merchant name", 3)
+    }
+  }
+
+  // 2. Search transaction notes (raw descriptions from past imports/entries)
+  // Group by merchant to find merchants whose transactions had matching notes
+  const merchantByNote = new Map<string, string>() // lowercase merchant → original
+  for (const t of transactions) {
+    if (!t.merchant || !t.note) continue
+    const noteLower = t.note.toLowerCase()
+    if (noteLower.includes(q)) {
+      const key = t.merchant.toLowerCase()
+      if (!merchantByNote.has(key)) {
+        merchantByNote.set(key, t.merchant)
+      }
+    }
+  }
+  for (const [, merchant] of merchantByNote) {
+    addMatch(merchant, "match in transaction description/note", 4)
+  }
+
+  // Sort by match quality, then alphabetically, and cut to limit
+  matches.sort((a, b) => a.matchScore - b.matchScore || a.merchant.localeCompare(b.merchant))
+  const top = matches.slice(0, limit)
+
+  // Enrich with category data
+  const result = top.map(({ merchant, matchType }) => {
     const categoryId = findCategoryForMerchant(transactions, merchant)
     return {
       merchant,
+      matchType,
       category: categoryId ? (categoryMap.get(categoryId) ?? categoryId) : null,
       categoryId: categoryId || null,
     }
