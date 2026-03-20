@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
+import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
@@ -14,6 +15,7 @@ import { useAccounts, useCategories } from "@/hooks/use-budget-data";
 import { useImportPaths } from "@/hooks/use-import-paths";
 import { useEnrichSession } from "@/hooks/use-enrich-session";
 import { useCustomInstructions } from "@/hooks/use-custom-instructions";
+import { useImportMerge } from "@/hooks/use-import-merge";
 import { parseCsv, unparseCsv } from "@capybudget/persistence";
 import { formatMoney } from "@capybudget/core";
 import type { ImportTransaction } from "@capybudget/core";
@@ -36,9 +38,10 @@ interface ImportAliases {
 interface ImportPreviewProps {
   budgetPath: string;
   budgetName: string;
+  onMergeComplete: () => void;
 }
 
-export function ImportPreview({ budgetPath, budgetName }: ImportPreviewProps) {
+export function ImportPreview({ budgetPath, budgetName, onMergeComplete }: ImportPreviewProps) {
   const [transactions, setTransactions] = useState<ImportTransaction[]>([]);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [sort, setSort] = useState<ImportSortConfig>({
@@ -327,12 +330,35 @@ export function ImportPreview({ budgetPath, budgetName }: ImportPreviewProps) {
   const totalCount = transactions.length;
   const selectedTotal = selected.reduce((sum, t) => sum + t.amount, 0);
 
-  // Merge confirmation
+  // Merge
   const [showMergeDialog, setShowMergeDialog] = useState(false);
+  const [merging, setMerging] = useState(false);
+  const { merge } = useImportMerge(budgetPath);
 
   const newAccountCount = sourceAccounts.filter(
     (s) => !accountMapping[s] || accountMapping[s] === "__create__",
   ).length;
+
+  const handleMerge = useCallback(async () => {
+    setShowMergeDialog(false);
+    setMerging(true);
+    try {
+      const result = await merge({ transactions, selectedIds, accountMapping });
+      toast.success(
+        `Merged ${result.transactionCount} transaction${result.transactionCount !== 1 ? "s" : ""}` +
+          (result.accountsCreated > 0
+            ? ` and created ${result.accountsCreated} account${result.accountsCreated !== 1 ? "s" : ""}`
+            : ""),
+      );
+      onMergeComplete();
+    } catch (err) {
+      toast.error(
+        `Merge failed: ${err instanceof Error ? err.message : "Unknown error"}`,
+      );
+    } finally {
+      setMerging(false);
+    }
+  }, [merge, transactions, selectedIds, accountMapping, onMergeComplete]);
 
   if (loading) {
     return (
@@ -485,10 +511,15 @@ export function ImportPreview({ budgetPath, budgetName }: ImportPreviewProps) {
             <Button
               size="sm"
               className="gap-1.5"
+              disabled={merging}
               onClick={() => setShowMergeDialog(true)}
             >
-              <GitMerge className="h-3.5 w-3.5" />
-              Merge
+              {merging ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <GitMerge className="h-3.5 w-3.5" />
+              )}
+              {merging ? "Merging\u2026" : "Merge"}
             </Button>
 
             {/* Dismiss */}
@@ -541,13 +572,7 @@ export function ImportPreview({ budgetPath, budgetName }: ImportPreviewProps) {
               >
                 Cancel
               </Button>
-              <Button
-                onClick={() => {
-                  setShowMergeDialog(false);
-                  // TODO: implement merge (7.7)
-                }}
-                className="gap-1.5"
-              >
+              <Button onClick={handleMerge} className="gap-1.5">
                 <GitMerge className="h-3.5 w-3.5" />
                 Merge
               </Button>

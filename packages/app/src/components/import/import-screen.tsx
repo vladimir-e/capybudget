@@ -399,7 +399,13 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
           )}
 
           {/* ── Preview area ───────────────────────────────── */}
-          {showPreview && <ImportPreview budgetPath={budgetPath} budgetName={budgetName} />}
+          {showPreview && (
+            <ImportPreview
+              budgetPath={budgetPath}
+              budgetName={budgetName}
+              onMergeComplete={() => setHasImportData(false)}
+            />
+          )}
 
         </div>
       </div>

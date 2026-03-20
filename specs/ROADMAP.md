@@ -195,7 +195,7 @@ Drop a file, intelligence normalizes it, you review and merge.
 - [x] **7.4 — Normalize** — intelligence extracts dropped file into uniform CSV, transfer detection
 - [x] **7.5 — Preview area** — editable table, account/category mapping, skip toggles
 - [x] **7.6 — Enrich** — merchant matching, auto-categorization, matching tools e.g. `search_merchants`
-- [ ] **7.7 — Merge** — create entities from mappings, bulk-insert transactions
+- [x] **7.7 — Merge** — create entities from mappings, bulk-insert transactions
 
 ---
 
