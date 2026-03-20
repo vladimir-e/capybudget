@@ -1,0 +1,20 @@
+id,date,description,amount,type,sourceAccount,sourceCategory,memo
+imp-2,2026-01-16,Netflix Subscription,-1599,expense,Chase Checking,Entertainment,Monthly streaming
+imp-3,2026-01-17,Shell Gas Station,-4523,expense,Amex Gold,Transportation,Gas fill-up
+imp-4,2026-01-18,Salary Deposit,450000,income,Chase Checking,Income,January paycheck
+imp-5,2026-01-20,Target,-3299,expense,Amex Gold,Shopping,Household items
+imp-6,2026-01-21,Starbucks,-685,expense,Chase Checking,,Morning coffee
+imp-7,2026-01-22,Electric Bill,-15430,expense,Chase Checking,Utilities,Georgia Power
+imp-8,2026-01-23,Mediterranean Grill,-1565,expense,VISA 6999,Dining,Lunch with Sam
+imp-9,2026-01-25,Amazon.com,-4299,expense,Amex Gold,Shopping,Wireless earbuds
+imp-10,2026-01-27,Rent Payment,-195000,expense,Chase Checking,Housing,February rent
+imp-11,2026-01-28,Minero,-1757,expense,VISA 6999,Dining,Taco Combo + tip
+imp-12,2026-01-29,Freelance Invoice,125000,income,Chase Checking,,Web design project
+imp-13,2026-01-30,Kroger,-6218,expense,Chase Checking,Groceries,
+imp-14,2026-02-01,Spotify,-1099,expense,Amex Gold,Entertainment,Family plan
+imp-15,2026-02-02,Uber,-2340,expense,VISA 6999,Transportation,Airport ride
+imp-16,2026-02-03,The Local,-3147,expense,VISA 6999,Dining,Dinner with friends
+imp-17,2026-02-05,Interest Payment,250,income,Savings Account,,Monthly interest
+imp-18,2026-02-06,Costco,-15680,expense,Amex Gold,Groceries,Bulk shopping
+imp-19,2026-02-07,AT&T,-8999,expense,Chase Checking,Utilities,Phone bill
+imp-20,2026-02-10,Gym Membership,-4500,expense,Chase Checking,Health,Planet Fitness
