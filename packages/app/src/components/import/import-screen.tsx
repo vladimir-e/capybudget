@@ -413,7 +413,7 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
             <ImportPreview
               budgetPath={budgetPath}
               budgetName={budgetName}
-              onMergeComplete={() => setHasImportData(false)}
+              onMergeComplete={() => { setFiles([]); setHasImportData(false); }}
             />
           )}
 
