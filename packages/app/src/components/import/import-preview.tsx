@@ -114,6 +114,23 @@ export function ImportPreview({ budgetPath, budgetName }: ImportPreviewProps) {
     enrichSession.startEnrichment("");
   }, [writeBack, enrichSession]);
 
+  // Auto-enrich: trigger enrichment once after first load if data hasn't been enriched yet
+  const autoEnrichTriggeredRef = useRef(false);
+  useEffect(() => {
+    if (
+      autoEnrichTriggeredRef.current ||
+      loading ||
+      transactions.length === 0 ||
+      enrichSession.isEnriching
+    ) return;
+    // Check if any merchant is set — if none, enrichment hasn't run
+    const needsEnrich = transactions.every((t) => !t.merchant);
+    if (needsEnrich) {
+      autoEnrichTriggeredRef.current = true;
+      enrichSession.startEnrichment("");
+    }
+  }, [loading, transactions, enrichSession]);
+
   // Load CSV on mount
   useEffect(() => {
     let cancelled = false;
@@ -369,6 +386,14 @@ export function ImportPreview({ budgetPath, budgetName }: ImportPreviewProps) {
           selected for import
         </p>
       </div>
+
+      {/* Enriching indicator */}
+      {enrichSession.isEnriching && (
+        <div className="flex items-center gap-2.5 rounded-lg border border-brand/20 bg-brand/5 px-3.5 py-2 text-sm text-foreground/70">
+          <Loader2 className="h-3.5 w-3.5 animate-spin text-brand shrink-0" />
+          <span>Enriching — identifying merchants and categories…</span>
+        </div>
+      )}
 
       {/* Account mapping section */}
       <ImportMapping
