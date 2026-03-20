@@ -14,6 +14,7 @@ import {
   Image,
   Loader2,
   Wrench,
+  Settings,
 } from "lucide-react";
 import { toast } from "sonner";
 import { readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
@@ -31,6 +32,7 @@ import {
   type FileAttachment,
   type ContentBlock,
 } from "@capybudget/intelligence";
+import { InstructionsDialog } from "@/components/capy/instructions-dialog";
 import { ImportPreview } from "./import-preview";
 
 // ── Helpers ─────────────────────────────────────────────────────
@@ -117,6 +119,7 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const customInstructions = useCustomInstructions(budgetPath);
+  const [showInstructions, setShowInstructions] = useState(false);
 
   // ── Intelligence session ────────────────────────────────────
   const importSession = useImportSession({
@@ -273,12 +276,21 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
             <h2 className="text-xl font-bold tracking-tight">Import</h2>
             <p className="text-sm text-muted-foreground">{subtitle}</p>
           </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowInstructions(true)}
+            className="gap-1.5 shrink-0"
+          >
+            <Settings className="h-3.5 w-3.5" />
+            Capy Instructions
+          </Button>
           {(showProcessing || showPreview) && (
             <Button
-              variant="ghost"
+              variant="outline"
               size="sm"
               onClick={handleCancel}
-              className="text-muted-foreground gap-1.5 shrink-0"
+              className="gap-1.5 shrink-0"
             >
               <X className="h-3.5 w-3.5" />
               Cancel Import
@@ -419,6 +431,13 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
 
         </div>
       </div>
+
+      <InstructionsDialog
+        open={showInstructions}
+        onOpenChange={setShowInstructions}
+        instructions={customInstructions.instructions}
+        onSave={customInstructions.save}
+      />
     </div>
   );
 }
