@@ -57,8 +57,12 @@ After normalizing, immediately enrich by querying budget data:
 For each transaction:
 - **merchant**: Set to the matched merchant name from budget, or extract a clean name from the description (strip reference numbers, card digits, transaction codes)
 - **accountId**: Match \`sourceAccount\` against budget account names. Only set the account UUID when there's a clear match. Better to leave empty than guess wrong — the user maps accounts manually.
-- **categoryId**: If a merchant match is found with an associated category, set the category UUID. Only use IDs returned by the tools — never invent IDs.
-- **categoryConfidence**: "high" for exact/near-exact merchant matches, "low" for fuzzy matches or best-guesses, empty if no match
+- **categoryId**: Assign using this priority:
+  1. **Exact merchant match** from search_merchants → use its category UUID → confidence "high"
+  2. **Contextual inference** from description keywords and the available category list → use the best-fit category UUID → confidence "low". For example, if a description mentions food/restaurant/dining words and a "Dining Out" category exists, assign it. Use your judgment — read the description, understand what the transaction is, and pick the most appropriate category from the budget.
+  3. If you truly cannot determine a category, leave \`categoryId\` empty
+- **categoryConfidence**: "high" for exact merchant matches, "low" for contextual/inferred assignments, empty if no category set
+- Only use category IDs returned by list_categories — never invent IDs
 
 ### Phase 3 — Write
 
