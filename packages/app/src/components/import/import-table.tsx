@@ -11,7 +11,9 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar } from "@/components/ui/calendar";
 import { Checkbox } from "@/components/ui/checkbox";
 import { MerchantInput } from "@/components/budget/merchant-input";
+import { CategorySelector } from "@/components/budget/category-selector";
 import type { ImportTransaction } from "@capybudget/core";
+import type { Category } from "@capybudget/core";
 import {
   formatMoney,
   parseMoney,
@@ -33,24 +35,18 @@ import {
 
 export type ImportSortColumn =
   | "date"
-  | "description"
+  | "merchant"
   | "amount"
   | "type"
   | "sourceAccount"
-  | "sourceCategory";
+  | "categoryId";
 
 export interface ImportSortConfig {
   column: ImportSortColumn;
   direction: "asc" | "desc";
 }
 
-type EditableColumn =
-  | "date"
-  | "description"
-  | "amount"
-  | "type"
-  | "sourceAccount"
-  | "sourceCategory";
+type EditableColumn = "date" | "merchant" | "amount" | "type";
 
 interface ImportTableProps {
   transactions: ImportTransaction[];
@@ -62,6 +58,7 @@ interface ImportTableProps {
   allSelected: boolean;
   indeterminate: boolean;
   onUpdateTransaction: (id: string, patch: Partial<ImportTransaction>) => void;
+  categories: Category[];
 }
 
 // ── Helpers ─────────────────────────────────────────────────────
@@ -137,7 +134,7 @@ function SortableHeader({
   );
 }
 
-// ── Inline edit cells (reuse existing UI building blocks) ───────
+// ── Inline edit cells ───────────────────────────────────────────
 
 function DateEdit({
   value,
@@ -179,7 +176,7 @@ function DateEdit({
   );
 }
 
-function DescriptionEdit({
+function MerchantEdit({
   value,
   onSave,
   onCancel,
@@ -205,7 +202,7 @@ function DescriptionEdit({
           if (e.key === "Escape") { e.preventDefault(); onCancel(); }
         }}
         className={`${inputClass} text-foreground/80`}
-        placeholder="Description"
+        placeholder="Merchant"
       />
     </div>
   );
@@ -298,6 +295,7 @@ export function ImportTable({
   allSelected,
   indeterminate,
   onUpdateTransaction,
+  categories,
 }: ImportTableProps) {
   const [editingCell, setEditingCell] = useState<{
     rowId: string;
@@ -358,19 +356,19 @@ export function ImportTable({
           <SortableHeader column="date" sort={sort} onSortChange={onSortChange} className="w-[120px]">
             Date
           </SortableHeader>
-          <SortableHeader column="description" sort={sort} onSortChange={onSortChange}>
-            Description
+          <SortableHeader column="merchant" sort={sort} onSortChange={onSortChange}>
+            Merchant
           </SortableHeader>
-          <SortableHeader column="amount" sort={sort} onSortChange={onSortChange} align="right" className="w-[130px]">
+          <SortableHeader column="amount" sort={sort} onSortChange={onSortChange} align="right" className="w-[120px]">
             Amount
           </SortableHeader>
-          <SortableHeader column="type" sort={sort} onSortChange={onSortChange} className="w-[100px]">
+          <SortableHeader column="type" sort={sort} onSortChange={onSortChange} className="w-[90px]">
             Type
           </SortableHeader>
-          <SortableHeader column="sourceAccount" sort={sort} onSortChange={onSortChange}>
+          <SortableHeader column="sourceAccount" sort={sort} onSortChange={onSortChange} className="w-[140px]">
             Account
           </SortableHeader>
-          <SortableHeader column="sourceCategory" sort={sort} onSortChange={onSortChange}>
+          <SortableHeader column="categoryId" sort={sort} onSortChange={onSortChange} className="w-[180px]">
             Category
           </SortableHeader>
         </TableRow>
@@ -423,24 +421,28 @@ export function ImportTable({
                 )}
               </TableCell>
 
-              {/* Description */}
+              {/* Merchant */}
               <TableCell
                 className="text-[13px] max-w-[250px] cursor-pointer"
-                onClick={() => handleCellClick(txn.id, "description")}
+                onClick={() => handleCellClick(txn.id, "merchant")}
               >
-                {activeCol === "description" ? (
-                  <DescriptionEdit
-                    value={txn.description}
-                    onSave={(v) => handleSave(txn.id, "description", v)}
+                {activeCol === "merchant" ? (
+                  <MerchantEdit
+                    value={txn.merchant || txn.description}
+                    onSave={(v) => handleSave(txn.id, "merchant", v)}
                     onCancel={handleCancel}
                   />
-                ) : txn.merchant && txn.merchant !== txn.description ? (
-                  <div className="min-w-0">
-                    <span className="truncate block">{txn.merchant}</span>
-                    <span className="truncate block text-[11px] text-muted-foreground/50">{txn.description}</span>
-                  </div>
                 ) : (
-                  <span className="truncate block">{txn.description}</span>
+                  <div className="min-w-0">
+                    <span className="truncate block">
+                      {txn.merchant || txn.description}
+                    </span>
+                    {txn.merchant && txn.merchant !== txn.description && (
+                      <span className="truncate block text-[11px] text-muted-foreground/50">
+                        {txn.description}
+                      </span>
+                    )}
+                  </div>
                 )}
               </TableCell>
 
@@ -476,86 +478,38 @@ export function ImportTable({
                 )}
               </TableCell>
 
-              {/* Source Account */}
-              <TableCell
-                className="text-[13px] text-muted-foreground cursor-pointer"
-                onClick={() => handleCellClick(txn.id, "sourceAccount")}
-              >
-                {activeCol === "sourceAccount" ? (
-                  <TextEdit
-                    value={txn.sourceAccount}
-                    onSave={(v) => handleSave(txn.id, "sourceAccount", v)}
-                    onCancel={handleCancel}
-                  />
-                ) : (
-                  <span className="truncate block">
-                    {txn.sourceAccount || <span className="text-muted-foreground/40 italic">none</span>}
-                  </span>
-                )}
+              {/* Account (display only) */}
+              <TableCell className="text-[13px] text-muted-foreground">
+                <span className="truncate block">
+                  {txn.sourceAccount || <span className="text-muted-foreground/40 italic">none</span>}
+                </span>
               </TableCell>
 
-              {/* Source Category */}
-              <TableCell
-                className="text-[13px] text-muted-foreground cursor-pointer"
-                onClick={() => handleCellClick(txn.id, "sourceCategory")}
-              >
-                {activeCol === "sourceCategory" ? (
-                  <TextEdit
-                    value={txn.sourceCategory}
-                    onSave={(v) => handleSave(txn.id, "sourceCategory", v)}
-                    onCancel={handleCancel}
+              {/* Category (selector) */}
+              <TableCell className="text-[13px] py-1" onClick={(e) => e.stopPropagation()}>
+                <div className="flex items-center gap-1.5">
+                  {txn.categoryConfidence && (
+                    <ConfidenceDot confidence={txn.categoryConfidence} />
+                  )}
+                  <CategorySelector
+                    categories={categories}
+                    value={txn.categoryId || null}
+                    onChange={(categoryId) =>
+                      onUpdateTransaction(txn.id, {
+                        categoryId: categoryId || "",
+                        categoryConfidence: categoryId ? "high" : "",
+                      })
+                    }
+                    placeholder="Uncategorized"
+                    includeUncategorized
                   />
-                ) : (
-                  <span className="truncate flex items-center gap-1.5">
-                    {txn.confidence && <ConfidenceDot confidence={txn.confidence} />}
-                    {txn.sourceCategory || <span className="text-muted-foreground/40 italic">none</span>}
-                  </span>
-                )}
+                </div>
               </TableCell>
-
             </TableRow>
           );
         })}
       </TableBody>
     </Table>
-  );
-}
-
-// ── Simple text editor (for source account/category) ────────────
-
-function TextEdit({
-  value,
-  onSave,
-  onCancel,
-}: {
-  value: string;
-  onSave: (v: string) => void;
-  onCancel: () => void;
-}) {
-  const [draft, setDraft] = useState(value);
-  const ref = useRef<HTMLInputElement>(null);
-  useEffect(() => { ref.current?.focus(); ref.current?.select(); }, []);
-
-  const save = () => {
-    if (draft !== value) onSave(draft);
-    else onCancel();
-  };
-
-  return (
-    <div onClick={(e) => e.stopPropagation()}>
-      <input
-        ref={ref}
-        type="text"
-        value={draft}
-        onChange={(e) => setDraft(e.target.value)}
-        onBlur={save}
-        onKeyDown={(e) => {
-          if (e.key === "Enter") { e.preventDefault(); save(); }
-          if (e.key === "Escape") { e.preventDefault(); onCancel(); }
-        }}
-        className={inputClass}
-      />
-    </div>
   );
 }
 
@@ -606,8 +560,8 @@ export function sortImportTransactions(
       case "date":
         cmp = a.date.localeCompare(b.date);
         break;
-      case "description":
-        cmp = a.description.localeCompare(b.description);
+      case "merchant":
+        cmp = (a.merchant || a.description).localeCompare(b.merchant || b.description);
         break;
       case "amount":
         cmp = a.amount - b.amount;
@@ -618,8 +572,8 @@ export function sortImportTransactions(
       case "sourceAccount":
         cmp = a.sourceAccount.localeCompare(b.sourceAccount);
         break;
-      case "sourceCategory":
-        cmp = a.sourceCategory.localeCompare(b.sourceCategory);
+      case "categoryId":
+        cmp = a.categoryId.localeCompare(b.categoryId);
         break;
     }
     return cmp * dir;

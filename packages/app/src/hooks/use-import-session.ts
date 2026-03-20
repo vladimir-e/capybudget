@@ -28,7 +28,7 @@ interface UseImportSessionOptions {
   budgetName: string;
   mcpServerPath: string;
   customInstructions?: string;
-  onNormalizationComplete?: () => void;
+  onImportComplete?: () => void;
 }
 
 interface UseImportSessionReturn {
@@ -96,10 +96,10 @@ export function useImportSession(
         }
 
         case "done":
-          console.log("[import-session] stream done — calling onNormalizationComplete");
+          console.log("[import-session] stream done — calling onImportComplete");
           setIsStreaming(false);
           lastTextContentRef.current = "";
-          optsRef.current.onNormalizationComplete?.();
+          optsRef.current.onImportComplete?.();
           break;
 
         case "error":

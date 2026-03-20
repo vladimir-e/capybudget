@@ -124,7 +124,7 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
     budgetName,
     mcpServerPath: "packages/mcp/src/server.ts",
     customInstructions: customInstructions.instructions,
-    onNormalizationComplete: checkDisk,
+    onImportComplete: checkDisk,
   });
 
   const isProcessing = importSession.isStreaming;
