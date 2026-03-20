@@ -15,7 +15,7 @@ Normalize the attached financial data files into a uniform CSV format. The user 
 
 Write a CSV file named "transactions.csv" to the import directory using the write_import_file tool. The CSV must have exactly these columns in this order:
 
-id,date,description,amount,type,sourceAccount,sourceCategory,memo
+id,date,description,amount,type,sourceAccount,sourceCategory,memo,merchant,confidence
 
 | Column | Type | Description |
 |---|---|---|
@@ -27,6 +27,8 @@ id,date,description,amount,type,sourceAccount,sourceCategory,memo
 | sourceAccount | string | Account name from the source file (e.g. "Chase Checking", "Amex Gold") |
 | sourceCategory | string | Category from the source file if available, empty string otherwise |
 | memo | string | Any additional notes or reference numbers |
+| merchant | string | Leave empty — set during enrichment |
+| confidence | string | Leave empty — set during enrichment |
 
 ## Guidelines
 

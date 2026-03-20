@@ -37,3 +37,6 @@ export { MUTATION_TOOL_NAMES } from "./tools"
 
 // Import prompt
 export { IMPORT_SYSTEM_PROMPT } from "./import-prompt"
+
+// Enrich prompt
+export { ENRICH_SYSTEM_PROMPT } from "./enrich-prompt"

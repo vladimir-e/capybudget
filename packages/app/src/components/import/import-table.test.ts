@@ -12,6 +12,8 @@ function txn(overrides: Partial<ImportTransaction> = {}): ImportTransaction {
     sourceAccount: "Checking",
     sourceCategory: "Food",
     memo: "",
+    merchant: "",
+    confidence: "",
     ...overrides,
   };
 }

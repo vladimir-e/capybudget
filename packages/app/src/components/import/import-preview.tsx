@@ -12,6 +12,8 @@ import {
 } from "@/components/ui/dialog";
 import { useAccounts, useCategories } from "@/hooks/use-budget-data";
 import { useImportPaths } from "@/hooks/use-import-paths";
+import { useEnrichSession } from "@/hooks/use-enrich-session";
+import { useCustomInstructions } from "@/hooks/use-custom-instructions";
 import { parseCsv, unparseCsv } from "@capybudget/persistence";
 import { formatMoney } from "@capybudget/core";
 import type { ImportTransaction } from "@capybudget/core";
@@ -34,9 +36,10 @@ interface ImportAliases {
 
 interface ImportPreviewProps {
   budgetPath: string;
+  budgetName: string;
 }
 
-export function ImportPreview({ budgetPath }: ImportPreviewProps) {
+export function ImportPreview({ budgetPath, budgetName }: ImportPreviewProps) {
   const [transactions, setTransactions] = useState<ImportTransaction[]>([]);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [sort, setSort] = useState<ImportSortConfig>({
@@ -57,6 +60,27 @@ export function ImportPreview({ budgetPath }: ImportPreviewProps) {
   useEffect(() => { transactionsRef.current = transactions; }, [transactions]);
 
   const { resolveImportPath, resolveAliasPath } = useImportPaths(budgetPath);
+  const customInstructions = useCustomInstructions(budgetPath);
+
+  // ── Load / reload CSV ──────────────────────────────────────────
+  const loadCsv = useCallback(async () => {
+    try {
+      const csvPath = await resolveImportPath("transactions.csv");
+      const content = await readTextFile(csvPath);
+      const parsed = parseCsv<ImportTransaction>(content, IMPORT_COERCE).map(
+        (t) => ({
+          ...t,
+          merchant: t.merchant || "",
+          confidence: t.confidence || "",
+        }),
+      );
+      setTransactions(parsed);
+      setSelectedIds(new Set(parsed.map((t) => t.id)));
+      setLoading(false);
+    } catch {
+      setLoading(false);
+    }
+  }, [resolveImportPath]);
 
   const writeBack = useCallback(async () => {
     try {
@@ -73,14 +97,71 @@ export function ImportPreview({ budgetPath }: ImportPreviewProps) {
     writeTimerRef.current = setTimeout(writeBack, 500);
   }, [writeBack]);
 
-  // Load CSV on mount (runs once)
+  // ── Enrichment session ────────────────────────────────────────
+  const enrichSession = useEnrichSession({
+    budgetPath,
+    budgetName,
+    mcpServerPath: "packages/mcp/src/server.ts",
+    customInstructions: customInstructions.instructions,
+    onEnrichmentComplete: loadCsv,
+  });
+
+  const handleEnrich = useCallback(async () => {
+    // Flush any pending writes before enrichment reads the CSV
+    if (writeTimerRef.current) {
+      clearTimeout(writeTimerRef.current);
+      await writeBack();
+    }
+
+    // Build mapping context for the agent
+    const mappingLines: string[] = [];
+    if (Object.keys(accountMapping).length > 0) {
+      mappingLines.push("Current account mappings:");
+      for (const [source, targetId] of Object.entries(accountMapping)) {
+        const target =
+          targetId === "__create__"
+            ? `(create new)`
+            : accounts.find((a) => a.id === targetId)?.name ?? targetId;
+        mappingLines.push(`  "${source}" → ${target}`);
+      }
+    }
+    if (Object.keys(categoryMapping).length > 0) {
+      mappingLines.push("Current category mappings:");
+      for (const [source, targetId] of Object.entries(categoryMapping)) {
+        const target =
+          targetId === "__create__"
+            ? `(create new)`
+            : categories.find((c) => c.id === targetId)?.name ?? targetId;
+        mappingLines.push(`  "${source}" → ${target}`);
+      }
+    }
+
+    enrichSession.startEnrichment(
+      mappingLines.length > 0 ? mappingLines.join("\n") : "",
+    );
+  }, [
+    writeBack,
+    accountMapping,
+    categoryMapping,
+    accounts,
+    categories,
+    enrichSession,
+  ]);
+
+  // Load CSV on mount (inline to avoid lint rule about setState in effects)
   useEffect(() => {
     let cancelled = false;
     async function load() {
       try {
         const csvPath = await resolveImportPath("transactions.csv");
         const content = await readTextFile(csvPath);
-        const parsed = parseCsv<ImportTransaction>(content, IMPORT_COERCE);
+        const parsed = parseCsv<ImportTransaction>(content, IMPORT_COERCE).map(
+          (t) => ({
+            ...t,
+            merchant: t.merchant || "",
+            confidence: t.confidence || "",
+          }),
+        );
         if (!cancelled) {
           setTransactions(parsed);
           setSelectedIds(new Set(parsed.map((t) => t.id)));
@@ -365,9 +446,19 @@ export function ImportPreview({ budgetPath }: ImportPreviewProps) {
             </div>
 
             {/* Enrich (magic) button */}
-            <Button size="sm" variant="outline" className="gap-1.5" disabled>
-              <Sparkles className="h-3.5 w-3.5" />
-              Enrich
+            <Button
+              size="sm"
+              variant="outline"
+              className="gap-1.5"
+              disabled={enrichSession.isEnriching}
+              onClick={handleEnrich}
+            >
+              {enrichSession.isEnriching ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Sparkles className="h-3.5 w-3.5" />
+              )}
+              {enrichSession.isEnriching ? "Enriching…" : "Enrich"}
             </Button>
 
             {/* Merge button */}

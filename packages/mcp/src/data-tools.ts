@@ -1,5 +1,5 @@
 import type { Account, Category, Transaction } from "@capybudget/core"
-import { formatMoney, getAccountBalance } from "@capybudget/core"
+import { formatMoney, getAccountBalance, matchMerchants, getUniqueMerchants, findCategoryForMerchant } from "@capybudget/core"
 import type { BudgetRepository } from "@capybudget/persistence"
 
 // ── Tool schemas ─────────────────────────────────────────────────
@@ -73,6 +73,25 @@ export const DATA_TOOLS = [
           description: "End date (YYYY-MM-DD). Defaults to today.",
         },
       },
+    },
+  },
+  {
+    name: "search_merchants",
+    description:
+      "Search for merchants in the budget's transaction history. Returns matching merchant names with their most recently used category. Use this to match import descriptions to known merchants.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        query: {
+          type: "string",
+          description: "Search query (case-insensitive, matches against merchant names)",
+        },
+        limit: {
+          type: "number",
+          description: "Maximum results to return (default: 10)",
+        },
+      },
+      required: ["query"],
     },
   },
 ] as const
@@ -206,4 +225,30 @@ export async function handleSpendingSummary(
     null,
     2,
   )
+}
+
+export async function handleSearchMerchants(
+  repo: BudgetRepository,
+  args: Record<string, unknown>,
+): Promise<string> {
+  const query = args.query as string
+  const limit = (args.limit as number) || 10
+
+  const transactions = await repo.getTransactions()
+  const categories = await repo.getCategories()
+  const categoryMap = new Map(categories.map((c: Category) => [c.id, c.name]))
+
+  const merchants = getUniqueMerchants(transactions)
+  const matched = matchMerchants(merchants, query).slice(0, limit)
+
+  const result = matched.map((merchant) => {
+    const categoryId = findCategoryForMerchant(transactions, merchant)
+    return {
+      merchant,
+      category: categoryId ? (categoryMap.get(categoryId) ?? categoryId) : null,
+      categoryId: categoryId || null,
+    }
+  })
+
+  return JSON.stringify(result, null, 2)
 }

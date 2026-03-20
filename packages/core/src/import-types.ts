@@ -9,6 +9,8 @@ export interface ImportTransaction {
   sourceAccount: string;
   sourceCategory: string;
   memo: string;
+  merchant: string; // enrichment: cleaned merchant name
+  confidence: string; // enrichment: "high" | "low" | ""
 }
 
 export type ImportPhase =

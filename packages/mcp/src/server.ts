@@ -12,6 +12,7 @@ import {
   handleListTransactions,
   handleListCategories,
   handleSpendingSummary,
+  handleSearchMerchants,
 } from "./data-tools.js"
 import {
   MUTATION_TOOLS,
@@ -129,6 +130,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         break
       case "spending_summary":
         text = await handleSpendingSummary(repo, args ?? {})
+        break
+      case "search_merchants":
+        text = await handleSearchMerchants(repo, args ?? {})
         break
       default:
         return {

@@ -399,7 +399,7 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
           )}
 
           {/* ── Preview area ───────────────────────────────── */}
-          {showPreview && <ImportPreview budgetPath={budgetPath} />}
+          {showPreview && <ImportPreview budgetPath={budgetPath} budgetName={budgetName} />}
 
         </div>
       </div>

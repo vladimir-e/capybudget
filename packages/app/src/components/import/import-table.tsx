@@ -434,6 +434,11 @@ export function ImportTable({
                     onSave={(v) => handleSave(txn.id, "description", v)}
                     onCancel={handleCancel}
                   />
+                ) : txn.merchant && txn.merchant !== txn.description ? (
+                  <div className="min-w-0">
+                    <span className="truncate block">{txn.merchant}</span>
+                    <span className="truncate block text-[11px] text-muted-foreground/50">{txn.description}</span>
+                  </div>
                 ) : (
                   <span className="truncate block">{txn.description}</span>
                 )}
@@ -501,7 +506,8 @@ export function ImportTable({
                     onCancel={handleCancel}
                   />
                 ) : (
-                  <span className="truncate block">
+                  <span className="truncate flex items-center gap-1.5">
+                    {txn.confidence && <ConfidenceDot confidence={txn.confidence} />}
                     {txn.sourceCategory || <span className="text-muted-foreground/40 italic">none</span>}
                   </span>
                 )}
@@ -570,6 +576,21 @@ function TypeBadge({ type }: { type: string }) {
   );
 }
 
+// ── Confidence Dot ───────────────────────────────────────────────
+
+function ConfidenceDot({ confidence }: { confidence: string }) {
+  const color =
+    confidence === "high"
+      ? "bg-amount-income"
+      : "bg-amber-400";
+  return (
+    <span
+      className={`inline-block h-1.5 w-1.5 shrink-0 rounded-full ${color}`}
+      title={`${confidence} confidence`}
+    />
+  );
+}
+
 // ── Sort + Filter utilities ─────────────────────────────────────
 
 export function sortImportTransactions(
@@ -616,6 +637,7 @@ export function filterImportTransactions(
   return transactions.filter(
     (t) =>
       t.description.toLowerCase().includes(q) ||
+      (t.merchant && t.merchant.toLowerCase().includes(q)) ||
       t.sourceAccount.toLowerCase().includes(q) ||
       t.sourceCategory.toLowerCase().includes(q) ||
       t.memo.toLowerCase().includes(q) ||
