@@ -42,6 +42,17 @@ describe("sortImportTransactions", () => {
     expect(result.map((t) => t.id)).toEqual(["b", "a", "c"]);
   });
 
+  it("sorts by merchant falling back to description when merchant is empty", () => {
+    const mixed = [
+      txn({ id: "a", description: "Beta Store", merchant: "" }),
+      txn({ id: "b", description: "Zeta Corp", merchant: "Alpha Inc" }),
+      txn({ id: "c", description: "Gamma LLC", merchant: "" }),
+    ];
+    const result = sortImportTransactions(mixed, { column: "merchant", direction: "asc" });
+    // "Alpha Inc", "Beta Store" (from description), "Gamma LLC" (from description)
+    expect(result.map((t) => t.id)).toEqual(["b", "a", "c"]);
+  });
+
   it("sorts by amount ascending", () => {
     const result = sortImportTransactions(txns, { column: "amount", direction: "asc" });
     expect(result.map((t) => t.id)).toEqual(["b", "a", "c"]);

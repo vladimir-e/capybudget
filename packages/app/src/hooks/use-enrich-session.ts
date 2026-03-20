@@ -27,7 +27,7 @@ interface UseEnrichSessionOptions {
 interface UseEnrichSessionReturn {
   isEnriching: boolean;
   statusText: string;
-  startEnrichment: (mappingContext: string) => void;
+  startEnrichment: () => void;
   cancel: () => void;
 }
 
@@ -65,13 +65,13 @@ export function useEnrichSession(
           break;
 
         case "done":
-          console.log("[enrich-session] stream done");
+          console.debug("[enrich-session] stream done");
           setIsEnriching(false);
           optsRef.current.onEnrichmentComplete?.();
           break;
 
         case "error":
-          console.log("[enrich-session] stream error:", event.message);
+          console.debug("[enrich-session] stream error:", event.message);
           setIsEnriching(false);
           break;
       }
@@ -93,12 +93,12 @@ export function useEnrichSession(
           break;
 
         case "exit":
-          console.log("[enrich-session] process exited");
+          console.debug("[enrich-session] process exited");
           setIsEnriching(false);
           break;
 
         case "error":
-          console.log("[enrich-session] session error:", event.message);
+          console.debug("[enrich-session] session error:", event.message);
           handleStreamEvent({ type: "error", message: event.message });
           break;
       }
@@ -114,9 +114,9 @@ export function useEnrichSession(
   }, []);
 
   const startEnrichment = useCallback(
-    (mappingContext: string) => {
+    () => {
       if (isEnrichingRef.current) return;
-      console.log("[enrich-session] starting enrichment");
+      console.debug("[enrich-session] starting enrichment");
 
       const o = optsRef.current;
       const customInstructions = o.customInstructions?.trim();
@@ -137,7 +137,7 @@ export function useEnrichSession(
         budgetPath: o.budgetPath,
       });
 
-      const message = `${context}\nEnrich the imported transactions.\n\n${mappingContext}`;
+      const message = `${context}\nEnrich the imported transactions.`;
 
       setIsEnriching(true);
       setStatusText("");

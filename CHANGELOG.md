@@ -9,6 +9,16 @@ CHANGELOG PHILOSOPHY:
 - Resist the urge to be thorough here. Thoroughness goes in specs, not changelog.
 -->
 
+## 0.12.0 — 2026-03-20
+
+Smart Import — Enrich step: AI identifies merchants and categorizes imported transactions.
+
+- Enrichment session auto-runs after normalization, filling merchant names and categories
+- `search_merchants` MCP tool matches cryptic descriptions against existing budget data
+- Per-row category selector with confidence indicators (green=high, amber=low)
+- Account mapping moved to dedicated section; category mapping handled by AI
+- Re-enrich button for manual re-runs after user corrections
+
 ## 0.11.0 — 2026-03-16
 
 File attachments for Capy intelligence — upload bank imports, screenshots, and other files.

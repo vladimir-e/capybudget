@@ -111,7 +111,7 @@ export function ImportPreview({ budgetPath, budgetName }: ImportPreviewProps) {
       clearTimeout(writeTimerRef.current);
       await writeBack();
     }
-    enrichSession.startEnrichment("");
+    enrichSession.startEnrichment();
   }, [writeBack, enrichSession]);
 
   // Auto-enrich: trigger enrichment once after first load if data hasn't been enriched yet
@@ -127,38 +127,18 @@ export function ImportPreview({ budgetPath, budgetName }: ImportPreviewProps) {
     const needsEnrich = transactions.every((t) => !t.merchant);
     if (needsEnrich) {
       autoEnrichTriggeredRef.current = true;
-      enrichSession.startEnrichment("");
+      enrichSession.startEnrichment();
     }
   }, [loading, transactions, enrichSession]);
 
   // Load CSV on mount
   useEffect(() => {
     let cancelled = false;
-    async function load() {
-      try {
-        const csvPath = await resolveImportPath("transactions.csv");
-        const content = await readTextFile(csvPath);
-        const parsed = parseCsv<ImportTransaction>(content, IMPORT_COERCE).map(
-          (t) => ({
-            ...t,
-            merchant: t.merchant || "",
-            accountId: t.accountId || "",
-            categoryId: t.categoryId || "",
-            categoryConfidence: t.categoryConfidence || "",
-          }),
-        );
-        if (!cancelled) {
-          setTransactions(parsed);
-          setSelectedIds(new Set(parsed.map((t) => t.id)));
-          setLoading(false);
-        }
-      } catch {
-        if (!cancelled) setLoading(false);
-      }
-    }
-    load();
+    loadCsv().then(() => {
+      if (cancelled) return;
+    });
     return () => { cancelled = true; };
-  }, [resolveImportPath]);
+  }, [loadCsv]);
 
   // ── Derive account mapping from CSV + aliases ──────────────────
   const aliasesAppliedRef = useRef(false);
@@ -402,7 +382,7 @@ export function ImportPreview({ budgetPath, budgetName }: ImportPreviewProps) {
         </div>
       )}
 
-      {/* Account mapping section */}
+      {/* Account mapping section (hidden during enrichment to reduce noise) */}
       <ImportMapping
         sourceAccounts={sourceAccounts}
         accounts={accounts}
@@ -435,8 +415,8 @@ export function ImportPreview({ budgetPath, budgetName }: ImportPreviewProps) {
         </div>
       </div>
 
-      {/* Issues banner */}
-      {(uncategorizedCount > 0 || lowConfidenceCount > 0) && (
+      {/* Issues banner (hidden while enrichment is running) */}
+      {!enrichSession.isEnriching && (uncategorizedCount > 0 || lowConfidenceCount > 0) && (
         <div className="flex items-center gap-2.5 rounded-lg border border-amber-500/20 bg-amber-500/5 px-3.5 py-2 text-sm text-foreground/70">
           <AlertTriangle className="h-3.5 w-3.5 text-amber-500 shrink-0" />
           <span>

@@ -150,7 +150,7 @@ The desktop app spawns it automatically. External agents configure it manually:
 
 ### Tools
 
-Data tools (read-only): `list_accounts`, `list_transactions`, `list_categories`, `spending_summary`.
+Data tools (read-only): `list_accounts`, `list_transactions`, `list_categories`, `spending_summary`, `search_merchants`.
 
 Mutation tools (write): full CRUD for transactions, accounts, and categories plus `assign_categories` for bulk operations. All mutations reuse `@capybudget/core` pure functions. See `packages/mcp/src/data-tools.ts` and `mutation-tools.ts` for the complete list and schemas.
 
@@ -210,3 +210,15 @@ Establishes Capy's personality:
 - Confirms destructive actions before executing
 
 Includes a complete data model description and tool reference so the AI interprets results correctly.
+
+## Import Sessions
+
+Smart Import uses two sequential AI sessions, each with a focused prompt:
+
+1. **Normalize** (`IMPORT_SYSTEM_PROMPT`): Takes dropped files, detects format, extracts transactions into a uniform CSV. Leaves enrichment columns (`merchant`, `accountId`, `categoryId`, `categoryConfidence`) empty.
+
+2. **Enrich** (`ENRICH_SYSTEM_PROMPT`): Reads the normalized CSV, identifies merchants, matches accounts, and categorizes transactions using `search_merchants`, `list_accounts`, and `list_categories`. Runs automatically after normalization; can be re-triggered manually.
+
+The `categoryConfidence` field coordinates between AI and user: enrichment writes `"high"` (merchant history match) or `"low"` (keyword inference), and skips rows where confidence is `"high"` (user-confirmed). The UI shows a confidence dot indicator next to each category.
+
+Both sessions use the same `CapySession` interface and `buildContext` enrichment. They are managed by `useImportSession` and `useEnrichSession` hooks respectively.
