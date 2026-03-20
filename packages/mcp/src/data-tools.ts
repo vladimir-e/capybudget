@@ -239,7 +239,7 @@ export async function handleSearchMerchants(
   const categories = await repo.getCategories()
   const categoryMap = new Map(categories.map((c: Category) => [c.id, c.name]))
 
-  // Collect matches with quality scores: 1=full, 2=word-start, 3=substring
+  // Collect matches with quality scores: 1=full, 2=word-start, 3=substring, 4=note
   type Match = { merchant: string; matchType: string; matchScore: number }
   const seen = new Set<string>()
   const matches: Match[] = []

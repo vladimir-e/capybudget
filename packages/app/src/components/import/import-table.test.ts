@@ -81,6 +81,15 @@ describe("filterImportTransactions", () => {
     expect(result.map((t) => t.id)).toEqual(["a"]);
   });
 
+  it("filters by merchant when description differs", () => {
+    const withMerchant = [
+      txn({ id: "a", description: "POS TXN 8832 CARD", merchant: "Starbucks" }),
+      txn({ id: "b", description: "ACH DEBIT 1234", merchant: "Netflix" }),
+    ];
+    const result = filterImportTransactions(withMerchant, "starbucks");
+    expect(result.map((t) => t.id)).toEqual(["a"]);
+  });
+
   it("filters by source account", () => {
     const result = filterImportTransactions(txns, "savings");
     expect(result.map((t) => t.id)).toEqual(["b"]);

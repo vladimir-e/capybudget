@@ -145,7 +145,7 @@ export function ImportPreview({ budgetPath, budgetName }: ImportPreviewProps) {
   // ── Derive account mapping from CSV + aliases ──────────────────
   const aliasesAppliedRef = useRef(false);
   useEffect(() => {
-    if (aliasesAppliedRef.current || transactions.length === 0 || accounts.length === 0) return;
+    if (aliasesAppliedRef.current || transactions.length === 0 || accounts.length === 0 || categories.length === 0) return;
     aliasesAppliedRef.current = true;
 
     async function applyMappings() {
@@ -173,6 +173,7 @@ export function ImportPreview({ budgetPath, budgetName }: ImportPreviewProps) {
       });
       if (needsCategoryFix) {
         setTransactions(validated);
+        scheduleWriteBack();
       }
 
       // 3. Overlay aliases (user's past mappings override AI)
@@ -203,7 +204,7 @@ export function ImportPreview({ budgetPath, budgetName }: ImportPreviewProps) {
     }
 
     applyMappings();
-  }, [transactions, accounts, categories, resolveAliasPath]);
+  }, [transactions, accounts, categories, resolveAliasPath, scheduleWriteBack]);
 
   // Flush pending CSV write on unmount
   useEffect(() => {
