@@ -389,9 +389,16 @@ export function ImportPreview({ budgetPath, budgetName }: ImportPreviewProps) {
 
       {/* Enriching indicator */}
       {enrichSession.isEnriching && (
-        <div className="flex items-center gap-2.5 rounded-lg border border-brand/20 bg-brand/5 px-3.5 py-2 text-sm text-foreground/70">
-          <Loader2 className="h-3.5 w-3.5 animate-spin text-brand shrink-0" />
-          <span>Enriching — identifying merchants and categories…</span>
+        <div className="rounded-lg border border-brand/20 bg-brand/5 px-3.5 py-2 text-sm text-foreground/70 space-y-1">
+          <div className="flex items-center gap-2.5">
+            <Loader2 className="h-3.5 w-3.5 animate-spin text-brand shrink-0" />
+            <span>Enriching — identifying merchants and categories…</span>
+          </div>
+          {enrichSession.statusText && (
+            <p className="text-xs text-muted-foreground/60 truncate pl-6">
+              {enrichSession.statusText}
+            </p>
+          )}
         </div>
       )}
 

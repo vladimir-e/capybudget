@@ -3,7 +3,7 @@
  *
  * - Creates a CapySession with the enrich-specific system prompt
  * - Sends a message with mapping context
- * - Streams events and detects completion
+ * - Streams events, exposes latest status text, and detects completion
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -26,6 +26,7 @@ interface UseEnrichSessionOptions {
 
 interface UseEnrichSessionReturn {
   isEnriching: boolean;
+  statusText: string;
   startEnrichment: (mappingContext: string) => void;
   cancel: () => void;
 }
@@ -34,6 +35,7 @@ export function useEnrichSession(
   opts: UseEnrichSessionOptions,
 ): UseEnrichSessionReturn {
   const [isEnriching, _setIsEnriching] = useState(false);
+  const [statusText, setStatusText] = useState("");
   const isEnrichingRef = useRef(false);
   const sessionRef = useRef<CapySession | null>(null);
 
@@ -45,11 +47,23 @@ export function useEnrichSession(
   const setIsEnriching = useCallback((value: boolean) => {
     isEnrichingRef.current = value;
     _setIsEnriching(value);
+    if (!value) setStatusText("");
   }, []);
 
   const handleStreamEvent = useCallback(
     (event: StreamEvent) => {
       switch (event.type) {
+        case "content":
+          for (const block of event.blocks) {
+            if (block.type === "text" && block.content) {
+              // Show the last line of the latest text
+              const lines = block.content.trim().split("\n");
+              const last = lines[lines.length - 1]?.trim();
+              if (last) setStatusText(last);
+            }
+          }
+          break;
+
         case "done":
           console.log("[enrich-session] stream done");
           setIsEnriching(false);
@@ -126,6 +140,7 @@ export function useEnrichSession(
       const message = `${context}\nEnrich the imported transactions.\n\n${mappingContext}`;
 
       setIsEnriching(true);
+      setStatusText("");
 
       sessionRef.current.send(message).catch((err) => {
         handleStreamEvent({
@@ -144,5 +159,5 @@ export function useEnrichSession(
     setIsEnriching(false);
   }, [setIsEnriching]);
 
-  return { isEnriching, startEnrichment, cancel };
+  return { isEnriching, statusText, startEnrichment, cancel };
 }
