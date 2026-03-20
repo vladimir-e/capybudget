@@ -18,7 +18,7 @@ import { useCustomInstructions } from "@/hooks/use-custom-instructions";
 import { useImportMerge } from "@/hooks/use-import-merge";
 import { parseCsv, unparseCsv } from "@capybudget/persistence";
 import { formatMoney } from "@capybudget/core";
-import type { ImportTransaction } from "@capybudget/core";
+import type { ImportTransaction, ImportAliases } from "@capybudget/core";
 import {
   ImportTable,
   sortImportTransactions,
@@ -29,11 +29,6 @@ import { ImportMapping, type EntityMapping } from "./import-mapping";
 import { Search, X, FileUp, Sparkles, Loader2, GitMerge, AlertTriangle } from "lucide-react";
 
 const IMPORT_COERCE = { amount: (v: string) => parseInt(v, 10) };
-
-/** Stored in .capy/aliases.json — survives across imports. */
-interface ImportAliases {
-  accounts: Record<string, string>; // sourceString → accountId | "__create__"
-}
 
 interface ImportPreviewProps {
   budgetPath: string;

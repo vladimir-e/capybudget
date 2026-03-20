@@ -9,6 +9,16 @@ CHANGELOG PHILOSOPHY:
 - Resist the urge to be thorough here. Thoroughness goes in specs, not changelog.
 -->
 
+## 0.13.0 — 2026-03-20
+
+Smart Import — Merge step: finalize imports into the budget.
+
+- Merge button with confirmation dialog showing transaction count, total, and new accounts
+- Auto-creates accounts for unmapped import sources
+- Persists account aliases for future imports
+- Import log records source files, date range, and stats
+- Undo support via snapshot capture before merge
+
 ## 0.12.0 — 2026-03-20
 
 Smart Import — Enrich step: AI identifies merchants and categorizes imported transactions.

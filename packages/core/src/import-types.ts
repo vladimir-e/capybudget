@@ -15,6 +15,11 @@ export interface ImportTransaction {
   categoryConfidence: string; // "high" | "low" | ""
 }
 
+/** Stored in .capy/aliases.json — survives across imports. */
+export interface ImportAliases {
+  accounts: Record<string, string>; // sourceString → accountId | "__create__"
+}
+
 export type ImportPhase =
   | "upload"
   | "normalizing"

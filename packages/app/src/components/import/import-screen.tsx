@@ -211,9 +211,19 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
   };
 
   // ── Actions ─────────────────────────────────────────────────
-  const handleStart = () => {
+  const handleStart = async () => {
     if (files.length === 0 || isProcessing) return;
     console.log("[import] starting normalization with", files.length, "files");
+
+    // Persist source file names so the merge step can log them
+    try {
+      const statePath = await resolveImportPath("state.json");
+      const state = { sourceFiles: files.map((f) => f.name) };
+      await writeTextFile(statePath, JSON.stringify(state));
+    } catch {
+      /* best-effort */
+    }
+
     importSession.startNormalization(files);
   };
 

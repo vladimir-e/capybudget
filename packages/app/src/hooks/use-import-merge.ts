@@ -6,25 +6,20 @@ import { useBudgetRepository } from "@/providers/repository-provider";
 import { useUndoRedo } from "@/hooks/use-undo-redo";
 import { budgetKeys } from "@/hooks/use-budget-data";
 import { useImportPaths } from "@/hooks/use-import-paths";
-import { createAccount } from "@capybudget/core";
-import type { Account, Transaction, ImportTransaction } from "@capybudget/core";
-import type { EntityMapping } from "@/components/import/import-mapping";
+import { prepareMerge } from "@capybudget/core";
+import type { Account, Transaction, ImportAliases } from "@capybudget/core";
+import type { MergeInput } from "@capybudget/core";
 
-interface ImportAliases {
-  accounts: Record<string, string>;
-}
-
-export interface MergeInput {
-  transactions: ImportTransaction[];
-  selectedIds: Set<string>;
-  accountMapping: EntityMapping;
-}
+export type { MergeInput };
 
 export interface MergeResult {
   transactionCount: number;
   accountsCreated: number;
 }
 
+// useBudgetMutation is intentionally bypassed here: the merge operation
+// needs extra I/O (alias persistence, import log, cleanup) interleaved
+// with the budget write, which doesn't fit the simple get/set/save pattern.
 export function useImportMerge(budgetPath: string) {
   const queryClient = useQueryClient();
   const repo = useBudgetRepository();
@@ -33,10 +28,6 @@ export function useImportMerge(budgetPath: string) {
 
   const merge = useCallback(
     async (input: MergeInput): Promise<MergeResult> => {
-      const { transactions, selectedIds, accountMapping } = input;
-      const selected = transactions.filter((t) => selectedIds.has(t.id));
-      if (selected.length === 0) throw new Error("No transactions selected");
-
       captureSnapshot();
 
       const prevAccounts =
@@ -44,86 +35,49 @@ export function useImportMerge(budgetPath: string) {
       const prevTxns =
         queryClient.getQueryData<Transaction[]>(budgetKeys.transactions()) ?? [];
 
-      // ── Create accounts for unmapped sources ──────────────────
-      const sourcesToCreate = [
-        ...new Set(selected.map((t) => t.sourceAccount).filter(Boolean)),
-      ].filter(
-        (s) => !accountMapping[s] || accountMapping[s] === "__create__",
-      );
-
-      let nextAccounts = [...prevAccounts];
-      const createdIds: Record<string, string> = {};
-
-      for (const source of sourcesToCreate) {
-        const acct = createAccount(
-          { name: source, type: "checking" },
-          nextAccounts,
-        );
-        nextAccounts.push(acct);
-        createdIds[source] = acct.id;
+      // Read source file names saved at import start
+      let sourceFileNames: string[] = [];
+      try {
+        const statePath = await resolveImportPath("state.json");
+        const state = JSON.parse(await readTextFile(statePath));
+        if (Array.isArray(state.sourceFiles)) sourceFileNames = state.sourceFiles;
+      } catch {
+        /* no state file */
       }
 
-      // ── Resolve account ID per transaction ────────────────────
-      const resolveAccount = (t: ImportTransaction): string => {
-        if (createdIds[t.sourceAccount]) return createdIds[t.sourceAccount];
-        const mapped = accountMapping[t.sourceAccount];
-        if (mapped && mapped !== "__create__") return mapped;
-        return t.accountId || "";
-      };
-
-      // ── Convert to budget transactions ────────────────────────
-      const createdAt = new Date().toISOString();
-
-      const newTxns: Transaction[] = selected.map((t) => ({
-        id: crypto.randomUUID(),
-        datetime: `${t.date}T00:00:00.000`,
-        type: t.type,
-        amount: t.amount,
-        categoryId: t.categoryId || "",
-        accountId: resolveAccount(t),
-        transferPairId: "",
-        merchant: t.merchant || "",
-        note: [t.description, t.memo].filter(Boolean).join(" — "),
-        createdAt,
-      }));
-
-      const nextTxns = [...prevTxns, ...newTxns];
-
-      // ── Persist budget data ───────────────────────────────────
-      queryClient.setQueryData(budgetKeys.accounts(), nextAccounts);
-      queryClient.setQueryData(budgetKeys.transactions(), nextTxns);
-      await repo.saveAccounts(nextAccounts);
-      await repo.saveTransactions(nextTxns);
-
-      // ── Save aliases ──────────────────────────────────────────
-      const aliases: ImportAliases = { accounts: {} };
+      // Load existing aliases
+      let existingAliases: ImportAliases = { accounts: {} };
       try {
         const content = await readTextFile(await resolveAliasPath());
         const parsed = JSON.parse(content);
-        if (parsed.accounts) aliases.accounts = parsed.accounts;
+        if (parsed.accounts) existingAliases = parsed;
       } catch {
         /* no existing aliases */
       }
 
-      for (const [source, target] of Object.entries(accountMapping)) {
-        if (target === "__create__" && createdIds[source]) {
-          aliases.accounts[source] = createdIds[source];
-        } else if (target && target !== "__create__") {
-          aliases.accounts[source] = target;
-        }
-      }
+      // Pure transformation
+      const result = prepareMerge(input, prevAccounts, prevTxns, existingAliases);
 
+      // ── Persist budget data ───────────────────────────────────
+      queryClient.setQueryData(budgetKeys.accounts(), result.accounts);
+      queryClient.setQueryData(budgetKeys.transactions(), result.transactions);
+      await repo.saveAccounts(result.accounts);
+      await repo.saveTransactions(result.transactions);
+
+      // ── Save aliases ──────────────────────────────────────────
       await writeTextFile(
         await resolveAliasPath(),
-        JSON.stringify(aliases, null, 2),
+        JSON.stringify(result.aliases, null, 2),
       );
 
       // ── Import log ────────────────────────────────────────────
+      const selected = input.transactions.filter((t) => input.selectedIds.has(t.id));
       const dates = selected.map((t) => t.date).sort();
       const logEntry = {
-        date: createdAt,
+        date: new Date().toISOString(),
+        sourceFiles: sourceFileNames,
         transactionCount: selected.length,
-        accountsCreated: sourcesToCreate,
+        accountsCreated: result.sourcesToCreate,
         dateRange: { from: dates[0], to: dates[dates.length - 1] },
       };
 
@@ -153,7 +107,7 @@ export function useImportMerge(budgetPath: string) {
 
       return {
         transactionCount: selected.length,
-        accountsCreated: sourcesToCreate.length,
+        accountsCreated: result.sourcesToCreate.length,
       };
     },
     [
