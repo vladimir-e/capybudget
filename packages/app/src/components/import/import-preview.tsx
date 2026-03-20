@@ -134,9 +134,11 @@ export function ImportPreview({ budgetPath, budgetName }: ImportPreviewProps) {
   // Load CSV on mount
   useEffect(() => {
     let cancelled = false;
-    loadCsv().then(() => {
+    async function load() {
+      await loadCsv();
       if (cancelled) return;
-    });
+    }
+    load();
     return () => { cancelled = true; };
   }, [loadCsv]);
 
