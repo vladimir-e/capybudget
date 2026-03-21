@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -11,24 +10,19 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { useAccounts, useCategories } from "@/hooks/use-budget-data";
-import { useImportPaths } from "@/hooks/use-import-paths";
 import { useEnrichSession } from "@/hooks/use-enrich-session";
 import { useCustomInstructions } from "@/hooks/use-custom-instructions";
 import { useImportMerge } from "@/hooks/use-import-merge";
-import { parseCsv, unparseCsv } from "@capybudget/persistence";
+import { useImportData } from "@/hooks/use-import-data";
 import { formatMoney } from "@capybudget/core";
-import type { ImportTransaction, ImportAliases } from "@capybudget/core";
 import {
   ImportTable,
   sortImportTransactions,
   filterImportTransactions,
   type ImportSortConfig,
 } from "./import-table";
-import { ImportMapping, type EntityMapping } from "./import-mapping";
+import { ImportMapping } from "./import-mapping";
 import { Search, X, FileUp, Sparkles, Loader2, GitMerge, AlertTriangle } from "lucide-react";
-
-const IMPORT_COERCE = { amount: (v: string) => parseInt(v, 10) };
 
 interface ImportPreviewProps {
   budgetPath: string;
@@ -37,63 +31,32 @@ interface ImportPreviewProps {
 }
 
 export function ImportPreview({ budgetPath, budgetName, onMergeComplete }: ImportPreviewProps) {
-  const [transactions, setTransactions] = useState<ImportTransaction[]>([]);
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [sort, setSort] = useState<ImportSortConfig>({
     column: "date",
     direction: "asc",
   });
   const [search, setSearch] = useState("");
-  const [accountMapping, setAccountMapping] = useState<EntityMapping>({});
-  const [loading, setLoading] = useState(true);
 
-  const { data: accounts = [] } = useAccounts();
-  const { data: categories = [] } = useCategories();
+  const {
+    transactions,
+    selectedIds,
+    setSelectedIds,
+    accountMapping,
+    loading,
+    needsEnrichment,
+    loadCsv,
+    handleUpdate,
+    handleAccountMappingChange,
+    flushWriteBack,
+    markEnriched,
+    sourceAccounts,
+    uncategorizedCount,
+    lowConfidenceCount,
+    accounts,
+    categories,
+  } = useImportData(budgetPath);
 
-  // Write-back debounce
-  const writeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const transactionsRef = useRef(transactions);
-  useEffect(() => { transactionsRef.current = transactions; }, [transactions]);
-
-  const { resolveImportPath, resolveAliasPath } = useImportPaths(budgetPath);
   const customInstructions = useCustomInstructions(budgetPath);
-
-  // ── Load / reload CSV ──────────────────────────────────────────
-  const loadCsv = useCallback(async () => {
-    try {
-      const csvPath = await resolveImportPath("transactions.csv");
-      const content = await readTextFile(csvPath);
-      const parsed = parseCsv<ImportTransaction>(content, IMPORT_COERCE).map(
-        (t) => ({
-          ...t,
-          merchant: t.merchant || "",
-          accountId: t.accountId || "",
-          categoryId: t.categoryId || "",
-          categoryConfidence: t.categoryConfidence || "",
-        }),
-      );
-      setTransactions(parsed);
-      setSelectedIds(new Set(parsed.map((t) => t.id)));
-      setLoading(false);
-    } catch {
-      setLoading(false);
-    }
-  }, [resolveImportPath]);
-
-  const writeBack = useCallback(async () => {
-    try {
-      const csvPath = await resolveImportPath("transactions.csv");
-      const csv = unparseCsv(transactionsRef.current);
-      await writeTextFile(csvPath, csv);
-    } catch (err) {
-      console.error("Failed to write import CSV:", err);
-    }
-  }, [resolveImportPath]);
-
-  const scheduleWriteBack = useCallback(() => {
-    if (writeTimerRef.current) clearTimeout(writeTimerRef.current);
-    writeTimerRef.current = setTimeout(writeBack, 500);
-  }, [writeBack]);
 
   // ── Re-enrichment session ──────────────────────────────────────
   const enrichSession = useEnrichSession({
@@ -101,128 +64,32 @@ export function ImportPreview({ budgetPath, budgetName, onMergeComplete }: Impor
     budgetName,
     mcpServerPath: "packages/mcp/src/server.ts",
     customInstructions: customInstructions.instructions,
-    onEnrichmentComplete: loadCsv,
+    onEnrichmentComplete: async () => {
+      await markEnriched();
+      await loadCsv();
+    },
   });
 
   const handleEnrich = useCallback(async () => {
-    if (writeTimerRef.current) {
-      clearTimeout(writeTimerRef.current);
-      await writeBack();
-    }
+    await flushWriteBack();
     enrichSession.startEnrichment();
-  }, [writeBack, enrichSession]);
+  }, [flushWriteBack, enrichSession]);
 
-  // Auto-enrich: trigger enrichment once after first load if data hasn't been enriched yet
+  // Auto-enrich: trigger enrichment once after first load if not yet enriched
   const autoEnrichTriggeredRef = useRef(false);
   useEffect(() => {
     if (
       autoEnrichTriggeredRef.current ||
       loading ||
       transactions.length === 0 ||
-      enrichSession.isEnriching
+      enrichSession.isEnriching ||
+      !needsEnrichment
     ) return;
-    // Check if any merchant is set — if none, enrichment hasn't run
-    const needsEnrich = transactions.every((t) => !t.merchant);
-    if (needsEnrich) {
-      autoEnrichTriggeredRef.current = true;
-      enrichSession.startEnrichment();
-    }
-  }, [loading, transactions, enrichSession]);
+    autoEnrichTriggeredRef.current = true;
+    enrichSession.startEnrichment();
+  }, [loading, transactions.length, enrichSession, needsEnrichment]);
 
-  // Load CSV on mount
-  useEffect(() => {
-    let cancelled = false;
-    async function load() {
-      await loadCsv();
-      if (cancelled) return;
-    }
-    load();
-    return () => { cancelled = true; };
-  }, [loadCsv]);
-
-  // ── Derive account mapping from CSV + aliases ──────────────────
-  const aliasesAppliedRef = useRef(false);
-  useEffect(() => {
-    if (aliasesAppliedRef.current || transactions.length === 0 || accounts.length === 0 || categories.length === 0) return;
-    aliasesAppliedRef.current = true;
-
-    async function applyMappings() {
-      const accountIds = new Set(accounts.map((a) => a.id));
-      const categoryIds = new Set(categories.map((c) => c.id));
-
-      // 1. Derive initial account mapping from AI-set accountId values
-      const aiMapping: EntityMapping = {};
-      for (const txn of transactions) {
-        if (txn.sourceAccount && !aiMapping[txn.sourceAccount] && txn.accountId) {
-          if (accountIds.has(txn.accountId)) {
-            aiMapping[txn.sourceAccount] = txn.accountId;
-          }
-        }
-      }
-
-      // 2. Validate categoryIds — clear invalid ones
-      let needsCategoryFix = false;
-      const validated = transactions.map((t) => {
-        if (t.categoryId && !categoryIds.has(t.categoryId)) {
-          needsCategoryFix = true;
-          return { ...t, categoryId: "", categoryConfidence: "" };
-        }
-        return t;
-      });
-      if (needsCategoryFix) {
-        setTransactions(validated);
-        scheduleWriteBack();
-      }
-
-      // 3. Overlay aliases (user's past mappings override AI)
-      const aliasMapping: EntityMapping = {};
-      try {
-        const aliasPath = await resolveAliasPath();
-        const content = await readTextFile(aliasPath);
-        const aliases: ImportAliases = JSON.parse(content);
-
-        const importAccounts = new Set(transactions.map((t) => t.sourceAccount).filter(Boolean));
-        if (aliases.accounts && typeof aliases.accounts === "object") {
-          for (const [source, targetId] of Object.entries(aliases.accounts)) {
-            if (!importAccounts.has(source)) continue;
-            if (targetId === "__create__" || accountIds.has(targetId)) {
-              aliasMapping[source] = targetId;
-            }
-          }
-        }
-      } catch {
-        // No aliases file
-      }
-
-      // Merge: aliases override AI suggestions
-      const merged = { ...aiMapping, ...aliasMapping };
-      if (Object.keys(merged).length > 0) {
-        setAccountMapping(merged);
-      }
-    }
-
-    applyMappings();
-  }, [transactions, accounts, categories, resolveAliasPath, scheduleWriteBack]);
-
-  // Flush pending CSV write on unmount
-  useEffect(() => {
-    return () => {
-      if (writeTimerRef.current) {
-        clearTimeout(writeTimerRef.current);
-        writeBack();
-      }
-    };
-  }, [writeBack]);
-
-  // ── Derived data ───────────────────────────────────────────────
-  const sourceAccounts = useMemo(
-    () =>
-      [
-        ...new Set(transactions.map((t) => t.sourceAccount).filter(Boolean)),
-      ].sort(),
-    [transactions],
-  );
-
+  // ── Filtering / sorting ────────────────────────────────────────
   const filtered = useMemo(
     () => filterImportTransactions(transactions, search),
     [transactions, search],
@@ -230,16 +97,6 @@ export function ImportPreview({ budgetPath, budgetName, onMergeComplete }: Impor
   const sorted = useMemo(
     () => sortImportTransactions(filtered, sort),
     [filtered, sort],
-  );
-
-  // Issues counts
-  const uncategorizedCount = useMemo(
-    () => transactions.filter((t) => !t.categoryId && t.type !== "transfer").length,
-    [transactions],
-  );
-  const lowConfidenceCount = useMemo(
-    () => transactions.filter((t) => t.categoryConfidence === "low").length,
-    [transactions],
   );
 
   // Selection helpers
@@ -274,7 +131,7 @@ export function ImportPreview({ budgetPath, budgetName, onMergeComplete }: Impor
         return next;
       });
     },
-    [sorted],
+    [sorted, setSelectedIds],
   );
 
   const handleToggleAll = useCallback(() => {
@@ -288,36 +145,7 @@ export function ImportPreview({ budgetPath, budgetName, onMergeComplete }: Impor
       }
       return next;
     });
-  }, [sorted]);
-
-  // Mutation handlers
-  const handleUpdate = useCallback(
-    (id: string, patch: Partial<ImportTransaction>) => {
-      setTransactions((prev) =>
-        prev.map((t) => (t.id === id ? { ...t, ...patch } : t)),
-      );
-      scheduleWriteBack();
-    },
-    [scheduleWriteBack],
-  );
-
-  // Account mapping change → batch-update accountId on all matching rows
-  const handleAccountMappingChange = useCallback(
-    (newMapping: EntityMapping) => {
-      setAccountMapping(newMapping);
-      setTransactions((prev) =>
-        prev.map((t) => {
-          if (!t.sourceAccount) return t;
-          const mappedId = newMapping[t.sourceAccount];
-          const newAccountId = mappedId && mappedId !== "__create__" ? mappedId : "";
-          if (t.accountId === newAccountId) return t;
-          return { ...t, accountId: newAccountId };
-        }),
-      );
-      scheduleWriteBack();
-    },
-    [scheduleWriteBack],
-  );
+  }, [sorted, setSelectedIds]);
 
   // Stats
   const selected = transactions.filter((t) => selectedIds.has(t.id));
@@ -499,7 +327,7 @@ export function ImportPreview({ budgetPath, budgetName, onMergeComplete }: Impor
               ) : (
                 <Sparkles className="h-3.5 w-3.5" />
               )}
-              {enrichSession.isEnriching ? "Enriching…" : "Enrich"}
+              {enrichSession.isEnriching ? "Enriching\u2026" : "Enrich"}
             </Button>
 
             {/* Merge button */}

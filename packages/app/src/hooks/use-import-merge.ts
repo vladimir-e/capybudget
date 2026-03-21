@@ -5,9 +5,9 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useBudgetRepository } from "@/providers/repository-provider";
 import { useUndoRedo } from "@/hooks/use-undo-redo";
 import { budgetKeys } from "@/hooks/use-budget-data";
-import { useImportPaths } from "@/hooks/use-import-paths";
+import { useImportRepository } from "@/hooks/use-import-repository";
 import { prepareMerge } from "@capybudget/core";
-import type { Account, Transaction, ImportAliases } from "@capybudget/core";
+import type { Account, Transaction } from "@capybudget/core";
 import type { MergeInput } from "@capybudget/core";
 
 export type { MergeInput };
@@ -24,7 +24,7 @@ export function useImportMerge(budgetPath: string) {
   const queryClient = useQueryClient();
   const repo = useBudgetRepository();
   const { captureSnapshot } = useUndoRedo();
-  const { resolveImportPath, resolveAliasPath } = useImportPaths(budgetPath);
+  const importRepo = useImportRepository(budgetPath);
 
   const merge = useCallback(
     async (input: MergeInput): Promise<MergeResult> => {
@@ -36,24 +36,11 @@ export function useImportMerge(budgetPath: string) {
         queryClient.getQueryData<Transaction[]>(budgetKeys.transactions()) ?? [];
 
       // Read source file names saved at import start
-      let sourceFileNames: string[] = [];
-      try {
-        const statePath = await resolveImportPath("state.json");
-        const state = JSON.parse(await readTextFile(statePath));
-        if (Array.isArray(state.sourceFiles)) sourceFileNames = state.sourceFiles;
-      } catch {
-        /* no state file */
-      }
+      const state = await importRepo.readState();
+      const sourceFileNames = state.sourceFiles ?? [];
 
       // Load existing aliases
-      let existingAliases: ImportAliases = { accounts: {} };
-      try {
-        const content = await readTextFile(await resolveAliasPath());
-        const parsed = JSON.parse(content);
-        if (parsed.accounts) existingAliases = parsed;
-      } catch {
-        /* no existing aliases */
-      }
+      const existingAliases = await importRepo.readAliases();
 
       // Pure transformation
       const result = prepareMerge(input, prevAccounts, prevTxns, existingAliases);
@@ -65,10 +52,7 @@ export function useImportMerge(budgetPath: string) {
       await repo.saveTransactions(result.transactions);
 
       // ── Save aliases ──────────────────────────────────────────
-      await writeTextFile(
-        await resolveAliasPath(),
-        JSON.stringify(result.aliases, null, 2),
-      );
+      await importRepo.writeAliases(result.aliases);
 
       // ── Import log ────────────────────────────────────────────
       const selected = input.transactions.filter((t) => input.selectedIds.has(t.id));
@@ -98,12 +82,7 @@ export function useImportMerge(budgetPath: string) {
       }
 
       // ── Clear import working directory ────────────────────────
-      await Promise.allSettled([
-        resolveImportPath("transactions.csv").then((p) =>
-          writeTextFile(p, ""),
-        ),
-        resolveImportPath("state.json").then((p) => writeTextFile(p, "")),
-      ]);
+      await importRepo.clearImportData();
 
       return {
         transactionCount: selected.length,
@@ -114,8 +93,7 @@ export function useImportMerge(budgetPath: string) {
       queryClient,
       repo,
       captureSnapshot,
-      resolveImportPath,
-      resolveAliasPath,
+      importRepo,
       budgetPath,
     ],
   );

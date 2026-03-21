@@ -17,10 +17,9 @@ import {
   Settings,
 } from "lucide-react";
 import { toast } from "sonner";
-import { readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
 import { Button } from "@/components/ui/button";
 import { useImportSession } from "@/hooks/use-import-session";
-import { useImportPaths } from "@/hooks/use-import-paths";
+import { useImportRepository } from "@/hooks/use-import-repository";
 import { useImportStore } from "@/stores/import-store";
 import { useCustomInstructions } from "@/hooks/use-custom-instructions";
 import { getToolLabel } from "@/services/capy-stream";
@@ -78,38 +77,19 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
     [setGlobalHasImportData],
   );
 
-  const { resolveImportPath } = useImportPaths(budgetPath);
+  const repository = useImportRepository(budgetPath);
 
   const checkDisk = useCallback(async () => {
-    try {
-      const csvPath = await resolveImportPath("transactions.csv");
-      console.log("[import] checkDisk: reading", csvPath);
-      const content = await readTextFile(csvPath);
-      const has = content.trim().length > 0;
-      console.log("[import] checkDisk: hasImportData =", has, `(${content.length} bytes)`);
-      setHasImportData(has);
-    } catch (err) {
-      console.log("[import] checkDisk: no CSV found", err);
-      setHasImportData(false);
-    }
-  }, [resolveImportPath, setHasImportData]);
+    const has = await repository.hasImportData();
+    setHasImportData(has);
+  }, [repository, setHasImportData]);
 
   // Check disk on mount
   useEffect(() => {
     let cancelled = false;
-    async function run() {
-      console.log("[import] mount: checking disk for existing import data");
-      try {
-        const csvPath = await resolveImportPath("transactions.csv");
-        const content = await readTextFile(csvPath);
-        if (!cancelled) setHasImportData(content.trim().length > 0);
-      } catch {
-        if (!cancelled) setHasImportData(false);
-      }
-    }
-    run();
+    checkDisk().then(() => { if (cancelled) return; });
     return () => { cancelled = true; };
-  }, [resolveImportPath, setHasImportData]);
+  }, [checkDisk]);
 
   // ── Local UI state ──────────────────────────────────────────
   const [files, setFiles] = useState<FileAttachment[]>([]);
@@ -220,9 +200,7 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
 
     // Persist source file names so the merge step can log them
     try {
-      const statePath = await resolveImportPath("state.json");
-      const state = { sourceFiles: files.map((f) => f.name) };
-      await writeTextFile(statePath, JSON.stringify(state));
+      await repository.writeState({ sourceFiles: files.map((f) => f.name) });
     } catch {
       /* best-effort */
     }
@@ -234,12 +212,9 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
     console.log("[import] cancelling import");
     importSession.cancel();
     setFiles([]);
-    await Promise.allSettled([
-      resolveImportPath("state.json").then((p) => writeTextFile(p, "")),
-      resolveImportPath("transactions.csv").then((p) => writeTextFile(p, "")),
-    ]);
+    await repository.clearImportData();
     setHasImportData(false);
-  }, [importSession, resolveImportPath, setHasImportData]);
+  }, [importSession, repository, setHasImportData]);
 
   // ── Derived view ────────────────────────────────────────────
   // no files  → drop zone + Start
