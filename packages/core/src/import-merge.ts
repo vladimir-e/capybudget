@@ -83,7 +83,7 @@ export function prepareMerge(
     (s) => !accountMapping[s] || accountMapping[s] === "__create__",
   );
 
-  let nextAccounts = [...prevAccounts];
+  const nextAccounts = [...prevAccounts];
   const createdAccountIds: Record<string, string> = {};
 
   for (const source of sourcesToCreate) {

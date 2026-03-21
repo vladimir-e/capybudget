@@ -86,7 +86,10 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
 
   // Check disk on mount
   useEffect(() => {
-    checkDisk();
+    async function init() {
+      await checkDisk();
+    }
+    init();
   }, [checkDisk]);
 
   // ── Local UI state ──────────────────────────────────────────
