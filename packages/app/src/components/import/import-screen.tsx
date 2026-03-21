@@ -165,9 +165,9 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
         const recent = log.slice(-20);
         const dupes: Record<string, string> = {};
         for (const file of candidates) {
-          for (const entry of recent) {
-            if (entry.sourceFiles?.includes(file.name)) {
-              dupes[file.name] = entry.date;
+          for (let i = recent.length - 1; i >= 0; i--) {
+            if (recent[i].sourceFiles?.includes(file.name)) {
+              dupes[file.name] = recent[i].date;
               break;
             }
           }

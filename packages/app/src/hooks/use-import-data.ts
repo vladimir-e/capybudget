@@ -55,11 +55,13 @@ export function useImportData(budgetPath: string) {
   }, [writeBack]);
 
   // ── Load CSV on mount ────────────────────────────────────────
+  const [loadGeneration, setLoadGeneration] = useState(0);
   const loadCsv = useCallback(async () => {
     try {
       const parsed = await repository.readTransactionsCsv();
       setTransactions(parsed);
       setSelectedIds(new Set(parsed.map((t) => t.id)));
+      setLoadGeneration((g) => g + 1);
       setLoading(false);
     } catch {
       setLoading(false);
@@ -219,13 +221,13 @@ export function useImportData(budgetPath: string) {
     [transactions, existingTransactions, accountMapping],
   );
 
-  // Auto-unselect duplicates on initial load (once)
-  const duplicatesAppliedRef = useRef(false);
+  // Auto-unselect duplicates once per load cycle
+  const duplicatesAppliedForGenRef = useRef(-1);
   useEffect(() => {
-    if (duplicatesAppliedRef.current || duplicates.size === 0 || loading) return;
-    duplicatesAppliedRef.current = true;
-    // Deferred to avoid synchronous setState inside an effect
-    queueMicrotask(() => {
+    if (duplicatesAppliedForGenRef.current === loadGeneration || duplicates.size === 0 || loading) return;
+    duplicatesAppliedForGenRef.current = loadGeneration;
+
+    async function unselectDuplicates() {
       setSelectedIds((prev) => {
         const next = new Set(prev);
         for (const id of duplicates.keys()) {
@@ -233,8 +235,9 @@ export function useImportData(budgetPath: string) {
         }
         return next;
       });
-    });
-  }, [duplicates, loading]);
+    }
+    unselectDuplicates();
+  }, [duplicates, loading, loadGeneration]);
 
   return {
     // State
