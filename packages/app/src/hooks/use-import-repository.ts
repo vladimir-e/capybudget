@@ -16,8 +16,16 @@ export interface ImportState {
  * Centralizes all import disk I/O: CSV read/write, state.json, aliases.json.
  * Components should use this instead of scattered readTextFile/writeTextFile calls.
  */
+export interface ImportLogEntry {
+  date: string;
+  sourceFiles: string[];
+  transactionCount: number;
+  accountsCreated: string[];
+  dateRange: { from: string; to: string };
+}
+
 export function useImportRepository(budgetPath: string) {
-  const { resolveImportPath, resolveAliasPath } = useImportPaths(budgetPath);
+  const { resolveImportPath, resolveAliasPath, resolveLogPath } = useImportPaths(budgetPath);
 
   const readTransactionsCsv = useCallback(async (): Promise<ImportTransaction[]> => {
     const csvPath = await resolveImportPath("transactions.csv");
@@ -93,6 +101,23 @@ export function useImportRepository(budgetPath: string) {
     ]);
   }, [resolveImportPath]);
 
+  const appendImportLog = useCallback(async (entry: ImportLogEntry) => {
+    try {
+      const logPath = await resolveLogPath();
+      let log: unknown[] = [];
+      try {
+        log = JSON.parse(await readTextFile(logPath));
+        if (!Array.isArray(log)) log = [];
+      } catch {
+        /* new log */
+      }
+      log.push(entry);
+      await writeTextFile(logPath, JSON.stringify(log, null, 2));
+    } catch {
+      /* best-effort */
+    }
+  }, [resolveLogPath]);
+
   const hasImportData = useCallback(async (): Promise<boolean> => {
     try {
       const csvPath = await resolveImportPath("transactions.csv");
@@ -111,6 +136,7 @@ export function useImportRepository(budgetPath: string) {
     readAliases,
     writeAliases,
     clearImportData,
+    appendImportLog,
     hasImportData,
   };
 }

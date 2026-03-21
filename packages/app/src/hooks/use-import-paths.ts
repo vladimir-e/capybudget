@@ -16,5 +16,10 @@ export function useImportPaths(budgetPath: string) {
     return joinPath(capyDir, "aliases.json");
   }, [budgetPath]);
 
-  return { resolveImportPath, resolveAliasPath };
+  const resolveLogPath = useCallback(async () => {
+    const capyDir = await joinPath(budgetPath, ".capy");
+    return joinPath(capyDir, "import-log.json");
+  }, [budgetPath]);
+
+  return { resolveImportPath, resolveAliasPath, resolveLogPath };
 }

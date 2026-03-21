@@ -1,6 +1,4 @@
 import { useCallback } from "react";
-import { readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
-import { join as joinPath } from "@tauri-apps/api/path";
 import { useQueryClient } from "@tanstack/react-query";
 import { useBudgetRepository } from "@/providers/repository-provider";
 import { useUndoRedo } from "@/hooks/use-undo-redo";
@@ -57,29 +55,13 @@ export function useImportMerge(budgetPath: string) {
       // ── Import log ────────────────────────────────────────────
       const selected = input.transactions.filter((t) => input.selectedIds.has(t.id));
       const dates = selected.map((t) => t.date).sort();
-      const logEntry = {
+      await importRepo.appendImportLog({
         date: new Date().toISOString(),
         sourceFiles: sourceFileNames,
         transactionCount: selected.length,
         accountsCreated: result.sourcesToCreate,
         dateRange: { from: dates[0], to: dates[dates.length - 1] },
-      };
-
-      try {
-        const capyDir = await joinPath(budgetPath, ".capy");
-        const logPath = await joinPath(capyDir, "import-log.json");
-        let log: unknown[] = [];
-        try {
-          log = JSON.parse(await readTextFile(logPath));
-          if (!Array.isArray(log)) log = [];
-        } catch {
-          /* new log */
-        }
-        log.push(logEntry);
-        await writeTextFile(logPath, JSON.stringify(log, null, 2));
-      } catch {
-        /* best-effort */
-      }
+      });
 
       // ── Clear import working directory ────────────────────────
       await importRepo.clearImportData();
@@ -94,7 +76,6 @@ export function useImportMerge(budgetPath: string) {
       repo,
       captureSnapshot,
       importRepo,
-      budgetPath,
     ],
   );
 
