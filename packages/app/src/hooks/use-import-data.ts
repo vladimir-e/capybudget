@@ -224,12 +224,15 @@ export function useImportData(budgetPath: string) {
   useEffect(() => {
     if (duplicatesAppliedRef.current || duplicates.size === 0 || loading) return;
     duplicatesAppliedRef.current = true;
-    setSelectedIds((prev) => {
-      const next = new Set(prev);
-      for (const id of duplicates.keys()) {
-        next.delete(id);
-      }
-      return next;
+    // Deferred to avoid synchronous setState inside an effect
+    queueMicrotask(() => {
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+        for (const id of duplicates.keys()) {
+          next.delete(id);
+        }
+        return next;
+      });
     });
   }, [duplicates, loading]);
 
