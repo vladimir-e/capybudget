@@ -26,3 +26,12 @@ export type ImportPhase =
   | "preview"
   | "enriching"
   | "review";
+
+/** One entry in the import log (`.capy/import-log.json`). */
+export interface ImportLogEntry {
+  date: string;
+  sourceFiles: string[];
+  transactionCount: number;
+  accountsCreated: string[];
+  dateRange: { from: string; to: string };
+}

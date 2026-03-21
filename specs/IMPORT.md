@@ -79,6 +79,27 @@ The log is surfaced on the import screen — a panel the user can open to review
 
 Merge clears the `.capy/import/` folder after writing the log entry.
 
+## Duplicate Detection
+
+Two layers prevent accidental re-import of the same data.
+
+### File-level
+
+When files are added to the drop zone, their names are checked against the import log (last 20 entries). Files that were previously imported get an amber warning with the date of the prior import. This is advisory — the user can still proceed.
+
+### Transaction-level
+
+During preview, imported transactions are matched against existing budget transactions. Detected duplicates are auto-unselected (but can be re-selected manually). A banner shows the count.
+
+Matching rules, checked in order (first match wins per transaction, greedy 1:1):
+
+1. **High confidence** — same date + amount + description (substring, case-insensitive) + same resolved account
+2. **High confidence** — same date + amount + description, no account info on the import side
+3. **Low confidence** — same date + amount + same account (description empty or different)
+4. **Low confidence** — date ±1 day + amount + same account
+
+Account resolution uses the account mapping (sourceAccount → budget accountId).
+
 ## Intelligence Tools
 
 ### Import file tools

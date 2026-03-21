@@ -175,6 +175,15 @@ describe("detectDuplicates", () => {
     expect(result.get(imp.id)!.confidence).toBe("high");
   });
 
+  it("description matching is case-insensitive", () => {
+    const imp = makeImport({ description: "WHOLE FOODS #10234" });
+    const ex = makeExisting({ note: "Whole Foods #10234 — weekly groceries" });
+    const result = detectDuplicates([imp], [ex], MAPPING);
+
+    expect(result.size).toBe(1);
+    expect(result.get(imp.id)!.confidence).toBe("high");
+  });
+
   it("uses accountId from import when sourceAccount has no mapping", () => {
     const imp = makeImport({ sourceAccount: "", accountId: "acct-1" });
     const ex = makeExisting({ accountId: "acct-1" });

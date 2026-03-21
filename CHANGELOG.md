@@ -9,6 +9,14 @@ CHANGELOG PHILOSOPHY:
 - Resist the urge to be thorough here. Thoroughness goes in specs, not changelog.
 -->
 
+## 0.14.0 — 2026-03-21
+
+Import duplicate detection — prevent accidental re-imports.
+
+- Transaction-level duplicate detection: matches against existing budget by date, amount, description, and account
+- File-level duplicate warning: flags previously imported filenames in the drop zone
+- Detected duplicates auto-unselected with inline indicators and summary banner
+
 ## 0.13.0 — 2026-03-20
 
 Smart Import — Merge step: finalize imports into the budget.

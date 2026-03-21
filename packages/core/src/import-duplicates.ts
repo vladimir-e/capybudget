@@ -112,7 +112,7 @@ function resolveAccount(
 }
 
 function matchDescription(importDesc: string, existing: Transaction): boolean {
-  return existing.note.includes(importDesc);
+  return existing.note.toLowerCase().includes(importDesc.toLowerCase());
 }
 
 function findMatch(

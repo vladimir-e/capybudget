@@ -100,6 +100,7 @@ export type {
   ImportTransaction,
   ImportAliases,
   ImportPhase,
+  ImportLogEntry,
 } from "./import-types";
 
 // Import merge operations
