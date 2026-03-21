@@ -86,9 +86,7 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
 
   // Check disk on mount
   useEffect(() => {
-    let cancelled = false;
-    checkDisk().then(() => { if (cancelled) return; });
-    return () => { cancelled = true; };
+    checkDisk();
   }, [checkDisk]);
 
   // ── Local UI state ──────────────────────────────────────────

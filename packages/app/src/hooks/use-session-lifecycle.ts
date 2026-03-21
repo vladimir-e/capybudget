@@ -13,7 +13,7 @@
  * - Send logic (consumer calls session.send directly)
  */
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CapySession } from "@/services/capy-session";
 import { parseStreamLine } from "@/services/capy-stream";
 import type { SessionEvent, StreamEvent } from "@capybudget/intelligence";
@@ -149,14 +149,18 @@ export function useSessionLifecycle<TOpts extends SessionLifecycleOptions>(
     setIsStreaming(false);
   }, [setIsStreaming]);
 
-  return {
-    sessionRef,
-    isStreaming,
-    isStreamingRef,
-    setIsStreaming,
-    optsRef,
-    createSession,
-    dispatchStreamEvent,
-    cancel,
-  };
+  return useMemo(
+    () => ({
+      sessionRef,
+      isStreaming,
+      isStreamingRef,
+      setIsStreaming,
+      optsRef,
+      createSession,
+      dispatchStreamEvent,
+      cancel,
+    }),
+    // isStreaming is the only non-stable value; refs and useCallback results are stable
+    [isStreaming, setIsStreaming, createSession, dispatchStreamEvent, cancel],
+  );
 }
