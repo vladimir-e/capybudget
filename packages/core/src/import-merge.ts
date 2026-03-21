@@ -17,6 +17,49 @@ export interface MergeOutput {
 }
 
 /**
+ * Detect and mutually link transfer pairs among newly created transactions.
+ *
+ * A pair is two transfers with the same date, opposite amounts, and different
+ * resolved accounts. Pairing is greedy: first match wins. Unmatched transfers
+ * keep `transferPairId: ""`.
+ *
+ * @param txns  Output transactions (mutated in place)
+ * @param imports  Corresponding import transactions (same order/length as txns)
+ */
+function linkTransferPairs(
+  txns: Transaction[],
+  imports: ImportTransaction[],
+): void {
+  const paired = new Set<number>();
+
+  for (let i = 0; i < txns.length; i++) {
+    if (paired.has(i)) continue;
+    if (txns[i].type !== "transfer") continue;
+    if (!txns[i].accountId) continue;
+
+    for (let j = i + 1; j < txns.length; j++) {
+      if (paired.has(j)) continue;
+      if (txns[j].type !== "transfer") continue;
+      if (!txns[j].accountId) continue;
+
+      const sameDate = imports[i].date === imports[j].date;
+      const oppositeAmounts =
+        txns[i].amount !== 0 &&
+        txns[i].amount === -txns[j].amount;
+      const differentAccounts = txns[i].accountId !== txns[j].accountId;
+
+      if (sameDate && oppositeAmounts && differentAccounts) {
+        txns[i].transferPairId = txns[j].id;
+        txns[j].transferPairId = txns[i].id;
+        paired.add(i);
+        paired.add(j);
+        break;
+      }
+    }
+  }
+}
+
+/**
  * Pure transformation: takes import data + existing budget state and produces
  * the next budget state. No I/O — the caller is responsible for persistence.
  *
@@ -75,6 +118,9 @@ export function prepareMerge(
     note: [t.description, t.memo].filter(Boolean).join(" — "),
     createdAt,
   }));
+
+  // ── Link transfer pairs ────────────────────────────────────
+  linkTransferPairs(newTxns, selected);
 
   const nextTransactions = [...prevTransactions, ...newTxns];
 
