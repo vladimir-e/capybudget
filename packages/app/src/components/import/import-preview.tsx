@@ -22,7 +22,7 @@ import {
   type ImportSortConfig,
 } from "./import-table";
 import { ImportMapping } from "./import-mapping";
-import { Search, X, FileUp, Sparkles, Loader2, GitMerge, AlertTriangle } from "lucide-react";
+import { Search, X, FileUp, Sparkles, Loader2, GitMerge, AlertTriangle, Copy } from "lucide-react";
 
 interface ImportPreviewProps {
   budgetPath: string;
@@ -52,6 +52,7 @@ export function ImportPreview({ budgetPath, budgetName, onMergeComplete }: Impor
     sourceAccounts,
     uncategorizedCount,
     lowConfidenceCount,
+    duplicates,
     accounts,
     categories,
   } = useImportData(budgetPath);
@@ -267,6 +268,16 @@ export function ImportPreview({ budgetPath, budgetName, onMergeComplete }: Impor
         </div>
       </div>
 
+      {/* Duplicates banner */}
+      {duplicates.size > 0 && (
+        <div className="flex items-center gap-2.5 rounded-lg border border-blue-500/20 bg-blue-500/5 px-3.5 py-2 text-sm text-foreground/70">
+          <Copy className="h-3.5 w-3.5 text-blue-500 shrink-0" />
+          <span>
+            {duplicates.size} possible duplicate{duplicates.size !== 1 ? "s" : ""} detected — already unselected
+          </span>
+        </div>
+      )}
+
       {/* Issues banner (hidden while enrichment is running) */}
       {!enrichSession.isEnriching && (uncategorizedCount > 0 || lowConfidenceCount > 0) && (
         <div className="flex items-center gap-2.5 rounded-lg border border-amber-500/20 bg-amber-500/5 px-3.5 py-2 text-sm text-foreground/70">
@@ -297,6 +308,7 @@ export function ImportPreview({ budgetPath, budgetName, onMergeComplete }: Impor
           indeterminate={indeterminate}
           onUpdateTransaction={handleUpdate}
           categories={categories}
+          duplicates={duplicates}
         />
       </div>
 

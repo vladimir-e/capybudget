@@ -118,6 +118,18 @@ export function useImportRepository(budgetPath: string) {
     }
   }, [resolveLogPath]);
 
+  const readImportLog = useCallback(async (): Promise<ImportLogEntry[]> => {
+    try {
+      const logPath = await resolveLogPath();
+      const content = await readTextFile(logPath);
+      const log = JSON.parse(content);
+      if (!Array.isArray(log)) return [];
+      return log as ImportLogEntry[];
+    } catch {
+      return [];
+    }
+  }, [resolveLogPath]);
+
   const hasImportData = useCallback(async (): Promise<boolean> => {
     try {
       const csvPath = await resolveImportPath("transactions.csv");
@@ -138,6 +150,7 @@ export function useImportRepository(budgetPath: string) {
       writeAliases,
       clearImportData,
       appendImportLog,
+      readImportLog,
       hasImportData,
     }),
     [
@@ -149,6 +162,7 @@ export function useImportRepository(budgetPath: string) {
       writeAliases,
       clearImportData,
       appendImportLog,
+      readImportLog,
       hasImportData,
     ],
   );

@@ -12,7 +12,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { Checkbox } from "@/components/ui/checkbox";
 import { MerchantInput } from "@/components/budget/merchant-input";
 import { CategorySelector } from "@/components/budget/category-selector";
-import type { ImportTransaction } from "@capybudget/core";
+import type { ImportTransaction, DuplicateMatch } from "@capybudget/core";
 import type { Category } from "@capybudget/core";
 import {
   formatMoney,
@@ -28,6 +28,7 @@ import {
   CalendarDays,
   ChevronDown,
   ChevronUp,
+  Copy,
   Inbox,
 } from "lucide-react";
 
@@ -59,6 +60,7 @@ interface ImportTableProps {
   indeterminate: boolean;
   onUpdateTransaction: (id: string, patch: Partial<ImportTransaction>) => void;
   categories: Category[];
+  duplicates: Map<string, DuplicateMatch>;
 }
 
 // ── Helpers ─────────────────────────────────────────────────────
@@ -296,6 +298,7 @@ export function ImportTable({
   indeterminate,
   onUpdateTransaction,
   categories,
+  duplicates,
 }: ImportTableProps) {
   const [editingCell, setEditingCell] = useState<{
     rowId: string;
@@ -376,14 +379,17 @@ export function ImportTable({
       <TableBody>
         {transactions.map((txn, i) => {
           const isSelected = selectedIds.has(txn.id);
+          const dup = duplicates.get(txn.id);
           const activeCol =
             editingCell?.rowId === txn.id ? editingCell.column : null;
 
-          const rowBg = isSelected
-            ? i % 2 === 0
-              ? "bg-transparent"
-              : "bg-muted/30"
-            : "bg-muted/10 opacity-50";
+          const rowBg = dup && !isSelected
+            ? "bg-blue-500/5 opacity-60"
+            : isSelected
+              ? i % 2 === 0
+                ? "bg-transparent"
+                : "bg-muted/30"
+              : "bg-muted/10 opacity-50";
 
           return (
             <TableRow
@@ -398,11 +404,20 @@ export function ImportTable({
                   onToggleSelect(txn.id, e.shiftKey);
                 }}
               >
-                <Checkbox
-                  checked={isSelected}
-                  onCheckedChange={() => onToggleSelect(txn.id, false)}
-                  aria-label="Include transaction"
-                />
+                <div className="flex items-center gap-1.5">
+                  <Checkbox
+                    checked={isSelected}
+                    onCheckedChange={() => onToggleSelect(txn.id, false)}
+                    aria-label="Include transaction"
+                  />
+                  {dup && (
+                    <span title={`Possible duplicate (${dup.confidence} confidence)`}>
+                      <Copy
+                        className={`h-3 w-3 shrink-0 ${dup.confidence === "high" ? "text-blue-500" : "text-blue-400/60"}`}
+                      />
+                    </span>
+                  )}
+                </div>
               </TableCell>
 
               {/* Date */}

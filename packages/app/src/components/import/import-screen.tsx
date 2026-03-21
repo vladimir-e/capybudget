@@ -15,6 +15,7 @@ import {
   Loader2,
   Wrench,
   Settings,
+  Copy,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -31,6 +32,7 @@ import {
   type FileAttachment,
   type ContentBlock,
 } from "@capybudget/intelligence";
+import { formatDateLabel } from "@capybudget/core";
 import { InstructionsDialog } from "@/components/capy/instructions-dialog";
 import { ImportPreview } from "./import-preview";
 
@@ -94,6 +96,7 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
 
   // ── Local UI state ──────────────────────────────────────────
   const [files, setFiles] = useState<FileAttachment[]>([]);
+  const [fileDuplicates, setFileDuplicates] = useState<Record<string, string>>({}); // filename → import date
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dragCounterRef = useRef(0);
@@ -155,8 +158,28 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
         }
         return accepted.length > 0 ? [...prev, ...accepted] : prev;
       });
+
+      // Check file names against import log (last 20 entries)
+      try {
+        const log = await repository.readImportLog();
+        const recent = log.slice(-20);
+        const dupes: Record<string, string> = {};
+        for (const file of candidates) {
+          for (const entry of recent) {
+            if (entry.sourceFiles?.includes(file.name)) {
+              dupes[file.name] = entry.date;
+              break;
+            }
+          }
+        }
+        if (Object.keys(dupes).length > 0) {
+          setFileDuplicates((prev) => ({ ...prev, ...dupes }));
+        }
+      } catch {
+        /* best-effort */
+      }
     }
-  }, []);
+  }, [repository]);
 
   const handleDragEnter = useCallback((e: DragEvent) => {
     e.preventDefault();
@@ -191,7 +214,15 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
   };
 
   const removeFile = (index: number) => {
+    const removed = files[index];
     setFiles((prev) => prev.filter((_, i) => i !== index));
+    if (removed && fileDuplicates[removed.name]) {
+      setFileDuplicates((prev) => {
+        const next = { ...prev };
+        delete next[removed.name];
+        return next;
+      });
+    }
   };
 
   // ── Actions ─────────────────────────────────────────────────
@@ -213,6 +244,7 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
     console.log("[import] cancelling import");
     importSession.cancel();
     setFiles([]);
+    setFileDuplicates({});
     await repository.clearImportData();
     setHasImportData(false);
   }, [importSession, repository, setHasImportData]);
@@ -327,32 +359,47 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
                     {files.length} file{files.length !== 1 ? "s" : ""} ready
                   </div>
                   <div className="space-y-1.5">
-                    {files.map((file, i) => (
-                      <div
-                        key={i}
-                        className="flex items-center gap-3 rounded-xl bg-card/50 px-4 py-3 border border-border/30"
-                      >
-                        {isImageAttachment(file) ? (
-                          <Image className="h-4 w-4 text-muted-foreground/60 shrink-0" />
-                        ) : (
-                          <FileIcon className="h-4 w-4 text-muted-foreground/60 shrink-0" />
-                        )}
-                        <span className="flex-1 truncate text-sm text-foreground/80">
-                          {file.name}
-                        </span>
-                        <span className="text-xs text-muted-foreground/50 tabular-nums">
-                          {formatFileSize(file.size)}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={(e) => { e.stopPropagation(); removeFile(i); }}
-                          className="rounded-lg p-1 text-muted-foreground/40 hover:text-muted-foreground hover:bg-muted/50 transition-colors"
-                          aria-label={`Remove ${file.name}`}
+                    {files.map((file, i) => {
+                      const dupDate = fileDuplicates[file.name];
+                      return (
+                        <div
+                          key={i}
+                          className={`flex items-center gap-3 rounded-xl px-4 py-3 border ${
+                            dupDate
+                              ? "bg-amber-500/5 border-amber-500/20"
+                              : "bg-card/50 border-border/30"
+                          }`}
                         >
-                          <X className="h-3.5 w-3.5" />
-                        </button>
-                      </div>
-                    ))}
+                          {isImageAttachment(file) ? (
+                            <Image className="h-4 w-4 text-muted-foreground/60 shrink-0" />
+                          ) : (
+                            <FileIcon className="h-4 w-4 text-muted-foreground/60 shrink-0" />
+                          )}
+                          <div className="flex-1 min-w-0">
+                            <span className="truncate block text-sm text-foreground/80">
+                              {file.name}
+                            </span>
+                            {dupDate && (
+                              <span className="flex items-center gap-1 text-[11px] text-amber-600 dark:text-amber-400">
+                                <Copy className="h-3 w-3 shrink-0" />
+                                might be a duplicate — imported on {formatDateLabel(dupDate.slice(0, 10))}
+                              </span>
+                            )}
+                          </div>
+                          <span className="text-xs text-muted-foreground/50 tabular-nums shrink-0">
+                            {formatFileSize(file.size)}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); removeFile(i); }}
+                            className="rounded-lg p-1 text-muted-foreground/40 hover:text-muted-foreground hover:bg-muted/50 transition-colors"
+                            aria-label={`Remove ${file.name}`}
+                          >
+                            <X className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      );
+                    })}
                   </div>
                   <div className="flex justify-center pt-2">
                     <Button
