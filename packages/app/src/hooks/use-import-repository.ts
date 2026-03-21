@@ -1,4 +1,4 @@
-import { useCallback } from "react";
+import { useCallback, useMemo } from "react";
 import { readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
 import { parseCsv, unparseCsv } from "@capybudget/persistence";
 import { validateImportTransactions } from "@capybudget/core";
@@ -128,15 +128,28 @@ export function useImportRepository(budgetPath: string) {
     }
   }, [resolveImportPath]);
 
-  return {
-    readTransactionsCsv,
-    writeTransactionsCsv,
-    readState,
-    writeState,
-    readAliases,
-    writeAliases,
-    clearImportData,
-    appendImportLog,
-    hasImportData,
-  };
+  return useMemo(
+    () => ({
+      readTransactionsCsv,
+      writeTransactionsCsv,
+      readState,
+      writeState,
+      readAliases,
+      writeAliases,
+      clearImportData,
+      appendImportLog,
+      hasImportData,
+    }),
+    [
+      readTransactionsCsv,
+      writeTransactionsCsv,
+      readState,
+      writeState,
+      readAliases,
+      writeAliases,
+      clearImportData,
+      appendImportLog,
+      hasImportData,
+    ],
+  );
 }
