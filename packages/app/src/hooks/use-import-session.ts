@@ -7,9 +7,8 @@
  * - Detects completion for phase transition
  */
 
-import { useCallback, useEffect, useRef, useState } from "react";
-import { CapySession } from "@/services/capy-session";
-import { parseStreamLine } from "@/services/capy-stream";
+import { useCallback, useRef, useState } from "react";
+import { useSessionLifecycle } from "@/hooks/use-session-lifecycle";
 import {
   buildContext,
   formatAttachments,
@@ -17,7 +16,6 @@ import {
   IMPORT_SYSTEM_PROMPT,
   type FileAttachment,
   type MessageContent,
-  type SessionEvent,
   type StreamEvent,
   type ChatMessage,
   type ContentBlock,
@@ -42,23 +40,11 @@ export function useImportSession(
   opts: UseImportSessionOptions,
 ): UseImportSessionReturn {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [isStreaming, _setIsStreaming] = useState(false);
-  const isStreamingRef = useRef(false);
-  const sessionRef = useRef<CapySession | null>(null);
   const lastTextContentRef = useRef("");
 
-  const optsRef = useRef(opts);
-  useEffect(() => {
-    optsRef.current = opts;
-  });
-
-  const setIsStreaming = useCallback((value: boolean) => {
-    isStreamingRef.current = value;
-    _setIsStreaming(value);
-  }, []);
-
-  const handleStreamEvent = useCallback(
-    (event: StreamEvent) => {
+  const lifecycle = useSessionLifecycle(
+    opts,
+    (event: StreamEvent, ctx) => {
       switch (event.type) {
         case "content": {
           setMessages((prev) => {
@@ -97,14 +83,14 @@ export function useImportSession(
 
         case "done":
           console.log("[import-session] stream done — calling onImportComplete");
-          setIsStreaming(false);
+          ctx.setIsStreaming(false);
           lastTextContentRef.current = "";
-          optsRef.current.onImportComplete?.();
+          ctx.optsRef.current.onImportComplete?.();
           break;
 
         case "error":
           console.log("[import-session] stream error:", event.message);
-          setIsStreaming(false);
+          ctx.setIsStreaming(false);
           lastTextContentRef.current = "";
           setMessages((prev) => {
             const updated = [...prev];
@@ -139,63 +125,25 @@ export function useImportSession(
           break;
       }
     },
-    [setIsStreaming],
-  );
-
-  const handleSessionEvent = useCallback(
-    (event: SessionEvent) => {
-      switch (event.type) {
-        case "stdout":
-          for (const streamEvent of parseStreamLine(event.line)) {
-            handleStreamEvent(streamEvent);
-          }
-          break;
-
-        case "stderr":
-          console.debug("[import-stderr]", event.line);
-          break;
-
-        case "exit":
-          console.log("[import-session] process exited");
-          setIsStreaming(false);
-          lastTextContentRef.current = "";
-          break;
-
-        case "error":
-          console.log("[import-session] session error:", event.message);
-          handleStreamEvent({ type: "error", message: event.message });
-          break;
-      }
+    "import",
+    // onExit — reset text accumulator on unexpected process exit
+    () => {
+      lastTextContentRef.current = "";
     },
-    [handleStreamEvent, setIsStreaming],
   );
-
-  useEffect(() => {
-    return () => {
-      sessionRef.current?.kill();
-      sessionRef.current = null;
-    };
-  }, []);
 
   const startNormalization = useCallback(
     (files: FileAttachment[]) => {
-      if (isStreamingRef.current) return;
+      if (lifecycle.isStreamingRef.current) return;
       console.log("[import-session] starting normalization, files:", files.map((f) => f.name));
 
-      const o = optsRef.current;
+      const o = lifecycle.optsRef.current;
       const customInstructions = o.customInstructions?.trim();
       const systemPrompt = customInstructions
         ? `${IMPORT_SYSTEM_PROMPT}\n\n## User instructions\n${customInstructions}`
         : IMPORT_SYSTEM_PROMPT;
 
-      // Kill any existing session
-      sessionRef.current?.kill();
-      sessionRef.current = new CapySession({
-        budgetPath: o.budgetPath,
-        mcpServerPath: o.mcpServerPath,
-        systemPrompt,
-        onEvent: handleSessionEvent,
-      });
+      const session = lifecycle.createSession(systemPrompt);
 
       const context = buildContext({
         budgetName: o.budgetName,
@@ -250,26 +198,24 @@ export function useImportSession(
       };
 
       setMessages([userMsg, assistantMsg]);
-      setIsStreaming(true);
+      lifecycle.setIsStreaming(true);
       lastTextContentRef.current = "";
 
-      sessionRef.current.send(content).catch((err) => {
-        handleStreamEvent({
+      session.send(content).catch((err) => {
+        lifecycle.dispatchStreamEvent({
           type: "error",
           message:
             err instanceof Error ? err.message : "Failed to start normalization",
         });
       });
     },
-    [handleSessionEvent, handleStreamEvent, setIsStreaming],
+    [lifecycle],
   );
 
   const cancel = useCallback(() => {
-    sessionRef.current?.kill();
-    sessionRef.current = null;
-    setIsStreaming(false);
+    lifecycle.cancel();
     lastTextContentRef.current = "";
-  }, [setIsStreaming]);
+  }, [lifecycle]);
 
-  return { messages, isStreaming, startNormalization, cancel };
+  return { messages, isStreaming: lifecycle.isStreaming, startNormalization, cancel };
 }

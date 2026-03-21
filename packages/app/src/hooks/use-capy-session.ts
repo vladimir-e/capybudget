@@ -9,8 +9,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from "react"
-import { CapySession } from "@/services/capy-session"
-import { parseStreamLine } from "@/services/capy-stream"
+import { useSessionLifecycle } from "@/hooks/use-session-lifecycle"
 import {
   buildContext,
   formatAttachments,
@@ -19,7 +18,6 @@ import {
   MUTATION_TOOL_NAMES,
   type FileAttachment,
   type MessageContent,
-  type SessionEvent,
   type StreamEvent,
   type ChatMessage,
   type ContentBlock,
@@ -46,178 +44,137 @@ interface UseCapySessionReturn {
 
 export function useCapySession(opts: UseCapySessionOptions): UseCapySessionReturn {
   const [messages, setMessages] = useState<ChatMessage[]>([])
-  const [isStreaming, _setIsStreaming] = useState(false)
-  const isStreamingRef = useRef(false)
-  const sessionRef = useRef<CapySession | null>(null)
   const hadMutationsRef = useRef(false)
   const lastTextContentRef = useRef("")
   const sessionInterruptedRef = useRef(false)
 
-  // Keep ref and state in sync so callbacks can check without stale closures
-  const setIsStreaming = useCallback((value: boolean) => {
-    isStreamingRef.current = value
-    _setIsStreaming(value)
-  }, [])
-
-  // Keep refs to current values for use in callbacks without stale closures
+  // Keep a ref to messages for use in sendMessage without stale closures
   const messagesRef = useRef(messages)
-  const optsRef = useRef(opts)
   useEffect(() => {
     messagesRef.current = messages
-    optsRef.current = opts
   })
 
-  const handleStreamEvent = useCallback((event: StreamEvent) => {
-    switch (event.type) {
-      case "content": {
-        setMessages((prev) => {
-          const updated = [...prev]
-          const last = updated[updated.length - 1]
-          if (last?.role !== "assistant") return prev
+  const lifecycle = useSessionLifecycle(
+    opts,
+    (event: StreamEvent, ctx) => {
+      switch (event.type) {
+        case "content": {
+          setMessages((prev) => {
+            const updated = [...prev]
+            const last = updated[updated.length - 1]
+            if (last?.role !== "assistant") return prev
 
-          const blocks = [...last.blocks]
+            const blocks = [...last.blocks]
 
-          for (const block of event.blocks) {
-            if (block.type === "text") {
-              const prevText = lastTextContentRef.current
-              if (prevText && block.content.startsWith(prevText)) {
-                const lastTextIdx = blocks.findLastIndex((b) => b.type === "text")
-                if (lastTextIdx >= 0) {
-                  blocks[lastTextIdx] = block
+            for (const block of event.blocks) {
+              if (block.type === "text") {
+                const prevText = lastTextContentRef.current
+                if (prevText && block.content.startsWith(prevText)) {
+                  const lastTextIdx = blocks.findLastIndex((b) => b.type === "text")
+                  if (lastTextIdx >= 0) {
+                    blocks[lastTextIdx] = block
+                  } else {
+                    blocks.push(block)
+                  }
                 } else {
                   blocks.push(block)
                 }
+                lastTextContentRef.current = block.content
               } else {
                 blocks.push(block)
               }
-              lastTextContentRef.current = block.content
-            } else {
-              blocks.push(block)
+            }
+
+            updated[updated.length - 1] = { ...last, blocks }
+            return updated
+          })
+
+          for (const block of event.blocks) {
+            if (block.type === "tool-activity" && MUTATION_TOOL_NAMES.has(block.tool)) {
+              hadMutationsRef.current = true
+              break
             }
           }
-
-          updated[updated.length - 1] = { ...last, blocks }
-          return updated
-        })
-
-        for (const block of event.blocks) {
-          if (block.type === "tool-activity" && MUTATION_TOOL_NAMES.has(block.tool)) {
-            hadMutationsRef.current = true
-            break
-          }
-        }
-        break
-      }
-
-      case "done":
-        setIsStreaming(false)
-        lastTextContentRef.current = ""
-        if (hadMutationsRef.current) {
-          hadMutationsRef.current = false
-          optsRef.current.onDataChanged?.()
-        }
-        break
-
-      case "error":
-        setIsStreaming(false)
-        hadMutationsRef.current = false
-        lastTextContentRef.current = ""
-        setMessages((prev) => {
-          const updated = [...prev]
-          const last = updated[updated.length - 1]
-          if (last?.role !== "assistant") {
-            return [
-              ...prev,
-              {
-                id: crypto.randomUUID(),
-                role: "assistant" as const,
-                blocks: [{ type: "text" as const, content: `Error: ${event.message}` }],
-              },
-            ]
-          }
-          updated[updated.length - 1] = {
-            ...last,
-            blocks: [
-              ...last.blocks,
-              { type: "text" as const, content: `Error: ${event.message}` },
-            ],
-          }
-          return updated
-        })
-        break
-    }
-  }, [setIsStreaming])
-
-  const handleSessionEvent = useCallback(
-    (event: SessionEvent) => {
-      switch (event.type) {
-        case "stdout":
-          for (const streamEvent of parseStreamLine(event.line)) {
-            handleStreamEvent(streamEvent)
-          }
           break
+        }
 
-        case "stderr":
-          console.debug("[capy-stderr]", event.line)
-          break
-
-        case "exit":
-          setIsStreaming(false)
-          hadMutationsRef.current = false
+        case "done":
+          ctx.setIsStreaming(false)
           lastTextContentRef.current = ""
-          setMessages((prev) => [
-            ...prev,
-            {
-              id: crypto.randomUUID(),
-              role: "assistant",
-              blocks: [
-                {
-                  type: "text",
-                  content:
-                    "Session ended unexpectedly. Send a message to start a new conversation.",
-                },
-              ],
-            },
-          ])
+          if (hadMutationsRef.current) {
+            hadMutationsRef.current = false
+            ctx.optsRef.current.onDataChanged?.()
+          }
           break
 
         case "error":
-          handleStreamEvent({ type: "error", message: event.message })
+          ctx.setIsStreaming(false)
+          hadMutationsRef.current = false
+          lastTextContentRef.current = ""
+          setMessages((prev) => {
+            const updated = [...prev]
+            const last = updated[updated.length - 1]
+            if (last?.role !== "assistant") {
+              return [
+                ...prev,
+                {
+                  id: crypto.randomUUID(),
+                  role: "assistant" as const,
+                  blocks: [{ type: "text" as const, content: `Error: ${event.message}` }],
+                },
+              ]
+            }
+            updated[updated.length - 1] = {
+              ...last,
+              blocks: [
+                ...last.blocks,
+                { type: "text" as const, content: `Error: ${event.message}` },
+              ],
+            }
+            return updated
+          })
           break
       }
     },
-    [handleStreamEvent, setIsStreaming],
+    "capy",
+    // onExit — process crashed unexpectedly, append recovery message
+    () => {
+      hadMutationsRef.current = false
+      lastTextContentRef.current = ""
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: crypto.randomUUID(),
+          role: "assistant",
+          blocks: [
+            {
+              type: "text",
+              content:
+                "Session ended unexpectedly. Send a message to start a new conversation.",
+            },
+          ],
+        },
+      ])
+    },
   )
 
-  useEffect(() => {
-    return () => {
-      sessionRef.current?.kill()
-      sessionRef.current = null
-    }
-  }, [])
-
   const ensureSession = useCallback(() => {
-    if (!sessionRef.current) {
-      const o = optsRef.current
+    if (!lifecycle.sessionRef.current) {
+      const o = lifecycle.optsRef.current
       const customInstructions = o.customInstructions?.trim()
       const systemPrompt = customInstructions
         ? `${SYSTEM_PROMPT}\n\n## User instructions\n${customInstructions}`
         : SYSTEM_PROMPT
 
-      sessionRef.current = new CapySession({
-        budgetPath: o.budgetPath,
-        mcpServerPath: o.mcpServerPath,
-        systemPrompt,
-        onEvent: handleSessionEvent,
-      })
+      lifecycle.createSession(systemPrompt)
     }
-    return sessionRef.current
-  }, [handleSessionEvent])
+    return lifecycle.sessionRef.current!
+  }, [lifecycle])
 
   const sendMessage = useCallback(
     (text: string, files?: FileAttachment[]) => {
-      if (isStreamingRef.current) return
-      const o = optsRef.current
+      if (lifecycle.isStreamingRef.current) return
+      const o = lifecycle.optsRef.current
       const context = buildContext({
         budgetName: o.budgetName,
         budgetPath: o.budgetPath,
@@ -286,24 +243,24 @@ export function useCapySession(opts: UseCapySessionOptions): UseCapySessionRetur
       }
 
       setMessages((prev) => [...prev, userMsg, assistantMsg])
-      setIsStreaming(true)
+      lifecycle.setIsStreaming(true)
       hadMutationsRef.current = false
       lastTextContentRef.current = ""
 
       const session = ensureSession()
       session.send(content).catch((err) => {
-        handleStreamEvent({
+        lifecycle.dispatchStreamEvent({
           type: "error",
           message: err instanceof Error ? err.message : "Failed to send message",
         })
       })
     },
-    [ensureSession, handleStreamEvent, setIsStreaming],
+    [ensureSession, lifecycle],
   )
 
   const stopStreaming = useCallback(() => {
-    sessionRef.current?.stop()
-    setIsStreaming(false)
+    lifecycle.sessionRef.current?.stop()
+    lifecycle.setIsStreaming(false)
     lastTextContentRef.current = ""
     sessionInterruptedRef.current = true
 
@@ -324,19 +281,18 @@ export function useCapySession(opts: UseCapySessionOptions): UseCapySessionRetur
 
     if (hadMutationsRef.current) {
       hadMutationsRef.current = false
-      optsRef.current.onDataChanged?.()
+      lifecycle.optsRef.current.onDataChanged?.()
     }
-  }, [setIsStreaming])
+  }, [lifecycle])
 
   const newChat = useCallback(() => {
-    sessionRef.current?.restart()
-    sessionRef.current = null
+    lifecycle.sessionRef.current?.restart()
+    lifecycle.cancel()
     setMessages([])
-    setIsStreaming(false)
     hadMutationsRef.current = false
     lastTextContentRef.current = ""
     sessionInterruptedRef.current = false
-  }, [setIsStreaming])
+  }, [lifecycle])
 
-  return { messages, isStreaming, sendMessage, stopStreaming, newChat }
+  return { messages, isStreaming: lifecycle.isStreaming, sendMessage, stopStreaming, newChat }
 }
