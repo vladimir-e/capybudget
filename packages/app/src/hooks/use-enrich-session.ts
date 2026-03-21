@@ -64,6 +64,7 @@ export function useEnrichSession(
       }
     },
     "enrich",
+    () => { setStatusText(""); },
   );
 
   const startEnrichment = useCallback(

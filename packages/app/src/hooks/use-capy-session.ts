@@ -286,7 +286,6 @@ export function useCapySession(opts: UseCapySessionOptions): UseCapySessionRetur
   }, [lifecycle])
 
   const newChat = useCallback(() => {
-    lifecycle.sessionRef.current?.restart()
     lifecycle.cancel()
     setMessages([])
     hadMutationsRef.current = false
