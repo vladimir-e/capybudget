@@ -1,12 +1,13 @@
 /**
  * Demo stub for the Tauri-based CapySession.
  *
- * Instead of spawning Claude CLI, it emits pre-built sample responses
- * that showcase the rich content rendering (donut chart).
- * Simulates realistic streaming timing.
+ * Instead of spawning Claude CLI, it emits pre-built sample responses.
+ * Detects import/enrich/chat modes from the system prompt and simulates
+ * each flow with realistic streaming timing.
  */
 
 import type { SessionEvent, MessageContent } from "@capybudget/intelligence";
+import { writeTextFile } from "@tauri-apps/plugin-fs";
 
 export type { SessionEvent };
 
@@ -17,11 +18,46 @@ export interface CapySessionOptions {
   onEvent: (event: SessionEvent) => void;
 }
 
+type SessionMode = "chat" | "import" | "enrich";
+
+function detectMode(systemPrompt: string): SessionMode {
+  if (systemPrompt.includes("normalize") || systemPrompt.includes("Normalize"))
+    return "import";
+  if (systemPrompt.includes("enrich") || systemPrompt.includes("Enrich"))
+    return "enrich";
+  return "chat";
+}
+
+// ── Sample import data ──────────────────────────────────────────────
+
+const SAMPLE_TRANSACTIONS = [
+  { id: "imp-1", date: "2026-01-27", description: "Mediterranean Grill (Midtown) - Combo Plate", amount: -1565, type: "expense", sourceAccount: "VISA 6999", sourceCategory: "", memo: "", merchant: "Mediterranean Grill", accountId: "", categoryId: "", categoryConfidence: "" },
+  { id: "imp-2", date: "2026-01-28", description: "Minero - Taco Combo w/ Steak & Crisps", amount: -1757, type: "expense", sourceAccount: "Credit Card", sourceCategory: "", memo: "", merchant: "Minero", accountId: "", categoryId: "", categoryConfidence: "" },
+  { id: "imp-3", date: "2026-01-29", description: "The Local - 10 Wings, Fries Basket, Tot...", amount: -3147, type: "expense", sourceAccount: "CC 6999", sourceCategory: "", memo: "", merchant: "The Local", accountId: "", categoryId: "", categoryConfidence: "" },
+  { id: "imp-4", date: "2026-02-01", description: "Whole Foods Market #10234 - Groceries", amount: -8523, type: "expense", sourceAccount: "VISA 6999", sourceCategory: "", memo: "", merchant: "Whole Foods Market", accountId: "", categoryId: "", categoryConfidence: "" },
+  { id: "imp-5", date: "2026-02-03", description: "Shell Gas Station #4412", amount: -4200, type: "expense", sourceAccount: "Credit Card", sourceCategory: "", memo: "", merchant: "Shell", accountId: "", categoryId: "", categoryConfidence: "" },
+  { id: "imp-6", date: "2026-02-05", description: "Netflix Monthly Subscription", amount: -1599, type: "expense", sourceAccount: "CC 6999", sourceCategory: "", memo: "", merchant: "Netflix", accountId: "", categoryId: "", categoryConfidence: "" },
+  { id: "imp-7", date: "2026-02-07", description: "Employer Direct Deposit - Payroll", amount: 285000, type: "income", sourceAccount: "VISA 6999", sourceCategory: "", memo: "", merchant: "Employer Payroll", accountId: "", categoryId: "", categoryConfidence: "" },
+];
+
+function buildCsv(rows: typeof SAMPLE_TRANSACTIONS): string {
+  const headers = "id,date,description,amount,type,sourceAccount,sourceCategory,memo,merchant,accountId,categoryId,categoryConfidence";
+  const lines = rows.map((r) =>
+    [r.id, r.date, `"${r.description}"`, r.amount, r.type, r.sourceAccount, r.sourceCategory, r.memo, r.merchant, r.accountId, r.categoryId, r.categoryConfidence].join(","),
+  );
+  return headers + "\r\n" + lines.join("\r\n");
+}
+
+// ── Session class ───────────────────────────────────────────────────
+
 export class CapySession {
+  private readonly opts: CapySessionOptions;
   private readonly onEvent: (event: SessionEvent) => void;
   private alive = false;
+  private cancelled = false;
 
   constructor(opts: CapySessionOptions) {
+    this.opts = opts;
     this.onEvent = opts.onEvent;
   }
 
@@ -29,28 +65,139 @@ export class CapySession {
     return this.alive;
   }
 
-  async send(_content: MessageContent): Promise<void> {
+  async send(content: MessageContent): Promise<void> {
     this.alive = true;
+    this.cancelled = false;
 
+    const mode = detectMode(this.opts.systemPrompt);
+
+    switch (mode) {
+      case "import":
+        await this.simulateImport(content);
+        break;
+      case "enrich":
+        await this.simulateEnrich();
+        break;
+      default:
+        await this.simulateChat();
+    }
+  }
+
+  // ── Import normalization ────────────────────────────────────────
+
+  private async simulateImport(_content: MessageContent): Promise<void> {
     const delay = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
-    const emit = (content: unknown[]) =>
+    const emit = (blocks: unknown[]) => {
+      if (this.cancelled) return;
       this.onEvent({
         type: "stdout",
-        line: JSON.stringify({ type: "assistant", message: { content } }),
+        line: JSON.stringify({ type: "assistant", message: { content: blocks } }),
       });
+    };
 
-    // Step 1: Tool activity — "Calculating spending" spinner
+    // Step 1: Reading files
+    emit([{ type: "tool_use", name: "Read", input: {} }]);
+    await delay(1500);
+    if (this.cancelled) return;
+
+    // Step 2: Analysis text (streamed word-by-word)
+    const analysisText =
+      "Let me read these and extract the transactions! Here's what I found:\n\n" +
+      "1. **Mediterranean Grill** - Jan 27, 2026 - $15.65, VISA ending 6999\n" +
+      "2. **Minero** - Jan 28, 2026 - $17.57, Credit card\n" +
+      "3. **The Local** - Jan 29, 2026 - $31.47, CC ending 6999\n" +
+      "4. **Whole Foods Market** - Feb 1, 2026 - $85.23, VISA ending 6999\n" +
+      "5. **Shell Gas Station** - Feb 3, 2026 - $42.00, Credit card\n" +
+      "6. **Netflix** - Feb 5, 2026 - $15.99, CC ending 6999\n" +
+      "7. **Employer Payroll** - Feb 7, 2026 - $2,850.00 (income), VISA ending 6999";
+
+    const words = analysisText.split(" ");
+    let accumulated = "";
+    for (let i = 0; i < words.length; i += 4) {
+      if (this.cancelled) return;
+      const chunk = words.slice(i, i + 4).join(" ");
+      accumulated += (accumulated ? " " : "") + chunk;
+      emit([{ type: "text", text: accumulated }]);
+      await delay(80);
+    }
+    await delay(500);
+    if (this.cancelled) return;
+
+    // Step 3: Write CSV to in-memory FS
+    emit([{ type: "text", text: accumulated + "\n\nLet me write the normalized CSV!" }]);
+    await delay(300);
+    if (this.cancelled) return;
+
+    emit([{ type: "tool_use", name: "mcp__capy__write_import_file", input: {} }]);
+    await delay(800);
+    if (this.cancelled) return;
+
+    const bp = this.opts.budgetPath;
+    const csvPath = `${bp}/.capy/import/transactions.csv`;
+    const statePath = `${bp}/.capy/import/state.json`;
+    await writeTextFile(csvPath, buildCsv(SAMPLE_TRANSACTIONS));
+    await writeTextFile(statePath, JSON.stringify({ sourceFiles: ["demo-statement.csv"], enriched: false }));
+
+    // Done
+    this.finish();
+  }
+
+  // ── Enrichment ──────────────────────────────────────────────────
+
+  private async simulateEnrich(): Promise<void> {
+    const delay = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+    const emit = (blocks: unknown[]) => {
+      if (this.cancelled) return;
+      this.onEvent({
+        type: "stdout",
+        line: JSON.stringify({ type: "assistant", message: { content: blocks } }),
+      });
+    };
+
+    emit([{ type: "tool_use", name: "Read", input: {} }]);
+    await delay(1000);
+    if (this.cancelled) return;
+
+    emit([{ type: "text", text: "Identifying merchants and assigning categories..." }]);
+    await delay(1500);
+    if (this.cancelled) return;
+
+    // Re-write CSV — enrichment is a no-op in demo (categories stay empty)
+    // but we mark state.enriched = true via the onEnrichmentComplete callback
+    emit([{ type: "tool_use", name: "mcp__capy__write_import_file", input: {} }]);
+    await delay(600);
+    if (this.cancelled) return;
+
+    const bp = this.opts.budgetPath;
+    const statePath = `${bp}/.capy/import/state.json`;
+    await writeTextFile(statePath, JSON.stringify({ sourceFiles: ["demo-statement.csv"], enriched: true }));
+
+    this.finish();
+  }
+
+  // ── Chat (default / existing behavior) ──────────────────────────
+
+  private async simulateChat(): Promise<void> {
+    const delay = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+    const emit = (blocks: unknown[]) => {
+      if (this.cancelled) return;
+      this.onEvent({
+        type: "stdout",
+        line: JSON.stringify({ type: "assistant", message: { content: blocks } }),
+      });
+    };
+
     emit([{ type: "tool_use", name: "mcp__capy__spending_summary", input: {} }]);
     await delay(2000);
+    if (this.cancelled) return;
 
-    // Step 2: Intro text
     emit([{
       type: "text",
       text: "Here's a sample of what Capy can do with your budget data. In the full desktop app, I analyze your actual transactions in real time.",
     }]);
     await delay(200);
+    if (this.cancelled) return;
 
-    // Step 3: Donut chart
     emit([{
       type: "tool_use",
       name: "mcp__capy__render_donut_chart",
@@ -66,20 +213,27 @@ export class CapySession {
       },
     }]);
     await delay(1000);
+    if (this.cancelled) return;
 
-    // Step 4: Closing text — streamed in chunks
     const closingText =
       "This is a demo — AI features require the Capy Budget desktop app with Claude CLI installed. Download it to get personalized insights, spending analysis, and natural-language budget management.";
     const words = closingText.split(" ");
     let accumulated = "";
     for (let i = 0; i < words.length; i += 3) {
+      if (this.cancelled) return;
       const chunk = words.slice(i, i + 3).join(" ");
       accumulated += (accumulated ? " " : "") + chunk;
       emit([{ type: "text", text: accumulated }]);
       await delay(100);
     }
 
-    // Done
+    this.finish();
+  }
+
+  // ── Lifecycle ───────────────────────────────────────────────────
+
+  private finish(): void {
+    if (this.cancelled) return;
     this.onEvent({
       type: "stdout",
       line: JSON.stringify({ type: "result" }),
@@ -88,14 +242,17 @@ export class CapySession {
   }
 
   async stop(): Promise<void> {
+    this.cancelled = true;
     this.alive = false;
   }
 
   async restart(): Promise<void> {
+    this.cancelled = true;
     this.alive = false;
   }
 
   async kill(): Promise<void> {
+    this.cancelled = true;
     this.alive = false;
   }
 }

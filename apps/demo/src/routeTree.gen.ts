@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as BudgetRouteImport } from './routes/budget'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as BudgetIndexRouteImport } from './routes/budget/index'
+import { Route as BudgetImportRouteImport } from './routes/budget/import'
 import { Route as BudgetCategoriesRouteImport } from './routes/budget/categories'
 import { Route as BudgetAccountAccountIdRouteImport } from './routes/budget/account.$accountId'
 
@@ -30,6 +31,11 @@ const BudgetIndexRoute = BudgetIndexRouteImport.update({
   path: '/',
   getParentRoute: () => BudgetRoute,
 } as any)
+const BudgetImportRoute = BudgetImportRouteImport.update({
+  id: '/import',
+  path: '/import',
+  getParentRoute: () => BudgetRoute,
+} as any)
 const BudgetCategoriesRoute = BudgetCategoriesRouteImport.update({
   id: '/categories',
   path: '/categories',
@@ -45,12 +51,14 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/budget': typeof BudgetRouteWithChildren
   '/budget/categories': typeof BudgetCategoriesRoute
+  '/budget/import': typeof BudgetImportRoute
   '/budget/': typeof BudgetIndexRoute
   '/budget/account/$accountId': typeof BudgetAccountAccountIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/budget/categories': typeof BudgetCategoriesRoute
+  '/budget/import': typeof BudgetImportRoute
   '/budget': typeof BudgetIndexRoute
   '/budget/account/$accountId': typeof BudgetAccountAccountIdRoute
 }
@@ -59,6 +67,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/budget': typeof BudgetRouteWithChildren
   '/budget/categories': typeof BudgetCategoriesRoute
+  '/budget/import': typeof BudgetImportRoute
   '/budget/': typeof BudgetIndexRoute
   '/budget/account/$accountId': typeof BudgetAccountAccountIdRoute
 }
@@ -68,15 +77,22 @@ export interface FileRouteTypes {
     | '/'
     | '/budget'
     | '/budget/categories'
+    | '/budget/import'
     | '/budget/'
     | '/budget/account/$accountId'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/budget/categories' | '/budget' | '/budget/account/$accountId'
+  to:
+    | '/'
+    | '/budget/categories'
+    | '/budget/import'
+    | '/budget'
+    | '/budget/account/$accountId'
   id:
     | '__root__'
     | '/'
     | '/budget'
     | '/budget/categories'
+    | '/budget/import'
     | '/budget/'
     | '/budget/account/$accountId'
   fileRoutesById: FileRoutesById
@@ -109,6 +125,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof BudgetIndexRouteImport
       parentRoute: typeof BudgetRoute
     }
+    '/budget/import': {
+      id: '/budget/import'
+      path: '/import'
+      fullPath: '/budget/import'
+      preLoaderRoute: typeof BudgetImportRouteImport
+      parentRoute: typeof BudgetRoute
+    }
     '/budget/categories': {
       id: '/budget/categories'
       path: '/categories'
@@ -128,12 +151,14 @@ declare module '@tanstack/react-router' {
 
 interface BudgetRouteChildren {
   BudgetCategoriesRoute: typeof BudgetCategoriesRoute
+  BudgetImportRoute: typeof BudgetImportRoute
   BudgetIndexRoute: typeof BudgetIndexRoute
   BudgetAccountAccountIdRoute: typeof BudgetAccountAccountIdRoute
 }
 
 const BudgetRouteChildren: BudgetRouteChildren = {
   BudgetCategoriesRoute: BudgetCategoriesRoute,
+  BudgetImportRoute: BudgetImportRoute,
   BudgetIndexRoute: BudgetIndexRoute,
   BudgetAccountAccountIdRoute: BudgetAccountAccountIdRoute,
 }
