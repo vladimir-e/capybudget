@@ -7,7 +7,7 @@
  */
 
 import type { SessionEvent, MessageContent } from "@capybudget/intelligence";
-import { writeTextFile } from "@tauri-apps/plugin-fs";
+import { readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
 
 export type { SessionEvent };
 
@@ -136,7 +136,11 @@ export class CapySession {
     const csvPath = `${bp}/.capy/import/transactions.csv`;
     const statePath = `${bp}/.capy/import/state.json`;
     await writeTextFile(csvPath, buildCsv(SAMPLE_TRANSACTIONS));
-    await writeTextFile(statePath, JSON.stringify({ sourceFiles: ["demo-statement.csv"], enriched: false }));
+
+    // Merge with existing state (ImportScreen already wrote sourceFiles)
+    let existingState: Record<string, unknown> = {};
+    try { existingState = JSON.parse(await readTextFile(statePath)); } catch { /* first write */ }
+    await writeTextFile(statePath, JSON.stringify({ ...existingState, enriched: false }));
 
     // Done
     this.finish();
@@ -162,15 +166,11 @@ export class CapySession {
     await delay(1500);
     if (this.cancelled) return;
 
-    // Re-write CSV — enrichment is a no-op in demo (categories stay empty)
-    // but we mark state.enriched = true via the onEnrichmentComplete callback
+    // Enrichment is a no-op in demo (categories stay empty).
+    // markEnriched() in onEnrichmentComplete handles state.json update.
     emit([{ type: "tool_use", name: "mcp__capy__write_import_file", input: {} }]);
     await delay(600);
     if (this.cancelled) return;
-
-    const bp = this.opts.budgetPath;
-    const statePath = `${bp}/.capy/import/state.json`;
-    await writeTextFile(statePath, JSON.stringify({ sourceFiles: ["demo-statement.csv"], enriched: true }));
 
     this.finish();
   }
