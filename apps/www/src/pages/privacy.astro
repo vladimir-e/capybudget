@@ -1,0 +1,115 @@
+---
+import Base from "../layouts/base.astro";
+---
+
+<Base title="Privacy Policy — Capy Budget">
+  <article class="prose-warm mx-auto max-w-3xl px-6 py-16">
+    <h1 class="text-3xl font-bold text-warm-800">Privacy Policy</h1>
+    <p class="mt-2 text-sm text-warm-400">Last updated: March 2026</p>
+
+    <div class="mt-8 space-y-8 text-warm-600 leading-relaxed">
+      <section>
+        <h2 class="text-xl font-semibold text-warm-800">The short version</h2>
+        <p>
+          Capy Budget is a local-first application. Your financial data never leaves your
+          computer unless you explicitly choose to sync it via a service like iCloud or
+          Dropbox. We don't collect, store, or transmit any of your data.
+        </p>
+      </section>
+
+      <section>
+        <h2 class="text-xl font-semibold text-warm-800">Data storage</h2>
+        <p>
+          All budget data is stored as plain CSV files in a folder you choose on your
+          local filesystem. The application does not use any cloud database, remote server,
+          or third-party storage service.
+        </p>
+      </section>
+
+      <section>
+        <h2 class="text-xl font-semibold text-warm-800">No telemetry</h2>
+        <p>
+          The desktop application does not include any analytics, crash reporting,
+          or telemetry. No usage data is collected or transmitted.
+        </p>
+      </section>
+
+      <section>
+        <h2 class="text-xl font-semibold text-warm-800">Intelligence layer</h2>
+        <p>
+          The optional AI features use Claude Code running locally on your machine.
+          When you use smart import or other AI-powered features, your data is processed
+          by the Claude CLI on your device. We do not have access to the content of
+          these interactions. Please refer to
+          <a
+            href="https://www.anthropic.com/privacy"
+            class="text-brand underline hover:text-brand-light"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            Anthropic's privacy policy
+          </a>
+          for details on how Claude processes data.
+        </p>
+      </section>
+
+      <section>
+        <h2 class="text-xl font-semibold text-warm-800">Web demo</h2>
+        <p>
+          The web demo at capybudget.github.io runs entirely in your browser. It uses
+          preset sample data and does not persist anything. No data is sent to any server.
+        </p>
+      </section>
+
+      <section>
+        <h2 class="text-xl font-semibold text-warm-800">This website</h2>
+        <p>
+          This website is hosted on Vercel. Vercel may collect standard web server logs
+          (IP address, browser type, pages visited). We do not use cookies or any
+          third-party tracking scripts. See
+          <a
+            href="https://vercel.com/legal/privacy-policy"
+            class="text-brand underline hover:text-brand-light"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            Vercel's privacy policy
+          </a>
+          for details.
+        </p>
+      </section>
+
+      <section>
+        <h2 class="text-xl font-semibold text-warm-800">Open source</h2>
+        <p>
+          Capy Budget is open source under the MIT license. You can audit the
+          entire codebase on
+          <a
+            href="https://github.com/vladfaust/capybudget"
+            class="text-brand underline hover:text-brand-light"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            GitHub
+          </a>
+          to verify these claims.
+        </p>
+      </section>
+
+      <section>
+        <h2 class="text-xl font-semibold text-warm-800">Contact</h2>
+        <p>
+          For privacy-related questions, open an issue on
+          <a
+            href="https://github.com/vladfaust/capybudget/issues"
+            class="text-brand underline hover:text-brand-light"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            GitHub
+          </a>.
+        </p>
+      </section>
+    </div>
+  </article>
+</Base>

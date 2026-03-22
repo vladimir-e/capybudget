@@ -1,0 +1,124 @@
+---
+import Base from "../layouts/base.astro";
+---
+
+<Base title="Capy Budget — Personal Finance, Your Way">
+  <section class="mx-auto max-w-5xl px-6 py-24 text-center">
+    <img
+      src="/capy-great.png"
+      alt="Capybara mascot in a suit sipping a cocktail"
+      class="mx-auto mb-10 h-48 w-48 drop-shadow-lg"
+    />
+    <h1 class="text-4xl font-bold tracking-tight text-warm-800 sm:text-5xl">
+      Budget like a <span class="text-brand">capybara</span>.
+    </h1>
+    <p class="mx-auto mt-6 max-w-2xl text-lg text-warm-500">
+      A local-first personal finance app. Your data lives in plain CSV files in a
+      folder you choose. No cloud, no subscription, no nonsense.
+    </p>
+    <div class="mt-10 flex flex-wrap items-center justify-center gap-4">
+      <a
+        href="https://github.com/vladfaust/capybudget/releases"
+        class="rounded-lg bg-brand px-6 py-3 text-sm font-semibold text-white shadow-sm hover:bg-brand-light transition-colors"
+      >
+        Download for macOS
+      </a>
+      <a
+        href="https://capybudget.github.io"
+        class="rounded-lg border border-warm-300 bg-white px-6 py-3 text-sm font-semibold text-warm-700 shadow-sm hover:bg-warm-100 transition-colors"
+      >
+        Try the Demo
+      </a>
+      <a
+        href="https://github.com/vladfaust/capybudget"
+        class="rounded-lg border border-warm-300 bg-white px-6 py-3 text-sm font-semibold text-warm-700 shadow-sm hover:bg-warm-100 transition-colors"
+        target="_blank"
+        rel="noopener noreferrer"
+      >
+        View on GitHub
+      </a>
+    </div>
+  </section>
+
+  <section class="border-t border-warm-300 bg-warm-100">
+    <div class="mx-auto max-w-5xl px-6 py-20">
+      <h2 class="text-center text-2xl font-bold text-warm-800 sm:text-3xl">
+        Why Capy Budget?
+      </h2>
+      <div class="mt-12 grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
+        <div class="rounded-xl bg-white p-6 shadow-sm border border-warm-300">
+          <div class="mb-3 text-2xl">📂</div>
+          <h3 class="font-semibold text-warm-800">Plain CSV Files</h3>
+          <p class="mt-2 text-sm text-warm-500">
+            Your data is human-readable CSV. Open it in Excel, write scripts against it,
+            or just back it up by copying a folder.
+          </p>
+        </div>
+        <div class="rounded-xl bg-white p-6 shadow-sm border border-warm-300">
+          <div class="mb-3 text-2xl">🔒</div>
+          <h3 class="font-semibold text-warm-800">No Cloud, No Account</h3>
+          <p class="mt-2 text-sm text-warm-500">
+            Everything runs locally. No sign-ups, no servers, no telemetry.
+            Point your data folder at iCloud or Dropbox for free sync.
+          </p>
+        </div>
+        <div class="rounded-xl bg-white p-6 shadow-sm border border-warm-300">
+          <div class="mb-3 text-2xl">🧠</div>
+          <h3 class="font-semibold text-warm-800">AI-Powered Import</h3>
+          <p class="mt-2 text-sm text-warm-500">
+            Paste a bank statement or CSV and let Claude parse, categorize, and
+            deduplicate your transactions. You review before anything is saved.
+          </p>
+        </div>
+        <div class="rounded-xl bg-white p-6 shadow-sm border border-warm-300">
+          <div class="mb-3 text-2xl">💰</div>
+          <h3 class="font-semibold text-warm-800">Every Account Type</h3>
+          <p class="mt-2 text-sm text-warm-500">
+            Cash, checking, savings, credit cards, investments, loans, crypto —
+            track everything in one place with derived balances.
+          </p>
+        </div>
+        <div class="rounded-xl bg-white p-6 shadow-sm border border-warm-300">
+          <div class="mb-3 text-2xl">⌨️</div>
+          <h3 class="font-semibold text-warm-800">Keyboard-First</h3>
+          <p class="mt-2 text-sm text-warm-500">
+            Built for speed. Type transactions, navigate with shortcuts,
+            and manage your budget without reaching for the mouse.
+          </p>
+        </div>
+        <div class="rounded-xl bg-white p-6 shadow-sm border border-warm-300">
+          <div class="mb-3 text-2xl">🔓</div>
+          <h3 class="font-semibold text-warm-800">Open Source</h3>
+          <p class="mt-2 text-sm text-warm-500">
+            MIT licensed. Read every line, fork it, extend it.
+            Built with Tauri, React, and TypeScript.
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="mx-auto max-w-5xl px-6 py-20 text-center">
+    <div class="flex flex-col items-center gap-4 sm:flex-row sm:justify-center">
+      <img src="/capy-fine.png" alt="" class="h-24 w-24" />
+      <div class="text-left">
+        <h2 class="text-2xl font-bold text-warm-800">Ready to take control?</h2>
+        <p class="mt-1 text-warm-500">Download the app or try the web demo first.</p>
+      </div>
+    </div>
+    <div class="mt-8 flex flex-wrap items-center justify-center gap-4">
+      <a
+        href="https://github.com/vladfaust/capybudget/releases"
+        class="rounded-lg bg-brand px-6 py-3 text-sm font-semibold text-white shadow-sm hover:bg-brand-light transition-colors"
+      >
+        Download for macOS
+      </a>
+      <a
+        href="https://capybudget.github.io"
+        class="rounded-lg border border-warm-300 bg-white px-6 py-3 text-sm font-semibold text-warm-700 shadow-sm hover:bg-warm-100 transition-colors"
+      >
+        Try the Demo
+      </a>
+    </div>
+  </section>
+</Base>

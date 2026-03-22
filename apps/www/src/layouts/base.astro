@@ -1,0 +1,74 @@
+---
+import "../styles/global.css";
+
+interface Props {
+  title: string;
+  description?: string;
+}
+
+const { title, description = "Personal finance tracking. Local-first, CSV-backed, no cloud, no subscription." } = Astro.props;
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content={description} />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <title>{title}</title>
+  </head>
+  <body class="min-h-screen flex flex-col">
+    <nav class="sticky top-0 z-50 border-b border-warm-300 bg-warm-50/80 backdrop-blur-md">
+      <div class="mx-auto max-w-5xl flex items-center justify-between px-6 py-4">
+        <a href="/" class="flex items-center gap-2 text-lg font-semibold text-warm-800">
+          <img src="/capy-great.png" alt="" class="h-8 w-8 rounded-full" />
+          Capy Budget
+        </a>
+        <div class="flex items-center gap-6 text-sm font-medium text-warm-500">
+          <a href="/docs/getting-started" class="hover:text-warm-800 transition-colors">Docs</a>
+          <a href="/privacy" class="hover:text-warm-800 transition-colors">Privacy</a>
+          <a href="https://capybudget.github.io" class="hover:text-warm-800 transition-colors">Demo</a>
+          <a
+            href="https://github.com/vladfaust/capybudget"
+            class="hover:text-warm-800 transition-colors"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            GitHub
+          </a>
+        </div>
+      </div>
+    </nav>
+
+    <main class="flex-1">
+      <slot />
+    </main>
+
+    <footer class="border-t border-warm-300 bg-warm-100">
+      <div class="mx-auto max-w-5xl px-6 py-10">
+        <div class="flex flex-col gap-6 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <p class="font-semibold text-warm-800">Capy Budget</p>
+            <p class="mt-1 text-sm text-warm-500">Your finances, your files, your rules.</p>
+          </div>
+          <div class="flex flex-col gap-2 text-sm text-warm-500">
+            <a href="/docs/getting-started" class="hover:text-warm-800 transition-colors">Documentation</a>
+            <a href="/privacy" class="hover:text-warm-800 transition-colors">Privacy Policy</a>
+            <a
+              href="https://github.com/vladfaust/capybudget"
+              class="hover:text-warm-800 transition-colors"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              GitHub
+            </a>
+          </div>
+        </div>
+        <p class="mt-8 text-xs text-warm-400">
+          Open source under the MIT License.
+        </p>
+      </div>
+    </footer>
+  </body>
+</html>

@@ -1,0 +1,24 @@
+---
+import Base from "./base.astro";
+
+interface Props {
+  title: string;
+  description?: string;
+}
+
+const { title, description } = Astro.props;
+---
+
+<Base title={`${title} — Capy Budget Docs`} description={description}>
+  <div class="mx-auto max-w-3xl px-6 py-16">
+    <nav class="mb-8 text-sm text-warm-400">
+      <a href="/docs/getting-started" class="hover:text-warm-600 transition-colors">Docs</a>
+    </nav>
+    <article class="prose-warm">
+      <h1 class="text-3xl font-bold text-warm-800">{title}</h1>
+      <div class="mt-8 space-y-6 text-warm-600 leading-relaxed [&_h2]:text-xl [&_h2]:font-semibold [&_h2]:text-warm-800 [&_h2]:mt-10 [&_h3]:text-lg [&_h3]:font-semibold [&_h3]:text-warm-700 [&_h3]:mt-6 [&_code]:rounded [&_code]:bg-warm-200 [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:text-sm [&_code]:text-warm-700 [&_a]:text-brand [&_a]:underline [&_a:hover]:text-brand-light [&_ul]:list-disc [&_ul]:pl-6 [&_ol]:list-decimal [&_ol]:pl-6 [&_li]:mt-2 [&_pre]:rounded-lg [&_pre]:bg-warm-900 [&_pre]:p-4 [&_pre]:text-sm [&_pre]:text-warm-200 [&_pre_code]:bg-transparent [&_pre_code]:p-0">
+        <slot />
+      </div>
+    </article>
+  </div>
+</Base>

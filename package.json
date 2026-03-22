@@ -17,7 +17,10 @@
     "lint": "eslint .",
     "demo": "npm run dev --workspace=@capybudget/demo",
     "demo:build": "npm run build --workspace=@capybudget/demo",
-    "demo:preview": "npm run preview --workspace=@capybudget/demo"
+    "demo:preview": "npm run preview --workspace=@capybudget/demo",
+    "www": "npm run dev --workspace=@capybudget/www",
+    "www:build": "npm run build --workspace=@capybudget/www",
+    "www:preview": "npm run preview --workspace=@capybudget/www"
   },
   "dependencies": {
     "@base-ui/react": "^1.2.0",
