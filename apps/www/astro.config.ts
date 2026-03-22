@@ -8,7 +8,14 @@ export default defineConfig({
   output: "static",
   adapter: vercel(),
   integrations: [react(), mdx()],
+  server: {
+    port: 3001,
+    host: true,
+  },
   vite: {
     plugins: [tailwindcss()],
+    server: {
+      allowedHosts: true,
+    },
   },
 });

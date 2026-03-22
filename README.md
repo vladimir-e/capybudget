@@ -2,7 +2,9 @@
 
 A self-contained desktop app for tracking personal finances. Your data lives in plain CSV files in a folder you choose — no cloud, no subscription, no vendor lock-in.
 
-Built with Tauri v2, React, and TypeScript. Optional intelligence layer powered by Claude Code. Structured as an npm workspaces monorepo with shared packages for the desktop app, MCP server, and future web demo.
+Built with Tauri v2, React, and TypeScript. Optional intelligence layer powered by Claude Code. Structured as an npm workspaces monorepo with shared packages for the desktop app, MCP server, web demo, and promo website.
+
+**[capybudget.app](https://capybudget.app)** | **[Demo](https://demo.capybudget.app)**
 
 ## Quick Start
 
@@ -37,6 +39,13 @@ npm run tauri build
 
 Produces a native `.dmg` (macOS), `.msi` (Windows), or `.deb`/`.AppImage` (Linux).
 
+### Demo & Website
+
+```bash
+npm run demo              # Web demo dev server (:3000)
+npm run www               # Promo website dev server (:3001)
+```
+
 ## Project Structure
 
 ```
@@ -46,6 +55,9 @@ packages/
   intelligence/   — session interface, stream events, system prompt
   app/            — full React application (components, hooks, routes)
   mcp/            — standalone MCP server (any AI agent)
+apps/
+  demo/           — browser-based demo with preset data (demo.capybudget.app)
+  www/            — promo website, Astro static site (capybudget.app)
 src/              — desktop shell (Tauri adapters + entry point)
 ```
 

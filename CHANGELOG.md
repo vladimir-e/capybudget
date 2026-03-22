@@ -9,6 +9,15 @@ CHANGELOG PHILOSOPHY:
 - Resist the urge to be thorough here. Thoroughness goes in specs, not changelog.
 -->
 
+## 0.15.0 — 2026-03-22
+
+Promo website — Astro 6 static site for capybudget.app.
+
+- Marketing landing page with feature grid and download/demo CTAs
+- Privacy policy page
+- Docs section powered by MDX content collections (getting-started guide)
+- Deployed to Vercel, separate from the GitHub Pages demo
+
 ## 0.14.0 — 2026-03-21
 
 Import duplicate detection — prevent accidental re-imports.

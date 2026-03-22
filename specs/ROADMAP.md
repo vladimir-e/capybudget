@@ -213,4 +213,11 @@ Drop a file, intelligence normalizes it, you review and merge.
   - Assign monthly amounts per category
   - Assigned vs. spent tracking
 
-## Phase 9: Promo website
+## Phase 9: Promo Website ✓
+
+Static marketing site at capybudget.app.
+
+- [x] **9.1 — Astro scaffold** — Astro 6 in `apps/www/`, Tailwind 4, Vercel adapter, Geist font
+- [x] **9.2 — Landing page** — hero, feature grid, download/demo/GitHub CTAs
+- [x] **9.3 — Privacy policy** — local-first privacy story
+- [x] **9.4 — Docs** — MDX content collection with getting-started guide

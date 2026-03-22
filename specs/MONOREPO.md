@@ -19,7 +19,8 @@ Thin deployment targets. Each provides platform adapters and mounts `<App />` fr
 | Shell | Location | Purpose |
 |---|---|---|
 | Desktop | `src/` + `src-tauri/` | Native Tauri app with local file I/O and Claude CLI |
-| Demo | `apps/demo/` | Browser-based demo with preset data (GitHub Pages) |
+| Demo | `apps/demo/` | Browser-based demo with preset data (demo.capybudget.app) |
+| Website | `apps/www/` | Promo site — Astro 6 static, deployed to Vercel (capybudget.app) |
 
 ## Dependency Graph
 

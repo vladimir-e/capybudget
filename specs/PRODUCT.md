@@ -56,8 +56,9 @@ See `FRONTEND_DESIGN.md` for interaction patterns, color scheme, typography, and
 ## Target Platforms
 
 - **Desktop** — macOS first (native .dmg via Tauri). Windows and Linux via Tauri cross-compilation.
-- **Web demo** — browser-based demo with preset data, deployed to GitHub Pages. Full UI, no persistence, stub intelligence layer.
+- **Web demo** — browser-based demo with preset data at [demo.capybudget.app](https://demo.capybudget.app). Full UI, no persistence, stub intelligence layer.
+- **Promo website** — static marketing site at [capybudget.app](https://capybudget.app). Landing page, privacy policy, documentation. Astro 6, deployed to Vercel.
 
 ## Distribution
 
-Open source, MIT license. Public GitHub repo with architecture docs, web demo, and a standalone MCP server (`@capybudget/mcp`) that works with any MCP-compatible AI agent.
+Open source, MIT license. Public GitHub repo with architecture docs, web demo, promo website, and a standalone MCP server (`@capybudget/mcp`) that works with any MCP-compatible AI agent.
