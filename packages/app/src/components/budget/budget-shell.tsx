@@ -22,6 +22,7 @@ import { useAccounts, budgetKeys } from "@/hooks/use-budget-data";
 import { useCustomInstructions } from "@/hooks/use-custom-instructions";
 import { useCustomCommands } from "@/hooks/use-custom-commands";
 import { useBudgetRepository } from "@/providers/repository-provider";
+import { useImportStore } from "@/stores/import-store";
 import type { DisposableRepository } from "@capybudget/persistence";
 import {
   DropdownMenu,
@@ -67,6 +68,7 @@ export function BudgetShell({ path, name }: BudgetShellProps) {
       ? "import"
       : "accounts";
 
+  const hasImportData = useImportStore((s) => s.hasImportData);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [accountDialogOpen, setAccountDialogOpen] = useState(false);
   const [editingAccount, setEditingAccount] = useState<Account | null>(null);
@@ -271,6 +273,7 @@ export function BudgetShell({ path, name }: BudgetShellProps) {
             activeSection={activeSection}
             sidebarOpen={activeSection === "accounts" && !sidebarCollapsed}
             onToggleSidebar={() => setSidebarCollapsed((prev) => !prev)}
+            hasImportData={hasImportData}
           />
 
           {/* Accounts sidebar — slides in/out, same behavior all viewports */}

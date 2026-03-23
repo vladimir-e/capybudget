@@ -1,6 +1,5 @@
 import { Link } from "@tanstack/react-router";
 import { Receipt, PieChart, FileUp, PanelLeftClose, PanelLeftOpen } from "lucide-react";
-import { useImportStore } from "@/stores/import-store";
 
 export type Section = "accounts" | "budget" | "import";
 
@@ -10,6 +9,7 @@ interface NavigationRailProps {
   activeSection: Section;
   sidebarOpen: boolean;
   onToggleSidebar: () => void;
+  hasImportData?: boolean;
 }
 
 export function NavigationRail({
@@ -18,8 +18,8 @@ export function NavigationRail({
   activeSection,
   sidebarOpen,
   onToggleSidebar,
+  hasImportData,
 }: NavigationRailProps) {
-  const hasImportData = useImportStore((s) => s.hasImportData);
   const search = { path: budgetPath, name: budgetName };
 
   const isAccounts = activeSection === "accounts";
@@ -30,9 +30,9 @@ export function NavigationRail({
     <>
       {/* Desktop: vertical rail */}
       <nav className="hidden md:flex w-16 flex-col items-center border-r border-sidebar-border bg-sidebar pt-3 gap-1 shrink-0">
-        <RailLink to="/budget" search={search} active={isAccounts} icon={Receipt} label="Accounts" />
-        <RailLink to="/budget/categories" search={search} active={isBudget} icon={PieChart} label="Budget" />
-        <RailLink to="/budget/import" search={search} active={isImport} icon={FileUp} label="Import" indicator={hasImportData} />
+        <NavItem variant="rail" to="/budget" search={search} active={isAccounts} icon={Receipt} label="Accounts" />
+        <NavItem variant="rail" to="/budget/categories" search={search} active={isBudget} icon={PieChart} label="Budget" />
+        <NavItem variant="rail" to="/budget/import" search={search} active={isImport} icon={FileUp} label="Import" indicator={hasImportData} />
 
         {/* Sidebar toggle — pushed to bottom */}
         {isAccounts && (
@@ -54,17 +54,37 @@ export function NavigationRail({
 
       {/* Mobile: bottom tab bar */}
       <nav className="md:hidden fixed bottom-0 inset-x-0 z-30 flex items-center justify-around border-t border-sidebar-border bg-sidebar/95 backdrop-blur-sm px-2 pb-[env(safe-area-inset-bottom)]">
-        <TabLink to="/budget" search={search} active={isAccounts} icon={Receipt} label="Accounts" />
-        <TabLink to="/budget/categories" search={search} active={isBudget} icon={PieChart} label="Budget" />
-        <TabLink to="/budget/import" search={search} active={isImport} icon={FileUp} label="Import" indicator={hasImportData} />
+        <NavItem variant="tab" to="/budget" search={search} active={isAccounts} icon={Receipt} label="Accounts" />
+        <NavItem variant="tab" to="/budget/categories" search={search} active={isBudget} icon={PieChart} label="Budget" />
+        <NavItem variant="tab" to="/budget/import" search={search} active={isImport} icon={FileUp} label="Import" indicator={hasImportData} />
       </nav>
     </>
   );
 }
 
-// ── Desktop rail item ─────────────────────────────────────
+// ── Shared nav item ───────────────────────────────────────
 
-function RailLink({
+const variantStyles = {
+  rail: {
+    link: "w-12 rounded-lg px-1 py-2",
+    active: "bg-sidebar-accent text-sidebar-accent-foreground",
+    inactive: "text-sidebar-foreground/60 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground",
+    iconActive: "text-brand",
+    label: "leading-tight",
+    indicator: "top-1.5 right-1.5",
+  },
+  tab: {
+    link: "px-4 py-2",
+    active: "text-brand",
+    inactive: "text-sidebar-foreground/50",
+    iconActive: "",
+    label: "",
+    indicator: "top-1 right-2",
+  },
+} as const;
+
+function NavItem({
+  variant,
   to,
   search,
   active,
@@ -72,6 +92,7 @@ function RailLink({
   label,
   indicator,
 }: {
+  variant: "rail" | "tab";
   to: string;
   search: Record<string, string>;
   active: boolean;
@@ -79,58 +100,18 @@ function RailLink({
   label: string;
   indicator?: boolean;
 }) {
+  const s = variantStyles[variant];
   return (
     <Link
       to={to}
       search={search}
-      className={`relative flex w-12 flex-col items-center gap-0.5 rounded-lg px-1 py-2 transition-colors ${
-        active
-          ? "bg-sidebar-accent text-sidebar-accent-foreground"
-          : "text-sidebar-foreground/60 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
-      }`}
+      className={`relative flex flex-col items-center gap-0.5 transition-colors ${s.link} ${active ? s.active : s.inactive}`}
       aria-current={active ? "page" : undefined}
     >
-      <Icon className={`h-5 w-5 ${active ? "text-brand" : ""}`} />
-      <span className="text-[10px] font-medium leading-tight">{label}</span>
+      <Icon className={`h-5 w-5 ${active ? s.iconActive : ""}`} />
+      <span className={`text-[10px] font-medium ${s.label}`}>{label}</span>
       {indicator && (
-        <span className="absolute top-1.5 right-1.5 flex h-2 w-2 rounded-full bg-brand animate-pulse" />
-      )}
-    </Link>
-  );
-}
-
-// ── Mobile tab item ───────────────────────────────────────
-
-function TabLink({
-  to,
-  search,
-  active,
-  icon: Icon,
-  label,
-  indicator,
-}: {
-  to: string;
-  search: Record<string, string>;
-  active: boolean;
-  icon: React.ComponentType<{ className?: string }>;
-  label: string;
-  indicator?: boolean;
-}) {
-  return (
-    <Link
-      to={to}
-      search={search}
-      className={`relative flex flex-col items-center gap-0.5 px-4 py-2 transition-colors ${
-        active
-          ? "text-brand"
-          : "text-sidebar-foreground/50"
-      }`}
-      aria-current={active ? "page" : undefined}
-    >
-      <Icon className="h-5 w-5" />
-      <span className="text-[10px] font-medium">{label}</span>
-      {indicator && (
-        <span className="absolute top-1 right-2 flex h-2 w-2 rounded-full bg-brand animate-pulse" />
+        <span className={`absolute flex h-2 w-2 rounded-full bg-brand animate-pulse ${s.indicator}`} />
       )}
     </Link>
   );
