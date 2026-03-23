@@ -42,9 +42,10 @@ import {
   handleAnalyzeCsv,
   handlePreviewTransform,
   handleTransformCsv,
-  handleGetEnrichmentTargets,
-  handleApplyEnrichmentRules,
   handleAutoEnrich,
+  handleEnrichStats,
+  handleEnrichSample,
+  handleEnrichUpdate,
 } from "./csv-tools.js"
 
 // ── Budget path ──────────────────────────────────────────────────
@@ -102,8 +103,9 @@ const IMPORT_HANDLERS: Record<
   analyze_csv: (p, a) => handleAnalyzeCsv(p, a),
   preview_transform: (p, a) => handlePreviewTransform(p, a),
   transform_csv: (p, a) => handleTransformCsv(p, a),
-  get_enrichment_targets: (p) => handleGetEnrichmentTargets(p),
-  apply_enrichment_rules: (p, a) => handleApplyEnrichmentRules(p, a),
+  enrich_stats: (p) => handleEnrichStats(p),
+  enrich_sample: (p, a) => handleEnrichSample(p, a),
+  enrich_update: (p, a) => handleEnrichUpdate(p, a),
   auto_enrich: (p) => handleAutoEnrich(p, repo),
 }
 

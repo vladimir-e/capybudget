@@ -93,58 +93,58 @@ export const CSV_TOOLS = [
     },
   },
   {
-    name: "get_enrichment_targets",
+    name: "auto_enrich",
     description:
-      "Get unique descriptions that still need enrichment (no merchant or no categoryId). Returns a compact list of unique descriptions with their row count, amount range, and sourceCategory hint. Use this to understand what needs enrichment before applying rules.",
+      "Code-based enrichment: (1) maps sourceCategory → budget categories, (2) matches sourceAccount → budget accounts, (3) sets merchant from description for empty merchants. Call this FIRST.",
     inputSchema: {
       type: "object" as const,
       properties: {},
     },
   },
   {
-    name: "apply_enrichment_rules",
+    name: "enrich_stats",
     description:
-      "Apply enrichment rules to ALL matching transactions at once. Each rule matches by exact description and sets merchant and/or categoryId. Processes all rows instantly in code.",
+      "Returns a compact summary of enrichment progress: total rows, how many have merchants, categories, accounts, and how many still need work.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {},
+    },
+  },
+  {
+    name: "enrich_sample",
+    description:
+      "Returns a small CSV sample of rows that still need enrichment. Use this to spot patterns, then apply bulk updates. Returns at most `limit` rows as CSV (default 20).",
     inputSchema: {
       type: "object" as const,
       properties: {
-        rules: {
-          type: "array",
-          description: "Array of enrichment rules to apply",
-          items: {
-            type: "object",
-            properties: {
-              description: {
-                type: "string",
-                description: "Exact description to match (case-sensitive, as shown in get_enrichment_targets)",
-              },
-              merchant: {
-                type: "string",
-                description: "Clean merchant name to set",
-              },
-              categoryId: {
-                type: "string",
-                description: "Budget category UUID to assign",
-              },
-              categoryConfidence: {
-                type: "string",
-                description: "Confidence level: 'high' or 'low'",
-              },
-            },
-            required: ["description"],
-          },
+        field: {
+          type: "string",
+          description: "Which empty field to filter by: 'merchant', 'categoryId', or 'any' (default: 'any')",
+        },
+        limit: {
+          type: "number",
+          description: "Max rows to return (default: 20)",
         },
       },
-      required: ["rules"],
     },
   },
   {
-    name: "auto_enrich",
+    name: "enrich_update",
     description:
-      "Automatically enrich ALL imported transactions using code-based matching — no AI needed. Call this FIRST before any manual enrichment. Does: (1) maps sourceCategory to budget categories via fuzzy name matching, (2) matches sourceAccount to budget accounts. Processes all rows instantly. Returns stats on what was matched.",
+      "Bulk update: set field(s) on all rows matching a condition. Like SQL UPDATE ... WHERE. Use this to apply patterns you spotted in enrich_sample.",
     inputSchema: {
       type: "object" as const,
-      properties: {},
+      properties: {
+        set: {
+          type: "object",
+          description: "Fields to set. Keys: merchant, categoryId, categoryConfidence, accountId. Example: {\"categoryId\": \"uuid\", \"categoryConfidence\": \"low\"}",
+        },
+        where: {
+          type: "object",
+          description: "Match condition. Keys: field (column name), equals (exact match) or contains (substring, case-insensitive). Example: {\"field\": \"sourceCategory\", \"contains\": \"Groceries\"}",
+        },
+      },
+      required: ["set", "where"],
     },
   },
 ] as const
@@ -241,7 +241,7 @@ export async function handleTransformCsv(
   }, null, 2)
 }
 
-// ── Rule-based enrichment handlers ───────────────────────────────
+// ── Primitive enrichment tools ────────────────────────────────────
 
 const IMPORT_CSV_COLUMNS = [
   "id", "date", "description", "amount", "type",
@@ -249,133 +249,121 @@ const IMPORT_CSV_COLUMNS = [
   "merchant", "accountId", "categoryId", "categoryConfidence",
 ]
 
-export async function handleGetEnrichmentTargets(
-  budgetPath: string,
-): Promise<string> {
+async function readImportCsv(budgetPath: string) {
   const dir = await resolveImportDir(budgetPath)
   const filePath = join(dir, "transactions.csv")
   const content = await readFile(filePath, "utf-8")
-  const { data } = parseRawCsv(content)
+  return { data: parseRawCsv(content).data, filePath }
+}
 
-  // Group by description, only include rows that need work
-  const groups = new Map<string, {
-    count: number;
-    needsMerchant: number;
-    needsCategory: number;
-    sourceCategory: string;
-    amountMin: number;
-    amountMax: number;
-    sampleType: string;
-  }>()
+async function writeImportCsv(filePath: string, data: Record<string, string>[]) {
+  const csv = Papa.unparse(data, { columns: IMPORT_CSV_COLUMNS })
+  await writeFile(filePath, csv, "utf-8")
+}
 
-  let alreadyComplete = 0
+export async function handleEnrichStats(
+  budgetPath: string,
+): Promise<string> {
+  const { data } = await readImportCsv(budgetPath)
 
+  let withMerchant = 0, withCategory = 0, withAccount = 0, transfers = 0
   for (const row of data) {
-    const hasMerchant = !!row.merchant
-    const hasCategory = !!row.categoryId
-    if (hasMerchant && hasCategory) {
-      alreadyComplete++
-      continue
-    }
-
-    const desc = row.description || "(empty)"
-    const amount = Math.abs(parseInt(row.amount, 10) || 0)
-
-    if (!groups.has(desc)) {
-      groups.set(desc, {
-        count: 0,
-        needsMerchant: 0,
-        needsCategory: 0,
-        sourceCategory: row.sourceCategory || "",
-        amountMin: amount,
-        amountMax: amount,
-        sampleType: row.type || "expense",
-      })
-    }
-
-    const g = groups.get(desc)!
-    g.count++
-    if (!hasMerchant) g.needsMerchant++
-    if (!hasCategory) g.needsCategory++
-    if (amount < g.amountMin) g.amountMin = amount
-    if (amount > g.amountMax) g.amountMax = amount
-    // Keep first non-empty sourceCategory
-    if (!g.sourceCategory && row.sourceCategory) g.sourceCategory = row.sourceCategory
+    if (row.merchant) withMerchant++
+    if (row.categoryId) withCategory++
+    if (row.accountId) withAccount++
+    if (row.type === "transfer") transfers++
   }
 
-  // Sort by count descending (most common descriptions first)
-  const targets = [...groups.entries()]
-    .sort((a, b) => b[1].count - a[1].count)
-    .map(([desc, g]) => ({
-      description: desc,
-      count: g.count,
-      needsMerchant: g.needsMerchant,
-      needsCategory: g.needsCategory,
-      sourceCategory: g.sourceCategory || undefined,
-      amountRange: `${g.amountMin}–${g.amountMax} cents`,
-      type: g.sampleType,
-    }))
+  const needCategory = data.length - withCategory - transfers
 
-  return JSON.stringify({
-    totalRows: data.length,
-    alreadyComplete,
-    uniqueDescriptions: targets.length,
-    targets,
-  }, null, 2)
+  return [
+    `Total: ${data.length} rows`,
+    `Merchants: ${withMerchant}/${data.length}`,
+    `Categories: ${withCategory}/${data.length - transfers} (${transfers} transfers excluded)`,
+    `Accounts: ${withAccount}/${data.length}`,
+    needCategory > 0 ? `Still need category: ${needCategory}` : `All categorized!`,
+  ].join("\n")
 }
 
-interface EnrichmentRule {
-  description: string;
-  merchant?: string;
-  categoryId?: string;
-  categoryConfidence?: string;
-}
-
-export async function handleApplyEnrichmentRules(
+export async function handleEnrichSample(
   budgetPath: string,
   args: Record<string, unknown>,
 ): Promise<string> {
-  const dir = await resolveImportDir(budgetPath)
-  const filePath = join(dir, "transactions.csv")
-  const content = await readFile(filePath, "utf-8")
-  const { data } = parseRawCsv(content)
+  const { data } = await readImportCsv(budgetPath)
+  const field = (args.field as string) || "any"
+  const limit = (args.limit as number) || 20
 
-  const rules = args.rules as EnrichmentRule[]
+  const needsWork = data.filter((row) => {
+    if (field === "merchant") return !row.merchant
+    if (field === "categoryId") return !row.categoryId && row.type !== "transfer"
+    return (!row.merchant || !row.categoryId) && row.type !== "transfer"
+  })
 
-  // Index rules by exact description for O(1) lookup
-  const ruleMap = new Map<string, EnrichmentRule>()
-  for (const rule of rules) {
-    ruleMap.set(rule.description, rule)
+  const sample = needsWork.slice(0, limit)
+
+  // Return compact CSV with only useful columns
+  const header = "description,sourceCategory,amount,type,merchant,categoryId"
+  const rows = sample.map((r) =>
+    [r.description, r.sourceCategory, r.amount, r.type, r.merchant, r.categoryId]
+      .map(v => csvEscapeField(v || ""))
+      .join(",")
+  )
+
+  return [header, ...rows].join("\n")
+}
+
+function csvEscapeField(value: string): string {
+  if (value.includes(",") || value.includes('"') || value.includes("\n")) {
+    return `"${value.replace(/"/g, '""')}"`
+  }
+  return value
+}
+
+export async function handleEnrichUpdate(
+  budgetPath: string,
+  args: Record<string, unknown>,
+): Promise<string> {
+  const { data, filePath } = await readImportCsv(budgetPath)
+  const setFields = args.set as Record<string, string>
+  const where = args.where as { field: string; equals?: string; contains?: string }
+
+  const allowedFields = new Set(["merchant", "categoryId", "categoryConfidence", "accountId"])
+
+  // Validate set fields
+  for (const key of Object.keys(setFields)) {
+    if (!allowedFields.has(key)) {
+      return `Error: cannot set field "${key}". Allowed: ${[...allowedFields].join(", ")}`
+    }
   }
 
-  let merchantsSet = 0
-  let categoriesSet = 0
+  let updated = 0
 
   for (const row of data) {
-    const desc = row.description || "(empty)"
-    const rule = ruleMap.get(desc)
-    if (!rule) continue
+    const value = (row[where.field] || "").toLowerCase()
+    let matches = false
 
-    if (rule.merchant && !row.merchant) {
-      row.merchant = rule.merchant
-      merchantsSet++
+    if (where.equals !== undefined) {
+      matches = value === where.equals.toLowerCase()
+    } else if (where.contains !== undefined) {
+      matches = value.includes(where.contains.toLowerCase())
     }
-    if (rule.categoryId && !row.categoryId) {
-      row.categoryId = rule.categoryId
-      row.categoryConfidence = rule.categoryConfidence || "low"
-      categoriesSet++
+
+    if (!matches) continue
+
+    // Only update fields that are currently empty (don't overwrite)
+    let rowChanged = false
+    for (const [key, val] of Object.entries(setFields)) {
+      if (!row[key]) {
+        row[key] = val
+        rowChanged = true
+      }
     }
+    if (rowChanged) updated++
   }
 
-  const csv = Papa.unparse(data, { columns: IMPORT_CSV_COLUMNS })
-  await writeFile(filePath, csv, "utf-8")
+  await writeImportCsv(filePath, data)
 
-  return JSON.stringify({
-    success: true,
-    rulesApplied: rules.length,
-    merchantsSet,
-    categoriesSet,
-  })
+  return `Updated ${updated} rows.`
 }
 
 // ── Source category matching ──────────────────────────────────────
@@ -439,43 +427,29 @@ export async function handleAutoEnrich(
   budgetPath: string,
   repo: BudgetRepository,
 ): Promise<string> {
-  const importDir = await resolveImportDir(budgetPath)
-  const filePath = join(importDir, "transactions.csv")
-  const content = await readFile(filePath, "utf-8")
-  const { data } = parseRawCsv(content)
+  const { data, filePath } = await readImportCsv(budgetPath)
 
   const categories = await repo.getCategories()
   const activeCategories = categories.filter(c => !c.archived)
   const accounts = await repo.getAccounts()
   const activeAccounts = accounts.filter(a => !a.archived)
 
-  const stats = {
-    total: data.length,
-    categoriesMatched: 0,
-    accountsMatched: 0,
-    categoriesAlreadySet: 0,
-  }
+  let categoriesMatched = 0, accountsMatched = 0, merchantsSet = 0
 
   // ── 1. Source category → budget category ────────────────────
-  const categoryCache = new Map<string, Category | null>()
+  const sourceCatCache = new Map<string, Category | null>()
 
   if (activeCategories.length > 0) {
     for (const row of data) {
-      if (row.categoryId) {
-        stats.categoriesAlreadySet++
-        continue
+      if (row.categoryId || !row.sourceCategory) continue
+      if (!sourceCatCache.has(row.sourceCategory)) {
+        sourceCatCache.set(row.sourceCategory, matchSourceCategory(row.sourceCategory, activeCategories))
       }
-      const source = row.sourceCategory || ""
-      if (!source) continue
-
-      if (!categoryCache.has(source)) {
-        categoryCache.set(source, matchSourceCategory(source, activeCategories))
-      }
-      const match = categoryCache.get(source)
+      const match = sourceCatCache.get(row.sourceCategory)
       if (match) {
         row.categoryId = match.id
         row.categoryConfidence = "low"
-        stats.categoriesMatched++
+        categoriesMatched++
       }
     }
   }
@@ -485,41 +459,41 @@ export async function handleAutoEnrich(
 
   if (activeAccounts.length > 0) {
     for (const row of data) {
-      if (row.accountId) continue
-      const source = row.sourceAccount || ""
-      if (!source) continue
-
-      if (!accountCache.has(source)) {
-        accountCache.set(source, matchAccount(source, activeAccounts))
+      if (row.accountId || !row.sourceAccount) continue
+      if (!accountCache.has(row.sourceAccount)) {
+        accountCache.set(row.sourceAccount, matchAccount(row.sourceAccount, activeAccounts))
       }
-      const match = accountCache.get(source)
+      const match = accountCache.get(row.sourceAccount)
       if (match) {
         row.accountId = match
-        stats.accountsMatched++
+        accountsMatched++
       }
     }
   }
 
-  // ── Write back ──────────────────────────────────────────────
-  const csv = Papa.unparse(data, { columns: IMPORT_CSV_COLUMNS })
-  await writeFile(filePath, csv, "utf-8")
-
-  const categoryMappings: Record<string, string> = {}
-  for (const [source, cat] of categoryCache) {
-    if (cat) categoryMappings[source] = `${cat.group}: ${cat.name}`
+  // ── 3. Merchant from description ───────────────────────────
+  for (const row of data) {
+    if (row.merchant || !row.description) continue
+    row.merchant = row.description.trim()
+    merchantsSet++
   }
 
-  return JSON.stringify({
-    success: true,
-    stats,
-    categoryMappings,
-    unmatchedCategories: [...categoryCache.entries()]
-      .filter(([, v]) => v === null)
-      .map(([k]) => k),
-    accountMappings: Object.fromEntries(
-      [...accountCache.entries()].filter(([, v]) => v !== null),
-    ),
-  }, null, 2)
+  await writeImportCsv(filePath, data)
+
+  // Compact stats as plain text
+  let transfers = 0, uncategorized = 0
+  for (const row of data) {
+    if (row.type === "transfer") transfers++
+    else if (!row.categoryId) uncategorized++
+  }
+
+  return [
+    `Done. ${data.length} rows processed.`,
+    `Categories matched: ${categoriesMatched} (from sourceCategory)`,
+    `Accounts matched: ${accountsMatched}`,
+    `Merchants set: ${merchantsSet} (from description)`,
+    uncategorized > 0 ? `Still need category: ${uncategorized} rows` : `All non-transfer rows categorized!`,
+  ].join("\n")
 }
 
 function matchAccount(
