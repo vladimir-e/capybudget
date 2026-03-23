@@ -123,6 +123,13 @@ export interface CsvMapping {
   /** Memo column. Null if not available. */
   memo: ColumnRef | null;
 
+  /**
+   * Merchant/payee column. When the source has a clean payee field (e.g. YNAB),
+   * map it here so the merchant is set during normalization — no AI needed.
+   * Null if the source has cryptic descriptions that need AI cleanup.
+   */
+  merchant?: ColumnRef | null;
+
   /** Rows to skip based on column values. */
   skipRules?: SkipRule[];
 }

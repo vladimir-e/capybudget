@@ -112,6 +112,8 @@ Based on your analysis, construct a JSON mapping object. The mapping tells the t
 
 **memo** — \`{"column": "Memo"}\` or \`null\` if not available
 
+**merchant** (optional) — \`{"column": "Payee"}\` if the source has a clean payee/merchant name field. Set this when the column contains readable merchant names (like YNAB's Payee field). Leave out or set to \`null\` for bank exports with cryptic transaction descriptions that need AI cleanup.
+
 **skipRules** — optional array to exclude rows:
 \`[{"column": "Payee", "contains": "Starting Balance"}]\`
 Each rule has \`column\` + either \`contains\` (substring) or \`equals\` (exact match), both case-insensitive.

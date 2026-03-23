@@ -131,9 +131,9 @@ export const CSV_TOOLS = [
     },
   },
   {
-    name: "apply_source_categories",
+    name: "auto_enrich",
     description:
-      "Automatically map sourceCategory values to budget categories using fuzzy name matching. Processes ALL rows instantly in code — no AI needed. Call this FIRST before any manual enrichment. Returns how many rows were matched.",
+      "Automatically enrich ALL imported transactions using code-based matching — no AI needed. Call this FIRST before any manual enrichment. Does three things: (1) maps sourceCategory to budget categories via fuzzy name matching, (2) matches sourceAccount to budget accounts, (3) fills in missing merchant names from descriptions. Processes all rows instantly. Returns stats on what was matched.",
     inputSchema: {
       type: "object" as const,
       properties: {},
@@ -372,7 +372,7 @@ function matchSourceCategory(
   return bestScore > 0 ? bestMatch : null
 }
 
-export async function handleApplySourceCategories(
+export async function handleAutoEnrich(
   budgetPath: string,
   repo: BudgetRepository,
 ): Promise<string> {
@@ -383,61 +383,117 @@ export async function handleApplySourceCategories(
 
   const categories = await repo.getCategories()
   const activeCategories = categories.filter(c => !c.archived)
+  const accounts = await repo.getAccounts()
+  const activeAccounts = accounts.filter(a => !a.archived)
 
-  if (activeCategories.length === 0) {
-    return JSON.stringify({
-      success: true,
-      matched: 0,
-      total: data.length,
-      message: "No budget categories exist yet — skipping source category mapping.",
-    })
+  const stats = {
+    total: data.length,
+    categoriesMatched: 0,
+    accountsMatched: 0,
+    merchantsSet: 0,
+    categoriesAlreadySet: 0,
   }
 
-  // Build a cache of sourceCategory → matched category
-  const matchCache = new Map<string, Category | null>()
-  let matched = 0
-  let alreadySet = 0
+  // ── 1. Source category → budget category ────────────────────
+  const categoryCache = new Map<string, Category | null>()
 
+  if (activeCategories.length > 0) {
+    for (const row of data) {
+      if (row.categoryId) {
+        stats.categoriesAlreadySet++
+        continue
+      }
+      const source = row.sourceCategory || ""
+      if (!source) continue
+
+      if (!categoryCache.has(source)) {
+        categoryCache.set(source, matchSourceCategory(source, activeCategories))
+      }
+      const match = categoryCache.get(source)
+      if (match) {
+        row.categoryId = match.id
+        row.categoryConfidence = "low"
+        stats.categoriesMatched++
+      }
+    }
+  }
+
+  // ── 2. Source account → budget account ──────────────────────
+  const accountCache = new Map<string, string | null>()
+
+  if (activeAccounts.length > 0) {
+    for (const row of data) {
+      if (row.accountId) continue
+      const source = row.sourceAccount || ""
+      if (!source) continue
+
+      if (!accountCache.has(source)) {
+        accountCache.set(source, matchAccount(source, activeAccounts))
+      }
+      const match = accountCache.get(source)
+      if (match) {
+        row.accountId = match
+        stats.accountsMatched++
+      }
+    }
+  }
+
+  // ── 3. Fill missing merchants from description ─────────────
   for (const row of data) {
-    // Skip rows already categorized
-    if (row.categoryId) {
-      alreadySet++
-      continue
-    }
-
-    const source = row.sourceCategory || ""
-    if (!source) continue
-
-    if (!matchCache.has(source)) {
-      matchCache.set(source, matchSourceCategory(source, activeCategories))
-    }
-
-    const match = matchCache.get(source)
-    if (match) {
-      row.categoryId = match.id
-      row.categoryConfidence = "low"
-      matched++
+    if (row.merchant) continue
+    // Use description as merchant if it's not empty
+    const desc = (row.description || "").trim()
+    if (desc) {
+      row.merchant = desc
+      stats.merchantsSet++
     }
   }
 
-  // Write back
+  // ── Write back ──────────────────────────────────────────────
   const csv = Papa.unparse(data, { columns: IMPORT_CSV_COLUMNS })
   await writeFile(filePath, csv, "utf-8")
 
-  // Report the mapping for transparency
-  const mappings: Record<string, string> = {}
-  for (const [source, cat] of matchCache) {
-    if (cat) mappings[source] = `${cat.group}: ${cat.name}`
+  const categoryMappings: Record<string, string> = {}
+  for (const [source, cat] of categoryCache) {
+    if (cat) categoryMappings[source] = `${cat.group}: ${cat.name}`
   }
 
   return JSON.stringify({
     success: true,
-    matched,
-    alreadySet,
-    total: data.length,
-    unmatchedSources: [...matchCache.entries()]
+    stats,
+    categoryMappings,
+    unmatchedCategories: [...categoryCache.entries()]
       .filter(([, v]) => v === null)
       .map(([k]) => k),
-    mappings,
+    accountMappings: Object.fromEntries(
+      [...accountCache.entries()].filter(([, v]) => v !== null),
+    ),
   }, null, 2)
+}
+
+function matchAccount(
+  sourceAccount: string,
+  accounts: { id: string; name: string }[],
+): string | null {
+  const sourceLower = sourceAccount.toLowerCase()
+    .replace(/[\p{Emoji_Presentation}\p{Extended_Pictographic}]/gu, "")
+    .trim()
+
+  // Exact match
+  for (const acc of accounts) {
+    const accLower = acc.name.toLowerCase()
+      .replace(/[\p{Emoji_Presentation}\p{Extended_Pictographic}]/gu, "")
+      .trim()
+    if (sourceLower === accLower) return acc.id
+  }
+
+  // Substring match
+  for (const acc of accounts) {
+    const accLower = acc.name.toLowerCase()
+      .replace(/[\p{Emoji_Presentation}\p{Extended_Pictographic}]/gu, "")
+      .trim()
+    if (sourceLower.includes(accLower) || accLower.includes(sourceLower)) return acc.id
+  }
+
+  return null
 }

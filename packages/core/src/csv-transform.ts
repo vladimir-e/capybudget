@@ -102,6 +102,7 @@ function transformRow(
     ? resolveColumnRef(row, mapping.sourceCategory, rowNum)
     : "";
   const memo = mapping.memo ? resolveColumnRef(row, mapping.memo, rowNum) : "";
+  const merchant = mapping.merchant ? resolveColumnRef(row, mapping.merchant, rowNum) : "";
 
   // Amount sign: outflow/expense negative, inflow/income positive (avoid -0)
   const signedAmount = amount === 0 ? 0 : isExpense ? -Math.abs(amount) : Math.abs(amount);
@@ -115,7 +116,7 @@ function transformRow(
     sourceAccount,
     sourceCategory,
     memo,
-    merchant: "",
+    merchant,
     accountId: "",
     categoryId: "",
     categoryConfidence: "",
