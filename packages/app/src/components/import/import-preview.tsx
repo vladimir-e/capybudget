@@ -90,6 +90,13 @@ export function ImportPreview({ budgetPath, budgetName, onMergeComplete }: Impor
     });
   }, [flushWriteBack, storeStartEnrichment, budgetPath, budgetName, customInstructions.instructions]);
 
+  // Reload from disk periodically while enrichment is running
+  useEffect(() => {
+    if (!isEnriching) return;
+    const interval = setInterval(() => { loadCsv(); }, 10_000);
+    return () => clearInterval(interval);
+  }, [isEnriching, loadCsv]);
+
   // Auto-enrich: trigger enrichment once after first load if not yet enriched
   const autoEnrichTriggeredRef = useRef(false);
   useEffect(() => {

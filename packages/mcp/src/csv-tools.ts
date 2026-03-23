@@ -11,9 +11,11 @@ import { join, resolve } from "node:path"
 import Papa from "papaparse"
 import {
   type CsvMapping,
+  type Category,
   transformCsv,
   serializeImportCsv,
 } from "@capybudget/core"
+import type { BudgetRepository } from "@capybudget/persistence"
 
 const IMPORT_DIR = ".capy/import"
 const SOURCES_DIR = ".capy/import/sources"
@@ -126,6 +128,15 @@ export const CSV_TOOLS = [
         },
       },
       required: ["offset", "rows"],
+    },
+  },
+  {
+    name: "apply_source_categories",
+    description:
+      "Automatically map sourceCategory values to budget categories using fuzzy name matching. Processes ALL rows instantly in code — no AI needed. Call this FIRST before any manual enrichment. Returns how many rows were matched.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {},
     },
   },
 ] as const
@@ -302,4 +313,131 @@ export async function handleWriteImportBatch(
     updatedRows: enrichedRows.length,
     offset,
   })
+}
+
+// ── Source category matching ──────────────────────────────────────
+
+/**
+ * Fuzzy-match sourceCategory strings to budget categories.
+ * E.g. "Immediate Obligations: Groceries 🥑" → matches "Groceries".
+ *
+ * Strategy:
+ * 1. Extract the last segment after ":" (most specific part)
+ * 2. Strip emoji and whitespace
+ * 3. Case-insensitive substring match against budget category names
+ */
+function matchSourceCategory(
+  sourceCategory: string,
+  categories: Category[],
+): Category | null {
+  if (!sourceCategory) return null
+
+  // Extract the most specific part (after last ":")
+  const parts = sourceCategory.split(":")
+  const specific = parts[parts.length - 1]
+    .replace(/[\p{Emoji_Presentation}\p{Extended_Pictographic}]/gu, "")
+    .trim()
+    .toLowerCase()
+
+  if (!specific) return null
+
+  // Exact name match first
+  for (const cat of categories) {
+    if (cat.name.toLowerCase() === specific) return cat
+  }
+
+  // Substring: category name contained in source, or source contained in category name
+  for (const cat of categories) {
+    const catLower = cat.name.toLowerCase()
+    if (specific.includes(catLower) || catLower.includes(specific)) return cat
+  }
+
+  // Word overlap: split both into words, count matches
+  const sourceWords = new Set(specific.split(/\s+/).filter(w => w.length > 2))
+  let bestMatch: Category | null = null
+  let bestScore = 0
+
+  for (const cat of categories) {
+    const catWords = cat.name.toLowerCase().split(/\s+/).filter(w => w.length > 2)
+    let score = 0
+    for (const word of catWords) {
+      if (sourceWords.has(word)) score++
+    }
+    if (score > bestScore) {
+      bestScore = score
+      bestMatch = cat
+    }
+  }
+
+  return bestScore > 0 ? bestMatch : null
+}
+
+export async function handleApplySourceCategories(
+  budgetPath: string,
+  repo: BudgetRepository,
+): Promise<string> {
+  const importDir = await resolveImportDir(budgetPath)
+  const filePath = join(importDir, "transactions.csv")
+  const content = await readFile(filePath, "utf-8")
+  const { data } = parseRawCsv(content)
+
+  const categories = await repo.getCategories()
+  const activeCategories = categories.filter(c => !c.archived)
+
+  if (activeCategories.length === 0) {
+    return JSON.stringify({
+      success: true,
+      matched: 0,
+      total: data.length,
+      message: "No budget categories exist yet — skipping source category mapping.",
+    })
+  }
+
+  // Build a cache of sourceCategory → matched category
+  const matchCache = new Map<string, Category | null>()
+  let matched = 0
+  let alreadySet = 0
+
+  for (const row of data) {
+    // Skip rows already categorized
+    if (row.categoryId) {
+      alreadySet++
+      continue
+    }
+
+    const source = row.sourceCategory || ""
+    if (!source) continue
+
+    if (!matchCache.has(source)) {
+      matchCache.set(source, matchSourceCategory(source, activeCategories))
+    }
+
+    const match = matchCache.get(source)
+    if (match) {
+      row.categoryId = match.id
+      row.categoryConfidence = "low"
+      matched++
+    }
+  }
+
+  // Write back
+  const csv = Papa.unparse(data, { columns: IMPORT_CSV_COLUMNS })
+  await writeFile(filePath, csv, "utf-8")
+
+  // Report the mapping for transparency
+  const mappings: Record<string, string> = {}
+  for (const [source, cat] of matchCache) {
+    if (cat) mappings[source] = `${cat.group}: ${cat.name}`
+  }
+
+  return JSON.stringify({
+    success: true,
+    matched,
+    alreadySet,
+    total: data.length,
+    unmatchedSources: [...matchCache.entries()]
+      .filter(([, v]) => v === null)
+      .map(([k]) => k),
+    mappings,
+  }, null, 2)
 }

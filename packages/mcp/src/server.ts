@@ -44,6 +44,7 @@ import {
   handleTransformCsv,
   handleReadImportBatch,
   handleWriteImportBatch,
+  handleApplySourceCategories,
 } from "./csv-tools.js"
 
 // ── Budget path ──────────────────────────────────────────────────
@@ -103,6 +104,7 @@ const IMPORT_HANDLERS: Record<
   transform_csv: (p, a) => handleTransformCsv(p, a),
   read_import_batch: (p, a) => handleReadImportBatch(p, a),
   write_import_batch: (p, a) => handleWriteImportBatch(p, a),
+  apply_source_categories: (p) => handleApplySourceCategories(p, repo),
 }
 
 server.setRequestHandler(CallToolRequestSchema, async (request) => {
