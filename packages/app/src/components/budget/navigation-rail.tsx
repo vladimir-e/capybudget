@@ -69,6 +69,7 @@ export function NavigationRail({
           active={isAccounts}
           icon={Receipt}
           label="Accounts"
+          onClick={handleAccountsClick}
         />
         <TabLink
           to="/budget/categories"
@@ -139,6 +140,7 @@ function TabLink({
   icon: Icon,
   label,
   indicator,
+  onClick,
 }: {
   to: string;
   search: Record<string, string>;
@@ -146,11 +148,13 @@ function TabLink({
   icon: React.ComponentType<{ className?: string }>;
   label: string;
   indicator?: boolean;
+  onClick?: (e: MouseEvent) => void;
 }) {
   return (
     <Link
       to={to}
       search={search}
+      onClick={onClick}
       className={`relative flex flex-col items-center gap-0.5 px-4 py-2 transition-colors ${
         active
           ? "text-brand"
