@@ -37,6 +37,14 @@ import {
   handleAppendImportFile,
   handleListImportFiles,
 } from "./import-tools.js"
+import {
+  CSV_TOOLS,
+  handleAnalyzeCsv,
+  handlePreviewTransform,
+  handleTransformCsv,
+  handleReadImportBatch,
+  handleWriteImportBatch,
+} from "./csv-tools.js"
 
 // ── Budget path ──────────────────────────────────────────────────
 
@@ -57,7 +65,7 @@ const server = new Server(
 )
 
 server.setRequestHandler(ListToolsRequestSchema, async () => ({
-  tools: [...DATA_TOOLS, ...MUTATION_TOOLS, ...RENDER_TOOLS, ...IMPORT_TOOLS],
+  tools: [...DATA_TOOLS, ...MUTATION_TOOLS, ...RENDER_TOOLS, ...IMPORT_TOOLS, ...CSV_TOOLS],
 }))
 
 // ── Mutation tool dispatch ───────────────────────────────────────
@@ -90,6 +98,11 @@ const IMPORT_HANDLERS: Record<
   write_import_file: (p, a) => handleWriteImportFile(p, a),
   append_import_file: (p, a) => handleAppendImportFile(p, a),
   list_import_files: (p) => handleListImportFiles(p),
+  analyze_csv: (p, a) => handleAnalyzeCsv(p, a),
+  preview_transform: (p, a) => handlePreviewTransform(p, a),
+  transform_csv: (p, a) => handleTransformCsv(p, a),
+  read_import_batch: (p, a) => handleReadImportBatch(p, a),
+  write_import_batch: (p, a) => handleWriteImportBatch(p, a),
 }
 
 server.setRequestHandler(CallToolRequestSchema, async (request) => {
