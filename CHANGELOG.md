@@ -9,6 +9,18 @@ CHANGELOG PHILOSOPHY:
 - Resist the urge to be thorough here. Thoroughness goes in specs, not changelog.
 -->
 
+## 0.17.0 — 2026-03-23
+
+Smart Import v2 — CSV transform engine, instant normalization.
+
+- CSV transform engine: AI defines column mapping, code processes all rows instantly
+- Disk-based file management: files saved to `.capy/import/sources/` on drop, survives crashes
+- `auto_enrich`: code-based category, account, and merchant matching
+- Primitive enrichment tools: AI uses `enrich_stats`/`enrich_sample`/`enrich_update` like a REPL
+- Import sessions survive navigation (Zustand store with explicit phase machine)
+- Import nav indicator pulses during active normalization or enrichment
+- Stop enrichment button with progress auto-refresh
+
 ## 0.16.0 — 2026-03-23
 
 Navigation rail — top-level section switching for Accounts, Budget, and Import.
