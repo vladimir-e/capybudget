@@ -33,6 +33,14 @@ The app uses **OKLCh color space** for perceptually uniform colors. Every theme 
 1. Add an entry to `packages/app/src/lib/color-themes.ts` with a label and swatch color.
 2. Add `[data-theme="<name>"]` and `[data-theme="<name>"].dark` blocks in `packages/app/src/styles/index.css`, following the existing pattern (shift hue, keep luminance/chroma structure).
 
+## Navigation
+
+Three top-level sections: **Accounts**, **Budget** (categories), and **Import**.
+
+- **Desktop**: vertical navigation rail (left edge, 64px) with icon+label links. The header spans full width above the rail.
+- **Mobile**: bottom tab bar with the same three sections.
+- **Sidebar**: scoped to the Accounts section only. Slides in/out via an edge handle and a toggle button at the bottom of the rail. Budget and Import sections get full content width.
+
 ## UX Principles
 
 Keyboard-first workflow for the majority of user actions. Controls are intuitive — ESC closes modals, Enter confirms, Tab navigation in forms makes sense.
