@@ -10,14 +10,31 @@ import {
 } from "@capybudget/intelligence";
 
 /**
- * Import store — owns session state that must survive navigation.
+ * Import store — single source of truth for import UI state.
  *
- * The CapySession (Claude subprocess) and accumulated messages live here,
- * not in component state. Navigating away from the import screen and back
- * reconnects to the ongoing process seamlessly.
+ * Owns:
+ * - `phase`: explicit state machine for the import flow
+ * - CapySession subprocesses (survive navigation)
+ * - Accumulated messages and status text
+ *
+ * Phase transitions:
+ *   idle ──startNormalization──▸ normalizing
+ *   normalizing ──done──▸ preview
+ *   normalizing ──cancel──▸ idle
+ *   preview ──cancel/merge──▸ idle
+ *
+ * On mount, the component checks disk to initialize:
+ *   has transactions.csv → setPhase("preview")
+ *   has sources only → stays "idle" (component shows file list)
+ *   empty → stays "idle" (component shows drop zone)
  */
 
+export type ImportPhase = "idle" | "normalizing" | "preview";
+
 interface ImportStore {
+  phase: ImportPhase;
+  setPhase: (phase: ImportPhase) => void;
+
   // ── Sidebar signal ──────────────────────────────────────────
   hasImportData: boolean;
   setHasImportData: (v: boolean) => void;
@@ -25,9 +42,6 @@ interface ImportStore {
   // ── Normalization session ───────────────────────────────────
   normalizeSession: CapySession | null;
   normalizeMessages: ChatMessage[];
-  isNormalizing: boolean;
-  /** @internal True after "done" fires — prevents "exit" from clearing isNormalizing prematurely. */
-  _normalizeDoneHandled: boolean;
 
   startNormalization: (opts: {
     budgetPath: string;
@@ -37,9 +51,6 @@ interface ImportStore {
     sourceFilenames: string[];
   }) => void;
   cancelNormalization: () => void;
-  /** Called externally when normalization completes (e.g. to trigger disk refresh). */
-  onNormalizeComplete: (() => void) | null;
-  setOnNormalizeComplete: (cb: (() => void) | null) => void;
 
   // ── Enrichment session ──────────────────────────────────────
   enrichSession: CapySession | null;
@@ -88,6 +99,9 @@ function appendNormalizeBlock(
 // ── Store ───────────────────────────────────────────────────────
 
 export const useImportStore = create<ImportStore>((set, get) => ({
+  phase: "idle",
+  setPhase: (phase) => set({ phase }),
+
   // ── Sidebar ─────────────────────────────────────────────────
   hasImportData: false,
   setHasImportData: (hasImportData) => set({ hasImportData }),
@@ -95,13 +109,8 @@ export const useImportStore = create<ImportStore>((set, get) => ({
   // ── Normalization ───────────────────────────────────────────
   normalizeSession: null,
   normalizeMessages: [],
-  isNormalizing: false,
-  _normalizeDoneHandled: false,
-  onNormalizeComplete: null,
-  setOnNormalizeComplete: (cb) => set({ onNormalizeComplete: cb }),
 
   startNormalization: ({ budgetPath, budgetName, mcpServerPath, systemPrompt, sourceFilenames }) => {
-    // Kill any existing session
     get().normalizeSession?.kill();
     lastNormalizeTextContent = "";
 
@@ -121,10 +130,9 @@ export const useImportStore = create<ImportStore>((set, get) => ({
             break;
           case "exit":
             console.debug("[import-store] normalize process exited");
-            // Only clear if "done" hasn't handled it (e.g. process crashed)
-            if (!get()._normalizeDoneHandled) {
-              set({ isNormalizing: false });
-            }
+            // No-op: phase transition is handled by "done" event.
+            // If process crashes without "done", phase stays "normalizing"
+            // and the user can cancel manually.
             break;
           case "error":
             handleNormalizeStreamEvent(
@@ -169,8 +177,8 @@ For images and PDFs, use the Read tool to view them, then extract transactions m
     set({
       normalizeSession: session,
       normalizeMessages: [userMsg, assistantMsg],
-      isNormalizing: true,
-      _normalizeDoneHandled: false,
+      phase: "normalizing",
+      hasImportData: false,
     });
 
     session.send(content).catch((err) => {
@@ -188,7 +196,8 @@ For images and PDFs, use the Read tool to view them, then extract transactions m
     set({
       normalizeSession: null,
       normalizeMessages: [],
-      isNormalizing: false,
+      phase: "idle",
+      hasImportData: false,
     });
   },
 
@@ -285,27 +294,15 @@ function handleNormalizeStreamEvent(
       });
       break;
     }
-    case "done": {
-      console.debug("[import-store] normalize done");
+    case "done":
+      // Synchronous transition: normalizing → preview. No async, no race.
+      console.debug("[import-store] normalize done → preview");
       lastNormalizeTextContent = "";
-      set({ _normalizeDoneHandled: true });
-      const cb = get().onNormalizeComplete;
-      if (cb) {
-        // Await the callback (disk refresh) BEFORE clearing isNormalizing
-        // so the view never flashes back to the upload screen.
-        Promise.resolve(cb()).finally(() => {
-          set({ isNormalizing: false });
-        });
-      } else {
-        set({ isNormalizing: false });
-      }
+      set({ phase: "preview", hasImportData: true });
       break;
-    }
     case "error":
       console.debug("[import-store] normalize error:", event.message);
-      set({ isNormalizing: false });
       lastNormalizeTextContent = "";
-      // Append error to messages
       set({
         normalizeMessages: (() => {
           const msgs = get().normalizeMessages;

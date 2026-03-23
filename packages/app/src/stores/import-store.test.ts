@@ -3,7 +3,7 @@ import { useImportStore } from "@/stores/import-store";
 
 describe("import-store", () => {
   beforeEach(() => {
-    useImportStore.setState({ hasImportData: false });
+    useImportStore.setState({ hasImportData: false, phase: "idle" });
   });
 
   it("starts with hasImportData false", () => {

@@ -69,25 +69,25 @@ interface ImportScreenProps {
   budgetName: string;
 }
 
-/** Import state derived from disk contents + store. */
+/** View state for the import screen. */
 type ImportViewState =
-  | "loading"        // checking disk
-  | "empty"          // nothing in import dir → show drop zone
-  | "has-sources"    // source files present, no transactions.csv → show file list + Start
-  | "normalizing"    // normalization in progress
-  | "has-preview";   // transactions.csv present → show preview
+  | "loading"        // checking disk on mount
+  | "empty"          // no files → drop zone
+  | "has-sources"    // source files ready → file list + Start
+  | "normalizing"    // AI processing
+  | "has-preview";   // transactions.csv ready → preview
 
 export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
   // ── Store state (survives navigation) ─────────────────────────
-  const isNormalizing = useImportStore((s) => s.isNormalizing);
+  const phase = useImportStore((s) => s.phase);
   const normalizeMessages = useImportStore((s) => s.normalizeMessages);
   const startNormalization = useImportStore((s) => s.startNormalization);
   const cancelNormalization = useImportStore((s) => s.cancelNormalization);
-  const setOnNormalizeComplete = useImportStore((s) => s.setOnNormalizeComplete);
+  const setPhase = useImportStore((s) => s.setPhase);
   const setGlobalHasImportData = useImportStore((s) => s.setHasImportData);
 
-  // ── Disk state ────────────────────────────────────────────────
-  const [diskState, setDiskState] = useState<"loading" | "empty" | "has-sources" | "has-preview">("loading");
+  // ── Local UI state ────────────────────────────────────────────
+  const [diskChecked, setDiskChecked] = useState(false);
   const [sourceFiles, setSourceFiles] = useState<SourceFileInfo[]>([]);
   const [uploadingFiles, setUploadingFiles] = useState<Set<string>>(new Set());
 
@@ -102,31 +102,34 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
   const customInstructions = useCustomInstructions(budgetPath);
   const [showInstructions, setShowInstructions] = useState(false);
 
-  /** Scan disk and derive import state. */
-  const refreshDiskState = useCallback(async () => {
-    const hasCsv = await repository.hasTransactionsCsv();
-    if (hasCsv) {
-      setDiskState("has-preview");
-      setGlobalHasImportData(true);
-      return;
-    }
+  /** Refresh source file list from disk. */
+  const refreshSourceFiles = useCallback(async () => {
     const sources = await repository.listSourceFiles();
     setSourceFiles(sources);
-    if (sources.length > 0) {
-      setDiskState("has-sources");
-      setGlobalHasImportData(false);
-    } else {
-      setDiskState("empty");
-      setGlobalHasImportData(false);
-    }
-  }, [repository, setGlobalHasImportData]);
+    return sources;
+  }, [repository]);
 
-  // Check disk on mount + register completion callback
+  // On mount: if store is idle, check disk to determine initial state.
+  // If store is "normalizing" or "preview", trust the store (reconnect).
   useEffect(() => {
-    refreshDiskState();
-    setOnNormalizeComplete(() => refreshDiskState);
-    return () => setOnNormalizeComplete(null);
-  }, [refreshDiskState, setOnNormalizeComplete]);
+    async function init() {
+      if (phase === "idle") {
+        const hasCsv = await repository.hasTransactionsCsv();
+        if (hasCsv) {
+          setPhase("preview");
+          setGlobalHasImportData(true);
+        } else {
+          await refreshSourceFiles();
+          setGlobalHasImportData(false);
+        }
+      } else if (phase === "normalizing") {
+        // Reconnecting — load source files for the processing header
+        await refreshSourceFiles();
+      }
+      setDiskChecked(true);
+    }
+    init();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps -- run once on mount
 
   // Auto-scroll processing messages
   useEffect(() => {
@@ -136,13 +139,19 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
   }, [normalizeMessages]);
 
   // ── Derived view state ────────────────────────────────────────
-  // Show "normalizing" only while running AND no output yet.
-  // Once diskState flips to "has-preview" we transition immediately,
-  // even if isNormalizing hasn't cleared yet (async race).
-  const viewState: ImportViewState =
-    isNormalizing && diskState !== "has-preview"
-      ? "normalizing"
-      : diskState;
+  // Store phase is the authority. Disk state only matters for idle sub-states.
+  let viewState: ImportViewState;
+  if (!diskChecked && phase === "idle") {
+    viewState = "loading";
+  } else if (phase === "normalizing") {
+    viewState = "normalizing";
+  } else if (phase === "preview") {
+    viewState = "has-preview";
+  } else if (sourceFiles.length > 0) {
+    viewState = "has-sources";
+  } else {
+    viewState = "empty";
+  }
 
   // ── File handling (write to disk immediately) ─────────────────
 
@@ -176,7 +185,7 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
       }
     }
 
-    await refreshDiskState();
+    await refreshSourceFiles();
 
     try {
       const log = await repository.readImportLog();
@@ -196,7 +205,7 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
     } catch {
       /* best-effort */
     }
-  }, [repository, refreshDiskState]);
+  }, [repository, refreshSourceFiles]);
 
   const handleDragEnter = useCallback((e: DragEvent) => {
     e.preventDefault();
@@ -237,12 +246,12 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
       delete next[filename];
       return next;
     });
-    await refreshDiskState();
-  }, [repository, refreshDiskState]);
+    await refreshSourceFiles();
+  }, [repository, refreshSourceFiles]);
 
   // ── Actions ───────────────────────────────────────────────────
   const handleStart = async () => {
-    if (sourceFiles.length === 0 || isNormalizing) return;
+    if (sourceFiles.length === 0 || phase === "normalizing") return;
     console.log("[import] starting normalization with", sourceFiles.length, "source files");
 
     try {
@@ -270,8 +279,8 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
     cancelNormalization();
     setFileDuplicates({});
     await repository.clearImportData();
-    await refreshDiskState();
-  }, [cancelNormalization, repository, refreshDiskState]);
+    setSourceFiles([]);
+  }, [cancelNormalization, repository]);
 
   // ── Render ────────────────────────────────────────────────────
   const showProcessing = viewState === "normalizing";
@@ -486,7 +495,7 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
             <ImportPreview
               budgetPath={budgetPath}
               budgetName={budgetName}
-              onMergeComplete={async () => { await refreshDiskState(); }}
+              onMergeComplete={() => { setPhase("idle"); setGlobalHasImportData(false); setSourceFiles([]); }}
             />
           )}
 

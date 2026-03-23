@@ -69,7 +69,7 @@ export function BudgetShell({ path, name }: BudgetShellProps) {
       : "accounts";
 
   const hasImportData = useImportStore((s) => s.hasImportData);
-  const isImportBusy = useImportStore((s) => s.isNormalizing || s.isEnriching);
+  const isImportBusy = useImportStore((s) => s.phase === "normalizing" || s.isEnriching);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [accountDialogOpen, setAccountDialogOpen] = useState(false);
   const [editingAccount, setEditingAccount] = useState<Account | null>(null);
