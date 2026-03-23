@@ -1,5 +1,14 @@
 import { useCallback, useMemo } from "react";
-import { readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
+import {
+  readTextFile,
+  writeTextFile,
+  writeFile,
+  readDir,
+  remove,
+  mkdir,
+  exists,
+  stat,
+} from "@tauri-apps/plugin-fs";
 import { parseCsv, unparseCsv } from "@capybudget/persistence";
 import { validateImportTransactions } from "@capybudget/core";
 import type { ImportTransaction, ImportAliases, ImportLogEntry } from "@capybudget/core";
@@ -12,13 +21,101 @@ export interface ImportState {
   enriched?: boolean;
 }
 
+/** Info about a source file on disk. */
+export interface SourceFileInfo {
+  name: string;
+  size: number;
+}
+
 /**
- * Centralizes all import disk I/O: CSV read/write, state.json, aliases.json.
- * Components should use this instead of scattered readTextFile/writeTextFile calls.
+ * Centralizes all import disk I/O: source files, CSV read/write, state.json, aliases.json.
+ *
+ * Directory layout:
+ *   .capy/import/
+ *     sources/        ← user-dropped source files (CSV, images, PDFs)
+ *     transactions.csv ← normalized output
+ *     state.json       ← metadata
  */
 
 export function useImportRepository(budgetPath: string) {
-  const { resolveImportPath, resolveAliasPath, resolveLogPath } = useImportPaths(budgetPath);
+  const {
+    resolveImportPath,
+    resolveSourcePath,
+    resolveSourcesDir,
+    resolveImportDir,
+    resolveAliasPath,
+    resolveLogPath,
+  } = useImportPaths(budgetPath);
+
+  // ── Directory helpers ────────────────────────────────────────
+
+  /** Ensure .capy/import/sources/ exists. */
+  const ensureSourcesDir = useCallback(async () => {
+    const dir = await resolveSourcesDir();
+    await mkdir(dir, { recursive: true });
+    return dir;
+  }, [resolveSourcesDir]);
+
+  /** Ensure .capy/import/ exists. */
+  const ensureImportDir = useCallback(async () => {
+    const dir = await resolveImportDir();
+    await mkdir(dir, { recursive: true });
+    return dir;
+  }, [resolveImportDir]);
+
+  // ── Source file management ───────────────────────────────────
+
+  /** Write a source file to .capy/import/sources/. For text files, pass string content. For binary (images), pass Uint8Array. */
+  const writeSourceFile = useCallback(
+    async (filename: string, content: string | Uint8Array) => {
+      await ensureSourcesDir();
+      const path = await resolveSourcePath(filename);
+      if (typeof content === "string") {
+        await writeTextFile(path, content);
+      } else {
+        await writeFile(path, content);
+      }
+    },
+    [ensureSourcesDir, resolveSourcePath],
+  );
+
+  /** List source files in .capy/import/sources/. Returns [] if directory doesn't exist. */
+  const listSourceFiles = useCallback(async (): Promise<SourceFileInfo[]> => {
+    try {
+      const dir = await resolveSourcesDir();
+      if (!(await exists(dir))) return [];
+      const entries = await readDir(dir);
+      const files: SourceFileInfo[] = [];
+      for (const entry of entries) {
+        if (!entry.isFile) continue;
+        try {
+          const path = await resolveSourcePath(entry.name);
+          const info = await stat(path);
+          files.push({ name: entry.name, size: info.size });
+        } catch {
+          files.push({ name: entry.name, size: 0 });
+        }
+      }
+      return files;
+    } catch {
+      return [];
+    }
+  }, [resolveSourcesDir, resolveSourcePath]);
+
+  /** Remove a single source file. */
+  const removeSourceFile = useCallback(
+    async (filename: string) => {
+      try {
+        const path = await resolveSourcePath(filename);
+        await remove(path);
+      } catch {
+        /* file may already be gone */
+      }
+    },
+    [resolveSourcePath],
+  );
+
+  // ── Transactions CSV ────────────────────────────────────────
 
   const readTransactionsCsv = useCallback(async (): Promise<ImportTransaction[]> => {
     const csvPath = await resolveImportPath("transactions.csv");
@@ -41,12 +138,15 @@ export function useImportRepository(budgetPath: string) {
 
   const writeTransactionsCsv = useCallback(
     async (transactions: ImportTransaction[]) => {
+      await ensureImportDir();
       const csvPath = await resolveImportPath("transactions.csv");
       const csv = unparseCsv(transactions);
       await writeTextFile(csvPath, csv);
     },
-    [resolveImportPath],
+    [ensureImportDir, resolveImportPath],
   );
+
+  // ── State ───────────────────────────────────────────────────
 
   const readState = useCallback(async (): Promise<ImportState> => {
     try {
@@ -61,11 +161,14 @@ export function useImportRepository(budgetPath: string) {
 
   const writeState = useCallback(
     async (state: ImportState) => {
+      await ensureImportDir();
       const statePath = await resolveImportPath("state.json");
       await writeTextFile(statePath, JSON.stringify(state));
     },
-    [resolveImportPath],
+    [ensureImportDir, resolveImportPath],
   );
+
+  // ── Aliases ─────────────────────────────────────────────────
 
   const readAliases = useCallback(async (): Promise<ImportAliases> => {
     try {
@@ -87,12 +190,21 @@ export function useImportRepository(budgetPath: string) {
     [resolveAliasPath],
   );
 
+  // ── Cleanup ─────────────────────────────────────────────────
+
+  /** Wipe the entire .capy/import/ directory (sources, transactions.csv, state.json). */
   const clearImportData = useCallback(async () => {
-    await Promise.allSettled([
-      resolveImportPath("transactions.csv").then((p) => writeTextFile(p, "")),
-      resolveImportPath("state.json").then((p) => writeTextFile(p, "")),
-    ]);
-  }, [resolveImportPath]);
+    try {
+      const dir = await resolveImportDir();
+      if (await exists(dir)) {
+        await remove(dir, { recursive: true });
+      }
+    } catch {
+      /* best-effort — directory may not exist */
+    }
+  }, [resolveImportDir]);
+
+  // ── Import log ──────────────────────────────────────────────
 
   const appendImportLog = useCallback(async (entry: ImportLogEntry) => {
     try {
@@ -123,7 +235,10 @@ export function useImportRepository(budgetPath: string) {
     }
   }, [resolveLogPath]);
 
-  const hasImportData = useCallback(async (): Promise<boolean> => {
+  // ── Status checks ───────────────────────────────────────────
+
+  /** True when transactions.csv exists with content (→ show preview). */
+  const hasTransactionsCsv = useCallback(async (): Promise<boolean> => {
     try {
       const csvPath = await resolveImportPath("transactions.csv");
       const content = await readTextFile(csvPath);
@@ -133,20 +248,46 @@ export function useImportRepository(budgetPath: string) {
     }
   }, [resolveImportPath]);
 
+  /** True when there are source files in sources/ (→ show file list). */
+  const hasSourceFiles = useCallback(async (): Promise<boolean> => {
+    try {
+      const dir = await resolveSourcesDir();
+      if (!(await exists(dir))) return false;
+      const entries = await readDir(dir);
+      return entries.some((e) => e.isFile);
+    } catch {
+      return false;
+    }
+  }, [resolveSourcesDir]);
+
   return useMemo(
     () => ({
+      // Source files
+      writeSourceFile,
+      listSourceFiles,
+      removeSourceFile,
+      // Transactions
       readTransactionsCsv,
       writeTransactionsCsv,
+      // State
       readState,
       writeState,
+      // Aliases
       readAliases,
       writeAliases,
+      // Cleanup
       clearImportData,
+      // Log
       appendImportLog,
       readImportLog,
-      hasImportData,
+      // Status
+      hasTransactionsCsv,
+      hasSourceFiles,
     }),
     [
+      writeSourceFile,
+      listSourceFiles,
+      removeSourceFile,
       readTransactionsCsv,
       writeTransactionsCsv,
       readState,
@@ -156,7 +297,8 @@ export function useImportRepository(budgetPath: string) {
       clearImportData,
       appendImportLog,
       readImportLog,
-      hasImportData,
+      hasTransactionsCsv,
+      hasSourceFiles,
     ],
   );
 }

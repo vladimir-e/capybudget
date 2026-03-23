@@ -16,9 +16,16 @@ import {
 } from "@capybudget/core"
 
 const IMPORT_DIR = ".capy/import"
+const SOURCES_DIR = ".capy/import/sources"
 
 async function resolveImportDir(budgetPath: string): Promise<string> {
   const dir = join(budgetPath, IMPORT_DIR)
+  await mkdir(dir, { recursive: true })
+  return dir
+}
+
+async function resolveSourcesDir(budgetPath: string): Promise<string> {
+  const dir = join(budgetPath, SOURCES_DIR)
   await mkdir(dir, { recursive: true })
   return dir
 }
@@ -29,13 +36,13 @@ export const CSV_TOOLS = [
   {
     name: "analyze_csv",
     description:
-      "Analyze a CSV file in the import directory. Returns: column headers, first 20 sample rows, total row count, and detected delimiter. Use this to understand the file format before defining a mapping.",
+      "Analyze a source CSV file in .capy/import/sources/. Returns: column headers, first 20 sample rows, total row count, and detected delimiter. Use this to understand the file format before defining a mapping.",
     inputSchema: {
       type: "object" as const,
       properties: {
         filename: {
           type: "string",
-          description: "CSV file name in the import directory (e.g. 'source.csv')",
+          description: "Source CSV file name (e.g. '2019.csv'). Located in .capy/import/sources/.",
         },
       },
       required: ["filename"],
@@ -44,13 +51,13 @@ export const CSV_TOOLS = [
   {
     name: "preview_transform",
     description:
-      "Apply a column mapping to the first N rows of a CSV file and return the transformed result. Use this to verify the mapping is correct before running the full transform. Returns transformed rows as JSON + any parse errors.",
+      "Apply a column mapping to the first N rows of a source CSV file and return the transformed result. Use this to verify the mapping is correct before running the full transform. Returns transformed rows as JSON + any parse errors.",
     inputSchema: {
       type: "object" as const,
       properties: {
         filename: {
           type: "string",
-          description: "CSV file name in the import directory",
+          description: "Source CSV file name in .capy/import/sources/",
         },
         mapping: {
           type: "object",
@@ -67,13 +74,13 @@ export const CSV_TOOLS = [
   {
     name: "transform_csv",
     description:
-      "Apply a column mapping to ALL rows of a CSV file and write the result as transactions.csv. This is the final step — use preview_transform first to verify the mapping. Returns stats: total rows, transformed, skipped, errored.",
+      "Apply a column mapping to ALL rows of a source CSV file and write the result as .capy/import/transactions.csv. This is the final step — use preview_transform first to verify the mapping. Returns stats: total rows, transformed, skipped, errored.",
     inputSchema: {
       type: "object" as const,
       properties: {
         filename: {
           type: "string",
-          description: "Source CSV file name in the import directory",
+          description: "Source CSV file name in .capy/import/sources/",
         },
         mapping: {
           type: "object",
@@ -148,7 +155,7 @@ export async function handleAnalyzeCsv(
   budgetPath: string,
   args: Record<string, unknown>,
 ): Promise<string> {
-  const dir = await resolveImportDir(budgetPath)
+  const dir = await resolveSourcesDir(budgetPath)
   const filePath = safeFilePath(dir, args.filename as string)
   const content = await readFile(filePath, "utf-8")
   const { data, meta } = parseRawCsv(content)
@@ -167,7 +174,7 @@ export async function handlePreviewTransform(
   budgetPath: string,
   args: Record<string, unknown>,
 ): Promise<string> {
-  const dir = await resolveImportDir(budgetPath)
+  const dir = await resolveSourcesDir(budgetPath)
   const filePath = safeFilePath(dir, args.filename as string)
   const content = await readFile(filePath, "utf-8")
   const { data } = parseRawCsv(content)
@@ -190,17 +197,18 @@ export async function handleTransformCsv(
   budgetPath: string,
   args: Record<string, unknown>,
 ): Promise<string> {
-  const dir = await resolveImportDir(budgetPath)
-  const filePath = safeFilePath(dir, args.filename as string)
+  const sourcesDir = await resolveSourcesDir(budgetPath)
+  const filePath = safeFilePath(sourcesDir, args.filename as string)
   const content = await readFile(filePath, "utf-8")
   const { data } = parseRawCsv(content)
 
   const mapping = args.mapping as CsvMapping
   const result = transformCsv(data, mapping)
 
-  // Write the transformed CSV
+  // Write the transformed CSV to the import root (not sources/)
   const csv = serializeImportCsv(result.transactions)
-  const outPath = join(dir, "transactions.csv")
+  const importDir = await resolveImportDir(budgetPath)
+  const outPath = join(importDir, "transactions.csv")
   await writeFile(outPath, csv, "utf-8")
 
   // Include first few errors for feedback
