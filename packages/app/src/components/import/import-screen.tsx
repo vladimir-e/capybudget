@@ -136,9 +136,13 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
   }, [normalizeMessages]);
 
   // ── Derived view state ────────────────────────────────────────
-  const viewState: ImportViewState = isNormalizing
-    ? "normalizing"
-    : diskState;
+  // Show "normalizing" only while running AND no output yet.
+  // Once diskState flips to "has-preview" we transition immediately,
+  // even if isNormalizing hasn't cleared yet (async race).
+  const viewState: ImportViewState =
+    isNormalizing && diskState !== "has-preview"
+      ? "normalizing"
+      : diskState;
 
   // ── File handling (write to disk immediately) ─────────────────
 
