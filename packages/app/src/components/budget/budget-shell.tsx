@@ -30,7 +30,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { ChevronDown, FolderOpen, LogOut } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight, FolderOpen, LogOut } from "lucide-react";
 import { open as shellOpen } from "@tauri-apps/plugin-shell";
 import type { Account, Transaction, TransactionFormData } from "@capybudget/core";
 import { toast } from "sonner";
@@ -275,20 +275,33 @@ export function BudgetShell({ path, name }: BudgetShellProps) {
 
           {/* Accounts sidebar — slides in/out, same behavior all viewports */}
           {activeSection === "accounts" && (
-            <div
-              className={`overflow-hidden transition-[width] duration-200 ease-out shrink-0 ${
-                sidebarCollapsed ? "w-0" : "w-72"
-              }`}
-            >
-              <Sidebar
-                budgetPath={path}
-                budgetName={name}
-                onCollapse={() => setSidebarCollapsed(true)}
-                onAddAccount={() => setAccountDialogOpen(true)}
-                onEditAccount={(account) => { setEditingAccount(account); setAccountDialogOpen(true); }}
-                onReorderAccounts={handleReorderAccounts}
-              />
-            </div>
+            <>
+              <div
+                className={`overflow-hidden transition-[width] duration-200 ease-out shrink-0 ${
+                  sidebarCollapsed ? "w-0" : "w-72"
+                }`}
+              >
+                <Sidebar
+                  budgetPath={path}
+                  budgetName={name}
+                  onAddAccount={() => setAccountDialogOpen(true)}
+                  onEditAccount={(account) => { setEditingAccount(account); setAccountDialogOpen(true); }}
+                  onReorderAccounts={handleReorderAccounts}
+                />
+              </div>
+              {/* Edge handle — always visible */}
+              <button
+                onClick={() => setSidebarCollapsed((prev) => !prev)}
+                className="flex w-4 shrink-0 items-center justify-center border-r border-sidebar-border text-muted-foreground/30 hover:text-muted-foreground hover:bg-sidebar-accent/40 transition-colors"
+                aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+              >
+                {sidebarCollapsed ? (
+                  <ChevronRight className="h-3.5 w-3.5" />
+                ) : (
+                  <ChevronLeft className="h-3.5 w-3.5" />
+                )}
+              </button>
+            </>
           )}
 
           <main className="relative flex-1 overflow-x-auto overflow-y-auto bg-background pb-14 md:pb-0 min-w-0">
