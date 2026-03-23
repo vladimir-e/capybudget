@@ -133,7 +133,7 @@ export const CSV_TOOLS = [
   {
     name: "auto_enrich",
     description:
-      "Automatically enrich ALL imported transactions using code-based matching — no AI needed. Call this FIRST before any manual enrichment. Does three things: (1) maps sourceCategory to budget categories via fuzzy name matching, (2) matches sourceAccount to budget accounts, (3) fills in missing merchant names from descriptions. Processes all rows instantly. Returns stats on what was matched.",
+      "Automatically enrich ALL imported transactions using code-based matching — no AI needed. Call this FIRST before any manual enrichment. Does: (1) maps sourceCategory to budget categories via fuzzy name matching, (2) matches sourceAccount to budget accounts. Processes all rows instantly. Returns stats on what was matched.",
     inputSchema: {
       type: "object" as const,
       properties: {},
@@ -390,7 +390,6 @@ export async function handleAutoEnrich(
     total: data.length,
     categoriesMatched: 0,
     accountsMatched: 0,
-    merchantsSet: 0,
     categoriesAlreadySet: 0,
   }
 
@@ -435,17 +434,6 @@ export async function handleAutoEnrich(
         row.accountId = match
         stats.accountsMatched++
       }
-    }
-  }
-
-  // ── 3. Fill missing merchants from description ─────────────
-  for (const row of data) {
-    if (row.merchant) continue
-    // Use description as merchant if it's not empty
-    const desc = (row.description || "").trim()
-    if (desc) {
-      row.merchant = desc
-      stats.merchantsSet++
     }
   }
 
