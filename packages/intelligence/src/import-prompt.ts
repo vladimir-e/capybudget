@@ -10,7 +10,7 @@ export const IMPORT_SYSTEM_PROMPT = `You are Capy, a financial assistant built i
 
 ## Your task
 
-Normalize the attached financial data files into a uniform CSV format.
+Normalize the source files into a uniform CSV format. Source files are on disk in the import sources directory (.capy/import/sources/). You will be told the filenames.
 
 ## Output format
 
@@ -138,8 +138,8 @@ Report the stats: how many transformed, skipped, errored, and the date range.
 
 When the source is an image or PDF (receipt, bank statement scan, etc.), extract transactions manually:
 
-1. Read the image/PDF content
-2. Identify all transactions
+1. Use the Read tool to read the file from .capy/import/sources/ (e.g. Read the file at {budgetPath}/.capy/import/sources/receipt.png)
+2. Identify all transactions from the visual content
 3. Normalize dates, amounts (to integer cents), and types
 4. Write the result using write_import_file("transactions.csv", csvContent)
 

@@ -1,21 +1,16 @@
 /**
  * React hook managing an intelligence session for the import normalization step.
  *
- * - Creates a CapySession with the import-specific system prompt
- * - Sends dropped files as attachments
- * - Parses streaming events into ChatMessage[]
- * - Detects completion for phase transition
+ * Files are already on disk in .capy/import/sources/ before this hook runs.
+ * The AI is told the filenames and reads them via MCP tools (analyze_csv)
+ * or the Read tool (images/PDFs).
  */
 
 import { useCallback, useRef, useState } from "react";
 import { useSessionLifecycle } from "@/hooks/use-session-lifecycle";
 import {
   buildContext,
-  formatAttachments,
-  isImageAttachment,
   IMPORT_SYSTEM_PROMPT,
-  type FileAttachment,
-  type MessageContent,
   type StreamEvent,
   type ChatMessage,
   type ContentBlock,
@@ -32,7 +27,8 @@ interface UseImportSessionOptions {
 interface UseImportSessionReturn {
   messages: ChatMessage[];
   isStreaming: boolean;
-  startNormalization: (files: FileAttachment[]) => void;
+  /** Start normalization. Pass source filenames (already on disk in .capy/import/sources/). */
+  startNormalization: (sourceFilenames: string[]) => void;
   cancel: () => void;
 }
 
@@ -133,9 +129,9 @@ export function useImportSession(
   );
 
   const startNormalization = useCallback(
-    (files: FileAttachment[]) => {
+    (sourceFilenames: string[]) => {
       if (lifecycle.isStreamingRef.current) return;
-      console.log("[import-session] starting normalization, files:", files.map((f) => f.name));
+      console.log("[import-session] starting normalization, files:", sourceFilenames);
 
       const o = lifecycle.optsRef.current;
       const customInstructions = o.customInstructions?.trim();
@@ -150,41 +146,23 @@ export function useImportSession(
         budgetPath: o.budgetPath,
       });
 
-      const imageFiles = files.filter(isImageAttachment);
-      const attachmentText = formatAttachments(files);
+      // Tell Claude the filenames — files are on disk in .capy/import/sources/
+      const fileList = sourceFilenames.map((f) => `- ${f}`).join("\n");
+      const content = `${context}
+Normalize the following source files for import. The files are in the import sources directory (.capy/import/sources/).
 
-      let enrichedText = `${context}\nNormalize the attached file(s) for import.`;
-      if (attachmentText) {
-        enrichedText += "\n\n" + attachmentText;
-      }
+Source files:
+${fileList}
 
-      // Build multimodal content when images are attached
-      let content: MessageContent;
-      if (imageFiles.length > 0) {
-        content = [
-          { type: "text", text: enrichedText },
-          ...imageFiles.map((f) => ({
-            type: "image" as const,
-            source: {
-              type: "base64" as const,
-              media_type: f.mediaType,
-              data: f.content,
-            },
-          })),
-        ];
-      } else {
-        content = enrichedText;
-      }
+For CSV files, use analyze_csv to inspect the format, then define a mapping and use transform_csv.
+For images and PDFs, use the Read tool to view them, then extract transactions manually.`;
 
-      const blocks: ContentBlock[] = [];
-      for (const f of files) {
-        blocks.push({
-          type: "file-attachment",
-          name: f.name,
-          size: f.size,
-          mediaType: f.mediaType,
-        });
-      }
+      const blocks: ContentBlock[] = sourceFilenames.map((name) => ({
+        type: "file-attachment" as const,
+        name,
+        size: 0,
+        mediaType: "text/plain",
+      }));
 
       const userMsg: ChatMessage = {
         id: crypto.randomUUID(),
