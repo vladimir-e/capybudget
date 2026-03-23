@@ -9,6 +9,16 @@ CHANGELOG PHILOSOPHY:
 - Resist the urge to be thorough here. Thoroughness goes in specs, not changelog.
 -->
 
+## 0.16.0 — 2026-03-23
+
+Navigation rail — top-level section switching for Accounts, Budget, and Import.
+
+- Navigation rail (desktop) and bottom tab bar (mobile) replace sidebar footer links
+- Accounts sidebar is contextual — only visible on the Accounts section, hidden on Budget/Import
+- Sidebar slides in/out via an edge handle; Budget and Import get full content width
+- Header spans full width above the rail for correct visual hierarchy
+- Transaction list scrolls horizontally on narrow viewports
+
 ## 0.15.1 — 2026-03-22
 
 Promo website polish — light/dark theme support with semantic design tokens.
