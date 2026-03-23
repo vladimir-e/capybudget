@@ -26,6 +26,8 @@ interface ImportStore {
   normalizeSession: CapySession | null;
   normalizeMessages: ChatMessage[];
   isNormalizing: boolean;
+  /** @internal True after "done" fires — prevents "exit" from clearing isNormalizing prematurely. */
+  _normalizeDoneHandled: boolean;
 
   startNormalization: (opts: {
     budgetPath: string;
@@ -94,6 +96,7 @@ export const useImportStore = create<ImportStore>((set, get) => ({
   normalizeSession: null,
   normalizeMessages: [],
   isNormalizing: false,
+  _normalizeDoneHandled: false,
   onNormalizeComplete: null,
   setOnNormalizeComplete: (cb) => set({ onNormalizeComplete: cb }),
 
@@ -118,7 +121,10 @@ export const useImportStore = create<ImportStore>((set, get) => ({
             break;
           case "exit":
             console.debug("[import-store] normalize process exited");
-            set({ isNormalizing: false });
+            // Only clear if "done" hasn't handled it (e.g. process crashed)
+            if (!get()._normalizeDoneHandled) {
+              set({ isNormalizing: false });
+            }
             break;
           case "error":
             handleNormalizeStreamEvent(
@@ -164,6 +170,7 @@ For images and PDFs, use the Read tool to view them, then extract transactions m
       normalizeSession: session,
       normalizeMessages: [userMsg, assistantMsg],
       isNormalizing: true,
+      _normalizeDoneHandled: false,
     });
 
     session.send(content).catch((err) => {
@@ -278,12 +285,22 @@ function handleNormalizeStreamEvent(
       });
       break;
     }
-    case "done":
+    case "done": {
       console.debug("[import-store] normalize done");
-      set({ isNormalizing: false });
       lastNormalizeTextContent = "";
-      get().onNormalizeComplete?.();
+      set({ _normalizeDoneHandled: true });
+      const cb = get().onNormalizeComplete;
+      if (cb) {
+        // Await the callback (disk refresh) BEFORE clearing isNormalizing
+        // so the view never flashes back to the upload screen.
+        Promise.resolve(cb()).finally(() => {
+          set({ isNormalizing: false });
+        });
+      } else {
+        set({ isNormalizing: false });
+      }
       break;
+    }
     case "error":
       console.debug("[import-store] normalize error:", event.message);
       set({ isNormalizing: false });
