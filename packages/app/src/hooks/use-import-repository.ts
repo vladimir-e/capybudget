@@ -7,7 +7,7 @@ import {
   remove,
   mkdir,
   exists,
-  size,
+  stat,
 } from "@tauri-apps/plugin-fs";
 import { parseCsv, unparseCsv } from "@capybudget/persistence";
 import { validateImportTransactions } from "@capybudget/core";
@@ -89,8 +89,8 @@ export function useImportRepository(budgetPath: string) {
       for (const entry of entries) {
         if (!entry.isFile) continue;
         try {
-          const fileSize = await size(`${dir}/${entry.name}`);
-          files.push({ name: entry.name, size: fileSize });
+          const info = await stat(`${dir}/${entry.name}`);
+          files.push({ name: entry.name, size: info.size });
         } catch {
           files.push({ name: entry.name, size: 0 });
         }
