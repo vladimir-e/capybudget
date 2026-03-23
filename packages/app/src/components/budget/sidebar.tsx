@@ -1,5 +1,5 @@
 import { Link, useMatches } from "@tanstack/react-router";
-import { ChevronDown, ChevronRight, GripVertical, Layers, MoreHorizontal, Pencil, Archive, ArchiveRestore, Trash2, Plus, Settings, FileUp } from "lucide-react";
+import { ChevronDown, GripVertical, Layers, MoreHorizontal, Pencil, Archive, ArchiveRestore, Trash2, Plus } from "lucide-react";
 import { useState } from "react";
 import {
   DndContext,
@@ -44,13 +44,10 @@ import {
   useUnarchiveAccount,
 } from "@/hooks/use-account-mutations";
 import { toast } from "sonner";
-import { useImportStore } from "@/stores/import-store";
 
 interface SidebarProps {
   budgetPath: string;
   budgetName: string;
-  collapsed: boolean;
-  onCollapse: (collapsed: boolean) => void;
   onAddAccount: () => void;
   onEditAccount: (account: Account) => void;
   onReorderAccounts: (type: AccountType, orderedIds: string[]) => void;
@@ -59,8 +56,6 @@ interface SidebarProps {
 export function Sidebar({
   budgetPath,
   budgetName,
-  collapsed,
-  onCollapse,
   onAddAccount,
   onEditAccount,
   onReorderAccounts,
@@ -77,9 +72,6 @@ export function Sidebar({
     const params = m.params as Record<string, unknown>;
     return found ?? (params.accountId as string | undefined);
   }, undefined);
-  const isCategoriesRoute = matches.some((m) => m.routeId?.includes("/categories"));
-  const isImportRoute = matches.some((m) => m.routeId?.includes("/import"));
-  const hasImportData = useImportStore((s) => s.hasImportData);
 
   const netWorth = getNetWorth(accounts, transactions);
   const groupedAccounts = getAccountsByGroup(accounts);
@@ -143,28 +135,6 @@ export function Sidebar({
     });
   }
 
-  if (collapsed) {
-    return (
-      <div className="flex w-12 flex-col items-center border-r border-sidebar-border bg-sidebar py-3">
-        <Button
-          variant="ghost"
-          size="icon"
-          className="mb-4 h-8 w-8"
-          onClick={() => onCollapse(false)}
-        >
-          <ChevronRight className="h-4 w-4" />
-        </Button>
-        <Link
-          to="/budget"
-          search={{ path: budgetPath, name: budgetName }}
-          className="mb-2 rounded-md p-2 text-sidebar-foreground hover:bg-sidebar-accent"
-        >
-          <Layers className="h-4 w-4" />
-        </Link>
-      </div>
-    );
-  }
-
   return (
     <div className="relative flex w-72 flex-col border-r border-sidebar-border bg-sidebar">
       {/* Net Worth — warm hero area */}
@@ -186,7 +156,7 @@ export function Sidebar({
             to="/budget"
             search={{ path: budgetPath, name: budgetName }}
             className={`flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
-              !activeAccountId && !isCategoriesRoute
+              !activeAccountId
                 ? "bg-sidebar-accent text-sidebar-accent-foreground shadow-sm"
                 : "text-sidebar-foreground hover:bg-sidebar-accent/60"
             }`}
@@ -289,7 +259,7 @@ export function Sidebar({
       </ScrollArea>
 
       {/* Footer */}
-      <div className="border-t border-sidebar-border p-2 space-y-0.5">
+      <div className="border-t border-sidebar-border p-2">
         <Button
           variant="ghost"
           size="sm"
@@ -299,33 +269,6 @@ export function Sidebar({
           <Plus className="h-4 w-4" />
           Add Account
         </Button>
-        <Link
-          to="/budget/categories"
-          search={{ path: budgetPath, name: budgetName }}
-          className={`flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm transition-colors ${
-            isCategoriesRoute
-              ? "bg-sidebar-accent text-sidebar-accent-foreground shadow-sm font-medium"
-              : "text-sidebar-foreground/70 hover:bg-sidebar-accent/60 hover:text-sidebar-foreground"
-          }`}
-        >
-          <Settings className="h-4 w-4" />
-          Categories
-        </Link>
-        <Link
-          to="/budget/import"
-          search={{ path: budgetPath, name: budgetName }}
-          className={`flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm transition-colors ${
-            isImportRoute
-              ? "bg-sidebar-accent text-sidebar-accent-foreground shadow-sm font-medium"
-              : "text-sidebar-foreground/70 hover:bg-sidebar-accent/60 hover:text-sidebar-foreground"
-          }`}
-        >
-          <FileUp className="h-4 w-4" />
-          Import
-          {hasImportData && (
-            <span className="ml-auto flex h-2 w-2 rounded-full bg-brand animate-pulse" />
-          )}
-        </Link>
       </div>
 
       <Dialog open={!!errorDialog} onOpenChange={(open) => { if (!open) setErrorDialog(null); }}>

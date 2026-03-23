@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Outlet, useNavigate } from "@tanstack/react-router";
+import { Outlet, useMatches, useNavigate } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
+import { NavigationRail, type Section } from "@/components/budget/navigation-rail";
 import { Sidebar } from "@/components/budget/sidebar";
 import { AccountDialog } from "@/components/budget/account-dialog";
 import { TransactionForm } from "@/components/budget/transaction-form";
@@ -58,6 +59,14 @@ export function BudgetShell({ path, name }: BudgetShellProps) {
   const { data: accounts = [] } = useAccounts();
   const hasAccounts = accounts.some((a) => !a.archived);
 
+  // Determine active section from current route
+  const matches = useMatches();
+  const activeSection: Section = matches.some((m) => m.routeId?.includes("/categories"))
+    ? "budget"
+    : matches.some((m) => m.routeId?.includes("/import"))
+      ? "import"
+      : "accounts";
+
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [accountDialogOpen, setAccountDialogOpen] = useState(false);
   const [editingAccount, setEditingAccount] = useState<Account | null>(null);
@@ -65,6 +74,8 @@ export function BudgetShell({ path, name }: BudgetShellProps) {
   const [capyOpen, setCapyOpen] = useState(false);
   const [editingTxn, setEditingTxn] = useState<Transaction | null>(null);
   const [currentAccountId, setCurrentAccountId] = useState<string | undefined>();
+
+  const showSidebar = activeSection === "accounts" && !sidebarCollapsed;
 
   const customInstructions = useCustomInstructions(path);
   const customCommands = useCustomCommands(path);
@@ -194,108 +205,128 @@ export function BudgetShell({ path, name }: BudgetShellProps) {
 
   return (
     <BudgetUIProvider value={uiCtx}>
-      <div className="flex h-screen flex-col">
-        <header className="grid grid-cols-3 items-center border-b px-4 py-2 bg-background/80 backdrop-blur-sm">
-          <div className="flex items-center">
-            <DropdownMenu>
-              <DropdownMenuTrigger
-                render={
-                  <Button variant="ghost" size="sm" className="gap-1.5 font-semibold" />
-                }
-              >
-                {shortenPath(path, 21)}
-                <ChevronDown className="h-3 w-3 text-muted-foreground" />
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" className="min-w-48">
-                <DropdownMenuItem onClick={() => shellOpen(path)}>
-                  <FolderOpen className="h-4 w-4" />
-                  Reveal in Finder
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => navigate({ to: "/" })}>
-                  <LogOut className="h-4 w-4" />
-                  Close Budget
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-          <div className="flex justify-center">
-            {!isArchivedView && (
-              <button
-                type="button"
-                onClick={toggleForm}
-                className={`group flex items-center gap-2 rounded-full px-3 py-1 text-xs font-medium transition-all ${
-                  effectiveFormOpen
-                    ? "bg-muted text-foreground"
-                    : "text-muted-foreground hover:text-foreground hover:bg-muted/30"
-                }`}
-                aria-label={effectiveFormOpen ? "Close transaction form" : "Add transaction"}
-              >
-                <ChevronDown className={`h-3.5 w-3.5 transition-transform duration-200 ${effectiveFormOpen ? "rotate-180" : ""}`} />
-                <span>New Transaction</span>
-                <kbd className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-mono text-muted-foreground/70 border border-border/50">
-                  {isMac ? "\u2318" : "Ctrl+"}N
-                </kbd>
-              </button>
-            )}
-          </div>
-          <div className="flex items-center justify-end gap-1">
-            <ColorThemeSwitcher />
-            <ThemeToggle />
-            <div className="ml-1.5 border-l border-border/50 pl-2.5">
-              <CapyButton
-                active={capyOpen}
-                onClick={() => setCapyOpen((prev) => !prev)}
-              />
-            </div>
-          </div>
-        </header>
+      <div className="flex h-screen">
+        {/* Navigation Rail — full height, left edge */}
+        <NavigationRail
+          budgetPath={path}
+          budgetName={name}
+          activeSection={activeSection}
+          onAccountsClick={() => {
+            if (sidebarCollapsed) setSidebarCollapsed(false);
+          }}
+        />
 
-        <div className="relative flex flex-1 overflow-hidden">
-          <Sidebar
-            budgetPath={path}
-            budgetName={name}
-            collapsed={sidebarCollapsed}
-            onCollapse={setSidebarCollapsed}
-            onAddAccount={() => setAccountDialogOpen(true)}
-            onEditAccount={(account) => { setEditingAccount(account); setAccountDialogOpen(true); }}
-            onReorderAccounts={handleReorderAccounts}
-          />
-          <main className="relative flex-1 overflow-auto bg-background">
-            {!sidebarCollapsed && (
-              <Button
-                variant="ghost"
-                size="icon"
-                className="absolute right-3 top-3 z-10 h-7 w-7 text-muted-foreground hover:text-foreground"
-                onClick={() => setSidebarCollapsed(true)}
-              >
-                <ChevronLeft className="h-3.5 w-3.5" />
-              </Button>
+        {/* Right panel: header + content */}
+        <div className="flex flex-1 flex-col min-w-0">
+          <header className="grid grid-cols-3 items-center border-b px-4 py-2 bg-background/80 backdrop-blur-sm">
+            <div className="flex items-center">
+              <DropdownMenu>
+                <DropdownMenuTrigger
+                  render={
+                    <Button variant="ghost" size="sm" className="gap-1.5 font-semibold" />
+                  }
+                >
+                  {shortenPath(path, 21)}
+                  <ChevronDown className="h-3 w-3 text-muted-foreground" />
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="min-w-48">
+                  <DropdownMenuItem onClick={() => shellOpen(path)}>
+                    <FolderOpen className="h-4 w-4" />
+                    Reveal in Finder
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => navigate({ to: "/" })}>
+                    <LogOut className="h-4 w-4" />
+                    Close Budget
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+            <div className="flex justify-center">
+              {!isArchivedView && (
+                <button
+                  type="button"
+                  onClick={toggleForm}
+                  className={`group flex items-center gap-2 rounded-full px-3 py-1 text-xs font-medium transition-all ${
+                    effectiveFormOpen
+                      ? "bg-muted text-foreground"
+                      : "text-muted-foreground hover:text-foreground hover:bg-muted/30"
+                  }`}
+                  aria-label={effectiveFormOpen ? "Close transaction form" : "Add transaction"}
+                >
+                  <ChevronDown className={`h-3.5 w-3.5 transition-transform duration-200 ${effectiveFormOpen ? "rotate-180" : ""}`} />
+                  <span>New Transaction</span>
+                  <kbd className="hidden sm:inline rounded bg-muted px-1.5 py-0.5 text-[10px] font-mono text-muted-foreground/70 border border-border/50">
+                    {isMac ? "\u2318" : "Ctrl+"}N
+                  </kbd>
+                </button>
+              )}
+            </div>
+            <div className="flex items-center justify-end gap-1">
+              <div className="hidden md:flex items-center gap-1">
+                <ColorThemeSwitcher />
+                <ThemeToggle />
+              </div>
+              <div className="md:ml-1.5 md:border-l md:border-border/50 md:pl-2.5">
+                <CapyButton
+                  active={capyOpen}
+                  onClick={() => setCapyOpen((prev) => !prev)}
+                />
+              </div>
+            </div>
+          </header>
+
+          <div className="relative flex flex-1 overflow-hidden">
+            {/* Accounts sidebar — only on accounts section, hidden on mobile */}
+            {showSidebar && (
+              <div className="hidden md:flex">
+                <Sidebar
+                  budgetPath={path}
+                  budgetName={name}
+                  onAddAccount={() => setAccountDialogOpen(true)}
+                  onEditAccount={(account) => { setEditingAccount(account); setAccountDialogOpen(true); }}
+                  onReorderAccounts={handleReorderAccounts}
+                />
+              </div>
             )}
-            <Outlet />
-          </main>
-          {effectiveFormOpen && (
-            <div
-              className="absolute inset-0 z-[9] bg-black/5 backdrop-blur-[1px] transition-opacity"
-              onClick={handleDismissForm}
-            />
-          )}
-          <div
-            ref={formPanelRef}
-            className={`absolute top-0 inset-x-0 z-10 flex justify-center transition-transform duration-250 ease-out ${
-              effectiveFormOpen ? "translate-y-0" : "-translate-y-full"
-            }`}
-          >
-            <div className="w-full max-w-sm rounded-b-2xl border-x border-b bg-background shadow-2xl px-6 pt-5 pb-4">
-              <TransactionForm
-                key={formKey}
-                amountRef={amountRef}
-                editingTransaction={editingTxn}
-                defaultAccountId={currentAccountId}
-                onSave={handleSave}
-                onCancel={cancelEdit}
-                onDismiss={handleDismissForm}
+
+            <main className="relative flex-1 overflow-auto bg-background pb-14 md:pb-0">
+              {showSidebar && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="absolute right-3 top-3 z-10 h-7 w-7 text-muted-foreground hover:text-foreground hidden md:flex"
+                  onClick={() => setSidebarCollapsed(true)}
+                >
+                  <ChevronLeft className="h-3.5 w-3.5" />
+                </Button>
+              )}
+              <Outlet />
+            </main>
+
+            {effectiveFormOpen && (
+              <div
+                className="absolute inset-0 z-[9] bg-black/5 backdrop-blur-[1px] transition-opacity"
+                onClick={handleDismissForm}
               />
+            )}
+            <div
+              ref={formPanelRef}
+              className={`absolute top-0 inset-x-0 z-10 flex justify-center transition-transform duration-250 ease-out ${
+                effectiveFormOpen ? "translate-y-0" : "-translate-y-full"
+              }`}
+            >
+              <div className="w-full max-w-sm rounded-b-2xl border-x border-b bg-background shadow-2xl px-6 pt-5 pb-4">
+                <TransactionForm
+                  key={formKey}
+                  amountRef={amountRef}
+                  editingTransaction={editingTxn}
+                  defaultAccountId={currentAccountId}
+                  onSave={handleSave}
+                  onCancel={cancelEdit}
+                  onDismiss={handleDismissForm}
+                />
+              </div>
             </div>
           </div>
         </div>
