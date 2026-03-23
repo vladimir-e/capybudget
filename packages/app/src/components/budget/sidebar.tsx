@@ -144,7 +144,7 @@ export function Sidebar({
         <div className="relative rounded-lg bg-brand-subtle px-3 py-3">
           <button
             onClick={onCollapse}
-            className="absolute top-2 right-2 rounded-md p-1 text-brand/40 hover:text-brand/70 hover:bg-brand/10 transition-colors hidden md:flex"
+            className="absolute top-2 right-2 rounded-md p-1 text-brand/40 hover:text-brand/70 hover:bg-brand/10 transition-colors"
             aria-label="Collapse sidebar"
           >
             <PanelLeftClose className="h-3.5 w-3.5" />

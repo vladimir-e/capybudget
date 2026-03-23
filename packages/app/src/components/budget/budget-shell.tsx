@@ -67,9 +67,7 @@ export function BudgetShell({ path, name }: BudgetShellProps) {
       ? "import"
       : "accounts";
 
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(
-    () => typeof window !== "undefined" && window.innerWidth < 768,
-  );
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [accountDialogOpen, setAccountDialogOpen] = useState(false);
   const [editingAccount, setEditingAccount] = useState<Account | null>(null);
   const [formOpen, setFormOpen] = useState(false);
@@ -274,36 +272,25 @@ export function BudgetShell({ path, name }: BudgetShellProps) {
             onAccountsClick={() => setSidebarCollapsed((prev) => !prev)}
           />
 
-          {/* Accounts sidebar — desktop: inline; mobile: overlay */}
+          {/* Accounts sidebar — slides in/out, same behavior all viewports */}
           {activeSection === "accounts" && (
-            <>
-              {/* Mobile backdrop */}
-              {!sidebarCollapsed && (
-                <div
-                  className="md:hidden fixed inset-0 z-20 bg-black/30 backdrop-blur-[1px]"
-                  onClick={() => setSidebarCollapsed(true)}
-                />
-              )}
-              <div
-                className={`
-                  absolute md:relative z-20 md:z-auto h-full
-                  transition-transform duration-200 ease-out
-                  ${sidebarCollapsed ? "-translate-x-full md:-translate-x-full" : "translate-x-0"}
-                `}
-              >
-                <Sidebar
-                  budgetPath={path}
-                  budgetName={name}
-                  onCollapse={() => setSidebarCollapsed(true)}
-                  onAddAccount={() => setAccountDialogOpen(true)}
-                  onEditAccount={(account) => { setEditingAccount(account); setAccountDialogOpen(true); }}
-                  onReorderAccounts={handleReorderAccounts}
-                />
-              </div>
-            </>
+            <div
+              className={`overflow-hidden transition-[width] duration-200 ease-out shrink-0 ${
+                sidebarCollapsed ? "w-0" : "w-72"
+              }`}
+            >
+              <Sidebar
+                budgetPath={path}
+                budgetName={name}
+                onCollapse={() => setSidebarCollapsed(true)}
+                onAddAccount={() => setAccountDialogOpen(true)}
+                onEditAccount={(account) => { setEditingAccount(account); setAccountDialogOpen(true); }}
+                onReorderAccounts={handleReorderAccounts}
+              />
+            </div>
           )}
 
-          <main className="relative flex-1 overflow-auto bg-background pb-14 md:pb-0">
+          <main className="relative flex-1 overflow-x-auto overflow-y-auto bg-background pb-14 md:pb-0 min-w-0">
             <Outlet />
           </main>
 
