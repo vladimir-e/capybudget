@@ -292,7 +292,7 @@ export function BudgetShell({ path, name }: BudgetShellProps) {
               {/* Edge handle — always visible */}
               <button
                 onClick={() => setSidebarCollapsed((prev) => !prev)}
-                className="flex w-4 shrink-0 items-center justify-center border-r border-sidebar-border text-muted-foreground/30 hover:text-muted-foreground hover:bg-sidebar-accent/40 transition-colors"
+                className="flex w-4 shrink-0 items-center justify-center border-r border-sidebar-border bg-sidebar text-muted-foreground/30 hover:text-muted-foreground hover:bg-sidebar-accent transition-colors"
                 aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
               >
                 {sidebarCollapsed ? (
