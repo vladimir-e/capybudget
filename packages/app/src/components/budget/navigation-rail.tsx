@@ -38,6 +38,7 @@ export function NavigationRail({
         {isAccounts && (
           <div className="mt-auto pb-3">
             <button
+              type="button"
               onClick={onToggleSidebar}
               className="flex w-10 h-10 items-center justify-center rounded-lg text-sidebar-foreground/40 hover:text-sidebar-foreground hover:bg-sidebar-accent/50 transition-colors"
               aria-label={sidebarOpen ? "Collapse sidebar" : "Expand sidebar"}

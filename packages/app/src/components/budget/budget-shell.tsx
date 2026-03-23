@@ -283,6 +283,7 @@ export function BudgetShell({ path, name }: BudgetShellProps) {
                 className={`overflow-hidden transition-[width] duration-200 ease-out shrink-0 ${
                   sidebarCollapsed ? "w-0" : "w-72"
                 }`}
+                {...(sidebarCollapsed ? { inert: true, "aria-hidden": true } : {})}
               >
                 <Sidebar
                   budgetPath={path}
@@ -294,6 +295,7 @@ export function BudgetShell({ path, name }: BudgetShellProps) {
               </div>
               {/* Edge handle — always visible */}
               <button
+                type="button"
                 onClick={() => setSidebarCollapsed((prev) => !prev)}
                 className="flex w-4 shrink-0 items-center justify-center border-r border-sidebar-border bg-sidebar text-muted-foreground/30 hover:text-muted-foreground hover:bg-sidebar-accent transition-colors"
                 aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
