@@ -93,41 +93,49 @@ export const CSV_TOOLS = [
     },
   },
   {
-    name: "read_import_batch",
+    name: "get_enrichment_targets",
     description:
-      "Read a batch of transactions from the import CSV (transactions.csv). Use this during enrichment to process transactions in manageable chunks.",
+      "Get unique descriptions that still need enrichment (no merchant or no categoryId). Returns a compact list of unique descriptions with their row count, amount range, and sourceCategory hint. Use this to understand what needs enrichment before applying rules.",
     inputSchema: {
       type: "object" as const,
-      properties: {
-        offset: {
-          type: "number",
-          description: "Zero-based row offset to start reading from",
-        },
-        limit: {
-          type: "number",
-          description: "Number of rows to read (default: 100)",
-        },
-      },
-      required: ["offset"],
+      properties: {},
     },
   },
   {
-    name: "write_import_batch",
+    name: "apply_enrichment_rules",
     description:
-      "Write enriched transaction rows back to the import CSV, replacing specific rows by their offset range. The batch must have the same number of rows as the original range.",
+      "Apply enrichment rules to ALL matching transactions at once. Each rule matches by exact description and sets merchant and/or categoryId. Processes all rows instantly in code.",
     inputSchema: {
       type: "object" as const,
       properties: {
-        offset: {
-          type: "number",
-          description: "Zero-based row offset where this batch starts",
-        },
-        rows: {
-          type: "string",
-          description: "CSV string of enriched rows (no header, same column order as transactions.csv)",
+        rules: {
+          type: "array",
+          description: "Array of enrichment rules to apply",
+          items: {
+            type: "object",
+            properties: {
+              description: {
+                type: "string",
+                description: "Exact description to match (case-sensitive, as shown in get_enrichment_targets)",
+              },
+              merchant: {
+                type: "string",
+                description: "Clean merchant name to set",
+              },
+              categoryId: {
+                type: "string",
+                description: "Budget category UUID to assign",
+              },
+              categoryConfidence: {
+                type: "string",
+                description: "Confidence level: 'high' or 'low'",
+              },
+            },
+            required: ["description"],
+          },
         },
       },
-      required: ["offset", "rows"],
+      required: ["rules"],
     },
   },
   {
@@ -233,7 +241,7 @@ export async function handleTransformCsv(
   }, null, 2)
 }
 
-// ── Batch enrichment handlers ────────────────────────────────────
+// ── Rule-based enrichment handlers ───────────────────────────────
 
 const IMPORT_CSV_COLUMNS = [
   "id", "date", "description", "amount", "type",
@@ -241,30 +249,89 @@ const IMPORT_CSV_COLUMNS = [
   "merchant", "accountId", "categoryId", "categoryConfidence",
 ]
 
-export async function handleReadImportBatch(
+export async function handleGetEnrichmentTargets(
   budgetPath: string,
-  args: Record<string, unknown>,
 ): Promise<string> {
   const dir = await resolveImportDir(budgetPath)
   const filePath = join(dir, "transactions.csv")
   const content = await readFile(filePath, "utf-8")
   const { data } = parseRawCsv(content)
 
-  const offset = args.offset as number
-  const limit = (args.limit as number) || 100
-  const batch = data.slice(offset, offset + limit)
+  // Group by description, only include rows that need work
+  const groups = new Map<string, {
+    count: number;
+    needsMerchant: number;
+    needsCategory: number;
+    sourceCategory: string;
+    amountMin: number;
+    amountMax: number;
+    sampleType: string;
+  }>()
+
+  let alreadyComplete = 0
+
+  for (const row of data) {
+    const hasMerchant = !!row.merchant
+    const hasCategory = !!row.categoryId
+    if (hasMerchant && hasCategory) {
+      alreadyComplete++
+      continue
+    }
+
+    const desc = row.description || "(empty)"
+    const amount = Math.abs(parseInt(row.amount, 10) || 0)
+
+    if (!groups.has(desc)) {
+      groups.set(desc, {
+        count: 0,
+        needsMerchant: 0,
+        needsCategory: 0,
+        sourceCategory: row.sourceCategory || "",
+        amountMin: amount,
+        amountMax: amount,
+        sampleType: row.type || "expense",
+      })
+    }
+
+    const g = groups.get(desc)!
+    g.count++
+    if (!hasMerchant) g.needsMerchant++
+    if (!hasCategory) g.needsCategory++
+    if (amount < g.amountMin) g.amountMin = amount
+    if (amount > g.amountMax) g.amountMax = amount
+    // Keep first non-empty sourceCategory
+    if (!g.sourceCategory && row.sourceCategory) g.sourceCategory = row.sourceCategory
+  }
+
+  // Sort by count descending (most common descriptions first)
+  const targets = [...groups.entries()]
+    .sort((a, b) => b[1].count - a[1].count)
+    .map(([desc, g]) => ({
+      description: desc,
+      count: g.count,
+      needsMerchant: g.needsMerchant,
+      needsCategory: g.needsCategory,
+      sourceCategory: g.sourceCategory || undefined,
+      amountRange: `${g.amountMin}–${g.amountMax} cents`,
+      type: g.sampleType,
+    }))
 
   return JSON.stringify({
-    offset,
-    limit,
     totalRows: data.length,
-    batchSize: batch.length,
-    hasMore: offset + limit < data.length,
-    rows: batch,
+    alreadyComplete,
+    uniqueDescriptions: targets.length,
+    targets,
   }, null, 2)
 }
 
-export async function handleWriteImportBatch(
+interface EnrichmentRule {
+  description: string;
+  merchant?: string;
+  categoryId?: string;
+  categoryConfidence?: string;
+}
+
+export async function handleApplyEnrichmentRules(
   budgetPath: string,
   args: Record<string, unknown>,
 ): Promise<string> {
@@ -273,45 +340,41 @@ export async function handleWriteImportBatch(
   const content = await readFile(filePath, "utf-8")
   const { data } = parseRawCsv(content)
 
-  const offset = args.offset as number
-  const rowsCsv = args.rows as string
+  const rules = args.rules as EnrichmentRule[]
 
-  // Parse the incoming enriched rows
-  const enrichedResult = Papa.parse<Record<string, string>>(rowsCsv, {
-    header: true,
-    skipEmptyLines: true,
-  })
-
-  // If no header in incoming CSV, try headerless parse with known columns
-  let enrichedRows: Record<string, string>[]
-  if (enrichedResult.data.length > 0 && enrichedResult.meta.fields?.length === IMPORT_CSV_COLUMNS.length) {
-    enrichedRows = enrichedResult.data
-  } else {
-    // Retry with known headers
-    const withHeader = IMPORT_CSV_COLUMNS.join(",") + "\n" + rowsCsv
-    const retry = Papa.parse<Record<string, string>>(withHeader, {
-      header: true,
-      skipEmptyLines: true,
-    })
-    enrichedRows = retry.data
+  // Index rules by exact description for O(1) lookup
+  const ruleMap = new Map<string, EnrichmentRule>()
+  for (const rule of rules) {
+    ruleMap.set(rule.description, rule)
   }
 
-  // Replace rows in the original data
-  for (let i = 0; i < enrichedRows.length; i++) {
-    const targetIdx = offset + i
-    if (targetIdx < data.length) {
-      data[targetIdx] = enrichedRows[i]
+  let merchantsSet = 0
+  let categoriesSet = 0
+
+  for (const row of data) {
+    const desc = row.description || "(empty)"
+    const rule = ruleMap.get(desc)
+    if (!rule) continue
+
+    if (rule.merchant && !row.merchant) {
+      row.merchant = rule.merchant
+      merchantsSet++
+    }
+    if (rule.categoryId && !row.categoryId) {
+      row.categoryId = rule.categoryId
+      row.categoryConfidence = rule.categoryConfidence || "low"
+      categoriesSet++
     }
   }
 
-  // Re-serialize and write
   const csv = Papa.unparse(data, { columns: IMPORT_CSV_COLUMNS })
   await writeFile(filePath, csv, "utf-8")
 
   return JSON.stringify({
     success: true,
-    updatedRows: enrichedRows.length,
-    offset,
+    rulesApplied: rules.length,
+    merchantsSet,
+    categoriesSet,
   })
 }
 
