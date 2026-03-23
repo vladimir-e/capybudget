@@ -10,10 +10,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { useEnrichSession } from "@/hooks/use-enrich-session";
 import { useCustomInstructions } from "@/hooks/use-custom-instructions";
 import { useImportMerge } from "@/hooks/use-import-merge";
 import { useImportData } from "@/hooks/use-import-data";
+import { useImportStore } from "@/stores/import-store";
+import { ENRICH_SYSTEM_PROMPT } from "@capybudget/intelligence";
 import { formatMoney } from "@capybudget/core";
 import {
   ImportTable,
@@ -59,22 +60,35 @@ export function ImportPreview({ budgetPath, budgetName, onMergeComplete }: Impor
 
   const customInstructions = useCustomInstructions(budgetPath);
 
-  // ── Re-enrichment session ──────────────────────────────────────
-  const enrichSession = useEnrichSession({
-    budgetPath,
-    budgetName,
-    mcpServerPath: "packages/mcp/src/server.ts",
-    customInstructions: customInstructions.instructions,
-    onEnrichmentComplete: async () => {
+  // ── Enrichment (via store — survives navigation) ───────────────
+  const isEnriching = useImportStore((s) => s.isEnriching);
+  const enrichStatusText = useImportStore((s) => s.enrichStatusText);
+  const storeStartEnrichment = useImportStore((s) => s.startEnrichment);
+  const storeCancelEnrichment = useImportStore((s) => s.cancelEnrichment);
+  const setOnEnrichComplete = useImportStore((s) => s.setOnEnrichComplete);
+
+  // Register completion callback
+  useEffect(() => {
+    setOnEnrichComplete(async () => {
       await markEnriched();
       await loadCsv();
-    },
-  });
+    });
+    return () => setOnEnrichComplete(null);
+  }, [setOnEnrichComplete, markEnriched, loadCsv]);
 
   const handleEnrich = useCallback(async () => {
     await flushWriteBack();
-    enrichSession.startEnrichment();
-  }, [flushWriteBack, enrichSession]);
+    const customInstr = customInstructions.instructions?.trim();
+    const systemPrompt = customInstr
+      ? `${ENRICH_SYSTEM_PROMPT}\n\n## User instructions\n${customInstr}`
+      : ENRICH_SYSTEM_PROMPT;
+    storeStartEnrichment({
+      budgetPath,
+      budgetName,
+      mcpServerPath: "packages/mcp/src/server.ts",
+      systemPrompt,
+    });
+  }, [flushWriteBack, storeStartEnrichment, budgetPath, budgetName, customInstructions.instructions]);
 
   // Auto-enrich: trigger enrichment once after first load if not yet enriched
   const autoEnrichTriggeredRef = useRef(false);
@@ -83,12 +97,12 @@ export function ImportPreview({ budgetPath, budgetName, onMergeComplete }: Impor
       autoEnrichTriggeredRef.current ||
       loading ||
       transactions.length === 0 ||
-      enrichSession.isEnriching ||
+      isEnriching ||
       !needsEnrichment
     ) return;
     autoEnrichTriggeredRef.current = true;
-    enrichSession.startEnrichment();
-  }, [loading, transactions.length, enrichSession, needsEnrichment]);
+    handleEnrich();
+  }, [loading, transactions.length, isEnriching, needsEnrichment, handleEnrich]);
 
   // ── Filtering / sorting ────────────────────────────────────────
   const filtered = useMemo(
@@ -221,7 +235,7 @@ export function ImportPreview({ budgetPath, budgetName, onMergeComplete }: Impor
       </div>
 
       {/* Enriching indicator */}
-      {enrichSession.isEnriching && (
+      {isEnriching && (
         <div className="rounded-lg border border-brand/20 bg-brand/5 px-3.5 py-2 text-sm text-foreground/70 space-y-1">
           <div className="flex items-center gap-2.5">
             <Loader2 className="h-3.5 w-3.5 animate-spin text-brand shrink-0" />
@@ -231,7 +245,7 @@ export function ImportPreview({ budgetPath, budgetName, onMergeComplete }: Impor
               variant="ghost"
               className="h-6 px-2 text-xs text-muted-foreground hover:text-foreground"
               onClick={async () => {
-                enrichSession.cancel();
+                storeCancelEnrichment();
                 await loadCsv();
               }}
             >
@@ -239,9 +253,9 @@ export function ImportPreview({ budgetPath, budgetName, onMergeComplete }: Impor
               Stop
             </Button>
           </div>
-          {enrichSession.statusText && (
+          {enrichStatusText && (
             <p className="text-xs text-muted-foreground/60 truncate pl-6">
-              {enrichSession.statusText}
+              {enrichStatusText}
             </p>
           )}
         </div>
@@ -291,7 +305,7 @@ export function ImportPreview({ budgetPath, budgetName, onMergeComplete }: Impor
       )}
 
       {/* Issues banner (hidden while enrichment is running) */}
-      {!enrichSession.isEnriching && (uncategorizedCount > 0 || lowConfidenceCount > 0) && (
+      {!isEnriching && (uncategorizedCount > 0 || lowConfidenceCount > 0) && (
         <div className="flex items-center gap-2.5 rounded-lg border border-amber-500/20 bg-amber-500/5 px-3.5 py-2 text-sm text-foreground/70">
           <AlertTriangle className="h-3.5 w-3.5 text-amber-500 shrink-0" />
           <span>
@@ -343,15 +357,15 @@ export function ImportPreview({ budgetPath, budgetName, onMergeComplete }: Impor
               size="sm"
               variant="outline"
               className="gap-1.5"
-              disabled={enrichSession.isEnriching}
+              disabled={isEnriching}
               onClick={handleEnrich}
             >
-              {enrichSession.isEnriching ? (
+              {isEnriching ? (
                 <Loader2 className="h-3.5 w-3.5 animate-spin" />
               ) : (
                 <Sparkles className="h-3.5 w-3.5" />
               )}
-              {enrichSession.isEnriching ? "Enriching\u2026" : "Enrich"}
+              {isEnriching ? "Enriching\u2026" : "Enrich"}
             </Button>
 
             {/* Merge button */}

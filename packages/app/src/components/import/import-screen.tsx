@@ -20,13 +20,13 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { useImportSession } from "@/hooks/use-import-session";
 import { useImportRepository, type SourceFileInfo } from "@/hooks/use-import-repository";
 import { useImportStore } from "@/stores/import-store";
 import { useCustomInstructions } from "@/hooks/use-custom-instructions";
 import { getToolLabel } from "@/services/capy-stream";
 import {
   formatFileSize,
+  IMPORT_SYSTEM_PROMPT,
   type ContentBlock,
 } from "@capybudget/intelligence";
 import { formatDateLabel } from "@capybudget/core";
@@ -69,23 +69,31 @@ interface ImportScreenProps {
   budgetName: string;
 }
 
-/** Import state derived from disk contents. */
-type ImportDiskState =
+/** Import state derived from disk contents + store. */
+type ImportViewState =
   | "loading"        // checking disk
   | "empty"          // nothing in import dir → show drop zone
   | "has-sources"    // source files present, no transactions.csv → show file list + Start
+  | "normalizing"    // normalization in progress
   | "has-preview";   // transactions.csv present → show preview
 
 export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
+  // ── Store state (survives navigation) ─────────────────────────
+  const isNormalizing = useImportStore((s) => s.isNormalizing);
+  const normalizeMessages = useImportStore((s) => s.normalizeMessages);
+  const startNormalization = useImportStore((s) => s.startNormalization);
+  const cancelNormalization = useImportStore((s) => s.cancelNormalization);
+  const setOnNormalizeComplete = useImportStore((s) => s.setOnNormalizeComplete);
+  const setGlobalHasImportData = useImportStore((s) => s.setHasImportData);
+
   // ── Disk state ────────────────────────────────────────────────
-  const [diskState, setDiskState] = useState<ImportDiskState>("loading");
+  const [diskState, setDiskState] = useState<"loading" | "empty" | "has-sources" | "has-preview">("loading");
   const [sourceFiles, setSourceFiles] = useState<SourceFileInfo[]>([]);
   const [uploadingFiles, setUploadingFiles] = useState<Set<string>>(new Set());
-  const setGlobalHasImportData = useImportStore((s) => s.setHasImportData);
 
   const repository = useImportRepository(budgetPath);
 
-  const [fileDuplicates, setFileDuplicates] = useState<Record<string, string>>({}); // filename → import date
+  const [fileDuplicates, setFileDuplicates] = useState<Record<string, string>>({});
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dragCounterRef = useRef(0);
@@ -113,28 +121,24 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
     }
   }, [repository, setGlobalHasImportData]);
 
-  // Check disk on mount
+  // Check disk on mount + register completion callback
   useEffect(() => {
     refreshDiskState();
-  }, [refreshDiskState]);
-
-  // ── Intelligence session ──────────────────────────────────────
-  const importSession = useImportSession({
-    budgetPath,
-    budgetName,
-    mcpServerPath: "packages/mcp/src/server.ts",
-    customInstructions: customInstructions.instructions,
-    onImportComplete: refreshDiskState,
-  });
-
-  const isProcessing = importSession.isStreaming;
+    setOnNormalizeComplete(() => refreshDiskState);
+    return () => setOnNormalizeComplete(null);
+  }, [refreshDiskState, setOnNormalizeComplete]);
 
   // Auto-scroll processing messages
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
-  }, [importSession.messages]);
+  }, [normalizeMessages]);
+
+  // ── Derived view state ────────────────────────────────────────
+  const viewState: ImportViewState = isNormalizing
+    ? "normalizing"
+    : diskState;
 
   // ── File handling (write to disk immediately) ─────────────────
 
@@ -146,7 +150,6 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
         continue;
       }
 
-      // Mark as uploading
       setUploadingFiles((prev) => new Set(prev).add(file.name));
 
       try {
@@ -169,10 +172,8 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
       }
     }
 
-    // Refresh file list and state from disk
     await refreshDiskState();
 
-    // Check for duplicates in import log
     try {
       const log = await repository.readImportLog();
       const recent = log.slice(-20);
@@ -237,31 +238,41 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
 
   // ── Actions ───────────────────────────────────────────────────
   const handleStart = async () => {
-    if (sourceFiles.length === 0 || isProcessing) return;
+    if (sourceFiles.length === 0 || isNormalizing) return;
     console.log("[import] starting normalization with", sourceFiles.length, "source files");
 
-    // Persist source file names for the merge log
     try {
       await repository.writeState({ sourceFiles: sourceFiles.map((f) => f.name) });
     } catch {
       /* best-effort */
     }
 
-    importSession.startNormalization(sourceFiles.map((f) => f.name));
+    const customInstr = customInstructions.instructions?.trim();
+    const systemPrompt = customInstr
+      ? `${IMPORT_SYSTEM_PROMPT}\n\n## User instructions\n${customInstr}`
+      : IMPORT_SYSTEM_PROMPT;
+
+    startNormalization({
+      budgetPath,
+      budgetName,
+      mcpServerPath: "packages/mcp/src/server.ts",
+      systemPrompt,
+      sourceFilenames: sourceFiles.map((f) => f.name),
+    });
   };
 
   const handleCancel = useCallback(async () => {
     console.log("[import] cancelling import");
-    importSession.cancel();
+    cancelNormalization();
     setFileDuplicates({});
     await repository.clearImportData();
     await refreshDiskState();
-  }, [importSession, repository, refreshDiskState]);
+  }, [cancelNormalization, repository, refreshDiskState]);
 
-  // ── Derived view ──────────────────────────────────────────────
-  const showProcessing = isProcessing;
-  const showPreview = !isProcessing && diskState === "has-preview";
-  const showDropZone = !isProcessing && (diskState === "empty" || diskState === "has-sources");
+  // ── Render ────────────────────────────────────────────────────
+  const showProcessing = viewState === "normalizing";
+  const showPreview = viewState === "has-preview";
+  const showDropZone = viewState === "empty" || viewState === "has-sources";
 
   const subtitle = showProcessing
     ? "Processing your files..."
@@ -269,8 +280,7 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
       ? "Review and edit imported transactions"
       : "Drop files to import transactions";
 
-  // Loading state
-  if (diskState === "loading") {
+  if (viewState === "loading") {
     return (
       <div className="flex h-full items-center justify-center text-muted-foreground">
         <Loader2 className="h-5 w-5 animate-spin" />
@@ -359,7 +369,6 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
                 </div>
               </div>
 
-              {/* File list (from disk + currently uploading) */}
               {(sourceFiles.length > 0 || uploadingFiles.size > 0) && (
                 <div className="space-y-2">
                   <div className="text-xs font-medium uppercase tracking-wider text-muted-foreground/70">
@@ -371,7 +380,6 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
                     )}
                   </div>
                   <div className="space-y-1.5">
-                    {/* Uploading files (in progress) */}
                     {[...uploadingFiles].map((name) => (
                       <div
                         key={`uploading-${name}`}
@@ -384,7 +392,6 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
                         <Loader2 className="h-3.5 w-3.5 animate-spin text-brand shrink-0" />
                       </div>
                     ))}
-                    {/* Source files on disk */}
                     {sourceFiles.map((file) => {
                       const dupDate = fileDuplicates[file.name];
                       return (
@@ -465,7 +472,7 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
                 ref={scrollRef}
                 className="rounded-2xl border border-border/30 bg-card/30 p-5 max-h-[60vh] overflow-y-auto"
               >
-                <ProcessingStatus messages={importSession.messages} />
+                <ProcessingStatus messages={normalizeMessages} />
               </div>
             </>
           )}
@@ -532,7 +539,6 @@ function ProcessingStatus({ messages }: { messages: import("@capybudget/intellig
   const hasContent = assistantBlocks.length > 0;
   const hasToolActivity = assistantBlocks.some((b) => b.type === "tool-activity");
 
-  // Derive status label from what's happened so far
   let statusLabel = "Summoning Capy...";
   if (hasContent && !hasToolActivity) statusLabel = "Analyzing files...";
   if (hasToolActivity) statusLabel = "Writing results...";

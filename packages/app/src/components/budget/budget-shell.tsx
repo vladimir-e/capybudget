@@ -69,6 +69,7 @@ export function BudgetShell({ path, name }: BudgetShellProps) {
       : "accounts";
 
   const hasImportData = useImportStore((s) => s.hasImportData);
+  const isImportBusy = useImportStore((s) => s.isNormalizing || s.isEnriching);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [accountDialogOpen, setAccountDialogOpen] = useState(false);
   const [editingAccount, setEditingAccount] = useState<Account | null>(null);
@@ -273,7 +274,7 @@ export function BudgetShell({ path, name }: BudgetShellProps) {
             activeSection={activeSection}
             sidebarOpen={activeSection === "accounts" && !sidebarCollapsed}
             onToggleSidebar={() => setSidebarCollapsed((prev) => !prev)}
-            hasImportData={hasImportData}
+            hasImportData={hasImportData || isImportBusy}
           />
 
           {/* Accounts sidebar — slides in/out, same behavior all viewports */}
