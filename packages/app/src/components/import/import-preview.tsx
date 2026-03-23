@@ -225,7 +225,19 @@ export function ImportPreview({ budgetPath, budgetName, onMergeComplete }: Impor
         <div className="rounded-lg border border-brand/20 bg-brand/5 px-3.5 py-2 text-sm text-foreground/70 space-y-1">
           <div className="flex items-center gap-2.5">
             <Loader2 className="h-3.5 w-3.5 animate-spin text-brand shrink-0" />
-            <span>Enriching — identifying merchants and categories…</span>
+            <span className="flex-1">Enriching — identifying merchants and categories…</span>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-6 px-2 text-xs text-muted-foreground hover:text-foreground"
+              onClick={async () => {
+                enrichSession.cancel();
+                await loadCsv();
+              }}
+            >
+              <X className="h-3 w-3 mr-1" />
+              Stop
+            </Button>
           </div>
           {enrichSession.statusText && (
             <p className="text-xs text-muted-foreground/60 truncate pl-6">
