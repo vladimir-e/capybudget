@@ -269,7 +269,8 @@ export function BudgetShell({ path, name }: BudgetShellProps) {
             budgetPath={path}
             budgetName={name}
             activeSection={activeSection}
-            onAccountsClick={() => setSidebarCollapsed((prev) => !prev)}
+            sidebarOpen={activeSection === "accounts" && !sidebarCollapsed}
+            onToggleSidebar={() => setSidebarCollapsed((prev) => !prev)}
           />
 
           {/* Accounts sidebar — slides in/out, same behavior all viewports */}
@@ -282,7 +283,6 @@ export function BudgetShell({ path, name }: BudgetShellProps) {
               <Sidebar
                 budgetPath={path}
                 budgetName={name}
-                onCollapse={() => setSidebarCollapsed(true)}
                 onAddAccount={() => setAccountDialogOpen(true)}
                 onEditAccount={(account) => { setEditingAccount(account); setAccountDialogOpen(true); }}
                 onReorderAccounts={handleReorderAccounts}
