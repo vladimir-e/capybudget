@@ -246,6 +246,7 @@ export function ImportPreview({ budgetPath, budgetName, onMergeComplete }: Impor
               className="h-6 px-2 text-xs text-muted-foreground hover:text-foreground"
               onClick={async () => {
                 storeCancelEnrichment();
+                await markEnriched(); // prevent auto-restart on next visit
                 await loadCsv();
               }}
             >
