@@ -283,6 +283,7 @@ export function BudgetShell({ path, name }: BudgetShellProps) {
               <Sidebar
                 budgetPath={path}
                 budgetName={name}
+                onCollapse={() => setSidebarCollapsed(true)}
                 onAddAccount={() => setAccountDialogOpen(true)}
                 onEditAccount={(account) => { setEditingAccount(account); setAccountDialogOpen(true); }}
                 onReorderAccounts={handleReorderAccounts}

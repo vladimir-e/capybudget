@@ -1,5 +1,5 @@
 import { Link, useMatches } from "@tanstack/react-router";
-import { ChevronDown, GripVertical, Layers, MoreHorizontal, Pencil, Archive, ArchiveRestore, Trash2, Plus } from "lucide-react";
+import { ChevronDown, ChevronLeft, GripVertical, Layers, MoreHorizontal, Pencil, Archive, ArchiveRestore, Trash2, Plus } from "lucide-react";
 import { useState } from "react";
 import {
   DndContext,
@@ -48,6 +48,7 @@ import { toast } from "sonner";
 interface SidebarProps {
   budgetPath: string;
   budgetName: string;
+  onCollapse: () => void;
   onAddAccount: () => void;
   onEditAccount: (account: Account) => void;
   onReorderAccounts: (type: AccountType, orderedIds: string[]) => void;
@@ -56,6 +57,7 @@ interface SidebarProps {
 export function Sidebar({
   budgetPath,
   budgetName,
+  onCollapse,
   onAddAccount,
   onEditAccount,
   onReorderAccounts,
@@ -137,6 +139,15 @@ export function Sidebar({
 
   return (
     <div className="relative flex w-72 h-full flex-col border-r border-sidebar-border bg-sidebar shrink-0">
+      {/* Collapse handle — edge tab */}
+      <button
+        onClick={onCollapse}
+        className="absolute -right-3 top-1/2 -translate-y-1/2 z-10 flex h-6 w-3 items-center justify-center rounded-r-md border border-l-0 border-sidebar-border bg-sidebar text-muted-foreground/40 hover:text-muted-foreground hover:bg-sidebar-accent transition-colors"
+        aria-label="Collapse sidebar"
+      >
+        <ChevronLeft className="h-3 w-3" />
+      </button>
+
       {/* Net Worth — warm hero area */}
       <div className="px-4 pt-4 pb-3">
         <div className="rounded-lg bg-brand-subtle px-3 py-3">
