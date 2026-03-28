@@ -481,10 +481,9 @@ export async function handleAutoEnrich(
   await writeImportCsv(filePath, data)
 
   // Compact stats as plain text
-  let transfers = 0, uncategorized = 0
+  let uncategorized = 0
   for (const row of data) {
-    if (row.type === "transfer") transfers++
-    else if (!row.categoryId) uncategorized++
+    if (row.type !== "transfer" && !row.categoryId) uncategorized++
   }
 
   return [
