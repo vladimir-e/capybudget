@@ -27,7 +27,7 @@ function makeRow(fields: Record<string, string>): Record<string, string> {
   return fields;
 }
 
-// ── 1. Split amount columns (YNAB-style) ──────────────────────────
+// ── 1. Split amount columns (outflow/inflow style) ───────────────
 
 describe("split amount columns", () => {
   const mapping = baseMapping({
@@ -504,10 +504,10 @@ describe("column references", () => {
   });
 });
 
-// ── 8. Full YNAB-like transform ────────────────────────────────────
+// ── 8. Full budget-export-style transform ─────────────────────────
 
-describe("full YNAB-like transform", () => {
-  const ynabMapping: CsvMapping = {
+describe("full budget-export-style transform", () => {
+  const exportMapping: CsvMapping = {
     date: { column: "Date", format: "MM/DD/YYYY" },
     description: { columns: ["Payee", "Memo"], separator: " - " },
     amount: { style: "split", expenseColumn: "Outflow", incomeColumn: "Inflow" },
@@ -519,7 +519,7 @@ describe("full YNAB-like transform", () => {
     skipRules: [{ column: "Cleared", equals: "uncleared" }],
   };
 
-  const ynabRows = [
+  const exportRows = [
     {
       Account: "Checking",
       Flag: "",
@@ -574,8 +574,8 @@ describe("full YNAB-like transform", () => {
     },
   ];
 
-  it("transforms the full YNAB dataset correctly", () => {
-    const result = transformCsv(ynabRows, ynabMapping);
+  it("transforms the full export dataset correctly", () => {
+    const result = transformCsv(exportRows, exportMapping);
 
     // Row 4 is skipped (Cleared = Uncleared)
     expect(result.stats.totalRows).toBe(4);

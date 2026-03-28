@@ -21,7 +21,7 @@ export interface SingleAmountMapping {
   sign: "negative_expense" | "positive_expense";
 }
 
-/** Source uses two separate columns for outflow/inflow (e.g. YNAB, some bank exports). */
+/** Source uses two separate columns for outflow/inflow (e.g. budget app exports, some bank exports). */
 export interface SplitAmountMapping {
   style: "split";
   /** Column for expenses/outflows (e.g. "Outflow", "Debit"). */
