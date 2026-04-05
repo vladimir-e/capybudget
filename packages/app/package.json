@@ -10,7 +10,11 @@
   },
   "dependencies": {
     "@capybudget/core": "*",
+    "@capybudget/intelligence": "*",
     "@capybudget/persistence": "*",
-    "@capybudget/intelligence": "*"
+    "@tanstack/react-virtual": "^3.13.23"
+  },
+  "devDependencies": {
+    "@faker-js/faker": "^10.4.0"
   }
 }
