@@ -130,9 +130,35 @@ export const useImportStore = create<ImportStore>((set, get) => ({
             break;
           case "exit":
             console.debug("[import-store] normalize process exited");
-            // No-op: phase transition is handled by "done" event.
-            // If process crashes without "done", phase stays "normalizing"
-            // and the user can cancel manually.
+            if (get().phase === "normalizing") {
+              lastNormalizeTextContent = "";
+              const errorBlock: ContentBlock = {
+                type: "text" as const,
+                content: "The normalization process ended unexpectedly. You can try again by canceling and restarting.",
+              };
+              set({
+                normalizeMessages: (() => {
+                  const msgs = get().normalizeMessages;
+                  const updated = [...msgs];
+                  const last = updated[updated.length - 1];
+                  if (last?.role !== "assistant") {
+                    return [
+                      ...msgs,
+                      {
+                        id: crypto.randomUUID(),
+                        role: "assistant" as const,
+                        blocks: [errorBlock],
+                      },
+                    ];
+                  }
+                  updated[updated.length - 1] = {
+                    ...last,
+                    blocks: [...last.blocks, errorBlock],
+                  };
+                  return updated;
+                })(),
+              });
+            }
             break;
           case "error":
             handleNormalizeStreamEvent(
@@ -227,7 +253,12 @@ For images and PDFs, use the Read tool to view them, then extract transactions m
             break;
           case "exit":
             console.debug("[import-store] enrich process exited");
-            set({ isEnriching: false, enrichStatusText: "" });
+            if (get().isEnriching) {
+              set({
+                isEnriching: false,
+                enrichStatusText: "Enrichment ended unexpectedly. Progress saved — you can restart.",
+              });
+            }
             break;
           case "error":
             handleEnrichStreamEvent(

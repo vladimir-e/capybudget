@@ -76,7 +76,7 @@ export const CSV_TOOLS = [
   {
     name: "transform_csv",
     description:
-      "Apply a column mapping to ALL rows of a source CSV file and write the result as .capy/import/transactions.csv. This is the final step — use preview_transform first to verify the mapping. Returns stats: total rows, transformed, skipped, errored.",
+      "Apply a column mapping to ALL rows of a source CSV file and write to .capy/import/transactions.csv. Appends if the file already exists (for multi-file imports). Use preview_transform first to verify the mapping.",
     inputSchema: {
       type: "object" as const,
       properties: {
@@ -131,7 +131,7 @@ export const CSV_TOOLS = [
   {
     name: "enrich_update",
     description:
-      "Bulk update: set field(s) on all rows matching a condition. Like SQL UPDATE ... WHERE. Use this to apply patterns you spotted in enrich_sample.",
+      "Bulk update: set field(s) on all rows matching a condition. Like SQL UPDATE ... WHERE. Only sets empty fields (won't overwrite existing values).",
     inputSchema: {
       type: "object" as const,
       properties: {
@@ -140,8 +140,7 @@ export const CSV_TOOLS = [
           description: "Fields to set. Keys: merchant, categoryId, categoryConfidence, accountId. Example: {\"categoryId\": \"uuid\", \"categoryConfidence\": \"low\"}",
         },
         where: {
-          type: "object",
-          description: "Match condition. Keys: field (column name), equals (exact match) or contains (substring, case-insensitive). Example: {\"field\": \"sourceCategory\", \"contains\": \"Groceries\"}",
+          description: "Single condition or array of conditions (AND logic). Each: {field, equals?, contains?}. Example: {\"field\": \"description\", \"contains\": \"STARBUCKS\"} or [{\"field\": \"description\", \"contains\": \"AMAZON\"}, {\"field\": \"type\", \"equals\": \"expense\"}]",
         },
       },
       required: ["set", "where"],
@@ -162,12 +161,17 @@ function safeFilePath(dir: string, filename: string): string {
   return filePath
 }
 
-function parseRawCsv(content: string): { data: Record<string, string>[]; meta: Papa.ParseMeta } {
+function parseRawCsv(content: string): {
+  data: Record<string, string>[];
+  meta: Papa.ParseMeta;
+  errors: Papa.ParseError[];
+} {
   const result = Papa.parse<Record<string, string>>(content, {
     header: true,
     skipEmptyLines: true,
+    transformHeader: (h: string) => h.trim(),
   })
-  return { data: result.data, meta: result.meta }
+  return { data: result.data, meta: result.meta, errors: result.errors }
 }
 
 export async function handleAnalyzeCsv(
@@ -177,15 +181,24 @@ export async function handleAnalyzeCsv(
   const dir = await resolveSourcesDir(budgetPath)
   const filePath = safeFilePath(dir, args.filename as string)
   const content = await readFile(filePath, "utf-8")
-  const { data, meta } = parseRawCsv(content)
 
-  const sampleRows = data.slice(0, 20)
+  // Parse only sample rows for efficiency on large files
+  const sampleResult = Papa.parse<Record<string, string>>(content, {
+    header: true,
+    skipEmptyLines: true,
+    transformHeader: (h: string) => h.trim(),
+    preview: 20,
+  })
+
+  // Estimate total rows cheaply (count non-empty lines minus header)
+  const totalRows = content.split("\n").filter(l => l.trim().length > 0).length - 1
 
   return JSON.stringify({
-    headers: meta.fields ?? [],
-    delimiter: meta.delimiter,
-    totalRows: data.length,
-    sampleRows,
+    headers: sampleResult.meta.fields ?? [],
+    delimiter: sampleResult.meta.delimiter,
+    totalRows: Math.max(0, totalRows),
+    sampleRows: sampleResult.data,
+    ...(sampleResult.errors.length > 0 && { parseErrors: sampleResult.errors.slice(0, 5) }),
   }, null, 2)
 }
 
@@ -196,7 +209,7 @@ export async function handlePreviewTransform(
   const dir = await resolveSourcesDir(budgetPath)
   const filePath = safeFilePath(dir, args.filename as string)
   const content = await readFile(filePath, "utf-8")
-  const { data } = parseRawCsv(content)
+  const { data, errors: parseErrors } = parseRawCsv(content)
 
   const limit = (args.limit as number) || 10
   const sample = data.slice(0, limit)
@@ -209,6 +222,7 @@ export async function handlePreviewTransform(
     errors: result.errors,
     stats: result.stats,
     note: `Preview of first ${limit} rows. Call transform_csv to process all ${data.length} rows.`,
+    ...(parseErrors.length > 0 && { parseErrors: parseErrors.slice(0, 5) }),
   }, null, 2)
 }
 
@@ -219,16 +233,38 @@ export async function handleTransformCsv(
   const sourcesDir = await resolveSourcesDir(budgetPath)
   const filePath = safeFilePath(sourcesDir, args.filename as string)
   const content = await readFile(filePath, "utf-8")
-  const { data } = parseRawCsv(content)
+  const { data, errors: parseErrors } = parseRawCsv(content)
 
   const mapping = args.mapping as CsvMapping
-  const result = transformCsv(data, mapping)
 
-  // Write the transformed CSV to the import root (not sources/)
-  const csv = serializeImportCsv(result.transactions)
+  // Check for existing transactions.csv to support multi-file append
   const importDir = await resolveImportDir(budgetPath)
   const outPath = join(importDir, "transactions.csv")
-  await writeFile(outPath, csv, "utf-8")
+  let existingCsv = ""
+  let startId = 1
+
+  try {
+    existingCsv = await readFile(outPath, "utf-8")
+    const { data: existingData } = parseRawCsv(existingCsv)
+    for (const row of existingData) {
+      const match = row.id?.match(/^imp-(\d+)$/)
+      if (match) startId = Math.max(startId, parseInt(match[1], 10) + 1)
+    }
+  } catch {
+    // No existing file — start fresh
+  }
+
+  const result = transformCsv(data, mapping, { startId })
+
+  // Append to existing or write fresh
+  const newCsv = serializeImportCsv(result.transactions)
+  const finalCsv = existingCsv
+    ? existingCsv.trimEnd() + "\n" + newCsv.split("\n").slice(1).join("\n")
+    : newCsv
+  await writeFile(outPath, finalCsv, "utf-8")
+
+  // Invalidate enrichment cache
+  csvCache = null
 
   // Include first few errors for feedback
   const errorSample = result.errors.slice(0, 10)
@@ -238,6 +274,8 @@ export async function handleTransformCsv(
     stats: result.stats,
     errors: errorSample,
     moreErrors: result.errors.length > 10 ? result.errors.length - 10 : 0,
+    ...(startId > 1 && { appended: true, startId }),
+    ...(parseErrors.length > 0 && { parseErrors: parseErrors.slice(0, 5) }),
   }, null, 2)
 }
 
@@ -249,16 +287,28 @@ const IMPORT_CSV_COLUMNS = [
   "merchant", "accountId", "categoryId", "categoryConfidence",
 ]
 
+// In-memory cache to avoid re-parsing CSV on every enrichment tool call
+let csvCache: { data: Record<string, string>[]; filePath: string } | null = null
+
 async function readImportCsv(budgetPath: string) {
   const dir = await resolveImportDir(budgetPath)
   const filePath = join(dir, "transactions.csv")
+
+  if (csvCache && csvCache.filePath === filePath) {
+    return { data: csvCache.data, filePath }
+  }
+
   const content = await readFile(filePath, "utf-8")
-  return { data: parseRawCsv(content).data, filePath }
+  const data = parseRawCsv(content).data
+  csvCache = { data, filePath }
+  return { data, filePath }
 }
 
 async function writeImportCsv(filePath: string, data: Record<string, string>[]) {
   const csv = Papa.unparse(data, { columns: IMPORT_CSV_COLUMNS })
   await writeFile(filePath, csv, "utf-8")
+  // Update cache after write
+  csvCache = { data, filePath }
 }
 
 export async function handleEnrichStats(
@@ -299,7 +349,7 @@ export async function handleEnrichSample(
     return (!row.merchant || !row.categoryId) && row.type !== "transfer"
   })
 
-  const sample = needsWork.slice(0, limit)
+  const sample = sampleEvenly(needsWork, limit)
 
   // Return compact CSV with only useful columns
   const header = "description,sourceCategory,amount,type,merchant,categoryId"
@@ -312,6 +362,13 @@ export async function handleEnrichSample(
   return [header, ...rows].join("\n")
 }
 
+/** Pick evenly-spaced items for a representative cross-section. */
+function sampleEvenly<T>(items: T[], count: number): T[] {
+  if (items.length <= count) return items
+  const step = items.length / count
+  return Array.from({ length: count }, (_, i) => items[Math.floor(i * step)])
+}
+
 function csvEscapeField(value: string): string {
   if (value.includes(",") || value.includes('"') || value.includes("\n")) {
     return `"${value.replace(/"/g, '""')}"`
@@ -319,13 +376,18 @@ function csvEscapeField(value: string): string {
   return value
 }
 
+type WhereCondition = { field: string; equals?: string; contains?: string }
+
 export async function handleEnrichUpdate(
   budgetPath: string,
   args: Record<string, unknown>,
 ): Promise<string> {
   const { data, filePath } = await readImportCsv(budgetPath)
   const setFields = args.set as Record<string, string>
-  const where = args.where as { field: string; equals?: string; contains?: string }
+  const rawWhere = args.where as WhereCondition | WhereCondition[]
+
+  // Support single condition or array of conditions (AND logic)
+  const conditions: WhereCondition[] = Array.isArray(rawWhere) ? rawWhere : [rawWhere]
 
   const allowedFields = new Set(["merchant", "categoryId", "categoryConfidence", "accountId"])
 
@@ -339,14 +401,12 @@ export async function handleEnrichUpdate(
   let updated = 0
 
   for (const row of data) {
-    const value = (row[where.field] || "").toLowerCase()
-    let matches = false
-
-    if (where.equals !== undefined) {
-      matches = value === where.equals.toLowerCase()
-    } else if (where.contains !== undefined) {
-      matches = value.includes(where.contains.toLowerCase())
-    }
+    const matches = conditions.every((cond) => {
+      const value = (row[cond.field] || "").toLowerCase()
+      if (cond.equals !== undefined) return value === cond.equals.toLowerCase()
+      if (cond.contains !== undefined) return value.includes(cond.contains.toLowerCase())
+      return false
+    })
 
     if (!matches) continue
 
@@ -369,13 +429,11 @@ export async function handleEnrichUpdate(
 // ── Source category matching ──────────────────────────────────────
 
 /**
- * Fuzzy-match sourceCategory strings to budget categories.
- * E.g. "Immediate Obligations: Groceries 🥑" → matches "Groceries".
+ * Score-based fuzzy-match of sourceCategory strings to budget categories.
+ * Handles colon-separated groups (e.g. "Immediate Obligations: Groceries") and emoji.
  *
- * Strategy:
- * 1. Extract the last segment after ":" (most specific part)
- * 2. Strip emoji and whitespace
- * 3. Case-insensitive substring match against budget category names
+ * Scoring: exact=100, substring=50+length ratio, word-overlap=10+overlap ratio.
+ * Returns the best match above a minimum threshold.
  */
 function matchSourceCategory(
   sourceCategory: string,
@@ -383,7 +441,7 @@ function matchSourceCategory(
 ): Category | null {
   if (!sourceCategory) return null
 
-  // Extract the most specific part (after last ":")
+  // Extract the most specific part (after last ":" — handles grouped formats)
   const parts = sourceCategory.split(":")
   const specific = parts[parts.length - 1]
     .replace(/[\p{Emoji_Presentation}\p{Extended_Pictographic}]/gu, "")
@@ -392,35 +450,41 @@ function matchSourceCategory(
 
   if (!specific) return null
 
-  // Exact name match first
-  for (const cat of categories) {
-    if (cat.name.toLowerCase() === specific) return cat
-  }
-
-  // Substring: category name contained in source, or source contained in category name
-  for (const cat of categories) {
-    const catLower = cat.name.toLowerCase()
-    if (specific.includes(catLower) || catLower.includes(specific)) return cat
-  }
-
-  // Word overlap: split both into words, count matches
-  const sourceWords = new Set(specific.split(/\s+/).filter(w => w.length > 2))
   let bestMatch: Category | null = null
   let bestScore = 0
 
   for (const cat of categories) {
-    const catWords = cat.name.toLowerCase().split(/\s+/).filter(w => w.length > 2)
+    const catLower = cat.name.toLowerCase()
     let score = 0
-    for (const word of catWords) {
-      if (sourceWords.has(word)) score++
+
+    if (catLower === specific) {
+      score = 100
+    } else if (specific.includes(catLower)) {
+      score = 50 + Math.round((catLower.length / specific.length) * 30)
+    } else if (catLower.includes(specific)) {
+      score = 50 + Math.round((specific.length / catLower.length) * 30)
+    } else {
+      // Word overlap
+      const sourceWords = new Set(specific.split(/\s+/).filter(w => w.length > 2))
+      const catWords = catLower.split(/\s+/).filter(w => w.length > 2)
+      if (sourceWords.size > 0 && catWords.length > 0) {
+        let overlap = 0
+        for (const word of catWords) {
+          if (sourceWords.has(word)) overlap++
+        }
+        if (overlap > 0) {
+          score = 10 + Math.round((overlap / catWords.length) * 30)
+        }
+      }
     }
+
     if (score > bestScore) {
       bestScore = score
       bestMatch = cat
     }
   }
 
-  return bestScore > 0 ? bestMatch : null
+  return bestScore >= 10 ? bestMatch : null
 }
 
 export async function handleAutoEnrich(

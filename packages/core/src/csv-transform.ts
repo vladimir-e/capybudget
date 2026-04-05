@@ -46,10 +46,12 @@ export interface TransformError {
 export function transformCsv(
   rows: Record<string, string>[],
   mapping: CsvMapping,
+  options?: { startId?: number },
 ): TransformResult {
   const transactions: ImportTransaction[] = [];
   const errors: TransformError[] = [];
   let skipped = 0;
+  const idBase = options?.startId ?? 1;
 
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i];
@@ -62,7 +64,7 @@ export function transformCsv(
     }
 
     try {
-      const txn = transformRow(row, rowNum, mapping, transactions.length + 1);
+      const txn = transformRow(row, rowNum, mapping, idBase + transactions.length);
       transactions.push(txn);
     } catch (e) {
       errors.push({
@@ -96,7 +98,7 @@ function transformRow(
   const date = parseDate(getColumn(row, mapping.date.column, rowNum), mapping.date.format, rowNum);
   const description = resolveColumnRef(row, mapping.description, rowNum);
   const { amount, isExpense } = parseAmount(row, mapping.amount, mapping.amountFormat, rowNum);
-  const type = detectType(description, isExpense, mapping.typeDetection);
+  const type = detectType(row, description, isExpense, mapping.typeDetection);
   const sourceAccount = resolveSourceAccount(row, mapping.sourceAccount, rowNum);
   const sourceCategory = mapping.sourceCategory
     ? resolveColumnRef(row, mapping.sourceCategory, rowNum)
@@ -196,11 +198,22 @@ function parseDate(value: string, format: string, rowNum: number): string {
   if (!parser) {
     throw new Error(`Row ${rowNum}: unsupported date format "${format}"`);
   }
-  const result = parser(value);
+  // Strip time portions (e.g. "2025-01-15T14:30:00" or "01/15/2025 10:00")
+  const dateOnly = value.split(/[T ]/)[0];
+  const result = parser(dateOnly);
   if (!result) {
     throw new Error(`Row ${rowNum}: cannot parse date "${value}" with format "${format}"`);
   }
+  validateDate(result, value, rowNum);
   return result;
+}
+
+function validateDate(isoDate: string, rawValue: string, rowNum: number): void {
+  const [y, m, d] = isoDate.split("-").map(Number);
+  const date = new Date(y, m - 1, d);
+  if (date.getFullYear() !== y || date.getMonth() !== m - 1 || date.getDate() !== d) {
+    throw new Error(`Row ${rowNum}: invalid date "${rawValue}" (parsed as ${isoDate})`);
+  }
 }
 
 // ── Amount parsing ──────────────────────────────────────────────
@@ -314,7 +327,10 @@ export function parseCurrencyToCents(
   }
 
   // Strip currency symbols
-  cleaned = cleaned.replace(/[$€£¥₽₹]/g, "").trim();
+  cleaned = cleaned.replace(/[$€£¥₽₹₱₴₫₦₩₪₿]/g, "");
+  // Strip multi-character currency codes (CHF, USD, etc.) — only when digits follow/precede
+  cleaned = cleaned.replace(/^[A-Z]{2,4}\s*(?=[\d(,.])/i, "").replace(/(?<=\d)\s*[A-Z]{2,4}$/i, "");
+  cleaned = cleaned.trim();
 
   if (cleaned === "" || cleaned === "0" || cleaned === "0.00" || cleaned === "0,00") return 0;
 
@@ -348,11 +364,12 @@ export function parseCurrencyToCents(
 // ── Type detection ──────────────────────────────────────────────
 
 function detectType(
+  row: Record<string, string>,
   description: string,
   isExpense: boolean,
   detection: TypeDetection,
 ): "expense" | "income" | "transfer" {
-  // Check transfer patterns first (for both "rules" and "amount_sign" with patterns)
+  // Check transfer patterns first — cross-cutting concern for all methods
   if (detection.transferPatterns && detection.transferPatterns.length > 0) {
     const descLower = description.toLowerCase();
     for (const pattern of detection.transferPatterns) {
@@ -362,13 +379,15 @@ function detectType(
     }
   }
 
+  // Column-based: read the type directly from a source column
   if (detection.method === "column" && detection.typeColumn && detection.typeMap) {
-    // Not implemented yet — would read from a column
-    // For now fall through to amount-based
+    const val = (row[detection.typeColumn] ?? "").trim().toLowerCase();
+    const mapped = detection.typeMap[val];
+    if (mapped) return mapped;
+    // Unknown value → fall through to amount-sign as graceful degradation
   }
 
-  if (isExpense) return "expense";
-  return "income";
+  return isExpense ? "expense" : "income";
 }
 
 // ── Skip rules ──────────────────────────────────────────────────

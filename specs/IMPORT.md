@@ -22,7 +22,7 @@ Start triggers intelligence. The agent reads the same custom instructions as the
 
 The agent converts dropped files into a uniform internal CSV format, stored in `.capy/import/transactions.csv`. Two normalization paths:
 
-- **CSV files**: AI analyzes a sample via `analyze_csv`, defines a `CsvMapping` (column positions, date format, amount format, skip rows), previews via `preview_transform`, then executes `transform_csv`. All rows processed instantly in code — no AI per-row processing.
+- **CSV files**: AI analyzes a sample via `analyze_csv`, defines a `CsvMapping` (column positions, date format, amount format, skip rows), previews via `preview_transform`, then executes `transform_csv`. All rows processed instantly in code — no AI per-row processing. When multiple CSVs are imported, each `transform_csv` call appends to the existing `transactions.csv` with continuing IDs.
 - **Images/PDFs**: AI reads files from disk, extracts transactions manually. Suitable for small-volume imports (receipts, statements).
 
 #### Import CSV Schema
@@ -71,12 +71,12 @@ The agent also resolves `sourceAccount` and `sourceCategory` strings to existing
 
 Enrichment uses primitive tools instead of bulk CSV read/write:
 
-1. `auto_enrich` runs first — code-based matching (sourceCategory to categories, sourceAccount to accounts, description to merchant). Handles the easy cases instantly.
+1. `auto_enrich` runs first — code-based matching (sourceCategory to categories, sourceAccount to accounts, description to merchant). Uses score-based fuzzy matching for categories.
 2. `enrich_stats` gives the AI a compact progress summary.
-3. `enrich_sample` returns ~20 rows needing work — the AI spots patterns.
-4. `enrich_update` applies bulk SET WHERE updates (like SQL UPDATE).
+3. `enrich_sample` returns ~20 evenly-spaced rows needing work — representative cross-section, not just the first rows.
+4. `enrich_update` applies bulk SET WHERE updates (like SQL UPDATE). Supports single or array of WHERE conditions (AND logic).
 
-The AI works in a REPL loop: check stats, read a sample, apply a pattern, repeat. It never handles large data directly.
+The AI works in a size-aware REPL loop: for small imports (~30 rows), it processes individually; for large imports, it pattern-matches in bulk — check stats, read a sample, apply a pattern, repeat. It also cleans merchant names (stripping bank prefixes, location suffixes, store numbers). Enrichment results are cached in memory across tool calls for efficiency.
 
 ### 5. Review & Merge
 
@@ -129,18 +129,18 @@ Account resolution uses the account mapping (sourceAccount → budget accountId)
 
 Code-based normalization — AI defines the mapping, code processes all rows:
 
-- `analyze_csv` — returns headers, sample rows, and row count for a source file
-- `preview_transform` — applies a CsvMapping to sample rows, returns preview of normalized output
-- `transform_csv` — executes the mapping against all rows, writes `transactions.csv`
+- `analyze_csv` — returns headers, sample rows (efficiently parsed), row count estimate, and parse errors if any
+- `preview_transform` — applies a CsvMapping to sample rows, returns preview of normalized output with parse errors
+- `transform_csv` — executes the mapping against all rows, appends to `transactions.csv` (supports multi-file imports)
 
 ### Enrichment tools
 
 Primitive tools for AI-assisted enrichment — small samples in, bulk updates out:
 
-- `auto_enrich` — code-based matching (sourceCategory→categories, sourceAccount→accounts, description→merchant)
+- `auto_enrich` — score-based matching (sourceCategory→categories, sourceAccount→accounts, description→merchant)
 - `enrich_stats` — compact progress summary (how many rows enriched, how many remain)
-- `enrich_sample` — ~20 CSV rows needing work
-- `enrich_update` — bulk SET WHERE (like SQL UPDATE) for merchant, category, account, confidence
+- `enrich_sample` — ~20 evenly-spaced CSV rows needing work (representative sampling)
+- `enrich_update` — bulk SET WHERE (like SQL UPDATE) for merchant, category, account, confidence. Supports array of WHERE conditions (AND logic). Only sets empty fields.
 
 ### Budget query tools
 

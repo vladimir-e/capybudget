@@ -884,3 +884,286 @@ describe("default fields on ImportTransaction", () => {
     expect(t.categoryConfidence).toBe("");
   });
 });
+
+// ── Bank-style CSV integration ────────────────────────────────────
+
+describe("bank-style CSV (single signed amount, MM/DD/YYYY, currency)", () => {
+  const mapping = baseMapping({
+    date: { column: "Date", format: "MM/DD/YYYY" },
+    description: { column: "Description" },
+    amount: { style: "single", column: "Amount", sign: "negative_expense" },
+    amountFormat: { format: "currency" },
+    typeDetection: { method: "rules", transferPatterns: ["transfer", "xfer"] },
+    sourceAccount: { literal: "Chase Checking" },
+    sourceCategory: null,
+    memo: null,
+  });
+
+  it("parses expense with negative currency amount", () => {
+    const rows = [makeRow({ Date: "03/15/2025", Description: "CHECKCARD 0315 STARBUCKS", Amount: "-$4.50" })];
+    const result = transformCsv(rows, mapping);
+    expect(result.transactions[0]).toMatchObject({
+      date: "2025-03-15",
+      amount: -450,
+      type: "expense",
+      sourceAccount: "Chase Checking",
+    });
+  });
+
+  it("parses income with positive currency amount", () => {
+    const rows = [makeRow({ Date: "03/30/2025", Description: "DIRECT DEPOSIT EMPLOYER INC", Amount: "$3,500.00" })];
+    const result = transformCsv(rows, mapping);
+    expect(result.transactions[0]).toMatchObject({
+      date: "2025-03-30",
+      amount: 350000,
+      type: "income",
+    });
+  });
+
+  it("detects transfer by description pattern", () => {
+    const rows = [makeRow({ Date: "03/20/2025", Description: "ONLINE TRANSFER TO SAVINGS", Amount: "-$500.00" })];
+    const result = transformCsv(rows, mapping);
+    expect(result.transactions[0].type).toBe("transfer");
+  });
+
+  it("parses parenthesized negative", () => {
+    const rows = [makeRow({ Date: "03/20/2025", Description: "ATM FEE", Amount: "($25.00)" })];
+    const result = transformCsv(rows, mapping);
+    expect(result.transactions[0].amount).toBe(-2500);
+    expect(result.transactions[0].type).toBe("expense");
+  });
+
+  it("handles single-digit month and day", () => {
+    const rows = [makeRow({ Date: "1/5/2025", Description: "Test", Amount: "-$10.00" })];
+    const result = transformCsv(rows, mapping);
+    expect(result.transactions[0].date).toBe("2025-01-05");
+  });
+});
+
+// ── European CSV integration ──────────────────────────────────────
+
+describe("European CSV (DD.MM.YYYY, european amounts)", () => {
+  const mapping = baseMapping({
+    date: { column: "Datum", format: "DD.MM.YYYY" },
+    description: { column: "Beschreibung" },
+    amount: { style: "single", column: "Betrag", sign: "negative_expense" },
+    amountFormat: { format: "european" },
+    typeDetection: { method: "amount_sign" },
+    sourceAccount: { literal: "Deutsche Bank" },
+    sourceCategory: null,
+    memo: null,
+  });
+
+  it("parses European expense", () => {
+    const rows = [makeRow({ Datum: "15.03.2025", Beschreibung: "REWE Markt", Betrag: "-42,50" })];
+    const result = transformCsv(rows, mapping);
+    expect(result.transactions[0]).toMatchObject({
+      date: "2025-03-15",
+      amount: -4250,
+      type: "expense",
+      sourceAccount: "Deutsche Bank",
+    });
+  });
+
+  it("parses European income with thousands separator", () => {
+    const rows = [makeRow({ Datum: "30.03.2025", Beschreibung: "Gehalt", Betrag: "3.500,00" })];
+    const result = transformCsv(rows, mapping);
+    expect(result.transactions[0]).toMatchObject({
+      date: "2025-03-30",
+      amount: 350000,
+      type: "income",
+    });
+  });
+});
+
+// ── Column-based type detection ───────────────────────────────────
+
+describe("column-based type detection", () => {
+  const mapping = baseMapping({
+    typeDetection: {
+      method: "column",
+      typeColumn: "Type",
+      typeMap: { debit: "expense", credit: "income", xfer: "transfer" },
+    },
+  });
+
+  it("reads type from column using typeMap", () => {
+    const rows = [
+      makeRow({ Date: "2025-01-01", Description: "Coffee", Amount: "-5.00", Type: "debit" }),
+    ];
+    const result = transformCsv(rows, mapping);
+    expect(result.transactions[0].type).toBe("expense");
+  });
+
+  it("maps credit to income", () => {
+    const rows = [
+      makeRow({ Date: "2025-01-01", Description: "Salary", Amount: "3000.00", Type: "credit" }),
+    ];
+    const result = transformCsv(rows, mapping);
+    expect(result.transactions[0].type).toBe("income");
+  });
+
+  it("maps custom transfer value", () => {
+    const rows = [
+      makeRow({ Date: "2025-01-01", Description: "Move funds", Amount: "-500.00", Type: "xfer" }),
+    ];
+    const result = transformCsv(rows, mapping);
+    expect(result.transactions[0].type).toBe("transfer");
+  });
+
+  it("falls through to amount-sign for unknown type values", () => {
+    const rows = [
+      makeRow({ Date: "2025-01-01", Description: "Unknown", Amount: "-10.00", Type: "misc" }),
+    ];
+    const result = transformCsv(rows, mapping);
+    expect(result.transactions[0].type).toBe("expense");
+  });
+
+  it("transfer patterns override column type", () => {
+    const mapping2 = baseMapping({
+      typeDetection: {
+        method: "column",
+        typeColumn: "Type",
+        typeMap: { debit: "expense" },
+        transferPatterns: ["transfer to"],
+      },
+    });
+    const rows = [
+      makeRow({ Date: "2025-01-01", Description: "Transfer to savings", Amount: "-500.00", Type: "debit" }),
+    ];
+    const result = transformCsv(rows, mapping2);
+    expect(result.transactions[0].type).toBe("transfer");
+  });
+
+  it("is case-insensitive on column values", () => {
+    const rows = [
+      makeRow({ Date: "2025-01-01", Description: "Test", Amount: "-5.00", Type: "DEBIT" }),
+    ];
+    const result = transformCsv(rows, mapping);
+    expect(result.transactions[0].type).toBe("expense");
+  });
+});
+
+// ── Date validation ───────────────────────────────────────────────
+
+describe("date validation rejects impossible dates", () => {
+  it("rejects February 31", () => {
+    const rows = [makeRow({ Date: "02/31/2025", Description: "X", Amount: "-1.00" })];
+    const result = transformCsv(rows, baseMapping({ date: { column: "Date", format: "MM/DD/YYYY" } }));
+    expect(result.errors).toHaveLength(1);
+    expect(result.errors[0].message).toContain("invalid date");
+  });
+
+  it("rejects month 13", () => {
+    const rows = [makeRow({ Date: "13/01/2025", Description: "X", Amount: "-1.00" })];
+    const result = transformCsv(rows, baseMapping({ date: { column: "Date", format: "MM/DD/YYYY" } }));
+    expect(result.errors).toHaveLength(1);
+    expect(result.errors[0].message).toContain("invalid date");
+  });
+
+  it("rejects month 0", () => {
+    const rows = [makeRow({ Date: "00/15/2025", Description: "X", Amount: "-1.00" })];
+    const result = transformCsv(rows, baseMapping({ date: { column: "Date", format: "MM/DD/YYYY" } }));
+    expect(result.errors).toHaveLength(1);
+    expect(result.errors[0].message).toContain("invalid date");
+  });
+
+  it("rejects day 0", () => {
+    const rows = [makeRow({ Date: "2025-01-00", Description: "X", Amount: "-1.00" })];
+    const result = transformCsv(rows, baseMapping());
+    expect(result.errors).toHaveLength(1);
+    expect(result.errors[0].message).toContain("invalid date");
+  });
+
+  it("accepts valid leap year date", () => {
+    const rows = [makeRow({ Date: "02/29/2024", Description: "X", Amount: "-1.00" })];
+    const result = transformCsv(rows, baseMapping({ date: { column: "Date", format: "MM/DD/YYYY" } }));
+    expect(result.transactions).toHaveLength(1);
+    expect(result.transactions[0].date).toBe("2024-02-29");
+  });
+
+  it("rejects invalid leap year date", () => {
+    const rows = [makeRow({ Date: "02/29/2025", Description: "X", Amount: "-1.00" })];
+    const result = transformCsv(rows, baseMapping({ date: { column: "Date", format: "MM/DD/YYYY" } }));
+    expect(result.errors).toHaveLength(1);
+    expect(result.errors[0].message).toContain("invalid date");
+  });
+});
+
+// ── Date-with-time stripping ──────────────────────────────────────
+
+describe("date-with-time stripping", () => {
+  it("strips ISO timestamp from YYYY-MM-DD", () => {
+    const rows = [makeRow({ Date: "2025-01-15T14:30:00", Description: "X", Amount: "-1.00" })];
+    const result = transformCsv(rows, baseMapping());
+    expect(result.transactions[0].date).toBe("2025-01-15");
+  });
+
+  it("strips space-separated time from MM/DD/YYYY", () => {
+    const rows = [makeRow({ Date: "01/15/2025 10:00", Description: "X", Amount: "-1.00" })];
+    const result = transformCsv(rows, baseMapping({ date: { column: "Date", format: "MM/DD/YYYY" } }));
+    expect(result.transactions[0].date).toBe("2025-01-15");
+  });
+
+  it("strips timestamp from DD.MM.YYYY", () => {
+    const rows = [makeRow({ Date: "15.03.2025 08:30:00", Description: "X", Amount: "-1.00" })];
+    const result = transformCsv(rows, baseMapping({ date: { column: "Date", format: "DD.MM.YYYY" } }));
+    expect(result.transactions[0].date).toBe("2025-03-15");
+  });
+});
+
+// ── Multi-character currency codes ────────────────────────────────
+
+describe("multi-character currency codes", () => {
+  it("strips CHF prefix", () => {
+    expect(parseCurrencyToCents("CHF 1,234.56", "currency", 1)).toBe(123456);
+  });
+
+  it("strips USD prefix", () => {
+    expect(parseCurrencyToCents("USD 50.00", "currency", 1)).toBe(5000);
+  });
+
+  it("strips trailing currency code", () => {
+    expect(parseCurrencyToCents("1234.56 USD", "currency", 1)).toBe(123456);
+  });
+
+  it("strips EUR with european format", () => {
+    expect(parseCurrencyToCents("EUR 1.234,56", "european", 1)).toBe(123456);
+  });
+
+  it("strips GBP prefix", () => {
+    expect(parseCurrencyToCents("GBP 99.99", "currency", 1)).toBe(9999);
+  });
+});
+
+// ── startId option ────────────────────────────────────────────────
+
+describe("startId option for multi-file append", () => {
+  const mapping = baseMapping();
+
+  it("IDs start from startId", () => {
+    const rows = [
+      makeRow({ Date: "2025-01-01", Description: "A", Amount: "-1.00" }),
+      makeRow({ Date: "2025-01-02", Description: "B", Amount: "-2.00" }),
+    ];
+    const result = transformCsv(rows, mapping, { startId: 50 });
+    expect(result.transactions.map((t) => t.id)).toEqual(["imp-50", "imp-51"]);
+  });
+
+  it("defaults to 1 without option", () => {
+    const rows = [makeRow({ Date: "2025-01-01", Description: "A", Amount: "-1.00" })];
+    const result = transformCsv(rows, mapping);
+    expect(result.transactions[0].id).toBe("imp-1");
+  });
+
+  it("skipped rows do not consume IDs with startId", () => {
+    const mapping2 = baseMapping({ skipRules: [{ column: "Description", equals: "skip" }] });
+    const rows = [
+      makeRow({ Date: "2025-01-01", Description: "A", Amount: "-1.00" }),
+      makeRow({ Date: "2025-01-02", Description: "skip", Amount: "-2.00" }),
+      makeRow({ Date: "2025-01-03", Description: "B", Amount: "-3.00" }),
+    ];
+    const result = transformCsv(rows, mapping2, { startId: 100 });
+    expect(result.transactions.map((t) => t.id)).toEqual(["imp-100", "imp-101"]);
+  });
+});
