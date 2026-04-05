@@ -1,7 +1,7 @@
-import { memo, useCallback, useMemo, useState } from "react";
+import { memo, useCallback, useMemo, useRef, useState } from "react";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import {
   Table,
-  TableBody,
   TableCell,
   TableHead,
   TableHeader,
@@ -66,6 +66,10 @@ function formatDate(iso: string): string {
 function defaultDirection(column: SortColumn): SortConfig["direction"] {
   return column === "date" ? "desc" : "asc";
 }
+
+/** Row count threshold: below this, render directly; above, virtualize. */
+const VIRTUALIZE_THRESHOLD = 100;
+const ROW_HEIGHT_ESTIMATE = 41;
 
 // ---------------------------------------------------------------------------
 // SortableHeader
@@ -382,6 +386,17 @@ export function TransactionList({
     setEditingCell(null);
   }, []);
 
+  const shouldVirtualize = transactions.length >= VIRTUALIZE_THRESHOLD;
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+
+  const virtualizer = useVirtualizer({
+    count: transactions.length,
+    getScrollElement: () => scrollContainerRef.current,
+    estimateSize: () => ROW_HEIGHT_ESTIMATE,
+    overscan: 20,
+    enabled: shouldVirtualize,
+  });
+
   if (transactions.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-24 text-muted-foreground">
@@ -392,64 +407,131 @@ export function TransactionList({
     );
   }
 
-  return (
-    <Table className={hasSelection ? "select-none" : ""}>
-      <TableHeader>
-        <TableRow className="hover:bg-transparent border-b-2 border-border">
-          {hasSelection && (
-            <TableHead className="w-[40px] px-3">
-              <Checkbox
-                checked={allSelected}
-                indeterminate={indeterminate}
-                onCheckedChange={() => onToggleAll?.()}
-                aria-label="Select all transactions"
-              />
-            </TableHead>
-          )}
-          <SortableHeader column="date" sort={sort} onSortChange={onSortChange} className="w-[120px]">Date</SortableHeader>
-          {showAccountColumn && (
-            <SortableHeader column="account" sort={sort} onSortChange={onSortChange}>Account</SortableHeader>
-          )}
-          <SortableHeader column="merchant" sort={sort} onSortChange={onSortChange}>Merchant</SortableHeader>
-          <SortableHeader column="category" sort={sort} onSortChange={onSortChange}>Category</SortableHeader>
-          <SortableHeader column="amount" sort={sort} onSortChange={onSortChange} align="right" className="w-[130px]">Amount</SortableHeader>
-          {hasActions && <TableHead className="w-[48px]" />}
-        </TableRow>
-      </TableHeader>
-      <TableBody>
-        {transactions.map((txn, i) => {
-          const isPanelEditing = txn.id === editingTransactionId;
-          const isEditable = !!onInlineSave && txn.type !== "transfer";
-          const activeCol = effectiveEditingCell?.txnId === txn.id ? effectiveEditingCell.column : null;
-          const isSelected = hasSelection && selectedIds.has(txn.id);
+  function renderRow(txn: Transaction, i: number) {
+    const isPanelEditing = txn.id === editingTransactionId;
+    const isEditable = !!onInlineSave && txn.type !== "transfer";
+    const activeCol = effectiveEditingCell?.txnId === txn.id ? effectiveEditingCell.column : null;
+    const isSelected = hasSelection && selectedIds!.has(txn.id);
 
-          return (
-            <TransactionRowMemo
-              key={txn.id}
-              txn={txn}
-              index={i}
-              showAccountColumn={showAccountColumn}
-              accountMap={accountMap}
-              categoryMap={categoryMap}
-              allTransactions={allTransactions}
-              accounts={accounts}
-              categories={categories}
-              isPanelEditing={isPanelEditing}
-              isEditable={isEditable}
-              activeCol={activeCol}
-              isSelected={isSelected}
-              hasSelection={hasSelection}
-              hasActions={hasActions}
-              onToggleSelect={onToggleSelect}
-              onCellClick={handleCellClick}
-              onInlineSave={handleInlineSave}
-              onInlineCancel={handleInlineCancel}
-              onEdit={onEdit}
-              onDelete={onDelete}
-            />
-          );
-        })}
-      </TableBody>
-    </Table>
+    return (
+      <TransactionRowMemo
+        key={txn.id}
+        txn={txn}
+        index={i}
+        showAccountColumn={showAccountColumn}
+        accountMap={accountMap}
+        categoryMap={categoryMap}
+        allTransactions={allTransactions}
+        accounts={accounts}
+        categories={categories}
+        isPanelEditing={isPanelEditing}
+        isEditable={isEditable}
+        activeCol={activeCol}
+        isSelected={isSelected}
+        hasSelection={hasSelection}
+        hasActions={hasActions}
+        onToggleSelect={onToggleSelect}
+        onCellClick={handleCellClick}
+        onInlineSave={handleInlineSave}
+        onInlineCancel={handleInlineCancel}
+        onEdit={onEdit}
+        onDelete={onDelete}
+      />
+    );
+  }
+
+  const tableHeader = (
+    <TableRow className="hover:bg-transparent border-b-2 border-border">
+      {hasSelection && (
+        <TableHead className="w-[40px] px-3">
+          <Checkbox
+            checked={allSelected}
+            indeterminate={indeterminate}
+            onCheckedChange={() => onToggleAll?.()}
+            aria-label="Select all transactions"
+          />
+        </TableHead>
+      )}
+      <SortableHeader column="date" sort={sort} onSortChange={onSortChange} className="w-[120px]">Date</SortableHeader>
+      {showAccountColumn && (
+        <SortableHeader column="account" sort={sort} onSortChange={onSortChange}>Account</SortableHeader>
+      )}
+      <SortableHeader column="merchant" sort={sort} onSortChange={onSortChange}>Merchant</SortableHeader>
+      <SortableHeader column="category" sort={sort} onSortChange={onSortChange}>Category</SortableHeader>
+      <SortableHeader column="amount" sort={sort} onSortChange={onSortChange} align="right" className="w-[130px]">Amount</SortableHeader>
+      {hasActions && <TableHead className="w-[48px]" />}
+    </TableRow>
+  );
+
+  // For small lists, render directly without virtualization
+  if (!shouldVirtualize) {
+    return (
+      <Table className={hasSelection ? "select-none" : ""}>
+        <TableHeader>
+          {tableHeader}
+        </TableHeader>
+        <tbody data-slot="table-body">
+          {transactions.map((txn, i) => renderRow(txn, i))}
+        </tbody>
+      </Table>
+    );
+  }
+
+  // Virtualized rendering
+  const virtualItems = virtualizer.getVirtualItems();
+  const totalSize = virtualizer.getTotalSize();
+
+  return (
+    <div
+      ref={scrollContainerRef}
+      className="relative w-full overflow-auto"
+      style={{ maxHeight: "calc(100vh - 220px)" }}
+    >
+      <table
+        data-slot="table"
+        className={`w-full caption-bottom text-sm ${hasSelection ? "select-none" : ""}`}
+      >
+        <thead
+          data-slot="table-header"
+          className="[&_tr]:border-b sticky top-0 z-10 bg-background"
+        >
+          {tableHeader}
+        </thead>
+        <tbody
+          data-slot="table-body"
+          style={{
+            height: `${totalSize}px`,
+            width: "100%",
+            position: "relative",
+          }}
+        >
+          {virtualItems.map((virtualRow) => {
+            const txn = transactions[virtualRow.index];
+            return (
+              <tr
+                key={txn.id}
+                data-index={virtualRow.index}
+                ref={virtualizer.measureElement}
+                style={{
+                  position: "absolute",
+                  top: 0,
+                  left: 0,
+                  width: "100%",
+                  transform: `translateY(${virtualRow.start}px)`,
+                }}
+              >
+                <td colSpan={999} className="p-0 border-0">
+                  <table className="w-full" role="presentation">
+                    <tbody>
+                      {renderRow(txn, virtualRow.index)}
+                    </tbody>
+                  </table>
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
   );
 }
