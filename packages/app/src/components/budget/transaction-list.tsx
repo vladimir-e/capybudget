@@ -131,14 +131,12 @@ function SortableHeader({
 
 interface TransactionRowProps {
   txn: Transaction;
-  index: number;
   showAccountColumn: boolean;
   accountMap: Map<string, Account>;
   categoryMap: Map<string, Category>;
   allTransactions: Transaction[];
   accounts: Account[];
   categories: Category[];
-  isPanelEditing: boolean;
   isEditable: boolean;
   activeCol: EditableColumn | null;
   isSelected: boolean;
@@ -154,14 +152,12 @@ interface TransactionRowProps {
 
 const TransactionRowMemo = memo(function TransactionRow({
   txn,
-  index,
   showAccountColumn,
   accountMap,
   categoryMap,
   allTransactions,
   accounts,
   categories,
-  isPanelEditing,
   isEditable,
   activeCol,
   isSelected,
@@ -419,20 +415,18 @@ export function TransactionList({
   }
 
   function renderCells(txn: Transaction, i: number) {
-    const { isPanelEditing, isEditable, activeCol, isSelected } = rowProps(txn, i);
+    const { isEditable, activeCol, isSelected } = rowProps(txn, i);
 
     return (
       <TransactionRowMemo
         key={txn.id}
         txn={txn}
-        index={i}
         showAccountColumn={showAccountColumn}
         accountMap={accountMap}
         categoryMap={categoryMap}
         allTransactions={allTransactions}
         accounts={accounts}
         categories={categories}
-        isPanelEditing={isPanelEditing}
         isEditable={isEditable}
         activeCol={activeCol}
         isSelected={isSelected}

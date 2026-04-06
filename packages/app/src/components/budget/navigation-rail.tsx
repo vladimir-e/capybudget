@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { Receipt, PieChart, FileUp, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 
@@ -21,7 +21,7 @@ export function NavigationRail({
   onToggleSidebar,
   hasImportData,
 }: NavigationRailProps) {
-  const search = { path: budgetPath, name: budgetName };
+  const search = useMemo(() => ({ path: budgetPath, name: budgetName }), [budgetPath, budgetName]);
   const navigate = useNavigate();
 
   useEffect(() => {
