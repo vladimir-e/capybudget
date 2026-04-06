@@ -492,14 +492,17 @@ export function TransactionList({
     );
   }
 
-  // Virtualized rendering
+  // Virtualized rendering — use spacer rows instead of absolute positioning
+  // because CSS position:absolute is undefined on table-row elements.
   const virtualItems = virtualizer.getVirtualItems();
   const totalSize = virtualizer.getTotalSize();
+  const paddingTop = virtualItems.length > 0 ? virtualItems[0].start : 0;
+  const paddingBottom = virtualItems.length > 0 ? totalSize - virtualItems[virtualItems.length - 1].end : 0;
 
   return (
     <div
       ref={scrollContainerRef}
-      className="relative w-full overflow-auto"
+      className="w-full overflow-auto"
       style={{ maxHeight: "calc(100vh - 220px)" }}
     >
       <table
@@ -512,14 +515,10 @@ export function TransactionList({
         >
           {tableHeader}
         </thead>
-        <tbody
-          data-slot="table-body"
-          style={{
-            height: `${totalSize}px`,
-            width: "100%",
-            position: "relative",
-          }}
-        >
+        <TableBody>
+          {paddingTop > 0 && (
+            <tr style={{ height: paddingTop }} />
+          )}
           {virtualItems.map((virtualRow) => {
             const txn = transactions[virtualRow.index];
             const { rowClassName } = rowProps(txn, virtualRow.index);
@@ -530,19 +529,15 @@ export function TransactionList({
                 data-index={virtualRow.index}
                 ref={virtualizer.measureElement}
                 className={`border-b ${rowClassName}`}
-                style={{
-                  position: "absolute",
-                  top: 0,
-                  left: 0,
-                  width: "100%",
-                  transform: `translateY(${virtualRow.start}px)`,
-                }}
               >
                 {renderCells(txn, virtualRow.index)}
               </tr>
             );
           })}
-        </tbody>
+          {paddingBottom > 0 && (
+            <tr style={{ height: paddingBottom }} />
+          )}
+        </TableBody>
       </table>
     </div>
   );
