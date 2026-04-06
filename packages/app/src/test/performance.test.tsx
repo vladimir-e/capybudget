@@ -1,6 +1,6 @@
 import "@/test/journeys/setup";
-import { describe, it, expect } from "vitest";
-import { screen, waitFor } from "@testing-library/react";
+import { describe, it, expect, beforeAll } from "vitest";
+import { screen, waitFor, cleanup } from "@testing-library/react";
 import { renderApp } from "@/test/render-app";
 import { generatePerfData } from "@/test/generate-perf-data";
 
@@ -13,6 +13,14 @@ async function waitForApp() {
 const TIMEOUT = 30_000;
 
 describe("TransactionList performance", () => {
+  // Warm up jsdom/module initialization so it doesn't skew the first test
+  beforeAll(async () => {
+    const seed = generatePerfData(1);
+    await renderApp({ seed });
+    await waitForApp();
+    cleanup();
+  }, TIMEOUT);
+
   it("renders 1000 transactions", async () => {
     const seed = generatePerfData(1000);
 

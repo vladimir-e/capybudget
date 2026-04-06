@@ -2,6 +2,7 @@ import { memo, useCallback, useMemo, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import {
   Table,
+  TableBody,
   TableCell,
   TableHead,
   TableHeader,
@@ -196,21 +197,12 @@ const TransactionRowMemo = memo(function TransactionRow({
     categoryDisplay = <span className="text-muted-foreground/50 italic">Uncategorized</span>;
   }
 
-  const rowBg = isSelected
-    ? "bg-brand-subtle/50"
-    : isPanelEditing
-      ? "bg-brand-subtle/40 ring-1 ring-brand/20"
-      : index % 2 === 0 ? "bg-transparent" : "bg-muted/30";
-
   const isCellClickable = isEditable || (!!onEdit && txn.type === "transfer");
   const cellClickClass = isCellClickable ? "cursor-pointer" : "";
 
+  // Returns a fragment of <TableCell> elements — the caller provides the <tr>.
   return (
-    <TableRow
-      className={`transition-colors border-border/50 ${rowBg} ${
-        isPanelEditing ? "" : "hover:bg-brand-subtle/50"
-      }`}
-    >
+    <>
       {hasSelection && (
         <TableCell
           className="px-3 cursor-pointer"
@@ -320,7 +312,7 @@ const TransactionRowMemo = memo(function TransactionRow({
           </DropdownMenu>
         </TableCell>
       )}
-    </TableRow>
+    </>
   );
 });
 
@@ -407,11 +399,27 @@ export function TransactionList({
     );
   }
 
-  function renderRow(txn: Transaction, i: number) {
+  function rowProps(txn: Transaction, i: number) {
     const isPanelEditing = txn.id === editingTransactionId;
     const isEditable = !!onInlineSave && txn.type !== "transfer";
     const activeCol = effectiveEditingCell?.txnId === txn.id ? effectiveEditingCell.column : null;
     const isSelected = hasSelection && selectedIds!.has(txn.id);
+
+    const rowBg = isSelected
+      ? "bg-brand-subtle/50"
+      : isPanelEditing
+        ? "bg-brand-subtle/40 ring-1 ring-brand/20"
+        : i % 2 === 0 ? "bg-transparent" : "bg-muted/30";
+
+    const rowClassName = `transition-colors border-border/50 ${rowBg} ${
+      isPanelEditing ? "" : "hover:bg-brand-subtle/50"
+    }`;
+
+    return { isPanelEditing, isEditable, activeCol, isSelected, rowClassName };
+  }
+
+  function renderCells(txn: Transaction, i: number) {
+    const { isPanelEditing, isEditable, activeCol, isSelected } = rowProps(txn, i);
 
     return (
       <TransactionRowMemo
@@ -470,9 +478,16 @@ export function TransactionList({
         <TableHeader>
           {tableHeader}
         </TableHeader>
-        <tbody data-slot="table-body">
-          {transactions.map((txn, i) => renderRow(txn, i))}
-        </tbody>
+        <TableBody>
+          {transactions.map((txn, i) => {
+            const { rowClassName } = rowProps(txn, i);
+            return (
+              <TableRow key={txn.id} className={rowClassName}>
+                {renderCells(txn, i)}
+              </TableRow>
+            );
+          })}
+        </TableBody>
       </Table>
     );
   }
@@ -507,11 +522,14 @@ export function TransactionList({
         >
           {virtualItems.map((virtualRow) => {
             const txn = transactions[virtualRow.index];
+            const { rowClassName } = rowProps(txn, virtualRow.index);
             return (
               <tr
                 key={txn.id}
+                data-slot="table-row"
                 data-index={virtualRow.index}
                 ref={virtualizer.measureElement}
+                className={`border-b ${rowClassName}`}
                 style={{
                   position: "absolute",
                   top: 0,
@@ -520,13 +538,7 @@ export function TransactionList({
                   transform: `translateY(${virtualRow.start}px)`,
                 }}
               >
-                <td colSpan={999} className="p-0 border-0">
-                  <table className="w-full" role="presentation">
-                    <tbody>
-                      {renderRow(txn, virtualRow.index)}
-                    </tbody>
-                  </table>
-                </td>
+                {renderCells(txn, virtualRow.index)}
               </tr>
             );
           })}
