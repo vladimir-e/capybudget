@@ -1,4 +1,5 @@
-import { Link } from "@tanstack/react-router";
+import { useEffect } from "react";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { Receipt, PieChart, FileUp, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 
 export type Section = "accounts" | "budget" | "import";
@@ -21,6 +22,24 @@ export function NavigationRail({
   hasImportData,
 }: NavigationRailProps) {
   const search = { path: budgetPath, name: budgetName };
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (!e.metaKey || e.shiftKey || e.altKey || e.ctrlKey) return;
+      const target = e.target as HTMLElement;
+      if (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable) return;
+
+      const routes: Record<string, string> = { "1": "/budget", "2": "/budget/categories", "3": "/budget/import" };
+      const to = routes[e.key];
+      if (to) {
+        e.preventDefault();
+        navigate({ to, search });
+      }
+    };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, [navigate, search]);
 
   const isAccounts = activeSection === "accounts";
   const isBudget = activeSection === "budget";

@@ -237,13 +237,13 @@ const TransactionRowMemo = memo(function TransactionRow({
         </TableCell>
       )}
       <TableCell
-        className={`text-muted-foreground text-[13px] ${cellClickClass}`}
+        className={`text-muted-foreground text-[13px] max-w-[300px] overflow-hidden ${cellClickClass}`}
         onClick={() => onCellClick(txn, "merchant")}
       >
         {activeCol === "merchant" ? (
           <InlineEditCell txn={txn} column="merchant" accounts={accounts} categories={categories} onSave={onInlineSave} onCancel={onInlineCancel} />
         ) : (
-          <div className="flex items-center">
+          <div className="flex items-center min-w-0">
             <span className="truncate">
               {txn.type === "transfer" ? (
                 <span className="text-muted-foreground/50">Transfer</span>
@@ -464,7 +464,7 @@ export function TransactionList({
       {showAccountColumn && (
         <SortableHeader column="account" sort={sort} onSortChange={onSortChange}>Account</SortableHeader>
       )}
-      <SortableHeader column="merchant" sort={sort} onSortChange={onSortChange}>Merchant</SortableHeader>
+      <SortableHeader column="merchant" sort={sort} onSortChange={onSortChange} className="max-w-[300px]">Merchant</SortableHeader>
       <SortableHeader column="category" sort={sort} onSortChange={onSortChange}>Category</SortableHeader>
       <SortableHeader column="amount" sort={sort} onSortChange={onSortChange} align="right" className="w-[130px]">Amount</SortableHeader>
       {hasActions && <TableHead className="w-[48px]" />}

@@ -27,6 +27,8 @@ interface CategorySelectorProps {
   defaultOpen?: boolean;
   /** Called when the popover opens or closes. */
   onOpenChange?: (open: boolean) => void;
+  /** Optional element rendered after the label inside the trigger button. */
+  suffix?: React.ReactNode;
 }
 
 export function CategorySelector({
@@ -39,6 +41,7 @@ export function CategorySelector({
   clearable = false,
   defaultOpen = false,
   onOpenChange: onOpenChangeProp,
+  suffix,
 }: CategorySelectorProps) {
   const [open, setOpen] = useState(defaultOpen);
   const handleOpenChange = (next: boolean) => { setOpen(next); onOpenChangeProp?.(next); };
@@ -66,6 +69,7 @@ export function CategorySelector({
           }
         >
           <span className="truncate">{selectedLabel}</span>
+          {suffix}
           <ChevronDown className="h-3.5 w-3.5 shrink-0 opacity-50" />
         </PopoverTrigger>
         {showClear && (

@@ -502,23 +502,21 @@ export function ImportTable({
 
               {/* Category (selector) */}
               <TableCell className="text-[13px] py-1" onClick={(e) => e.stopPropagation()}>
-                <div className="flex items-center gap-1.5">
-                  {txn.categoryConfidence && (
+                <CategorySelector
+                  categories={categories}
+                  value={txn.categoryId || null}
+                  onChange={(categoryId) =>
+                    onUpdateTransaction(txn.id, {
+                      categoryId: categoryId || "",
+                      categoryConfidence: categoryId ? "high" : "",
+                    })
+                  }
+                  placeholder={txn.type === "transfer" ? "Transfer" : "Uncategorized"}
+                  includeUncategorized
+                  suffix={txn.categoryConfidence ? (
                     <ConfidenceDot confidence={txn.categoryConfidence} />
-                  )}
-                  <CategorySelector
-                    categories={categories}
-                    value={txn.categoryId || null}
-                    onChange={(categoryId) =>
-                      onUpdateTransaction(txn.id, {
-                        categoryId: categoryId || "",
-                        categoryConfidence: categoryId ? "high" : "",
-                      })
-                    }
-                    placeholder="Uncategorized"
-                    includeUncategorized
-                  />
-                </div>
+                  ) : undefined}
+                />
               </TableCell>
             </TableRow>
           );

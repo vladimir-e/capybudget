@@ -10,7 +10,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { useCustomInstructions } from "@/hooks/use-custom-instructions";
+import { useImportInstructions } from "@/hooks/use-custom-instructions";
 import { useImportMerge } from "@/hooks/use-import-merge";
 import { useImportData } from "@/hooks/use-import-data";
 import { useImportStore } from "@/stores/import-store";
@@ -58,7 +58,7 @@ export function ImportPreview({ budgetPath, budgetName, onMergeComplete }: Impor
     categories,
   } = useImportData(budgetPath);
 
-  const customInstructions = useCustomInstructions(budgetPath);
+  const customInstructions = useImportInstructions(budgetPath);
 
   // ── Enrichment (via store — survives navigation) ───────────────
   const isEnriching = useImportStore((s) => s.isEnriching);

@@ -22,7 +22,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { useImportRepository, type SourceFileInfo } from "@/hooks/use-import-repository";
 import { useImportStore } from "@/stores/import-store";
-import { useCustomInstructions } from "@/hooks/use-custom-instructions";
+import { useImportInstructions } from "@/hooks/use-custom-instructions";
 import { getToolLabel } from "@/services/capy-stream";
 import {
   formatFileSize,
@@ -99,7 +99,7 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
   const dragCounterRef = useRef(0);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  const customInstructions = useCustomInstructions(budgetPath);
+  const customInstructions = useImportInstructions(budgetPath);
   const [showInstructions, setShowInstructions] = useState(false);
 
   /** Refresh source file list from disk. */
