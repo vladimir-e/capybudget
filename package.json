@@ -8,6 +8,7 @@
     "apps/*"
   ],
   "scripts": {
+    "start": "tauri dev",
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",

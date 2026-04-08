@@ -103,6 +103,9 @@ export type {
   ImportLogEntry,
 } from "./import-types";
 
+// Import account matching
+export { matchAccountsByName } from "./import-matching";
+
 // Import merge operations
 export type { MergeInput, MergeOutput } from "./import-merge";
 export { prepareMerge } from "./import-merge";

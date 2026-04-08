@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAccounts, useCategories, useTransactions } from "@/hooks/use-budget-data";
 import { useImportRepository } from "@/hooks/use-import-repository";
-import { detectDuplicates } from "@capybudget/core";
+import { detectDuplicates, matchAccountsByName } from "@capybudget/core";
 import type { ImportTransaction, ImportAliases, DuplicateMatch } from "@capybudget/core";
 import type { EntityMapping } from "@/components/import/import-mapping";
 
@@ -118,7 +118,11 @@ export function useImportData(budgetPath: string) {
         }
       }
 
-      // 2. Validate categoryIds — clear invalid ones
+      // 2. Direct name match — sourceAccount against existing account names
+      const sourceAccountNames = [...new Set(transactions.map((t) => t.sourceAccount).filter(Boolean))];
+      const nameMapping: EntityMapping = matchAccountsByName(sourceAccountNames, accounts);
+
+      // 3. Validate categoryIds — clear invalid ones
       let needsCategoryFix = false;
       const validated = transactions.map((t) => {
         if (t.categoryId && !categoryIds.has(t.categoryId)) {
@@ -132,7 +136,7 @@ export function useImportData(budgetPath: string) {
         scheduleWriteBack();
       }
 
-      // 3. Overlay aliases (user's past mappings override AI)
+      // 4. Overlay aliases (user's past mappings override AI + name match)
       const aliasMapping: EntityMapping = {};
       try {
         const aliases: ImportAliases = await repository.readAliases();
@@ -149,8 +153,8 @@ export function useImportData(budgetPath: string) {
         // No aliases file
       }
 
-      // Merge: aliases override AI suggestions
-      const merged = { ...aiMapping, ...aliasMapping };
+      // Merge: aliases > name match > AI
+      const merged = { ...aiMapping, ...nameMapping, ...aliasMapping };
       if (Object.keys(merged).length > 0) {
         setAccountMapping(merged);
       }

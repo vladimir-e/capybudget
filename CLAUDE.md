@@ -5,6 +5,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Commands
 
 ```bash
+npm start             # Dev mode shortcut (same as `npm run tauri dev`)
 npm run tauri dev     # Dev mode: Vite + Tauri window (use this, not just `npm run dev`)
 npm run build         # TypeScript check + Vite production build
 npm run tauri build   # Full native app build (.dmg/.msi/.deb)

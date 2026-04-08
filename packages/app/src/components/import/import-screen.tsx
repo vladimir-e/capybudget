@@ -14,7 +14,6 @@ import {
   Image,
   Loader2,
   Wrench,
-  Settings,
   Copy,
   Upload,
 } from "lucide-react";
@@ -23,6 +22,7 @@ import { Button } from "@/components/ui/button";
 import { useImportRepository, type SourceFileInfo } from "@/hooks/use-import-repository";
 import { useImportStore } from "@/stores/import-store";
 import { useImportInstructions } from "@/hooks/use-custom-instructions";
+import { useAccounts } from "@/hooks/use-budget-data";
 import { getToolLabel } from "@/services/capy-stream";
 import {
   formatFileSize,
@@ -30,7 +30,7 @@ import {
   type ContentBlock,
 } from "@capybudget/intelligence";
 import { formatDateLabel } from "@capybudget/core";
-import { InstructionsDialog } from "@/components/capy/instructions-dialog";
+import { AccountSelector } from "@/components/budget/account-selector";
 import { ImportPreview } from "./import-preview";
 
 // ── Helpers ─────────────────────────────────────────────────────
@@ -100,7 +100,16 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const customInstructions = useImportInstructions(budgetPath);
-  const [showInstructions, setShowInstructions] = useState(false);
+  const [localInstructions, setLocalInstructions] = useState<string | null>(null);
+  const [selectedAccountId, setSelectedAccountId] = useState("");
+  const { data: accounts = [] } = useAccounts();
+
+  // Seed local instructions from persisted value once loaded
+  useEffect(() => {
+    if (localInstructions === null && !customInstructions.isLoading) {
+      setLocalInstructions(customInstructions.instructions ?? "");
+    }
+  }, [customInstructions.isLoading, customInstructions.instructions, localInstructions]);
 
   /** Refresh source file list from disk. */
   const refreshSourceFiles = useCallback(async () => {
@@ -260,9 +269,14 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
       /* best-effort */
     }
 
-    const customInstr = customInstructions.instructions?.trim();
-    const systemPrompt = customInstr
-      ? `${IMPORT_SYSTEM_PROMPT}\n\n## User instructions\n${customInstr}`
+    const selectedAccount = accounts.find((a) => a.id === selectedAccountId);
+    const parts: string[] = [];
+    if (selectedAccount) parts.push(`Account: ${selectedAccount.name}`);
+    const customInstr = (localInstructions ?? "").trim();
+    if (customInstr) parts.push(customInstr);
+
+    const systemPrompt = parts.length > 0
+      ? `${IMPORT_SYSTEM_PROMPT}\n\n## User instructions\n${parts.join("\n")}`
       : IMPORT_SYSTEM_PROMPT;
 
     startNormalization({
@@ -313,15 +327,6 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
             <h2 className="text-xl font-bold tracking-tight">Import</h2>
             <p className="text-sm text-muted-foreground">{subtitle}</p>
           </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setShowInstructions(true)}
-            className="gap-1.5 shrink-0"
-          >
-            <Settings className="h-3.5 w-3.5" />
-            Capy Instructions
-          </Button>
           {(showProcessing || showPreview) && (
             <Button
               variant="outline"
@@ -447,15 +452,37 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
                       );
                     })}
                   </div>
-                  <div className="flex justify-center pt-2">
-                    <Button
-                      onClick={handleStart}
-                      disabled={uploadingFiles.size > 0}
-                      className="gap-2 rounded-xl px-8 py-5 text-base font-semibold shadow-lg shadow-brand/20"
-                    >
-                      <Sparkles className="h-4.5 w-4.5" />
-                      Start Import
-                    </Button>
+                  <div className="space-y-3 pt-2">
+                    <div className="flex items-center gap-3">
+                      <label className="text-sm text-muted-foreground/70 shrink-0">
+                        Account
+                      </label>
+                      <AccountSelector
+                        accounts={accounts}
+                        value={selectedAccountId}
+                        onChange={setSelectedAccountId}
+                        placeholder="Any"
+                        clearable
+                      />
+                    </div>
+                    <textarea
+                      value={localInstructions ?? ""}
+                      onChange={(e) => setLocalInstructions(e.target.value)}
+                      onBlur={() => customInstructions.save((localInstructions ?? "").trim())}
+                      placeholder="Instructions for Capy, e.g. &quot;This is a Chase credit card statement, all transactions are expenses&quot;"
+                      rows={2}
+                      className="w-full resize-none rounded-xl border border-border/30 bg-card/30 px-4 py-3 text-sm text-foreground/80 placeholder:text-muted-foreground/40 focus:border-brand/40 focus:outline-none focus:ring-1 focus:ring-brand/20"
+                    />
+                    <div className="flex justify-center">
+                      <Button
+                        onClick={handleStart}
+                        disabled={uploadingFiles.size > 0}
+                        className="gap-2 rounded-xl px-8 py-5 text-base font-semibold shadow-lg shadow-brand/20"
+                      >
+                        <Sparkles className="h-4.5 w-4.5" />
+                        Start Import
+                      </Button>
+                    </div>
                   </div>
                 </div>
               )}
@@ -502,12 +529,6 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
         </div>
       </div>
 
-      <InstructionsDialog
-        open={showInstructions}
-        onOpenChange={setShowInstructions}
-        instructions={customInstructions.instructions}
-        onSave={customInstructions.save}
-      />
     </div>
   );
 }

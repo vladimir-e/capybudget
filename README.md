@@ -18,7 +18,7 @@ Built with Tauri v2, React, and TypeScript. Optional intelligence layer powered 
 
 ```bash
 npm install
-npm run tauri dev
+npm start
 ```
 
 This starts the Vite dev server and opens the Tauri desktop window.
