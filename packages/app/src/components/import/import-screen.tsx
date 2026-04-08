@@ -452,37 +452,30 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
                       );
                     })}
                   </div>
-                  <div className="space-y-3 pt-2">
-                    <div className="flex items-center gap-3">
-                      <label className="text-sm text-muted-foreground/70 shrink-0">
-                        Account
-                      </label>
-                      <AccountSelector
-                        accounts={accounts}
-                        value={selectedAccountId}
-                        onChange={setSelectedAccountId}
-                        placeholder="Any"
-                        clearable
-                      />
-                    </div>
-                    <textarea
-                      value={localInstructions ?? ""}
-                      onChange={(e) => setLocalInstructions(e.target.value)}
-                      onBlur={() => customInstructions.save((localInstructions ?? "").trim())}
-                      placeholder="Instructions for Capy, e.g. &quot;This is a Chase credit card statement, all transactions are expenses&quot;"
-                      rows={2}
-                      className="w-full resize-none rounded-xl border border-border/30 bg-card/30 px-4 py-3 text-sm text-foreground/80 placeholder:text-muted-foreground/40 focus:border-brand/40 focus:outline-none focus:ring-1 focus:ring-brand/20"
+                  <textarea
+                    value={localInstructions ?? ""}
+                    onChange={(e) => setLocalInstructions(e.target.value)}
+                    onBlur={() => customInstructions.save((localInstructions ?? "").trim())}
+                    placeholder="e.g. &quot;This is my Excel budget export, amounts are in the Debit/Credit columns&quot;"
+                    rows={2}
+                    className="w-full resize-none rounded-xl border border-border/30 bg-card/30 px-4 py-3 text-sm text-foreground/80 placeholder:text-muted-foreground/40 focus:border-brand/40 focus:outline-none focus:ring-1 focus:ring-brand/20"
+                  />
+                  <div className="flex items-center justify-between pt-1">
+                    <AccountSelector
+                      accounts={accounts}
+                      value={selectedAccountId}
+                      onChange={setSelectedAccountId}
+                      placeholder="Any account"
+                      clearable
                     />
-                    <div className="flex justify-center">
-                      <Button
-                        onClick={handleStart}
-                        disabled={uploadingFiles.size > 0}
-                        className="gap-2 rounded-xl px-8 py-5 text-base font-semibold shadow-lg shadow-brand/20"
-                      >
-                        <Sparkles className="h-4.5 w-4.5" />
-                        Start Import
-                      </Button>
-                    </div>
+                    <Button
+                      onClick={handleStart}
+                      disabled={uploadingFiles.size > 0}
+                      className="gap-2 rounded-xl px-6 py-5 text-base font-semibold shadow-lg shadow-brand/20"
+                    >
+                      <Sparkles className="h-4.5 w-4.5" />
+                      Start Import
+                    </Button>
                   </div>
                 </div>
               )}
