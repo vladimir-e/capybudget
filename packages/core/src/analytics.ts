@@ -277,3 +277,101 @@ export function getTopMerchants(
   result.sort((a, b) => b.total - a.total);
   return result.slice(0, limit);
 }
+
+// ── Category Trends ─────
+
+export interface TrendPoint {
+  date: string;    // ISO date string (first of month)
+  month: string;   // display label, e.g. "Apr 2026"
+  byCategory: Record<string, number>;  // categoryId → absolute cents
+}
+
+export interface TrendSeries {
+  categoryId: string;
+  categoryName: string;
+  total: number;  // total across all months (for ranking)
+}
+
+export interface CategoryTrendsResult {
+  points: TrendPoint[];
+  series: TrendSeries[];  // top N categories sorted by total desc
+}
+
+/** Monthly spending per category over a date range. Excludes transfers. */
+export function getCategoryTrends(
+  transactions: Transaction[],
+  categories: Category[],
+  range: DateRange,
+  options?: { type?: "expense" | "income"; limit?: number },
+): CategoryTrendsResult {
+  const type = options?.type ?? "expense";
+  const limit = options?.limit ?? 8;
+  const catMap = new Map(categories.map((c) => [c.id, c]));
+
+  const startMs = range.start.getTime();
+  const endMs = range.end.getTime();
+
+  // monthKey → categoryId → absolute cents
+  const buckets = new Map<string, Map<string, number>>();
+  // categoryId → total across all months
+  const categoryTotals = new Map<string, number>();
+
+  for (const t of transactions) {
+    if (t.type !== type) continue;
+    const ms = new Date(t.datetime).getTime();
+    if (ms < startMs || ms >= endMs) continue;
+
+    const d = new Date(t.datetime);
+    const monthKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+    const catId = t.categoryId || "__uncategorized__";
+    const amt = Math.abs(t.amount);
+
+    if (!buckets.has(monthKey)) buckets.set(monthKey, new Map());
+    const monthBucket = buckets.get(monthKey)!;
+    monthBucket.set(catId, (monthBucket.get(catId) ?? 0) + amt);
+
+    categoryTotals.set(catId, (categoryTotals.get(catId) ?? 0) + amt);
+  }
+
+  // Rank categories by total, take top N
+  const ranked = [...categoryTotals.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, limit);
+
+  const topCatIds = new Set(ranked.map(([id]) => id));
+
+  const series: TrendSeries[] = ranked.map(([id, total]) => {
+    const cat = id === "__uncategorized__" ? undefined : catMap.get(id);
+    return {
+      categoryId: id === "__uncategorized__" ? "" : id,
+      categoryName: cat?.name ?? "Uncategorized",
+      total,
+    };
+  });
+
+  // Build chronologically sorted points
+  const points: TrendPoint[] = [];
+  for (const [monthKey, catBuckets] of buckets) {
+    const [yearStr, monthStr] = monthKey.split("-");
+    const year = Number(yearStr);
+    const month = Number(monthStr) - 1; // 0-indexed
+    const firstOfMonth = new Date(year, month, 1);
+
+    const byCategory: Record<string, number> = {};
+    for (const [catId, amt] of catBuckets) {
+      if (topCatIds.has(catId)) {
+        const key = catId === "__uncategorized__" ? "" : catId;
+        byCategory[key] = amt;
+      }
+    }
+
+    points.push({
+      date: firstOfMonth.toISOString(),
+      month: `${MONTH_LABELS[month]} ${year}`,
+      byCategory,
+    });
+  }
+
+  points.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+  return { points, series };
+}

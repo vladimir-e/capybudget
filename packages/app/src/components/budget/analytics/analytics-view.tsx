@@ -168,8 +168,12 @@ export function AnalyticsView() {
         {activeTab === "cashFlow" && (
           <CashFlowTab transactions={transactions} dateRange={dateRange} />
         )}
-        {activeTab === "trends" && <TrendsTab />}
-        {activeTab === "merchants" && <MerchantsTab />}
+        {activeTab === "trends" && (
+          <TrendsTab transactions={transactions} categories={categories} dateRange={dateRange} />
+        )}
+        {activeTab === "merchants" && (
+          <MerchantsTab transactions={filtered} />
+        )}
         {activeTab === "monthlyBudget" && <MonthlyBudgetTab />}
       </div>
     </div>
