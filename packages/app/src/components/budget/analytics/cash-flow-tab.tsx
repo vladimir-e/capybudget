@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { useThemeColors } from "./use-theme-colors";
 import {
   BarChart,
   Bar,
@@ -62,13 +63,10 @@ export function CashFlowTab({ transactions, dateRange }: CashFlowTabProps) {
     [transactions, dateRange],
   );
 
-  const incomeColor = useMemo(() => {
-    return getComputedStyle(document.documentElement).getPropertyValue("--amount-income").trim() || "#22c55e";
-  }, []);
-
-  const expenseColor = useMemo(() => {
-    return getComputedStyle(document.documentElement).getPropertyValue("--amount-expense").trim() || "#ef4444";
-  }, []);
+  const { incomeColor, expenseColor } = useThemeColors({
+    incomeColor: ["--amount-income", "#22c55e"],
+    expenseColor: ["--amount-expense", "#ef4444"],
+  });
 
   if (cashFlowData.length === 0) {
     return (

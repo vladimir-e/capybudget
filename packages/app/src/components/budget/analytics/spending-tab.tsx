@@ -1,4 +1,4 @@
-import { useMemo, useState, useRef, useEffect } from "react";
+import { useMemo, useState } from "react";
 import {
   PieChart,
   Pie,
@@ -46,27 +46,6 @@ const INCOME_COLORS = [
   "oklch(0.58 0.14 165)",  // emerald
   "oklch(0.45 0.10 150)",  // deep forest
 ];
-
-export function useChartColors(count: number): string[] {
-  const ref = useRef<string[]>([]);
-  const [colors, setColors] = useState<string[]>([]);
-
-  useEffect(() => {
-    const style = getComputedStyle(document.documentElement);
-    const resolved: string[] = [];
-    for (let i = 0; i < Math.max(count, 5); i++) {
-      const varIndex = (i % 5) + 1;
-      const val = style.getPropertyValue(`--chart-${varIndex}`).trim();
-      resolved.push(val || `hsl(${(i * 72) % 360}, 60%, 55%)`);
-    }
-    if (JSON.stringify(resolved) !== JSON.stringify(ref.current)) {
-      ref.current = resolved;
-      setColors(resolved);
-    }
-  }, [count]);
-
-  return colors;
-}
 
 // ── Tooltip ──
 

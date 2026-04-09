@@ -201,29 +201,30 @@ Drop a file, intelligence normalizes it, you review and merge.
 
 ## Phase 8: Analytics
 
-Budget section refactor: categories move to a sidebar (mirroring the Accounts pattern), main content becomes the analytics dashboard. "Pick something on the left, see its story on the right."
+Tab-based analytics dashboard in the Budget section. Six tabs: Spending, Cash Flow, Net Worth, Trends, Merchants, Monthly Budget. Per-tab date controls with period-aware navigation.
 
-- [ ] **8.1 — Budget Layout Refactor**
-  - Categories tree moves into collapsible sidebar
-  - Sidebar mirrors Accounts pattern (compact, interactive, category management via context menus)
-  - Main content area becomes analytics dashboard
+- [x] **8.1 — Analytics Layout**
+  - Tab bar with six analytics views
+  - Per-tab date range state (independent period types and navigation)
+  - Category management accessible via settings dialog
+  - Period selector pills: Month, Quarter, Year, All Time, Custom (calendar picker)
+  - Arrow navigation with data boundary detection
 
-- [ ] **8.2 — Date Range Navigation**
-  - Month-by-month navigation with back/forward arrows
-  - Presets: This Month, Last Month, This Year, Last Year, All Time, Custom
-  - Shared date range state across all analytics views
-
-- [ ] **8.3 — Expense & Income Breakdown**
-  - Pie chart: spending by category for selected period
-  - Pie chart: income by category for selected period
+- [x] **8.2 — Expense & Income Breakdown** (Spending tab)
+  - Donut chart + category breakdown list with expense/income switcher
+  - Distinct color palettes: warm tones for expenses, greens for income
   - Summary strip: total income, total expenses, net
 
-- [ ] **8.4 — Net Worth Over Time**
-  - Line/area chart showing net worth trajectory
-  - Monthly granularity, respects date range selection
-  - Account-level breakdown on hover/click
+- [x] **8.3 — Net Worth Over Time** (Net Worth tab)
+  - Bar chart (theme-colored, red for negative) or smooth area chart (switcher)
+  - Monthly granularity, defaults to All Time view
 
-- [ ] **8.5 — AI Insights**
+- [x] **8.4 — Cash Flow** (Cash Flow tab)
+  - Grouped income vs expense bars per month
+
+- [ ] **8.5 — Trends** (stub)
+- [ ] **8.6 — Merchants** (stub)
+- [ ] **8.7 — AI Insights**
   - Capy builds custom visualizations and analyses on demand
   - Anomaly detection (unusual amounts, spending spikes)
 

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import {
   BarChart,
   Bar,
@@ -18,14 +18,7 @@ import {
 } from "@capybudget/core";
 import type { Account, Transaction, DateRange } from "@capybudget/core";
 import { ChartSwitcher } from "./chart-switcher";
-
-function resolveColors() {
-  const style = getComputedStyle(document.documentElement);
-  return {
-    brandColor: style.getPropertyValue("--brand").trim() || "oklch(0.58 0.14 55)",
-    expenseColor: style.getPropertyValue("--amount-expense").trim() || "#ef4444",
-  };
-}
+import { useThemeColors } from "./use-theme-colors";
 
 const SHORT_MONTHS = [
   "Jan", "Feb", "Mar", "Apr", "May", "Jun",
@@ -87,16 +80,10 @@ export function NetWorthTab({ accounts, transactions, dateRange }: NetWorthTabPr
     [netWorthData],
   );
 
-  // Resolve colors reactively (re-read when theme changes)
-  const [themeColors, setThemeColors] = useState(() => resolveColors());
-
-  useEffect(() => {
-    const observer = new MutationObserver(() => setThemeColors(resolveColors()));
-    observer.observe(document.documentElement, { attributes: true, attributeFilter: ["class", "data-theme"] });
-    return () => observer.disconnect();
-  }, []);
-
-  const { brandColor, expenseColor } = themeColors;
+  const { brandColor, expenseColor } = useThemeColors({
+    brandColor: ["--brand", "oklch(0.58 0.14 55)"],
+    expenseColor: ["--amount-expense", "#ef4444"],
+  });
 
   if (chartData.length === 0) {
     return (
