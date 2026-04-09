@@ -499,6 +499,7 @@
 @layer base {
   * {
     @apply border-border outline-ring/50;
+    -webkit-tap-highlight-color: transparent;
     }
   body {
     @apply bg-background text-foreground;
@@ -506,6 +507,19 @@
   html {
     @apply font-sans antialiased;
     }
+}
+
+/* ── Recharts — suppress focus/selection outlines on SVG ────── */
+
+.recharts-wrapper,
+.recharts-wrapper svg,
+.recharts-wrapper path,
+.recharts-wrapper rect,
+.recharts-wrapper g,
+.recharts-sector {
+  outline: none !important;
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 /* ── Capy AI overlay ──────────────────────────────────────────── */

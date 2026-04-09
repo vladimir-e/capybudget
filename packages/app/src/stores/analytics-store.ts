@@ -13,11 +13,15 @@ interface TabState {
 interface AnalyticsState {
   activeTab: TabId;
   tabs: Record<TabId, TabState>;
+  dataBounds: DateRange | null; // earliest/latest transaction dates
   setActiveTab: (tab: TabId) => void;
   setPeriod: (type: PeriodType, range?: DateRange) => void;
   navigateForward: () => void;
   navigateBack: () => void;
   setAllTimeRange: (transactions: { datetime: string }[]) => void;
+  updateDataBounds: (transactions: { datetime: string }[]) => void;
+  canNavigateBack: () => boolean;
+  canNavigateForward: () => boolean;
 }
 
 function getCurrentMonthRange(): DateRange {
@@ -86,9 +90,24 @@ function shiftRange(range: DateRange, periodType: PeriodType, delta: number): Da
   return { start, end };
 }
 
+function computeBounds(transactions: { datetime: string }[]): DateRange | null {
+  if (transactions.length === 0) return null;
+  const dates = transactions.map((t) => new Date(t.datetime).getTime());
+  const earliest = new Date(Math.min(...dates));
+  const latest = new Date(Math.max(...dates));
+  return {
+    start: new Date(earliest.getFullYear(), earliest.getMonth(), 1),
+    end: new Date(latest.getFullYear(), latest.getMonth() + 1, 1),
+  };
+}
+
+function computeAllTimeRange(transactions: { datetime: string }[]): DateRange {
+  return computeBounds(transactions) ?? getCurrentMonthRange();
+}
+
 const DEFAULT_TABS: Record<TabId, TabState> = {
   spending: { periodType: "month", dateRange: getCurrentMonthRange() },
-  netWorth: { periodType: "year", dateRange: getCurrentYearRange() },
+  netWorth: { periodType: "allTime", dateRange: getCurrentYearRange() }, // placeholder until data loads
   cashFlow: { periodType: "year", dateRange: getCurrentYearRange() },
   trends: { periodType: "year", dateRange: getCurrentYearRange() },
   merchants: { periodType: "month", dateRange: getCurrentMonthRange() },
@@ -98,6 +117,7 @@ const DEFAULT_TABS: Record<TabId, TabState> = {
 export const useAnalyticsStore = create<AnalyticsState>((set, get) => ({
   activeTab: "spending",
   tabs: { ...DEFAULT_TABS },
+  dataBounds: null,
 
   setActiveTab: (tab) => set({ activeTab: tab }),
 
@@ -113,6 +133,7 @@ export const useAnalyticsStore = create<AnalyticsState>((set, get) => ({
     const { activeTab, tabs } = get();
     const tab = tabs[activeTab];
     if (tab.periodType === "allTime") return;
+    if (!get().canNavigateForward()) return;
     set({
       tabs: { ...tabs, [activeTab]: { ...tab, dateRange: shiftRange(tab.dateRange, tab.periodType, 1) } },
     });
@@ -122,33 +143,53 @@ export const useAnalyticsStore = create<AnalyticsState>((set, get) => ({
     const { activeTab, tabs } = get();
     const tab = tabs[activeTab];
     if (tab.periodType === "allTime") return;
+    if (!get().canNavigateBack()) return;
     set({
       tabs: { ...tabs, [activeTab]: { ...tab, dateRange: shiftRange(tab.dateRange, tab.periodType, -1) } },
     });
   },
 
+  canNavigateBack: () => {
+    const { activeTab, tabs, dataBounds } = get();
+    const tab = tabs[activeTab];
+    if (tab.periodType === "allTime" || !dataBounds) return false;
+    return tab.dateRange.start.getTime() > dataBounds.start.getTime();
+  },
+
+  canNavigateForward: () => {
+    const { activeTab, tabs, dataBounds } = get();
+    const tab = tabs[activeTab];
+    if (tab.periodType === "allTime" || !dataBounds) return false;
+    // Allow navigating up to one period past the last data point
+    return tab.dateRange.start.getTime() < dataBounds.end.getTime();
+  },
+
   setAllTimeRange: (transactions) => {
     const { activeTab, tabs } = get();
-    if (transactions.length === 0) {
-      set({
-        tabs: { ...tabs, [activeTab]: { periodType: "allTime", dateRange: getCurrentMonthRange() } },
-      });
-      return;
-    }
-    const dates = transactions.map((t) => new Date(t.datetime).getTime());
-    const earliest = new Date(Math.min(...dates));
-    const latest = new Date(Math.max(...dates));
+    const range = computeAllTimeRange(transactions);
     set({
-      tabs: {
-        ...tabs,
-        [activeTab]: {
-          periodType: "allTime",
-          dateRange: {
-            start: new Date(earliest.getFullYear(), earliest.getMonth(), 1),
-            end: new Date(latest.getFullYear(), latest.getMonth() + 1, 1),
-          },
-        },
-      },
+      tabs: { ...tabs, [activeTab]: { periodType: "allTime", dateRange: range } },
     });
+  },
+
+  updateDataBounds: (transactions) => {
+    const bounds = computeBounds(transactions);
+    const { tabs } = get();
+    const updates: Partial<Record<TabId, TabState>> = {};
+
+    // Initialize allTime tabs that haven't been set yet
+    if (bounds) {
+      for (const [id, tab] of Object.entries(tabs) as [TabId, TabState][]) {
+        if (tab.periodType === "allTime") {
+          updates[id] = { periodType: "allTime", dateRange: bounds };
+        }
+      }
+    }
+
+    if (Object.keys(updates).length > 0) {
+      set({ dataBounds: bounds, tabs: { ...tabs, ...updates } });
+    } else {
+      set({ dataBounds: bounds });
+    }
   },
 }));

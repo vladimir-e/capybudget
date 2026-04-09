@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import { Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -12,6 +12,7 @@ import {
   filterTransactionsByDateRange,
   getPeriodSummary,
 } from "@capybudget/core";
+import type { DateRange } from "@capybudget/core";
 import { useTransactions, useCategories, useAccounts } from "@/hooks/use-budget-data";
 import { useAnalyticsStore, type PeriodType, type TabId } from "@/stores/analytics-store";
 import { CategoryPanel } from "@/components/budget/category-panel";
@@ -34,8 +35,8 @@ interface TabDef {
 
 const TABS: TabDef[] = [
   { id: "spending", label: "Spending", allowedPeriods: ["month", "quarter", "year", "allTime"] },
-  { id: "netWorth", label: "Net Worth", allowedPeriods: ["year", "allTime", "custom"] },
   { id: "cashFlow", label: "Cash Flow", allowedPeriods: ["year", "allTime", "custom"] },
+  { id: "netWorth", label: "Net Worth", allowedPeriods: ["year", "allTime", "custom"] },
   { id: "trends", label: "Trends", allowedPeriods: ["year", "allTime"] },
   { id: "merchants", label: "Merchants", allowedPeriods: ["month", "quarter", "year", "allTime"] },
   { id: "monthlyBudget", label: "Monthly Budget", allowedPeriods: ["month"] },
@@ -55,8 +56,18 @@ export function AnalyticsView() {
   const navigateForward = useAnalyticsStore((s) => s.navigateForward);
   const navigateBack = useAnalyticsStore((s) => s.navigateBack);
   const setAllTimeRange = useAnalyticsStore((s) => s.setAllTimeRange);
+  const updateDataBounds = useAnalyticsStore((s) => s.updateDataBounds);
+  const canGoBack = useAnalyticsStore((s) => s.canNavigateBack());
+  const canGoForward = useAnalyticsStore((s) => s.canNavigateForward());
 
   const { dateRange, periodType } = tabState;
+
+  // Update data bounds when transactions change
+  useEffect(() => {
+    if (transactions.length > 0) {
+      updateDataBounds(transactions);
+    }
+  }, [transactions, updateDataBounds]);
 
   // Filtered transactions
   const filtered = useMemo(
@@ -77,6 +88,11 @@ export function AnalyticsView() {
     } else {
       setPeriod(type);
     }
+  }
+
+  // Handle custom range
+  function handleCustomRange(range: DateRange) {
+    setPeriod("custom", range);
   }
 
   return (
@@ -134,6 +150,9 @@ export function AnalyticsView() {
           onPeriodChange={handlePeriodChange}
           onBack={navigateBack}
           onForward={navigateForward}
+          canGoBack={canGoBack}
+          canGoForward={canGoForward}
+          onCustomRange={handleCustomRange}
         />
         <SummaryStrip summary={summary} />
       </div>
