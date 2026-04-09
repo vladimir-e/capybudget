@@ -152,7 +152,7 @@ describe("resolveTransferPair", () => {
     expect(result.pairTransaction).toBe(fromLeg);
   });
 
-  it("returns fallback when pair is missing", () => {
+  it("returns fallback for unpaired outflow (negative amount)", () => {
     const orphan: Transaction = {
       ...fromLeg,
       id: "orphan",
@@ -161,6 +161,18 @@ describe("resolveTransferPair", () => {
     const result = resolveTransferPair(orphan, allTxns);
     expect(result.fromAccountId).toBe("acc-checking");
     expect(result.toAccountId).toBe("");
+    expect(result.pairTransaction).toBeUndefined();
+  });
+
+  it("returns fallback for unpaired inflow (positive amount)", () => {
+    const orphan: Transaction = {
+      ...toLeg,
+      id: "orphan-inflow",
+      transferPairId: "",
+    };
+    const result = resolveTransferPair(orphan, []);
+    expect(result.fromAccountId).toBe("");
+    expect(result.toAccountId).toBe("acc-savings");
     expect(result.pairTransaction).toBeUndefined();
   });
 });

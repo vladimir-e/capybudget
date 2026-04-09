@@ -426,6 +426,48 @@ describe("updateTransaction", () => {
       expect(result[0]).toBe(other); // untouched
     });
 
+    it("preserves inflow leg role when creating pair for positive-amount orphan", () => {
+      const inflowOrphan = makeTxn({
+        id: "tf-inflow",
+        type: "transfer",
+        amount: 3000, // positive = inflow to this account
+        accountId: "acc-savings",
+        transferPairId: "",
+        merchant: "",
+        categoryId: "",
+      });
+
+      const input: TransactionFormData = {
+        id: "tf-inflow",
+        type: "transfer",
+        amount: 3000,
+        categoryId: "",
+        accountId: "acc-checking", // from
+        toAccountId: "acc-savings", // to (the original account)
+        date: "2026-01-15",
+        merchant: "",
+        note: "",
+      };
+
+      const result = updateTransaction(input, [inflowOrphan]);
+      expect(result).toHaveLength(2);
+
+      const original = result.find((t) => t.id === "tf-inflow")!;
+      const newPair = result.find((t) => t.id !== "tf-inflow")!;
+
+      // Original stays as inflow (positive), keeps its account
+      expect(original.amount).toBe(3000);
+      expect(original.accountId).toBe("acc-savings");
+
+      // New pair is the outflow (negative) from the "from" account
+      expect(newPair.amount).toBe(-3000);
+      expect(newPair.accountId).toBe("acc-checking");
+
+      // Mutually linked
+      expect(original.transferPairId).toBe(newPair.id);
+      expect(newPair.transferPairId).toBe("tf-inflow");
+    });
+
     it("does not create pair when toAccountId is absent", () => {
       const input: TransactionFormData = {
         id: "tf-orphan",

@@ -72,7 +72,10 @@ export function resolveTransferPair(
     : undefined;
 
   if (!pair) {
-    return { fromAccountId: txn.accountId, toAccountId: "", pairTransaction: undefined };
+    // Use amount sign to determine which side this unpaired leg is
+    return txn.amount < 0
+      ? { fromAccountId: txn.accountId, toAccountId: "", pairTransaction: undefined }
+      : { fromAccountId: "", toAccountId: txn.accountId, pairTransaction: undefined };
   }
 
   return txn.amount < 0

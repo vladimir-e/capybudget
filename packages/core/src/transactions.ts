@@ -85,21 +85,31 @@ export function updateTransaction(
     const datetime = resolveDateTime(input.date, original?.datetime ?? "");
 
     if (!pairId && input.toAccountId) {
-      // Unpaired transfer gaining a pair — create the missing leg
+      // Unpaired transfer gaining a pair — create the missing leg.
+      // Preserve the original's role: if it was outflow (negative), keep it as the
+      // from-leg; if inflow (positive), keep it as the to-leg.
       const newPairId = crypto.randomUUID();
+      const originalIsFrom = (original?.amount ?? 0) < 0;
+      const toAcct = input.toAccountId!;
       return [
         ...existing.map((t) =>
           t.id === input.id
-            ? { ...t, amount: -input.amount, accountId: input.accountId, transferPairId: newPairId, datetime, merchant: "", note: input.note }
+            ? {
+                ...t,
+                amount: originalIsFrom ? -input.amount : input.amount,
+                accountId: originalIsFrom ? input.accountId : toAcct,
+                transferPairId: newPairId,
+                datetime, merchant: "", note: input.note,
+              }
             : t,
         ),
         {
           id: newPairId,
           datetime,
           type: "transfer" as const,
-          amount: input.amount,
+          amount: originalIsFrom ? input.amount : -input.amount,
           categoryId: "",
-          accountId: input.toAccountId,
+          accountId: originalIsFrom ? toAcct : input.accountId,
           transferPairId: input.id!,
           merchant: "",
           note: input.note,
