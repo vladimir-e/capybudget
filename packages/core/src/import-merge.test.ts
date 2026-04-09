@@ -534,4 +534,242 @@ describe("prepareMerge", () => {
       expect(result.transactions[1].transferPairId).toBe("");
     });
   });
+
+  describe("single-leg transfer with targetAccountId", () => {
+    it("creates paired transactions for outflow transfer", () => {
+      const txn = makeImportTxn({
+        type: "transfer",
+        amount: -5000,
+        sourceAccount: "Chase Checking",
+        targetAccountId: "acct-savings",
+        date: "2026-03-15",
+      });
+
+      const result = prepareMerge(
+        {
+          transactions: [txn],
+          selectedIds: new Set([txn.id]),
+          accountMapping: { "Chase Checking": "acct-checking" },
+        },
+        [],
+        [],
+      );
+
+      // Should create two transactions (the pair)
+      expect(result.transactions).toHaveLength(2);
+
+      const from = result.transactions.find((t) => t.amount < 0)!;
+      const to = result.transactions.find((t) => t.amount > 0)!;
+
+      expect(from.amount).toBe(-5000);
+      expect(from.accountId).toBe("acct-checking");
+      expect(from.type).toBe("transfer");
+
+      expect(to.amount).toBe(5000);
+      expect(to.accountId).toBe("acct-savings");
+      expect(to.type).toBe("transfer");
+
+      // Mutually linked
+      expect(from.transferPairId).toBe(to.id);
+      expect(to.transferPairId).toBe(from.id);
+    });
+
+    it("creates paired transactions for inflow transfer", () => {
+      const txn = makeImportTxn({
+        type: "transfer",
+        amount: 3000,
+        sourceAccount: "Chase Checking",
+        targetAccountId: "acct-savings",
+        date: "2026-03-15",
+      });
+
+      const result = prepareMerge(
+        {
+          transactions: [txn],
+          selectedIds: new Set([txn.id]),
+          accountMapping: { "Chase Checking": "acct-checking" },
+        },
+        [],
+        [],
+      );
+
+      expect(result.transactions).toHaveLength(2);
+
+      const inflow = result.transactions.find((t) => t.amount > 0)!;
+      const outflow = result.transactions.find((t) => t.amount < 0)!;
+
+      // Inflow arrives at the source account (checking)
+      expect(inflow.amount).toBe(3000);
+      expect(inflow.accountId).toBe("acct-checking");
+
+      // Outflow leaves the target account (savings)
+      expect(outflow.amount).toBe(-3000);
+      expect(outflow.accountId).toBe("acct-savings");
+
+      expect(inflow.transferPairId).toBe(outflow.id);
+      expect(outflow.transferPairId).toBe(inflow.id);
+    });
+
+    it("sets note from description and memo on paired transactions", () => {
+      const txn = makeImportTxn({
+        type: "transfer",
+        amount: -1000,
+        sourceAccount: "Chase Checking",
+        targetAccountId: "acct-savings",
+        description: "ONLINE TRANSFER",
+        memo: "Monthly savings",
+      });
+
+      const result = prepareMerge(
+        {
+          transactions: [txn],
+          selectedIds: new Set([txn.id]),
+          accountMapping: { "Chase Checking": "acct-checking" },
+        },
+        [],
+        [],
+      );
+
+      for (const t of result.transactions) {
+        expect(t.note).toBe("ONLINE TRANSFER — Monthly savings");
+      }
+    });
+
+    it("clears merchant and categoryId on paired transfer transactions", () => {
+      const txn = makeImportTxn({
+        type: "transfer",
+        amount: -1000,
+        sourceAccount: "Chase Checking",
+        targetAccountId: "acct-savings",
+        merchant: "Should be cleared",
+        categoryId: "cat-should-clear",
+      });
+
+      const result = prepareMerge(
+        {
+          transactions: [txn],
+          selectedIds: new Set([txn.id]),
+          accountMapping: { "Chase Checking": "acct-checking" },
+        },
+        [],
+        [],
+      );
+
+      for (const t of result.transactions) {
+        expect(t.merchant).toBe("");
+        expect(t.categoryId).toBe("");
+      }
+    });
+  });
+
+  describe("unmatched transfer downgrade", () => {
+    it("downgrades unmatched outflow transfer to expense", () => {
+      const txn = makeImportTxn({
+        type: "transfer",
+        amount: -5000,
+        sourceAccount: "Chase Checking",
+        targetAccountId: "", // no target
+        date: "2026-03-15",
+      });
+
+      const result = prepareMerge(
+        {
+          transactions: [txn],
+          selectedIds: new Set([txn.id]),
+          accountMapping: { "Chase Checking": "acct-1" },
+        },
+        [],
+        [],
+      );
+
+      expect(result.transactions).toHaveLength(1);
+      expect(result.transactions[0].type).toBe("expense");
+      expect(result.transactions[0].amount).toBe(-5000);
+      expect(result.transactions[0].transferPairId).toBe("");
+    });
+
+    it("downgrades unmatched inflow transfer to income", () => {
+      const txn = makeImportTxn({
+        type: "transfer",
+        amount: 3000,
+        sourceAccount: "Chase Checking",
+        targetAccountId: "",
+        date: "2026-03-15",
+      });
+
+      const result = prepareMerge(
+        {
+          transactions: [txn],
+          selectedIds: new Set([txn.id]),
+          accountMapping: { "Chase Checking": "acct-1" },
+        },
+        [],
+        [],
+      );
+
+      expect(result.transactions).toHaveLength(1);
+      expect(result.transactions[0].type).toBe("income");
+      expect(result.transactions[0].amount).toBe(3000);
+    });
+  });
+
+  describe("linkTransferPairs skips already-paired", () => {
+    it("does not re-pair pre-paired single-leg transfers during YNAB-style linking", () => {
+      // One single-leg transfer (pre-paired) + one YNAB-style two-leg pair
+      const singleLeg = makeImportTxn({
+        type: "transfer",
+        amount: -5000,
+        sourceAccount: "Chase Checking",
+        targetAccountId: "acct-savings", // will be pre-paired
+        date: "2026-03-15",
+      });
+      const ynabOut = makeImportTxn({
+        type: "transfer",
+        amount: -2000,
+        sourceAccount: "Chase Checking",
+        date: "2026-03-15",
+      });
+      const ynabIn = makeImportTxn({
+        type: "transfer",
+        amount: 2000,
+        sourceAccount: "Savings Account",
+        date: "2026-03-15",
+      });
+
+      const result = prepareMerge(
+        {
+          transactions: [singleLeg, ynabOut, ynabIn],
+          selectedIds: new Set([singleLeg.id, ynabOut.id, ynabIn.id]),
+          accountMapping: { "Chase Checking": "acct-checking", "Savings Account": "acct-savings" },
+        },
+        [],
+        [],
+      );
+
+      // 2 from single-leg pair + 2 from YNAB pair = 4
+      expect(result.transactions).toHaveLength(4);
+
+      // All should be paired
+      for (const t of result.transactions) {
+        expect(t.type).toBe("transfer");
+        expect(t.transferPairId).toBeTruthy();
+      }
+
+      // The single-leg pair IDs should reference each other
+      const singlePair = result.transactions.filter(
+        (t) => Math.abs(t.amount) === 5000,
+      );
+      expect(singlePair).toHaveLength(2);
+      expect(singlePair[0].transferPairId).toBe(singlePair[1].id);
+      expect(singlePair[1].transferPairId).toBe(singlePair[0].id);
+
+      // The YNAB pair IDs should reference each other
+      const ynabPair = result.transactions.filter(
+        (t) => Math.abs(t.amount) === 2000,
+      );
+      expect(ynabPair).toHaveLength(2);
+      expect(ynabPair[0].transferPairId).toBe(ynabPair[1].id);
+      expect(ynabPair[1].transferPairId).toBe(ynabPair[0].id);
+    });
+  });
 });

@@ -360,6 +360,89 @@ describe("updateTransaction", () => {
       expect(result[1].merchant).toBe("");
     });
   });
+
+  describe("unpaired transfer gaining a pair", () => {
+    const orphan = makeTxn({
+      id: "tf-orphan",
+      type: "transfer",
+      amount: -5000,
+      accountId: "acc-checking",
+      transferPairId: "", // no pair
+      merchant: "",
+      categoryId: "",
+    });
+
+    it("creates the missing pair leg when toAccountId is set", () => {
+      const input: TransactionFormData = {
+        id: "tf-orphan",
+        type: "transfer",
+        amount: 5000,
+        categoryId: "",
+        accountId: "acc-checking",
+        toAccountId: "acc-savings",
+        date: "2026-01-15",
+        merchant: "",
+        note: "now paired",
+      };
+
+      const result = updateTransaction(input, [orphan]);
+      expect(result).toHaveLength(2);
+
+      const updated = result.find((t) => t.id === "tf-orphan")!;
+      const newPair = result.find((t) => t.id !== "tf-orphan")!;
+
+      // Original is updated as from-leg (negative amount)
+      expect(updated.amount).toBe(-5000);
+      expect(updated.accountId).toBe("acc-checking");
+      expect(updated.transferPairId).toBe(newPair.id);
+      expect(updated.note).toBe("now paired");
+
+      // New pair is to-leg (positive amount)
+      expect(newPair.amount).toBe(5000);
+      expect(newPair.accountId).toBe("acc-savings");
+      expect(newPair.transferPairId).toBe("tf-orphan");
+      expect(newPair.type).toBe("transfer");
+      expect(newPair.note).toBe("now paired");
+      expect(newPair.merchant).toBe("");
+      expect(newPair.categoryId).toBe("");
+    });
+
+    it("preserves other transactions when creating a pair", () => {
+      const other = makeTxn({ id: "other-txn" });
+      const input: TransactionFormData = {
+        id: "tf-orphan",
+        type: "transfer",
+        amount: 5000,
+        categoryId: "",
+        accountId: "acc-checking",
+        toAccountId: "acc-savings",
+        date: "2026-01-15",
+        merchant: "",
+        note: "",
+      };
+
+      const result = updateTransaction(input, [other, orphan]);
+      expect(result).toHaveLength(3);
+      expect(result[0]).toBe(other); // untouched
+    });
+
+    it("does not create pair when toAccountId is absent", () => {
+      const input: TransactionFormData = {
+        id: "tf-orphan",
+        type: "transfer",
+        amount: 5000,
+        categoryId: "",
+        accountId: "acc-checking",
+        date: "2026-01-15",
+        merchant: "",
+        note: "still unpaired",
+      };
+
+      const result = updateTransaction(input, [orphan]);
+      expect(result).toHaveLength(1);
+      expect(result[0].transferPairId).toBe("");
+    });
+  });
 });
 
 describe("deleteTransaction", () => {
