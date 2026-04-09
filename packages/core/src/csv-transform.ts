@@ -119,6 +119,7 @@ function transformRow(
     memo,
     merchant: "",
     accountId: "",
+    targetAccountId: "",
     categoryId: "",
     categoryConfidence: "",
   };
@@ -412,7 +413,7 @@ function shouldSkipRow(
 const IMPORT_COLUMNS = [
   "id", "date", "description", "amount", "type",
   "sourceAccount", "sourceCategory", "memo",
-  "merchant", "accountId", "categoryId", "categoryConfidence",
+  "merchant", "accountId", "targetAccountId", "categoryId", "categoryConfidence",
 ] as const;
 
 /** Serialize ImportTransaction[] to a CSV string. */

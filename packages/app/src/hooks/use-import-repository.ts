@@ -124,6 +124,7 @@ export function useImportRepository(budgetPath: string) {
         ...t,
         merchant: t.merchant || "",
         accountId: t.accountId || "",
+        targetAccountId: t.targetAccountId || "",
         categoryId: t.categoryId || "",
         categoryConfidence: t.categoryConfidence || "",
       }),

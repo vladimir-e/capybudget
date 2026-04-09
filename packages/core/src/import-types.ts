@@ -11,6 +11,7 @@ export interface ImportTransaction {
   memo: string;
   merchant: string; // cleaned merchant name
   accountId: string; // budget account UUID (AI guess, may be empty)
+  targetAccountId: string; // for transfers: the other account (empty = unmatched)
   categoryId: string; // budget category UUID (AI guess, may be empty)
   categoryConfidence: string; // "high" | "low" | ""
 }

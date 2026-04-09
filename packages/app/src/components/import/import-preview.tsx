@@ -342,6 +342,8 @@ export function ImportPreview({ budgetPath, budgetName, onMergeComplete }: Impor
           indeterminate={indeterminate}
           onUpdateTransaction={handleUpdate}
           categories={categories}
+          accounts={accounts}
+          accountMapping={accountMapping}
           duplicates={duplicates}
         />
       </div>

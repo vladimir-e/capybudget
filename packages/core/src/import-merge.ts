@@ -23,26 +23,27 @@ export interface MergeOutput {
  * resolved accounts. Pairing is greedy: first match wins. Unmatched transfers
  * keep `transferPairId: ""`.
  *
+ * Skips transfers that are already paired (e.g. single-leg transfers with
+ * targetAccountId that were pre-paired during creation).
+ *
  * @param txns  Output transactions (mutated in place)
- * @param imports  Corresponding import transactions (same order/length as txns)
  */
-function linkTransferPairs(
-  txns: Transaction[],
-  imports: ImportTransaction[],
-): void {
+function linkTransferPairs(txns: Transaction[]): void {
   const paired = new Set<number>();
 
   for (let i = 0; i < txns.length; i++) {
     if (paired.has(i)) continue;
     if (txns[i].type !== "transfer") continue;
     if (!txns[i].accountId) continue;
+    if (txns[i].transferPairId) continue; // already paired
 
     for (let j = i + 1; j < txns.length; j++) {
       if (paired.has(j)) continue;
       if (txns[j].type !== "transfer") continue;
       if (!txns[j].accountId) continue;
+      if (txns[j].transferPairId) continue; // already paired
 
-      const sameDate = imports[i].date === imports[j].date;
+      const sameDate = txns[i].datetime.split("T")[0] === txns[j].datetime.split("T")[0];
       const oppositeAmounts =
         txns[i].amount !== 0 &&
         txns[i].amount === -txns[j].amount;
@@ -103,24 +104,67 @@ export function prepareMerge(
     return t.accountId || "";
   };
 
+  // ── Resolve target account for transfers ───────────────────
+  const resolveTargetAccount = (t: ImportTransaction): string => {
+    if (!t.targetAccountId) return "";
+    // targetAccountId is already a budget account UUID set during enrichment/UI
+    return t.targetAccountId;
+  };
+
   // ── Convert to budget transactions ────────────────────────
   const createdAt = new Date().toISOString();
+  const newTxns: Transaction[] = [];
 
-  const newTxns: Transaction[] = selected.map((t) => ({
-    id: crypto.randomUUID(),
-    datetime: `${t.date}T00:00:00.000`,
-    type: t.type,
-    amount: t.amount,
-    categoryId: t.categoryId || "",
-    accountId: resolveAccount(t),
-    transferPairId: "",
-    merchant: t.merchant || "",
-    note: [t.description, t.memo].filter(Boolean).join(" — "),
-    createdAt,
-  }));
+  for (const t of selected) {
+    const accountId = resolveAccount(t);
 
-  // ── Link transfer pairs ────────────────────────────────────
-  linkTransferPairs(newTxns, selected);
+    if (t.type === "transfer" && resolveTargetAccount(t)) {
+      // Single-leg transfer with known target → create proper paired transactions
+      const targetId = resolveTargetAccount(t);
+      const fromId = crypto.randomUUID();
+      const toId = crypto.randomUUID();
+      const note = [t.description, t.memo].filter(Boolean).join(" — ");
+
+      if (t.amount < 0) {
+        // Outflow: money leaves accountId, arrives at targetId
+        newTxns.push(
+          { id: fromId, datetime: `${t.date}T00:00:00.000`, type: "transfer", amount: t.amount, categoryId: "", accountId, transferPairId: toId, merchant: "", note, createdAt },
+          { id: toId, datetime: `${t.date}T00:00:00.000`, type: "transfer", amount: -t.amount, categoryId: "", accountId: targetId, transferPairId: fromId, merchant: "", note, createdAt },
+        );
+      } else {
+        // Inflow: money arrives at accountId, leaves targetId
+        newTxns.push(
+          { id: toId, datetime: `${t.date}T00:00:00.000`, type: "transfer", amount: t.amount, categoryId: "", accountId, transferPairId: fromId, merchant: "", note, createdAt },
+          { id: fromId, datetime: `${t.date}T00:00:00.000`, type: "transfer", amount: -t.amount, categoryId: "", accountId: targetId, transferPairId: toId, merchant: "", note, createdAt },
+        );
+      }
+    } else {
+      // Regular expense/income or unmatched transfer (kept as-is for now)
+      newTxns.push({
+        id: crypto.randomUUID(),
+        datetime: `${t.date}T00:00:00.000`,
+        type: t.type,
+        amount: t.amount,
+        categoryId: t.type === "transfer" ? "" : (t.categoryId || ""),
+        accountId,
+        transferPairId: "",
+        merchant: t.type === "transfer" ? "" : (t.merchant || ""),
+        note: [t.description, t.memo].filter(Boolean).join(" — "),
+        createdAt,
+      });
+    }
+  }
+
+  // ── Link transfer pairs (YNAB-style two-leg imports) ───────────
+  linkTransferPairs(newTxns);
+
+  // ── Downgrade unpaired transfers to income/expense ─────────────
+  for (let i = 0; i < newTxns.length; i++) {
+    const t = newTxns[i];
+    if (t.type === "transfer" && !t.transferPairId) {
+      newTxns[i] = { ...t, type: t.amount < 0 ? "expense" : "income" };
+    }
+  }
 
   const nextTransactions = [...prevTransactions, ...newTxns];
 

@@ -24,6 +24,10 @@ interface AccountSelectorProps {
   clearable?: boolean;
   /** Accounts to exclude from the list (e.g. the "from" account in transfers). */
   excludeIds?: string[];
+  /** Accounts to show but disable (greyed out, not selectable). */
+  disableIds?: string[];
+  /** Show an "Unset" option that clears the selection (calls onChange("")). */
+  includeUnset?: boolean;
   /** Start with the popover open. */
   defaultOpen?: boolean;
   /** Called when the popover opens or closes. */
@@ -38,6 +42,8 @@ export function AccountSelector({
   includeAll = false,
   clearable = false,
   excludeIds = [],
+  disableIds = [],
+  includeUnset = false,
   defaultOpen = false,
   onOpenChange: onOpenChangeProp,
 }: AccountSelectorProps) {
@@ -90,6 +96,19 @@ export function AccountSelector({
           <CommandInput placeholder="Search accounts…" />
           <CommandList>
             <CommandEmpty>No accounts found.</CommandEmpty>
+            {includeUnset && (
+              <CommandGroup>
+                <CommandItem
+                  value="— Unset"
+                  onSelect={() => {
+                    onChange("");
+                    handleOpenChange(false);
+                  }}
+                >
+                  <span className="text-muted-foreground italic">Unset</span>
+                </CommandItem>
+              </CommandGroup>
+            )}
             {includeAll && (
               <CommandGroup>
                 <CommandItem
@@ -108,19 +127,25 @@ export function AccountSelector({
               <CommandGroup key={type} heading={ACCOUNT_TYPE_LABELS[type]}>
                 {active
                   .filter((a) => a.type === type)
-                  .map((a) => (
-                    <CommandItem
-                      key={a.id}
-                      value={a.name}
-                      data-checked={a.id === value}
-                      onSelect={() => {
-                        onChange(a.id);
-                        handleOpenChange(false);
-                      }}
-                    >
-                      {a.name}
-                    </CommandItem>
-                  ))}
+                  .map((a) => {
+                    const isDisabled = disableIds.includes(a.id);
+                    return (
+                      <CommandItem
+                        key={a.id}
+                        value={a.name}
+                        data-checked={a.id === value}
+                        disabled={isDisabled}
+                        onSelect={() => {
+                          if (isDisabled) return;
+                          onChange(a.id);
+                          handleOpenChange(false);
+                        }}
+                        className={isDisabled ? "opacity-40 cursor-not-allowed" : ""}
+                      >
+                        {a.name}
+                      </CommandItem>
+                    );
+                  })}
               </CommandGroup>
             ))}
           </CommandList>

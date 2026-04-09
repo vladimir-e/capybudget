@@ -44,7 +44,11 @@ Always call \`list_categories\` early so you know what categories exist and thei
    b. For each pattern: enrich_update with WHERE + SET
    c. enrich_stats                        → check progress, report to user
    d. If >95% categorized or no new patterns visible → stop
-5. Final summary
+5. If unmatched transfers remain:
+   a. list_accounts                            → get account names and UUIDs
+   b. enrich_sample(field: "targetAccountId")  → see unmatched transfer descriptions
+   c. For each transfer with a recognizable target: enrich_update with SET targetAccountId
+6. Final summary
 \`\`\`
 
 ## Merchant cleaning
@@ -66,6 +70,14 @@ Use enrich_update with \`contains\` matching to clean merchants in bulk. Merchan
 ## Account resolution
 
 \`auto_enrich\` handles account matching automatically. If \`enrich_stats\` still shows unresolved accounts after auto_enrich, note it in your final summary — the user resolves account mapping in the UI.
+
+## Transfer target accounts
+
+Bank statement transfers only show one side — the account the statement belongs to. The other side (the target account) needs to be matched. \`auto_enrich\` handles common cases, but you should look at remaining unmatched transfers and try to resolve them.
+
+Use \`enrich_update\` with \`set: {"targetAccountId": "<account-uuid>"}\` to assign the target account. Look for clues in the description — account numbers, abbreviations (CHK = checking, SAV = savings), account names, or bank-specific identifiers. Use \`list_accounts\` to see available accounts and their UUIDs.
+
+If there's no reasonable clue in the description, leave it unmatched — the user can set it in the UI, and unmatched transfers will be imported as regular income/expense transactions.
 
 ## Stopping criteria
 

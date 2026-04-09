@@ -14,6 +14,7 @@ function makeRow(overrides: Partial<ImportTransaction> = {}): ImportTransaction 
     memo: "",
     merchant: "Starbucks",
     accountId: "",
+    targetAccountId: "",
     categoryId: "",
     categoryConfidence: "",
     ...overrides,

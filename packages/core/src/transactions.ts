@@ -83,6 +83,31 @@ export function updateTransaction(
     const original = existing.find((t) => t.id === input.id);
     const pairId = original?.transferPairId;
     const datetime = resolveDateTime(input.date, original?.datetime ?? "");
+
+    if (!pairId && input.toAccountId) {
+      // Unpaired transfer gaining a pair — create the missing leg
+      const newPairId = crypto.randomUUID();
+      return [
+        ...existing.map((t) =>
+          t.id === input.id
+            ? { ...t, amount: -input.amount, accountId: input.accountId, transferPairId: newPairId, datetime, merchant: "", note: input.note }
+            : t,
+        ),
+        {
+          id: newPairId,
+          datetime,
+          type: "transfer" as const,
+          amount: input.amount,
+          categoryId: "",
+          accountId: input.toAccountId,
+          transferPairId: input.id!,
+          merchant: "",
+          note: input.note,
+          createdAt: new Date().toISOString(),
+        },
+      ];
+    }
+
     return existing.map((t) => {
       if (t.id === input.id) {
         return { ...t, amount: -input.amount, accountId: input.accountId, datetime, merchant: "", note: input.note };

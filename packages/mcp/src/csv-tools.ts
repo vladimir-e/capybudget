@@ -119,7 +119,7 @@ export const CSV_TOOLS = [
       properties: {
         field: {
           type: "string",
-          description: "Which empty field to filter by: 'merchant', 'categoryId', or 'any' (default: 'any')",
+          description: "Which empty field to filter by: 'merchant', 'categoryId', 'targetAccountId' (unmatched transfers), or 'any' (default: 'any')",
         },
         limit: {
           type: "number",
@@ -137,7 +137,7 @@ export const CSV_TOOLS = [
       properties: {
         set: {
           type: "object",
-          description: "Fields to set. Keys: merchant, categoryId, categoryConfidence, accountId. Example: {\"categoryId\": \"uuid\", \"categoryConfidence\": \"low\"}",
+          description: "Fields to set. Keys: merchant, categoryId, categoryConfidence, accountId, targetAccountId. Example: {\"categoryId\": \"uuid\", \"categoryConfidence\": \"low\"}",
         },
         where: {
           description: "Single condition or array of conditions (AND logic). Each: {field, equals?, contains?}. Example: {\"field\": \"description\", \"contains\": \"STARBUCKS\"} or [{\"field\": \"description\", \"contains\": \"AMAZON\"}, {\"field\": \"type\", \"equals\": \"expense\"}]",
@@ -284,7 +284,7 @@ export async function handleTransformCsv(
 const IMPORT_CSV_COLUMNS = [
   "id", "date", "description", "amount", "type",
   "sourceAccount", "sourceCategory", "memo",
-  "merchant", "accountId", "categoryId", "categoryConfidence",
+  "merchant", "accountId", "targetAccountId", "categoryId", "categoryConfidence",
 ]
 
 // In-memory cache to avoid re-parsing CSV on every enrichment tool call
@@ -316,12 +316,15 @@ export async function handleEnrichStats(
 ): Promise<string> {
   const { data } = await readImportCsv(budgetPath)
 
-  let withMerchant = 0, withCategory = 0, withAccount = 0, transfers = 0
+  let withMerchant = 0, withCategory = 0, withAccount = 0, transfers = 0, unmatchedTransfers = 0
   for (const row of data) {
     if (row.merchant) withMerchant++
     if (row.categoryId) withCategory++
     if (row.accountId) withAccount++
-    if (row.type === "transfer") transfers++
+    if (row.type === "transfer") {
+      transfers++
+      if (!row.targetAccountId) unmatchedTransfers++
+    }
   }
 
   const needCategory = data.length - withCategory - transfers
@@ -332,7 +335,8 @@ export async function handleEnrichStats(
     `Categories: ${withCategory}/${data.length - transfers} (${transfers} transfers excluded)`,
     `Accounts: ${withAccount}/${data.length}`,
     needCategory > 0 ? `Still need category: ${needCategory}` : `All categorized!`,
-  ].join("\n")
+    unmatchedTransfers > 0 ? `Unmatched transfers: ${unmatchedTransfers} (will import as income/expense)` : ``,
+  ].filter(Boolean).join("\n")
 }
 
 export async function handleEnrichSample(
@@ -346,16 +350,22 @@ export async function handleEnrichSample(
   const needsWork = data.filter((row) => {
     if (field === "merchant") return !row.merchant
     if (field === "categoryId") return !row.categoryId && row.type !== "transfer"
+    if (field === "targetAccountId") return row.type === "transfer" && !row.targetAccountId
     return (!row.merchant || !row.categoryId) && row.type !== "transfer"
   })
 
   const sample = sampleEvenly(needsWork, limit)
 
-  // Return compact CSV with only useful columns
-  const header = "description,sourceCategory,amount,type,merchant,categoryId"
+  // Return compact CSV with only useful columns — include targetAccountId for transfers
+  const isTransferQuery = field === "targetAccountId"
+  const header = isTransferQuery
+    ? "description,amount,type,sourceAccount,targetAccountId"
+    : "description,sourceCategory,amount,type,merchant,categoryId"
   const rows = sample.map((r) =>
-    [r.description, r.sourceCategory, r.amount, r.type, r.merchant, r.categoryId]
-      .map(v => csvEscapeField(v || ""))
+    (isTransferQuery
+      ? [r.description, r.amount, r.type, r.sourceAccount, r.targetAccountId]
+      : [r.description, r.sourceCategory, r.amount, r.type, r.merchant, r.categoryId]
+    ).map(v => csvEscapeField(v || ""))
       .join(",")
   )
 
@@ -389,7 +399,7 @@ export async function handleEnrichUpdate(
   // Support single condition or array of conditions (AND logic)
   const conditions: WhereCondition[] = Array.isArray(rawWhere) ? rawWhere : [rawWhere]
 
-  const allowedFields = new Set(["merchant", "categoryId", "categoryConfidence", "accountId"])
+  const allowedFields = new Set(["merchant", "categoryId", "categoryConfidence", "accountId", "targetAccountId"])
 
   // Validate set fields
   for (const key of Object.keys(setFields)) {
@@ -498,7 +508,7 @@ export async function handleAutoEnrich(
   const accounts = await repo.getAccounts()
   const activeAccounts = accounts.filter(a => !a.archived)
 
-  let categoriesMatched = 0, accountsMatched = 0, merchantsSet = 0
+  let categoriesMatched = 0, accountsMatched = 0, merchantsSet = 0, transferTargetsMatched = 0
 
   // ── 1. Source category → budget category ────────────────────
   const sourceCatCache = new Map<string, Category | null>()
@@ -535,7 +545,19 @@ export async function handleAutoEnrich(
     }
   }
 
-  // ── 3. Merchant from description ───────────────────────────
+  // ── 3. Transfer target account matching ─────────────────────
+  if (activeAccounts.length > 0) {
+    for (const row of data) {
+      if (row.type !== "transfer" || row.targetAccountId) continue
+      const match = matchTransferTarget(row.description, row.accountId, activeAccounts)
+      if (match) {
+        row.targetAccountId = match
+        transferTargetsMatched++
+      }
+    }
+  }
+
+  // ── 4. Merchant from description ───────────────────────────
   for (const row of data) {
     if (row.merchant || !row.description) continue
     row.merchant = row.description.trim()
@@ -550,13 +572,69 @@ export async function handleAutoEnrich(
     if (row.type !== "transfer" && !row.categoryId) uncategorized++
   }
 
+  let unmatchedTransfers = 0
+  for (const row of data) {
+    if (row.type === "transfer" && !row.targetAccountId) unmatchedTransfers++
+  }
+
   return [
     `Done. ${data.length} rows processed.`,
     `Categories matched: ${categoriesMatched} (from sourceCategory)`,
     `Accounts matched: ${accountsMatched}`,
+    `Transfer targets matched: ${transferTargetsMatched}`,
     `Merchants set: ${merchantsSet} (from description)`,
     uncategorized > 0 ? `Still need category: ${uncategorized} rows` : `All non-transfer rows categorized!`,
-  ].join("\n")
+    unmatchedTransfers > 0 ? `Unmatched transfers: ${unmatchedTransfers} (will import as income/expense if not resolved)` : ``,
+  ].filter(Boolean).join("\n")
+}
+
+// Common abbreviations found in bank transfer descriptions
+const ACCOUNT_ABBREVIATIONS: Record<string, string[]> = {
+  checking: ["chk", "chkg", "ckng"],
+  savings: ["sav", "savg", "svng", "svg"],
+  credit: ["cred", "cc", "crd"],
+}
+
+/**
+ * Try to identify the target account for a transfer from its description.
+ * Matches account names, abbreviations, and significant words against the description.
+ * Excludes the source account to avoid self-referencing.
+ */
+function matchTransferTarget(
+  description: string,
+  sourceAccountId: string,
+  accounts: { id: string; name: string }[],
+): string | null {
+  if (!description) return null
+  const descLower = description.toLowerCase()
+
+  for (const acc of accounts) {
+    if (acc.id === sourceAccountId) continue
+    const accLower = acc.name.toLowerCase()
+      .replace(/[\p{Emoji_Presentation}\p{Extended_Pictographic}]/gu, "")
+      .trim()
+    if (!accLower) continue
+
+    // Full name match in description
+    if (descLower.includes(accLower)) return acc.id
+
+    // Try significant words (3+ chars) from account name
+    const words = accLower.split(/\s+/).filter(w => w.length >= 3)
+    if (words.length > 0 && words.every(w => descLower.includes(w))) return acc.id
+
+    // Try common abbreviations: if description contains an abbreviation for a word
+    // in the account name, count it as a match for that word
+    if (words.length > 0) {
+      const allMatched = words.every(w => {
+        if (descLower.includes(w)) return true
+        const abbrevs = ACCOUNT_ABBREVIATIONS[w]
+        return abbrevs?.some(a => descLower.includes(a)) ?? false
+      })
+      if (allMatched) return acc.id
+    }
+  }
+
+  return null
 }
 
 function matchAccount(

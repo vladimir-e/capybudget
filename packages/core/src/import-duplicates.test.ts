@@ -15,6 +15,7 @@ function makeImport(overrides: Partial<ImportTransaction> = {}): ImportTransacti
     memo: "",
     merchant: "",
     accountId: "",
+    targetAccountId: "",
     categoryId: "",
     categoryConfidence: "",
     ...overrides,

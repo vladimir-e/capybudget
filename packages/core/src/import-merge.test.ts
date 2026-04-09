@@ -15,6 +15,7 @@ function makeImportTxn(overrides: Partial<ImportTransaction> = {}): ImportTransa
     memo: "",
     merchant: "Grocery Store",
     accountId: "",
+    targetAccountId: "",
     categoryId: "cat-1",
     categoryConfidence: "high",
     ...overrides,

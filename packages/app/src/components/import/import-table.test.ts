@@ -14,6 +14,7 @@ function txn(overrides: Partial<ImportTransaction> = {}): ImportTransaction {
     memo: "",
     merchant: "",
     accountId: "",
+    targetAccountId: "",
     categoryId: "",
     categoryConfidence: "",
     ...overrides,

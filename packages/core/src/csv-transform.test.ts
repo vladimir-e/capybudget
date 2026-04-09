@@ -702,7 +702,7 @@ describe("serializeImportCsv", () => {
 
     const lines = csv.split("\n");
     expect(lines[0]).toBe(
-      "id,date,description,amount,type,sourceAccount,sourceCategory,memo,merchant,accountId,categoryId,categoryConfidence",
+      "id,date,description,amount,type,sourceAccount,sourceCategory,memo,merchant,accountId,targetAccountId,categoryId,categoryConfidence",
     );
   });
 
@@ -880,6 +880,7 @@ describe("default fields on ImportTransaction", () => {
     const t = result.transactions[0];
     expect(t.merchant).toBe("");
     expect(t.accountId).toBe("");
+    expect(t.targetAccountId).toBe("");
     expect(t.categoryId).toBe("");
     expect(t.categoryConfidence).toBe("");
   });

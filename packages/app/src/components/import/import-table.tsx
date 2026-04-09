@@ -12,8 +12,9 @@ import { Calendar } from "@/components/ui/calendar";
 import { Checkbox } from "@/components/ui/checkbox";
 import { MerchantInput } from "@/components/budget/merchant-input";
 import { CategorySelector } from "@/components/budget/category-selector";
+import { AccountSelector } from "@/components/budget/account-selector";
 import type { ImportTransaction, DuplicateMatch } from "@capybudget/core";
-import type { Category } from "@capybudget/core";
+import type { Category, Account } from "@capybudget/core";
 import {
   formatMoney,
   parseMoney,
@@ -60,6 +61,8 @@ interface ImportTableProps {
   indeterminate: boolean;
   onUpdateTransaction: (id: string, patch: Partial<ImportTransaction>) => void;
   categories: Category[];
+  accounts: Account[];
+  accountMapping: Record<string, string>;
   duplicates: Map<string, DuplicateMatch>;
 }
 
@@ -298,6 +301,8 @@ export function ImportTable({
   indeterminate,
   onUpdateTransaction,
   categories,
+  accounts,
+  accountMapping,
   duplicates,
 }: ImportTableProps) {
   const [editingCell, setEditingCell] = useState<{
@@ -493,11 +498,26 @@ export function ImportTable({
                 )}
               </TableCell>
 
-              {/* Account (display only) */}
-              <TableCell className="text-[13px] text-muted-foreground">
-                <span className="truncate block">
-                  {txn.sourceAccount || <span className="text-muted-foreground/40 italic">none</span>}
-                </span>
+              {/* Account — selector for transfers, display for others */}
+              <TableCell className="text-[13px] text-muted-foreground py-1" onClick={(e) => e.stopPropagation()}>
+                {txn.type === "transfer" ? (
+                  <div className="[&>div]:w-full [&_button:first-of-type]:w-full [&_button:first-of-type]:min-w-0">
+                    <AccountSelector
+                      accounts={accounts}
+                      value={txn.targetAccountId || ""}
+                      onChange={(id) =>
+                        onUpdateTransaction(txn.id, { targetAccountId: id })
+                      }
+                      placeholder={txn.amount < 0 ? "To account" : "From account"}
+                      includeUnset={!!txn.targetAccountId}
+                      disableIds={[accountMapping[txn.sourceAccount] || txn.accountId].filter(Boolean)}
+                    />
+                  </div>
+                ) : (
+                  <span className="truncate block">
+                    {txn.sourceAccount || <span className="text-muted-foreground/40 italic">none</span>}
+                  </span>
+                )}
               </TableCell>
 
               {/* Category (selector) */}
