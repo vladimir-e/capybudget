@@ -199,19 +199,42 @@ Drop a file, intelligence normalizes it, you review and merge.
 
 ---
 
-## Phase 8: Analytics & Budgeting
+## Phase 8: Analytics
 
-- [ ] **8.1 — Analytics**
-  - Spending breakdowns by month, year, custom date range
-  - Category trends over time
+Budget section refactor: categories move to a sidebar (mirroring the Accounts pattern), main content becomes the analytics dashboard. "Pick something on the left, see its story on the right."
 
-- [ ] **8.2 — AI Insights**
+- [ ] **8.1 — Budget Layout Refactor**
+  - Categories tree moves into collapsible sidebar
+  - Sidebar mirrors Accounts pattern (compact, interactive, category management via context menus)
+  - Main content area becomes analytics dashboard
+
+- [ ] **8.2 — Date Range Navigation**
+  - Month-by-month navigation with back/forward arrows
+  - Presets: This Month, Last Month, This Year, Last Year, All Time, Custom
+  - Shared date range state across all analytics views
+
+- [ ] **8.3 — Expense & Income Breakdown**
+  - Pie chart: spending by category for selected period
+  - Pie chart: income by category for selected period
+  - Summary strip: total income, total expenses, net
+
+- [ ] **8.4 — Net Worth Over Time**
+  - Line/area chart showing net worth trajectory
+  - Monthly granularity, respects date range selection
+  - Account-level breakdown on hover/click
+
+- [ ] **8.5 — AI Insights**
   - Capy builds custom visualizations and analyses on demand
   - Anomaly detection (unusual amounts, spending spikes)
 
-- [ ] **8.3 — Budget**
+---
+
+## Phase 10: Budgeting
+
+- [ ] **10.1 — Monthly Budget**
   - Assign monthly amounts per category
   - Assigned vs. spent tracking
+  - Budget sidebar shows category | assigned | spent | remaining
 
 ## Phase 9: Promo Website ✓
 

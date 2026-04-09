@@ -12,7 +12,8 @@
     "@capybudget/core": "*",
     "@capybudget/intelligence": "*",
     "@capybudget/persistence": "*",
-    "@tanstack/react-virtual": "^3.13.23"
+    "@tanstack/react-virtual": "^3.13.23",
+    "recharts": "^3.8.1"
   },
   "devDependencies": {
     "@faker-js/faker": "^10.4.0"

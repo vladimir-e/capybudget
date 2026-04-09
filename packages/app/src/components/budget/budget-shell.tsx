@@ -4,6 +4,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { NavigationRail, type Section } from "@/components/budget/navigation-rail";
 import { Sidebar } from "@/components/budget/sidebar";
+
 import { AccountDialog } from "@/components/budget/account-dialog";
 import { TransactionForm } from "@/components/budget/transaction-form";
 import { ThemeToggle } from "@/components/theme-toggle";

@@ -1,5 +1,5 @@
-import { describe, it, expect, vi } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { describe, it, expect, vi, afterEach } from "vitest";
+import { render, screen, waitFor, cleanup } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import {
   createMemoryHistory,
@@ -46,6 +46,10 @@ async function renderRail(props: {
 }
 
 describe("NavigationRail", () => {
+  afterEach(() => {
+    cleanup();
+  });
+
   it("marks the active section with aria-current", async () => {
     await renderRail({ activeSection: "budget" });
 
@@ -56,12 +60,19 @@ describe("NavigationRail", () => {
     expect(accountsLinks.every((el) => el.getAttribute("aria-current") !== "page")).toBe(true);
   });
 
-  it("shows sidebar toggle only on accounts section", async () => {
-    const { unmount } = await renderRail({ activeSection: "accounts", sidebarOpen: true });
+  it("shows sidebar toggle on accounts section", async () => {
+    await renderRail({ activeSection: "accounts", sidebarOpen: true });
     expect(screen.getByLabelText("Collapse sidebar")).toBeInTheDocument();
-    unmount();
+  });
 
+  it("hides sidebar toggle on budget section", async () => {
     await renderRail({ activeSection: "budget" });
+    expect(screen.queryByLabelText("Collapse sidebar")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Expand sidebar")).not.toBeInTheDocument();
+  });
+
+  it("hides sidebar toggle on import section", async () => {
+    await renderRail({ activeSection: "import" });
     expect(screen.queryByLabelText("Collapse sidebar")).not.toBeInTheDocument();
     expect(screen.queryByLabelText("Expand sidebar")).not.toBeInTheDocument();
   });
