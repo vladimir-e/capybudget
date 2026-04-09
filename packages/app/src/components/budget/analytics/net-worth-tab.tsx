@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useDeferredValue, useMemo, useState } from "react";
 import {
   BarChart,
   Bar,
@@ -63,9 +63,14 @@ const CHART_OPTIONS: Array<{ value: ChartMode; label: string }> = [
 export function NetWorthTab({ accounts, transactions, dateRange }: NetWorthTabProps) {
   const [chartMode, setChartMode] = useState<ChartMode>("bar");
 
+  // Defer heavy inputs so the tab shell renders immediately
+  const deferredTransactions = useDeferredValue(transactions);
+  const deferredRange = useDeferredValue(dateRange);
+  const isStale = deferredTransactions !== transactions || deferredRange !== dateRange;
+
   const netWorthData = useMemo(
-    () => getNetWorthOverTime(accounts, transactions, dateRange),
-    [accounts, transactions, dateRange],
+    () => getNetWorthOverTime(accounts, deferredTransactions, deferredRange),
+    [accounts, deferredTransactions, deferredRange],
   );
 
   const chartData = useMemo(
@@ -111,7 +116,7 @@ export function NetWorthTab({ accounts, transactions, dateRange }: NetWorthTabPr
   }
 
   return (
-    <div className="space-y-4">
+    <div className={`space-y-4 transition-opacity duration-150 ${isStale ? "opacity-60" : ""}`}>
       <div className="flex justify-end">
         <ChartSwitcher options={CHART_OPTIONS} value={chartMode} onChange={setChartMode} />
       </div>

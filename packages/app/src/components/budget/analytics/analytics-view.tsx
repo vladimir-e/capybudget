@@ -34,7 +34,7 @@ interface TabDef {
 }
 
 const TABS: TabDef[] = [
-  { id: "spending", label: "Spending", allowedPeriods: ["month", "quarter", "year", "allTime"] },
+  { id: "spending", label: "Spending", allowedPeriods: ["month", "quarter", "year", "allTime", "custom"] },
   { id: "cashFlow", label: "Cash Flow", allowedPeriods: ["year", "allTime", "custom"] },
   { id: "netWorth", label: "Net Worth", allowedPeriods: ["year", "allTime", "custom"] },
   { id: "trends", label: "Trends", allowedPeriods: ["year", "allTime"] },

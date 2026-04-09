@@ -88,23 +88,28 @@ function breakdownByCategory(
   return result.sort((a, b) => b.total - a.total);
 }
 
-/** Calculate net worth at each month boundary within the range, plus the end date. */
+/** Calculate net worth at each month boundary within the range, plus the end date.
+ *  Single-pass O(transactions log transactions + points) algorithm. */
 export function getNetWorthOverTime(
   accounts: Account[],
   transactions: Transaction[],
   range: DateRange,
 ): NetWorthPoint[] {
-  const activeAccounts = accounts.filter((a) => !a.archived);
+  const activeAccountIds = new Set(
+    accounts.filter((a) => !a.archived).map((a) => a.id),
+  );
 
-  // Sort transactions by datetime for efficient cumulative calculation
+  // Sort transactions by datetime once
   const sorted = [...transactions].sort(
     (a, b) => new Date(a.datetime).getTime() - new Date(b.datetime).getTime(),
   );
 
-  // Build list of month boundaries within range
+  // Pre-compute timestamps to avoid repeated Date construction
+  const txTimestamps = sorted.map((t) => new Date(t.datetime).getTime());
+
+  // Build list of unique month boundaries within range
   const dates: Date[] = [];
   const cursor = new Date(range.start.getFullYear(), range.start.getMonth(), 1);
-  // Advance to first month boundary at or after start
   if (cursor < range.start) {
     cursor.setMonth(cursor.getMonth() + 1);
   }
@@ -112,34 +117,34 @@ export function getNetWorthOverTime(
     dates.push(new Date(cursor));
     cursor.setMonth(cursor.getMonth() + 1);
   }
-  // Always include end date as a point
-  dates.push(new Date(range.end));
+  // Include end date, deduplicated
+  const lastDate = dates[dates.length - 1];
+  if (!lastDate || range.end.getTime() !== lastDate.getTime()) {
+    dates.push(new Date(range.end));
+  }
 
-  // Deduplicate (if range.end happens to be a month boundary already)
-  const seen = new Set<string>();
-  const uniqueDates = dates.filter((d) => {
-    const key = d.toISOString();
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
+  // Single pass: walk transactions and emit points at each boundary
+  const balances: Record<string, number> = {};
+  for (const id of activeAccountIds) {
+    balances[id] = 0;
+  }
 
+  let txIdx = 0;
   const points: NetWorthPoint[] = [];
-  for (const date of uniqueDates) {
-    const dateMs = date.getTime();
-    const byAccount: Record<string, number> = {};
 
-    for (const account of activeAccounts) {
-      let balance = 0;
-      for (const t of sorted) {
-        if (new Date(t.datetime).getTime() >= dateMs) break;
-        if (t.accountId === account.id) {
-          balance += t.amount;
-        }
+  for (const date of dates) {
+    const dateMs = date.getTime();
+
+    // Advance through transactions up to this boundary
+    while (txIdx < sorted.length && txTimestamps[txIdx] < dateMs) {
+      const t = sorted[txIdx];
+      if (activeAccountIds.has(t.accountId)) {
+        balances[t.accountId] = (balances[t.accountId] ?? 0) + t.amount;
       }
-      byAccount[account.id] = balance;
+      txIdx++;
     }
 
+    const byAccount: Record<string, number> = { ...balances };
     points.push({
       date: date.toISOString(),
       netWorth: Object.values(byAccount).reduce((s, v) => s + v, 0),
