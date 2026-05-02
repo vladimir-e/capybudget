@@ -3,7 +3,7 @@ import type { DateRange } from "@capybudget/core";
 
 export type PeriodType = "month" | "quarter" | "year" | "allTime" | "custom";
 
-export type TabId = "spending" | "netWorth" | "cashFlow" | "trends" | "merchants" | "monthlyBudget";
+export type TabId = "spending" | "netWorth" | "cashFlow" | "compare" | "merchants" | "monthlyBudget";
 
 interface TabState {
   periodType: PeriodType;
@@ -109,7 +109,7 @@ const DEFAULT_TABS: Record<TabId, TabState> = {
   spending: { periodType: "month", dateRange: getCurrentMonthRange() },
   netWorth: { periodType: "allTime", dateRange: getCurrentYearRange() }, // placeholder until data loads
   cashFlow: { periodType: "year", dateRange: getCurrentYearRange() },
-  trends: { periodType: "year", dateRange: getCurrentYearRange() },
+  compare: { periodType: "year", dateRange: getCurrentYearRange() },
   merchants: { periodType: "month", dateRange: getCurrentMonthRange() },
   monthlyBudget: { periodType: "month", dateRange: getCurrentMonthRange() },
 };

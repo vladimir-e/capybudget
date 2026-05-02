@@ -21,7 +21,7 @@ import { SummaryStrip } from "./summary-strip";
 import { SpendingTab } from "./spending-tab";
 import { NetWorthTab } from "./net-worth-tab";
 import { CashFlowTab } from "./cash-flow-tab";
-import { TrendsTab } from "./trends-tab";
+import { CompareTab } from "./compare-tab";
 import { MerchantsTab } from "./merchants-tab";
 import { MonthlyBudgetTab } from "./monthly-budget-tab";
 
@@ -37,7 +37,7 @@ const TABS: TabDef[] = [
   { id: "spending", label: "Spending", allowedPeriods: ["month", "quarter", "year", "allTime", "custom"] },
   { id: "cashFlow", label: "Cash Flow", allowedPeriods: ["year", "allTime", "custom"] },
   { id: "netWorth", label: "Net Worth", allowedPeriods: ["year", "allTime", "custom"] },
-  { id: "trends", label: "Trends", allowedPeriods: ["year", "allTime"] },
+  { id: "compare", label: "Compare", allowedPeriods: ["year", "allTime"] },
   { id: "merchants", label: "Merchants", allowedPeriods: ["month", "quarter", "year", "allTime"] },
   { id: "monthlyBudget", label: "Monthly Budget", allowedPeriods: ["month"] },
 ];
@@ -168,8 +168,8 @@ export function AnalyticsView() {
         {activeTab === "cashFlow" && (
           <CashFlowTab transactions={transactions} dateRange={dateRange} />
         )}
-        {activeTab === "trends" && (
-          <TrendsTab transactions={transactions} categories={categories} dateRange={dateRange} />
+        {activeTab === "compare" && (
+          <CompareTab transactions={transactions} categories={categories} dateRange={dateRange} />
         )}
         {activeTab === "merchants" && (
           <MerchantsTab transactions={filtered} />

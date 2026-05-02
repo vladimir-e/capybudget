@@ -7,6 +7,7 @@ import {
   getPeriodSummary,
   getCashFlow,
   getTopMerchants,
+  getCategoryTrends,
 } from "./analytics";
 import type { Transaction, Category, Account } from "./types";
 
@@ -478,5 +479,172 @@ describe("getTopMerchants", () => {
   it("returns empty for empty transactions", () => {
     const result = getTopMerchants([]);
     expect(result).toEqual([]);
+  });
+});
+
+// ── getCategoryTrends ─────
+
+describe("getCategoryTrends", () => {
+  const range = {
+    start: new Date("2026-01-01T00:00:00.000Z"),
+    end: new Date("2026-04-01T00:00:00.000Z"),
+  };
+
+  it("returns top-N expense categories sorted by total when no categoryIds given", () => {
+    const result = getCategoryTrends(TRANSACTIONS, CATEGORIES, range, { limit: 5 });
+    // Expense totals in range:
+    //   cat-rent   = 240000 (Jan + Feb)
+    //   cat-food   =  45000 (Jan + Feb + Mar)
+    //   uncat ("") =   5000 (Feb)
+    expect(result.series.map((s) => s.categoryName)).toEqual(["Rent", "Groceries", "Uncategorized"]);
+    expect(result.series[0].total).toBe(240000);
+    expect(result.series[1].total).toBe(45000);
+    expect(result.series[2].total).toBe(5000);
+  });
+
+  it("respects the limit parameter for top-N mode", () => {
+    const result = getCategoryTrends(TRANSACTIONS, CATEGORIES, range, { limit: 1 });
+    expect(result.series.length).toBe(1);
+    expect(result.series[0].categoryId).toBe("cat-rent");
+  });
+
+  it("excludes transfers from totals and points", () => {
+    const result = getCategoryTrends(TRANSACTIONS, CATEGORIES, range);
+    // No category id matches a transfer, but make sure no spurious entries leaked in
+    for (const point of result.points) {
+      for (const amt of Object.values(point.byCategory)) {
+        expect(amt).toBeGreaterThan(0);
+      }
+    }
+    const total = result.series.reduce((s, x) => s + x.total, 0);
+    expect(total).toBe(240000 + 45000 + 5000);
+  });
+
+  it("supports income mode", () => {
+    const result = getCategoryTrends(TRANSACTIONS, CATEGORIES, range, { type: "income" });
+    const salary = result.series.find((s) => s.categoryId === "cat-salary")!;
+    expect(salary).toBeDefined();
+    // Salary income within range: t1 (500000) + t4 (500000) + t12 (99999) = 1099999
+    expect(salary.total).toBe(1099999);
+  });
+
+  it("returns empty for periods with no matching transactions", () => {
+    const result = getCategoryTrends(TRANSACTIONS, CATEGORIES, {
+      start: new Date("2020-01-01T00:00:00.000Z"),
+      end: new Date("2020-12-31T00:00:00.000Z"),
+    });
+    expect(result.points).toEqual([]);
+    expect(result.series).toEqual([]);
+  });
+
+  it("orders points chronologically", () => {
+    const result = getCategoryTrends(TRANSACTIONS, CATEGORIES, range);
+    for (let i = 1; i < result.points.length; i++) {
+      expect(new Date(result.points[i - 1].date).getTime()).toBeLessThan(
+        new Date(result.points[i].date).getTime(),
+      );
+    }
+  });
+
+  describe("with explicit categoryIds", () => {
+    it("returns exactly the requested categories in the given order", () => {
+      const result = getCategoryTrends(TRANSACTIONS, CATEGORIES, range, {
+        categoryIds: ["cat-food", "cat-rent"],
+      });
+      expect(result.series.map((s) => s.categoryId)).toEqual(["cat-food", "cat-rent"]);
+      expect(result.series[0].categoryName).toBe("Groceries");
+      expect(result.series[1].categoryName).toBe("Rent");
+    });
+
+    it("includes categories with zero spending in range as series entries", () => {
+      // cat-freelance is income, not expense — zero in expense mode
+      const result = getCategoryTrends(TRANSACTIONS, CATEGORIES, range, {
+        type: "expense",
+        categoryIds: ["cat-rent", "cat-freelance"],
+      });
+      expect(result.series.length).toBe(2);
+      const freelance = result.series.find((s) => s.categoryId === "cat-freelance")!;
+      expect(freelance).toBeDefined();
+      expect(freelance.total).toBe(0);
+    });
+
+    it("ignores categories not in the requested list when building points", () => {
+      const result = getCategoryTrends(TRANSACTIONS, CATEGORIES, range, {
+        categoryIds: ["cat-rent"],
+      });
+      for (const point of result.points) {
+        const keys = Object.keys(point.byCategory);
+        // Only cat-rent should ever appear as a key
+        for (const k of keys) {
+          expect(k).toBe("cat-rent");
+        }
+      }
+    });
+
+    it("supports the uncategorized pseudo-id (empty string)", () => {
+      const result = getCategoryTrends(TRANSACTIONS, CATEGORIES, range, {
+        categoryIds: [""],
+      });
+      expect(result.series.length).toBe(1);
+      expect(result.series[0].categoryId).toBe("");
+      expect(result.series[0].categoryName).toBe("Uncategorized");
+      expect(result.series[0].total).toBe(5000);
+      // The point for Feb should carry the uncategorized amount under the "" key
+      const feb = result.points.find((p) => p.month === "Feb 2026")!;
+      expect(feb.byCategory[""]).toBe(5000);
+    });
+
+    it("returns no points when no in-range transactions match selected categories", () => {
+      // Pick a real category that has no data in 2020
+      const result = getCategoryTrends(TRANSACTIONS, CATEGORIES, {
+        start: new Date("2020-01-01T00:00:00.000Z"),
+        end: new Date("2020-12-31T00:00:00.000Z"),
+      }, { categoryIds: ["cat-rent"] });
+      expect(result.points).toEqual([]);
+      expect(result.series.length).toBe(1);
+      expect(result.series[0].total).toBe(0);
+    });
+
+    it("takes precedence over limit when both are provided", () => {
+      const result = getCategoryTrends(TRANSACTIONS, CATEGORIES, range, {
+        limit: 1,
+        categoryIds: ["cat-food", "cat-rent"],
+      });
+      // limit is ignored — both requested categories are returned
+      expect(result.series.map((s) => s.categoryId)).toEqual(["cat-food", "cat-rent"]);
+    });
+
+    // T1: empty list short-circuit — no work, no series, no points.
+    it("short-circuits to empty result when categoryIds is empty", () => {
+      const result = getCategoryTrends(TRANSACTIONS, CATEGORIES, range, {
+        categoryIds: [],
+      });
+      expect(result.points).toEqual([]);
+      expect(result.series).toEqual([]);
+    });
+
+    // T2: unknown ids dropped silently — better than emitting a bogus
+    // "Uncategorized"-labelled series for an id that simply doesn't exist.
+    it("silently drops unknown category ids", () => {
+      const result = getCategoryTrends(TRANSACTIONS, CATEGORIES, range, {
+        categoryIds: ["cat-rent", "cat-does-not-exist", "cat-food"],
+      });
+      expect(result.series.map((s) => s.categoryId)).toEqual(["cat-rent", "cat-food"]);
+      // Make sure no synthetic Uncategorized leaked in.
+      expect(result.series.find((s) => s.categoryId === "")).toBeUndefined();
+    });
+
+    // T3: dedupe duplicates — caller order preserved, only first occurrence kept.
+    it("deduplicates repeated category ids", () => {
+      const result = getCategoryTrends(TRANSACTIONS, CATEGORIES, range, {
+        categoryIds: ["cat-rent", "cat-food", "cat-rent", "cat-food"],
+      });
+      expect(result.series.map((s) => s.categoryId)).toEqual(["cat-rent", "cat-food"]);
+      // And the byCategory points should also carry one entry per series.
+      for (const point of result.points) {
+        const keys = Object.keys(point.byCategory);
+        expect(new Set(keys).size).toBe(keys.length);
+      }
+    });
   });
 });

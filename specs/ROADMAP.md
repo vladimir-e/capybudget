@@ -201,7 +201,7 @@ Drop a file, intelligence normalizes it, you review and merge.
 
 ## Phase 8: Analytics
 
-Tab-based analytics dashboard in the Budget section. Six tabs: Spending, Cash Flow, Net Worth, Trends, Merchants, Monthly Budget. Per-tab date controls with period-aware navigation.
+Tab-based analytics dashboard in the Budget section. Six tabs: Spending, Cash Flow, Net Worth, Compare, Merchants, Monthly Budget. Per-tab date controls with period-aware navigation.
 
 - [x] **8.1 — Analytics Layout**
   - Tab bar with six analytics views
@@ -222,8 +222,15 @@ Tab-based analytics dashboard in the Budget section. Six tabs: Spending, Cash Fl
 - [x] **8.4 — Cash Flow** (Cash Flow tab)
   - Grouped income vs expense bars per month
 
-- [ ] **8.5 — Trends** (stub)
-- [ ] **8.6 — Merchants** (stub)
+- [x] **8.5 — Compare** (Compare tab)
+  - User-driven category selection (Cities-Skylines-style checklist) toggling lines on a multi-line chart
+  - Categories grouped by `CategoryGroup`, each row shows color swatch + period total
+  - Default selection: top 5 by period total; manual selection persists across period navigation
+  - Stable per-session color slots so visual identity doesn't shift on toggle
+
+- [x] **8.6 — Merchants** (Merchants tab)
+  - Top 15 merchants by spend, horizontal bar chart + ranked list
+  - Case-insensitive merchant grouping; transfers and income excluded
 - [ ] **8.7 — AI Insights**
   - Capy builds custom visualizations and analyses on demand
   - Anomaly detection (unusual amounts, spending spikes)

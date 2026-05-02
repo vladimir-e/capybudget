@@ -293,19 +293,41 @@ export interface TrendSeries {
 }
 
 export interface CategoryTrendsResult {
+  /** Chronologically sorted monthly buckets. Underlying granularity is monthly — the
+   *  range is partitioned into calendar months regardless of the caller's period type. */
   points: TrendPoint[];
-  series: TrendSeries[];  // top N categories sorted by total desc
+  /** In `categoryIds` mode: the requested categories, deduped, in caller order
+   *  (unknown ids silently dropped). In `limit` mode: top-N categories sorted by total desc. */
+  series: TrendSeries[];
 }
 
-/** Monthly spending per category over a date range. Excludes transfers. */
+/** Monthly spending per category over a date range. Excludes transfers.
+ *
+ * Two selection modes:
+ *  - `categoryIds` (explicit): include exactly these categories, in the order given,
+ *    deduplicated. Unknown ids (not in `categories` and not the `""` Uncategorized
+ *    pseudo-id) are silently dropped to avoid misleading "Uncategorized"-labelled
+ *    series. Passing an empty array short-circuits to an empty result.
+ *    Use empty string `""` to refer to the synthetic Uncategorized bucket.
+ *  - `limit` (default 8): pick top-N categories by total in the range, sorted desc.
+ *
+ * `categoryIds` takes precedence over `limit` when provided.
+ */
 export function getCategoryTrends(
   transactions: Transaction[],
   categories: Category[],
   range: DateRange,
-  options?: { type?: "expense" | "income"; limit?: number },
+  options?: { type?: "expense" | "income"; limit?: number; categoryIds?: string[] },
 ): CategoryTrendsResult {
   const type = options?.type ?? "expense";
   const limit = options?.limit ?? 8;
+  const explicitIds = options?.categoryIds;
+
+  // Empty explicit list = no series requested. Nothing to compute.
+  if (explicitIds && explicitIds.length === 0) {
+    return { points: [], series: [] };
+  }
+
   const catMap = new Map(categories.map((c) => [c.id, c]));
 
   const startMs = range.start.getTime();
@@ -333,19 +355,34 @@ export function getCategoryTrends(
     categoryTotals.set(catId, (categoryTotals.get(catId) ?? 0) + amt);
   }
 
-  // Rank categories by total, take top N
-  const ranked = [...categoryTotals.entries()]
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, limit);
+  // Pick which categories to surface.
+  let selectedIds: string[];
+  if (explicitIds) {
+    // Normalize uncategorized pseudo-id, drop unknown ids, dedupe — preserve caller order.
+    const seen = new Set<string>();
+    selectedIds = [];
+    for (const raw of explicitIds) {
+      const id = raw === "" ? "__uncategorized__" : raw;
+      if (id !== "__uncategorized__" && !catMap.has(id)) continue;
+      if (seen.has(id)) continue;
+      seen.add(id);
+      selectedIds.push(id);
+    }
+  } else {
+    selectedIds = [...categoryTotals.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, limit)
+      .map(([id]) => id);
+  }
 
-  const topCatIds = new Set(ranked.map(([id]) => id));
+  const selectedSet = new Set(selectedIds);
 
-  const series: TrendSeries[] = ranked.map(([id, total]) => {
+  const series: TrendSeries[] = selectedIds.map((id) => {
     const cat = id === "__uncategorized__" ? undefined : catMap.get(id);
     return {
       categoryId: id === "__uncategorized__" ? "" : id,
       categoryName: cat?.name ?? "Uncategorized",
-      total,
+      total: categoryTotals.get(id) ?? 0,
     };
   });
 
@@ -359,7 +396,7 @@ export function getCategoryTrends(
 
     const byCategory: Record<string, number> = {};
     for (const [catId, amt] of catBuckets) {
-      if (topCatIds.has(catId)) {
+      if (selectedSet.has(catId)) {
         const key = catId === "__uncategorized__" ? "" : catId;
         byCategory[key] = amt;
       }
