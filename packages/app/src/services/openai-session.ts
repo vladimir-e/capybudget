@@ -234,7 +234,9 @@ export class OpenAiSession implements CapySession {
           messages: requestMessages,
           tools,
           stream: true,
-          max_tokens: MAX_TOKENS,
+          // max_completion_tokens (not max_tokens): the former works on all current
+          // chat models, the latter is rejected by GPT-5 and the o-series.
+          max_completion_tokens: MAX_TOKENS,
         },
         { signal: this.abortController.signal },
       )
