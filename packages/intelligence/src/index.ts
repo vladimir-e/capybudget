@@ -20,6 +20,25 @@ export type {
 // Session interface
 export type { CapySessionOptions, CapySession } from "./session"
 
+// Provider config
+export {
+  DEFAULT_INTELLIGENCE_CONFIG,
+} from "./config"
+export type {
+  IntelligenceConfig,
+  IntelligenceProvider,
+} from "./config"
+
+// Session factory
+export { createIntelligenceSession } from "./factory"
+export type {
+  CreateSessionDeps,
+  AdapterConstructors,
+  SessionOptions,
+  ClaudeCliAdapterOptions,
+  ApiAdapterOptions,
+} from "./factory"
+
 // Prompt
 export { SYSTEM_PROMPT, buildContext } from "./prompt"
 
