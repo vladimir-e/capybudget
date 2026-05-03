@@ -22,9 +22,7 @@ jobs:
       - run: npm ci
 
       - name: Generate route trees
-        run: |
-          npx @tanstack/router-cli@1.166.8 generate
-          npx @tanstack/router-cli@1.166.8 generate --routesDirectory apps/demo/src/routes --generatedRouteTree apps/demo/src/routeTree.gen.ts
+        run: npm run routes:generate
 
       - name: Lint
         run: npm run lint
