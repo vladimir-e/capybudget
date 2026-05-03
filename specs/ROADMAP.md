@@ -257,7 +257,7 @@ The path from current state to a public, signed, auto-updating Alpha release. Or
 - [ ] **10.1 — Net Worth account filter**
   - A cog next to sidebar net worth where user can choose accounts to *exclude* from Net Worth
   - Any new accounts are included by default
-  - Persists via repo; 
+  - Persists via repo.
   - Sidebar net worth and Net Worth analytics tab both honor the flag
 
 - [ ] **10.2 — Monthly Budget tab**
