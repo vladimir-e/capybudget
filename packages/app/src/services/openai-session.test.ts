@@ -336,6 +336,50 @@ describe("OpenAiSession", () => {
     )
   })
 
+  it("surfaces a parse error in the tool result when arguments are malformed JSON", async () => {
+    // Fragments that concatenate to an unbalanced JSON string so
+    // JSON.parse rejects. The adapter must surface the parse error in
+    // the tool message (not throw, not crash the loop) and keep going
+    // — the model gets to see what went wrong.
+    queueTurn({
+      toolCallDeltas: [
+        {
+          index: 0,
+          id: "call_bad",
+          name: "list_transactions",
+          argFragments: ['{"limit', ': 5'], // unbalanced — missing closing "}"
+        },
+      ],
+      finish_reason: "tool_calls",
+    })
+    queueTurn({
+      textDeltas: ["Sorry, I'll try again."],
+      finish_reason: "stop",
+    })
+
+    const { session } = makeSession()
+    await session.send("Show recent")
+
+    // runTool must NOT be invoked when arguments don't parse.
+    expect(mockRunTool).not.toHaveBeenCalled()
+
+    // Second call sees a `tool` message containing the parse error so
+    // the model can self-correct on the next turn.
+    const second = lastCreateCall()
+    const messages = second.messages as Array<{
+      role: string
+      tool_call_id?: string
+      content?: string
+    }>
+    const toolMsg = messages.find((m) => m.role === "tool")
+    expect(toolMsg).toBeTruthy()
+    expect(toolMsg!.tool_call_id).toBe("call_bad")
+    expect(toolMsg!.content).toMatch(/invalid JSON arguments/i)
+    // The actual JSON.parse error string is implementation-defined but
+    // contains some hint about the syntax problem.
+    expect(toolMsg!.content!.length).toBeGreaterThan("Error: invalid JSON arguments — ".length)
+  })
+
   it("emits an error line when the SDK rejects", async () => {
     queueTurn({
       finish_reason: "stop",
