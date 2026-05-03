@@ -10,6 +10,7 @@ const host = process.env.TAURI_DEV_HOST;
 export default defineConfig(async () => ({
   define: {
     __PROJECT_ROOT__: JSON.stringify(process.cwd()),
+    __IS_DEMO__: JSON.stringify(false),
   },
   plugins: [
     TanStackRouterVite({

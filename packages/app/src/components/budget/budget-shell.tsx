@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Outlet, useMatches, useNavigate } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { NavigationRail, type Section } from "@/components/budget/navigation-rail";
 import { Sidebar } from "@/components/budget/sidebar";
 
@@ -32,10 +32,12 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { ChevronDown, ChevronLeft, ChevronRight, FolderOpen, LogOut } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight, FolderOpen, Github, LogOut } from "lucide-react";
 import { open as shellOpen } from "@tauri-apps/plugin-shell";
 import type { Account, Transaction, TransactionFormData } from "@capybudget/core";
 import { toast } from "sonner";
+
+declare const __IS_DEMO__: boolean;
 
 interface BudgetShellProps {
   path: string;
@@ -255,6 +257,18 @@ export function BudgetShell({ path, name }: BudgetShellProps) {
           </div>
           <div className="flex items-center justify-end gap-1">
             <div className="hidden md:flex items-center gap-1">
+              {__IS_DEMO__ && (
+                <a
+                  href="https://github.com/vladimir-e/capybudget"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label="View source on GitHub"
+                  title="View source on GitHub"
+                  className={buttonVariants({ variant: "ghost", size: "icon" })}
+                >
+                  <Github className="h-4 w-4" />
+                </a>
+              )}
               <ColorThemeSwitcher />
               <ThemeToggle />
             </div>

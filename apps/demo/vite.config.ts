@@ -8,6 +8,7 @@ export default defineConfig({
   base: process.env.DEMO_BASE_PATH ?? "/",
   define: {
     __PROJECT_ROOT__: JSON.stringify(""),
+    __IS_DEMO__: JSON.stringify(true),
   },
   plugins: [
     TanStackRouterVite({
