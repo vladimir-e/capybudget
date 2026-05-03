@@ -290,10 +290,10 @@ function CompareTabBody({ transactions, categories, dateRange, viewMode }: Compa
   const grouped = useMemo(() => groupRows(rows), [rows]);
 
   // Build series data for the selected categories.
-  // Note: allowedPeriods for this tab (analytics-view.tsx) restricts to year/allTime
-  // because the underlying buckets in getCategoryTrends are monthly-granularity —
-  // shorter periods would render at most one bucket. Keep this in mind when adding
-  // quarter or custom support.
+  // Note: getCategoryTrends buckets monthly, so the X-axis only has one point
+  // per month within `dateRange`. Year, All Time, and (multi-month) custom
+  // ranges are the periods that produce useful trend lines — see
+  // allowedPeriods in analytics-view.tsx.
   const selectedIdsForCore = useMemo(
     () => [...selected].map(fromSelectionKey),
     [selected],

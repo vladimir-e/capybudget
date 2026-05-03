@@ -40,7 +40,7 @@ const TABS: TabDef[] = [
   { id: "spending", label: "Spending", allowedPeriods: ["month", "quarter", "year", "allTime", "custom"] },
   { id: "cashFlow", label: "Cash Flow", allowedPeriods: ["year", "allTime", "custom"] },
   { id: "netWorth", label: "Net Worth", allowedPeriods: ["year", "allTime", "custom"] },
-  { id: "compare", label: "Compare", allowedPeriods: ["year", "allTime"] },
+  { id: "compare", label: "Compare", allowedPeriods: ["year", "allTime", "custom"] },
   { id: "merchants", label: "Merchants", allowedPeriods: ["month", "quarter", "year", "allTime"] },
 ];
 
