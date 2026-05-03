@@ -38,6 +38,7 @@ import {
 } from "@/components/ui/dialog";
 import { formatMoney, formatMoneyCompact, ACCOUNT_TYPE_LABELS, getAccountBalance, getAccountsByGroup, getNetWorth, isOpeningBalanceTxn } from "@capybudget/core";
 import { useAccounts, useTransactions } from "@/hooks/use-budget-data";
+import { NetWorthFilter } from "./net-worth-filter";
 import {
   useDeleteAccount,
   useArchiveAccount,
@@ -140,8 +141,11 @@ export function Sidebar({
       {/* Net Worth — warm hero area */}
       <div className="px-4 pt-4 pb-3">
         <div className="rounded-lg bg-brand-subtle px-3 py-3">
-          <div className="text-xs font-medium text-brand/70 uppercase tracking-wider">
-            Net Worth
+          <div className="flex items-center justify-between">
+            <div className="text-xs font-medium text-brand/70 uppercase tracking-wider">
+              Net Worth
+            </div>
+            <NetWorthFilter accounts={accounts} />
           </div>
           <div className="text-2xl font-bold tabular-nums text-brand mt-0.5">
             {formatMoneyCompact(netWorth)}

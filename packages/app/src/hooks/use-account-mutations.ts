@@ -7,6 +7,7 @@ import {
   archiveAccount,
   unarchiveAccount,
   reorderAccounts,
+  setNetWorthExclusions,
 } from "@capybudget/core";
 import { useBudgetMutation } from "@/hooks/use-budget-mutation";
 
@@ -67,6 +68,15 @@ export function useReorderAccounts() {
 export function useUnarchiveAccount() {
   return useBudgetMutation<string>(async (accountId, { accounts }) => {
     const next = unarchiveAccount(accountId, accounts.get());
+    accounts.set(next);
+    await accounts.save(next);
+  });
+}
+
+/** Replace the full set of accounts excluded from Net Worth. */
+export function useSetNetWorthExclusions() {
+  return useBudgetMutation<Set<string>>(async (excludedIds, { accounts }) => {
+    const next = setNetWorthExclusions(excludedIds, accounts.get());
     accounts.set(next);
     await accounts.save(next);
   });
