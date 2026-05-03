@@ -18,11 +18,13 @@ import {
   Upload,
 } from "lucide-react";
 import { toast } from "sonner";
+import { useNavigate } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
 import { useImportRepository, type SourceFileInfo } from "@/hooks/use-import-repository";
 import { useImportStore } from "@/stores/import-store";
 import { useImportInstructions } from "@/hooks/use-custom-instructions";
 import { useAccounts } from "@/hooks/use-budget-data";
+import { useIntelligenceStore } from "@/stores/intelligence-store";
 import { getToolLabel } from "@/services/capy-stream";
 import { useBudgetRepository } from "@/providers/repository-provider";
 import { tauriFileAdapter } from "../../../../../src/adapters/tauri-file-adapter";
@@ -106,6 +108,14 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
   const [localInstructions, setLocalInstructions] = useState<string | null>(null);
   const [selectedAccountId, setSelectedAccountId] = useState("");
   const { data: accounts = [] } = useAccounts();
+
+  // Phase A: imports require Claude Code. API adapters expose chat
+  // tools but not the import + CSV tools yet — those land in Phase B.
+  // Gate Start Import behind a banner that nudges to settings rather
+  // than letting the run silently fail with "Unknown tool".
+  const navigate = useNavigate();
+  const provider = useIntelligenceStore((s) => s.config.provider);
+  const importSupported = provider === "claude-cli";
 
   // Seed local instructions from persisted value once loaded
   useEffect(() => {
@@ -352,6 +362,12 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
           {/* ── Drop zone ──────────────────────────────────── */}
           {showDropZone && (
             <>
+              {!importSupported && (
+                <ProviderUnsupportedBanner
+                  provider={provider}
+                  onOpenSettings={() => navigate({ to: "/settings" })}
+                />
+              )}
               <input
                 ref={fileInputRef}
                 type="file"
@@ -475,7 +491,7 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
                     />
                     <Button
                       onClick={handleStart}
-                      disabled={uploadingFiles.size > 0}
+                      disabled={uploadingFiles.size > 0 || !importSupported}
                       className="gap-2 rounded-xl px-6 py-5 text-base font-semibold shadow-lg shadow-brand/20"
                     >
                       <Sparkles className="h-4.5 w-4.5" />
@@ -527,6 +543,49 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
         </div>
       </div>
 
+    </div>
+  );
+}
+
+/* ── Provider Unsupported Banner ─────────────────────────────────── */
+
+/**
+ * Phase A nudge: imports require Claude Code. The other API adapters
+ * dispatch `analyze_csv` / `transform_csv` against `runTool`, which
+ * rejects with "Unknown tool" — so silently letting users hit Start
+ * was the source of an opaque error. Banner mirrors the empty-state
+ * card in `capy-overlay.tsx` for visual consistency.
+ */
+function ProviderUnsupportedBanner({
+  provider,
+  onOpenSettings,
+}: {
+  provider: "claude-cli" | "anthropic" | "openai" | null;
+  onOpenSettings: () => void;
+}) {
+  const heading =
+    provider === null
+      ? "Set up your AI assistant"
+      : "Import requires Claude Code in this release";
+  const detail =
+    provider === null
+      ? "Pick an AI provider in settings before importing transactions."
+      : "Smart Import currently runs only on Claude Code. The Anthropic and OpenAI adapters get import support in the next release. Switch providers in settings to continue.";
+
+  return (
+    <div className="flex flex-col items-center justify-center rounded-2xl border border-brand/20 bg-brand/5 px-6 py-10 text-center">
+      <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-brand/10 text-brand">
+        <Sparkles className="h-7 w-7" />
+      </div>
+      <p className="text-lg font-medium text-foreground/80">{heading}</p>
+      <p className="mt-1 max-w-sm text-sm text-muted-foreground/70">{detail}</p>
+      <button
+        type="button"
+        onClick={onOpenSettings}
+        className="mt-5 inline-flex items-center gap-1.5 rounded-xl bg-brand px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-brand/90 transition-colors"
+      >
+        Open settings
+      </button>
     </div>
   );
 }
