@@ -14,6 +14,7 @@
     "@capybudget/intelligence": "*",
     "@capybudget/persistence": "*",
     "@tanstack/react-virtual": "^3.13.23",
+    "openai": "^6.35.0",
     "recharts": "^3.8.1"
   },
   "devDependencies": {
