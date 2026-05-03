@@ -726,7 +726,6 @@ describe("getMonthlyBudgetSummary", () => {
   it("excludes Income group entirely", () => {
     const result = getMonthlyBudgetSummary(txns, cats, FEB);
     expect(result.rows.find((r) => r.categoryId === "income-pay")).toBeUndefined();
-    expect(result.groupSubtotals.find((g) => g.group === "Income")).toBeUndefined();
   });
 
   it("excludes archived categories", () => {
@@ -753,41 +752,6 @@ describe("getMonthlyBudgetSummary", () => {
     expect(byId.get("fixed-rent")).toBe(200000);
     expect(byId.get("personal-fun")).toBe(0); // tracked-at-zero
     expect(byId.get("daily-coffee")).toBeNull(); // untracked
-  });
-
-  it("computes group subtotals from tracked rows only (excludes Income)", () => {
-    const result = getMonthlyBudgetSummary(txns, cats, FEB);
-    const byGroup = new Map(result.groupSubtotals.map((g) => [g.group, g]));
-
-    // Fixed: rent (200000) + utils (15000) tracked
-    expect(byGroup.get("Fixed")).toEqual({
-      group: "Fixed",
-      assigned: 215000,
-      spent: 200000,
-      trackedCount: 2,
-      totalCount: 2,
-    });
-
-    // Daily Living: food tracked (60000), coffee untracked → spend ignored
-    expect(byGroup.get("Daily Living")).toEqual({
-      group: "Daily Living",
-      assigned: 60000,
-      spent: 70000,
-      trackedCount: 1,
-      totalCount: 2,
-    });
-
-    // Personal: fun tracked-at-zero (0 + 5000 spent), clothing untracked
-    expect(byGroup.get("Personal")).toEqual({
-      group: "Personal",
-      assigned: 0,
-      spent: 5000,
-      trackedCount: 1,
-      totalCount: 2,
-    });
-
-    // Income excluded entirely
-    expect(byGroup.has("Income")).toBe(false);
   });
 
   it("computes top KPI totals — assigned, tracked spent, other spending", () => {

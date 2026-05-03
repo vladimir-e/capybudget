@@ -425,24 +425,10 @@ export interface CategoryMonthSummary {
   spent: number;
 }
 
-export interface CategoryGroupSubtotal {
-  group: string;
-  /** Sum of `assigned` for tracked categories in this group. */
-  assigned: number;
-  /** Sum of `spent` for tracked categories in this group. */
-  spent: number;
-  /** Number of tracked categories in this group (within `categories`). */
-  trackedCount: number;
-  /** Total number of non-archived categories in this group (within `categories`). */
-  totalCount: number;
-}
-
 export interface MonthlyBudgetSummary {
   /** Per-category aggregate for the month. One entry per non-archived
    *  expense-side category (Income excluded). */
   rows: CategoryMonthSummary[];
-  /** Per-CategoryGroup totals across tracked rows only. Income excluded. */
-  groupSubtotals: CategoryGroupSubtotal[];
   /** Sum of `assigned` across all tracked rows. */
   totalAssigned: number;
   /** Sum of `spent` across tracked rows. */
@@ -496,26 +482,6 @@ export function getMonthlyBudgetSummary(
     spent: spentByCategory.get(c.id) ?? 0,
   }));
 
-  const groupMap = new Map<string, CategoryGroupSubtotal>();
-  for (const c of eligible) {
-    if (!groupMap.has(c.group)) {
-      groupMap.set(c.group, {
-        group: c.group,
-        assigned: 0,
-        spent: 0,
-        trackedCount: 0,
-        totalCount: 0,
-      });
-    }
-    const subtotal = groupMap.get(c.group)!;
-    subtotal.totalCount += 1;
-    if (c.assigned !== null) {
-      subtotal.assigned += c.assigned;
-      subtotal.spent += spentByCategory.get(c.id) ?? 0;
-      subtotal.trackedCount += 1;
-    }
-  }
-
   let totalAssigned = 0;
   let totalSpentTracked = 0;
   let totalOtherSpending = 0;
@@ -533,7 +499,6 @@ export function getMonthlyBudgetSummary(
 
   return {
     rows,
-    groupSubtotals: [...groupMap.values()],
     totalAssigned,
     totalSpentTracked,
     totalOtherSpending,

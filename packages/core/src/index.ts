@@ -149,7 +149,6 @@ export type {
   TrendSeries,
   CategoryTrendsResult,
   CategoryMonthSummary,
-  CategoryGroupSubtotal,
   MonthlyBudgetSummary,
 } from "./analytics";
 export {
