@@ -279,6 +279,26 @@ Tool surface: chat-relevant only (data + mutation + render via `getToolDefinitio
 
 Imports still run on Claude CLI in Phase A — if a user has Anthropic selected and tries to import, the import store's `createSession` returns a session that can dispatch chat tools but the import flow itself still expects MCP-side import handlers. Phase B refactors those handlers to take a `FileAdapter` and routes them through `dispatch.ts`, at which point Anthropic-driven imports work end-to-end.
 
+## Round 3 — OpenAI adapter
+
+Landed: `OpenAiSession` at `packages/app/src/services/openai-session.ts`, wired into the factory in `create-session.ts`. SDK dependency `openai` lives only in `@capybudget/app`; the intelligence package stays SDK-agnostic. Tests at `packages/app/src/services/openai-session.test.ts` cover one-turn streaming, tool dispatch with arguments accumulation across many deltas, the per-index argument accumulator under independent verification, error surfacing, stop-mid-tool, and kill.
+
+API choice: **`chat.completions.create` with `stream: true`**. Reasons documented at the top of the file — chat.completions is the stable, version-broad path (GPT-4 family, GPT-4o, GPT-4.1, GPT-5); the newer `responses.create` would force a divergent tool-call shape and subtler streaming semantics. Revisit if a model becomes responses-only.
+
+The shape mirrors `AnthropicSession` deliberately: same lifecycle (`send`/`stop`/`restart`/`kill`), same `interrupted` flag pattern that drops trailing assistant turns with unmatched `tool_calls` (OpenAI's analogue of unmatched `tool_use`), same Claude-CLI-shaped synthetic stream-json (`assistant` / `result` / `error`) emitted as `SessionEvent` `stdout` events so `parseStreamLine` and downstream cumulative-text merging work without modification. Helper functions (`assistantLine`, `errorLine`, the cumulative-text accumulator) are duplicated rather than extracted — pragmatic over DRY since the two adapters will drift as providers diverge.
+
+Protocol deltas handled inline:
+- **Tools** wrapped as `{ type: "function", function: { name, description, parameters } }`.
+- **Tool calls stream as deltas** — `id`, `name`, and `arguments` arrive piecewise. A per-`tool_call.index` accumulator (`Map<index, { id, name, argsString }>`) collects fragments; `argsString` is parsed as JSON only after the stream finishes. Partial JSON is never parsed.
+- **Tool results** are appended as `{ role: "tool", tool_call_id, content }` messages, one per call, after the assistant turn that triggered them.
+- **Images** convert to `{ type: "image_url", image_url: { url: "data:${media_type};base64,${data}" } }`.
+- **System prompt** is prepended as a `{ role: "system", content: ... }` message at the head of each request — kept out of `this.messages` so `restart()` clears cleanly.
+- **Text deltas** are non-cumulative (`choices[0].delta.content`); accumulated locally before emit, matching Claude CLI's wire format.
+
+`stop()` aborts the in-flight `chat.completions.create` via `AbortController`, drops any trailing assistant turn that has unmatched `tool_calls` (the API would 400 on the next request otherwise), and sets an `interrupted` flag the agentic loop checks after `runTool` so partial tool results that reference a dropped turn never get pushed into history. `kill()` flips `isAlive` false and prevents further work; `restart()` resets history.
+
+Tool surface matches the Anthropic adapter: data + mutation + render via `getToolDefinitions()`. Import + CSV tools and a Read tool arrive in Phase B.
+
 ## When This Lands
 
 - Folds into ROADMAP.md as a new bullet under Phase 10 (after 10.4 — natural place; breaks out 10.5 "Intelligence layer hardening" into "10.5a Provider adapters" + "10.5b Hardening").
