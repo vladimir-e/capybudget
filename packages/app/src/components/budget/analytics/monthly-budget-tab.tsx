@@ -10,7 +10,6 @@ import {
 import type {
   Category,
   CategoryGroup,
-  CategoryGroupSubtotal,
   DateRange,
   Transaction,
 } from "@capybudget/core";
@@ -74,10 +73,18 @@ function ProgressBar({ spent, assigned }: { spent: number; assigned: number }) {
   const overshoot = Math.max(ratio - 1, 0);
   // Compress overshoot logarithmically so a 5x overrun doesn't dominate the row.
   const overshootDisplay = overshoot > 0 ? Math.min(Math.log2(1 + overshoot) * 25, 60) : 0;
+  const hasOvershoot = overshootDisplay > 0;
 
+  // Track and tail render as a single continuous bar — no gap. When overshoot
+  // exists, the track loses its right-rounded corners and the tail picks them
+  // up, so the join reads as one pill rather than two disconnected segments.
   return (
-    <div className="flex items-center gap-1 h-2">
-      <div className="relative h-2 flex-1 rounded-full bg-muted overflow-hidden">
+    <div className="flex items-center h-2">
+      <div
+        className={`relative h-2 flex-1 bg-muted overflow-hidden rounded-l-full ${
+          hasOvershoot ? "" : "rounded-r-full"
+        }`}
+      >
         <div
           className="absolute left-0 top-0 h-full rounded-full transition-all"
           style={{
@@ -86,9 +93,9 @@ function ProgressBar({ spent, assigned }: { spent: number; assigned: number }) {
           }}
         />
       </div>
-      {overshootDisplay > 0 && (
+      {hasOvershoot && (
         <div
-          className="h-2 rounded-full"
+          className="h-2 rounded-r-full"
           style={{
             width: `${overshootDisplay}%`,
             backgroundColor: PROGRESS_COLOR.over,
@@ -287,13 +294,29 @@ function CategoryRow({ category, spent }: CategoryRowProps) {
   );
 }
 
+// ── Column header ────
+
+/** Sticky labels above the rows — same grid as `CategoryRow` so columns line
+ *  up with the data. "Left" is the over/underspend column ("Remaining" lives
+ *  on the KPI card; the column needs the shorter word to fit the layout). */
+function ColumnHeader() {
+  return (
+    <div className="sticky top-0 z-10 bg-background border-b grid grid-cols-[minmax(0,1.4fr)_120px_120px_minmax(160px,2fr)_120px] gap-3 items-center px-3 py-1.5 text-xs font-medium text-muted-foreground uppercase tracking-wider">
+      <span>Category</span>
+      <span className="text-right">Assigned</span>
+      <span className="text-right">Spent</span>
+      <span /> {/* progress column intentionally unlabelled */}
+      <span className="text-right">Left</span>
+    </div>
+  );
+}
+
 // ── Group section ────
 
 interface GroupSectionProps {
   group: CategoryGroup;
   categories: Category[];
   spentByCategory: Map<string, number>;
-  subtotal: CategoryGroupSubtotal;
   showOnlyTracked: boolean;
 }
 
@@ -301,7 +324,6 @@ function GroupSection({
   group,
   categories,
   spentByCategory,
-  subtotal,
   showOnlyTracked,
 }: GroupSectionProps) {
   const visible = showOnlyTracked
@@ -310,36 +332,24 @@ function GroupSection({
 
   if (visible.length === 0) return null;
 
-  const subtotalRemaining = subtotal.assigned - subtotal.spent;
+  const totalCount = categories.length;
+  const trackedCount = categories.reduce(
+    (n, c) => n + (c.assigned !== null ? 1 : 0),
+    0,
+  );
 
   return (
     <div className="space-y-0.5">
-      {/* Group header with subtotals */}
-      <div className="grid grid-cols-[minmax(0,1.4fr)_120px_120px_minmax(160px,2fr)_120px] gap-3 items-center px-3 pt-3 pb-1.5 border-b">
+      {/* Group header — title only, full width, no per-group subtotals. */}
+      <div className="px-3 pt-3 pb-1.5 border-b">
         <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
           {group}
-          {subtotal.trackedCount < subtotal.totalCount && (
+          {trackedCount < totalCount && (
             <span className="ml-2 text-xs font-normal normal-case tracking-normal text-muted-foreground/60">
-              {subtotal.trackedCount}/{subtotal.totalCount} tracked
+              {trackedCount}/{totalCount} tracked
             </span>
           )}
         </h3>
-        <span className="text-right text-xs font-medium tabular-nums text-muted-foreground">
-          {subtotal.trackedCount > 0 ? formatMoney(subtotal.assigned) : ""}
-        </span>
-        <span className="text-right text-xs font-medium tabular-nums text-muted-foreground">
-          {subtotal.trackedCount > 0 ? formatMoney(subtotal.spent) : ""}
-        </span>
-        <span /> {/* progress column intentionally empty in subtotal row */}
-        <span
-          className={`text-right text-xs font-medium tabular-nums ${
-            subtotal.trackedCount > 0 && subtotalRemaining < 0
-              ? "text-amount-expense"
-              : "text-muted-foreground"
-          }`}
-        >
-          {subtotal.trackedCount > 0 ? formatMoney(subtotalRemaining) : ""}
-        </span>
       </div>
 
       {/* Rows */}
@@ -394,11 +404,6 @@ export function MonthlyBudgetTab({
     }
     return map;
   }, [categories]);
-
-  const subtotalByGroup = useMemo(
-    () => new Map(summary.groupSubtotals.map((g) => [g.group, g])),
-    [summary.groupSubtotals],
-  );
 
   // Income excluded → don't render it. Also include any user-defined groups
   // not in the canonical order (matching how the rest of the app lists groups).
@@ -456,27 +461,25 @@ export function MonthlyBudgetTab({
           No categories to budget. Add categories to start tracking.
         </p>
       ) : (
-        <div className="space-y-4">
-          {orderedGroups.map((g) => {
-            const cats = grouped.get(g) ?? [];
-            const subtotal = subtotalByGroup.get(g) ?? {
-              group: g,
-              assigned: 0,
-              spent: 0,
-              trackedCount: 0,
-              totalCount: cats.length,
-            };
-            return (
-              <GroupSection
-                key={g}
-                group={g}
-                categories={cats}
-                spentByCategory={spentByCategory}
-                subtotal={subtotal}
-                showOnlyTracked={showOnlyTracked}
-              />
-            );
-          })}
+        <div>
+          {/* Column-header row — sticks to the top of the scroll viewport so
+           *  the labels stay visible while the user scrolls through groups. */}
+          <ColumnHeader />
+
+          <div className="space-y-4 pt-2">
+            {orderedGroups.map((g) => {
+              const cats = grouped.get(g) ?? [];
+              return (
+                <GroupSection
+                  key={g}
+                  group={g}
+                  categories={cats}
+                  spentByCategory={spentByCategory}
+                  showOnlyTracked={showOnlyTracked}
+                />
+              );
+            })}
+          </div>
         </div>
       )}
     </div>
