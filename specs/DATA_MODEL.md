@@ -38,7 +38,7 @@ Every financial entity is an account.
 | `name`                 | string  | User-defined label (e.g. "BofA Checking", "Cash Wallet")          |
 | `type`                 | enum    | `cash · checking · savings · credit_card · loan · asset · crypto` |
 | `archived`             | boolean | Excluded from sidebar and net worth when true                     |
-| `excludeFromNetWorth`  | boolean | Excluded from Net Worth calculations when true. Defaults to false (new accounts are included). |
+| `excludeFromNetWorth`  | boolean | Excluded from Net Worth calculations when true                    |
 | `sortOrder`            | integer | Display ordering                                                  |
 | `createdAt`            | string  | ISO 8601                                                          |
 
