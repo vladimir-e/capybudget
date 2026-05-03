@@ -40,6 +40,12 @@ function makeFileAdapter(): FileAdapter {
     join: vi.fn().mockImplementation((...parts: string[]) =>
       Promise.resolve(parts.join("/")),
     ),
+    mkdir: vi.fn().mockResolvedValue(undefined),
+    exists: vi.fn().mockResolvedValue(false),
+    readDir: vi.fn().mockResolvedValue([]),
+    appendFile: vi.fn().mockResolvedValue(undefined),
+    remove: vi.fn().mockResolvedValue(undefined),
+    stat: vi.fn().mockResolvedValue({ size: 0, isFile: false, isDirectory: false }),
   }
 }
 
@@ -67,9 +73,10 @@ describe("isDispatchTool", () => {
     expect(isDispatchTool("render_anything")).toBe(true)
   })
 
-  it("rejects import + csv tools", () => {
-    expect(isDispatchTool("read_import_file")).toBe(false)
-    expect(isDispatchTool("analyze_csv")).toBe(false)
+  it("recognizes import + csv + read_file tools", () => {
+    expect(isDispatchTool("read_import_file")).toBe(true)
+    expect(isDispatchTool("analyze_csv")).toBe(true)
+    expect(isDispatchTool("read_file")).toBe(true)
   })
 
   it("rejects unknown tools", () => {

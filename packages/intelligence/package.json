@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@capybudget/core": "*",
-    "@capybudget/persistence": "*"
+    "@capybudget/persistence": "*",
+    "papaparse": "^5.5.3"
   }
 }

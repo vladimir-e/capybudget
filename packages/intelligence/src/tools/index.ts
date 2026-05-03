@@ -2,6 +2,9 @@
 export {
   DATA_TOOL_DEFS,
   MUTATION_TOOL_DEFS,
+  IMPORT_TOOL_DEFS,
+  CSV_TOOL_DEFS,
+  READ_FILE_TOOL_DEF,
   RENDER_TOOL_DEFS,
   MUTATION_TOOL_NAMES,
   getToolDefinitions,
@@ -12,9 +15,8 @@ export type { ToolDefinition } from "./definitions"
 export { runTool, isDispatchTool } from "./dispatch"
 export type { ToolContext } from "./dispatch"
 
-// Handlers (re-exported for transports that want to wire their own
-// switch — currently MCP, which still owns import + csv handlers and
-// merges those into the same try/catch path).
+// Handlers (re-exported for transports / tests that want to use them
+// directly without going through dispatch).
 export {
   handleListAccounts,
   handleListTransactions,
@@ -36,3 +38,19 @@ export {
   handleArchiveCategory,
   handleAssignCategories,
 } from "./handlers/mutation"
+export {
+  handleReadImportFile,
+  handleWriteImportFile,
+  handleAppendImportFile,
+  handleListImportFiles,
+} from "./handlers/import"
+export {
+  handleAnalyzeCsv,
+  handlePreviewTransform,
+  handleTransformCsv,
+  handleAutoEnrich,
+  handleEnrichStats,
+  handleEnrichSample,
+  handleEnrichUpdate,
+} from "./handlers/csv"
+export { handleReadFile } from "./handlers/read-file"

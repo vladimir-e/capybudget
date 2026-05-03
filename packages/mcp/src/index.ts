@@ -1,6 +1,6 @@
-// Tool descriptors that still live here (import + csv) plus the node
-// fs adapter the server uses. Data, mutation, and render tool
-// definitions now come from @capybudget/intelligence.
-export { IMPORT_TOOLS } from "./import-tools.js"
-export { CSV_TOOLS } from "./csv-tools.js"
+// All tool definitions and handlers now live in @capybudget/intelligence.
+// The MCP server (`./server.ts`) is a thin transport that wires
+// `getToolDefinitions()` to ListTools and `runTool()` to CallTool.
+// Public surface: just the node fs adapter, kept here so the package
+// stays self-describing.
 export { nodeFileAdapter } from "./node-file-adapter.js"

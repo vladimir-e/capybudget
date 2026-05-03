@@ -3,6 +3,7 @@ export type {
   FileAttachment,
   CliTextContent,
   CliImageContent,
+  CliDocumentContent,
   MessageContent,
   MessageRole,
   TextBlock,
@@ -56,14 +57,16 @@ export {
   // Definitions
   DATA_TOOL_DEFS,
   MUTATION_TOOL_DEFS,
+  IMPORT_TOOL_DEFS,
+  CSV_TOOL_DEFS,
+  READ_FILE_TOOL_DEF,
   RENDER_TOOL_DEFS,
   MUTATION_TOOL_NAMES,
   getToolDefinitions,
   // Dispatch
   runTool,
   isDispatchTool,
-  // Handlers (re-exported for transports that wire their own switch,
-  // e.g. the MCP server which still owns import + csv tools)
+  // Handlers (re-exported for transports / tests that use them directly)
   handleListAccounts,
   handleListTransactions,
   handleListCategories,
@@ -81,6 +84,18 @@ export {
   handleDeleteCategory,
   handleArchiveCategory,
   handleAssignCategories,
+  handleReadImportFile,
+  handleWriteImportFile,
+  handleAppendImportFile,
+  handleListImportFiles,
+  handleAnalyzeCsv,
+  handlePreviewTransform,
+  handleTransformCsv,
+  handleAutoEnrich,
+  handleEnrichStats,
+  handleEnrichSample,
+  handleEnrichUpdate,
+  handleReadFile,
 } from "./tools"
 export type { ToolDefinition, ToolContext } from "./tools"
 

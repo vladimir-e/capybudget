@@ -11,11 +11,11 @@
  * Tools this dispatch knows about:
  *   - data tools  (list_*, spending_summary, search_merchants)
  *   - mutation tools (create/update/delete/archive/assign_*)
+ *   - import tools (read/write/append/list_import_file)
+ *   - csv tools (analyze_csv, preview_transform, transform_csv,
+ *                auto_enrich, enrich_*)
+ *   - read_file (generic budget-folder text reader)
  *   - render tools (render_*)
- *
- * Import + CSV tools (read_import_file, analyze_csv, ...) are NOT
- * routed here for now; they remain in @capybudget/mcp until Phase B
- * because they currently use node fs directly.
  */
 
 import type { BudgetRepository, FileAdapter } from "@capybudget/persistence"
@@ -40,6 +40,22 @@ import {
   handleArchiveCategory,
   handleAssignCategories,
 } from "./handlers/mutation"
+import {
+  handleReadImportFile,
+  handleWriteImportFile,
+  handleAppendImportFile,
+  handleListImportFiles,
+} from "./handlers/import"
+import {
+  handleAnalyzeCsv,
+  handlePreviewTransform,
+  handleTransformCsv,
+  handleAutoEnrich,
+  handleEnrichStats,
+  handleEnrichSample,
+  handleEnrichUpdate,
+} from "./handlers/csv"
+import { handleReadFile } from "./handlers/read-file"
 
 export interface ToolContext {
   repo: BudgetRepository
@@ -73,6 +89,25 @@ const HANDLERS: Record<string, ToolHandler> = {
   delete_category: ({ repo }, args) => handleDeleteCategory(repo, args),
   archive_category: ({ repo }, args) => handleArchiveCategory(repo, args),
   assign_categories: ({ repo }, args) => handleAssignCategories(repo, args),
+
+  // Import working directory
+  read_import_file: (ctx, args) => handleReadImportFile(ctx, args),
+  write_import_file: (ctx, args) => handleWriteImportFile(ctx, args),
+  append_import_file: (ctx, args) => handleAppendImportFile(ctx, args),
+  list_import_files: (ctx) => handleListImportFiles(ctx),
+
+  // CSV transform + enrichment
+  analyze_csv: (ctx, args) => handleAnalyzeCsv(ctx, args),
+  preview_transform: (ctx, args) => handlePreviewTransform(ctx, args),
+  transform_csv: (ctx, args) => handleTransformCsv(ctx, args),
+  auto_enrich: (ctx) => handleAutoEnrich(ctx, ctx.repo),
+  enrich_stats: (ctx) => handleEnrichStats(ctx),
+  enrich_sample: (ctx, args) => handleEnrichSample(ctx, args),
+  enrich_update: (ctx, args) => handleEnrichUpdate(ctx, args),
+
+  // Generic file reader (claude-cli has Read built-in; api adapters
+  // get this so the import flow's text-file ingestion works)
+  read_file: (ctx, args) => handleReadFile(ctx, args),
 }
 
 /**
@@ -95,9 +130,7 @@ export async function runTool(
   return handler(ctx, input)
 }
 
-/** True if dispatch knows this tool name. Useful for transports that
- *  want to fall through to a different handler set (e.g. MCP delegating
- *  import + csv tools to its local node-fs handlers). */
+/** True if dispatch knows this tool name. */
 export function isDispatchTool(name: string): boolean {
   return name.startsWith("render_") || name in HANDLERS
 }

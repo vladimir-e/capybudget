@@ -1,10 +1,8 @@
 /**
  * Single source of truth for tool descriptors that the model sees —
- * data, mutation, and render tools live here. Both the MCP server
- * and the in-process API adapters consume these.
- *
- * Import + CSV tool descriptors stay in @capybudget/mcp for now; they
- * use node fs directly and are refactored in Phase B.
+ * data, mutation, import, csv, read_file, and render tools all live
+ * here. Both the MCP server and the in-process API adapters consume
+ * these.
  */
 
 // ── Data tool schemas ────────────────────────────────────────────
@@ -392,6 +390,217 @@ export const MUTATION_TOOL_DEFS = [
   },
 ] as const
 
+// ── Import working directory tools ───────────────────────────────
+// File I/O scoped to .capy/import/ (the staging area for the import
+// flow). Used by both the chat-driven import normalize/enrich sessions
+// and external MCP agents (Claude Desktop, Cursor) when they want to
+// peek at intermediate state.
+
+export const IMPORT_TOOL_DEFS = [
+  {
+    name: "read_import_file",
+    description:
+      "Read a file from the import working directory (.capy/import/). Use this to read previously normalized or enriched data.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        filename: {
+          type: "string",
+          description: "File name to read (e.g. 'transactions.csv')",
+        },
+      },
+      required: ["filename"],
+    },
+  },
+  {
+    name: "write_import_file",
+    description:
+      "Write a file to the import working directory (.capy/import/). Overwrites if the file exists. Use this to write normalized transaction data as CSV.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        filename: {
+          type: "string",
+          description: "File name to write (e.g. 'transactions.csv')",
+        },
+        content: {
+          type: "string",
+          description: "File content to write",
+        },
+      },
+      required: ["filename", "content"],
+    },
+  },
+  {
+    name: "append_import_file",
+    description:
+      "Append content to a file in the import working directory (.capy/import/). Creates the file if it doesn't exist.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        filename: {
+          type: "string",
+          description: "File name to append to",
+        },
+        content: {
+          type: "string",
+          description: "Content to append",
+        },
+      },
+      required: ["filename", "content"],
+    },
+  },
+  {
+    name: "list_import_files",
+    description:
+      "List files in the import working directory (.capy/import/).",
+    inputSchema: {
+      type: "object" as const,
+      properties: {},
+    },
+  },
+] as const
+
+// ── CSV transform + enrichment tools ─────────────────────────────
+
+export const CSV_TOOL_DEFS = [
+  {
+    name: "analyze_csv",
+    description:
+      "Analyze a source CSV file in .capy/import/sources/. Returns: column headers, first 20 sample rows, total row count, and detected delimiter. Use this to understand the file format before defining a mapping.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        filename: {
+          type: "string",
+          description: "Source CSV file name (e.g. '2019.csv'). Located in .capy/import/sources/.",
+        },
+      },
+      required: ["filename"],
+    },
+  },
+  {
+    name: "preview_transform",
+    description:
+      "Apply a column mapping to the first N rows of a source CSV file and return the transformed result. Use this to verify the mapping is correct before running the full transform. Returns transformed rows as JSON + any parse errors.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        filename: {
+          type: "string",
+          description: "Source CSV file name in .capy/import/sources/",
+        },
+        mapping: {
+          type: "object",
+          description: "The CsvMapping object defining how to transform columns",
+        },
+        limit: {
+          type: "number",
+          description: "Number of rows to preview (default: 10)",
+        },
+      },
+      required: ["filename", "mapping"],
+    },
+  },
+  {
+    name: "transform_csv",
+    description:
+      "Apply a column mapping to ALL rows of a source CSV file and write to .capy/import/transactions.csv. Appends if the file already exists (for multi-file imports). Use preview_transform first to verify the mapping.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        filename: {
+          type: "string",
+          description: "Source CSV file name in .capy/import/sources/",
+        },
+        mapping: {
+          type: "object",
+          description: "The CsvMapping object defining how to transform columns",
+        },
+      },
+      required: ["filename", "mapping"],
+    },
+  },
+  {
+    name: "auto_enrich",
+    description:
+      "Code-based enrichment: (1) maps sourceCategory → budget categories, (2) matches sourceAccount → budget accounts, (3) sets merchant from description for empty merchants. Call this FIRST.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {},
+    },
+  },
+  {
+    name: "enrich_stats",
+    description:
+      "Returns a compact summary of enrichment progress: total rows, how many have merchants, categories, accounts, and how many still need work.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {},
+    },
+  },
+  {
+    name: "enrich_sample",
+    description:
+      "Returns a small CSV sample of rows that still need enrichment. Use this to spot patterns, then apply bulk updates. Returns at most `limit` rows as CSV (default 20).",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        field: {
+          type: "string",
+          description:
+            "Which empty field to filter by: 'merchant', 'categoryId', 'targetAccountId' (unmatched transfers), or 'any' (default: 'any')",
+        },
+        limit: {
+          type: "number",
+          description: "Max rows to return (default: 20)",
+        },
+      },
+    },
+  },
+  {
+    name: "enrich_update",
+    description:
+      "Bulk update: set field(s) on all rows matching a condition. Like SQL UPDATE ... WHERE. Only sets empty fields (won't overwrite existing values).",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        set: {
+          type: "object",
+          description:
+            "Fields to set. Keys: merchant, categoryId, categoryConfidence, accountId, targetAccountId. Example: {\"categoryId\": \"uuid\", \"categoryConfidence\": \"low\"}",
+        },
+        where: {
+          description:
+            "Single condition or array of conditions (AND logic). Each: {field, equals?, contains?}. Example: {\"field\": \"description\", \"contains\": \"STARBUCKS\"} or [{\"field\": \"description\", \"contains\": \"AMAZON\"}, {\"field\": \"type\", \"equals\": \"expense\"}]",
+        },
+      },
+      required: ["set", "where"],
+    },
+  },
+] as const
+
+// ── read_file ────────────────────────────────────────────────────
+// Mirrors what Claude Code provides natively via its `Read` tool. API
+// adapters need an in-process equivalent. Scoped to the budget folder.
+
+export const READ_FILE_TOOL_DEF = {
+  name: "read_file",
+  description:
+    "Read a text file inside the budget folder (or .capy/import/sources/). Use this for any text-based source files during the import flow — CSV, OFX, JSON, etc.",
+  inputSchema: {
+    type: "object" as const,
+    properties: {
+      filename: {
+        type: "string",
+        description:
+          "File name relative to the budget folder or import sources folder. Bare filenames resolve against .capy/import/sources/ first, then the budget folder.",
+      },
+    },
+    required: ["filename"],
+  },
+} as const
+
 // ── Render tool schemas ──────────────────────────────────────────
 // These are no-ops on the dispatch side — the frontend intercepts the
 // tool_use events and renders the corresponding UI components.
@@ -482,12 +691,24 @@ export type ToolDefinition = {
 }
 
 /**
- * The merged tool list shipped to the model: data + mutation + render.
- * Returned as a fresh array so callers can safely concat platform-specific
- * tools (the MCP server adds import + csv tools on top of this).
+ * The merged tool list shipped to the model: data + mutation + import +
+ * csv + read_file + render. Returned as a fresh array so callers can
+ * safely mutate it.
+ *
+ * Both chat and import sessions use the same surface. The system prompt
+ * (chat vs. import) tells the model which tools are appropriate to
+ * reach for — exposing the full set is simpler than switching toolsets
+ * per session and matches what MCP-based external agents see.
  */
 export function getToolDefinitions(): ToolDefinition[] {
-  return [...DATA_TOOL_DEFS, ...MUTATION_TOOL_DEFS, ...RENDER_TOOL_DEFS]
+  return [
+    ...DATA_TOOL_DEFS,
+    ...MUTATION_TOOL_DEFS,
+    ...IMPORT_TOOL_DEFS,
+    ...CSV_TOOL_DEFS,
+    READ_FILE_TOOL_DEF,
+    ...RENDER_TOOL_DEFS,
+  ]
 }
 
 /**
