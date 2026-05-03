@@ -35,6 +35,21 @@ Element.prototype.getAnimations = () => [];
 
 vi.mock("@tauri-apps/plugin-shell", () => ({
   open: vi.fn(),
+  Command: {
+    create: vi.fn(() => ({
+      execute: vi.fn().mockResolvedValue({ code: 0, stdout: "", stderr: "" }),
+    })),
+  },
+}));
+
+vi.mock("@tauri-apps/plugin-store", () => ({
+  Store: {
+    load: vi.fn().mockResolvedValue({
+      get: vi.fn().mockResolvedValue(undefined),
+      set: vi.fn().mockResolvedValue(undefined),
+      save: vi.fn().mockResolvedValue(undefined),
+    }),
+  },
 }));
 
 vi.mock("@tauri-apps/plugin-dialog", () => ({
