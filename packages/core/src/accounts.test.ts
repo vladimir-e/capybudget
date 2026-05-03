@@ -281,4 +281,24 @@ describe("setNetWorthExclusions", () => {
     expect(result[0]).toBe(accounts[0]);
     expect(result[1]).toBe(accounts[1]);
   });
+
+  it("does not mutate archived accounts even when their id is in the set", () => {
+    const accounts = [
+      makeAccount({ id: "acc-active", archived: false, excludeFromNetWorth: false }),
+      makeAccount({ id: "acc-archived-included", archived: true, excludeFromNetWorth: false }),
+      makeAccount({ id: "acc-archived-excluded", archived: true, excludeFromNetWorth: true }),
+    ];
+    // Caller passes both archived ids in excludedIds — the function should
+    // ignore them and leave the archived accounts' flags untouched.
+    const result = setNetWorthExclusions(
+      new Set(["acc-archived-included", "acc-archived-excluded"]),
+      accounts,
+    );
+    expect(result[0].excludeFromNetWorth).toBe(false); // active, not in set
+    expect(result[1].excludeFromNetWorth).toBe(false); // archived, flag preserved
+    expect(result[2].excludeFromNetWorth).toBe(true); // archived, flag preserved
+    // Archived accounts get the same object ref back.
+    expect(result[1]).toBe(accounts[1]);
+    expect(result[2]).toBe(accounts[2]);
+  });
 });

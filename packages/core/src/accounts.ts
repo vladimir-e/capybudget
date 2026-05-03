@@ -125,13 +125,17 @@ export function unarchiveAccount(
   );
 }
 
-/** Apply a complete net-worth-exclusion set: every account whose id is in
- *  `excludedIds` becomes excluded; every other account becomes included. */
+/** Apply a complete net-worth-exclusion set: every active account whose id is
+ *  in `excludedIds` becomes excluded; every other active account becomes
+ *  included. Archived accounts are skipped — their exclusion flag is preserved
+ *  regardless of `excludedIds`, since archived accounts are already outside
+ *  Net Worth and the flag is meaningless until they're unarchived. */
 export function setNetWorthExclusions(
   excludedIds: Set<string>,
   existing: Account[],
 ): Account[] {
   return existing.map((a) => {
+    if (a.archived) return a;
     const next = excludedIds.has(a.id);
     return a.excludeFromNetWorth === next ? a : { ...a, excludeFromNetWorth: next };
   });
