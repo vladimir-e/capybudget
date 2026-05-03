@@ -253,9 +253,13 @@ function CategoryRow({ category, spent }: CategoryRowProps) {
       {/* Assigned (editable) */}
       <AssignedInput category={category} />
 
-      {/* Spent */}
+      {/* Spent — tracked rows always show the number (incl. $0.00).
+       *  Untracked rows show their spend if any, em-dash otherwise — that's
+       *  the per-category counterpart to the "Other Spending" KPI. */}
       <span className="text-right text-sm tabular-nums">
-        {spent > 0 ? formatMoney(spent) : (
+        {tracked || spent > 0 ? (
+          formatMoney(spent)
+        ) : (
           <span className="text-muted-foreground/50">—</span>
         )}
       </span>
