@@ -425,7 +425,12 @@ export function MonthlyBudgetTab({
   const remaining = summary.totalAssigned - summary.totalSpentTracked;
 
   return (
-    <div className="space-y-5">
+    // `pt-4` lives on the tab itself rather than the outer scroll container so
+    // the Monthly Budget KPI strip gets breathing room above it without
+    // re-introducing a dead zone above the sticky `ColumnHeader` (this padding
+    // scrolls with the content, the sticky header still pins flush with the
+    // viewport top).
+    <div className="space-y-5 pt-4">
       {/* KPI strip */}
       <KpiStrip
         cards={[

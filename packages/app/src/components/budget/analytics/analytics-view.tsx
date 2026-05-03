@@ -33,13 +33,15 @@ interface TabDef {
   allowedPeriods: PeriodType[];
 }
 
+// Monthly Budget leads — it's the daily-driver view. The fallback
+// `?? TABS[0]` below also makes it the default tab on first load.
 const TABS: TabDef[] = [
+  { id: "monthlyBudget", label: "Monthly Budget", allowedPeriods: ["month"] },
   { id: "spending", label: "Spending", allowedPeriods: ["month", "quarter", "year", "allTime", "custom"] },
   { id: "cashFlow", label: "Cash Flow", allowedPeriods: ["year", "allTime", "custom"] },
   { id: "netWorth", label: "Net Worth", allowedPeriods: ["year", "allTime", "custom"] },
   { id: "compare", label: "Compare", allowedPeriods: ["year", "allTime"] },
   { id: "merchants", label: "Merchants", allowedPeriods: ["month", "quarter", "year", "allTime"] },
-  { id: "monthlyBudget", label: "Monthly Budget", allowedPeriods: ["month"] },
 ];
 
 export function AnalyticsView() {

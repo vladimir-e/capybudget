@@ -92,9 +92,6 @@ export function DateRangeNav({
 }: DateRangeNavProps) {
   const label = formatRangeLabel(dateRange, periodType);
   const showArrows = periodType !== "allTime";
-  // Hide the period pills when the tab only supports one period — there's
-  // nothing to switch between.
-  const showPills = allowedPeriods.length > 1;
   const [calendarOpen, setCalendarOpen] = useState(false);
   // Always reflect the actual store state (already snapped to month boundaries)
   const endInclusive = new Date(dateRange.end);
@@ -155,8 +152,10 @@ export function DateRangeNav({
         )}
       </div>
 
-      {/* Right: period pills */}
-      {showPills && (
+      {/* Right: period pills. Always rendered — even when only one period is
+       *  allowed (e.g. Monthly Budget) — so every tab's date row has the same
+       *  shape. In the single-pill case the lone pill always shows as active
+       *  and clicking it is a no-op since it's already selected. */}
       <div className="flex items-center bg-muted rounded-lg p-0.5 gap-0.5">
         {allowedPeriods.filter((t) => t !== "custom").map((type) => (
           <button
@@ -209,7 +208,6 @@ export function DateRangeNav({
           </Popover>
         )}
       </div>
-      )}
     </div>
   );
 }
