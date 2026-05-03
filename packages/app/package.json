@@ -9,6 +9,7 @@
     ".": "./src/index.ts"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.92.0",
     "@capybudget/core": "*",
     "@capybudget/intelligence": "*",
     "@capybudget/persistence": "*",

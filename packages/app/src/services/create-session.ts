@@ -3,10 +3,8 @@
  * factory with platform-specific adapter constructors and reads the
  * current IntelligenceConfig from the Zustand store.
  *
- * Subsequent rounds add the Anthropic and OpenAI ctors here. For
- * Round 1 only `claude-cli` is wired; if the user picks an API
- * provider, the factory returns null and the caller surfaces an
- * empty-state UX (Round 4).
+ * Round 2 wires the Anthropic adapter alongside the existing Claude
+ * CLI adapter. The OpenAI ctor lands in Round 3.
  */
 
 import {
@@ -15,6 +13,7 @@ import {
   type CapySession,
 } from "@capybudget/intelligence"
 import { ClaudeCliSession } from "@/services/claude-cli-session"
+import { AnthropicSession } from "@/services/anthropic-session"
 import { useIntelligenceStore } from "@/stores/intelligence-store"
 
 export function createSession(opts: SessionOptions): CapySession | null {
@@ -23,7 +22,7 @@ export function createSession(opts: SessionOptions): CapySession | null {
     config,
     adapters: {
       "claude-cli": (o) => new ClaudeCliSession(o),
-      // anthropic: ... (Round 2)
+      anthropic: (o) => new AnthropicSession(o),
       // openai:    ... (Round 3)
     },
     options: opts,
