@@ -16,7 +16,7 @@ All data lives in a user-chosen folder as plain CSV files. A `budget.json` metad
 
 ```json
 {
-  "schemaVersion": 2,
+  "schemaVersion": 3,
   "name": "My Budget",
   "currency": "USD",
   "createdAt": "2026-03-07T12:00:00.000Z",

@@ -177,7 +177,7 @@ export function AnalyticsView() {
         )}
         {activeTab === "monthlyBudget" && (
           <MonthlyBudgetTab
-            transactions={filtered}
+            transactions={transactions}
             categories={categories}
             dateRange={dateRange}
           />

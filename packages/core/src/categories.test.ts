@@ -5,6 +5,7 @@ import {
   deleteCategory,
   archiveCategory,
   unarchiveCategory,
+  setCategoryAssigned,
 } from "./categories";
 import type { Category, Transaction } from "./types";
 
@@ -180,3 +181,44 @@ describe("unarchiveCategory", () => {
   });
 });
 
+describe("setCategoryAssigned", () => {
+  it("transitions null → 0 (untracked → tracked at zero)", () => {
+    const existing = [makeCategory({ id: "cat-1", assigned: null })];
+    const result = setCategoryAssigned("cat-1", 0, existing);
+    expect(result[0].assigned).toBe(0);
+  });
+
+  it("transitions 0 → 100 (tracked at zero → tracked at 100 cents)", () => {
+    const existing = [makeCategory({ id: "cat-1", assigned: 0 })];
+    const result = setCategoryAssigned("cat-1", 100, existing);
+    expect(result[0].assigned).toBe(100);
+  });
+
+  it("transitions 100 → null (tracked → untracked)", () => {
+    const existing = [makeCategory({ id: "cat-1", assigned: 100 })];
+    const result = setCategoryAssigned("cat-1", null, existing);
+    expect(result[0].assigned).toBe(null);
+  });
+
+  it("does not affect other categories on any transition", () => {
+    const existing = [
+      makeCategory({ id: "cat-1", assigned: null }),
+      makeCategory({ id: "cat-2", assigned: 500 }),
+      makeCategory({ id: "cat-3", assigned: 0 }),
+    ];
+    const result = setCategoryAssigned("cat-1", 100, existing);
+    expect(result[1].assigned).toBe(500);
+    expect(result[2].assigned).toBe(0);
+  });
+
+  it("is a no-op for an unknown id (returns array unchanged, no throw)", () => {
+    const existing = [
+      makeCategory({ id: "cat-1", assigned: 100 }),
+      makeCategory({ id: "cat-2", assigned: null }),
+    ];
+    const result = setCategoryAssigned("nonexistent", 999, existing);
+    expect(result).toHaveLength(2);
+    expect(result[0].assigned).toBe(100);
+    expect(result[1].assigned).toBe(null);
+  });
+});

@@ -16,6 +16,7 @@ import type {
 } from "@capybudget/core";
 import { useSetCategoryAssigned } from "@/hooks/use-category-mutations";
 import { toast } from "sonner";
+import { progressState } from "./monthly-budget-progress";
 
 // ── Color palette (matches spec: well-under / close / over) ────
 //
@@ -28,17 +29,6 @@ const PROGRESS_COLOR = {
   warn: "oklch(0.70 0.14 80)",
   over: "var(--amount-expense)",
 } as const;
-
-type ProgressState = "ok" | "warn" | "over";
-
-function progressState(spent: number, assigned: number | null): ProgressState | null {
-  if (assigned === null) return null; // untracked
-  if (assigned === 0) return spent > 0 ? "over" : "ok";
-  const ratio = spent / assigned;
-  if (ratio > 1) return "over";
-  if (ratio >= 0.8) return "warn";
-  return "ok";
-}
 
 // ── KPI strip ────
 
@@ -173,6 +163,14 @@ function Editor({ category, onDone }: { category: Category; onDone: () => void }
     if (trimmed === "") {
       next = null;
     } else {
+      // parseMoney coerces unparseable input to 0; guard explicitly so
+      // typing "twenty" doesn't silently track the category at zero.
+      const numericPart = trimmed.replace(/[^0-9.-]/g, "");
+      if (numericPart === "" || isNaN(parseFloat(numericPart))) {
+        // Garbage input — bail without writing.
+        onDone();
+        return;
+      }
       const cents = parseMoney(trimmed);
       if (cents < 0) {
         // Negative assigned doesn't make sense — bail without writing.
@@ -280,11 +278,7 @@ function CategoryRow({ category, spent }: CategoryRowProps) {
         }`}
       >
         {tracked ? (
-          remaining! >= 0 ? (
-            formatMoney(remaining!)
-          ) : (
-            <>-{formatMoney(Math.abs(remaining!))}</>
-          )
+          formatMoney(remaining!)
         ) : (
           <span className="text-muted-foreground/50">—</span>
         )}
@@ -344,11 +338,7 @@ function GroupSection({
               : "text-muted-foreground"
           }`}
         >
-          {subtotal.trackedCount > 0
-            ? subtotalRemaining >= 0
-              ? formatMoney(subtotalRemaining)
-              : `-${formatMoney(Math.abs(subtotalRemaining))}`
-            : ""}
+          {subtotal.trackedCount > 0 ? formatMoney(subtotalRemaining) : ""}
         </span>
       </div>
 
@@ -436,7 +426,7 @@ export function MonthlyBudgetTab({
       <KpiStrip
         cards={[
           { label: "Assigned", value: summary.totalAssigned },
-          { label: "Spent", value: summary.totalSpentTracked, tone: "expense" },
+          { label: "Spent (tracked)", value: summary.totalSpentTracked, tone: "expense" },
           {
             label: "Remaining",
             value: remaining,
