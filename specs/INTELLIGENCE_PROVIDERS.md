@@ -267,6 +267,18 @@ Exit criteria: full feature parity between providers — chat *and* import work 
 - Not a router for "use cheap provider for X, expensive for Y." One provider per app instance, swap in settings.
 - Not a usage/cost dashboard. Possibly later.
 
+## Round 2 — Anthropic adapter
+
+Landed: `AnthropicSession` at `packages/app/src/services/anthropic-session.ts`, wired into the factory in `create-session.ts` and threaded with `repo` + `fileAdapter` from `useCapySession` (via `use-session-lifecycle`) and the import store. SDK dependency `@anthropic-ai/sdk` lives only in `@capybudget/app` — the intelligence package stays SDK-agnostic. Tests at `packages/app/src/services/anthropic-session.test.ts` cover one-turn streaming, tool dispatch, error surfacing, stop-mid-tool, and kill.
+
+The adapter synthesizes Claude-CLI stream-json lines (`assistant` / `result` / `error`) and emits them as `SessionEvent` `stdout` events, so `parseStreamLine` and the cumulative-text merging in `use-capy-session` / `appendNormalizeBlock` work without modification — the only cost is one shape-conversion in the adapter, the benefit is zero UI changes. Text deltas from the SDK are accumulated locally before emit, matching the cumulative semantics of Claude CLI's wire format.
+
+`stop()` aborts the in-flight `messages.stream()` via `AbortController`, drops any trailing assistant turn that has unmatched `tool_use` blocks (the API would 400 on the next request otherwise), and sets an `interrupted` flag the agentic loop checks after `runTool` so partial tool_results that reference a dropped turn never get pushed into history. `kill()` flips `isAlive` false and prevents further work; `restart()` resets history.
+
+Tool surface: chat-relevant only (data + mutation + render via `getToolDefinitions()`). Import + CSV tools and a Read tool arrive in Phase B. The Anthropic SDK's `Tool` type is structurally compatible with the intelligence package's `ToolDefinition` so the converter is a one-line shape massage.
+
+Imports still run on Claude CLI in Phase A — if a user has Anthropic selected and tries to import, the import store's `createSession` returns a session that can dispatch chat tools but the import flow itself still expects MCP-side import handlers. Phase B refactors those handlers to take a `FileAdapter` and routes them through `dispatch.ts`, at which point Anthropic-driven imports work end-to-end.
+
 ## When This Lands
 
 - Folds into ROADMAP.md as a new bullet under Phase 10 (after 10.4 — natural place; breaks out 10.5 "Intelligence layer hardening" into "10.5a Provider adapters" + "10.5b Hardening").
