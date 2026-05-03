@@ -12,6 +12,13 @@ export async function writeTextFile(path: string, content: string): Promise<void
   store.set(path, content);
 }
 
+export async function rename(oldPath: string, newPath: string): Promise<void> {
+  const content = store.get(oldPath);
+  if (content === undefined) throw new Error(`File not found: ${oldPath}`);
+  store.set(newPath, content);
+  store.delete(oldPath);
+}
+
 export async function writeFile(_path: string, _content: Uint8Array): Promise<void> {
   // no-op: demo doesn't write binary files
 }
