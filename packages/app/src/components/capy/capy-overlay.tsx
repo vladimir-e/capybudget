@@ -1,9 +1,11 @@
 import { useRef, useEffect, useState, useCallback, type KeyboardEvent, type ChangeEvent, type DragEvent } from "react"
+import { useNavigate } from "@tanstack/react-router"
 import { File as FileIcon, Image, Paperclip, RotateCcw, Send, Settings2, Sparkles, Square, X, Wrench } from "lucide-react"
 import { toast } from "sonner"
 import { CommandPicker } from "./command-picker"
 import { InstructionsDialog } from "./instructions-dialog"
 import { getToolLabel } from "@/services/capy-stream"
+import { useIntelligenceStore } from "@/stores/intelligence-store"
 import type { CapyCommand } from "@/hooks/use-custom-commands"
 import {
   MAX_ATTACHMENT_SIZE,
@@ -52,6 +54,21 @@ export function CapyOverlay({
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const dragCounterRef = useRef(0)
+
+  // Intelligence config — used to decide whether to show the
+  // "set up your AI assistant" empty state and to disable the input
+  // until a provider + key are configured.
+  const navigate = useNavigate()
+  const config = useIntelligenceStore((s) => s.config)
+  const isConfigured =
+    config.provider === "claude-cli" ||
+    (config.provider === "anthropic" && !!config.anthropic.apiKey) ||
+    (config.provider === "openai" && !!config.openai.apiKey)
+
+  function openSettings() {
+    onClose()
+    navigate({ to: "/settings" })
+  }
 
   useEffect(() => {
     if (open) {
@@ -232,7 +249,28 @@ export function CapyOverlay({
           className="flex-1 overflow-y-auto px-6 pb-4 capy-scroll"
         >
           <div className="space-y-5 py-4">
-            {messages.length === 0 && (
+            {messages.length === 0 && !isConfigured && (
+              <div className="flex flex-col items-center justify-center py-20 text-center">
+                <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-brand/10 text-brand mb-4">
+                  <Sparkles className="h-7 w-7" />
+                </div>
+                <p className="text-lg font-medium text-foreground/80">
+                  Set up your AI assistant
+                </p>
+                <p className="mt-1 max-w-sm text-sm text-muted-foreground/60">
+                  Capy needs an AI provider before it can help. Choose Claude
+                  Code, Anthropic, or OpenAI in settings.
+                </p>
+                <button
+                  type="button"
+                  onClick={openSettings}
+                  className="mt-5 inline-flex items-center gap-1.5 rounded-xl bg-brand px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-brand/90 transition-colors"
+                >
+                  Open settings
+                </button>
+              </div>
+            )}
+            {messages.length === 0 && isConfigured && (
               <div className="flex flex-col items-center justify-center py-20 text-center">
                 <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-brand/10 text-brand mb-4">
                   <Sparkles className="h-7 w-7" />
@@ -293,9 +331,15 @@ export function CapyOverlay({
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="Ask Capy anything about your finances..."
+              placeholder={
+                isConfigured
+                  ? "Ask Capy anything about your finances..."
+                  : "Set up Capy in settings to enable chat"
+              }
               rows={3}
-              className="w-full resize-none rounded-2xl bg-transparent px-5 py-4 pr-14 pl-12 text-base text-foreground placeholder:text-muted-foreground/50 focus:outline-none"
+              disabled={!isConfigured}
+              aria-disabled={!isConfigured}
+              className="w-full resize-none rounded-2xl bg-transparent px-5 py-4 pr-14 pl-12 text-base text-foreground placeholder:text-muted-foreground/50 focus:outline-none disabled:cursor-not-allowed disabled:text-muted-foreground/40"
             />
             <div className="absolute left-3 bottom-3">
               <button
@@ -321,7 +365,11 @@ export function CapyOverlay({
               <button
                 type="button"
                 onClick={handleSend}
-                disabled={(!input.trim() && attachments.length === 0) || isStreaming}
+                disabled={
+                  !isConfigured ||
+                  (!input.trim() && attachments.length === 0) ||
+                  isStreaming
+                }
                 className="rounded-xl p-2.5 text-brand hover:bg-brand/10 disabled:opacity-25 disabled:hover:bg-transparent transition-colors"
                 aria-label="Send message"
               >

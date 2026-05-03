@@ -23,6 +23,10 @@ npm start
 
 This starts the Vite dev server and opens the Tauri desktop window.
 
+### Configure the AI Provider
+
+The first time you open the app, click the gear icon in the header to open **Settings** and pick an AI provider — Claude Code (local CLI), Anthropic API, or OpenAI API. API keys are stored locally in your app config folder.
+
 ### Lint & Test
 
 ```bash

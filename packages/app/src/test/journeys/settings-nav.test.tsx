@@ -1,0 +1,44 @@
+import "@/test/journeys/setup";
+import { describe, it, expect, beforeEach } from "vitest";
+import { screen, waitFor } from "@testing-library/react";
+import { renderApp } from "@/test/render-app";
+import {
+  _resetIntelligenceStoreForTests,
+  _resetStoreForTests,
+  _setStoreLoaderForTests,
+} from "@/stores/intelligence-store";
+import { DEFAULT_INTELLIGENCE_CONFIG } from "@capybudget/intelligence";
+
+beforeEach(() => {
+  _resetStoreForTests();
+  _resetIntelligenceStoreForTests();
+  // Hydrate to a known state — claude-cli with no API key — so the
+  // empty-state is OFF and the budget shell renders normally.
+  _setStoreLoaderForTests(async () => ({
+    get: async () => ({
+      ...DEFAULT_INTELLIGENCE_CONFIG,
+      provider: "claude-cli",
+    }),
+    set: async () => {},
+  }));
+});
+
+const TIMEOUT = 15_000;
+
+describe("Settings navigation", () => {
+  it("clicking the gear icon in the budget shell navigates to /settings", async () => {
+    const { user } = await renderApp({
+      seed: { accounts: [], categories: [], transactions: [] },
+    });
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: "All Accounts" })).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole("button", { name: "Settings" }));
+
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: "Settings" })).toBeInTheDocument();
+    });
+    expect(screen.getByText("AI Provider")).toBeInTheDocument();
+  }, TIMEOUT);
+});

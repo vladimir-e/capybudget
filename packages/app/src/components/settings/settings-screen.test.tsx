@@ -1,0 +1,233 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import { cleanup, render, screen, waitFor } from "@testing-library/react"
+import userEvent from "@testing-library/user-event"
+import {
+  createMemoryHistory,
+  createRootRoute,
+  createRoute,
+  createRouter,
+  RouterProvider,
+} from "@tanstack/react-router"
+import { DEFAULT_INTELLIGENCE_CONFIG } from "@capybudget/intelligence"
+
+// Suppress sonner toasts during tests (must be hoisted via vi.mock).
+vi.mock("sonner", () => ({
+  toast: { success: vi.fn(), error: vi.fn() },
+  Toaster: () => null,
+}))
+
+// Mock the Claude CLI detector at the module level — the global Tauri
+// shell mock always returns exit code 0, so we need to control detection
+// directly.
+const { recheckMock } = vi.hoisted(() => ({
+  recheckMock: vi.fn<() => Promise<boolean>>(),
+}))
+
+vi.mock("@/services/claude-cli-detect", () => ({
+  detectClaudeCli: recheckMock,
+  recheckClaudeCli: recheckMock,
+  _resetClaudeCliCacheForTests: () => {},
+}))
+
+import { SettingsScreen } from "./settings-screen"
+import {
+  useIntelligenceStore,
+  _resetIntelligenceStoreForTests,
+  _setStoreLoaderForTests,
+  _setClaudeDetectorForTests,
+  _resetStoreForTests,
+} from "@/stores/intelligence-store"
+
+// ── Test rendering helper ───────────────────────────────
+
+async function renderSettings(initialPath: string = "/settings") {
+  const rootRoute = createRootRoute()
+  const settingsRoute = createRoute({
+    getParentRoute: () => rootRoute,
+    path: "/settings",
+    component: SettingsScreen,
+  })
+  const indexRoute = createRoute({
+    getParentRoute: () => rootRoute,
+    path: "/",
+    component: () => <div>Home</div>,
+  })
+  const routeTree = rootRoute.addChildren([indexRoute, settingsRoute])
+
+  const router = createRouter({
+    routeTree,
+    history: createMemoryHistory({ initialEntries: [initialPath] }),
+  })
+
+  await router.load()
+  const result = render(<RouterProvider router={router} />)
+  return { ...result, router }
+}
+
+// ── Setup ───────────────────────────────────────────────
+
+beforeEach(() => {
+  _resetStoreForTests()
+  _resetIntelligenceStoreForTests()
+  recheckMock.mockReset()
+  recheckMock.mockResolvedValue(true)
+  // Default backend: empty config
+  _setStoreLoaderForTests(async () => ({
+    get: async () => ({ ...DEFAULT_INTELLIGENCE_CONFIG, provider: null }),
+    set: async () => {},
+  }))
+  _setClaudeDetectorForTests(async () => true)
+})
+
+afterEach(() => {
+  cleanup()
+})
+
+// ── Tests ───────────────────────────────────────────────
+
+describe("SettingsScreen", () => {
+  it("renders the AI Provider card with all three options", async () => {
+    await renderSettings()
+
+    expect(screen.getByRole("heading", { name: "Settings" })).toBeInTheDocument()
+    expect(screen.getByText("AI Provider")).toBeInTheDocument()
+    expect(screen.getByText("Claude Code")).toBeInTheDocument()
+    expect(screen.getByText("Anthropic API")).toBeInTheDocument()
+    expect(screen.getByText("OpenAI API")).toBeInTheDocument()
+  })
+
+  it("disables the Claude Code option when CLI is not detected", async () => {
+    recheckMock.mockResolvedValue(false)
+    await renderSettings()
+
+    await waitFor(() => {
+      expect(screen.getByText(/Not detected/i)).toBeInTheDocument()
+    })
+    expect(screen.getByText("claude.ai/code")).toBeInTheDocument()
+  })
+
+  it("toggling provider updates the store", async () => {
+    const user = userEvent.setup()
+    await renderSettings()
+
+    // Wait for the probe to settle so radios are interactive.
+    await waitFor(() => {
+      expect(recheckMock).toHaveBeenCalled()
+    })
+
+    const anthropicLabel = screen.getByText("Anthropic API").closest("label")
+    expect(anthropicLabel).not.toBeNull()
+    await user.click(anthropicLabel!)
+
+    await waitFor(() => {
+      expect(useIntelligenceStore.getState().config.provider).toBe("anthropic")
+    })
+  })
+
+  it("saves the API key on blur, not per keystroke", async () => {
+    const user = userEvent.setup()
+    useIntelligenceStore.setState({
+      hydrated: true,
+      config: { ...DEFAULT_INTELLIGENCE_CONFIG, provider: "anthropic" },
+    })
+    await renderSettings()
+
+    const keyInput = await screen.findByLabelText("API key")
+    await user.type(keyInput, "sk-ant-test-1234")
+    expect(useIntelligenceStore.getState().config.anthropic.apiKey).toBe("")
+
+    await user.tab()
+    await waitFor(() => {
+      expect(useIntelligenceStore.getState().config.anthropic.apiKey).toBe(
+        "sk-ant-test-1234",
+      )
+    })
+  })
+
+  it("shows the last 4 chars of the saved key for confirmation", async () => {
+    useIntelligenceStore.setState({
+      hydrated: true,
+      config: {
+        ...DEFAULT_INTELLIGENCE_CONFIG,
+        provider: "anthropic",
+        anthropic: { apiKey: "sk-ant-secret-ab12", model: "claude-sonnet-4-5" },
+      },
+    })
+    await renderSettings()
+
+    expect(await screen.findByText(/ab12/)).toBeInTheDocument()
+  })
+
+  it("custom model toggle replaces the select with a text input", async () => {
+    const user = userEvent.setup()
+    useIntelligenceStore.setState({
+      hydrated: true,
+      config: { ...DEFAULT_INTELLIGENCE_CONFIG, provider: "openai" },
+    })
+    await renderSettings()
+
+    const customCheckbox = await screen.findByLabelText("Use a custom model")
+    await user.click(customCheckbox)
+
+    const customInput = screen.getByPlaceholderText("model-identifier")
+    // Custom input pre-populates with the current model value — clear first.
+    await user.clear(customInput)
+    await user.type(customInput, "gpt-5-pro-custom")
+
+    await waitFor(() => {
+      expect(useIntelligenceStore.getState().config.openai.model).toBe(
+        "gpt-5-pro-custom",
+      )
+    })
+  })
+
+  it("test connection button is disabled when API key is empty", async () => {
+    useIntelligenceStore.setState({
+      hydrated: true,
+      config: { ...DEFAULT_INTELLIGENCE_CONFIG, provider: "anthropic" },
+    })
+    await renderSettings()
+
+    const testButton = await screen.findByRole("button", {
+      name: /test connection/i,
+    })
+    expect(testButton).toBeDisabled()
+  })
+
+  it("warns when claude-cli is selected but not detected", async () => {
+    recheckMock.mockResolvedValue(false)
+    useIntelligenceStore.setState({
+      hydrated: true,
+      config: { ...DEFAULT_INTELLIGENCE_CONFIG, provider: "claude-cli" },
+    })
+    await renderSettings()
+
+    await waitFor(() => {
+      expect(
+        screen.getByText("Claude Code is no longer detected"),
+      ).toBeInTheDocument()
+    })
+  })
+
+  it("eye toggle reveals and hides the API key", async () => {
+    const user = userEvent.setup()
+    useIntelligenceStore.setState({
+      hydrated: true,
+      config: {
+        ...DEFAULT_INTELLIGENCE_CONFIG,
+        provider: "anthropic",
+        anthropic: { apiKey: "sk-ant-existing", model: "claude-sonnet-4-5" },
+      },
+    })
+    await renderSettings()
+
+    const keyInput = (await screen.findByLabelText("API key")) as HTMLInputElement
+    expect(keyInput.type).toBe("password")
+
+    await user.click(screen.getByLabelText("Show API key"))
+    expect(keyInput.type).toBe("text")
+
+    await user.click(screen.getByLabelText("Hide API key"))
+    expect(keyInput.type).toBe("password")
+  })
+})

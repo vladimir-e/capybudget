@@ -299,6 +299,25 @@ Protocol deltas handled inline:
 
 Tool surface matches the Anthropic adapter: data + mutation + render via `getToolDefinitions()`. Import + CSV tools and a Read tool arrive in Phase B.
 
+## Round 4 — Settings UI
+
+Landed: `/settings` route at `packages/app/src/routes/settings.tsx`, backed by `SettingsScreen` in `packages/app/src/components/settings/settings-screen.tsx`. The screen renders a single AI Provider card with three radio options (Claude Code, Anthropic API, OpenAI API), each binding to `useIntelligenceStore` setters. Per-provider configuration appears below the radio: a status line + Test connection button for Claude Code; an API-key field (password input + show/hide toggle + last-4-chars confirmation), a model dropdown with a "Use a custom model" toggle, and a Test connection button for the API providers. Saves are inline — provider toggles fire immediately, model changes fire immediately, API keys debounce until `onBlur`. A subtle toast confirms provider switches; field-level changes rely on the persisted state being reflected in the form (the spec's recommendation against per-keystroke noise).
+
+The Claude Code radio is disabled when `recheckClaudeCli()` returns false; an inline hint links to claude.ai/code via Tauri's shell `open` plugin (no in-webview navigation). Re-probe runs on mount via the same hook. If the user has Claude Code selected and the probe later returns false, an inline warning above the radio explains the situation without auto-flipping the setting.
+
+Test connection buttons live on the settings page only — no `testConnection()` method on the session classes (small layering compromise: the page imports the SDKs directly for a one-shot ping, accepted because adding a method to every adapter is more surface area than we need elsewhere). For Claude Code the test is a fresh `recheckClaudeCli()`. For the API providers the page sends a tiny `"Hi"` message via the relevant SDK and reports success or a truncated error message inline (≤120 chars).
+
+A Settings button (gear icon) lives in the header of `budget-shell.tsx`, near the theme toggles, navigating via TanStack Router's `useNavigate({ to: "/settings" })`. The settings page header has a Back button that prefers `router.history.back()` and falls back to navigating home, matching the "settings is a top-level route, no budget context" model.
+
+When `provider === null` or an API provider has an empty API key, `capy-overlay.tsx` swaps the default empty state for a "Set up your AI assistant" card with an Open settings CTA. The chat input stays visible but is disabled with placeholder copy directing the user to settings — no layout jump when the user comes back configured. `useCapySession` already handles a null session from `createSession()` cleanly (single-turn error message), so the empty-state path needs no further session-layer changes.
+
+A new shadcn-style `RadioGroup` primitive at `packages/app/src/components/ui/radio-group.tsx` wraps `@base-ui/react/radio` + `radio-group` with the project's styling (brand-tinted check state, focus rings consistent with other inputs).
+
+Tests:
+- `packages/app/src/components/settings/settings-screen.test.tsx` — provider radio toggles, model dropdown updates, API key save-on-blur, last-4-chars hint, custom-model toggle, test-button disabled state, claude-cli-missing warning, eye toggle.
+- `packages/app/src/components/capy/capy-overlay.test.tsx` — empty state when provider is null or API key is empty, regular intro when configured, input disabled state.
+- `packages/app/src/test/journeys/settings-nav.test.tsx` — gear icon in budget shell navigates to /settings.
+
 ## When This Lands
 
 - Folds into ROADMAP.md as a new bullet under Phase 10 (after 10.4 — natural place; breaks out 10.5 "Intelligence layer hardening" into "10.5a Provider adapters" + "10.5b Hardening").
