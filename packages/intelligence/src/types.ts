@@ -14,9 +14,16 @@ export type CliImageContent = {
   type: "image"
   source: { type: "base64"; media_type: string; data: string }
 }
+/** Document content — used for PDF imports under Anthropic / Claude CLI.
+ *  OpenAI's chat.completions doesn't accept PDF input; the import flow
+ *  surfaces a "switch provider" banner before we'd ever try. */
+export type CliDocumentContent = {
+  type: "document"
+  source: { type: "base64"; media_type: string; data: string }
+}
 export type MessageContent =
   | string
-  | Array<CliTextContent | CliImageContent>
+  | Array<CliTextContent | CliImageContent | CliDocumentContent>
 
 // ── Content block types (UI rendering) ──────────────────────────
 

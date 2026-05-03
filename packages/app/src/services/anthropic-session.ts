@@ -45,8 +45,9 @@ function getAnthropicTools(): Anthropic.Tool[] {
   }))
 }
 
-/** Convert the app's MessageContent (CLI-style — string or
- *  `{type:"text"|"image"}` blocks) into an Anthropic user message. */
+/** Convert the app's MessageContent (CLI-style — string or text/image/
+ *  document blocks) into an Anthropic user message. PDFs ride through
+ *  the SDK's native `document` content type. */
 function toAnthropicUserContent(
   content: MessageContent,
 ): Anthropic.MessageParam["content"] {
@@ -54,6 +55,16 @@ function toAnthropicUserContent(
   return content.map((block) => {
     if (block.type === "text") {
       return { type: "text", text: block.text }
+    }
+    if (block.type === "document") {
+      return {
+        type: "document",
+        source: {
+          type: "base64",
+          media_type: block.source.media_type as Anthropic.Base64PDFSource["media_type"],
+          data: block.source.data,
+        },
+      }
     }
     return {
       type: "image",

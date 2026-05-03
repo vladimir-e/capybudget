@@ -1,5 +1,6 @@
 import { useCallback, useMemo } from "react";
 import {
+  readFile,
   readTextFile,
   writeTextFile,
   writeFile,
@@ -77,6 +78,15 @@ export function useImportRepository(budgetPath: string) {
       }
     },
     [ensureSourcesDir, resolveSourcePath],
+  );
+
+  /** Read a source file as raw bytes (for image/PDF base64 encoding). */
+  const readSourceFileBytes = useCallback(
+    async (filename: string): Promise<Uint8Array> => {
+      const path = await resolveSourcePath(filename);
+      return await readFile(path);
+    },
+    [resolveSourcePath],
   );
 
   /** List source files in .capy/import/sources/. Returns [] if directory doesn't exist. */
@@ -264,6 +274,7 @@ export function useImportRepository(budgetPath: string) {
     () => ({
       // Source files
       writeSourceFile,
+      readSourceFileBytes,
       listSourceFiles,
       removeSourceFile,
       // Transactions
@@ -286,6 +297,7 @@ export function useImportRepository(budgetPath: string) {
     }),
     [
       writeSourceFile,
+      readSourceFileBytes,
       listSourceFiles,
       removeSourceFile,
       readTransactionsCsv,

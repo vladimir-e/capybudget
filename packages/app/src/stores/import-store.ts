@@ -6,6 +6,7 @@ import {
   type CapySession,
   type ChatMessage,
   type ContentBlock,
+  type MessageContent,
   type SessionEvent,
   type StreamEvent,
 } from "@capybudget/intelligence";
@@ -47,9 +48,13 @@ interface ImportStore {
 
   startNormalization: (opts: {
     budgetPath: string;
-    budgetName: string;
     mcpServerPath: string;
     systemPrompt: string;
+    /** Pre-built multimodal payload from the import screen — text
+     *  instructions plus image/PDF attachments encoded as base64. */
+    initialMessage: MessageContent;
+    /** File names that were attached, for the user-message
+     *  `file-attachment` chips in the import UI. */
     sourceFilenames: string[];
     repo?: BudgetRepository;
     fileAdapter?: FileAdapter;
@@ -118,9 +123,9 @@ export const useImportStore = create<ImportStore>((set, get) => ({
 
   startNormalization: ({
     budgetPath,
-    budgetName,
     mcpServerPath,
     systemPrompt,
+    initialMessage,
     sourceFilenames,
     repo,
     fileAdapter,
@@ -187,17 +192,10 @@ export const useImportStore = create<ImportStore>((set, get) => ({
       },
     });
 
-    const context = buildContext({ budgetName, budgetPath });
-    const fileList = sourceFilenames.map((f) => `- ${f}`).join("\n");
-    const content = `${context}
-Normalize the following source files for import. The files are in the import sources directory (.capy/import/sources/).
-
-Source files:
-${fileList}
-
-For CSV files, use analyze_csv to inspect the format, then define a mapping and use transform_csv.
-For images and PDFs, use the Read tool to view them, then extract transactions manually.`;
-
+    // The screen builds `initialMessage` (text + multimodal blocks for
+    // images/PDFs). It's passed through verbatim — image/PDF support
+    // is identical across all three providers because it rides on the
+    // initial message rather than on a Read tool.
     const blocks: ContentBlock[] = sourceFilenames.map((name) => ({
       type: "file-attachment" as const,
       name,
@@ -236,7 +234,7 @@ For images and PDFs, use the Read tool to view them, then extract transactions m
       return;
     }
 
-    session.send(content).catch((err) => {
+    session.send(initialMessage).catch((err) => {
       handleNormalizeStreamEvent(
         { type: "error", message: err instanceof Error ? err.message : "Failed to start normalization" },
         set,

@@ -60,8 +60,13 @@ function getOpenAiTools(): OpenAI.Chat.Completions.ChatCompletionTool[] {
   }))
 }
 
-/** Convert the app's MessageContent (CLI-style — string or
- *  `{type:"text"|"image"}` blocks) into an OpenAI user message. */
+/** Convert the app's MessageContent (CLI-style — string or text/image/
+ *  document blocks) into an OpenAI user message. Documents (PDFs) are
+ *  unsupported on chat.completions — the import UI gates against
+ *  attaching them when this provider is selected, so reaching this code
+ *  path with a `document` block is unexpected. We drop the block and
+ *  emit a text note in its place so the model can still respond
+ *  coherently rather than fail with a cryptic SDK error. */
 function toOpenAiUserContent(
   content: MessageContent,
 ): OpenAI.Chat.Completions.ChatCompletionUserMessageParam["content"] {
@@ -69,6 +74,12 @@ function toOpenAiUserContent(
   return content.map((block) => {
     if (block.type === "text") {
       return { type: "text", text: block.text }
+    }
+    if (block.type === "document") {
+      return {
+        type: "text",
+        text: "[PDF attachment skipped — OpenAI's chat API doesn't accept PDFs. Switch to Anthropic or Claude Code for PDF imports.]",
+      }
     }
     return {
       type: "image_url",

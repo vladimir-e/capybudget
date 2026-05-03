@@ -3,7 +3,9 @@
  *
  * For CSV files: AI analyzes format → defines a mapping → previews → executes.
  * The transform engine processes all rows instantly in code.
- * For images/PDFs: AI still processes rows directly (small volume, needs vision).
+ * For images/PDFs: bytes ride in on the initial user message as
+ * multimodal content (images for image/* sources, document blocks for
+ * PDFs). The model reads them directly — no Read tool round-trip.
  */
 
 export const IMPORT_SYSTEM_PROMPT = `You are processing files for import into a personal budget app. Source files are on disk in the import sources directory (.capy/import/sources/). You will be told the filenames.
@@ -200,16 +202,15 @@ When multiple source files are provided, process each one sequentially. Each \`t
 
 ---
 
-## Images and PDFs — manual extraction
+## Images and PDFs — multimodal extraction
 
-When the source is an image or PDF (receipt, bank statement scan, etc.), extract transactions manually:
+When images or PDFs are attached to your initial user message (receipts, bank statement scans, etc.), the file bytes are right there in the message — no tool call needed to read them. Extract transactions manually:
 
-1. Use the Read tool to read the file from .capy/import/sources/
-2. Identify all transactions from the visual content
-3. Normalize dates, amounts (to integer cents), and types
-4. Write the result using write_import_file("transactions.csv", csvContent)
+1. Identify every transaction from the visual content
+2. Normalize dates to YYYY-MM-DD, amounts to integer cents (negative = expense), and types (expense / income / transfer)
+3. Append the rows to transactions.csv via \`write_import_file\` (or \`append_import_file\` if you've already written some rows from a CSV source)
 
-This is expected for small-volume visual sources.
+This path is expected for small-volume visual sources. For larger printed statements, the CSV transform pipeline above is faster and more accurate when an equivalent CSV is also available.
 
 ---
 

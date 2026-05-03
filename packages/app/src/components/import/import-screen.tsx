@@ -29,9 +29,13 @@ import { getToolLabel } from "@/services/capy-stream";
 import { useBudgetRepository } from "@/providers/repository-provider";
 import { tauriFileAdapter } from "../../../../../src/adapters/tauri-file-adapter";
 import {
+  buildContext,
   formatFileSize,
   IMPORT_SYSTEM_PROMPT,
+  type CliImageContent,
+  type CliDocumentContent,
   type ContentBlock,
+  type MessageContent,
 } from "@capybudget/intelligence";
 import { formatDateLabel } from "@capybudget/core";
 import { AccountSelector } from "@/components/budget/account-selector";
@@ -46,6 +50,33 @@ const TEXT_EXTENSIONS = new Set([
 const IMAGE_EXTENSIONS = new Set([
   ".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp",
 ]);
+
+const IMAGE_MIME_BY_EXT: Record<string, string> = {
+  ".png": "image/png",
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".gif": "image/gif",
+  ".webp": "image/webp",
+  ".bmp": "image/bmp",
+};
+
+function fileExt(name: string): string {
+  return name.slice(name.lastIndexOf(".")).toLowerCase();
+}
+
+function isPdfFilename(name: string): boolean {
+  return fileExt(name) === ".pdf";
+}
+
+/** Encode raw bytes as base64 without choking on large payloads. */
+function bytesToBase64(bytes: Uint8Array): string {
+  let binary = "";
+  const chunk = 0x8000; // ~32 KB at a time — keeps the call stack happy
+  for (let i = 0; i < bytes.length; i += chunk) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + chunk));
+  }
+  return btoa(binary);
+}
 
 function isTextFile(file: File): boolean {
   if (file.type.startsWith("text/")) return true;
@@ -109,13 +140,15 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
   const [selectedAccountId, setSelectedAccountId] = useState("");
   const { data: accounts = [] } = useAccounts();
 
-  // Phase A: imports require Claude Code. API adapters expose chat
-  // tools but not the import + CSV tools yet — those land in Phase B.
-  // Gate Start Import behind a banner that nudges to settings rather
-  // than letting the run silently fail with "Unknown tool".
+  // Imports work on every configured provider in Phase B. The only
+  // residual gates: (1) the user has actually picked a provider, and
+  // (2) the user hasn't dropped a PDF while OpenAI is selected (PDFs
+  // aren't supported by chat.completions — banner nudges to switch).
   const navigate = useNavigate();
   const provider = useIntelligenceStore((s) => s.config.provider);
-  const importSupported = provider === "claude-cli";
+  const hasPdf = sourceFiles.some((f) => isPdfFilename(f.name));
+  const pdfBlocksOpenAi = provider === "openai" && hasPdf;
+  const importSupported = provider !== null && !pdfBlocksOpenAi;
 
   // Seed local instructions from persisted value once loaded
   useEffect(() => {
@@ -292,11 +325,75 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
       ? `${IMPORT_SYSTEM_PROMPT}\n\n## User instructions\n${parts.join("\n")}`
       : IMPORT_SYSTEM_PROMPT;
 
+    // Build the initial multimodal message. Text files get listed by
+    // name (the agent reads them via analyze_csv / read_file); image
+    // and PDF bytes ride in the message itself so every provider sees
+    // them the same way (Anthropic + Claude CLI: native image/document
+    // blocks; OpenAI: image_url for images, PDFs are gated upstream).
+    const textFiles = sourceFiles.filter((f) => !isImageFilename(f.name) && !isPdfFilename(f.name));
+    const imageFiles = sourceFiles.filter((f) => isImageFilename(f.name));
+    const pdfFiles = provider === "openai"
+      ? [] // OpenAI can't ingest PDFs — banner gates this above; belt-and-suspenders here
+      : sourceFiles.filter((f) => isPdfFilename(f.name));
+
+    const attachments: Array<CliImageContent | CliDocumentContent> = [];
+    for (const f of imageFiles) {
+      const bytes = await repository.readSourceFileBytes(f.name);
+      attachments.push({
+        type: "image",
+        source: {
+          type: "base64",
+          media_type: IMAGE_MIME_BY_EXT[fileExt(f.name)] ?? "image/png",
+          data: bytesToBase64(bytes),
+        },
+      });
+    }
+    for (const f of pdfFiles) {
+      const bytes = await repository.readSourceFileBytes(f.name);
+      attachments.push({
+        type: "document",
+        source: {
+          type: "base64",
+          media_type: "application/pdf",
+          data: bytesToBase64(bytes),
+        },
+      });
+    }
+
+    const context = buildContext({ budgetName, budgetPath });
+    const textInstructions = (() => {
+      const lines: string[] = [context, ""];
+      lines.push(
+        "Normalize the following source files for import. Files with names listed below are in .capy/import/sources/; image and PDF bytes are attached to this message.",
+      );
+      lines.push("");
+      if (textFiles.length > 0) {
+        lines.push("Text source files (use analyze_csv / read_file):");
+        for (const f of textFiles) lines.push(`- ${f.name}`);
+        lines.push("");
+      }
+      if (imageFiles.length > 0 || pdfFiles.length > 0) {
+        lines.push("Attached for visual extraction (read directly from this message):");
+        for (const f of imageFiles) lines.push(`- ${f.name}`);
+        for (const f of pdfFiles) lines.push(`- ${f.name}`);
+        lines.push("");
+      }
+      lines.push(
+        "For CSV / text sources, follow the analyze → preview → transform pipeline. For images / PDFs, extract transactions from the attached content and write them via write_import_file (or append_import_file).",
+      );
+      return lines.join("\n");
+    })();
+
+    const initialMessage: MessageContent =
+      attachments.length > 0
+        ? [{ type: "text", text: textInstructions }, ...attachments]
+        : textInstructions;
+
     startNormalization({
       budgetPath,
-      budgetName,
       mcpServerPath: "packages/mcp/src/server.ts",
       systemPrompt,
+      initialMessage,
       sourceFilenames: sourceFiles.map((f) => f.name),
       repo,
       fileAdapter: tauriFileAdapter,
@@ -364,7 +461,7 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
             <>
               {!importSupported && (
                 <ProviderUnsupportedBanner
-                  provider={provider}
+                  reason={provider === null ? "unconfigured" : "pdf-on-openai"}
                   onOpenSettings={() => navigate({ to: "/settings" })}
                 />
               )}
@@ -550,27 +647,27 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
 /* ── Provider Unsupported Banner ─────────────────────────────────── */
 
 /**
- * Phase A nudge: imports require Claude Code. The other API adapters
- * dispatch `analyze_csv` / `transform_csv` against `runTool`, which
- * rejects with "Unknown tool" — so silently letting users hit Start
- * was the source of an opaque error. Banner mirrors the empty-state
- * card in `capy-overlay.tsx` for visual consistency.
+ * Two cases gate Start Import:
+ *   - `unconfigured`: no provider picked yet — same nudge the empty
+ *     Capy overlay shows.
+ *   - `pdf-on-openai`: OpenAI's chat.completions can't accept PDF
+ *     bytes; ask the user to switch providers or drop the PDF.
  */
 function ProviderUnsupportedBanner({
-  provider,
+  reason,
   onOpenSettings,
 }: {
-  provider: "claude-cli" | "anthropic" | "openai" | null;
+  reason: "unconfigured" | "pdf-on-openai";
   onOpenSettings: () => void;
 }) {
   const heading =
-    provider === null
+    reason === "unconfigured"
       ? "Set up your AI assistant"
-      : "Import requires Claude Code in this release";
+      : "PDF imports need a provider with PDF support";
   const detail =
-    provider === null
+    reason === "unconfigured"
       ? "Pick an AI provider in settings before importing transactions."
-      : "Smart Import currently runs only on Claude Code. The Anthropic and OpenAI adapters get import support in the next release. Switch providers in settings to continue.";
+      : "OpenAI's chat API doesn't accept PDF input. Switch to Claude Code or Anthropic in settings, or remove the PDF file from this batch.";
 
   return (
     <div className="flex flex-col items-center justify-center rounded-2xl border border-brand/20 bg-brand/5 px-6 py-10 text-center">
