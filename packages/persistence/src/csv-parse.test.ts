@@ -11,7 +11,7 @@ import {
 
 describe("parseCsv", () => {
   it("parses valid CSV into typed objects", () => {
-    const csv = "id,name,group,archived,sortOrder\ncat-1,Food,Daily Living,false,1";
+    const csv = "id,name,group,archived,sortOrder,assigned\ncat-1,Food,Daily Living,false,1,";
     const result = parseCsv<Category>(csv, CATEGORY_COERCE);
 
     expect(result).toHaveLength(1);
@@ -21,6 +21,7 @@ describe("parseCsv", () => {
       group: "Daily Living",
       archived: false,
       sortOrder: 1,
+      assigned: null,
     });
   });
 
@@ -47,6 +48,40 @@ describe("parseCsv", () => {
     const result = parseCsv<Account>(csv, ACCOUNT_COERCE);
 
     expect(result[0].excludeFromNetWorth).toBe(false);
+  });
+
+  it("defaults assigned to null when the column is absent (pre-v3 CSV)", () => {
+    const csv = [
+      "id,name,group,archived,sortOrder",
+      "cat-1,Food,Daily Living,false,1",
+    ].join("\n");
+    const result = parseCsv<Category>(csv, CATEGORY_COERCE);
+
+    expect(result[0].assigned).toBeNull();
+  });
+
+  it("defaults assigned to null when the cell is empty", () => {
+    const csv = [
+      "id,name,group,archived,sortOrder,assigned",
+      "cat-1,Food,Daily Living,false,1,",
+    ].join("\n");
+    const result = parseCsv<Category>(csv, CATEGORY_COERCE);
+
+    expect(result[0].assigned).toBeNull();
+  });
+
+  it("parses assigned as integer cents when present", () => {
+    const csv = [
+      "id,name,group,archived,sortOrder,assigned",
+      "cat-1,Rent,Fixed,false,1,350000",
+      "cat-2,Zero,Personal,false,2,0",
+    ].join("\n");
+    const result = parseCsv<Category>(csv, CATEGORY_COERCE);
+
+    expect(result[0].assigned).toBe(350000);
+    expect(typeof result[0].assigned).toBe("number");
+    // Tracked-at-zero must round-trip as 0, not null
+    expect(result[1].assigned).toBe(0);
   });
 
   it("coerces boolean fields correctly", () => {
@@ -262,8 +297,8 @@ describe("round-trip: parseCsv(unparseCsv(data))", () => {
 
   it("preserves Category data through round-trip", () => {
     const categories: Category[] = [
-      { id: "cat-1", name: "Groceries", group: "Daily Living", archived: false, sortOrder: 1 },
-      { id: "cat-2", name: "Mortgage", group: "Fixed", archived: false, sortOrder: 2 },
+      { id: "cat-1", name: "Groceries", group: "Daily Living", archived: false, sortOrder: 1, assigned: null },
+      { id: "cat-2", name: "Mortgage", group: "Fixed", archived: false, sortOrder: 2, assigned: 350000 },
     ];
 
     const csv = unparseCsv(categories);
@@ -296,7 +331,7 @@ describe("round-trip: parseCsv(unparseCsv(data))", () => {
 
   it("preserves fields with special characters through round-trip", () => {
     const categories: Category[] = [
-      { id: "cat-1", name: 'Food, "Drink" & More', group: "Daily Living", archived: false, sortOrder: 1 },
+      { id: "cat-1", name: 'Food, "Drink" & More', group: "Daily Living", archived: false, sortOrder: 1, assigned: null },
     ];
 
     const csv = unparseCsv(categories);

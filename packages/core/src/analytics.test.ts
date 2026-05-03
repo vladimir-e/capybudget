@@ -8,6 +8,7 @@ import {
   getCashFlow,
   getTopMerchants,
   getCategoryTrends,
+  getMonthlyBudgetSummary,
 } from "./analytics";
 import type { Transaction, Category, Account } from "./types";
 
@@ -27,10 +28,10 @@ const txn = (
 });
 
 const CATEGORIES: Category[] = [
-  { id: "cat-food", name: "Groceries", group: "Daily Living", archived: false, sortOrder: 0 },
-  { id: "cat-rent", name: "Rent", group: "Fixed", archived: false, sortOrder: 1 },
-  { id: "cat-salary", name: "Salary", group: "Income", archived: false, sortOrder: 0 },
-  { id: "cat-freelance", name: "Freelance", group: "Income", archived: false, sortOrder: 1 },
+  { id: "cat-food", name: "Groceries", group: "Daily Living", archived: false, sortOrder: 0, assigned: null },
+  { id: "cat-rent", name: "Rent", group: "Fixed", archived: false, sortOrder: 1, assigned: null },
+  { id: "cat-salary", name: "Salary", group: "Income", archived: false, sortOrder: 0, assigned: null },
+  { id: "cat-freelance", name: "Freelance", group: "Income", archived: false, sortOrder: 1, assigned: null },
 ];
 
 const ACCOUNTS: Account[] = [
@@ -660,5 +661,141 @@ describe("getCategoryTrends", () => {
         expect(new Set(keys).size).toBe(keys.length);
       }
     });
+  });
+});
+
+// ── getMonthlyBudgetSummary ─────
+
+describe("getMonthlyBudgetSummary", () => {
+  // Fixtures local to this suite — the global ones are tuned for other tests.
+  const FEB: { start: Date; end: Date } = {
+    start: new Date("2026-02-01T00:00:00.000Z"),
+    end: new Date("2026-03-01T00:00:00.000Z"),
+  };
+
+  const cats: Category[] = [
+    // Income (excluded entirely)
+    { id: "income-pay", name: "Paycheck", group: "Income", archived: false, sortOrder: 0, assigned: 500000 },
+    // Tracked
+    { id: "fixed-rent", name: "Rent", group: "Fixed", archived: false, sortOrder: 0, assigned: 200000 },
+    { id: "fixed-utils", name: "Utilities", group: "Fixed", archived: false, sortOrder: 1, assigned: 15000 },
+    { id: "daily-food", name: "Groceries", group: "Daily Living", archived: false, sortOrder: 0, assigned: 60000 },
+    // Tracked-at-zero
+    { id: "personal-fun", name: "Fun", group: "Personal", archived: false, sortOrder: 0, assigned: 0 },
+    // Untracked (assigned: null)
+    { id: "daily-coffee", name: "Coffee", group: "Daily Living", archived: false, sortOrder: 1, assigned: null },
+    { id: "personal-clothing", name: "Clothing", group: "Personal", archived: false, sortOrder: 1, assigned: null },
+    // Archived — must be excluded from rows entirely
+    { id: "old", name: "Legacy", group: "Personal", archived: true, sortOrder: 99, assigned: 50000 },
+  ];
+
+  const txns: Transaction[] = [
+    // February expenses — tracked
+    { id: "f1", datetime: "2026-02-01T10:00:00.000Z", type: "expense", amount: -200000, categoryId: "fixed-rent", accountId: "acc-1", transferPairId: "", merchant: "", note: "", createdAt: "" },
+    { id: "f2", datetime: "2026-02-10T10:00:00.000Z", type: "expense", amount: -45000, categoryId: "daily-food", accountId: "acc-1", transferPairId: "", merchant: "", note: "", createdAt: "" },
+    { id: "f3", datetime: "2026-02-20T10:00:00.000Z", type: "expense", amount: -25000, categoryId: "daily-food", accountId: "acc-1", transferPairId: "", merchant: "", note: "", createdAt: "" },
+    // Tracked-at-zero with spend → should show in tracked totals as overage
+    { id: "f4", datetime: "2026-02-15T10:00:00.000Z", type: "expense", amount: -5000, categoryId: "personal-fun", accountId: "acc-1", transferPairId: "", merchant: "", note: "", createdAt: "" },
+    // Untracked spend — counts toward "Other Spending" only
+    { id: "f5", datetime: "2026-02-05T10:00:00.000Z", type: "expense", amount: -3500, categoryId: "daily-coffee", accountId: "acc-1", transferPairId: "", merchant: "", note: "", createdAt: "" },
+    { id: "f6", datetime: "2026-02-22T10:00:00.000Z", type: "expense", amount: -8000, categoryId: "personal-clothing", accountId: "acc-1", transferPairId: "", merchant: "", note: "", createdAt: "" },
+    // Income — excluded from spent totals
+    { id: "f7", datetime: "2026-02-15T10:00:00.000Z", type: "income", amount: 500000, categoryId: "income-pay", accountId: "acc-1", transferPairId: "", merchant: "", note: "", createdAt: "" },
+    // Transfer — excluded
+    { id: "f8", datetime: "2026-02-25T10:00:00.000Z", type: "transfer", amount: -100000, categoryId: "", accountId: "acc-1", transferPairId: "f9", merchant: "", note: "", createdAt: "" },
+    { id: "f9", datetime: "2026-02-25T10:00:00.000Z", type: "transfer", amount: 100000, categoryId: "", accountId: "acc-2", transferPairId: "f8", merchant: "", note: "", createdAt: "" },
+    // Out-of-range expense (January) — excluded
+    { id: "j1", datetime: "2026-01-15T10:00:00.000Z", type: "expense", amount: -999999, categoryId: "fixed-rent", accountId: "acc-1", transferPairId: "", merchant: "", note: "", createdAt: "" },
+    // Uncategorized expense — excluded from rows (no categoryId)
+    { id: "u1", datetime: "2026-02-12T10:00:00.000Z", type: "expense", amount: -1234, categoryId: "", accountId: "acc-1", transferPairId: "", merchant: "", note: "", createdAt: "" },
+  ];
+
+  it("returns rows for every non-archived, non-Income category", () => {
+    const result = getMonthlyBudgetSummary(txns, cats, FEB);
+    const ids = result.rows.map((r) => r.categoryId).sort();
+    expect(ids).toEqual([
+      "daily-coffee",
+      "daily-food",
+      "fixed-rent",
+      "fixed-utils",
+      "personal-clothing",
+      "personal-fun",
+    ]);
+  });
+
+  it("excludes Income group entirely", () => {
+    const result = getMonthlyBudgetSummary(txns, cats, FEB);
+    expect(result.rows.find((r) => r.categoryId === "income-pay")).toBeUndefined();
+  });
+
+  it("excludes archived categories", () => {
+    const result = getMonthlyBudgetSummary(txns, cats, FEB);
+    expect(result.rows.find((r) => r.categoryId === "old")).toBeUndefined();
+  });
+
+  it("sums spent per category from expense transactions only, in range", () => {
+    const result = getMonthlyBudgetSummary(txns, cats, FEB);
+    const byId = new Map(result.rows.map((r) => [r.categoryId, r.spent]));
+
+    expect(byId.get("fixed-rent")).toBe(200000); // out-of-range January excluded
+    expect(byId.get("daily-food")).toBe(70000); // 45000 + 25000
+    expect(byId.get("daily-coffee")).toBe(3500);
+    expect(byId.get("personal-clothing")).toBe(8000);
+    expect(byId.get("personal-fun")).toBe(5000); // tracked-at-zero with spend
+    expect(byId.get("fixed-utils")).toBe(0); // no spend in Feb
+  });
+
+  it("preserves the assigned value through to rows (null and integer)", () => {
+    const result = getMonthlyBudgetSummary(txns, cats, FEB);
+    const byId = new Map(result.rows.map((r) => [r.categoryId, r.assigned]));
+
+    expect(byId.get("fixed-rent")).toBe(200000);
+    expect(byId.get("personal-fun")).toBe(0); // tracked-at-zero
+    expect(byId.get("daily-coffee")).toBeNull(); // untracked
+  });
+
+  it("computes top KPI totals — assigned, tracked spent, other spending", () => {
+    const result = getMonthlyBudgetSummary(txns, cats, FEB);
+
+    // Tracked categories: rent (200000) + utils (15000) + food (60000) + fun (0)
+    expect(result.totalAssigned).toBe(275000);
+    // Tracked spent: rent (200000) + food (70000) + fun (5000)
+    expect(result.totalSpentTracked).toBe(275000);
+    // Other spending = untracked, non-Income spend: coffee (3500) + clothing (8000)
+    expect(result.totalOtherSpending).toBe(11500);
+    expect(result.trackedCount).toBe(4);
+    expect(result.totalCount).toBe(6);
+  });
+
+  it("ignores income transactions, transfers, and out-of-range entries", () => {
+    const result = getMonthlyBudgetSummary(txns, cats, FEB);
+    // If income (f7), transfers (f8/f9), or January expense (j1) leaked through,
+    // these numbers would shift — they don't.
+    expect(result.totalSpentTracked).toBe(275000);
+    expect(result.totalOtherSpending).toBe(11500);
+  });
+
+  it("ignores uncategorized expenses (no categoryId)", () => {
+    // The uncategorized $12.34 in February must NOT appear under "Other Spending"
+    // — Other Spending is for *known* untracked categories, not uncategorized rows.
+    const result = getMonthlyBudgetSummary(txns, cats, FEB);
+    expect(result.totalOtherSpending).toBe(11500); // would be 12734 if it leaked
+  });
+
+  it("returns zero totals when no transactions in range", () => {
+    const result = getMonthlyBudgetSummary([], cats, FEB);
+    expect(result.totalAssigned).toBe(275000); // assigned is independent of txns
+    expect(result.totalSpentTracked).toBe(0);
+    expect(result.totalOtherSpending).toBe(0);
+    for (const r of result.rows) {
+      expect(r.spent).toBe(0);
+    }
+  });
+
+  it("counts categories the toggle label depends on", () => {
+    const result = getMonthlyBudgetSummary(txns, cats, FEB);
+    // 4 of 6 — matches the "X of N tracked" label
+    expect(result.trackedCount).toBe(4);
+    expect(result.totalCount).toBe(6);
   });
 });

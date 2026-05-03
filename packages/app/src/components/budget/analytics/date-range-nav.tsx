@@ -152,7 +152,10 @@ export function DateRangeNav({
         )}
       </div>
 
-      {/* Right: period pills */}
+      {/* Right: period pills. Always rendered — even when only one period is
+       *  allowed (e.g. Monthly Budget) — so every tab's date row has the same
+       *  shape. In the single-pill case the lone pill always shows as active
+       *  and clicking it is a no-op since it's already selected. */}
       <div className="flex items-center bg-muted rounded-lg p-0.5 gap-0.5">
         {allowedPeriods.filter((t) => t !== "custom").map((type) => (
           <button

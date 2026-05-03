@@ -5,6 +5,7 @@ import {
   deleteCategory,
   archiveCategory,
   unarchiveCategory,
+  setCategoryAssigned,
 } from "@capybudget/core";
 import { useBudgetMutation } from "@/hooks/use-budget-mutation";
 
@@ -48,6 +49,16 @@ export function useUnarchiveCategory() {
     categories.set(next);
     await categories.save(next);
   });
+}
+
+export function useSetCategoryAssigned() {
+  return useBudgetMutation<{ categoryId: string; assigned: number | null }>(
+    async ({ categoryId, assigned }, { categories }) => {
+      const next = setCategoryAssigned(categoryId, assigned, categories.get());
+      categories.set(next);
+      await categories.save(next);
+    },
+  );
 }
 
 export function useReorderCategoryDnd() {

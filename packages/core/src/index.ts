@@ -59,6 +59,7 @@ export {
   deleteCategory,
   archiveCategory,
   unarchiveCategory,
+  setCategoryAssigned,
 } from "./categories";
 
 // Transaction operations
@@ -138,7 +139,18 @@ export type { TransformResult, TransformError } from "./csv-transform";
 export { transformCsv, serializeImportCsv, parseCurrencyToCents } from "./csv-transform";
 
 // Analytics
-export type { DateRange, CategoryBreakdown, NetWorthPoint, CashFlowPoint, MerchantSpending, TrendPoint, TrendSeries, CategoryTrendsResult } from "./analytics";
+export type {
+  DateRange,
+  CategoryBreakdown,
+  NetWorthPoint,
+  CashFlowPoint,
+  MerchantSpending,
+  TrendPoint,
+  TrendSeries,
+  CategoryTrendsResult,
+  CategoryMonthSummary,
+  MonthlyBudgetSummary,
+} from "./analytics";
 export {
   filterTransactionsByDateRange,
   getSpendingByCategory,
@@ -148,4 +160,5 @@ export {
   getCashFlow,
   getTopMerchants,
   getCategoryTrends,
+  getMonthlyBudgetSummary,
 } from "./analytics";

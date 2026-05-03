@@ -32,7 +32,7 @@ describe("detectBudget", () => {
 
   it("returns parsed BudgetMeta when budget.json exists at current version", async () => {
     const meta = {
-      schemaVersion: 2,
+      schemaVersion: 3,
       name: "Test Budget",
       currency: "USD",
       createdAt: "2026-01-01T00:00:00.000Z",
@@ -47,7 +47,9 @@ describe("detectBudget", () => {
   });
 
   it("runs pending migrations and writes updated budget.json", async () => {
-    // budget.json is at v1; accounts.csv has no excludeFromNetWorth column.
+    // budget.json is at v1; accounts.csv has no excludeFromNetWorth column,
+    // categories.csv has no assigned column. detectBudget should walk
+    // v1 → v2 → v3 sequentially.
     const oldMeta = {
       schemaVersion: 1,
       name: "Old Budget",
@@ -59,19 +61,24 @@ describe("detectBudget", () => {
       "id,name,type,archived,sortOrder,createdAt",
       "acc-1,Cash,cash,false,1,2026-01-01T00:00:00.000Z",
     ].join("\n");
+    const oldCategoriesCsv = [
+      "id,name,group,archived,sortOrder",
+      "cat-1,Food,Daily Living,false,1",
+    ].join("\n");
 
     mockExists.mockResolvedValue(true);
     mockReadTextFile.mockImplementation(async (path: string) => {
       if (path.endsWith("budget.json")) return JSON.stringify(oldMeta);
       if (path.endsWith("accounts.csv")) return oldAccountsCsv;
+      if (path.endsWith("categories.csv")) return oldCategoriesCsv;
       throw new Error(`Unexpected read: ${path}`);
     });
 
     const result = await detectBudget("/budgets/test");
 
-    expect(result?.schemaVersion).toBe(2);
+    expect(result?.schemaVersion).toBe(3);
 
-    // Migration rewrote accounts.csv with the new column.
+    // v1 → v2 rewrote accounts.csv with the new column.
     const accountsWrite = mockWriteTextFile.mock.calls.find((c: string[]) =>
       c[0].endsWith("accounts.csv"),
     );
@@ -79,12 +86,62 @@ describe("detectBudget", () => {
     expect(accountsWrite![1]).toContain("excludeFromNetWorth");
     expect(accountsWrite![1]).toContain("acc-1,Cash,cash,false,false,1");
 
+    // v2 → v3 rewrote categories.csv with an empty `assigned` column.
+    const categoriesWrite = mockWriteTextFile.mock.calls.find((c: string[]) =>
+      c[0].endsWith("categories.csv"),
+    );
+    expect(categoriesWrite).toBeDefined();
+    expect(categoriesWrite![1]).toContain("assigned");
+    // Empty cell = untracked. Trailing comma after sortOrder is what we want.
+    expect(categoriesWrite![1]).toContain("cat-1,Food,Daily Living,false,1,");
+
     // budget.json was rewritten with the new schemaVersion.
     const metaWrite = mockWriteTextFile.mock.calls.find((c: string[]) =>
       c[0].endsWith("budget.json"),
     );
     expect(metaWrite).toBeDefined();
-    expect(JSON.parse(metaWrite![1]).schemaVersion).toBe(2);
+    expect(JSON.parse(metaWrite![1]).schemaVersion).toBe(3);
+  });
+
+  it("runs only the v2 → v3 migration when starting from v2", async () => {
+    const oldMeta = {
+      schemaVersion: 2,
+      name: "v2 Budget",
+      currency: "USD",
+      createdAt: "2026-01-01T00:00:00.000Z",
+      lastModified: "2026-01-01T00:00:00.000Z",
+    };
+    const v2CategoriesCsv = [
+      "id,name,group,archived,sortOrder",
+      "cat-1,Rent,Fixed,false,1",
+      "cat-2,Food,Daily Living,false,2",
+    ].join("\n");
+
+    mockExists.mockResolvedValue(true);
+    mockReadTextFile.mockImplementation(async (path: string) => {
+      if (path.endsWith("budget.json")) return JSON.stringify(oldMeta);
+      if (path.endsWith("categories.csv")) return v2CategoriesCsv;
+      throw new Error(`Unexpected read: ${path}`);
+    });
+
+    const result = await detectBudget("/budgets/test");
+    expect(result?.schemaVersion).toBe(3);
+
+    // accounts.csv must NOT be rewritten — it's already at v2.
+    const accountsWrite = mockWriteTextFile.mock.calls.find((c: string[]) =>
+      c[0].endsWith("accounts.csv"),
+    );
+    expect(accountsWrite).toBeUndefined();
+
+    // categories.csv gains the `assigned` column with empty cells.
+    const categoriesWrite = mockWriteTextFile.mock.calls.find((c: string[]) =>
+      c[0].endsWith("categories.csv"),
+    );
+    expect(categoriesWrite).toBeDefined();
+    const lines = categoriesWrite![1].split(/\r?\n/);
+    expect(lines[0]).toBe("id,name,group,archived,sortOrder,assigned");
+    expect(lines[1]).toBe("cat-1,Rent,Fixed,false,1,");
+    expect(lines[2]).toBe("cat-2,Food,Daily Living,false,2,");
   });
 
   it("is idempotent — second detectBudget call is a no-op", async () => {
@@ -110,6 +167,13 @@ describe("detectBudget", () => {
         "acc-1,Cash,cash,false,1,2026-01-01T00:00:00.000Z",
       ].join("\n"),
     );
+    fs.set(
+      "/budgets/test/categories.csv",
+      [
+        "id,name,group,archived,sortOrder",
+        "cat-1,Food,Daily Living,false,1",
+      ].join("\n"),
+    );
 
     mockExists.mockImplementation(async (path: string) => fs.has(path));
     mockReadTextFile.mockImplementation(async (path: string) => {
@@ -121,21 +185,24 @@ describe("detectBudget", () => {
       fs.set(path, contents);
     });
 
-    // First call: migrates v1 -> v2.
+    // First call: migrates v1 -> v3 (chain).
     const first = await detectBudget("/budgets/test");
-    expect(first?.schemaVersion).toBe(2);
+    expect(first?.schemaVersion).toBe(3);
 
     const accountsAfterFirst = fs.get("/budgets/test/accounts.csv")!;
+    const categoriesAfterFirst = fs.get("/budgets/test/categories.csv")!;
     const metaAfterFirst = fs.get("/budgets/test/budget.json")!;
     expect(accountsAfterFirst).toContain("excludeFromNetWorth");
+    expect(categoriesAfterFirst).toContain("assigned");
 
-    // Second call on the same folder — accounts.csv must be byte-identical and
-    // schemaVersion must remain at 2. budget.json's lastModified is allowed to
+    // Second call on the same folder — files must be byte-identical and
+    // schemaVersion must remain at 3. budget.json's lastModified is allowed to
     // refresh, but only because the migration loop ran (it shouldn't here).
     const second = await detectBudget("/budgets/test");
-    expect(second?.schemaVersion).toBe(2);
+    expect(second?.schemaVersion).toBe(3);
 
     expect(fs.get("/budgets/test/accounts.csv")).toBe(accountsAfterFirst);
+    expect(fs.get("/budgets/test/categories.csv")).toBe(categoriesAfterFirst);
     // budget.json must also stay byte-identical: when no migrations are
     // pending, detectBudget skips the metadata rewrite entirely.
     expect(fs.get("/budgets/test/budget.json")).toBe(metaAfterFirst);
@@ -149,7 +216,7 @@ describe("bootstrapBudget", () => {
 
   it("returns a BudgetMeta with the current schema version", async () => {
     const result = await bootstrapBudget("/new/budget", "My Budget");
-    expect(result.schemaVersion).toBe(2);
+    expect(result.schemaVersion).toBe(3);
     expect(result.name).toBe("My Budget");
     expect(result.currency).toBe("USD");
     expect(result.createdAt).toBeTruthy();
@@ -171,7 +238,7 @@ describe("bootstrapBudget", () => {
 
     const written = JSON.parse(budgetJsonCall![1]);
     expect(written.name).toBe("Test");
-    expect(written.schemaVersion).toBe(2);
+    expect(written.schemaVersion).toBe(3);
   });
 
   it("writes categories.csv with default categories", async () => {
@@ -185,6 +252,8 @@ describe("bootstrapBudget", () => {
     // CSV should have a header row + one row per default category
     const lines = categoriesCall![1].split("\n");
     expect(lines.length).toBe(DEFAULT_CATEGORIES.length + 1);
+    // Header advertises the v3 schema with the `assigned` column
+    expect(lines[0]).toContain("assigned");
   });
 
   it("writes empty accounts.csv with header", async () => {

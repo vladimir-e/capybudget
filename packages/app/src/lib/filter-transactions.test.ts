@@ -8,8 +8,8 @@ const accounts: Account[] = [
 ];
 
 const categories: Category[] = [
-  { id: "cat-1", name: "Groceries", group: "Daily Living", archived: false, sortOrder: 0 },
-  { id: "cat-2", name: "Housing", group: "Fixed", archived: false, sortOrder: 0 },
+  { id: "cat-1", name: "Groceries", group: "Daily Living", archived: false, sortOrder: 0, assigned: null },
+  { id: "cat-2", name: "Housing", group: "Fixed", archived: false, sortOrder: 0, assigned: null },
 ];
 
 const txns: Transaction[] = [
@@ -131,8 +131,8 @@ describe("sortTransactions", () => {
   ];
 
   const sortCategories: Category[] = [
-    { id: "cat-g", name: "Groceries", group: "Daily Living", archived: false, sortOrder: 0 },
-    { id: "cat-h", name: "Housing", group: "Fixed", archived: false, sortOrder: 0 },
+    { id: "cat-g", name: "Groceries", group: "Daily Living", archived: false, sortOrder: 0, assigned: null },
+    { id: "cat-h", name: "Housing", group: "Fixed", archived: false, sortOrder: 0, assigned: null },
   ];
 
   const sortTxns: Transaction[] = [

@@ -33,13 +33,15 @@ interface TabDef {
   allowedPeriods: PeriodType[];
 }
 
+// Monthly Budget leads — it's the daily-driver view. The fallback
+// `?? TABS[0]` below also makes it the default tab on first load.
 const TABS: TabDef[] = [
+  { id: "monthlyBudget", label: "Monthly Budget", allowedPeriods: ["month"] },
   { id: "spending", label: "Spending", allowedPeriods: ["month", "quarter", "year", "allTime", "custom"] },
   { id: "cashFlow", label: "Cash Flow", allowedPeriods: ["year", "allTime", "custom"] },
   { id: "netWorth", label: "Net Worth", allowedPeriods: ["year", "allTime", "custom"] },
-  { id: "compare", label: "Compare", allowedPeriods: ["year", "allTime"] },
+  { id: "compare", label: "Compare", allowedPeriods: ["year", "allTime", "custom"] },
   { id: "merchants", label: "Merchants", allowedPeriods: ["month", "quarter", "year", "allTime"] },
-  { id: "monthlyBudget", label: "Monthly Budget", allowedPeriods: ["month"] },
 ];
 
 export function AnalyticsView() {
@@ -141,7 +143,8 @@ export function AnalyticsView() {
         </div>
       </div>
 
-      {/* Date range + summary */}
+      {/* Date range + summary. Monthly Budget renders its own KPI strip and
+       *  doesn't need the global income/expense/net summary. */}
       <div className="px-6 pt-4 space-y-4">
         <DateRangeNav
           periodType={periodType}
@@ -154,11 +157,12 @@ export function AnalyticsView() {
           canGoForward={canGoForward}
           onCustomRange={handleCustomRange}
         />
-        <SummaryStrip summary={summary} />
+        {activeTab !== "monthlyBudget" && <SummaryStrip summary={summary} />}
       </div>
 
-      {/* Active tab content */}
-      <div className="flex-1 overflow-y-auto px-6 py-4">
+      {/* Active tab content. `pb-4` only — top padding would create a dead
+       *  zone above sticky elements (e.g. the Monthly Budget column header). */}
+      <div className="flex-1 overflow-y-auto px-6 pb-4">
         {activeTab === "spending" && (
           <SpendingTab transactions={filtered} categories={categories} />
         )}
@@ -174,7 +178,13 @@ export function AnalyticsView() {
         {activeTab === "merchants" && (
           <MerchantsTab transactions={filtered} />
         )}
-        {activeTab === "monthlyBudget" && <MonthlyBudgetTab />}
+        {activeTab === "monthlyBudget" && (
+          <MonthlyBudgetTab
+            transactions={transactions}
+            categories={categories}
+            dateRange={dateRange}
+          />
+        )}
       </div>
     </div>
   );

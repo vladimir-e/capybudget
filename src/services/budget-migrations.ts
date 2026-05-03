@@ -32,6 +32,31 @@ const MIGRATIONS: Record<number, Migration> = {
     const csv = Papa.unparse(nextRows, { columns: nextFields });
     await writeTextFile(accountsPath, csv);
   },
+
+  // v2 → v3: add `assigned` column to categories.csv. Empty cell = null
+  // = untracked (matches parseCsv's nullable-int coercion). Forward-compatible
+  // — pre-v3 CSVs read fine without this rewrite, but we still materialize
+  // the column on disk so the file format matches the schema version.
+  2: async (folderPath) => {
+    const categoriesPath = await join(folderPath, "categories.csv");
+    const raw = await readTextFile(categoriesPath);
+    const parsed = Papa.parse<Record<string, string>>(raw, {
+      header: true,
+      skipEmptyLines: true,
+    });
+
+    const fields = parsed.meta.fields ?? [];
+    if (fields.includes("assigned")) return; // already migrated
+
+    const nextRows = parsed.data.map((row) => ({
+      ...row,
+      assigned: "",
+    }));
+    const nextFields = insertAfter(fields, "sortOrder", "assigned");
+
+    const csv = Papa.unparse(nextRows, { columns: nextFields });
+    await writeTextFile(categoriesPath, csv);
+  },
 };
 
 /** Run all pending migrations on `folderPath`, bringing it from

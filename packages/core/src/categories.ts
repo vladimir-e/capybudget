@@ -22,9 +22,22 @@ export function createCategory(
     group: input.group as Category["group"],
     archived: false,
     sortOrder: maxSortOrder + 1,
+    assigned: null,
   };
 
   return [...existing, newCategory];
+}
+
+/** Set the monthly assigned amount for a category. `null` = untracked,
+ *  any number (including 0) = tracked at that amount. */
+export function setCategoryAssigned(
+  categoryId: string,
+  assigned: number | null,
+  existing: Category[],
+): Category[] {
+  return existing.map((c) =>
+    c.id === categoryId ? { ...c, assigned } : c,
+  );
 }
 
 export function updateCategory(
