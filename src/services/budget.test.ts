@@ -86,6 +86,60 @@ describe("detectBudget", () => {
     expect(metaWrite).toBeDefined();
     expect(JSON.parse(metaWrite![1]).schemaVersion).toBe(2);
   });
+
+  it("is idempotent — second detectBudget call is a no-op", async () => {
+    // Simulate a real filesystem: writes update the in-memory store, reads
+    // pull from it. This is what makes the v1->v2 migration's early-return
+    // safe in detectBudget's partial-failure window — re-running on
+    // already-migrated data must not rewrite anything.
+    const fs = new Map<string, string>();
+    fs.set(
+      "/budgets/test/budget.json",
+      JSON.stringify({
+        schemaVersion: 1,
+        name: "Old Budget",
+        currency: "USD",
+        createdAt: "2026-01-01T00:00:00.000Z",
+        lastModified: "2026-01-01T00:00:00.000Z",
+      }),
+    );
+    fs.set(
+      "/budgets/test/accounts.csv",
+      [
+        "id,name,type,archived,sortOrder,createdAt",
+        "acc-1,Cash,cash,false,1,2026-01-01T00:00:00.000Z",
+      ].join("\n"),
+    );
+
+    mockExists.mockImplementation(async (path: string) => fs.has(path));
+    mockReadTextFile.mockImplementation(async (path: string) => {
+      const v = fs.get(path);
+      if (v === undefined) throw new Error(`Unexpected read: ${path}`);
+      return v;
+    });
+    mockWriteTextFile.mockImplementation(async (path: string, contents: string) => {
+      fs.set(path, contents);
+    });
+
+    // First call: migrates v1 -> v2.
+    const first = await detectBudget("/budgets/test");
+    expect(first?.schemaVersion).toBe(2);
+
+    const accountsAfterFirst = fs.get("/budgets/test/accounts.csv")!;
+    const metaAfterFirst = fs.get("/budgets/test/budget.json")!;
+    expect(accountsAfterFirst).toContain("excludeFromNetWorth");
+
+    // Second call on the same folder — accounts.csv must be byte-identical and
+    // schemaVersion must remain at 2. budget.json's lastModified is allowed to
+    // refresh, but only because the migration loop ran (it shouldn't here).
+    const second = await detectBudget("/budgets/test");
+    expect(second?.schemaVersion).toBe(2);
+
+    expect(fs.get("/budgets/test/accounts.csv")).toBe(accountsAfterFirst);
+    // budget.json must also stay byte-identical: when no migrations are
+    // pending, detectBudget skips the metadata rewrite entirely.
+    expect(fs.get("/budgets/test/budget.json")).toBe(metaAfterFirst);
+  });
 });
 
 describe("bootstrapBudget", () => {
