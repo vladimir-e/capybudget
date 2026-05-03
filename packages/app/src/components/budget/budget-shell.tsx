@@ -264,9 +264,10 @@ export function BudgetShell({ path, name }: BudgetShellProps) {
                   rel="noopener noreferrer"
                   aria-label="View source on GitHub"
                   title="View source on GitHub"
-                  className={buttonVariants({ variant: "ghost", size: "icon" })}
+                  className={buttonVariants({ variant: "ghost" })}
                 >
                   <Github className="h-4 w-4" />
+                  GitHub
                 </a>
               )}
               <ColorThemeSwitcher />
