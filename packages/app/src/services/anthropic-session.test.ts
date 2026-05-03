@@ -152,7 +152,7 @@ function makeSession() {
     budgetPath: "/budget",
     systemPrompt: "you are capy",
     apiKey: "sk-ant-test",
-    model: "claude-sonnet-4-5",
+    model: "claude-sonnet-4-6",
     onEvent: (e) => events.push(e),
     repo: {} as BudgetRepository,
     fileAdapter: {} as FileAdapter,

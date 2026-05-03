@@ -49,7 +49,7 @@ describe("useIntelligenceStore.hydrate", () => {
   it("loads existing config from the backend", async () => {
     const backend = makeBackend({
       provider: "anthropic",
-      anthropic: { apiKey: "sk-x", model: "claude-sonnet-4-5" },
+      anthropic: { apiKey: "sk-x", model: "claude-sonnet-4-6" },
       openai: { apiKey: "", model: "gpt-5" },
     })
     _setStoreLoaderForTests(async () => backend)

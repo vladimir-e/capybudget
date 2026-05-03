@@ -150,7 +150,7 @@ describe("SettingsScreen", () => {
       config: {
         ...DEFAULT_INTELLIGENCE_CONFIG,
         provider: "anthropic",
-        anthropic: { apiKey: "sk-ant-secret-ab12", model: "claude-sonnet-4-5" },
+        anthropic: { apiKey: "sk-ant-secret-ab12", model: "claude-sonnet-4-6" },
       },
     })
     await renderSettings()
@@ -216,7 +216,7 @@ describe("SettingsScreen", () => {
       config: {
         ...DEFAULT_INTELLIGENCE_CONFIG,
         provider: "anthropic",
-        anthropic: { apiKey: "sk-ant-existing", model: "claude-sonnet-4-5" },
+        anthropic: { apiKey: "sk-ant-existing", model: "claude-sonnet-4-6" },
       },
     })
     await renderSettings()

@@ -95,7 +95,7 @@ describe("CapyOverlay empty state", () => {
       config: {
         ...DEFAULT_INTELLIGENCE_CONFIG,
         provider: "anthropic",
-        anthropic: { apiKey: "", model: "claude-sonnet-4-5" },
+        anthropic: { apiKey: "", model: "claude-sonnet-4-6" },
       },
     })
     await mountOverlay()
@@ -138,7 +138,7 @@ describe("CapyOverlay empty state", () => {
       config: {
         ...DEFAULT_INTELLIGENCE_CONFIG,
         provider: "anthropic",
-        anthropic: { apiKey: "sk-ant-x", model: "claude-sonnet-4-5" },
+        anthropic: { apiKey: "sk-ant-x", model: "claude-sonnet-4-6" },
       },
     })
     await mountOverlay()

@@ -76,7 +76,7 @@ describe("createIntelligenceSession", () => {
     const session = createIntelligenceSession({
       config: {
         provider: "anthropic",
-        anthropic: { apiKey: "", model: "claude-sonnet-4-5" },
+        anthropic: { apiKey: "", model: "claude-sonnet-4-6" },
         openai: { apiKey: "", model: "gpt-5" },
       },
       adapters: { anthropic: ctor },
@@ -92,7 +92,7 @@ describe("createIntelligenceSession", () => {
     const session = createIntelligenceSession({
       config: {
         provider: "anthropic",
-        anthropic: { apiKey: "sk-ant-1", model: "claude-sonnet-4-5" },
+        anthropic: { apiKey: "sk-ant-1", model: "claude-sonnet-4-6" },
         openai: { apiKey: "", model: "gpt-5" },
       },
       adapters: { anthropic: ctor },
@@ -103,7 +103,7 @@ describe("createIntelligenceSession", () => {
       budgetPath: opts.budgetPath,
       systemPrompt: opts.systemPrompt,
       apiKey: "sk-ant-1",
-      model: "claude-sonnet-4-5",
+      model: "claude-sonnet-4-6",
       onEvent: opts.onEvent,
       repo: opts.repo,
       fileAdapter: opts.fileAdapter,
@@ -116,7 +116,7 @@ describe("createIntelligenceSession", () => {
     const session = createIntelligenceSession({
       config: {
         provider: "openai",
-        anthropic: { apiKey: "", model: "claude-sonnet-4-5" },
+        anthropic: { apiKey: "", model: "claude-sonnet-4-6" },
         openai: { apiKey: "sk-openai-1", model: "gpt-5" },
       },
       adapters: { openai: ctor },
