@@ -141,7 +141,8 @@ export function AnalyticsView() {
         </div>
       </div>
 
-      {/* Date range + summary */}
+      {/* Date range + summary. Monthly Budget renders its own KPI strip and
+       *  doesn't need the global income/expense/net summary. */}
       <div className="px-6 pt-4 space-y-4">
         <DateRangeNav
           periodType={periodType}
@@ -154,7 +155,7 @@ export function AnalyticsView() {
           canGoForward={canGoForward}
           onCustomRange={handleCustomRange}
         />
-        <SummaryStrip summary={summary} />
+        {activeTab !== "monthlyBudget" && <SummaryStrip summary={summary} />}
       </div>
 
       {/* Active tab content */}
@@ -174,7 +175,13 @@ export function AnalyticsView() {
         {activeTab === "merchants" && (
           <MerchantsTab transactions={filtered} />
         )}
-        {activeTab === "monthlyBudget" && <MonthlyBudgetTab />}
+        {activeTab === "monthlyBudget" && (
+          <MonthlyBudgetTab
+            transactions={filtered}
+            categories={categories}
+            dateRange={dateRange}
+          />
+        )}
       </div>
     </div>
   );
