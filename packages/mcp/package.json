@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@capybudget/core": "*",
+    "@capybudget/intelligence": "*",
     "@capybudget/persistence": "*",
     "@modelcontextprotocol/sdk": "^1.27.1",
     "papaparse": "^5.5.3"

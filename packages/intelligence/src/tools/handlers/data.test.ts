@@ -6,7 +6,7 @@ import {
   handleListCategories,
   handleListTransactions,
   handleSpendingSummary,
-} from "./data-tools"
+} from "./data"
 
 // ── Test data factories ─────────────────────────────────────────
 

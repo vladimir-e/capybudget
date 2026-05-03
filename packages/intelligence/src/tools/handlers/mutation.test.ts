@@ -14,7 +14,7 @@ import {
   handleDeleteCategory,
   handleArchiveCategory,
   handleAssignCategories,
-} from "./mutation-tools"
+} from "./mutation"
 
 // ── Test data factories ─────────────────────────────────────────
 

@@ -9,6 +9,7 @@
     ".": "./src/index.ts"
   },
   "dependencies": {
-    "@capybudget/core": "*"
+    "@capybudget/core": "*",
+    "@capybudget/persistence": "*"
   }
 }

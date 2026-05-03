@@ -1,0 +1,134 @@
+import { describe, it, expect, vi } from "vitest"
+import type { Account, Category, Transaction } from "@capybudget/core"
+import type { BudgetRepository, FileAdapter } from "@capybudget/persistence"
+import { runTool, isDispatchTool, type ToolContext } from "./dispatch"
+import { handleListAccounts } from "./handlers/data"
+
+function makeAccount(overrides: Partial<Account> = {}): Account {
+  return {
+    id: "acc-1",
+    name: "Checking",
+    type: "checking",
+    archived: false,
+    excludeFromNetWorth: false,
+    sortOrder: 1,
+    createdAt: "2026-01-01T00:00:00.000Z",
+    ...overrides,
+  }
+}
+
+function makeRepo(data: {
+  accounts?: Account[]
+  categories?: Category[]
+  transactions?: Transaction[]
+}): BudgetRepository {
+  return {
+    getAccounts: vi.fn().mockResolvedValue(data.accounts ?? []),
+    getCategories: vi.fn().mockResolvedValue(data.categories ?? []),
+    getTransactions: vi.fn().mockResolvedValue(data.transactions ?? []),
+    saveAccounts: vi.fn().mockResolvedValue(undefined),
+    saveCategories: vi.fn().mockResolvedValue(undefined),
+    saveTransactions: vi.fn().mockResolvedValue(undefined),
+  }
+}
+
+function makeFileAdapter(): FileAdapter {
+  return {
+    readFile: vi.fn().mockResolvedValue(""),
+    writeFile: vi.fn().mockResolvedValue(undefined),
+    rename: vi.fn().mockResolvedValue(undefined),
+    join: vi.fn().mockImplementation((...parts: string[]) =>
+      Promise.resolve(parts.join("/")),
+    ),
+  }
+}
+
+function makeCtx(repo: BudgetRepository = makeRepo({})): ToolContext {
+  return {
+    repo,
+    fileAdapter: makeFileAdapter(),
+    budgetPath: "/budget",
+  }
+}
+
+describe("isDispatchTool", () => {
+  it("recognizes data tools", () => {
+    expect(isDispatchTool("list_accounts")).toBe(true)
+    expect(isDispatchTool("spending_summary")).toBe(true)
+  })
+
+  it("recognizes mutation tools", () => {
+    expect(isDispatchTool("create_transaction")).toBe(true)
+    expect(isDispatchTool("delete_account")).toBe(true)
+  })
+
+  it("recognizes render tools by prefix", () => {
+    expect(isDispatchTool("render_table")).toBe(true)
+    expect(isDispatchTool("render_anything")).toBe(true)
+  })
+
+  it("rejects import + csv tools", () => {
+    expect(isDispatchTool("read_import_file")).toBe(false)
+    expect(isDispatchTool("analyze_csv")).toBe(false)
+  })
+
+  it("rejects unknown tools", () => {
+    expect(isDispatchTool("nonsense")).toBe(false)
+  })
+})
+
+describe("runTool", () => {
+  it("returns 'Rendered.' for render tools without dispatching", async () => {
+    expect(await runTool("render_table", { headers: [], rows: [] }, makeCtx())).toBe(
+      "Rendered.",
+    )
+    expect(
+      await runTool("render_donut_chart", { title: "x", data: [] }, makeCtx()),
+    ).toBe("Rendered.")
+  })
+
+  it("dispatches data tools to their handlers", async () => {
+    const repo = makeRepo({
+      accounts: [makeAccount({ id: "acc-1", name: "Checking" })],
+      transactions: [],
+    })
+    const ctx = makeCtx(repo)
+
+    const dispatchedResult = await runTool("list_accounts", {}, ctx)
+    const directResult = await handleListAccounts(repo)
+
+    // Dispatch returns the same string the direct handler would have.
+    expect(JSON.parse(dispatchedResult)).toEqual(JSON.parse(directResult))
+  })
+
+  it("passes args to mutation handlers", async () => {
+    const repo = makeRepo({
+      accounts: [makeAccount({ id: "acc-1" })],
+      categories: [],
+      transactions: [],
+    })
+
+    const result = await runTool(
+      "create_transaction",
+      {
+        type: "expense",
+        amount: 1500,
+        accountId: "acc-1",
+        categoryId: "",
+        date: "2026-03-15",
+        merchant: "Coffee",
+      },
+      makeCtx(repo),
+    )
+
+    const parsed = JSON.parse(result)
+    expect(parsed.success).toBe(true)
+    expect(repo.saveTransactions).toHaveBeenCalled()
+  })
+
+  it("throws on unknown tool", async () => {
+    await expect(runTool("unknown_tool", {}, makeCtx())).rejects.toThrow(
+      "Unknown tool: unknown_tool",
+    )
+  })
+})

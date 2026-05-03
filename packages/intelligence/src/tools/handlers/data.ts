@@ -1,102 +1,17 @@
+/**
+ * Read-only data tool handlers. Pure functions over a BudgetRepository —
+ * no node fs, no transport coupling. Used by both the MCP server (via
+ * dispatch) and the in-process API adapters.
+ */
+
 import type { Account, Category, Transaction } from "@capybudget/core"
-import { formatMoney, getAccountBalance, getUniqueMerchants, findCategoryForMerchant } from "@capybudget/core"
+import {
+  formatMoney,
+  getAccountBalance,
+  getUniqueMerchants,
+  findCategoryForMerchant,
+} from "@capybudget/core"
 import type { BudgetRepository } from "@capybudget/persistence"
-
-// ── Tool schemas ─────────────────────────────────────────────────
-
-export const DATA_TOOLS = [
-  {
-    name: "list_accounts",
-    description:
-      "List all accounts with their current balances. Returns account name, type, balance, and whether it's archived.",
-    inputSchema: {
-      type: "object" as const,
-      properties: {},
-    },
-  },
-  {
-    name: "list_transactions",
-    description:
-      "List transactions with optional filters. Amounts are in cents (negative = expense). Dates are ISO strings.",
-    inputSchema: {
-      type: "object" as const,
-      properties: {
-        accountId: {
-          type: "string",
-          description: "Filter by account ID",
-        },
-        categoryId: {
-          type: "string",
-          description: "Filter by category ID",
-        },
-        merchant: {
-          type: "string",
-          description: "Filter by merchant name (case-insensitive substring match)",
-        },
-        startDate: {
-          type: "string",
-          description: "Filter transactions on or after this date (YYYY-MM-DD)",
-        },
-        endDate: {
-          type: "string",
-          description: "Filter transactions on or before this date (YYYY-MM-DD)",
-        },
-        limit: {
-          type: "number",
-          description: "Maximum number of transactions to return (default: 50)",
-        },
-      },
-    },
-  },
-  {
-    name: "list_categories",
-    description:
-      "List all categories grouped by type (Income, Fixed, Daily Living, Personal, Irregular).",
-    inputSchema: {
-      type: "object" as const,
-      properties: {},
-    },
-  },
-  {
-    name: "spending_summary",
-    description:
-      "Get spending aggregated by category for a date range. Returns category name, transaction count, and total amount.",
-    inputSchema: {
-      type: "object" as const,
-      properties: {
-        startDate: {
-          type: "string",
-          description: "Start date (YYYY-MM-DD). Defaults to first day of current month.",
-        },
-        endDate: {
-          type: "string",
-          description: "End date (YYYY-MM-DD). Defaults to today.",
-        },
-      },
-    },
-  },
-  {
-    name: "search_merchants",
-    description:
-      "Search for merchants in the budget's transaction history. Searches both merchant names and raw transaction notes/descriptions. Returns matching merchants with their most recent category and match quality (full, word, fuzzy). Use this to identify merchants from import descriptions — try multiple query chunks for cryptic descriptions (e.g. for 'RBHOOD HGSTS LLC' try 'RBHOOD' and 'HOOD').",
-    inputSchema: {
-      type: "object" as const,
-      properties: {
-        query: {
-          type: "string",
-          description: "Search query — a merchant name, abbreviation, or chunk from a bank description. Case-insensitive.",
-        },
-        limit: {
-          type: "number",
-          description: "Maximum merchant results to return (default: 10)",
-        },
-      },
-      required: ["query"],
-    },
-  },
-] as const
-
-// ── Tool handlers ────────────────────────────────────────────────
 
 export async function handleListAccounts(repo: BudgetRepository): Promise<string> {
   const accounts = await repo.getAccounts()
