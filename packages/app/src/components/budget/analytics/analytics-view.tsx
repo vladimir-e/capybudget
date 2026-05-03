@@ -158,8 +158,9 @@ export function AnalyticsView() {
         {activeTab !== "monthlyBudget" && <SummaryStrip summary={summary} />}
       </div>
 
-      {/* Active tab content */}
-      <div className="flex-1 overflow-y-auto px-6 py-4">
+      {/* Active tab content. `pb-4` only — top padding would create a dead
+       *  zone above sticky elements (e.g. the Monthly Budget column header). */}
+      <div className="flex-1 overflow-y-auto px-6 pb-4">
         {activeTab === "spending" && (
           <SpendingTab transactions={filtered} categories={categories} />
         )}

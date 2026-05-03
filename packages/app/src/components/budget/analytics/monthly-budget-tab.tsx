@@ -297,8 +297,7 @@ function CategoryRow({ category, spent }: CategoryRowProps) {
 // ── Column header ────
 
 /** Sticky labels above the rows — same grid as `CategoryRow` so columns line
- *  up with the data. "Left" is the over/underspend column ("Remaining" lives
- *  on the KPI card; the column needs the shorter word to fit the layout). */
+ *  up with the data. */
 function ColumnHeader() {
   return (
     <div className="sticky top-0 z-10 bg-background border-b grid grid-cols-[minmax(0,1.4fr)_120px_120px_minmax(160px,2fr)_120px] gap-3 items-center px-3 py-1.5 text-xs font-medium text-muted-foreground uppercase tracking-wider">
@@ -306,7 +305,7 @@ function ColumnHeader() {
       <span className="text-right">Assigned</span>
       <span className="text-right">Spent</span>
       <span /> {/* progress column intentionally unlabelled */}
-      <span className="text-right">Left</span>
+      <span className="text-right">Remaining</span>
     </div>
   );
 }
