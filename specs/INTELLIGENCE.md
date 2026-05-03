@@ -2,6 +2,8 @@
 
 Capy is an AI financial assistant. The app communicates with AI through the `CapySession` interface defined in `@capybudget/intelligence`. The desktop shell implements this with Claude Code CLI as a subprocess. The app is fully functional without intelligence — it's additive.
 
+> Note: see also `INTELLIGENCE_PROVIDERS.md` for the multi-provider refactor (Claude Code, Anthropic API, OpenAI API). This file documents the original Claude-CLI-only architecture and is rewritten around the adapter model after Phase B lands.
+
 ## Architecture
 
 ```
@@ -152,7 +154,7 @@ The desktop app spawns it automatically. External agents configure it manually:
 
 Data tools (read-only): `list_accounts`, `list_transactions`, `list_categories`, `spending_summary`, `search_merchants`.
 
-Mutation tools (write): full CRUD for transactions, accounts, and categories plus `assign_categories` for bulk operations. All mutations reuse `@capybudget/core` pure functions. See `packages/mcp/src/data-tools.ts` and `mutation-tools.ts` for the complete list and schemas.
+Mutation tools (write): full CRUD for transactions, accounts, and categories plus `assign_categories` for bulk operations. All mutations reuse `@capybudget/core` pure functions. See `packages/intelligence/src/tools/handlers/data.ts` and `mutation.ts` for the complete list and schemas.
 
 The MCP server runs with `immediate: true` on the repository — writes flush to disk before returning tool results. SIGTERM/SIGINT handlers call `repo.dispose()` for graceful shutdown.
 
