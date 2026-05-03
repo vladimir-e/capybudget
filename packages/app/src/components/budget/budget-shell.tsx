@@ -24,6 +24,7 @@ import { useCustomInstructions } from "@/hooks/use-custom-instructions";
 import { useCustomCommands } from "@/hooks/use-custom-commands";
 import { useBudgetRepository } from "@/providers/repository-provider";
 import { useImportStore } from "@/stores/import-store";
+import { tauriFileAdapter } from "../../../../../src/adapters/tauri-file-adapter";
 import type { DisposableRepository } from "@capybudget/persistence";
 import {
   DropdownMenu,
@@ -99,6 +100,8 @@ export function BudgetShell({ path, name }: BudgetShellProps) {
     mcpServerPath: "packages/mcp/src/server.ts",
     customInstructions: customInstructions.instructions,
     onDataChanged: invalidateBudgetData,
+    repo,
+    fileAdapter: tauriFileAdapter,
   });
 
   const currentAccount = accounts.find((a) => a.id === currentAccountId);

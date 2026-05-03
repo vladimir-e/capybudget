@@ -23,6 +23,7 @@ import {
   type ContentBlock,
 } from "@capybudget/intelligence"
 import { serializeConversation } from "@/services/serialize-conversation"
+import type { BudgetRepository, FileAdapter } from "@capybudget/persistence"
 
 const CONTEXT_MAX_CHARS = 5000
 
@@ -32,6 +33,10 @@ interface UseCapySessionOptions {
   mcpServerPath: string
   customInstructions?: string
   onDataChanged?: () => void
+  /** Required by API adapters (in-process tool dispatch); ignored by Claude CLI. */
+  repo?: BudgetRepository
+  /** Required by API adapters (in-process tool dispatch); ignored by Claude CLI. */
+  fileAdapter?: FileAdapter
 }
 
 interface UseCapySessionReturn {

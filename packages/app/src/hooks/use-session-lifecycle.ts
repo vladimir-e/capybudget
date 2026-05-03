@@ -21,10 +21,15 @@ import type {
   SessionEvent,
   StreamEvent,
 } from "@capybudget/intelligence";
+import type { BudgetRepository, FileAdapter } from "@capybudget/persistence";
 
 export interface SessionLifecycleOptions {
   budgetPath: string;
   mcpServerPath: string;
+  /** Required by API adapters (in-process tool dispatch); ignored by Claude CLI. */
+  repo?: BudgetRepository;
+  /** Required by API adapters (in-process tool dispatch); ignored by Claude CLI. */
+  fileAdapter?: FileAdapter;
 }
 
 /** Passed to the onStreamEvent callback so it can control streaming state. */
@@ -134,6 +139,8 @@ export function useSessionLifecycle<TOpts extends SessionLifecycleOptions>(
         mcpServerPath: o.mcpServerPath,
         systemPrompt,
         onEvent: handleSessionEvent,
+        repo: o.repo,
+        fileAdapter: o.fileAdapter,
       });
       if (!session) {
         console.debug(

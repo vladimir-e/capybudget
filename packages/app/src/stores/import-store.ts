@@ -9,6 +9,7 @@ import {
   type SessionEvent,
   type StreamEvent,
 } from "@capybudget/intelligence";
+import type { BudgetRepository, FileAdapter } from "@capybudget/persistence";
 
 /**
  * Import store — single source of truth for import UI state.
@@ -50,6 +51,8 @@ interface ImportStore {
     mcpServerPath: string;
     systemPrompt: string;
     sourceFilenames: string[];
+    repo?: BudgetRepository;
+    fileAdapter?: FileAdapter;
   }) => void;
   cancelNormalization: () => void;
 
@@ -63,6 +66,8 @@ interface ImportStore {
     budgetName: string;
     mcpServerPath: string;
     systemPrompt: string;
+    repo?: BudgetRepository;
+    fileAdapter?: FileAdapter;
   }) => void;
   cancelEnrichment: () => void;
   onEnrichComplete: (() => void) | null;
@@ -111,7 +116,15 @@ export const useImportStore = create<ImportStore>((set, get) => ({
   normalizeSession: null,
   normalizeMessages: [],
 
-  startNormalization: ({ budgetPath, budgetName, mcpServerPath, systemPrompt, sourceFilenames }) => {
+  startNormalization: ({
+    budgetPath,
+    budgetName,
+    mcpServerPath,
+    systemPrompt,
+    sourceFilenames,
+    repo,
+    fileAdapter,
+  }) => {
     get().normalizeSession?.kill();
     lastNormalizeTextContent = "";
 
@@ -119,6 +132,8 @@ export const useImportStore = create<ImportStore>((set, get) => ({
       budgetPath,
       mcpServerPath,
       systemPrompt,
+      repo,
+      fileAdapter,
       onEvent: (event: SessionEvent) => {
         switch (event.type) {
           case "stdout":
@@ -248,13 +263,22 @@ For images and PDFs, use the Read tool to view them, then extract transactions m
   onEnrichComplete: null,
   setOnEnrichComplete: (cb) => set({ onEnrichComplete: cb }),
 
-  startEnrichment: ({ budgetPath, budgetName, mcpServerPath, systemPrompt }) => {
+  startEnrichment: ({
+    budgetPath,
+    budgetName,
+    mcpServerPath,
+    systemPrompt,
+    repo,
+    fileAdapter,
+  }) => {
     get().enrichSession?.kill();
 
     const session = createSession({
       budgetPath,
       mcpServerPath,
       systemPrompt,
+      repo,
+      fileAdapter,
       onEvent: (event: SessionEvent) => {
         switch (event.type) {
           case "stdout":

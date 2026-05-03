@@ -24,6 +24,8 @@ import { useImportStore } from "@/stores/import-store";
 import { useImportInstructions } from "@/hooks/use-custom-instructions";
 import { useAccounts } from "@/hooks/use-budget-data";
 import { getToolLabel } from "@/services/capy-stream";
+import { useBudgetRepository } from "@/providers/repository-provider";
+import { tauriFileAdapter } from "../../../../../src/adapters/tauri-file-adapter";
 import {
   formatFileSize,
   IMPORT_SYSTEM_PROMPT,
@@ -92,6 +94,7 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
   const [uploadingFiles, setUploadingFiles] = useState<Set<string>>(new Set());
 
   const repository = useImportRepository(budgetPath);
+  const repo = useBudgetRepository();
 
   const [fileDuplicates, setFileDuplicates] = useState<Record<string, string>>({});
   const [isDragging, setIsDragging] = useState(false);
@@ -285,6 +288,8 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
       mcpServerPath: "packages/mcp/src/server.ts",
       systemPrompt,
       sourceFilenames: sourceFiles.map((f) => f.name),
+      repo,
+      fileAdapter: tauriFileAdapter,
     });
   };
 
