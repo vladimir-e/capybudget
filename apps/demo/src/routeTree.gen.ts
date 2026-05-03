@@ -9,6 +9,7 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as BudgetRouteImport } from './routes/budget'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as BudgetIndexRouteImport } from './routes/budget/index'
@@ -16,6 +17,11 @@ import { Route as BudgetImportRouteImport } from './routes/budget/import'
 import { Route as BudgetCategoriesRouteImport } from './routes/budget/categories'
 import { Route as BudgetAccountAccountIdRouteImport } from './routes/budget/account.$accountId'
 
+const SettingsRoute = SettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const BudgetRoute = BudgetRouteImport.update({
   id: '/budget',
   path: '/budget',
@@ -50,6 +56,7 @@ const BudgetAccountAccountIdRoute = BudgetAccountAccountIdRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/budget': typeof BudgetRouteWithChildren
+  '/settings': typeof SettingsRoute
   '/budget/categories': typeof BudgetCategoriesRoute
   '/budget/import': typeof BudgetImportRoute
   '/budget/': typeof BudgetIndexRoute
@@ -57,6 +64,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/settings': typeof SettingsRoute
   '/budget/categories': typeof BudgetCategoriesRoute
   '/budget/import': typeof BudgetImportRoute
   '/budget': typeof BudgetIndexRoute
@@ -66,6 +74,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/budget': typeof BudgetRouteWithChildren
+  '/settings': typeof SettingsRoute
   '/budget/categories': typeof BudgetCategoriesRoute
   '/budget/import': typeof BudgetImportRoute
   '/budget/': typeof BudgetIndexRoute
@@ -76,6 +85,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/budget'
+    | '/settings'
     | '/budget/categories'
     | '/budget/import'
     | '/budget/'
@@ -83,6 +93,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/settings'
     | '/budget/categories'
     | '/budget/import'
     | '/budget'
@@ -91,6 +102,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/budget'
+    | '/settings'
     | '/budget/categories'
     | '/budget/import'
     | '/budget/'
@@ -100,10 +112,18 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   BudgetRoute: typeof BudgetRouteWithChildren
+  SettingsRoute: typeof SettingsRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/settings': {
+      id: '/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof SettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/budget': {
       id: '/budget'
       path: '/budget'
@@ -169,6 +189,7 @@ const BudgetRouteWithChildren =
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   BudgetRoute: BudgetRouteWithChildren,
+  SettingsRoute: SettingsRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
