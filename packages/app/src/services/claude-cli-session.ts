@@ -9,11 +9,12 @@
  * - "New chat" kills and respawns with a fresh session ID
  * - stop() kills the process and generates a new session ID (old one may be broken)
  *
- * Recovery from a stop is handled in use-capy-session — the CLI's
- * session ID can't resume mid-turn, so the hook prepends `[Previous
- * conversation]` context on the next send. Kept there for now; will
- * likely move into this class once the API adapters land and we can
- * confirm the cleaner shape.
+ * Stop+resume recovery: the CLI session ID can't resume mid-turn, so
+ * the next `send()` after a `stop()` opens with a fresh process. To
+ * keep the model in context, the next user content is prefixed with a
+ * serialized `[Previous conversation]` snippet derived from the chat
+ * history the hook hands over via `markInterrupted(...)`. API adapters
+ * preserve their own `messages` arrays so they don't implement this.
  */
 
 import { Command, type Child } from "@tauri-apps/plugin-shell"
@@ -24,11 +25,15 @@ import {
   type CapySessionOptions,
   type MessageContent,
   type CapySession,
+  type ChatMessage,
 } from "@capybudget/intelligence"
+import { serializeConversation } from "./serialize-conversation"
 
 export type { SessionEvent, CapySessionOptions }
 
 declare const __PROJECT_ROOT__: string
+
+const RECOVERY_CONTEXT_MAX_CHARS = 5000
 
 export class ClaudeCliSession implements CapySession {
   private child: Child | null = null
@@ -38,6 +43,8 @@ export class ClaudeCliSession implements CapySession {
   private readonly systemPrompt: string
   private readonly onEvent: (event: SessionEvent) => void
   private killed = false
+  /** Set by markInterrupted(); consumed (and cleared) on the next send. */
+  private interruptedMessages: readonly ChatMessage[] | null = null
 
   constructor(opts: CapySessionOptions & { systemPrompt: string }) {
     this.budgetPath = opts.budgetPath
@@ -125,10 +132,56 @@ export class ClaudeCliSession implements CapySession {
 
     const payload = JSON.stringify({
       type: "user",
-      message: { role: "user", content },
+      message: { role: "user", content: this.applyRecoveryContext(content) },
     })
 
     await this.child!.write(payload + "\n")
+  }
+
+  /**
+   * Mark the session as interrupted by the user (Stop). The hook hands
+   * over the chat history so we can prepend a serialized
+   * `[Previous conversation]` snippet on the next send — the CLI can't
+   * resume mid-turn, so we synthesize the recovery context ourselves.
+   * No-op if `priorMessages` is empty.
+   */
+  markInterrupted(priorMessages: readonly ChatMessage[]): void {
+    if (priorMessages.length === 0) {
+      this.interruptedMessages = null
+      return
+    }
+    this.interruptedMessages = priorMessages
+  }
+
+  /**
+   * If the previous turn was interrupted, prefix the next user content
+   * with a `[Previous conversation]` snippet so the freshly-spawned
+   * subprocess has the conversation in context. Idempotent — clears
+   * the flag after applying so subsequent sends pass through cleanly.
+   */
+  private applyRecoveryContext(content: MessageContent): MessageContent {
+    const prior = this.interruptedMessages
+    if (!prior || prior.length === 0) return content
+    this.interruptedMessages = null
+
+    const prevContext = serializeConversation(prior, RECOVERY_CONTEXT_MAX_CHARS)
+    const recoveryPrefix = [
+      "[Previous conversation — session was interrupted by user]",
+      prevContext,
+      "[Session was interrupted. This is a fresh session. The user may want to continue the conversation — pick up where you left off or ask for clarification if needed.]",
+      "",
+    ].join("\n")
+
+    if (typeof content === "string") {
+      return `${recoveryPrefix}\n${content}`
+    }
+    // Multimodal: prepend a text block. Keep image blocks in their
+    // original order so the model sees attachments alongside the
+    // current message.
+    return [
+      { type: "text", text: recoveryPrefix },
+      ...content,
+    ]
   }
 
   /**
@@ -154,6 +207,7 @@ export class ClaudeCliSession implements CapySession {
   async restart(): Promise<void> {
     await this.kill()
     this.sessionId = crypto.randomUUID()
+    this.interruptedMessages = null
   }
 
   /** Kill the process. */

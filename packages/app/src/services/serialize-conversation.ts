@@ -5,7 +5,10 @@
 
 import type { ChatMessage } from "@capybudget/intelligence"
 
-export function serializeConversation(messages: ChatMessage[], maxChars: number): string {
+export function serializeConversation(
+  messages: readonly ChatMessage[],
+  maxChars: number,
+): string {
   const lines: string[] = []
 
   for (const msg of messages) {
