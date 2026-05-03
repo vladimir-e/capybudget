@@ -1,5 +1,5 @@
 // FileAdapter interface
-export type { FileAdapter } from "./file-adapter";
+export type { FileAdapter, DirEntry, FileStat } from "./file-adapter";
 
 // Repository interfaces
 export type { BudgetRepository } from "./repository";

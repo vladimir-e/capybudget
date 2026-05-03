@@ -23,6 +23,11 @@ export async function writeFile(_path: string, _content: Uint8Array): Promise<vo
   // no-op: demo doesn't write binary files
 }
 
+export async function readFile(_path: string): Promise<Uint8Array> {
+  // no-op: demo doesn't read binary files (no image/PDF imports)
+  return new Uint8Array();
+}
+
 export interface DirEntry {
   name: string;
   isFile: boolean;

@@ -13,6 +13,13 @@ function createMockFileAdapter() {
     writeFile: mockWriteFile,
     rename: mockRename,
     join: (...parts: string[]) => Promise.resolve(parts.join("/")),
+    // Extended ops — unused by csv-repository, stubbed for typecheck.
+    mkdir: vi.fn().mockResolvedValue(undefined),
+    exists: vi.fn().mockResolvedValue(false),
+    readDir: vi.fn().mockResolvedValue([]),
+    appendFile: vi.fn().mockResolvedValue(undefined),
+    remove: vi.fn().mockResolvedValue(undefined),
+    stat: vi.fn().mockResolvedValue({ size: 0, isFile: false, isDirectory: false }),
   };
 
   return { adapter, mockReadFile, mockWriteFile, mockRename };
