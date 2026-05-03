@@ -1,18 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { CategoryPanel } from "@/components/budget/category-panel";
-import { useCategories } from "@/hooks/use-budget-data";
+import { AnalyticsView } from "@/components/budget/analytics/analytics-view";
 
 export const Route = createFileRoute("/budget/categories")({
-  component: CategoriesView,
+  component: AnalyticsView,
 });
-
-function CategoriesView() {
-  const { data: categories = [] } = useCategories();
-
-  return (
-    <div className="p-6 max-w-2xl">
-      <h2 className="text-xl font-semibold mb-4">Categories</h2>
-      <CategoryPanel categories={categories} />
-    </div>
-  );
-}
