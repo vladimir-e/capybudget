@@ -8,6 +8,7 @@ import {
 } from "@/components/ui/popover";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useSetNetWorthExclusions } from "@/hooks/use-account-mutations";
+import { computeToggleExclusions } from "./net-worth-filter-utils";
 
 interface NetWorthFilterProps {
   accounts: Account[];
@@ -29,12 +30,7 @@ export function NetWorthFilter({ accounts }: NetWorthFilterProps) {
     });
 
   function toggle(account: Account, included: boolean) {
-    const next = new Set(
-      accounts.filter((a) => a.excludeFromNetWorth).map((a) => a.id),
-    );
-    if (included) next.delete(account.id);
-    else next.add(account.id);
-    setExclusions.mutate(next);
+    setExclusions.mutate(computeToggleExclusions(accounts, account.id, included));
   }
 
   // Group by type for display.
