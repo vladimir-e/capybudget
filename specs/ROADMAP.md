@@ -255,8 +255,10 @@ The path from current state to a public, signed, auto-updating Alpha release. Or
 ### Features
 
 - [ ] **10.1 — Net Worth account filter**
-  - Per-account `excludeFromNetWorth` flag on `Account` type
-  - Persists via repo; sidebar net worth and Net Worth analytics tab both honor the flag
+  - A cog next to sidebar net worth where user can choose accounts to *exclude* from Net Worth
+  - Any new accounts are included by default
+  - Persists via repo; 
+  - Sidebar net worth and Net Worth analytics tab both honor the flag
 
 - [ ] **10.2 — Monthly Budget tab**
   - Assign monthly amounts per category
