@@ -453,4 +453,101 @@ describe("OpenAiSession", () => {
     await session.kill()
     expect(session.isAlive).toBe(false)
   })
+
+  it("walks an import session through analyze_csv → preview_transform → transform_csv", async () => {
+    queueTurn({
+      toolCallDeltas: [
+        {
+          index: 0,
+          id: "call-1",
+          name: "analyze_csv",
+          argFragments: ['{"filename":', '"2024.csv"}'],
+        },
+      ],
+      finish_reason: "tool_calls",
+    })
+    queueTurn({
+      toolCallDeltas: [
+        {
+          index: 0,
+          id: "call-2",
+          name: "preview_transform",
+          argFragments: ['{"filename":"2024.csv",', '"mapping":{}}'],
+        },
+      ],
+      finish_reason: "tool_calls",
+    })
+    queueTurn({
+      toolCallDeltas: [
+        {
+          index: 0,
+          id: "call-3",
+          name: "transform_csv",
+          argFragments: ['{"filename":"2024.csv",', '"mapping":{}}'],
+        },
+      ],
+      finish_reason: "tool_calls",
+    })
+    queueTurn({
+      textDeltas: ["Done — 42 rows imported."],
+      finish_reason: "stop",
+    })
+
+    mockRunTool
+      .mockResolvedValueOnce(JSON.stringify({ headers: ["Date"], totalRows: 42 }))
+      .mockResolvedValueOnce(JSON.stringify({ transactions: [{ id: "imp-1" }] }))
+      .mockResolvedValueOnce(JSON.stringify({ success: true, stats: { rows: 42 } }))
+
+    const { session, events } = makeSession()
+    await session.send("Process this file.")
+
+    expect(mockRunTool).toHaveBeenNthCalledWith(
+      1,
+      "analyze_csv",
+      { filename: "2024.csv" },
+      expect.objectContaining({ budgetPath: "/budget" }),
+    )
+    expect(mockRunTool).toHaveBeenNthCalledWith(
+      2,
+      "preview_transform",
+      { filename: "2024.csv", mapping: {} },
+      expect.objectContaining({ budgetPath: "/budget" }),
+    )
+    expect(mockRunTool).toHaveBeenNthCalledWith(
+      3,
+      "transform_csv",
+      { filename: "2024.csv", mapping: {} },
+      expect.objectContaining({ budgetPath: "/budget" }),
+    )
+
+    const lines = stdoutLines(events).map((l) => JSON.parse(l))
+    expect(lines[lines.length - 1]).toEqual({ type: "result" })
+  })
+
+  it("forwards multimodal images via image_url and replaces document blocks with a text note", async () => {
+    queueTurn({ textDeltas: ["ok"], finish_reason: "stop" })
+    const { session } = makeSession()
+    await session.send([
+      { type: "text", text: "Receipt extraction" },
+      {
+        type: "image",
+        source: { type: "base64", media_type: "image/png", data: "AAAA" },
+      },
+      {
+        type: "document",
+        source: { type: "base64", media_type: "application/pdf", data: "BBBB" },
+      },
+    ])
+
+    const call = lastCreateCall()
+    const messages = call.messages as Array<{
+      role: string
+      content: unknown
+    }>
+    // First entry is the system message; second is the user turn.
+    expect(messages[0].role).toBe("system")
+    const userBlocks = messages[1].content as Array<{ type: string; text?: string; image_url?: unknown }>
+    expect(userBlocks.map((b) => b.type)).toEqual(["text", "image_url", "text"])
+    expect(userBlocks[2].text).toContain("PDF")
+  })
 })

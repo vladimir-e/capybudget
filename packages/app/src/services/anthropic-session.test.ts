@@ -311,4 +311,90 @@ describe("AnthropicSession", () => {
     await session.kill()
     expect(session.isAlive).toBe(false)
   })
+
+  it("walks an import session through analyze_csv → preview_transform → transform_csv", async () => {
+    // Three turns: each returns the next tool call until end_turn.
+    queueTurn({
+      toolUses: [
+        { id: "tu-analyze", name: "analyze_csv", input: { filename: "2024.csv" } },
+      ],
+      stop_reason: "tool_use",
+    })
+    queueTurn({
+      toolUses: [
+        {
+          id: "tu-preview",
+          name: "preview_transform",
+          input: { filename: "2024.csv", mapping: { kind: "stub" } },
+        },
+      ],
+      stop_reason: "tool_use",
+    })
+    queueTurn({
+      toolUses: [
+        {
+          id: "tu-transform",
+          name: "transform_csv",
+          input: { filename: "2024.csv", mapping: { kind: "stub" } },
+        },
+      ],
+      stop_reason: "tool_use",
+    })
+    queueTurn({
+      textDeltas: ["Done — 42 rows imported."],
+      stop_reason: "end_turn",
+    })
+
+    mockRunTool
+      .mockResolvedValueOnce(JSON.stringify({ headers: ["Date"], totalRows: 42 }))
+      .mockResolvedValueOnce(JSON.stringify({ transactions: [{ id: "imp-1" }] }))
+      .mockResolvedValueOnce(JSON.stringify({ success: true, stats: { rows: 42 } }))
+
+    const { session, events } = makeSession()
+    await session.send("Process this file.")
+
+    expect(mockRunTool).toHaveBeenNthCalledWith(
+      1,
+      "analyze_csv",
+      { filename: "2024.csv" },
+      expect.objectContaining({ budgetPath: "/budget" }),
+    )
+    expect(mockRunTool).toHaveBeenNthCalledWith(
+      2,
+      "preview_transform",
+      expect.objectContaining({ filename: "2024.csv" }),
+      expect.objectContaining({ budgetPath: "/budget" }),
+    )
+    expect(mockRunTool).toHaveBeenNthCalledWith(
+      3,
+      "transform_csv",
+      expect.objectContaining({ filename: "2024.csv" }),
+      expect.objectContaining({ budgetPath: "/budget" }),
+    )
+
+    const lines = stdoutLines(events).map((l) => JSON.parse(l))
+    expect(lines[lines.length - 1]).toEqual({ type: "result" })
+  })
+
+  it("forwards multimodal initial messages (text + image + document) to the SDK", async () => {
+    queueTurn({ textDeltas: ["ok"], stop_reason: "end_turn" })
+    const { session } = makeSession()
+    await session.send([
+      { type: "text", text: "Receipt extraction" },
+      {
+        type: "image",
+        source: { type: "base64", media_type: "image/png", data: "AAAA" },
+      },
+      {
+        type: "document",
+        source: { type: "base64", media_type: "application/pdf", data: "BBBB" },
+      },
+    ])
+
+    const call = lastStreamCall()
+    const messages = call.messages as Array<{ role: string; content: unknown }>
+    expect(messages).toHaveLength(1)
+    const blocks = messages[0].content as Array<{ type: string }>
+    expect(blocks.map((b) => b.type)).toEqual(["text", "image", "document"])
+  })
 })
