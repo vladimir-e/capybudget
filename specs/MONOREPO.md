@@ -27,7 +27,7 @@ Thin deployment targets. Each provides platform adapters and mounts `<App />` fr
 ```
               core
            ↗   ↑   ↖
-  persistence  intelligence
+  persistence ←─ intelligence
        ↑  ↖     ↗  ↑
        │    app     │
        │   ↗   ↖   │
@@ -36,7 +36,10 @@ Thin deployment targets. Each provides platform adapters and mounts `<App />` fr
           mcp ──────┘
 ```
 
-Core depends on nothing. No circular dependencies.
+Core depends on nothing. `intelligence` depends on `persistence` so
+the in-process tool dispatch (used by API-adapter sessions and re-used
+by the MCP server) can take a `BudgetRepository` + `FileAdapter`.
+No circular dependencies.
 
 ## Adapter Pattern
 
@@ -56,11 +59,11 @@ Shells inject adapters via React context providers from `@capybudget/app`.
 
 **`@capybudget/persistence`** — `BudgetRepository` interface, `FileAdapter` interface, `CsvRepository` implementation, CSV parsing with typed coercion, debounced writer. Depends on core for types. The `BudgetRepository` interface is the extension point for future storage backends (database, etc.). `FileAdapter` is specific to the CSV implementation.
 
-**`@capybudget/intelligence`** — `CapySession` interface, stream event types, content block types, system prompt template, context builder. Depends on core for types. See `INTELLIGENCE.md`.
+**`@capybudget/intelligence`** — `CapySession` interface, stream event types, content block types, system prompt template, context builder, tool definitions and in-process dispatch (`runTool`), provider config types, and the `createIntelligenceSession` factory. Depends on core (types) and persistence (`BudgetRepository` + `FileAdapter` for tool dispatch). See `INTELLIGENCE.md`.
 
 **`@capybudget/app`** — all React components (budget UI, capy overlay, shadcn primitives), TanStack Query/Router hooks, Zustand stores, routes, context providers for dependency injection. Depends on core, persistence, intelligence.
 
-**`@capybudget/mcp`** — standalone MCP server with data and render tools. Depends on core and persistence. See `INTELLIGENCE.md`.
+**`@capybudget/mcp`** — standalone MCP server. Thin transport wrapper around `runTool` for data, mutation, and render tools. Continues to own the import + CSV tool handlers locally (refactored to `FileAdapter` in Phase B). Depends on core, persistence, and intelligence. See `INTELLIGENCE.md`.
 
 ## Import Convention
 
