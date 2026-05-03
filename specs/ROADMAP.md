@@ -274,7 +274,13 @@ The path from current state to a public, signed, auto-updating Alpha release. Or
   - Prune missing paths from recents automatically
   - Fix "Reveal in Finder" action
 
-- [ ] **10.5 — Intelligence layer hardening**
+- [x] **10.5a — Provider adapters** (Phase A + Phase B)
+  - Pluggable intelligence layer with three providers: Claude Code CLI, Anthropic API, OpenAI API
+  - In-process tool dispatch for API adapters; MCP server kept for external agents
+  - `/settings` route + provider radio + per-provider config + connection test
+  - Imports work end-to-end on every provider (multimodal images / PDFs in the initial message)
+
+- [ ] **10.5b — Intelligence layer hardening**
   - Review and tighten Capy instructions
   - Make specs available to Capy (so it can troubleshoot — e.g. recommend cleaning `.capy/import` on import issues)
   - Recommend archive over delete for accounts/categories

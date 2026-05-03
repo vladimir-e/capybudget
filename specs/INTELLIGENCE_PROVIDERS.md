@@ -322,3 +322,56 @@ Tests:
 
 - Folds into ROADMAP.md as a new bullet under Phase 10 (after 10.4 — natural place; breaks out 10.5 "Intelligence layer hardening" into "10.5a Provider adapters" + "10.5b Hardening").
 - After it ships, `INTELLIGENCE.md` is rewritten around the adapter model, with a short "Claude Code adapter" section, "Anthropic adapter" section, "OpenAI adapter" section, and a shared "Tool layer" section. This task file is then archived or deleted.
+
+## Phase B — landed
+
+Closed the import-flow gap. All three providers now run normalize + enrich end-to-end.
+
+**Tool layer:**
+- `FileAdapter` interface (`@capybudget/persistence`) extended with `mkdir`, `exists`, `readDir`, `appendFile`, `remove`, `stat`. Both `nodeFileAdapter` (mcp) and `tauriFileAdapter` (app) implement the full surface; the demo `tauri-fs.ts` stub mirrors it with an in-memory map.
+- Import + CSV tool handlers moved from `@capybudget/mcp` to `@capybudget/intelligence/src/tools/handlers/import.ts` and `csv.ts`. Signatures changed from `(budgetPath, args)` to `(ctx: ToolContext, args)`. All filesystem access now goes through `ctx.fileAdapter`.
+- `safeFilePath` no longer relies on Node's sync `path.resolve` — it joins via `fileAdapter.join` and string-prefix-checks against the joined parent directory. Same security guarantee, works on Tauri.
+- New `read_file` handler (`@capybudget/intelligence/src/tools/handlers/read-file.ts`) for API adapters that lack Claude CLI's built-in `Read` tool. Scoped to budget folder + `.capy/import/sources/`.
+- `getToolDefinitions()` now returns the full surface (data + mutation + import + csv + read_file + render). Both transports — MCP server and the in-process API adapters — see the same tools.
+- MCP server (`packages/mcp/src/server.ts`) collapsed to a thin wrapper over `runTool`. The local `IMPORT_HANDLERS` switch is gone; everything routes through dispatch. External agents (Claude Desktop, Cursor) see no behavior change.
+- `papaparse` dependency moved from `@capybudget/mcp` to `@capybudget/intelligence` since the CSV handlers live there now.
+
+**Multimodal import flow:**
+- `MessageContent` extended with a `document` block type (Anthropic-native PDF support).
+- The import screen reads bytes for image / PDF source files via a new `readSourceFileBytes` method on `useImportRepository` and constructs a multimodal `MessageContent` array (text instructions + image / document blocks). The `import-store.startNormalization` API takes an `initialMessage: MessageContent` directly — the screen owns the construction.
+- Anthropic adapter forwards `image` and `document` blocks natively. OpenAI adapter forwards images as `image_url` and replaces `document` blocks with an explanatory text note (the import UI gates PDFs upstream so this is belt-and-suspenders).
+- `IMPORT_SYSTEM_PROMPT` updated: the "use Read tool" instruction is gone. Images and PDFs are described as "attached to your initial message — read them directly."
+
+**UX:**
+- The Phase A "Import requires Claude Code" banner is gone.
+- New banner only shows when the user has dropped a `.pdf` while OpenAI is selected: "PDF imports need a provider with PDF support — switch to Claude Code or Anthropic, or remove the PDF file." The Start button stays disabled until the gate clears.
+
+**Tests:**
+- `packages/intelligence/src/tools/handlers/import.test.ts` — 14 cases covering read/write/append/list + path-traversal protection + auto-create.
+- `packages/intelligence/src/tools/handlers/csv.test.ts` — 10 cases covering analyze / preview / transform (single + append) and the four enrichment tools.
+- `packages/intelligence/src/tools/handlers/read-file.test.ts` — 6 cases covering bare-name + relative-path resolution and traversal rejections.
+- `packages/intelligence/src/tools/handlers/test-utils.ts` — in-memory `MemoryFs` + `FileAdapter` factory shared by all three handler test suites.
+- `packages/app/src/services/anthropic-session.test.ts` and `openai-session.test.ts` each gain two cases: an end-to-end import-flow walk (analyze_csv → preview_transform → transform_csv → done) using the mocked SDK, and a multimodal-forwarding case verifying the text + image + document conversion to provider-native shapes.
+- `packages/intelligence/src/tools/dispatch.test.ts` updated: `isDispatchTool` now positively recognizes import + csv + read_file (was negatively asserted in Phase A).
+- `packages/persistence/src/csv-repository.test.ts` mock adapter expanded to satisfy the extended `FileAdapter` shape.
+
+**Decisions:**
+- Picked **Option A** (extend `FileAdapter` itself) over Option B (separate `ImportFileAdapter`). One fewer interface, every method makes sense for any FS-like adapter, and both implementations had natural mappings.
+- Picked **Option (a)** for OpenAI + PDFs — banner the user, don't try to render PDFs to images client-side. v1-appropriate scope.
+- Cache for `readImportCsv` stays as a module-level Map keyed on file path. Added `__resetEnrichmentCacheForTests` so test isolation doesn't depend on globals leaking. Re-keying on `ctx.budgetPath` was tempting but per-path is exactly the right granularity — and matches the existing invalidation semantics.
+
+**Files touched (high-level):**
+- `packages/persistence/src/file-adapter.ts` (extended interface)
+- `packages/persistence/src/csv-repository.test.ts` (mock adapter)
+- `packages/mcp/src/{server.ts,index.ts,node-file-adapter.ts}` (transport simplified, adapter extended)
+- `packages/mcp/package.json` (papaparse removed)
+- `packages/intelligence/package.json` (papaparse added)
+- `packages/intelligence/src/tools/{definitions.ts,dispatch.ts,index.ts}` (full surface)
+- `packages/intelligence/src/tools/handlers/{import,csv,read-file,test-utils}.ts` + tests (new)
+- `packages/intelligence/src/{import-prompt,types,index}.ts` (multimodal types + prompt updates)
+- `packages/app/src/{services/anthropic-session,services/openai-session,stores/import-store,components/import/import-screen,hooks/use-import-repository}.ts/.tsx` (multimodal forwarding + UI)
+- `src/adapters/tauri-file-adapter.ts` (extended adapter)
+- `apps/demo/src/stubs/tauri-fs.ts` (binary `readFile` stub)
+- `specs/{INTELLIGENCE,INTELLIGENCE_PROVIDERS,IMPORT,ROADMAP}.md`
+
+Old `packages/mcp/src/{import-tools,csv-tools,import-tools.test}.ts` deleted — handlers + tests now live under intelligence.

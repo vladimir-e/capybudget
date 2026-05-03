@@ -1,41 +1,58 @@
 # Intelligence Layer
 
-Capy is an AI financial assistant. The app communicates with AI through the `CapySession` interface defined in `@capybudget/intelligence`. The desktop shell implements this with Claude Code CLI as a subprocess. The app is fully functional without intelligence — it's additive.
+Capy is an AI financial assistant. The intelligence layer is **provider-pluggable**: the renderer talks to a `CapySession` interface in `@capybudget/intelligence`, and a factory selects one of three concrete adapters at runtime — Claude Code CLI, Anthropic API, or OpenAI API — based on user settings. The app is fully functional without intelligence; it's additive.
 
-> Note: see also `INTELLIGENCE_PROVIDERS.md` for the multi-provider refactor (Claude Code, Anthropic API, OpenAI API). This file documents the original Claude-CLI-only architecture and is rewritten around the adapter model after Phase B lands.
+> History: the original implementation was hard-wired to Claude Code. The multi-provider refactor landed across Phases A and B (see `INTELLIGENCE_PROVIDERS.md` for the full plan and round-by-round notes). This file documents the current architecture.
 
 ## Architecture
 
 ```
 ┌──────────────────────────────────────────────┐
-│  Capy Overlay (@capybudget/app)              │
-│  Messages, input, rich content blocks        │
+│  Capy Overlay  +  Import Screen              │
+│  Messages, input, multimodal attachments     │
 └──────────────┬───────────────────────────────┘
                │ CapySession interface
                ▼
-┌──────────────────────────────────────────────┐
-│  Session Adapter (shell-specific)            │
-│  Desktop: Claude CLI via Tauri shell         │
-│  Demo: stub with sample responses            │
-└──────────────┬───────────────────────────────┘
-               │
-               ▼
-┌──────────────────────────────────────────────┐
-│  MCP Server (@capybudget/mcp, standalone)    │
-└──────────────┬───────────────────────────────┘
-               │
-               ▼
-┌──────────────────────────────────────────────┐
-│  Budget Data (via @capybudget/persistence)   │
-└──────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────┐
+│  createIntelligenceSession(config, opts)                     │
+│  ┌────────────────┐  ┌────────────────┐  ┌────────────────┐  │
+│  │ ClaudeCliSession│  │AnthropicSession│  │ OpenAiSession  │  │
+│  │ subprocess+MCP  │  │ in-process loop│  │ in-process loop│  │
+│  └────────┬────────┘  └────────┬───────┘  └────────┬───────┘  │
+└───────────┼────────────────────┼───────────────────┼──────────┘
+            │                    │                   │
+            ▼                    ▼                   ▼
+┌──────────────────────┐  ┌─────────────────────────────────────┐
+│ MCP server           │  │ runTool() — in-process dispatch     │
+│ (@capybudget/mcp)    │  │ data + mutation + import + csv +    │
+│ stdio + node fs      │  │ read_file + render handlers         │
+└──────────┬───────────┘  └──────────┬──────────────────────────┘
+           │                         │
+           ▼                         ▼
+        ┌──────────────────────────────┐
+        │  ToolContext                 │
+        │  { repo, fileAdapter, path } │
+        └──────────────┬───────────────┘
+                       ▼
+        ┌──────────────────────────────┐
+        │  Budget Data                 │
+        │  via @capybudget/persistence │
+        └──────────────────────────────┘
 ```
+
+Two transport models share a single tool layer:
+
+- **Claude Code adapter** spawns the `claude` CLI as a subprocess and routes all tool calls through the MCP server (`@capybudget/mcp`), which uses node `fs`.
+- **API adapters** run the agentic loop in the renderer and dispatch tool calls **in-process** via `runTool` from `@capybudget/intelligence/tools/dispatch.ts`. They use the Tauri `fs` adapter for the same handlers — same `ToolContext` shape, different `FileAdapter` implementation.
+
+The tool handlers (data, mutation, import, csv, read_file, render) live in `@capybudget/intelligence/src/tools/handlers/` and don't know which transport called them.
 
 ## Session Interface
 
 `CapySession` in `@capybudget/intelligence` defines the contract:
 
-- `send(content)` — send user message (`MessageContent`: plain string or multimodal array with text + base64 images)
-- `stop()` — interrupt current response (kills process, preserves messages)
+- `send(content)` — send user message (`MessageContent`: plain string or array of text / image / document blocks)
+- `stop()` — interrupt current response (provider-specific: CLI kills the subprocess; API adapters abort the in-flight request)
 - `restart()` — kill session and start fresh
 - `kill()` — terminate
 - `onEvent(callback)` — receive stream events
@@ -59,20 +76,22 @@ Capy is an AI financial assistant. The app communicates with AI through the `Cap
 | `tool-activity` | Tool name (persists in chat history) |
 | `file-attachment` | File name, size, mediaType (rendered as chip) |
 
-`BlockRenderer` routes each block to its specialized renderer. New types are added by extending the union and adding a renderer.
+`BlockRenderer` routes each block to its specialized renderer.
 
 ### Streaming Behavior
 
 Content blocks are **append-only** in the UI:
-- Text blocks: cumulative growth detected by prefix matching — the last text block is updated in-place. New text (from a different sub-message) is appended as a separate block.
-- Non-text blocks (tool activity, tables, charts): always appended, never replaced.
-- Between sub-messages (after tool results), Claude CLI starts a fresh cumulative array. The handler detects this and appends rather than replacing.
+- Text blocks: cumulative growth detected by prefix matching — the last text block is updated in-place.
+- Non-text blocks (tool activity, tables, charts): always appended.
+- After tool results, fresh blocks emit a new sub-message; the handler appends rather than replaces.
 
-## Desktop Adapter: Claude CLI
+API adapters synthesize the same Claude-CLI stream-json `assistant` / `result` / `error` lines, so `parseStreamLine` and the cumulative-text merging in `use-capy-session` / `appendNormalizeBlock` work identically across all providers.
 
-The desktop shell spawns Claude Code CLI as a long-lived subprocess via Tauri's shell plugin.
+## Adapters
 
-### CLI Flags
+### Claude Code adapter
+
+Implementation: `packages/app/src/services/claude-cli-session.ts`. Spawns `claude` via Tauri's shell plugin with these flags:
 
 - `-p` — pipe mode
 - `--input-format stream-json` / `--output-format stream-json`
@@ -82,61 +101,65 @@ The desktop shell spawns Claude Code CLI as a long-lived subprocess via Tauri's 
 - `--add-dir <budget-path>` — grant Read access to the budget folder
 - `--setting-sources ""` — skip CLAUDE.md files
 
-### Process Lifecycle
+Lifecycle: spawn lazily on first message, fresh session ID per spawn, process survives overlay close/reopen, `kill()` ends it. Stop / restart recovery (serialize prior conversation, prepend `[Previous conversation]` on next send) lives inside this class — API adapters get a simpler abort-and-continue model.
 
-- Spawn on first message (lazy, not on overlay open)
-- Fresh session ID (UUID) on each spawn
-- Process stays alive regardless of overlay state — close/reopen preserves conversation
-- "New Chat" kills and respawns with fresh session ID
-- On budget close: kill process
+### Anthropic adapter
 
-### Stop & Session Recovery
+Implementation: `packages/app/src/services/anthropic-session.ts`. Direct `@anthropic-ai/sdk` calls from the renderer (Tauri webview is a real browser; SDK runs with `dangerouslyAllowBrowser: true` since the key is the user's own).
 
-When the user stops a response:
-1. Process is killed, new session ID generated
-2. UI shows "Session interrupted" separator
-3. Next message serializes previous conversation (~5K chars of text + tool activity) and prepends it as `[Previous conversation]` context
-4. Claude receives the context and can pick up the conversation or ask for clarification
+The agentic loop owns message history and an `AbortController`. Tool calls dispatch to `runTool` in-process. PDFs ride through the SDK's native `document` content type.
 
-### Error Recovery
+`stop()` aborts the in-flight `messages.stream()` and drops any trailing assistant turn with unmatched `tool_use` blocks (the API would 400 on the next request otherwise).
 
-When the process dies unexpectedly:
-1. Detect via process exit event
-2. Show notice prompting user to send a message
-3. Next `send()` lazily spawns a fresh process
-4. Chat keeps old messages for display, but AI conversation starts fresh
+### OpenAI adapter
 
-No retry logic, no history replay. A crash is a clean slate.
+Implementation: `packages/app/src/services/openai-session.ts`. Uses `chat.completions.create` with `stream: true` — the stable, broadly-compatible endpoint across the GPT-4 family, GPT-4o, GPT-4.1, GPT-5.
 
-### Streaming Protocol (CLI-specific)
+Notable protocol deltas vs Anthropic, handled inline:
+- Tools wrapped as `{ type: "function", function: {...} }`
+- Tool calls stream as deltas keyed by `index`; arguments arrive as a JSON string sliced across many chunks. A per-index accumulator collects fragments; `JSON.parse` only after the stream finishes.
+- Tool results appended as `{ role: "tool", tool_call_id, content }` messages.
+- Images convert to `{ type: "image_url", image_url: { url: "data:..." } }`.
+- System prompt is a `{ role: "system" }` message at the head of each request.
+- `delta.content` is non-cumulative — accumulated locally before emit.
 
-Sending (stdin) — plain text:
-```json
-{"type":"user","message":{"role":"user","content":"What did I spend on food?"}}
-```
+PDFs aren't supported on chat.completions; the import UI gates this upstream (banner: switch to Anthropic or remove the PDF). If a `document` block reaches `toOpenAiUserContent` anyway, it's replaced with an explanatory text block so the model still gets a coherent message.
 
-Sending (stdin) — multimodal (text + image):
-```json
-{"type":"user","message":{"role":"user","content":[{"type":"text","text":"What's on this receipt?"},{"type":"image","source":{"type":"base64","media_type":"image/png","data":"..."}}]}}
-```
+## Tool Layer
 
-Receiving (stdout) — each line is a JSON object:
+Single source of truth at `@capybudget/intelligence/src/tools/`:
 
-| `type` | Action |
-|---|---|
-| `assistant` | Extract content blocks from `.message.content[]` |
-| `result` | Mark turn complete |
-| `error` | Show error in chat |
+- `definitions.ts` — tool descriptors (name, description, JSON-Schema input). Both transports consume `getToolDefinitions()` for ListTools / SDK tool config.
+- `dispatch.ts` — `runTool(name, input, ctx) → string`. The MCP server and the API adapters call this with the same signature. `ToolContext` is `{ repo, fileAdapter, budgetPath }`.
+- `handlers/` — per-tool implementations:
+  - `data.ts` — `list_accounts`, `list_transactions`, `list_categories`, `spending_summary`, `search_merchants`
+  - `mutation.ts` — full CRUD for transactions / accounts / categories plus `assign_categories`
+  - `import.ts` — `read_import_file`, `write_import_file`, `append_import_file`, `list_import_files` (over `.capy/import/`)
+  - `csv.ts` — `analyze_csv`, `preview_transform`, `transform_csv`, `auto_enrich`, `enrich_stats`, `enrich_sample`, `enrich_update`
+  - `read-file.ts` — `read_file` (generic budget-folder text reader; mirrors what Claude CLI's built-in `Read` provides natively)
+  - render is a no-op on dispatch — render tools (`render_*`) return `"Rendered."` and the frontend intercepts the `tool_use` event before dispatch sees it.
 
-Content blocks within `assistant` messages:
-- `text` — cumulative text
-- `tool_use` — MCP tool call (render tool → content block, data tool → tool-activity block)
+All filesystem access goes through the `FileAdapter` on the context, so the same handler runs against node fs (MCP server) and Tauri fs (API adapters in the renderer).
 
-## MCP Server
+The `FileAdapter` interface (`@capybudget/persistence`) covers core CSV repo ops (read/write/rename/join) plus the import-handler ops (`mkdir`, `exists`, `readDir`, `appendFile`, `remove`, `stat`).
 
-`@capybudget/mcp` is a standalone TypeScript MCP server communicating over stdio. It works with any MCP-compatible AI agent — Claude Desktop, Cursor, VS Code Copilot, or any tool supporting the protocol.
+### Mutation cache invalidation
 
-The desktop app spawns it automatically. External agents configure it manually:
+When the app detects mutation tool activity during a turn, it invalidates the repo's in-memory cache and React Query data on turn completion — so the UI reflects Claude's changes. `MUTATION_TOOL_NAMES` exposes the set of names to watch.
+
+### Render tools
+
+| Tool | Input | Renders as |
+|---|---|---|
+| `render_table` | `{ headers, rows }` | Data table with amount coloring |
+| `render_bar_chart` | `{ title, data: [{label, value}] }` | Horizontal bar chart |
+| `render_donut_chart` | `{ title, data: [{label, value}] }` | SVG donut chart with legend |
+
+No-ops on the dispatch side — they carry structured data from AI to frontend via `tool_use` events.
+
+## MCP Server (External Agents)
+
+`@capybudget/mcp` is a thin transport: it wires `getToolDefinitions()` to ListTools and `runTool()` to CallTool. Same surface as the in-process API adapters dispatch — Claude Desktop / Cursor / VS Code Copilot users see identical tool behavior.
 
 ```json
 {
@@ -150,25 +173,23 @@ The desktop app spawns it automatically. External agents configure it manually:
 }
 ```
 
-### Tools
+`immediate: true` on the repository — writes flush to disk before returning tool results. SIGTERM/SIGINT call `repo.dispose()` for graceful shutdown.
 
-Data tools (read-only): `list_accounts`, `list_transactions`, `list_categories`, `spending_summary`, `search_merchants`.
+## Settings
 
-Mutation tools (write): full CRUD for transactions, accounts, and categories plus `assign_categories` for bulk operations. All mutations reuse `@capybudget/core` pure functions. See `packages/intelligence/src/tools/handlers/data.ts` and `mutation.ts` for the complete list and schemas.
+User-facing config persists via `@tauri-apps/plugin-store` (file-based, `appConfigDir`):
 
-The MCP server runs with `immediate: true` on the repository — writes flush to disk before returning tool results. SIGTERM/SIGINT handlers call `repo.dispose()` for graceful shutdown.
+```ts
+interface IntelligenceConfig {
+  provider: "claude-cli" | "anthropic" | "openai" | null
+  anthropic: { apiKey: string; model: string }
+  openai:    { apiKey: string; model: string }
+}
+```
 
-When the app detects mutation tool activity during a turn, it invalidates the repo's in-memory cache and React Query data on turn completion — so the UI reflects Claude's changes.
+The `/settings` route renders a provider radio + per-provider config (API key, model dropdown, custom-model toggle, test-connection button). Claude Code is auto-detected via `claude --version` and disabled if not installed.
 
-### Render Tools
-
-| Tool | Input | Renders as |
-|---|---|---|
-| `render_table` | `{ headers, rows }` | Data table with amount coloring |
-| `render_bar_chart` | `{ title, data: [{label, value}] }` | Horizontal bar chart |
-| `render_donut_chart` | `{ title, data: [{label, value}] }` | SVG donut chart with legend |
-
-No-ops on the server — they carry structured data from AI to frontend via tool_use events. The system prompt instructs the AI to use render tools for structured data rather than markdown tables.
+When `provider == null`, the Capy overlay shows an empty-state CTA instead of the chat UI.
 
 ## Context Enrichment
 
@@ -199,7 +220,7 @@ User-provided, takes effect on next session.
 
 ## Custom Commands
 
-Quick command templates stored as `capy-commands.json` in the budget folder. 3 defaults provided (spending breakdown, subscriptions audit, savings rate). Users can add, edit, and delete commands. Sorted alphabetically.
+Quick command templates stored as `capy-commands.json` in the budget folder. 3 defaults provided (spending breakdown, subscriptions audit, savings rate). Sorted alphabetically.
 
 ## System Prompt
 
@@ -215,12 +236,31 @@ Includes a complete data model description and tool reference so the AI interpre
 
 ## Import Sessions
 
-Smart Import uses two sequential AI sessions, each with a focused prompt:
+Smart Import uses two sequential AI sessions, each with a focused prompt. Both work on every provider after Phase B.
 
-1. **Normalize** (`IMPORT_SYSTEM_PROMPT`): Takes dropped files, detects format, extracts transactions into a uniform CSV. Leaves enrichment columns (`merchant`, `accountId`, `categoryId`, `categoryConfidence`) empty.
+### Normalize (`IMPORT_SYSTEM_PROMPT`)
 
-2. **Enrich** (`ENRICH_SYSTEM_PROMPT`): Reads the normalized CSV, identifies merchants, matches accounts, and categorizes transactions using `search_merchants`, `list_accounts`, and `list_categories`. Runs automatically after normalization; can be re-triggered manually.
+Takes dropped files, detects format, extracts transactions into a uniform CSV. Leaves enrichment columns empty.
+
+- **Text sources (CSV / OFX / etc.)** are listed by name in the initial message; the agent calls `analyze_csv` → `preview_transform` → `transform_csv` to process them in code.
+- **Images and PDFs** ride into the **initial user message as multimodal blocks** — image bytes become `image` content (rendered as `image_url` for OpenAI), PDF bytes become `document` content (Anthropic + Claude CLI only). The agent reads them directly from the message and calls `write_import_file` / `append_import_file` to record extracted rows. No Read-tool round-trip — that path was Claude-CLI-only and didn't translate cleanly to the API adapters' tool-result shapes.
+
+OpenAI doesn't accept PDFs on `chat.completions`; the import UI gates this with a "switch provider or remove the PDF" banner before the session starts.
+
+### Enrich (`ENRICH_SYSTEM_PROMPT`)
+
+Reads the normalized CSV, identifies merchants, matches accounts, and categorizes transactions using a mix of code-driven helpers (`auto_enrich` does fuzzy category and account matching in one pass) and bulk SQL-UPDATE-style calls (`enrich_update`). Runs automatically after normalization; can be re-triggered manually.
 
 The `categoryConfidence` field coordinates between AI and user: enrichment writes `"high"` (merchant history match) or `"low"` (keyword inference), and skips rows where confidence is `"high"` (user-confirmed). The UI shows a confidence dot indicator next to each category.
 
-Both sessions use the same `CapySession` interface and `buildContext` enrichment. They are managed by `useImportSession` and `useEnrichSession` hooks respectively.
+Both sessions use the same `CapySession` interface and the same tool surface — only the system prompt changes.
+
+## Per-provider Stop / Restart
+
+| | Claude CLI | Anthropic + OpenAI |
+|---|---|---|
+| `stop()` | kill subprocess + new session ID; serialize prior chat and prepend on next send | abort in-flight request; drop trailing assistant turn with unmatched tool calls; messages otherwise intact |
+| `restart()` | kill + new session ID + clear recovery state | abort + clear messages |
+| Recovery on next send | `[Previous conversation]` block prepended | continues normally |
+
+The recovery dance is unique to the CLI (it can't reliably resume a session interrupted mid-turn). API adapters get a clean model because `AbortController` doesn't leave them in an ambiguous state.

@@ -23,7 +23,9 @@ Start triggers intelligence. The agent reads the same custom instructions as the
 The agent converts dropped files into a uniform internal CSV format, stored in `.capy/import/transactions.csv`. Two normalization paths:
 
 - **CSV files**: AI analyzes a sample via `analyze_csv`, defines a `CsvMapping` (column positions, date format, amount format, skip rows), previews via `preview_transform`, then executes `transform_csv`. All rows processed instantly in code — no AI per-row processing. When multiple CSVs are imported, each `transform_csv` call appends to the existing `transactions.csv` with continuing IDs.
-- **Images/PDFs**: AI reads files from disk, extracts transactions manually. Suitable for small-volume imports (receipts, statements).
+- **Images/PDFs**: bytes ride into the **initial user message as multimodal content** — image blocks for PNG/JPG/etc., document blocks for PDFs. The agent reads them directly from the message (no Read-tool round-trip) and writes extracted rows via `write_import_file` / `append_import_file`. Suitable for small-volume imports (receipts, statements).
+
+OpenAI's chat.completions API doesn't accept PDF input. When the OpenAI provider is selected and the user has dropped a `.pdf`, the import screen banners "switch provider or remove the PDF" and disables Start until the gate clears.
 
 #### Import CSV Schema
 
