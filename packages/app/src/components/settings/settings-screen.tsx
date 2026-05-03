@@ -35,8 +35,8 @@ import { useIntelligenceStore } from "@/stores/intelligence-store"
 import type { IntelligenceProvider } from "@capybudget/intelligence"
 
 const ANTHROPIC_MODELS = [
-  { value: "claude-opus-4-1", label: "Claude Opus 4.1" },
-  { value: "claude-sonnet-4-5", label: "Claude Sonnet 4.5" },
+  { value: "claude-opus-4-7", label: "Claude Opus 4.7" },
+  { value: "claude-sonnet-4-6", label: "Claude Sonnet 4.6" },
   { value: "claude-haiku-4-5", label: "Claude Haiku 4.5" },
 ]
 
@@ -436,19 +436,12 @@ function ApiProviderConfig({
       setLastSyncedKey(draftKey)
     }
     setTestState({ kind: "running" })
-    try {
-      const result = await pingApi(providerKey, draftKey, model)
-      if (result.ok) {
-        setTestState({ kind: "success" })
-        setTimeout(() => setTestState({ kind: "idle" }), 3000)
-      } else {
-        setTestState({ kind: "error", message: result.message })
-      }
-    } catch (err) {
-      setTestState({
-        kind: "error",
-        message: err instanceof Error ? err.message : "Connection failed",
-      })
+    const result = await pingApi(providerKey, draftKey, model)
+    if (result.ok) {
+      setTestState({ kind: "success" })
+      setTimeout(() => setTestState({ kind: "idle" }), 3000)
+    } else {
+      setTestState({ kind: "error", message: result.message })
     }
   }
 
@@ -646,23 +639,37 @@ async function pingApi(
 }
 
 async function pingAnthropic(apiKey: string, model: string): Promise<PingResult> {
-  const { default: Anthropic } = await import("@anthropic-ai/sdk")
-  const client = new Anthropic({ apiKey, dangerouslyAllowBrowser: true })
-  await client.messages.create({
-    model: model || "claude-sonnet-4-5",
-    max_tokens: 8,
-    messages: [{ role: "user", content: "Hi" }],
-  })
-  return { ok: true, message: "" }
+  try {
+    const { default: Anthropic } = await import("@anthropic-ai/sdk")
+    const client = new Anthropic({ apiKey, dangerouslyAllowBrowser: true })
+    await client.messages.create({
+      model: model || "claude-sonnet-4-6",
+      max_tokens: 8,
+      messages: [{ role: "user", content: "Hi" }],
+    })
+    return { ok: true, message: "" }
+  } catch (err) {
+    return {
+      ok: false,
+      message: err instanceof Error ? err.message : "Connection failed",
+    }
+  }
 }
 
 async function pingOpenAi(apiKey: string, model: string): Promise<PingResult> {
-  const { default: OpenAI } = await import("openai")
-  const client = new OpenAI({ apiKey, dangerouslyAllowBrowser: true })
-  await client.chat.completions.create({
-    model: model || "gpt-5",
-    max_tokens: 8,
-    messages: [{ role: "user", content: "Hi" }],
-  })
-  return { ok: true, message: "" }
+  try {
+    const { default: OpenAI } = await import("openai")
+    const client = new OpenAI({ apiKey, dangerouslyAllowBrowser: true })
+    await client.chat.completions.create({
+      model: model || "gpt-5",
+      max_tokens: 8,
+      messages: [{ role: "user", content: "Hi" }],
+    })
+    return { ok: true, message: "" }
+  } catch (err) {
+    return {
+      ok: false,
+      message: err instanceof Error ? err.message : "Connection failed",
+    }
+  }
 }
