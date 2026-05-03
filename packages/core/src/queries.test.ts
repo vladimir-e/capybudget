@@ -11,13 +11,13 @@ import type { Account, Transaction } from "./types";
 // ── Test fixtures (self-contained, no external deps) ─────
 
 const ACCOUNTS: Account[] = [
-  { id: "acc-cash-01", name: "Cash Wallet", type: "cash", archived: false, sortOrder: 0, createdAt: "2026-01-01T00:00:00.000Z" },
-  { id: "acc-checking-01", name: "BofA Checking", type: "checking", archived: false, sortOrder: 0, createdAt: "2026-01-01T00:00:00.000Z" },
-  { id: "acc-savings-01", name: "High Yield Savings", type: "savings", archived: false, sortOrder: 0, createdAt: "2026-01-01T00:00:00.000Z" },
-  { id: "acc-credit-01", name: "Chase Sapphire", type: "credit_card", archived: false, sortOrder: 0, createdAt: "2026-01-01T00:00:00.000Z" },
-  { id: "acc-loan-01", name: "Student Loan", type: "loan", archived: false, sortOrder: 0, createdAt: "2026-01-01T00:00:00.000Z" },
-  { id: "acc-crypto-01", name: "Coinbase", type: "crypto", archived: false, sortOrder: 0, createdAt: "2026-01-01T00:00:00.000Z" },
-  { id: "acc-checking-old", name: "Old Wells Fargo", type: "checking", archived: true, sortOrder: 0, createdAt: "2025-06-01T00:00:00.000Z" },
+  { id: "acc-cash-01", name: "Cash Wallet", type: "cash", archived: false, excludeFromNetWorth: false, sortOrder: 0, createdAt: "2026-01-01T00:00:00.000Z" },
+  { id: "acc-checking-01", name: "BofA Checking", type: "checking", archived: false, excludeFromNetWorth: false, sortOrder: 0, createdAt: "2026-01-01T00:00:00.000Z" },
+  { id: "acc-savings-01", name: "High Yield Savings", type: "savings", archived: false, excludeFromNetWorth: false, sortOrder: 0, createdAt: "2026-01-01T00:00:00.000Z" },
+  { id: "acc-credit-01", name: "Chase Sapphire", type: "credit_card", archived: false, excludeFromNetWorth: false, sortOrder: 0, createdAt: "2026-01-01T00:00:00.000Z" },
+  { id: "acc-loan-01", name: "Student Loan", type: "loan", archived: false, excludeFromNetWorth: false, sortOrder: 0, createdAt: "2026-01-01T00:00:00.000Z" },
+  { id: "acc-crypto-01", name: "Coinbase", type: "crypto", archived: false, excludeFromNetWorth: false, sortOrder: 0, createdAt: "2026-01-01T00:00:00.000Z" },
+  { id: "acc-checking-old", name: "Old Wells Fargo", type: "checking", archived: true, excludeFromNetWorth: false, sortOrder: 0, createdAt: "2025-06-01T00:00:00.000Z" },
 ];
 
 const txn = (overrides: Partial<Transaction> & Pick<Transaction, "id" | "amount" | "accountId">): Transaction => ({
@@ -81,7 +81,7 @@ describe("getAccountsByGroup", () => {
   it("excludes archived accounts", () => {
     const archived = [
       ...ACCOUNTS,
-      { id: "arc-1", name: "Old", type: "checking" as const, archived: true, sortOrder: 99, createdAt: "" },
+      { id: "arc-1", name: "Old", type: "checking" as const, archived: true, excludeFromNetWorth: false, sortOrder: 99, createdAt: "" },
     ];
     const groups = getAccountsByGroup(archived);
     const checking = groups.get("checking")!;
@@ -105,6 +105,25 @@ describe("getNetWorth", () => {
   it("sums non-archived account balances", () => {
     const netWorth = getNetWorth(ACCOUNTS, TRANSACTIONS);
     // Cash: 16500, Checking: 450000, Savings: 100000, Credit: -73798, Loan: -50000, Crypto: 0
+    expect(netWorth).toBe(16500 + 450000 + 100000 + -73798 + -50000);
+  });
+
+  it("excludes accounts with excludeFromNetWorth=true", () => {
+    const accounts = ACCOUNTS.map((a) =>
+      a.id === "acc-loan-01" ? { ...a, excludeFromNetWorth: true } : a,
+    );
+    const netWorth = getNetWorth(accounts, TRANSACTIONS);
+    // Loan (-50000) is now excluded → net worth goes up by 50000
+    expect(netWorth).toBe(16500 + 450000 + 100000 + -73798);
+  });
+
+  it("excludes archived accounts even when excludeFromNetWorth=false", () => {
+    // Archived alone is sufficient — the existing acc-checking-old is archived.
+    // Sanity-check: flipping its excludeFromNetWorth doesn't change anything.
+    const accounts = ACCOUNTS.map((a) =>
+      a.id === "acc-checking-old" ? { ...a, excludeFromNetWorth: false } : a,
+    );
+    const netWorth = getNetWorth(accounts, TRANSACTIONS);
     expect(netWorth).toBe(16500 + 450000 + 100000 + -73798 + -50000);
   });
 });

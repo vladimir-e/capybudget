@@ -3,10 +3,10 @@ import type { DemoPreset } from "./helpers";
 import { createCategories, catId, createTxnFactory, linkTransferPairs } from "./helpers";
 
 const accounts: Account[] = [
-  { id: "uw-checking", name: "Checking", type: "checking", archived: false, sortOrder: 0, createdAt: "2026-01-01T00:00:00Z" },
-  { id: "uw-credit", name: "Credit Card", type: "credit_card", archived: false, sortOrder: 1, createdAt: "2026-01-01T00:00:00Z" },
-  { id: "uw-loan", name: "Student Loan", type: "loan", archived: false, sortOrder: 2, createdAt: "2026-01-01T00:00:00Z" },
-  { id: "uw-cash", name: "Cash", type: "cash", archived: false, sortOrder: 3, createdAt: "2026-01-01T00:00:00Z" },
+  { id: "uw-checking", name: "Checking", type: "checking", archived: false, excludeFromNetWorth: false, sortOrder: 0, createdAt: "2026-01-01T00:00:00Z" },
+  { id: "uw-credit", name: "Credit Card", type: "credit_card", archived: false, excludeFromNetWorth: false, sortOrder: 1, createdAt: "2026-01-01T00:00:00Z" },
+  { id: "uw-loan", name: "Student Loan", type: "loan", archived: false, excludeFromNetWorth: false, sortOrder: 2, createdAt: "2026-01-01T00:00:00Z" },
+  { id: "uw-cash", name: "Cash", type: "cash", archived: false, excludeFromNetWorth: false, sortOrder: 3, createdAt: "2026-01-01T00:00:00Z" },
 ];
 
 const categories = createCategories();

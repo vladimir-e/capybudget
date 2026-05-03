@@ -3,8 +3,8 @@ import { filterTransactions, sortTransactions, type TransactionFilterCriteria, t
 import type { Account, Category, Transaction } from "@capybudget/core";
 
 const accounts: Account[] = [
-  { id: "acc-1", name: "Checking", type: "checking", archived: false, sortOrder: 0, createdAt: "" },
-  { id: "acc-2", name: "Savings", type: "savings", archived: false, sortOrder: 0, createdAt: "" },
+  { id: "acc-1", name: "Checking", type: "checking", archived: false, excludeFromNetWorth: false, sortOrder: 0, createdAt: "" },
+  { id: "acc-2", name: "Savings", type: "savings", archived: false, excludeFromNetWorth: false, sortOrder: 0, createdAt: "" },
 ];
 
 const categories: Category[] = [
@@ -126,8 +126,8 @@ describe("filterTransactions", () => {
 
 describe("sortTransactions", () => {
   const sortAccounts: Account[] = [
-    { id: "acc-a", name: "Alpha", type: "checking", archived: false, sortOrder: 0, createdAt: "" },
-    { id: "acc-b", name: "Beta", type: "savings", archived: false, sortOrder: 0, createdAt: "" },
+    { id: "acc-a", name: "Alpha", type: "checking", archived: false, excludeFromNetWorth: false, sortOrder: 0, createdAt: "" },
+    { id: "acc-b", name: "Beta", type: "savings", archived: false, excludeFromNetWorth: false, sortOrder: 0, createdAt: "" },
   ];
 
   const sortCategories: Category[] = [

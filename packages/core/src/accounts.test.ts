@@ -6,6 +6,7 @@ import {
   deleteAccount,
   archiveAccount,
   unarchiveAccount,
+  setNetWorthExclusions,
 } from "./accounts";
 import type { Account, Transaction } from "./types";
 
@@ -15,6 +16,7 @@ function makeAccount(overrides: Partial<Account> = {}): Account {
     name: "Test Account",
     type: "checking",
     archived: false,
+    excludeFromNetWorth: false,
     sortOrder: 1,
     createdAt: "2026-01-01T00:00:00.000Z",
     ...overrides,
@@ -43,6 +45,11 @@ describe("createAccount", () => {
     expect(account.id).toBeTruthy();
     expect(account.createdAt).toBeTruthy();
     expect(account.archived).toBe(false);
+  });
+
+  it("defaults excludeFromNetWorth to false", () => {
+    const account = createAccount({ name: "Cash", type: "cash" }, []);
+    expect(account.excludeFromNetWorth).toBe(false);
   });
 
   it("sets sortOrder to 1 when no accounts of that type exist", () => {
@@ -238,5 +245,40 @@ describe("unarchiveAccount", () => {
     const result = unarchiveAccount("acc-1", [acc1, acc2]);
     expect(result[0].archived).toBe(false);
     expect(result[1].archived).toBe(true);
+  });
+});
+
+describe("setNetWorthExclusions", () => {
+  it("excludes ids in the set, includes everything else", () => {
+    const accounts = [
+      makeAccount({ id: "acc-1", excludeFromNetWorth: false }),
+      makeAccount({ id: "acc-2", excludeFromNetWorth: false }),
+      makeAccount({ id: "acc-3", excludeFromNetWorth: false }),
+    ];
+    const result = setNetWorthExclusions(new Set(["acc-2"]), accounts);
+    expect(result[0].excludeFromNetWorth).toBe(false);
+    expect(result[1].excludeFromNetWorth).toBe(true);
+    expect(result[2].excludeFromNetWorth).toBe(false);
+  });
+
+  it("re-includes accounts no longer in the set", () => {
+    const accounts = [
+      makeAccount({ id: "acc-1", excludeFromNetWorth: true }),
+      makeAccount({ id: "acc-2", excludeFromNetWorth: true }),
+    ];
+    const result = setNetWorthExclusions(new Set(["acc-2"]), accounts);
+    expect(result[0].excludeFromNetWorth).toBe(false);
+    expect(result[1].excludeFromNetWorth).toBe(true);
+  });
+
+  it("preserves identity for unchanged accounts", () => {
+    const accounts = [
+      makeAccount({ id: "acc-1", excludeFromNetWorth: false }),
+      makeAccount({ id: "acc-2", excludeFromNetWorth: true }),
+    ];
+    const result = setNetWorthExclusions(new Set(["acc-2"]), accounts);
+    // Both accounts already match the desired state — same object refs.
+    expect(result[0]).toBe(accounts[0]);
+    expect(result[1]).toBe(accounts[1]);
   });
 });

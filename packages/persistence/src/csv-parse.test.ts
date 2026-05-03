@@ -39,6 +39,16 @@ describe("parseCsv", () => {
     expect(result[2].name).toBe("Old");
   });
 
+  it("defaults excludeFromNetWorth to false when the column is absent (legacy CSV)", () => {
+    const csv = [
+      "id,name,type,archived,sortOrder,createdAt",
+      "acc-1,Cash,cash,false,1,2026-01-01T00:00:00.000Z",
+    ].join("\n");
+    const result = parseCsv<Account>(csv, ACCOUNT_COERCE);
+
+    expect(result[0].excludeFromNetWorth).toBe(false);
+  });
+
   it("coerces boolean fields correctly", () => {
     const csv = [
       "id,name,type,archived,sortOrder,createdAt",
@@ -149,14 +159,17 @@ describe("parseCsv", () => {
     expect(result).toEqual([{ id: "row-1", name: "Hello" }]);
   });
 
-  it("ignores coercion keys not present in the row", () => {
+  it("applies coercion for missing columns so new fields get defaults", () => {
+    // Forward-compat: when a budget file predates a new field, the column is
+    // absent from the CSV. The coercion fn is still called with `undefined`
+    // and is responsible for producing a sensible default.
     const csv = "id,name\nrow-1,Test";
-    const coerce: CoercionMap<{ id: string; name: string; missing: number }> = {
-      missing: (v) => parseInt(v, 10),
+    const coerce: CoercionMap<{ id: string; name: string; flag: boolean }> = {
+      flag: (v) => v === "true", // undefined → false
     };
-    const result = parseCsv<{ id: string; name: string }>(csv, coerce);
+    const result = parseCsv<{ id: string; name: string; flag: boolean }>(csv, coerce);
 
-    expect(result).toEqual([{ id: "row-1", name: "Test" }]);
+    expect(result).toEqual([{ id: "row-1", name: "Test", flag: false }]);
   });
 });
 
@@ -226,6 +239,7 @@ describe("round-trip: parseCsv(unparseCsv(data))", () => {
         name: "Checking",
         type: "checking",
         archived: false,
+        excludeFromNetWorth: false,
         sortOrder: 1,
         createdAt: "2026-01-01T00:00:00.000Z",
       },
@@ -234,6 +248,7 @@ describe("round-trip: parseCsv(unparseCsv(data))", () => {
         name: "Savings",
         type: "savings",
         archived: true,
+        excludeFromNetWorth: true,
         sortOrder: 2,
         createdAt: "2026-02-01T00:00:00.000Z",
       },

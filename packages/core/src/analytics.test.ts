@@ -34,9 +34,9 @@ const CATEGORIES: Category[] = [
 ];
 
 const ACCOUNTS: Account[] = [
-  { id: "acc-checking", name: "Checking", type: "checking", archived: false, sortOrder: 0, createdAt: "2026-01-01T00:00:00.000Z" },
-  { id: "acc-savings", name: "Savings", type: "savings", archived: false, sortOrder: 1, createdAt: "2026-01-01T00:00:00.000Z" },
-  { id: "acc-archived", name: "Old Account", type: "checking", archived: true, sortOrder: 2, createdAt: "2025-01-01T00:00:00.000Z" },
+  { id: "acc-checking", name: "Checking", type: "checking", archived: false, excludeFromNetWorth: false, sortOrder: 0, createdAt: "2026-01-01T00:00:00.000Z" },
+  { id: "acc-savings", name: "Savings", type: "savings", archived: false, excludeFromNetWorth: false, sortOrder: 1, createdAt: "2026-01-01T00:00:00.000Z" },
+  { id: "acc-archived", name: "Old Account", type: "checking", archived: true, excludeFromNetWorth: false, sortOrder: 2, createdAt: "2025-01-01T00:00:00.000Z" },
 ];
 
 const TRANSACTIONS: Transaction[] = [
@@ -242,6 +242,20 @@ describe("getNetWorthOverTime", () => {
     // Archived account should not appear in byAccount
     const lastPoint = result[result.length - 1];
     expect(lastPoint.byAccount["acc-archived"]).toBeUndefined();
+  });
+
+  it("excludes accounts with excludeFromNetWorth=true", () => {
+    const accounts = ACCOUNTS.map((a) =>
+      a.id === "acc-savings" ? { ...a, excludeFromNetWorth: true } : a,
+    );
+    const result = getNetWorthOverTime(accounts, TRANSACTIONS, {
+      start: new Date("2026-01-01T00:00:00.000Z"),
+      end: new Date("2026-04-01T00:00:00.000Z"),
+    });
+    const lastPoint = result[result.length - 1];
+    expect(lastPoint.byAccount["acc-savings"]).toBeUndefined();
+    // Without savings, net worth at Apr 1 is just checking's balance: 668000
+    expect(lastPoint.netWorth).toBe(668000);
   });
 
   it("returns single point for very short range", () => {

@@ -21,18 +21,19 @@ function createMockFileAdapter() {
 let mockAdapter: ReturnType<typeof createMockFileAdapter>;
 
 function makeAccountCsv(accounts: Partial<Account>[]): string {
-  const headers = "id,name,type,archived,sortOrder,createdAt";
+  const headers = "id,name,type,archived,excludeFromNetWorth,sortOrder,createdAt";
   const rows = accounts.map((a) => {
     const full: Account = {
       id: "acc-1",
       name: "Cash",
       type: "cash",
       archived: false,
+      excludeFromNetWorth: false,
       sortOrder: 1,
       createdAt: "2026-01-01T00:00:00.000Z",
       ...a,
     };
-    return `${full.id},${full.name},${full.type},${full.archived},${full.sortOrder},${full.createdAt}`;
+    return `${full.id},${full.name},${full.type},${full.archived},${full.excludeFromNetWorth},${full.sortOrder},${full.createdAt}`;
   });
   return [headers, ...rows].join("\n");
 }
@@ -248,6 +249,7 @@ describe("createCsvRepository", () => {
           name: "New",
           type: "savings",
           archived: false,
+          excludeFromNetWorth: false,
           sortOrder: 1,
           createdAt: "2026-02-01T00:00:00.000Z",
         },
@@ -323,6 +325,7 @@ describe("createCsvRepository", () => {
           name: "Test",
           type: "cash",
           archived: false,
+          excludeFromNetWorth: false,
           sortOrder: 1,
           createdAt: "2026-01-01T00:00:00.000Z",
         },
@@ -342,6 +345,7 @@ describe("createCsvRepository", () => {
           name: "Test",
           type: "cash",
           archived: false,
+          excludeFromNetWorth: false,
           sortOrder: 1,
           createdAt: "2026-01-01T00:00:00.000Z",
         },
@@ -364,6 +368,7 @@ describe("createCsvRepository", () => {
           name: "A",
           type: "cash",
           archived: false,
+          excludeFromNetWorth: false,
           sortOrder: 1,
           createdAt: "",
         },
@@ -421,6 +426,7 @@ describe("createCsvRepository", () => {
           name: "A",
           type: "cash",
           archived: false,
+          excludeFromNetWorth: false,
           sortOrder: 1,
           createdAt: "",
         },

@@ -16,7 +16,7 @@ All data lives in a user-chosen folder as plain CSV files. A `budget.json` metad
 
 ```json
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "name": "My Budget",
   "currency": "USD",
   "createdAt": "2026-03-07T12:00:00.000Z",
@@ -32,14 +32,15 @@ The `currency` field determines minor-unit precision for display (2 for USD/EUR,
 
 Every financial entity is an account.
 
-| Field       | Type    | Notes                                                             |
-|-------------|---------|-------------------------------------------------------------------|
-| `id`        | string  | UUID, client-generated                                            |
-| `name`      | string  | User-defined label (e.g. "BofA Checking", "Cash Wallet")         |
-| `type`      | enum    | `cash · checking · savings · credit_card · loan · asset · crypto` |
-| `archived`  | boolean | Excluded from sidebar and net worth when true                     |
-| `sortOrder` | integer | Display ordering                                                  |
-| `createdAt` | string  | ISO 8601                                                          |
+| Field                  | Type    | Notes                                                             |
+|------------------------|---------|-------------------------------------------------------------------|
+| `id`                   | string  | UUID, client-generated                                            |
+| `name`                 | string  | User-defined label (e.g. "BofA Checking", "Cash Wallet")          |
+| `type`                 | enum    | `cash · checking · savings · credit_card · loan · asset · crypto` |
+| `archived`             | boolean | Excluded from sidebar and net worth when true                     |
+| `excludeFromNetWorth`  | boolean | Excluded from Net Worth calculations when true. Defaults to false (new accounts are included). |
+| `sortOrder`            | integer | Display ordering                                                  |
+| `createdAt`            | string  | ISO 8601                                                          |
 
 **No stored balance.** Balance is always derived: sum of all transactions where `accountId` matches. See Architecture for rationale.
 
@@ -123,4 +124,12 @@ A transfer is **two linked transactions** with mutual `transferPairId` reference
 
 ## Schema Migrations
 
-The `schemaVersion` field in `budget.json` drives migrations. On load, the app checks the version and runs sequential migration functions to bring the data up to the current schema. Migrations transform CSV structure in-place.
+The `schemaVersion` field in `budget.json` drives migrations. On load, the app checks the version and runs sequential migration functions to bring the data up to the current schema. Migrations transform CSV structure in-place, then `budget.json` is rewritten with the new version.
+
+Each migration `n → n+1` is a pure-ish function on the budget folder, idempotent (re-running on already-migrated data is a no-op). Migrations live in `src/services/budget-migrations.ts`.
+
+### History
+
+| From → To | Change |
+|-----------|--------|
+| 1 → 2     | Add `excludeFromNetWorth` column to accounts.csv (default `false`). |

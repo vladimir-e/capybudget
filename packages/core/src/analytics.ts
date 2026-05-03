@@ -96,7 +96,9 @@ export function getNetWorthOverTime(
   range: DateRange,
 ): NetWorthPoint[] {
   const activeAccountIds = new Set(
-    accounts.filter((a) => !a.archived).map((a) => a.id),
+    accounts
+      .filter((a) => !a.archived && !a.excludeFromNetWorth)
+      .map((a) => a.id),
   );
 
   // Sort transactions by datetime once

@@ -46,13 +46,14 @@ export function getTransactionsForAccount(
   return transactions.filter((t) => t.accountId === accountId);
 }
 
-/** Net worth = sum of all non-archived account balances. */
+/** Net worth = sum of balances for accounts that are neither archived nor
+ *  excluded from net worth. */
 export function getNetWorth(
   accounts: Account[],
   transactions: Transaction[],
 ): number {
   return accounts
-    .filter((a) => !a.archived)
+    .filter((a) => !a.archived && !a.excludeFromNetWorth)
     .reduce((sum, a) => sum + getAccountBalance(a.id, transactions), 0);
 }
 

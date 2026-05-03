@@ -28,6 +28,7 @@ function makeAccount(overrides: Partial<Account> = {}): Account {
     name: "Existing Account",
     type: "checking",
     archived: false,
+    excludeFromNetWorth: false,
     sortOrder: 1,
     createdAt: "2026-01-01T00:00:00.000Z",
     ...overrides,

@@ -3,17 +3,28 @@ import { join } from "@tauri-apps/api/path";
 import type { BudgetMeta, Category } from "@capybudget/core";
 import { DEFAULT_CATEGORIES } from "@capybudget/core";
 import Papa from "papaparse";
+import { migrateBudgetFolder } from "./budget-migrations";
 
-const SCHEMA_VERSION = 1;
+export const SCHEMA_VERSION = 2;
 const BUDGET_FILE = "budget.json";
 
+/** Detect a budget folder, run any pending schema migrations, and return the
+ *  (possibly updated) BudgetMeta. Returns null if the folder is not a budget. */
 export async function detectBudget(folderPath: string): Promise<BudgetMeta | null> {
   const metaPath = await join(folderPath, BUDGET_FILE);
   const fileExists = await exists(metaPath);
   if (!fileExists) return null;
 
   const raw = await readTextFile(metaPath);
-  return JSON.parse(raw) as BudgetMeta;
+  const meta = JSON.parse(raw) as BudgetMeta;
+
+  if (meta.schemaVersion < SCHEMA_VERSION) {
+    const migrated = await migrateBudgetFolder(folderPath, meta, SCHEMA_VERSION);
+    await writeTextFile(metaPath, JSON.stringify(migrated, null, 2));
+    return migrated;
+  }
+
+  return meta;
 }
 
 export async function bootstrapBudget(folderPath: string, name: string): Promise<BudgetMeta> {
@@ -44,7 +55,7 @@ export async function bootstrapBudget(folderPath: string, name: string): Promise
 
   // Write empty accounts.csv
   const accountsPath = await join(folderPath, "accounts.csv");
-  await writeTextFile(accountsPath, "id,name,type,archived,sortOrder,createdAt");
+  await writeTextFile(accountsPath, "id,name,type,archived,excludeFromNetWorth,sortOrder,createdAt");
 
   // Write empty transactions.csv
   const transactionsPath = await join(folderPath, "transactions.csv");

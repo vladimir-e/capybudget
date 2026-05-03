@@ -23,6 +23,7 @@ export function createAccount(
     name: input.name,
     type: input.type,
     archived: false,
+    excludeFromNetWorth: false,
     sortOrder: maxSort + 1,
     createdAt: new Date().toISOString(),
   };
@@ -122,4 +123,16 @@ export function unarchiveAccount(
   return existing.map((a) =>
     a.id === accountId ? { ...a, archived: false } : a,
   );
+}
+
+/** Apply a complete net-worth-exclusion set: every account whose id is in
+ *  `excludedIds` becomes excluded; every other account becomes included. */
+export function setNetWorthExclusions(
+  excludedIds: Set<string>,
+  existing: Account[],
+): Account[] {
+  return existing.map((a) => {
+    const next = excludedIds.has(a.id);
+    return a.excludeFromNetWorth === next ? a : { ...a, excludeFromNetWorth: next };
+  });
 }

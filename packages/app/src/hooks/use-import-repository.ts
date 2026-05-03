@@ -14,7 +14,7 @@ import { validateImportTransactions } from "@capybudget/core";
 import type { ImportTransaction, ImportAliases, ImportLogEntry } from "@capybudget/core";
 import { useImportPaths } from "./use-import-paths";
 
-const IMPORT_COERCE = { amount: (v: string) => parseInt(v, 10) };
+const IMPORT_COERCE = { amount: (v: string | undefined) => (v === undefined || v === "" ? 0 : parseInt(v, 10)) };
 
 export interface ImportState {
   sourceFiles: string[];

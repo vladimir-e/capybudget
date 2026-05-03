@@ -3,7 +3,7 @@ import { useUndoStore, type Snapshot } from "@/stores/undo-store";
 
 function snap(label: string): Snapshot {
   return {
-    accounts: [{ id: label, name: label, type: "checking", archived: false, sortOrder: 0, createdAt: "" }],
+    accounts: [{ id: label, name: label, type: "checking", archived: false, excludeFromNetWorth: false, sortOrder: 0, createdAt: "" }],
     categories: [],
     transactions: [],
   };

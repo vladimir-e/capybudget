@@ -48,6 +48,7 @@ export {
   archiveAccount,
   reorderAccounts,
   unarchiveAccount,
+  setNetWorthExclusions,
 } from "./accounts";
 
 // Category operations

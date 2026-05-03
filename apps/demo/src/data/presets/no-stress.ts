@@ -3,11 +3,11 @@ import type { DemoPreset } from "./helpers";
 import { createCategories, catId, createTxnFactory, linkTransferPairs } from "./helpers";
 
 const accounts: Account[] = [
-  { id: "ns-checking", name: "Checking", type: "checking", archived: false, sortOrder: 0, createdAt: "2026-01-01T00:00:00Z" },
-  { id: "ns-savings", name: "High-Yield Savings", type: "savings", archived: false, sortOrder: 1, createdAt: "2026-01-01T00:00:00Z" },
-  { id: "ns-brokerage", name: "Brokerage", type: "asset", archived: false, sortOrder: 2, createdAt: "2026-01-01T00:00:00Z" },
-  { id: "ns-credit", name: "Amex Platinum", type: "credit_card", archived: false, sortOrder: 3, createdAt: "2026-01-01T00:00:00Z" },
-  { id: "ns-cash", name: "Cash", type: "cash", archived: false, sortOrder: 4, createdAt: "2026-01-01T00:00:00Z" },
+  { id: "ns-checking", name: "Checking", type: "checking", archived: false, excludeFromNetWorth: false, sortOrder: 0, createdAt: "2026-01-01T00:00:00Z" },
+  { id: "ns-savings", name: "High-Yield Savings", type: "savings", archived: false, excludeFromNetWorth: false, sortOrder: 1, createdAt: "2026-01-01T00:00:00Z" },
+  { id: "ns-brokerage", name: "Brokerage", type: "asset", archived: false, excludeFromNetWorth: false, sortOrder: 2, createdAt: "2026-01-01T00:00:00Z" },
+  { id: "ns-credit", name: "Amex Platinum", type: "credit_card", archived: false, excludeFromNetWorth: false, sortOrder: 3, createdAt: "2026-01-01T00:00:00Z" },
+  { id: "ns-cash", name: "Cash", type: "cash", archived: false, excludeFromNetWorth: false, sortOrder: 4, createdAt: "2026-01-01T00:00:00Z" },
 ];
 
 const categories = createCategories();

@@ -30,9 +30,9 @@ describe("detectBudget", () => {
     expect(mockExists).toHaveBeenCalledWith("/path/to/folder/budget.json");
   });
 
-  it("returns parsed BudgetMeta when budget.json exists", async () => {
+  it("returns parsed BudgetMeta when budget.json exists at current version", async () => {
     const meta = {
-      schemaVersion: 1,
+      schemaVersion: 2,
       name: "Test Budget",
       currency: "USD",
       createdAt: "2026-01-01T00:00:00.000Z",
@@ -45,6 +45,47 @@ describe("detectBudget", () => {
     expect(result).toEqual(meta);
     expect(mockReadTextFile).toHaveBeenCalledWith("/budgets/test/budget.json");
   });
+
+  it("runs pending migrations and writes updated budget.json", async () => {
+    // budget.json is at v1; accounts.csv has no excludeFromNetWorth column.
+    const oldMeta = {
+      schemaVersion: 1,
+      name: "Old Budget",
+      currency: "USD",
+      createdAt: "2026-01-01T00:00:00.000Z",
+      lastModified: "2026-01-01T00:00:00.000Z",
+    };
+    const oldAccountsCsv = [
+      "id,name,type,archived,sortOrder,createdAt",
+      "acc-1,Cash,cash,false,1,2026-01-01T00:00:00.000Z",
+    ].join("\n");
+
+    mockExists.mockResolvedValue(true);
+    mockReadTextFile.mockImplementation(async (path: string) => {
+      if (path.endsWith("budget.json")) return JSON.stringify(oldMeta);
+      if (path.endsWith("accounts.csv")) return oldAccountsCsv;
+      throw new Error(`Unexpected read: ${path}`);
+    });
+
+    const result = await detectBudget("/budgets/test");
+
+    expect(result?.schemaVersion).toBe(2);
+
+    // Migration rewrote accounts.csv with the new column.
+    const accountsWrite = mockWriteTextFile.mock.calls.find((c: string[]) =>
+      c[0].endsWith("accounts.csv"),
+    );
+    expect(accountsWrite).toBeDefined();
+    expect(accountsWrite![1]).toContain("excludeFromNetWorth");
+    expect(accountsWrite![1]).toContain("acc-1,Cash,cash,false,false,1");
+
+    // budget.json was rewritten with the new schemaVersion.
+    const metaWrite = mockWriteTextFile.mock.calls.find((c: string[]) =>
+      c[0].endsWith("budget.json"),
+    );
+    expect(metaWrite).toBeDefined();
+    expect(JSON.parse(metaWrite![1]).schemaVersion).toBe(2);
+  });
 });
 
 describe("bootstrapBudget", () => {
@@ -52,9 +93,9 @@ describe("bootstrapBudget", () => {
     vi.clearAllMocks();
   });
 
-  it("returns a BudgetMeta with schema version 1", async () => {
+  it("returns a BudgetMeta with the current schema version", async () => {
     const result = await bootstrapBudget("/new/budget", "My Budget");
-    expect(result.schemaVersion).toBe(1);
+    expect(result.schemaVersion).toBe(2);
     expect(result.name).toBe("My Budget");
     expect(result.currency).toBe("USD");
     expect(result.createdAt).toBeTruthy();
@@ -76,7 +117,7 @@ describe("bootstrapBudget", () => {
 
     const written = JSON.parse(budgetJsonCall![1]);
     expect(written.name).toBe("Test");
-    expect(written.schemaVersion).toBe(1);
+    expect(written.schemaVersion).toBe(2);
   });
 
   it("writes categories.csv with default categories", async () => {
@@ -99,7 +140,7 @@ describe("bootstrapBudget", () => {
       (call: string[]) => call[0] === "/new/budget/accounts.csv",
     );
     expect(accountsCall).toBeDefined();
-    expect(accountsCall![1]).toContain("id,name,type,archived,sortOrder,createdAt");
+    expect(accountsCall![1]).toContain("id,name,type,archived,excludeFromNetWorth,sortOrder,createdAt");
   });
 
   it("writes empty transactions.csv with header", async () => {

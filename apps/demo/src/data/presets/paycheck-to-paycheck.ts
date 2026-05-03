@@ -3,9 +3,9 @@ import type { DemoPreset } from "./helpers";
 import { createCategories, catId, createTxnFactory, linkTransferPairs } from "./helpers";
 
 const accounts: Account[] = [
-  { id: "p2p-checking", name: "Checking", type: "checking", archived: false, sortOrder: 0, createdAt: "2026-01-01T00:00:00Z" },
-  { id: "p2p-savings", name: "Savings", type: "savings", archived: false, sortOrder: 1, createdAt: "2026-01-01T00:00:00Z" },
-  { id: "p2p-credit", name: "Visa Card", type: "credit_card", archived: false, sortOrder: 2, createdAt: "2026-01-01T00:00:00Z" },
+  { id: "p2p-checking", name: "Checking", type: "checking", archived: false, excludeFromNetWorth: false, sortOrder: 0, createdAt: "2026-01-01T00:00:00Z" },
+  { id: "p2p-savings", name: "Savings", type: "savings", archived: false, excludeFromNetWorth: false, sortOrder: 1, createdAt: "2026-01-01T00:00:00Z" },
+  { id: "p2p-credit", name: "Visa Card", type: "credit_card", archived: false, excludeFromNetWorth: false, sortOrder: 2, createdAt: "2026-01-01T00:00:00Z" },
 ];
 
 const categories = createCategories();

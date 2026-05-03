@@ -26,6 +26,8 @@ export interface Account {
   name: string;
   type: AccountType;
   archived: boolean;
+  /** Excluded from Net Worth calculations when true. Defaults to false. */
+  excludeFromNetWorth: boolean;
   sortOrder: number;
   createdAt: string;
 }
