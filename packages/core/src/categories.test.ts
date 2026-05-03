@@ -15,6 +15,7 @@ function makeCategory(overrides: Partial<Category> = {}): Category {
     group: "Daily Living",
     archived: false,
     sortOrder: 1,
+    assigned: null,
     ...overrides,
   };
 }

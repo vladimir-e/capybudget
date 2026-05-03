@@ -39,7 +39,7 @@ function makeAccountCsv(accounts: Partial<Account>[]): string {
 }
 
 function makeCategoryCsv(categories: Partial<Category>[]): string {
-  const headers = "id,name,group,archived,sortOrder";
+  const headers = "id,name,group,archived,sortOrder,assigned";
   const rows = categories.map((c) => {
     const full: Category = {
       id: "cat-1",
@@ -47,9 +47,11 @@ function makeCategoryCsv(categories: Partial<Category>[]): string {
       group: "Daily Living",
       archived: false,
       sortOrder: 1,
+      assigned: null,
       ...c,
     };
-    return `${full.id},${full.name},${full.group},${full.archived},${full.sortOrder}`;
+    const assignedCell = full.assigned === null ? "" : full.assigned;
+    return `${full.id},${full.name},${full.group},${full.archived},${full.sortOrder},${assignedCell}`;
   });
   return [headers, ...rows].join("\n");
 }
@@ -277,6 +279,7 @@ describe("createCsvRepository", () => {
           group: "Personal",
           archived: false,
           sortOrder: 1,
+          assigned: null,
         },
       ];
       await repo.saveCategories(newCategories);
@@ -380,6 +383,7 @@ describe("createCsvRepository", () => {
           group: "Income",
           archived: false,
           sortOrder: 1,
+          assigned: null,
         },
       ]);
       await repo.saveTransactions([
