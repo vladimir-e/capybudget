@@ -1,11 +1,19 @@
 /**
- * Manages a long-lived Claude CLI subprocess via Tauri's shell plugin.
+ * Claude Code CLI adapter — implements the CapySession interface as a
+ * long-lived `claude` subprocess driven over stdin/stdout via Tauri's
+ * shell plugin. The MCP server is the tool-execution transport.
  *
  * Lifecycle:
  * - Lazy spawn on first message
  * - Stays alive in background (independent of overlay open/close)
  * - "New chat" kills and respawns with a fresh session ID
  * - stop() kills the process and generates a new session ID (old one may be broken)
+ *
+ * Recovery from a stop is handled in use-capy-session — the CLI's
+ * session ID can't resume mid-turn, so the hook prepends `[Previous
+ * conversation]` context on the next send. Kept there for now; will
+ * likely move into this class once the API adapters land and we can
+ * confirm the cleaner shape.
  */
 
 import { Command, type Child } from "@tauri-apps/plugin-shell"
@@ -15,13 +23,14 @@ import {
   type SessionEvent,
   type CapySessionOptions,
   type MessageContent,
+  type CapySession,
 } from "@capybudget/intelligence"
 
 export type { SessionEvent, CapySessionOptions }
 
 declare const __PROJECT_ROOT__: string
 
-export class CapySession {
+export class ClaudeCliSession implements CapySession {
   private child: Child | null = null
   private sessionId: string = crypto.randomUUID()
   private readonly budgetPath: string

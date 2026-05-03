@@ -22,14 +22,17 @@ export default defineConfig({
   ],
   resolve: {
     alias: [
-      // Override CapySession with demo stub (must precede the @/ catch-all)
+      // Override the Claude CLI session with the demo stub (must
+      // precede the @/ catch-all). The shim re-exports the demo's
+      // CapySession class under the ClaudeCliSession name.
       {
-        find: /(.*)\/services\/capy-session$/,
-        replacement: path.resolve(__dirname, "src/adapters/demo-capy-session"),
+        find: /(.*)\/services\/claude-cli-session$/,
+        replacement: path.resolve(__dirname, "src/adapters/demo-claude-cli-session"),
       },
       // Tauri module stubs
       { find: "@tauri-apps/plugin-shell", replacement: path.resolve(__dirname, "src/stubs/tauri-shell") },
       { find: "@tauri-apps/plugin-fs", replacement: path.resolve(__dirname, "src/stubs/tauri-fs") },
+      { find: "@tauri-apps/plugin-store", replacement: path.resolve(__dirname, "src/stubs/tauri-store") },
       { find: "@tauri-apps/api/path", replacement: path.resolve(__dirname, "src/stubs/tauri-path") },
       { find: "@tauri-apps/plugin-dialog", replacement: path.resolve(__dirname, "src/stubs/tauri-dialog") },
       // App alias — same as desktop

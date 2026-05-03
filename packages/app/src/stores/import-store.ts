@@ -1,8 +1,9 @@
 import { create } from "zustand";
-import { CapySession } from "@/services/capy-session";
+import { createSession } from "@/services/create-session";
 import { parseStreamLine } from "@/services/capy-stream";
 import {
   buildContext,
+  type CapySession,
   type ChatMessage,
   type ContentBlock,
   type SessionEvent,
@@ -114,7 +115,7 @@ export const useImportStore = create<ImportStore>((set, get) => ({
     get().normalizeSession?.kill();
     lastNormalizeTextContent = "";
 
-    const session = new CapySession({
+    const session = createSession({
       budgetPath,
       mcpServerPath,
       systemPrompt,
@@ -207,6 +208,19 @@ For images and PDFs, use the Read tool to view them, then extract transactions m
       hasImportData: false,
     });
 
+    if (!session) {
+      handleNormalizeStreamEvent(
+        {
+          type: "error",
+          message:
+            "Capy is not configured. Open settings to pick an AI provider.",
+        },
+        set,
+        get,
+      );
+      return;
+    }
+
     session.send(content).catch((err) => {
       handleNormalizeStreamEvent(
         { type: "error", message: err instanceof Error ? err.message : "Failed to start normalization" },
@@ -237,7 +251,7 @@ For images and PDFs, use the Read tool to view them, then extract transactions m
   startEnrichment: ({ budgetPath, budgetName, mcpServerPath, systemPrompt }) => {
     get().enrichSession?.kill();
 
-    const session = new CapySession({
+    const session = createSession({
       budgetPath,
       mcpServerPath,
       systemPrompt,
@@ -279,6 +293,19 @@ For images and PDFs, use the Read tool to view them, then extract transactions m
       isEnriching: true,
       enrichStatusText: "",
     });
+
+    if (!session) {
+      handleEnrichStreamEvent(
+        {
+          type: "error",
+          message:
+            "Capy is not configured. Open settings to pick an AI provider.",
+        },
+        set,
+        get,
+      );
+      return;
+    }
 
     session.send(message).catch((err) => {
       handleEnrichStreamEvent(

@@ -168,7 +168,7 @@ export function useCapySession(opts: UseCapySessionOptions): UseCapySessionRetur
 
       lifecycle.createSession(systemPrompt)
     }
-    return lifecycle.sessionRef.current!
+    return lifecycle.sessionRef.current
   }, [lifecycle])
 
   const sendMessage = useCallback(
@@ -248,6 +248,17 @@ export function useCapySession(opts: UseCapySessionOptions): UseCapySessionRetur
       lastTextContentRef.current = ""
 
       const session = ensureSession()
+      if (!session) {
+        // Intelligence is unconfigured (or the chosen provider isn't
+        // available). Surface a single-turn error message and bail —
+        // Round 4 will replace this with a proper empty-state CTA.
+        lifecycle.dispatchStreamEvent({
+          type: "error",
+          message:
+            "Capy is not configured. Open settings to pick an AI provider.",
+        })
+        return
+      }
       session.send(content).catch((err) => {
         lifecycle.dispatchStreamEvent({
           type: "error",

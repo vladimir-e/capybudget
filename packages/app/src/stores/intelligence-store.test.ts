@@ -40,7 +40,7 @@ function makeBackend(initial: unknown): ConfigStoreBackend & {
   get: ReturnType<typeof vi.fn>
   set: ReturnType<typeof vi.fn>
 } {
-  const get = vi.fn(async () => initial)
+  const get = vi.fn(async () => initial as never)
   const set = vi.fn(async () => undefined)
   return { get, set }
 }

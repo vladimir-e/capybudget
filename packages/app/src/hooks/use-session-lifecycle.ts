@@ -14,9 +14,13 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { CapySession } from "@/services/capy-session";
+import { createSession } from "@/services/create-session";
 import { parseStreamLine } from "@/services/capy-stream";
-import type { SessionEvent, StreamEvent } from "@capybudget/intelligence";
+import type {
+  CapySession,
+  SessionEvent,
+  StreamEvent,
+} from "@capybudget/intelligence";
 
 export interface SessionLifecycleOptions {
   budgetPath: string;
@@ -35,7 +39,8 @@ export interface UseSessionLifecycleReturn<TOpts extends SessionLifecycleOptions
   isStreamingRef: React.RefObject<boolean>;
   setIsStreaming: (value: boolean) => void;
   optsRef: React.RefObject<TOpts>;
-  createSession: (systemPrompt: string) => CapySession;
+  /** Returns null when intelligence is unconfigured / unsupported. */
+  createSession: (systemPrompt: string) => CapySession | null;
   /** Forward a synthetic StreamEvent to the consumer's handler (e.g. for catch blocks). */
   dispatchStreamEvent: (event: StreamEvent) => void;
   cancel: () => void;
@@ -120,20 +125,27 @@ export function useSessionLifecycle<TOpts extends SessionLifecycleOptions>(
     };
   }, []);
 
-  const createSession = useCallback(
-    (systemPrompt: string): CapySession => {
+  const createSessionFn = useCallback(
+    (systemPrompt: string): CapySession | null => {
       sessionRef.current?.kill();
       const o = optsRef.current;
-      const session = new CapySession({
+      const session = createSession({
         budgetPath: o.budgetPath,
         mcpServerPath: o.mcpServerPath,
         systemPrompt,
         onEvent: handleSessionEvent,
       });
+      if (!session) {
+        console.debug(
+          `[${label}-session] no session — intelligence is unconfigured or provider unavailable`,
+        );
+        sessionRef.current = null;
+        return null;
+      }
       sessionRef.current = session;
       return session;
     },
-    [handleSessionEvent],
+    [handleSessionEvent, label],
   );
 
   const dispatchStreamEvent = useCallback(
@@ -156,11 +168,11 @@ export function useSessionLifecycle<TOpts extends SessionLifecycleOptions>(
       isStreamingRef,
       setIsStreaming,
       optsRef,
-      createSession,
+      createSession: createSessionFn,
       dispatchStreamEvent,
       cancel,
     }),
     // isStreaming is the only non-stable value; refs and useCallback results are stable
-    [isStreaming, setIsStreaming, createSession, dispatchStreamEvent, cancel],
+    [isStreaming, setIsStreaming, createSessionFn, dispatchStreamEvent, cancel],
   );
 }

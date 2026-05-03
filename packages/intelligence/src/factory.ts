@@ -18,7 +18,8 @@
  */
 
 import type { IntelligenceConfig } from "./config"
-import type { CapySession, SessionEvent } from "./session"
+import type { CapySession } from "./session"
+import type { SessionEvent } from "./types"
 import type { BudgetRepository, FileAdapter } from "@capybudget/persistence"
 
 export interface ClaudeCliAdapterOptions {
@@ -40,15 +41,19 @@ export interface ApiAdapterOptions {
 
 /**
  * Runtime context the factory passes through to the adapter — the
- * caller-supplied "options" mirrored on each adapter.
+ * caller-supplied "options" mirrored on each adapter. `repo` and
+ * `fileAdapter` are only consumed by API adapters (in-process tool
+ * dispatch); for the Claude CLI adapter they're ignored. Optional so
+ * Round 1 callsites that only target the CLI don't need to thread
+ * them through.
  */
 export interface SessionOptions {
   budgetPath: string
   mcpServerPath: string
   systemPrompt: string
   onEvent: (event: SessionEvent) => void
-  repo: BudgetRepository
-  fileAdapter: FileAdapter
+  repo?: BudgetRepository
+  fileAdapter?: FileAdapter
 }
 
 export interface AdapterConstructors {
@@ -86,6 +91,7 @@ export function createIntelligenceSession(
       if (!ctor) return null
       const { apiKey, model } = config.anthropic
       if (!apiKey) return null
+      if (!options.repo || !options.fileAdapter) return null
       return ctor({
         budgetPath: options.budgetPath,
         systemPrompt: options.systemPrompt,
@@ -101,6 +107,7 @@ export function createIntelligenceSession(
       if (!ctor) return null
       const { apiKey, model } = config.openai
       if (!apiKey) return null
+      if (!options.repo || !options.fileAdapter) return null
       return ctor({
         budgetPath: options.budgetPath,
         systemPrompt: options.systemPrompt,
