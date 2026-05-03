@@ -50,13 +50,14 @@ Every financial entity is an account.
 
 Fully user-manageable. Sensible defaults prepopulated on first launch.
 
-| Field       | Type    | Notes                            |
-|-------------|---------|----------------------------------|
-| `id`        | string  | UUID, client-generated           |
-| `name`      | string  | Display name                     |
-| `group`     | string  | Logical grouping (see below)     |
-| `archived`  | boolean | Hidden under "Archived" group    |
-| `sortOrder` | integer | Display ordering within group    |
+| Field       | Type             | Notes                                                             |
+|-------------|------------------|-------------------------------------------------------------------|
+| `id`        | string           | UUID, client-generated                                            |
+| `name`      | string           | Display name                                                      |
+| `group`     | string           | Logical grouping (see below)                                      |
+| `archived`  | boolean          | Hidden under "Archived" group                                     |
+| `sortOrder` | integer          | Display ordering within group                                     |
+| `assigned`  | integer \| null  | Monthly budget target in cents. `null` = untracked. `0` = tracked at zero. Single piece of mutable current state — applies to every month. |
 
 ### Default Category Groups
 
@@ -133,3 +134,4 @@ Each migration `n → n+1` is a pure-ish function on the budget folder, idempote
 | From → To | Change |
 |-----------|--------|
 | 1 → 2     | Add `excludeFromNetWorth` column to accounts.csv (default `false`). |
+| 2 → 3     | Add `assigned` column to categories.csv (empty cell = `null` = untracked). |

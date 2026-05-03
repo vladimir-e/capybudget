@@ -253,17 +253,22 @@ The path from current state to a public, signed, auto-updating Alpha release. Or
 
 ### Features
 
-- [ ] **10.1 — Net Worth account filter**
+- [x] **10.1 — Net Worth account filter**
   - A cog next to sidebar net worth where user can choose accounts to *exclude* from Net Worth
   - Any new accounts are included by default
   - Persists via repo.
   - Sidebar net worth and Net Worth analytics tab both honor the flag
 
 - [ ] **10.2 — Monthly Budget tab**
-  - Assign monthly amounts per category
-  - Assigned vs. spent tracking
-  - Monthly layout: form/create, edit, sort, date switcher
-  - Budget sidebar row: category | assigned | spent | remaining
+  - **Tracking model.** `assigned` field on the Category (integer cents | null). `null` (empty CSV cell) = untracked. Any number, including `0`, = tracked at that monthly amount. The act of assigning *is* the act of opting a category into tracking — there is no second flag. Assigned is a single piece of mutable current-state: changing Rent from `350000` to `400000` updates every past, current, and future month at once. No per-month history.
+  - **Schema bump v2 → v3.** Add `assigned` column to `categories.csv`. Forward-compatible CSV parse (missing column → `null`), matching the v1 → v2 pattern. Update DATA_MODEL.md migration history.
+  - **Period.** Month only. `< March 2026 >` arrow nav. No period pills (Quarter/Year/All Time/Custom do not apply on this tab).
+  - **Layout.** Rows grouped by `CategoryGroup` (matching the rest of the app), with per-group subtotals computed from tracked rows only. **Income group is excluded from this tab entirely** — budgeting earns vs. expected income is a different mental model and out of scope here.
+  - **Top KPI strip (4 cards).** Assigned (sum of tracked assigned), Spent (tracked) (sum spent in tracked categories this month), Remaining (assigned − tracked spent), Other Spending (sum spent in untracked, non-Income categories this month — the "what you might be missing" number).
+  - **Filter toggle.** "Display only tracked categories" — pure visual filter, doesn't change tracked state. Label shows count, e.g. "8 of 14 tracked".
+  - **Per-row layout.** `[color dot] Category | [Assigned input] | Spent | Progress bar | Remaining`. Inline edit on the assigned input writes through the category repo. Empty input ⇒ untracked (null); `0` ⇒ tracked at zero (any spend is over).
+  - **Untracked row styling.** Dimmed text, "not tracked" placeholder in the progress column, em-dash in remaining. Still visible (unless filtered) so the user has one click to opt in.
+  - **Progress bar states.** Green (well under), gold (close — e.g. ≥80% of assigned), red with overshoot tail (over). For a tracked-at-zero category, any spend renders red.
 
 - [ ] **10.3 — First-run experience**
   - On first launch: prompt to create or select a budget

@@ -5,7 +5,7 @@ import { DEFAULT_CATEGORIES } from "@capybudget/core";
 import Papa from "papaparse";
 import { migrateBudgetFolder } from "./budget-migrations";
 
-export const SCHEMA_VERSION = 2;
+export const SCHEMA_VERSION = 3;
 const BUDGET_FILE = "budget.json";
 
 /** Detect a budget folder, run any pending schema migrations, and return the
@@ -44,12 +44,15 @@ export async function bootstrapBudget(folderPath: string, name: string): Promise
   const metaPath = await join(folderPath, BUDGET_FILE);
   await writeTextFile(metaPath, JSON.stringify(meta, null, 2));
 
-  // Write default categories.csv
+  // Write default categories.csv. Empty `assigned` cells = null = untracked,
+  // matching how parseCsv reads pre-v3 budgets.
   const categories: Category[] = DEFAULT_CATEGORIES.map((c) => ({
     ...c,
     id: crypto.randomUUID(),
   }));
-  const categoriesCsv = Papa.unparse(categories);
+  const categoriesCsv = Papa.unparse(categories, {
+    columns: ["id", "name", "group", "archived", "sortOrder", "assigned"],
+  });
   const categoriesPath = await join(folderPath, "categories.csv");
   await writeTextFile(categoriesPath, categoriesCsv);
 

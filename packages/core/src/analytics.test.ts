@@ -27,10 +27,10 @@ const txn = (
 });
 
 const CATEGORIES: Category[] = [
-  { id: "cat-food", name: "Groceries", group: "Daily Living", archived: false, sortOrder: 0 },
-  { id: "cat-rent", name: "Rent", group: "Fixed", archived: false, sortOrder: 1 },
-  { id: "cat-salary", name: "Salary", group: "Income", archived: false, sortOrder: 0 },
-  { id: "cat-freelance", name: "Freelance", group: "Income", archived: false, sortOrder: 1 },
+  { id: "cat-food", name: "Groceries", group: "Daily Living", archived: false, sortOrder: 0, assigned: null },
+  { id: "cat-rent", name: "Rent", group: "Fixed", archived: false, sortOrder: 1, assigned: null },
+  { id: "cat-salary", name: "Salary", group: "Income", archived: false, sortOrder: 0, assigned: null },
+  { id: "cat-freelance", name: "Freelance", group: "Income", archived: false, sortOrder: 1, assigned: null },
 ];
 
 const ACCOUNTS: Account[] = [

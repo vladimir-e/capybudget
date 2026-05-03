@@ -45,6 +45,9 @@ export interface Category {
   group: CategoryGroup;
   archived: boolean;
   sortOrder: number;
+  /** Monthly budget target in integer cents. `null` means the category is
+   *  untracked (not budgeted). `0` means tracked at zero — any spend is over. */
+  assigned: number | null;
 }
 
 export type TransactionType = "income" | "expense" | "transfer";

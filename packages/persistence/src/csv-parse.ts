@@ -12,13 +12,21 @@ export type CoercionMap<T> = Partial<Record<keyof T, Coerce>>;
 
 const toBool: Coerce = (v) => v === "true";
 const toInt: Coerce = (v) => (v === undefined || v === "" ? 0 : parseInt(v, 10));
+/** Tracked-or-not integer: `null` for missing/empty, otherwise parsed int.
+ *  Used for {@link Category.assigned} (monthly budget target in cents). */
+const toNullableInt: Coerce = (v) =>
+  v === undefined || v === "" ? null : parseInt(v, 10);
 
 export const ACCOUNT_COERCE: CoercionMap<Account> = {
   archived: toBool,
   excludeFromNetWorth: toBool,
   sortOrder: toInt,
 } as const;
-export const CATEGORY_COERCE: CoercionMap<Category> = { archived: toBool, sortOrder: toInt } as const;
+export const CATEGORY_COERCE: CoercionMap<Category> = {
+  archived: toBool,
+  sortOrder: toInt,
+  assigned: toNullableInt,
+} as const;
 export const TRANSACTION_COERCE: CoercionMap<Transaction> = { amount: toInt } as const;
 
 /** Parse CSV content and coerce fields to their typed values. */
