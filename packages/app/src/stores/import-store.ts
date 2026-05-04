@@ -1,13 +1,11 @@
 import { create } from "zustand";
 import { createSession } from "@/services/create-session";
-import { parseStreamLine } from "@/services/capy-stream";
 import {
   buildContext,
   type CapySession,
   type ChatMessage,
   type ContentBlock,
   type MessageContent,
-  type SessionEvent,
   type StreamEvent,
 } from "@capybudget/intelligence";
 import type { BudgetRepository, FileAdapter } from "@capybudget/persistence";
@@ -139,56 +137,42 @@ export const useImportStore = create<ImportStore>((set, get) => ({
       systemPrompt,
       repo,
       fileAdapter,
-      onEvent: (event: SessionEvent) => {
-        switch (event.type) {
-          case "stdout":
-            for (const streamEvent of parseStreamLine(event.line)) {
-              handleNormalizeStreamEvent(streamEvent, set, get);
+      onEvent: (event: StreamEvent) => {
+        handleNormalizeStreamEvent(event, set, get);
+      },
+      // Claude-CLI-only: subprocess died unexpectedly. API adapters
+      // never invoke this — they have no process to die.
+      onExit: () => {
+        console.debug("[import-store] normalize process exited");
+        if (get().phase !== "normalizing") return;
+        lastNormalizeTextContent = "";
+        const errorBlock: ContentBlock = {
+          type: "text" as const,
+          content:
+            "The normalization process ended unexpectedly. You can try again by canceling and restarting.",
+        };
+        set({
+          normalizeMessages: (() => {
+            const msgs = get().normalizeMessages;
+            const updated = [...msgs];
+            const last = updated[updated.length - 1];
+            if (last?.role !== "assistant") {
+              return [
+                ...msgs,
+                {
+                  id: crypto.randomUUID(),
+                  role: "assistant" as const,
+                  blocks: [errorBlock],
+                },
+              ];
             }
-            break;
-          case "stderr":
-            console.debug("[import-store-stderr]", event.line);
-            break;
-          case "exit":
-            console.debug("[import-store] normalize process exited");
-            if (get().phase === "normalizing") {
-              lastNormalizeTextContent = "";
-              const errorBlock: ContentBlock = {
-                type: "text" as const,
-                content: "The normalization process ended unexpectedly. You can try again by canceling and restarting.",
-              };
-              set({
-                normalizeMessages: (() => {
-                  const msgs = get().normalizeMessages;
-                  const updated = [...msgs];
-                  const last = updated[updated.length - 1];
-                  if (last?.role !== "assistant") {
-                    return [
-                      ...msgs,
-                      {
-                        id: crypto.randomUUID(),
-                        role: "assistant" as const,
-                        blocks: [errorBlock],
-                      },
-                    ];
-                  }
-                  updated[updated.length - 1] = {
-                    ...last,
-                    blocks: [...last.blocks, errorBlock],
-                  };
-                  return updated;
-                })(),
-              });
-            }
-            break;
-          case "error":
-            handleNormalizeStreamEvent(
-              { type: "error", message: event.message },
-              set,
-              get,
-            );
-            break;
-        }
+            updated[updated.length - 1] = {
+              ...last,
+              blocks: [...last.blocks, errorBlock],
+            };
+            return updated;
+          })(),
+        });
       },
     });
 
@@ -277,33 +261,19 @@ export const useImportStore = create<ImportStore>((set, get) => ({
       systemPrompt,
       repo,
       fileAdapter,
-      onEvent: (event: SessionEvent) => {
-        switch (event.type) {
-          case "stdout":
-            for (const streamEvent of parseStreamLine(event.line)) {
-              handleEnrichStreamEvent(streamEvent, set, get);
-            }
-            break;
-          case "stderr":
-            console.debug("[import-store-enrich-stderr]", event.line);
-            break;
-          case "exit":
-            console.debug("[import-store] enrich process exited");
-            if (get().isEnriching) {
-              set({
-                isEnriching: false,
-                enrichStatusText: "Enrichment ended unexpectedly. Progress saved — you can restart.",
-              });
-            }
-            break;
-          case "error":
-            handleEnrichStreamEvent(
-              { type: "error", message: event.message },
-              set,
-              get,
-            );
-            break;
-        }
+      onEvent: (event: StreamEvent) => {
+        handleEnrichStreamEvent(event, set, get);
+      },
+      // Claude-CLI-only: subprocess died unexpectedly. API adapters
+      // never invoke this — they have no process to die.
+      onExit: () => {
+        console.debug("[import-store] enrich process exited");
+        if (!get().isEnriching) return;
+        set({
+          isEnriching: false,
+          enrichStatusText:
+            "Enrichment ended unexpectedly. Progress saved — you can restart.",
+        });
       },
     });
 

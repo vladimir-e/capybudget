@@ -19,14 +19,20 @@
 
 import type { IntelligenceConfig } from "./config"
 import type { CapySession } from "./session"
-import type { SessionEvent } from "./types"
+import type { StreamEvent } from "./types"
 import type { BudgetRepository, FileAdapter } from "@capybudget/persistence"
 
 export interface ClaudeCliAdapterOptions {
   budgetPath: string
   mcpServerPath: string
   systemPrompt: string
-  onEvent: (event: SessionEvent) => void
+  onEvent: (event: StreamEvent) => void
+  /**
+   * Fires when the Claude CLI subprocess exits unexpectedly (not the
+   * result of a deliberate `kill()` / `stop()`). Claude-CLI-only —
+   * API adapters have no process to die, so the option doesn't apply.
+   */
+  onExit?: () => void
 }
 
 export interface ApiAdapterOptions {
@@ -34,7 +40,7 @@ export interface ApiAdapterOptions {
   systemPrompt: string
   apiKey: string
   model: string
-  onEvent: (event: SessionEvent) => void
+  onEvent: (event: StreamEvent) => void
   repo: BudgetRepository
   fileAdapter: FileAdapter
 }
@@ -43,15 +49,16 @@ export interface ApiAdapterOptions {
  * Runtime context the factory passes through to the adapter — the
  * caller-supplied "options" mirrored on each adapter. `repo` and
  * `fileAdapter` are only consumed by API adapters (in-process tool
- * dispatch); for the Claude CLI adapter they're ignored. Optional so
- * Round 1 callsites that only target the CLI don't need to thread
- * them through.
+ * dispatch); for the Claude CLI adapter they're ignored. `onExit` is
+ * the inverse — Claude-CLI-only (API adapters have no process to die).
+ * All optional so callsites can target a single provider cleanly.
  */
 export interface SessionOptions {
   budgetPath: string
   mcpServerPath: string
   systemPrompt: string
-  onEvent: (event: SessionEvent) => void
+  onEvent: (event: StreamEvent) => void
+  onExit?: () => void
   repo?: BudgetRepository
   fileAdapter?: FileAdapter
 }
@@ -84,6 +91,7 @@ export function createIntelligenceSession(
         mcpServerPath: options.mcpServerPath,
         systemPrompt: options.systemPrompt,
         onEvent: options.onEvent,
+        onExit: options.onExit,
       })
     }
     case "anthropic": {

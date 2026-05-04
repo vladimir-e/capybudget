@@ -85,7 +85,7 @@ Content blocks are **append-only** in the UI:
 - Non-text blocks (tool activity, tables, charts): always appended.
 - After tool results, fresh blocks emit a new sub-message; the handler appends rather than replaces.
 
-API adapters synthesize the same Claude-CLI stream-json `assistant` / `result` / `error` lines, so `parseStreamLine` and the cumulative-text merging in `use-capy-session` / `appendNormalizeBlock` work identically across all providers.
+Adapters emit `StreamEvent`s directly (`content` / `done` / `error`) — there's no transport-level event layer above this. Text deltas are accumulated locally in each adapter so every `content` event carries cumulative text, matching what the prefix-detection text-merging downstream expects. The Claude-CLI adapter also speaks stream-json on the wire, but that's an internal detail of `ClaudeCliSession`; consumers never see the JSON shape.
 
 ## Adapters
 

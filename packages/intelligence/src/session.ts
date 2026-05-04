@@ -1,9 +1,9 @@
-import type { SessionEvent, MessageContent, ChatMessage } from "./types"
+import type { StreamEvent, MessageContent, ChatMessage } from "./types"
 
 export interface CapySessionOptions {
   budgetPath: string
   mcpServerPath: string
-  onEvent: (event: SessionEvent) => void
+  onEvent: (event: StreamEvent) => void
 }
 
 export interface CapySession {

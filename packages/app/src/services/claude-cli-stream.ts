@@ -1,10 +1,16 @@
 /**
- * Parses Claude CLI stream-json stdout lines into typed events.
+ * Claude CLI stream-json decoder — internal to `ClaudeCliSession`.
  *
- * Claude's assistant messages are cumulative — each event contains ALL content
- * blocks so far. We reconstruct the full block list and emit a single "content"
- * event, preserving all text blocks (before/after tool calls) and recording
- * tool activity as persistent blocks in chat history.
+ * The CLI emits assistant turns as cumulative JSON lines (each event
+ * carries ALL content blocks so far). This module reconstructs the
+ * full block list and yields a `StreamEvent` per parsed line. Other
+ * adapters (Anthropic, OpenAI) emit `StreamEvent`s directly without
+ * roundtripping through the CLI's wire format — so this decoder lives
+ * here only to bridge the one provider that actually speaks it.
+ *
+ * Kept in its own file (rather than inlined in `claude-cli-session.ts`)
+ * because the parser is non-trivial and benefits from independent
+ * testing.
  */
 
 import type {
@@ -32,31 +38,6 @@ const RENDER_TOOL_MAP: Record<string, (input: Record<string, unknown>) => Conten
     if (typeof input.title !== "string" || !Array.isArray(input.data)) return null
     return { type: "donut-chart", title: input.title, data: input.data } satisfies DonutChartBlock
   },
-}
-
-// ── Tool name labels for display ─────────────────────────────────
-
-const TOOL_LABELS: Record<string, string> = {
-  list_accounts: "Querying accounts",
-  list_transactions: "Querying transactions",
-  list_categories: "Querying categories",
-  spending_summary: "Calculating spending",
-  create_transaction: "Creating transaction",
-  update_transaction: "Updating transaction",
-  delete_transactions: "Deleting transactions",
-  create_account: "Creating account",
-  update_account: "Updating account",
-  delete_account: "Deleting account",
-  archive_account: "Archiving account",
-  create_category: "Creating category",
-  update_category: "Updating category",
-  delete_category: "Deleting category",
-  archive_category: "Archiving category",
-  assign_categories: "Assigning categories",
-}
-
-export function getToolLabel(tool: string): string {
-  return TOOL_LABELS[tool] ?? tool
 }
 
 // ── Parser ───────────────────────────────────────────────────────

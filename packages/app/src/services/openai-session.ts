@@ -10,13 +10,10 @@
  * the simpler, version-stable path is the right pick. Revisit if a
  * specific model becomes responses-only.
  *
- * Mirrors `AnthropicSession`'s shape: synthesizes Claude-CLI-style
- * `assistant` / `result` / `error` JSON lines as `SessionEvent`
- * `stdout` events, so `parseStreamLine` and the cumulative-text
- * merging downstream work with zero UI changes. Tool dispatch is
- * in-process via `runTool`. `stop()` aborts the in-flight stream and
- * drops any trailing assistant turn with unmatched `tool_calls` so
- * the next request doesn't 400.
+ * Mirrors `AnthropicSession`'s shape: same lifecycle (`send`/`stop`/
+ * `restart`/`kill`), same `interrupted` flag pattern that drops
+ * trailing assistant turns with unmatched `tool_calls` (OpenAI's
+ * analogue of unmatched `tool_use`). Emits `StreamEvent`s directly.
  *
  * Tauri's webview is a real browser, so the SDK works with
  * `dangerouslyAllowBrowser: true`. The flag is intended to discourage
@@ -41,14 +38,14 @@ import {
   getToolDefinitions,
   type ApiAdapterOptions,
   type CapySession,
+  type ContentBlock,
   type MessageContent,
-  type SessionEvent,
 } from "@capybudget/intelligence"
 
 const MAX_TOKENS = 8192
 
-/** Tools exposed to the model — chat-relevant only. Import + CSV tools
- *  arrive in Phase B together with the Read tool. */
+/** Tool surface mirrors what the model sees in the Claude CLI:
+ *  data + mutation + import + csv + read_file + render. */
 function getOpenAiTools(): OpenAI.Chat.Completions.ChatCompletionTool[] {
   return getToolDefinitions().map((t) => ({
     type: "function",
@@ -58,6 +55,29 @@ function getOpenAiTools(): OpenAI.Chat.Completions.ChatCompletionTool[] {
       parameters: t.inputSchema as Record<string, unknown>,
     },
   }))
+}
+
+/** Render-tool name → ContentBlock builder. Mirrors the dispatch in
+ *  `claude-cli-stream.ts`'s `RENDER_TOOL_MAP`. */
+const RENDER_TOOL_MAP: Record<string, (input: Record<string, unknown>) => ContentBlock | null> = {
+  render_table: (input) => {
+    if (!Array.isArray(input.headers) || !Array.isArray(input.rows)) return null
+    return { type: "table", headers: input.headers, rows: input.rows }
+  },
+  render_bar_chart: (input) => {
+    if (typeof input.title !== "string" || !Array.isArray(input.data)) return null
+    return { type: "bar-chart", title: input.title, data: input.data }
+  },
+  render_donut_chart: (input) => {
+    if (typeof input.title !== "string" || !Array.isArray(input.data)) return null
+    return { type: "donut-chart", title: input.title, data: input.data }
+  },
+}
+
+function toolUseToContentBlock(name: string, input: Record<string, unknown>): ContentBlock | null {
+  const renderFn = RENDER_TOOL_MAP[name]
+  if (renderFn) return renderFn(input)
+  return { type: "tool-activity", tool: name }
 }
 
 /** Convert the app's MessageContent (CLI-style — string or text/image/
@@ -88,21 +108,6 @@ function toOpenAiUserContent(
       },
     }
   })
-}
-
-/** Synthesize the Claude-CLI `assistant` stream-json line for a partial
- *  turn. Text is cumulative — accumulated by the caller before this. */
-function assistantLine(blocks: Array<Record<string, unknown>>): string {
-  return JSON.stringify({
-    type: "assistant",
-    message: { content: blocks },
-  })
-}
-
-const RESULT_LINE = JSON.stringify({ type: "result" })
-
-function errorLine(message: string): string {
-  return JSON.stringify({ type: "error", error: { message } })
 }
 
 /** Per-`tool_call.index` accumulator built up from streamed deltas.
@@ -165,10 +170,10 @@ export class OpenAiSession implements CapySession {
 
     try {
       await this.runAgenticLoop()
-      // Suppress the synthetic `result` line if stop()/kill() bailed
-      // the loop — the UI has already shown the interrupted state.
+      // Suppress `done` if stop()/kill() bailed the loop — the UI has
+      // already shown the interrupted state.
       if (!this.interrupted && !this.killed) {
-        this.emit({ type: "stdout", line: RESULT_LINE })
+        this.opts.onEvent({ type: "done" })
       }
     } catch (err) {
       // AbortError lands here when stop()/kill() interrupts the in-flight
@@ -176,7 +181,7 @@ export class OpenAiSession implements CapySession {
       // is a real failure.
       if (this.wasAborted(err)) return
       const message = err instanceof Error ? err.message : String(err)
-      this.emit({ type: "stdout", line: errorLine(message) })
+      this.opts.onEvent({ type: "error", message })
     } finally {
       this.abortController = null
     }
@@ -242,16 +247,21 @@ export class OpenAiSession implements CapySession {
       )
 
       // ── Per-stream state ──────────────────────────────────────
-      // Text deltas are not cumulative; accumulate here and emit
-      // cumulative `assistant` lines so downstream cumulative-text
-      // merging keeps working unchanged.
+      // Text deltas are not cumulative; accumulate locally and emit
+      // cumulative `content` events so prefix-detection text-merging
+      // downstream keeps working unchanged.
       let accumulatedText = ""
-      const completedBlocks: Array<Record<string, unknown>> = []
+      const completedBlocks: ContentBlock[] = []
       let currentTextDraftIndex: number | null = null
       // Tool calls stream as deltas keyed by `index`; arguments arrive
       // sliced across many chunks. Parse only after the stream ends.
       const toolAccs = new Map<number, ToolCallAccumulator>()
       let finishReason: string | null = null
+
+      const emitContent = () => {
+        if (completedBlocks.length === 0) return
+        this.opts.onEvent({ type: "content", blocks: [...completedBlocks] })
+      }
 
       for await (const chunk of stream) {
         const choice = chunk.choices[0]
@@ -262,14 +272,14 @@ export class OpenAiSession implements CapySession {
           accumulatedText += delta.content
           if (currentTextDraftIndex === null) {
             currentTextDraftIndex = completedBlocks.length
-            completedBlocks.push({ type: "text", text: accumulatedText })
+            completedBlocks.push({ type: "text", content: accumulatedText })
           } else {
             completedBlocks[currentTextDraftIndex] = {
               type: "text",
-              text: accumulatedText,
+              content: accumulatedText,
             }
           }
-          this.emit({ type: "stdout", line: assistantLine(completedBlocks) })
+          emitContent()
         }
 
         if (delta.tool_calls) {
@@ -298,7 +308,6 @@ export class OpenAiSession implements CapySession {
 
       // ── Build the assistant turn we just received ──────────────
       const assistantToolCalls: OpenAI.Chat.Completions.ChatCompletionMessageToolCall[] = []
-      const completedBlocksFinal = [...completedBlocks]
       // Sort by index so tool_calls preserve their on-the-wire order.
       const sortedIndices = [...toolAccs.keys()].sort((a, b) => a - b)
       const assistantTextOnly = accumulatedText
@@ -310,21 +319,18 @@ export class OpenAiSession implements CapySession {
           type: "function",
           function: { name: acc.name, arguments: acc.argsString },
         })
-        completedBlocksFinal.push({
-          type: "tool_use",
-          id: acc.id,
-          name: acc.name,
-          // For UI display only: malformed args degrade to {} so the
-          // tool_use block still renders. The error surfaces in the
-          // tool result message below.
-          input: parsed instanceof Error ? {} : parsed,
-        })
+        // For UI display only: malformed args degrade to {} so the tool
+        // block still renders. The error surfaces in the tool result
+        // message below.
+        const inputForRender = parsed instanceof Error ? {} : parsed
+        const cb = toolUseToContentBlock(acc.name, inputForRender)
+        if (cb) completedBlocks.push(cb)
       }
 
       if (assistantToolCalls.length > 0) {
-        // Re-emit the assistant line with tool_use blocks visible to
-        // the UI (matches the Anthropic adapter's `contentBlock` emit).
-        this.emit({ type: "stdout", line: assistantLine(completedBlocksFinal) })
+        // Re-emit the content event with tool blocks visible to the UI
+        // (matches the per-block emit in the Anthropic adapter).
+        emitContent()
       }
 
       const assistantMessage: OpenAI.Chat.Completions.ChatCompletionAssistantMessageParam = {
@@ -400,9 +406,5 @@ export class OpenAiSession implements CapySession {
       if ((err as { type?: string }).type === "aborted") return true
     }
     return this.abortController?.signal.aborted === true
-  }
-
-  private emit(event: SessionEvent): void {
-    this.opts.onEvent(event)
   }
 }

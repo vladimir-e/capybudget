@@ -84,11 +84,3 @@ export type StreamEvent =
   | { type: "content"; blocks: ContentBlock[] }
   | { type: "done" }
   | { type: "error"; message: string }
-
-// ── Session event types ─────────────────────────────────────────
-
-export type SessionEvent =
-  | { type: "stdout"; line: string }
-  | { type: "stderr"; line: string }
-  | { type: "exit"; code: number | null }
-  | { type: "error"; message: string }

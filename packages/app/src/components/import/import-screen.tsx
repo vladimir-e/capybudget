@@ -25,7 +25,7 @@ import { useImportStore } from "@/stores/import-store";
 import { useImportInstructions } from "@/hooks/use-custom-instructions";
 import { useAccounts } from "@/hooks/use-budget-data";
 import { useIntelligenceStore } from "@/stores/intelligence-store";
-import { getToolLabel } from "@/services/capy-stream";
+import { getToolLabel } from "@/lib/tool-labels";
 import { useBudgetRepository } from "@/providers/repository-provider";
 import { tauriFileAdapter } from "../../../../../src/adapters/tauri-file-adapter";
 import {

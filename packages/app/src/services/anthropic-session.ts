@@ -2,20 +2,17 @@
  * Anthropic API adapter — implements `CapySession` against the Anthropic
  * Messages API directly from the renderer.
  *
- * Why "synthetic stream-json": the existing UI consumes Claude CLI's
- * stream-json (decoded by `parseStreamLine` in `capy-stream.ts`). To keep
- * all UI plumbing — cumulative-text merging in `use-capy-session`,
- * `appendNormalizeBlock` in the import store, render-block extraction —
- * working without modification, this adapter synthesizes the same
- * `assistant` / `result` / `error` JSON lines as `SessionEvent`
- * `stdout` events. The cost is one shape-conversion function; the
- * benefit is zero UI changes.
- *
  * Tool dispatch happens in-process via `runTool` from
  * `@capybudget/intelligence`. The agentic loop owns the message history
  * (`messages`) and an `AbortController` so `stop()` can interrupt the
  * in-flight request without leaving dangling `tool_use` blocks (which
  * the API would reject on the next turn).
+ *
+ * Stream-event shape: this adapter emits `StreamEvent`s directly —
+ * cumulative-text `content` blocks during streaming, `done` on turn
+ * completion, `error` on failure. Text deltas are accumulated locally
+ * before each emit so consumers can keep their prefix-detection
+ * text-merging logic (which assumes cumulative text) unchanged.
  *
  * Tauri's webview is a real browser, so the SDK works with
  * `dangerouslyAllowBrowser: true`. The flag is intended to discourage
@@ -29,20 +26,44 @@ import {
   getToolDefinitions,
   type ApiAdapterOptions,
   type CapySession,
+  type ContentBlock,
   type MessageContent,
-  type SessionEvent,
 } from "@capybudget/intelligence"
 
 const MAX_TOKENS = 8192
 
-/** Tools exposed to the model — chat-relevant only. Import + CSV tools
- *  arrive in Phase B together with the Read tool. */
+/** Tool surface mirrors what the model sees in the Claude CLI:
+ *  data + mutation + import + csv + read_file + render. */
 function getAnthropicTools(): Anthropic.Tool[] {
   return getToolDefinitions().map((t) => ({
     name: t.name,
     description: t.description,
     input_schema: t.inputSchema as Anthropic.Tool.InputSchema,
   }))
+}
+
+/** Render-tool name → ContentBlock builder. Mirrors the dispatch in
+ *  `claude-cli-stream.ts`'s `RENDER_TOOL_MAP`, but operating on parsed
+ *  tool inputs we already have in hand (no need to round-trip JSON). */
+const RENDER_TOOL_MAP: Record<string, (input: Record<string, unknown>) => ContentBlock | null> = {
+  render_table: (input) => {
+    if (!Array.isArray(input.headers) || !Array.isArray(input.rows)) return null
+    return { type: "table", headers: input.headers, rows: input.rows }
+  },
+  render_bar_chart: (input) => {
+    if (typeof input.title !== "string" || !Array.isArray(input.data)) return null
+    return { type: "bar-chart", title: input.title, data: input.data }
+  },
+  render_donut_chart: (input) => {
+    if (typeof input.title !== "string" || !Array.isArray(input.data)) return null
+    return { type: "donut-chart", title: input.title, data: input.data }
+  },
+}
+
+function toolUseToContentBlock(name: string, input: Record<string, unknown>): ContentBlock | null {
+  const renderFn = RENDER_TOOL_MAP[name]
+  if (renderFn) return renderFn(input)
+  return { type: "tool-activity", tool: name }
 }
 
 /** Convert the app's MessageContent (CLI-style — string or text/image/
@@ -75,21 +96,6 @@ function toAnthropicUserContent(
       },
     }
   })
-}
-
-/** Synthesize the Claude-CLI `assistant` stream-json line for a partial
- *  turn. Text is cumulative — accumulated by the caller before this. */
-function assistantLine(blocks: Array<Record<string, unknown>>): string {
-  return JSON.stringify({
-    type: "assistant",
-    message: { content: blocks },
-  })
-}
-
-const RESULT_LINE = JSON.stringify({ type: "result" })
-
-function errorLine(message: string): string {
-  return JSON.stringify({ type: "error", error: { message } })
 }
 
 export class AnthropicSession implements CapySession {
@@ -127,10 +133,10 @@ export class AnthropicSession implements CapySession {
 
     try {
       await this.runAgenticLoop()
-      // Suppress the synthetic `result` line if stop()/kill() bailed
-      // the loop — the UI has already shown the interrupted state.
+      // Suppress `done` if stop()/kill() bailed the loop — the UI has
+      // already shown the interrupted state.
       if (!this.interrupted && !this.killed) {
-        this.emit({ type: "stdout", line: RESULT_LINE })
+        this.opts.onEvent({ type: "done" })
       }
     } catch (err) {
       // AbortError lands here when stop()/kill() interrupts the in-flight
@@ -138,7 +144,7 @@ export class AnthropicSession implements CapySession {
       // is a real failure.
       if (this.wasAborted(err)) return
       const message = err instanceof Error ? err.message : String(err)
-      this.emit({ type: "stdout", line: errorLine(message) })
+      this.opts.onEvent({ type: "error", message })
     } finally {
       this.abortController = null
     }
@@ -194,41 +200,48 @@ export class AnthropicSession implements CapySession {
         { signal: this.abortController.signal },
       )
 
-      // Stream content blocks to the UI as they arrive. Text is accumulated
-      // here so we only ever emit cumulative text (matches Claude CLI).
+      // Stream content blocks to the UI as they arrive. Text is
+      // accumulated locally so each emit carries cumulative text —
+      // matches the prefix-detection text-merging downstream.
       let accumulatedText = ""
-      const completedBlocks: Array<Record<string, unknown>> = []
+      const completedBlocks: ContentBlock[] = []
       let currentTextDraftIndex: number | null = null
+
+      const emitContent = () => {
+        if (completedBlocks.length === 0) return
+        this.opts.onEvent({ type: "content", blocks: [...completedBlocks] })
+      }
 
       stream.on("text", (delta) => {
         accumulatedText += delta
         if (currentTextDraftIndex === null) {
           currentTextDraftIndex = completedBlocks.length
-          completedBlocks.push({ type: "text", text: accumulatedText })
+          completedBlocks.push({ type: "text", content: accumulatedText })
         } else {
           completedBlocks[currentTextDraftIndex] = {
             type: "text",
-            text: accumulatedText,
+            content: accumulatedText,
           }
         }
-        this.emit({ type: "stdout", line: assistantLine(completedBlocks) })
+        emitContent()
       })
 
       stream.on("contentBlock", (block) => {
-        // Reset the cumulative-text draft when any block finishes —
-        // a subsequent text block starts a fresh accumulator (matches
-        // Claude-CLI's wire format, where each text block stands alone
-        // in the assistant content array).
         if (block.type === "tool_use") {
+          // A tool_use ends the current text run. Reset the accumulator
+          // so any subsequent text starts fresh — matches the
+          // prefix-detection assumption that each text block stands
+          // alone.
           accumulatedText = ""
           currentTextDraftIndex = null
-          completedBlocks.push({
-            type: "tool_use",
-            id: block.id,
-            name: block.name,
-            input: block.input as Record<string, unknown>,
-          })
-          this.emit({ type: "stdout", line: assistantLine(completedBlocks) })
+          const cb = toolUseToContentBlock(
+            block.name,
+            (block.input ?? {}) as Record<string, unknown>,
+          )
+          if (cb) {
+            completedBlocks.push(cb)
+            emitContent()
+          }
         } else if (block.type === "text") {
           accumulatedText = ""
           currentTextDraftIndex = null
@@ -301,9 +314,5 @@ export class AnthropicSession implements CapySession {
       if ((err as { type?: string }).type === "aborted") return true
     }
     return this.abortController?.signal.aborted === true
-  }
-
-  private emit(event: SessionEvent): void {
-    this.opts.onEvent(event)
   }
 }

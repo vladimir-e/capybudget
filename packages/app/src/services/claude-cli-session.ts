@@ -15,21 +15,27 @@
  * serialized `[Previous conversation]` snippet derived from the chat
  * history the hook hands over via `markInterrupted(...)`. API adapters
  * preserve their own `messages` arrays so they don't implement this.
+ *
+ * Wire format: the CLI speaks stream-json. The decoder
+ * (`parseStreamLine` in `claude-cli-stream.ts`) is an internal detail —
+ * the consumer side only ever sees typed `StreamEvent`s. Process-level
+ * events (stderr noise, unexpected exits, spawn failures) are handled
+ * here too: stderr is logged at debug, exits route through `onExit`,
+ * and spawn errors emit a `StreamEvent.error`.
  */
 
 import { Command, type Child } from "@tauri-apps/plugin-shell"
 import { writeTextFile } from "@tauri-apps/plugin-fs"
 import { tempDir, join as joinPath } from "@tauri-apps/api/path"
 import {
-  type SessionEvent,
-  type CapySessionOptions,
+  type StreamEvent,
+  type ClaudeCliAdapterOptions,
   type MessageContent,
   type CapySession,
   type ChatMessage,
 } from "@capybudget/intelligence"
+import { parseStreamLine } from "./claude-cli-stream"
 import { serializeConversation } from "./serialize-conversation"
-
-export type { SessionEvent, CapySessionOptions }
 
 declare const __PROJECT_ROOT__: string
 
@@ -41,16 +47,18 @@ export class ClaudeCliSession implements CapySession {
   private readonly budgetPath: string
   private readonly mcpServerPath: string
   private readonly systemPrompt: string
-  private readonly onEvent: (event: SessionEvent) => void
+  private readonly onEvent: (event: StreamEvent) => void
+  private readonly onExit?: () => void
   private killed = false
   /** Set by markInterrupted(); consumed (and cleared) on the next send. */
   private interruptedMessages: readonly ChatMessage[] | null = null
 
-  constructor(opts: CapySessionOptions & { systemPrompt: string }) {
+  constructor(opts: ClaudeCliAdapterOptions) {
     this.budgetPath = opts.budgetPath
     this.mcpServerPath = opts.mcpServerPath
     this.systemPrompt = opts.systemPrompt
     this.onEvent = opts.onEvent
+    this.onExit = opts.onExit
   }
 
   get isAlive(): boolean {
@@ -103,17 +111,23 @@ export class ClaudeCliSession implements CapySession {
     ])
 
     command.stdout.on("data", (line: string) => {
-      this.onEvent({ type: "stdout", line })
+      for (const event of parseStreamLine(line)) {
+        this.onEvent(event)
+      }
     })
 
     command.stderr.on("data", (line: string) => {
-      this.onEvent({ type: "stderr", line })
+      // CLI warnings, npm/node noise, and similar — internal to the
+      // subprocess, not surfaced to the consumer.
+      console.debug("[claude-cli-stderr]", line)
     })
 
-    command.on("close", (data) => {
+    command.on("close", () => {
       this.child = null
+      // Only fire onExit on unexpected death — kill()/stop()/restart()
+      // set this.killed first so deliberate teardowns stay quiet.
       if (!this.killed) {
-        this.onEvent({ type: "exit", code: data.code })
+        this.onExit?.()
       }
     })
 

@@ -4,18 +4,24 @@
  * Instead of spawning Claude CLI, it emits pre-built sample responses.
  * Detects import/enrich/chat modes from the system prompt and simulates
  * each flow with realistic streaming timing.
+ *
+ * Wire shape: emits typed `StreamEvent`s directly — same contract the
+ * real adapters use post-refactor. The demo never has a process to
+ * die, so `onExit` is unused.
  */
 
-import type { SessionEvent, MessageContent } from "@capybudget/intelligence";
+import type {
+  ContentBlock,
+  MessageContent,
+  StreamEvent,
+} from "@capybudget/intelligence";
 import { readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
-
-export type { SessionEvent };
 
 export interface CapySessionOptions {
   budgetPath: string;
   mcpServerPath: string;
   systemPrompt: string;
-  onEvent: (event: SessionEvent) => void;
+  onEvent: (event: StreamEvent) => void;
 }
 
 type SessionMode = "chat" | "import" | "enrich";
@@ -52,7 +58,7 @@ function buildCsv(rows: typeof SAMPLE_TRANSACTIONS): string {
 
 export class CapySession {
   private readonly opts: CapySessionOptions;
-  private readonly onEvent: (event: SessionEvent) => void;
+  private readonly onEvent: (event: StreamEvent) => void;
   private alive = false;
   private cancelled = false;
 
@@ -83,24 +89,28 @@ export class CapySession {
     }
   }
 
+  /** Cumulative-blocks emitter shared by all simulators. The real
+   *  adapters emit `StreamEvent.content` with a fresh array each time;
+   *  the demo accumulates blocks and re-emits the full list so
+   *  prefix-detection text-merging downstream behaves identically. */
+  private emit(blocks: ContentBlock[]): void {
+    if (this.cancelled) return;
+    this.onEvent({ type: "content", blocks: [...blocks] });
+  }
+
   // ── Import normalization ────────────────────────────────────────
 
   private async simulateImport(_content: MessageContent): Promise<void> {
     const delay = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
-    const emit = (blocks: unknown[]) => {
-      if (this.cancelled) return;
-      this.onEvent({
-        type: "stdout",
-        line: JSON.stringify({ type: "assistant", message: { content: blocks } }),
-      });
-    };
+    const blocks: ContentBlock[] = [];
 
-    // Step 1: Reading files
-    emit([{ type: "tool_use", name: "Read", input: {} }]);
+    // Step 1: Reading files (Claude CLI's built-in Read tool)
+    blocks.push({ type: "tool-activity", tool: "Read" });
+    this.emit(blocks);
     await delay(1500);
     if (this.cancelled) return;
 
-    // Step 2: Analysis text (streamed word-by-word)
+    // Step 2: Analysis text — streamed word-by-word, cumulative.
     const analysisText =
       "Let me read these and extract the transactions! Here's what I found:\n\n" +
       "1. **Mediterranean Grill** - Jan 27, 2026 - $15.65, VISA ending 6999\n" +
@@ -113,22 +123,28 @@ export class CapySession {
 
     const words = analysisText.split(" ");
     let accumulated = "";
+    const textBlockIndex = blocks.length;
+    blocks.push({ type: "text", content: "" });
     for (let i = 0; i < words.length; i += 4) {
       if (this.cancelled) return;
       const chunk = words.slice(i, i + 4).join(" ");
       accumulated += (accumulated ? " " : "") + chunk;
-      emit([{ type: "text", text: accumulated }]);
+      blocks[textBlockIndex] = { type: "text", content: accumulated };
+      this.emit(blocks);
       await delay(80);
     }
     await delay(500);
     if (this.cancelled) return;
 
     // Step 3: Write CSV to in-memory FS
-    emit([{ type: "text", text: accumulated + "\n\nLet me write the normalized CSV!" }]);
+    accumulated += "\n\nLet me write the normalized CSV!";
+    blocks[textBlockIndex] = { type: "text", content: accumulated };
+    this.emit(blocks);
     await delay(300);
     if (this.cancelled) return;
 
-    emit([{ type: "tool_use", name: "mcp__capy__write_import_file", input: {} }]);
+    blocks.push({ type: "tool-activity", tool: "write_import_file" });
+    this.emit(blocks);
     await delay(800);
     if (this.cancelled) return;
 
@@ -142,7 +158,6 @@ export class CapySession {
     try { existingState = JSON.parse(await readTextFile(statePath)); } catch { /* first write */ }
     await writeTextFile(statePath, JSON.stringify({ ...existingState, enriched: false }));
 
-    // Done
     this.finish();
   }
 
@@ -150,25 +165,22 @@ export class CapySession {
 
   private async simulateEnrich(): Promise<void> {
     const delay = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
-    const emit = (blocks: unknown[]) => {
-      if (this.cancelled) return;
-      this.onEvent({
-        type: "stdout",
-        line: JSON.stringify({ type: "assistant", message: { content: blocks } }),
-      });
-    };
+    const blocks: ContentBlock[] = [];
 
-    emit([{ type: "tool_use", name: "Read", input: {} }]);
+    blocks.push({ type: "tool-activity", tool: "Read" });
+    this.emit(blocks);
     await delay(1000);
     if (this.cancelled) return;
 
-    emit([{ type: "text", text: "Identifying merchants and assigning categories..." }]);
+    blocks.push({ type: "text", content: "Identifying merchants and assigning categories..." });
+    this.emit(blocks);
     await delay(1500);
     if (this.cancelled) return;
 
     // Enrichment is a no-op in demo (categories stay empty).
     // markEnriched() in onEnrichmentComplete handles state.json update.
-    emit([{ type: "tool_use", name: "mcp__capy__write_import_file", input: {} }]);
+    blocks.push({ type: "tool-activity", tool: "write_import_file" });
+    this.emit(blocks);
     await delay(600);
     if (this.cancelled) return;
 
@@ -179,39 +191,34 @@ export class CapySession {
 
   private async simulateChat(): Promise<void> {
     const delay = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
-    const emit = (blocks: unknown[]) => {
-      if (this.cancelled) return;
-      this.onEvent({
-        type: "stdout",
-        line: JSON.stringify({ type: "assistant", message: { content: blocks } }),
-      });
-    };
+    const blocks: ContentBlock[] = [];
 
-    emit([{ type: "tool_use", name: "mcp__capy__spending_summary", input: {} }]);
+    blocks.push({ type: "tool-activity", tool: "spending_summary" });
+    this.emit(blocks);
     await delay(2000);
     if (this.cancelled) return;
 
-    emit([{
+    blocks.push({
       type: "text",
-      text: "Here's a sample of what Capy can do with your budget data. In the full desktop app, I analyze your actual transactions in real time.",
-    }]);
+      content:
+        "Here's a sample of what Capy can do with your budget data. In the full desktop app, I analyze your actual transactions in real time.",
+    });
+    this.emit(blocks);
     await delay(200);
     if (this.cancelled) return;
 
-    emit([{
-      type: "tool_use",
-      name: "mcp__capy__render_donut_chart",
-      input: {
-        title: "Spending Distribution",
-        data: [
-          { label: "Housing", value: 1950.0 },
-          { label: "Groceries", value: 265.0 },
-          { label: "Big Purchases", value: 350.0 },
-          { label: "Dining Out", value: 236.0 },
-          { label: "Other", value: 538.0 },
-        ],
-      },
-    }]);
+    blocks.push({
+      type: "donut-chart",
+      title: "Spending Distribution",
+      data: [
+        { label: "Housing", value: 1950.0 },
+        { label: "Groceries", value: 265.0 },
+        { label: "Big Purchases", value: 350.0 },
+        { label: "Dining Out", value: 236.0 },
+        { label: "Other", value: 538.0 },
+      ],
+    });
+    this.emit(blocks);
     await delay(1000);
     if (this.cancelled) return;
 
@@ -219,11 +226,14 @@ export class CapySession {
       "This is a demo — AI features require the Capy Budget desktop app with Claude CLI installed. Download it to get personalized insights, spending analysis, and natural-language budget management.";
     const words = closingText.split(" ");
     let accumulated = "";
+    const textBlockIndex = blocks.length;
+    blocks.push({ type: "text", content: "" });
     for (let i = 0; i < words.length; i += 3) {
       if (this.cancelled) return;
       const chunk = words.slice(i, i + 3).join(" ");
       accumulated += (accumulated ? " " : "") + chunk;
-      emit([{ type: "text", text: accumulated }]);
+      blocks[textBlockIndex] = { type: "text", content: accumulated };
+      this.emit(blocks);
       await delay(100);
     }
 
@@ -234,10 +244,7 @@ export class CapySession {
 
   private finish(): void {
     if (this.cancelled) return;
-    this.onEvent({
-      type: "stdout",
-      line: JSON.stringify({ type: "result" }),
-    });
+    this.onEvent({ type: "done" });
     this.alive = false;
   }
 

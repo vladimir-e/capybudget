@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest"
-import type { SessionEvent } from "@capybudget/intelligence"
+import type { StreamEvent } from "@capybudget/intelligence"
 import type { BudgetRepository, FileAdapter } from "@capybudget/persistence"
 
 // ── SDK mock ───────────────────────────────────────────────────────
@@ -197,7 +197,7 @@ import { OpenAiSession } from "./openai-session"
 // ── Helpers ────────────────────────────────────────────────────────
 
 function makeSession() {
-  const events: SessionEvent[] = []
+  const events: StreamEvent[] = []
   const session = new OpenAiSession({
     budgetPath: "/budget",
     systemPrompt: "you are capy",
@@ -210,10 +210,6 @@ function makeSession() {
   return { session, events }
 }
 
-function stdoutLines(events: SessionEvent[]): string[] {
-  return events.flatMap((e) => (e.type === "stdout" ? [e.line] : []))
-}
-
 beforeEach(() => {
   mockCreate.mockClear()
   mockRunTool.mockReset()
@@ -223,7 +219,7 @@ beforeEach(() => {
 // ── Tests ──────────────────────────────────────────────────────────
 
 describe("OpenAiSession", () => {
-  it("emits cumulative assistant text and a result line on a one-turn reply", async () => {
+  it("emits cumulative content events and a done event on a one-turn reply", async () => {
     queueTurn({
       textDeltas: ["Hello", ", world"],
       finish_reason: "stop",
@@ -232,12 +228,17 @@ describe("OpenAiSession", () => {
     const { session, events } = makeSession()
     await session.send("Hi")
 
-    const lines = stdoutLines(events).map((l) => JSON.parse(l))
-    const textLines = lines.filter((l) => l.type === "assistant")
-    expect(textLines).toHaveLength(2)
-    expect(textLines[0].message.content[0].text).toBe("Hello")
-    expect(textLines[1].message.content[0].text).toBe("Hello, world")
-    expect(lines[lines.length - 1]).toEqual({ type: "result" })
+    const contentEvents = events.filter((e) => e.type === "content")
+    expect(contentEvents).toHaveLength(2)
+    expect(contentEvents[0]).toEqual({
+      type: "content",
+      blocks: [{ type: "text", content: "Hello" }],
+    })
+    expect(contentEvents[1]).toEqual({
+      type: "content",
+      blocks: [{ type: "text", content: "Hello, world" }],
+    })
+    expect(events[events.length - 1]).toEqual({ type: "done" })
   })
 
   it("prepends a system message with the system prompt", async () => {
@@ -300,8 +301,55 @@ describe("OpenAiSession", () => {
     expect(last.tool_call_id).toBe("call_abc")
     expect(last.content).toBe("5 transactions found")
 
-    const lines = stdoutLines(events).map((l) => JSON.parse(l))
-    expect(lines[lines.length - 1]).toEqual({ type: "result" })
+    // Tool calls surface as tool-activity ContentBlocks.
+    const toolActivityFound = events.some(
+      (e) =>
+        e.type === "content" &&
+        e.blocks.some(
+          (b) => b.type === "tool-activity" && b.tool === "list_transactions",
+        ),
+    )
+    expect(toolActivityFound).toBe(true)
+
+    expect(events[events.length - 1]).toEqual({ type: "done" })
+  })
+
+  it("emits a render-tool ContentBlock without a tool-activity block", async () => {
+    queueTurn({
+      toolCallDeltas: [
+        {
+          index: 0,
+          id: "call_render",
+          name: "render_table",
+          argFragments: [
+            '{"headers":["A","B"],',
+            '"rows":[["1","2"]]}',
+          ],
+        },
+      ],
+      finish_reason: "tool_calls",
+    })
+    queueTurn({ textDeltas: ["done"], finish_reason: "stop" })
+
+    mockRunTool.mockResolvedValueOnce("Rendered.")
+
+    const { session, events } = makeSession()
+    await session.send("Show me a table")
+
+    const allBlocks = events.flatMap((e) =>
+      e.type === "content" ? e.blocks : [],
+    )
+    const tableBlock = allBlocks.find((b) => b.type === "table")
+    expect(tableBlock).toEqual({
+      type: "table",
+      headers: ["A", "B"],
+      rows: [["1", "2"]],
+    })
+    expect(
+      allBlocks.some(
+        (b) => b.type === "tool-activity" && b.tool === "render_table",
+      ),
+    ).toBe(false)
   })
 
   it("accumulates tool arguments across multiple deltas before parsing", async () => {
@@ -380,7 +428,7 @@ describe("OpenAiSession", () => {
     expect(toolMsg!.content!.length).toBeGreaterThan("Error: invalid JSON arguments — ".length)
   })
 
-  it("emits an error line when the SDK rejects", async () => {
+  it("emits an error event when the SDK rejects", async () => {
     queueTurn({
       finish_reason: "stop",
       error: new Error("rate limited"),
@@ -389,10 +437,9 @@ describe("OpenAiSession", () => {
     const { session, events } = makeSession()
     await session.send("Hi")
 
-    const lines = stdoutLines(events).map((l) => JSON.parse(l))
-    const errorLine = lines.find((l) => l.type === "error")
-    expect(errorLine).toEqual({ type: "error", error: { message: "rate limited" } })
-    expect(lines.some((l) => l.type === "result")).toBe(false)
+    const errorEvent = events.find((e) => e.type === "error")
+    expect(errorEvent).toEqual({ type: "error", message: "rate limited" })
+    expect(events.some((e) => e.type === "done")).toBe(false)
   })
 
   it("stop() drops a trailing assistant turn with unmatched tool_calls", async () => {
@@ -520,8 +567,7 @@ describe("OpenAiSession", () => {
       expect.objectContaining({ budgetPath: "/budget" }),
     )
 
-    const lines = stdoutLines(events).map((l) => JSON.parse(l))
-    expect(lines[lines.length - 1]).toEqual({ type: "result" })
+    expect(events[events.length - 1]).toEqual({ type: "done" })
   })
 
   it("forwards multimodal images via image_url and replaces document blocks with a text note", async () => {

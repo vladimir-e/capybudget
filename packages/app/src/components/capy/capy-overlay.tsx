@@ -4,7 +4,7 @@ import { File as FileIcon, Image, Paperclip, RotateCcw, Send, Settings2, Sparkle
 import { toast } from "sonner"
 import { CommandPicker } from "./command-picker"
 import { InstructionsDialog } from "./instructions-dialog"
-import { getToolLabel } from "@/services/capy-stream"
+import { getToolLabel } from "@/lib/tool-labels"
 import { useIntelligenceStore } from "@/stores/intelligence-store"
 import type { CapyCommand } from "@/hooks/use-custom-commands"
 import {

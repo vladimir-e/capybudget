@@ -271,7 +271,7 @@ Exit criteria: full feature parity between providers — chat *and* import work 
 
 Landed: `AnthropicSession` at `packages/app/src/services/anthropic-session.ts`, wired into the factory in `create-session.ts` and threaded with `repo` + `fileAdapter` from `useCapySession` (via `use-session-lifecycle`) and the import store. SDK dependency `@anthropic-ai/sdk` lives only in `@capybudget/app` — the intelligence package stays SDK-agnostic. Tests at `packages/app/src/services/anthropic-session.test.ts` cover one-turn streaming, tool dispatch, error surfacing, stop-mid-tool, and kill.
 
-The adapter synthesizes Claude-CLI stream-json lines (`assistant` / `result` / `error`) and emits them as `SessionEvent` `stdout` events, so `parseStreamLine` and the cumulative-text merging in `use-capy-session` / `appendNormalizeBlock` work without modification — the only cost is one shape-conversion in the adapter, the benefit is zero UI changes. Text deltas from the SDK are accumulated locally before emit, matching the cumulative semantics of Claude CLI's wire format.
+The adapter emits `StreamEvent`s directly (`content` / `done` / `error`) — see Round 5 for the cleanup that retired the earlier "synthetic Claude-CLI stream-json" approach. Text deltas from the SDK are accumulated locally so each `content` event carries cumulative text, matching what the prefix-detection text-merging downstream expects.
 
 `stop()` aborts the in-flight `messages.stream()` via `AbortController`, drops any trailing assistant turn that has unmatched `tool_use` blocks (the API would 400 on the next request otherwise), and sets an `interrupted` flag the agentic loop checks after `runTool` so partial tool_results that reference a dropped turn never get pushed into history. `kill()` flips `isAlive` false and prevents further work; `restart()` resets history.
 
@@ -285,7 +285,7 @@ Landed: `OpenAiSession` at `packages/app/src/services/openai-session.ts`, wired 
 
 API choice: **`chat.completions.create` with `stream: true`**. Reasons documented at the top of the file — chat.completions is the stable, version-broad path (GPT-4 family, GPT-4o, GPT-4.1, GPT-5); the newer `responses.create` would force a divergent tool-call shape and subtler streaming semantics. Revisit if a model becomes responses-only.
 
-The shape mirrors `AnthropicSession` deliberately: same lifecycle (`send`/`stop`/`restart`/`kill`), same `interrupted` flag pattern that drops trailing assistant turns with unmatched `tool_calls` (OpenAI's analogue of unmatched `tool_use`), same Claude-CLI-shaped synthetic stream-json (`assistant` / `result` / `error`) emitted as `SessionEvent` `stdout` events so `parseStreamLine` and downstream cumulative-text merging work without modification. Helper functions (`assistantLine`, `errorLine`, the cumulative-text accumulator) are duplicated rather than extracted — pragmatic over DRY since the two adapters will drift as providers diverge.
+The shape mirrors `AnthropicSession` deliberately: same lifecycle (`send`/`stop`/`restart`/`kill`), same `interrupted` flag pattern that drops trailing assistant turns with unmatched `tool_calls` (OpenAI's analogue of unmatched `tool_use`), same direct-`StreamEvent` emit path (post-Round-5 — see below). The cumulative-text accumulator is duplicated rather than extracted — pragmatic over DRY since the two adapters will drift as providers diverge.
 
 Protocol deltas handled inline:
 - **Tools** wrapped as `{ type: "function", function: { name, description, parameters } }`.
@@ -293,7 +293,7 @@ Protocol deltas handled inline:
 - **Tool results** are appended as `{ role: "tool", tool_call_id, content }` messages, one per call, after the assistant turn that triggered them.
 - **Images** convert to `{ type: "image_url", image_url: { url: "data:${media_type};base64,${data}" } }`.
 - **System prompt** is prepended as a `{ role: "system", content: ... }` message at the head of each request — kept out of `this.messages` so `restart()` clears cleanly.
-- **Text deltas** are non-cumulative (`choices[0].delta.content`); accumulated locally before emit, matching Claude CLI's wire format.
+- **Text deltas** are non-cumulative (`choices[0].delta.content`); accumulated locally before emit so each `StreamEvent.content` carries cumulative text.
 
 `stop()` aborts the in-flight `chat.completions.create` via `AbortController`, drops any trailing assistant turn that has unmatched `tool_calls` (the API would 400 on the next request otherwise), and sets an `interrupted` flag the agentic loop checks after `runTool` so partial tool results that reference a dropped turn never get pushed into history. `kill()` flips `isAlive` false and prevents further work; `restart()` resets history.
 
@@ -375,3 +375,11 @@ Closed the import-flow gap. All three providers now run normalize + enrich end-t
 - `specs/{INTELLIGENCE,INTELLIGENCE_PROVIDERS,IMPORT,ROADMAP}.md`
 
 Old `packages/mcp/src/{import-tools,csv-tools,import-tools.test}.ts` deleted — handlers + tests now live under intelligence.
+
+## Round 5 — Stream-event refactor
+
+What was wrong: the multi-provider work shipped with every adapter synthesizing Claude-CLI-shaped stream-json lines (`{"type":"assistant","message":{...}}`) and emitting them as `SessionEvent.stdout` events. The consumer (`use-session-lifecycle`, `import-store`) then ran `parseStreamLine` to decode them back into typed `StreamEvent`s. Pure round-tripping through one provider's wire format — adapters built strings, the hook reparsed them, and downstream code worked exactly the same as if the strings had been typed objects from the start.
+
+What changed: `StreamEvent` is now the single contract between adapters and consumers. Every adapter (`AnthropicSession`, `OpenAiSession`, the demo stub, and `ClaudeCliSession` itself) emits `{ type: "content", blocks }` / `{ type: "done" }` / `{ type: "error", message }` directly. The Claude-CLI stream-json decoder still exists, but only inside `ClaudeCliSession` — renamed to `claude-cli-stream.ts` to make its scope explicit. `SessionEvent` (the transport-level union with `stdout`/`stderr`/`exit`/`error`) is gone from the public surface. Process-death notifications for the Claude CLI subprocess route through a separate `onExit` callback on `ClaudeCliAdapterOptions`, which the lifecycle hook plumbs through; API adapters don't need it. `getToolLabel` moved to `lib/tool-labels.ts` since it's not Claude-CLI-specific anymore.
+
+What landed: ~50 lines deleted from each API adapter (the `assistantLine` / `errorLine` / `RESULT_LINE` helpers + the `JSON.stringify` wrapping). The consumer side simplifies too — `use-session-lifecycle` no longer translates events, `import-store` switches directly on `StreamEvent.type`. Tests assert on `StreamEvent[]` instead of JSON-line arrays, plus two new render-tool cases per adapter to cover the direct `ContentBlock` emit path. The architectural shape now matches the spec's intent: adapters speak the typed contract, providers' wire formats stay internal to their adapters.

@@ -15,7 +15,6 @@ export type {
   ContentBlock,
   ChatMessage,
   StreamEvent,
-  SessionEvent,
 } from "./types"
 
 // Session interface

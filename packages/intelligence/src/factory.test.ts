@@ -68,7 +68,22 @@ describe("createIntelligenceSession", () => {
       mcpServerPath: opts.mcpServerPath,
       systemPrompt: opts.systemPrompt,
       onEvent: opts.onEvent,
+      onExit: opts.onExit,
     })
+  })
+
+  it("threads onExit through to the claude-cli ctor", () => {
+    const ctor = vi.fn().mockImplementation(() => makeStubSession())
+    const onExit = vi.fn()
+    const opts: SessionOptions = { ...makeOptions(), onExit }
+    createIntelligenceSession({
+      config: { ...DEFAULT_INTELLIGENCE_CONFIG, provider: "claude-cli" },
+      adapters: { "claude-cli": ctor },
+      options: opts,
+    })
+    expect(ctor).toHaveBeenCalledWith(
+      expect.objectContaining({ onExit }),
+    )
   })
 
   it("returns null for anthropic when api key is empty", () => {
