@@ -77,7 +77,7 @@ describe("createIntelligenceSession", () => {
       config: {
         provider: "anthropic",
         anthropic: { apiKey: "", model: "claude-sonnet-4-6" },
-        openai: { apiKey: "", model: "gpt-5" },
+        openai: { apiKey: "", model: "gpt-5.4" },
       },
       adapters: { anthropic: ctor },
       options: makeOptions(),
@@ -93,7 +93,7 @@ describe("createIntelligenceSession", () => {
       config: {
         provider: "anthropic",
         anthropic: { apiKey: "sk-ant-1", model: "claude-sonnet-4-6" },
-        openai: { apiKey: "", model: "gpt-5" },
+        openai: { apiKey: "", model: "gpt-5.4" },
       },
       adapters: { anthropic: ctor },
       options: opts,
@@ -117,7 +117,7 @@ describe("createIntelligenceSession", () => {
       config: {
         provider: "openai",
         anthropic: { apiKey: "", model: "claude-sonnet-4-6" },
-        openai: { apiKey: "sk-openai-1", model: "gpt-5" },
+        openai: { apiKey: "sk-openai-1", model: "gpt-5.4" },
       },
       adapters: { openai: ctor },
       options: opts,
@@ -127,7 +127,7 @@ describe("createIntelligenceSession", () => {
       budgetPath: opts.budgetPath,
       systemPrompt: opts.systemPrompt,
       apiKey: "sk-openai-1",
-      model: "gpt-5",
+      model: "gpt-5.4",
       onEvent: opts.onEvent,
       repo: opts.repo,
       fileAdapter: opts.fileAdapter,

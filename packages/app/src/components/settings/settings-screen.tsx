@@ -41,9 +41,9 @@ const ANTHROPIC_MODELS = [
 ]
 
 const OPENAI_MODELS = [
-  { value: "gpt-5", label: "GPT-5" },
-  { value: "gpt-5-mini", label: "GPT-5 mini" },
-  { value: "gpt-4.1", label: "GPT-4.1" },
+  { value: "gpt-5.4", label: "GPT-5.4" },
+  { value: "gpt-5.4-mini", label: "GPT-5.4 mini" },
+  { value: "gpt-5.4-nano", label: "GPT-5.4 nano" },
 ]
 
 export function SettingsScreen() {
@@ -661,8 +661,8 @@ async function pingOpenAi(apiKey: string, model: string): Promise<PingResult> {
     const { default: OpenAI } = await import("openai")
     const client = new OpenAI({ apiKey, dangerouslyAllowBrowser: true })
     await client.chat.completions.create({
-      model: model || "gpt-5",
-      max_tokens: 8,
+      model: model || "gpt-5.4",
+      max_completion_tokens: 8,
       messages: [{ role: "user", content: "Hi" }],
     })
     return { ok: true, message: "" }
