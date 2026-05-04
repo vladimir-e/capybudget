@@ -21,7 +21,8 @@
 |---|---|
 | File read/write | `@tauri-apps/plugin-fs` |
 | Folder picker | `@tauri-apps/plugin-dialog` |
-| Spawn Claude CLI | `@tauri-apps/plugin-shell` |
+| Subprocess + open URLs | `@tauri-apps/plugin-shell` (Claude CLI adapter, external link handling) |
+| App config persistence | `@tauri-apps/plugin-store` (intelligence provider + API keys) |
 
 ## Principles
 

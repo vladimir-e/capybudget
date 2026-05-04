@@ -1,6 +1,6 @@
 # Intelligence Providers — Refactor Plan
 
-Status: planning. Authored before any code changes. Once implementation lands, the architectural sections fold into `INTELLIGENCE.md`; the planning sections (decisions, open questions) get pruned.
+Status: **shipped** in PR #26 across Phases A and B plus the stream-event refactor (Round 5). The current architecture lives in `INTELLIGENCE.md`; this file is the historical record of the refactor — what was decided, why, and what landed in each round. Kept around as a design reference; safe to delete or merge into INTELLIGENCE.md once the architecture has settled in production.
 
 ## Why
 
