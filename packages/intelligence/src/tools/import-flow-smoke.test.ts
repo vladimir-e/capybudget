@@ -97,6 +97,7 @@ describe("CSV import smoke", () => {
           group: "Daily Living" as const,
           archived: false,
           sortOrder: 1,
+          assigned: null,
         },
         {
           id: "cat-grocery",
@@ -104,6 +105,7 @@ describe("CSV import smoke", () => {
           group: "Daily Living" as const,
           archived: false,
           sortOrder: 2,
+          assigned: null,
         },
         {
           id: "cat-income",
@@ -111,6 +113,7 @@ describe("CSV import smoke", () => {
           group: "Income" as const,
           archived: false,
           sortOrder: 3,
+          assigned: null,
         },
       ],
     })
