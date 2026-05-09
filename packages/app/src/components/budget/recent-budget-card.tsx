@@ -37,7 +37,7 @@ export function RecentBudgetCard({
 }: RecentBudgetCardProps) {
   return (
     <Card
-      className="cursor-pointer transition-all hover:bg-accent hover:shadow-card py-0 border-border/70"
+      className="cursor-pointer transition-all hover:bg-accent hover:shadow-card py-0"
       onClick={() => onOpen(budget.path)}
     >
       <CardHeader className="flex-row items-center justify-between p-4 space-y-0">

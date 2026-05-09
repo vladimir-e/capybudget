@@ -1,3 +1,10 @@
+// Radius exceptions in this file are deliberate: the command palette is a
+// tighter, more compact overlay than a generic dialog, so it overrides the
+// standard radius tiers (see styles/index.css §"Radius convention"):
+//   - rounded-xl! on Command/CommandDialog (instead of rounded-2xl for dialogs)
+//   - rounded-lg! on CommandInput (tighter than the default form-control feel)
+//   - rounded-lg! on CommandItem inside a dialog (instead of rounded-sm)
+// Don't "fix" these to match the convention without revisiting the palette UX.
 import * as React from "react"
 import { Command as CommandPrimitive } from "cmdk"
 
