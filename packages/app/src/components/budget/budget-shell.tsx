@@ -355,7 +355,8 @@ export function BudgetShell({ path, name }: BudgetShellProps) {
               effectiveFormOpen ? "translate-y-0" : "-translate-y-full"
             }`}
           >
-            <div className="w-full max-w-sm rounded-b-2xl border-x border-b bg-background shadow-overlay px-6 pt-5 pb-4">
+            {/* deliberate: floating form panel uses heavier elevation than dialog */}
+            <div className="w-full max-w-sm rounded-b-2xl border-x border-b bg-background shadow-2xl px-6 pt-5 pb-4">
               <TransactionForm
                 key={formKey}
                 amountRef={amountRef}
