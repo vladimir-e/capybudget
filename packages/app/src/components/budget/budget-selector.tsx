@@ -4,16 +4,11 @@ import { open } from "@tauri-apps/plugin-dialog";
 import { toast } from "sonner";
 import { FolderOpen } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import { useAppStore } from "@/stores/app-store";
 import { detectBudget, bootstrapBudget } from "../../../../../src/services/budget";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { ColorThemeSwitcher } from "@/components/color-theme-switcher";
+import { RecentBudgetCard } from "@/components/budget/recent-budget-card";
 
 export function BudgetSelector() {
   const navigate = useNavigate();
@@ -50,28 +45,6 @@ export function BudgetSelector() {
     }
   }
 
-  function handleRemoveRecent(e: React.MouseEvent, path: string) {
-    e.stopPropagation();
-    removeRecentBudget(path);
-  }
-
-  function formatDate(iso: string) {
-    return new Date(iso).toLocaleDateString(undefined, {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-    });
-  }
-
-  function shortenPath(path: string) {
-    const home = path.replace(/^\/Users\/[^/]+/, "~");
-    const parts = home.split("/");
-    if (parts.length > 4) {
-      return parts.slice(0, 2).join("/") + "/.../" + parts.slice(-2).join("/");
-    }
-    return home;
-  }
-
   return (
     <div className="flex h-screen items-center justify-center">
       <div className="absolute top-4 right-4 flex items-center gap-1">
@@ -102,35 +75,12 @@ export function BudgetSelector() {
             </h2>
             <div className="space-y-2">
               {recentBudgets.map((budget) => (
-                <Card
+                <RecentBudgetCard
                   key={budget.path}
-                  className="cursor-pointer transition-all hover:bg-accent hover:shadow-card py-0 border-border/70"
-                  onClick={() => openBudget(budget.path)}
-                >
-                  <CardHeader className="flex-row items-center justify-between p-4 space-y-0">
-                    <div className="min-w-0">
-                      <CardTitle className="text-base truncate font-semibold">
-                        {budget.name}
-                      </CardTitle>
-                      <CardDescription className="truncate text-xs font-mono">
-                        {shortenPath(budget.path)}
-                      </CardDescription>
-                    </div>
-                    <div className="flex items-center gap-2 shrink-0 ml-4">
-                      <span className="text-xs text-muted-foreground/60">
-                        {formatDate(budget.lastOpened)}
-                      </span>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-6 w-6 p-0 text-muted-foreground/40 hover:text-destructive"
-                        onClick={(e) => handleRemoveRecent(e, budget.path)}
-                      >
-                        ×
-                      </Button>
-                    </div>
-                  </CardHeader>
-                </Card>
+                  budget={budget}
+                  onOpen={openBudget}
+                  onRemove={removeRecentBudget}
+                />
               ))}
             </div>
           </div>
