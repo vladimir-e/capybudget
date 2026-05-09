@@ -28,7 +28,7 @@ function MerchantTooltipContent({
   if (!active || !payload?.length) return null;
   const data = payload[0].payload;
   return (
-    <div className="rounded-lg border bg-background px-3 py-2 shadow-md">
+    <div className="rounded-lg border bg-background px-3 py-2 shadow-popover">
       <p className="text-sm font-medium">{data.merchant}</p>
       <p className="text-sm text-muted-foreground tabular-nums">
         {formatMoney(data.total)} · {data.count} txn{data.count !== 1 ? "s" : ""} · {data.percentage.toFixed(1)}%

@@ -312,7 +312,7 @@ export function CapyOverlay({
             className="hidden"
             onChange={handleFileSelect}
           />
-          <div className="relative rounded-2xl border border-border/50 bg-card/80 shadow-2xl backdrop-blur-sm">
+          <div className="relative rounded-2xl border border-border/50 bg-card/80 shadow-overlay backdrop-blur-sm">
             {attachments.length > 0 && (
               <div className="flex flex-wrap gap-1.5 px-5 pt-3.5 pb-0">
                 {attachments.map((att, i) => (

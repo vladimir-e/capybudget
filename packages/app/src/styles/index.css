@@ -52,6 +52,14 @@
     --sidebar-accent-foreground: oklch(0.22 0.04 55);
     --sidebar-border: oklch(0.90 0.02 62);
     --sidebar-ring: oklch(0.58 0.14 55);
+
+    /* Semantic shadows — three elevation tiers.
+       card     — surface elevation for cards (subtle).
+       popover  — dropdowns, popovers, tooltips, menus, chart tooltips.
+       overlay  — heavy elevation for modals, floating bars, drop-down panels. */
+    --shadow-card: 0 1px 2px -1px rgb(0 0 0 / 0.06), 0 2px 4px -2px rgb(0 0 0 / 0.06);
+    --shadow-popover: 0 4px 6px -1px rgb(0 0 0 / 0.10), 0 2px 4px -2px rgb(0 0 0 / 0.08);
+    --shadow-overlay: 0 20px 25px -5px rgb(0 0 0 / 0.12), 0 8px 10px -6px rgb(0 0 0 / 0.10);
 }
 
 .dark {
@@ -95,6 +103,12 @@
     --sidebar-accent-foreground: oklch(0.93 0.01 70);
     --sidebar-border: oklch(0.30 0.025 55);
     --sidebar-ring: oklch(0.74 0.11 58);
+
+    /* Dark mode shadows — higher opacity & deeper spread; black-on-dark
+       washes out otherwise, especially on warm-brown surfaces. */
+    --shadow-card: 0 1px 2px -1px rgb(0 0 0 / 0.40), 0 2px 4px -2px rgb(0 0 0 / 0.30);
+    --shadow-popover: 0 4px 8px -2px rgb(0 0 0 / 0.50), 0 2px 4px -2px rgb(0 0 0 / 0.40);
+    --shadow-overlay: 0 20px 30px -8px rgb(0 0 0 / 0.60), 0 8px 12px -6px rgb(0 0 0 / 0.50);
 }
 
 /* ──────────── Ocean ──────────── */
@@ -494,6 +508,9 @@
     --radius-2xl: calc(var(--radius) * 1.8);
     --radius-3xl: calc(var(--radius) * 2.2);
     --radius-4xl: calc(var(--radius) * 2.6);
+    --shadow-card: var(--shadow-card);
+    --shadow-popover: var(--shadow-popover);
+    --shadow-overlay: var(--shadow-overlay);
 }
 
 @layer base {

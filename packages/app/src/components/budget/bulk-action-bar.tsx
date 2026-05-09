@@ -117,7 +117,7 @@ export function BulkActionBar({ selectedIds, transactions, onClear }: BulkAction
     <>
       {/* Floating bar */}
       <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 animate-in slide-in-from-bottom-4 fade-in duration-200">
-        <div className="flex items-center gap-3 rounded-xl border border-border/60 bg-background/95 backdrop-blur-sm shadow-xl px-4 py-2.5">
+        <div className="flex items-center gap-3 rounded-xl border border-border/60 bg-background/95 backdrop-blur-sm shadow-overlay px-4 py-2.5">
           {/* Summary */}
           <div className="flex items-center gap-3 border-r border-border/40 pr-3">
             <span className="text-sm font-medium tabular-nums">

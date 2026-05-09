@@ -38,7 +38,7 @@ function NetWorthTooltipContent({
 }) {
   if (!active || !payload?.length) return null;
   return (
-    <div className="rounded-lg border bg-background px-3 py-2 shadow-md">
+    <div className="rounded-lg border bg-background px-3 py-2 shadow-popover">
       <p className="text-sm text-muted-foreground">{label}</p>
       <p className="text-sm font-medium tabular-nums">{formatMoney(payload[0].value)}</p>
     </div>

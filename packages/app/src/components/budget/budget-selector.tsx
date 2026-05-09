@@ -104,7 +104,7 @@ export function BudgetSelector() {
               {recentBudgets.map((budget) => (
                 <Card
                   key={budget.path}
-                  className="cursor-pointer transition-all hover:bg-accent hover:shadow-sm py-0 border-border/70"
+                  className="cursor-pointer transition-all hover:bg-accent hover:shadow-card py-0 border-border/70"
                   onClick={() => openBudget(budget.path)}
                 >
                   <CardHeader className="flex-row items-center justify-between p-4 space-y-0">

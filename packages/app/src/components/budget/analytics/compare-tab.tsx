@@ -75,7 +75,7 @@ function CompareTooltipContent({
 }) {
   if (!active || !payload?.length) return null;
   return (
-    <div className="rounded-lg border bg-background px-3 py-2 shadow-md space-y-1">
+    <div className="rounded-lg border bg-background px-3 py-2 shadow-popover space-y-1">
       <p className="text-sm font-medium">{label}</p>
       {payload.map((entry) => (
         <div key={entry.dataKey} className="flex items-center gap-2 text-sm">

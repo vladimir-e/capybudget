@@ -59,7 +59,7 @@ function PieTooltipContent({
   if (!active || !payload?.length) return null;
   const data = payload[0].payload;
   return (
-    <div className="rounded-lg border bg-background px-3 py-2 shadow-md">
+    <div className="rounded-lg border bg-background px-3 py-2 shadow-popover">
       <p className="text-sm font-medium">{data.name}</p>
       <p className="text-sm text-muted-foreground">
         {formatMoney(data.value)} ({data.percentage.toFixed(1)}%)

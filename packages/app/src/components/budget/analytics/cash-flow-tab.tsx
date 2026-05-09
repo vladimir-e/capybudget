@@ -35,7 +35,7 @@ function CashFlowTooltipContent({
   const net = income - expenses;
 
   return (
-    <div className="rounded-lg border bg-background px-3 py-2 shadow-md space-y-1">
+    <div className="rounded-lg border bg-background px-3 py-2 shadow-popover space-y-1">
       <p className="text-sm font-medium">{label}</p>
       <p className="text-sm text-amount-income tabular-nums">
         Income: {formatMoney(income)}

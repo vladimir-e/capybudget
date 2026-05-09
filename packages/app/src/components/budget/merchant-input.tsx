@@ -162,7 +162,7 @@ export function MerchantInput({
         createPortal(
           <div
             style={dropdownStyle}
-            className="z-50 rounded-lg border border-border bg-popover p-1 shadow-md"
+            className="z-50 rounded-lg border border-border bg-popover p-1 shadow-popover"
           >
             <div ref={listRef} className="max-h-48 overflow-y-auto">
               {suggestions.map((m, i) => (

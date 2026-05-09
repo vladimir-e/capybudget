@@ -140,7 +140,7 @@ export function CategoryPanel({ categories }: CategoryPanelProps) {
 
       <DragOverlay>
         {activeItem ? (
-          <div className="flex items-center gap-2 rounded-md border bg-card px-3 py-2 shadow-md">
+          <div className="flex items-center gap-2 rounded-md border bg-card px-3 py-2 shadow-popover">
             <GripVertical className="h-3.5 w-3.5 text-muted-foreground" />
             <span className="text-sm">{activeItem.name}</span>
           </div>
