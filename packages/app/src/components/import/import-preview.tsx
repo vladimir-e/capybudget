@@ -399,14 +399,15 @@ export function ImportPreview({ budgetPath, budgetName, onMergeComplete }: Impor
             </Button>
 
             {/* Dismiss */}
-            <button
-              type="button"
+            <Button
+              variant="ghost"
+              size="icon-xs"
               onClick={() => setSelectedIds(new Set())}
-              className="ml-1 text-muted-foreground/60 hover:text-foreground transition-colors"
+              className="ml-1 text-muted-foreground/60"
               aria-label="Clear selection"
             >
               <X className="h-4 w-4" />
-            </button>
+            </Button>
           </div>
         </div>
       )}
