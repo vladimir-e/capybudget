@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { detectBudget, bootstrapBudget } from "./budget";
+import { detectBudget, bootstrapBudget, inspectFolder } from "./budget";
 import { DEFAULT_CATEGORIES } from "@capybudget/core";
 
 vi.mock("@tauri-apps/api/path", () => ({
@@ -10,12 +10,14 @@ const mockExists = vi.fn();
 const mockReadTextFile = vi.fn();
 const mockWriteTextFile = vi.fn().mockResolvedValue(undefined);
 const mockMkdir = vi.fn().mockResolvedValue(undefined);
+const mockReadDir = vi.fn();
 
 vi.mock("@tauri-apps/plugin-fs", () => ({
   exists: (...args: unknown[]) => mockExists(...args),
   readTextFile: (...args: unknown[]) => mockReadTextFile(...args),
   writeTextFile: (...args: unknown[]) => mockWriteTextFile(...args),
   mkdir: (...args: unknown[]) => mockMkdir(...args),
+  readDir: (...args: unknown[]) => mockReadDir(...args),
 }));
 
 describe("detectBudget", () => {
@@ -211,7 +213,11 @@ describe("detectBudget", () => {
 
 describe("bootstrapBudget", () => {
   beforeEach(() => {
-    vi.clearAllMocks();
+    // resetAllMocks clears both call history AND implementations, ensuring
+    // mockExists returns undefined (falsy) unless explicitly set by a test.
+    vi.resetAllMocks();
+    mockWriteTextFile.mockResolvedValue(undefined);
+    mockMkdir.mockResolvedValue(undefined);
   });
 
   it("returns a BudgetMeta with the current schema version", async () => {
@@ -279,5 +285,59 @@ describe("bootstrapBudget", () => {
   it("writes 4 files total (budget.json + 3 CSVs)", async () => {
     await bootstrapBudget("/new/budget", "Test");
     expect(mockWriteTextFile).toHaveBeenCalledTimes(4);
+  });
+
+  it("refuses to overwrite an existing budget.json", async () => {
+    // Simulate budget.json already existing in the target folder.
+    mockExists.mockImplementation(async (path: string) =>
+      path.endsWith("budget.json"),
+    );
+
+    await expect(bootstrapBudget("/new/budget", "Second")).rejects.toThrow(
+      /Cannot create budget.*budget\.json.*already exists/,
+    );
+  });
+
+  it("refuses to overwrite existing canonical CSV files", async () => {
+    for (const file of ["categories.csv", "accounts.csv", "transactions.csv"]) {
+      vi.clearAllMocks();
+      mockExists.mockImplementation(async (path: string) => path.endsWith(file));
+      await expect(bootstrapBudget("/new/budget", "Test")).rejects.toThrow(
+        /Cannot create budget.*already exists/,
+      );
+    }
+  });
+});
+
+describe("inspectFolder", () => {
+  beforeEach(() => {
+    vi.resetAllMocks();
+  });
+
+  it("returns hasBudget=true when budget.json exists", async () => {
+    mockExists.mockResolvedValue(true);
+    mockReadDir.mockResolvedValue([{ name: "budget.json" }, { name: "accounts.csv" }]);
+    const result = await inspectFolder("/some/folder");
+    expect(result.hasBudget).toBe(true);
+    expect(result.isEmpty).toBe(false);
+    expect(result.itemCount).toBe(2);
+  });
+
+  it("returns hasBudget=false, isEmpty=true when folder is empty", async () => {
+    mockExists.mockResolvedValue(false);
+    mockReadDir.mockResolvedValue([]);
+    const result = await inspectFolder("/empty/folder");
+    expect(result.hasBudget).toBe(false);
+    expect(result.isEmpty).toBe(true);
+    expect(result.itemCount).toBe(0);
+  });
+
+  it("returns hasBudget=false, isEmpty=false when folder has files but no budget.json", async () => {
+    mockExists.mockResolvedValue(false);
+    mockReadDir.mockResolvedValue([{ name: "notes.txt" }, { name: "data.csv" }]);
+    const result = await inspectFolder("/non-budget/folder");
+    expect(result.hasBudget).toBe(false);
+    expect(result.isEmpty).toBe(false);
+    expect(result.itemCount).toBe(2);
   });
 });

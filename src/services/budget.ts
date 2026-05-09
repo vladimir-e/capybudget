@@ -1,4 +1,4 @@
-import { exists, readTextFile, writeTextFile, mkdir } from "@tauri-apps/plugin-fs";
+import { exists, readTextFile, writeTextFile, mkdir, readDir } from "@tauri-apps/plugin-fs";
 import { join } from "@tauri-apps/api/path";
 import type { BudgetMeta, Category } from "@capybudget/core";
 import { DEFAULT_CATEGORIES } from "@capybudget/core";
@@ -7,6 +7,24 @@ import { migrateBudgetFolder } from "./budget-migrations";
 
 export const SCHEMA_VERSION = 3;
 const BUDGET_FILE = "budget.json";
+
+export interface FolderInfo {
+  hasBudget: boolean;
+  isEmpty: boolean;
+  itemCount: number;
+}
+
+/** Inspect a folder: check for budget.json and count total entries. */
+export async function inspectFolder(folderPath: string): Promise<FolderInfo> {
+  const metaPath = await join(folderPath, BUDGET_FILE);
+  const hasBudget = await exists(metaPath);
+  const entries = await readDir(folderPath);
+  return {
+    hasBudget,
+    isEmpty: entries.length === 0,
+    itemCount: entries.length,
+  };
+}
 
 /** Detect a budget folder, run any pending schema migrations, and return the
  *  (possibly updated) BudgetMeta. Returns null if the folder is not a budget. */
@@ -27,7 +45,20 @@ export async function detectBudget(folderPath: string): Promise<BudgetMeta | nul
   return meta;
 }
 
+const PROTECTED_FILES = ["budget.json", "categories.csv", "accounts.csv", "transactions.csv"];
+
+/** Bootstrap a new budget in an empty (or confirmed) folder.
+ *  Refuses to overwrite any of the four canonical budget files if they
+ *  already exist — callers must validate with inspectFolder first. */
 export async function bootstrapBudget(folderPath: string, name: string): Promise<BudgetMeta> {
+  // Guard: refuse to clobber existing budget files.
+  for (const file of PROTECTED_FILES) {
+    const filePath = await join(folderPath, file);
+    if (await exists(filePath)) {
+      throw new Error(`Cannot create budget: "${file}" already exists in this folder.`);
+    }
+  }
+
   const now = new Date().toISOString();
   const meta: BudgetMeta = {
     schemaVersion: SCHEMA_VERSION,
