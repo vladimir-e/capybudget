@@ -1,10 +1,5 @@
+import { FileText, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import type { RecentBudget } from "@capybudget/core";
 
 interface RecentBudgetCardProps {
@@ -36,36 +31,46 @@ export function RecentBudgetCard({
   onRemove,
 }: RecentBudgetCardProps) {
   return (
-    <Card
-      className="cursor-pointer transition-all hover:bg-accent hover:shadow-card py-0"
+    <div
+      role="button"
+      tabIndex={0}
+      className="group flex items-center gap-3 rounded-lg border border-border/40 bg-background/40 px-3 py-2.5 cursor-pointer transition-colors hover:bg-accent/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
       onClick={() => onOpen(budget.path)}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") onOpen(budget.path);
+      }}
     >
-      <CardHeader className="flex-row items-center justify-between p-4 space-y-0">
-        <div className="min-w-0">
-          <CardTitle className="text-base truncate font-semibold">
-            {budget.name}
-          </CardTitle>
-          <CardDescription className="truncate text-xs font-mono">
-            {shortenPath(budget.path)}
-          </CardDescription>
-        </div>
-        <div className="flex items-center gap-2 shrink-0 ml-4">
-          <span className="text-xs text-muted-foreground/60">
-            {formatDate(budget.lastOpened)}
-          </span>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-6 w-6 p-0 text-muted-foreground/40 hover:text-destructive"
-            onClick={(e) => {
-              e.stopPropagation();
-              onRemove(budget.path);
-            }}
-          >
-            ×
-          </Button>
-        </div>
-      </CardHeader>
-    </Card>
+      {/* Icon */}
+      <FileText className="h-4 w-4 shrink-0 text-muted-foreground/60" />
+
+      {/* Name + path */}
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-sm font-semibold leading-tight">
+          {budget.name}
+        </p>
+        <p className="truncate text-xs font-mono text-muted-foreground/60 leading-tight mt-0.5">
+          {shortenPath(budget.path)}
+        </p>
+      </div>
+
+      {/* Date */}
+      <span className="shrink-0 text-xs text-muted-foreground/50">
+        {formatDate(budget.lastOpened)}
+      </span>
+
+      {/* Remove */}
+      <Button
+        variant="ghost"
+        size="icon-sm"
+        className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground/40 hover:text-destructive"
+        aria-label={`Remove ${budget.name} from recents`}
+        onClick={(e) => {
+          e.stopPropagation();
+          onRemove(budget.path);
+        }}
+      >
+        <X className="h-3.5 w-3.5" />
+      </Button>
+    </div>
   );
 }
