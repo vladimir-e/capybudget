@@ -501,6 +501,11 @@
     --color-card: var(--card);
     --color-foreground: var(--foreground);
     --color-background: var(--background);
+    /* Radius convention (use these tiers; deeper levels reserved for special cases):
+         rounded-md   — interactive: buttons, inputs, small toggles
+         rounded-lg   — small surfaces: list items, badges, chips, popovers
+         rounded-xl   — cards, panels
+         rounded-2xl  — dialogs, modals, large overlays */
     --radius-sm: calc(var(--radius) * 0.6);
     --radius-md: calc(var(--radius) * 0.8);
     --radius-lg: var(--radius);
