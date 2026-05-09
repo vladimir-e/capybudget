@@ -184,7 +184,7 @@ export function BulkActionBar({ selectedIds, transactions, onClear }: BulkAction
             className="ml-1 text-muted-foreground/60"
             aria-label="Clear selection"
           >
-            <X className="h-4 w-4" />
+            <X className="size-4" />
           </Button>
         </div>
       </div>
