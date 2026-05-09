@@ -237,10 +237,9 @@ export function BudgetSelector() {
                 What&rsquo;s a budget folder?
               </PopoverTrigger>
               <PopoverContent side="bottom" align="start" className="w-80 text-sm leading-relaxed text-muted-foreground">
-                A budget folder holds your CSV files (accounts, transactions,
-                categories) and a small <code className="text-xs font-mono bg-muted px-1 py-0.5 rounded">budget.json</code> index.
-                Pick any folder you back up — iCloud, Dropbox, a local drive —
-                and Capy keeps everything in plain text inside it.
+                Capy stores everything as plain files inside a folder you
+                choose &mdash; accounts, transactions, budgets. Sync across
+                devices by putting it in iCloud or Google Drive.
               </PopoverContent>
             </Popover>
           </div>
