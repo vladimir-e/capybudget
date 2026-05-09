@@ -1,5 +1,4 @@
 import { FileText, X } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import type { RecentBudget } from "@capybudget/core";
 
 interface RecentBudgetCardProps {
@@ -37,7 +36,10 @@ export function RecentBudgetCard({
       className="group flex items-center gap-3 rounded-lg border border-border/40 bg-background/40 px-3 py-2.5 cursor-pointer transition-colors hover:bg-accent/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
       onClick={() => onOpen(budget.path)}
       onKeyDown={(e) => {
-        if (e.key === "Enter" || e.key === " ") onOpen(budget.path);
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onOpen(budget.path);
+        }
       }}
     >
       {/* Icon */}
@@ -58,19 +60,21 @@ export function RecentBudgetCard({
         {formatDate(budget.lastOpened)}
       </span>
 
-      {/* Remove */}
-      <Button
-        variant="ghost"
-        size="icon-sm"
-        className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground/40 hover:text-destructive"
+      {/* Remove — 44×44 hit area, visual X subtle by default and surfaces on hover/focus */}
+      <button
+        type="button"
         aria-label={`Remove ${budget.name} from recents`}
+        className="shrink-0 inline-flex size-11 items-center justify-center rounded-md text-muted-foreground/30 opacity-60 transition-opacity hover:opacity-100 hover:text-destructive focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 group-hover:opacity-100"
         onClick={(e) => {
           e.stopPropagation();
           onRemove(budget.path);
         }}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") e.stopPropagation();
+        }}
       >
         <X className="h-3.5 w-3.5" />
-      </Button>
+      </button>
     </div>
   );
 }

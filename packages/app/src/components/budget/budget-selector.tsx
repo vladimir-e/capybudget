@@ -67,24 +67,21 @@ export function BudgetSelector() {
 
   // ── open existing flow ──────────────────────────────────────────────────────
 
-  async function handleOpenExisting() {
-    const selected = await open({ directory: true, multiple: false });
-    if (!selected) return;
-
+  async function openExistingAt(folderPath: string) {
     setLoading(true);
     try {
-      const meta = await detectBudget(selected);
+      const meta = await detectBudget(folderPath);
       if (!meta) {
         // No budget here — offer to flip into new flow.
         toast.error("This folder doesn't contain a budget.", {
           action: {
             label: "Create here instead",
-            onClick: () => runNewFlow(selected),
+            onClick: () => runNewFlow(folderPath),
           },
         });
         return;
       }
-      await navigateToBudget(selected, meta.name);
+      await navigateToBudget(folderPath, meta.name);
     } catch (err) {
       toast.error("Failed to open budget", {
         description: err instanceof Error ? err.message : String(err),
@@ -94,10 +91,34 @@ export function BudgetSelector() {
     }
   }
 
+  async function handleOpenExisting() {
+    if (loading) return;
+    setLoading(true);
+    let selected: string | null = null;
+    try {
+      selected = (await open({ directory: true, multiple: false })) as
+        | string
+        | null;
+    } finally {
+      setLoading(false);
+    }
+    if (!selected) return;
+    await openExistingAt(selected);
+  }
+
   // ── new budget flow ─────────────────────────────────────────────────────────
 
   async function handleNewBudget() {
-    const selected = await open({ directory: true, multiple: false });
+    if (loading) return;
+    setLoading(true);
+    let selected: string | null = null;
+    try {
+      selected = (await open({ directory: true, multiple: false })) as
+        | string
+        | null;
+    } finally {
+      setLoading(false);
+    }
     if (!selected) return;
     await runNewFlow(selected);
   }
@@ -239,28 +260,7 @@ export function BudgetSelector() {
                   <RecentBudgetCard
                     key={budget.path}
                     budget={budget}
-                    onOpen={(path) => {
-                      setLoading(true);
-                      detectBudget(path)
-                        .then((meta) => {
-                          if (!meta) {
-                            toast.error("This folder doesn't contain a budget.", {
-                              action: {
-                                label: "Create here instead",
-                                onClick: () => runNewFlow(path),
-                              },
-                            });
-                            return;
-                          }
-                          return navigateToBudget(path, meta.name);
-                        })
-                        .catch((err) => {
-                          toast.error("Failed to open budget", {
-                            description: err instanceof Error ? err.message : String(err),
-                          });
-                        })
-                        .finally(() => setLoading(false));
-                    }}
+                    onOpen={openExistingAt}
                     onRemove={removeRecentBudget}
                   />
                 ))}
@@ -273,7 +273,7 @@ export function BudgetSelector() {
       {/* Non-empty folder confirmation dialog */}
       <Dialog
         open={!!pendingFolder}
-        onOpenChange={(open) => { if (!open) setPendingFolder(null); }}
+        onOpenChange={(isOpen) => { if (!isOpen) setPendingFolder(null); }}
       >
         <DialogContent showCloseButton={false}>
           <DialogHeader>
