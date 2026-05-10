@@ -11,9 +11,9 @@ import { PRESET_LIST } from "../data/presets";
 import type { DemoPreset } from "../data/presets";
 
 const PRESET_STICKERS: Record<string, string> = {
-  underwater: "/capy-broke.png",
-  "paycheck-to-paycheck": "/capy-fine.png",
-  "no-stress": "/capy-great.png",
+  underwater: "/capy-tired.webp",
+  "paycheck-to-paycheck": "/capy-saving.webp",
+  "no-stress": "/capy-chilling.webp",
 };
 
 export function DemoBudgetSelector() {
