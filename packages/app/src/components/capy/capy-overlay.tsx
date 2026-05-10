@@ -1,4 +1,4 @@
-import { useRef, useEffect, useState, useCallback, type KeyboardEvent, type ChangeEvent, type DragEvent } from "react"
+import { useRef, useEffect, useState, useCallback, type KeyboardEvent, type ChangeEvent, type DragEvent, type RefObject } from "react"
 import { useNavigate } from "@tanstack/react-router"
 import {
   CreditCard,
@@ -70,12 +70,13 @@ export function CapyOverlay({
   const [isDragging, setIsDragging] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
+  const firstChipRef = useRef<HTMLButtonElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const dragCounterRef = useRef(0)
 
   // Intelligence config — used to decide whether to show the
-  // "set up your AI assistant" empty state and to disable the input
-  // until a provider + key are configured.
+  // "set up your AI assistant" empty state and to hide the input
+  // entirely until a provider + key are configured.
   const navigate = useNavigate()
   const config = useIntelligenceStore((s) => s.config)
   const setProvider = useIntelligenceStore((s) => s.setProvider)
@@ -110,10 +111,30 @@ export function CapyOverlay({
 
   useEffect(() => {
     if (open) {
-      const timer = setTimeout(() => inputRef.current?.focus(), 300)
+      const timer = setTimeout(() => {
+        // Focus the textarea when configured; otherwise focus the first
+        // enabled provider chip so keyboard users don't lose focus —
+        // textarea is hidden in the unconfigured state, and the Claude
+        // chip may be disabled while detection resolves or when the
+        // CLI is missing. If the first chip is disabled, fall back
+        // to the next chip; ultimately the focus call no-ops if the
+        // DOM target isn't yet attached, which is fine.
+        if (isConfigured) {
+          inputRef.current?.focus()
+        } else {
+          const chip = firstChipRef.current
+          if (chip && !chip.disabled) {
+            chip.focus()
+          } else {
+            chip?.parentElement
+              ?.querySelector<HTMLButtonElement>("button:not([disabled])")
+              ?.focus()
+          }
+        }
+      }, 300)
       return () => clearTimeout(timer)
     }
-  }, [open])
+  }, [open, isConfigured])
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -216,20 +237,19 @@ export function CapyOverlay({
   }
 
   return (
-    <div
-      role="dialog"
+    <aside
       aria-label="Capy assistant"
-      aria-hidden={!open}
+      inert={!open}
       className={`fixed inset-y-0 right-0 z-50 flex w-full flex-col border-l border-border/50 bg-background shadow-2xl transition-transform duration-200 ease-out sm:w-[440px] ${
         open ? "translate-x-0" : "translate-x-full pointer-events-none"
       }`}
-      onDragEnter={handleDragEnter}
-      onDragLeave={handleDragLeave}
-      onDragOver={handleDragOver}
-      onDrop={handleDrop}
+      onDragEnter={isConfigured ? handleDragEnter : undefined}
+      onDragLeave={isConfigured ? handleDragLeave : undefined}
+      onDragOver={isConfigured ? handleDragOver : undefined}
+      onDrop={isConfigured ? handleDrop : undefined}
     >
-      {/* Drop zone indicator */}
-      {isDragging && (
+      {/* Drop zone indicator — only when configured (drag handlers are gated too) */}
+      {isConfigured && isDragging && (
         <div className="absolute inset-4 z-20 flex items-center justify-center rounded-2xl border-2 border-dashed border-brand/50 bg-brand/5 backdrop-blur-sm">
           <div className="flex flex-col items-center gap-2 text-brand">
             <Paperclip className="h-6 w-6" />
@@ -291,6 +311,7 @@ export function CapyOverlay({
               claudeCliAvailable={claudeCliAvailable}
               onPickProvider={openSettings}
               onOpenSettings={() => openSettings()}
+              firstChipRef={firstChipRef}
             />
           )}
           {messages.length === 0 && isConfigured && (
@@ -316,98 +337,94 @@ export function CapyOverlay({
         </div>
       </div>
 
-      {/* Input */}
-      <div className="px-5 pb-5 pt-2">
-        <input
-          ref={fileInputRef}
-          type="file"
-          multiple
-          className="hidden"
-          onChange={handleFileSelect}
-        />
-        <div className="relative rounded-2xl border border-border/50 bg-card/80 shadow-overlay backdrop-blur-sm">
-          {attachments.length > 0 && (
-            <div className="flex flex-wrap gap-1.5 px-5 pt-3.5 pb-0">
-              {attachments.map((att, i) => (
-                <FileChip
-                  key={i}
-                  name={att.name}
-                  size={att.size}
-                  mediaType={att.mediaType}
-                  onRemove={() => removeAttachment(i)}
-                />
-              ))}
-            </div>
-          )}
-          <textarea
-            ref={inputRef}
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder={
-              isConfigured
-                ? "Ask Capy anything about your finances..."
-                : "Set up Capy in settings to enable chat"
-            }
-            rows={3}
-            disabled={!isConfigured}
-            aria-disabled={!isConfigured}
-            className="w-full resize-none rounded-2xl bg-transparent px-5 py-4 pr-14 pl-12 text-base text-foreground placeholder:text-muted-foreground/50 focus:outline-none disabled:cursor-not-allowed disabled:text-muted-foreground/40"
+      {/* Input — hidden entirely until a provider is configured. The
+          unconfigured state is mascot + chips + Open settings only. */}
+      {isConfigured && (
+        <div className="px-5 pb-5 pt-2">
+          <input
+            ref={fileInputRef}
+            type="file"
+            multiple
+            className="hidden"
+            onChange={handleFileSelect}
           />
-          <div className="absolute left-3 bottom-3">
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              className="rounded-xl p-2.5 text-muted-foreground/40 hover:text-muted-foreground hover:bg-muted/50 transition-colors"
-              aria-label="Attach file"
-            >
-              <Paperclip className="h-4.5 w-4.5" />
-            </button>
-          </div>
-          <div className="absolute right-3 bottom-3 flex items-center gap-1">
-            {isStreaming && (
+          <div className="relative rounded-2xl border border-border/50 bg-card/80 shadow-overlay backdrop-blur-sm">
+            {attachments.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 px-5 pt-3.5 pb-0">
+                {attachments.map((att, i) => (
+                  <FileChip
+                    key={i}
+                    name={att.name}
+                    size={att.size}
+                    mediaType={att.mediaType}
+                    onRemove={() => removeAttachment(i)}
+                  />
+                ))}
+              </div>
+            )}
+            <textarea
+              ref={inputRef}
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="Ask Capy anything about your finances..."
+              rows={3}
+              className="w-full resize-none rounded-2xl bg-transparent px-5 py-4 pr-14 pl-12 text-base text-foreground placeholder:text-muted-foreground/50 focus:outline-none"
+            />
+            <div className="absolute left-3 bottom-3">
               <button
                 type="button"
-                onClick={onStop}
-                className="rounded-xl p-2.5 text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
-                aria-label="Stop response"
+                onClick={() => fileInputRef.current?.click()}
+                className="rounded-xl p-2.5 text-muted-foreground/40 hover:text-muted-foreground hover:bg-muted/50 transition-colors"
+                aria-label="Attach file"
               >
-                <Square className="h-4 w-4 fill-current" />
+                <Paperclip className="h-4.5 w-4.5" />
               </button>
-            )}
-            <button
-              type="button"
-              onClick={handleSend}
-              disabled={
-                !isConfigured ||
-                (!input.trim() && attachments.length === 0) ||
-                isStreaming
-              }
-              className="rounded-xl p-2.5 text-brand hover:bg-brand/10 disabled:opacity-25 disabled:hover:bg-transparent transition-colors"
-              aria-label="Send message"
-            >
-              <Send className="h-5 w-5" />
-            </button>
+            </div>
+            <div className="absolute right-3 bottom-3 flex items-center gap-1">
+              {isStreaming && (
+                <button
+                  type="button"
+                  onClick={onStop}
+                  className="rounded-xl p-2.5 text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
+                  aria-label="Stop response"
+                >
+                  <Square className="h-4 w-4 fill-current" />
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={handleSend}
+                disabled={
+                  (!input.trim() && attachments.length === 0) ||
+                  isStreaming
+                }
+                className="rounded-xl p-2.5 text-brand hover:bg-brand/10 disabled:opacity-25 disabled:hover:bg-transparent transition-colors"
+                aria-label="Send message"
+              >
+                <Send className="h-5 w-5" />
+              </button>
+            </div>
+          </div>
+          <div className="mt-1.5 flex items-center justify-between px-1">
+            <div className="flex items-center gap-2">
+              <CommandPicker commands={commands} onSelect={setInput} onSave={onSaveCommands} />
+              <button
+                type="button"
+                onClick={() => setInstructionsOpen(true)}
+                className="inline-flex items-center gap-1 text-xs text-muted-foreground/40 hover:text-muted-foreground transition-colors cursor-pointer"
+                aria-label="Custom instructions"
+              >
+                <Settings2 className="h-3 w-3" />
+                Instructions
+              </button>
+            </div>
+            <p className="text-xs text-muted-foreground/40">
+              Shift + Enter for new line
+            </p>
           </div>
         </div>
-        <div className="mt-1.5 flex items-center justify-between px-1">
-          <div className="flex items-center gap-2">
-            <CommandPicker commands={commands} onSelect={setInput} onSave={onSaveCommands} />
-            <button
-              type="button"
-              onClick={() => setInstructionsOpen(true)}
-              className="inline-flex items-center gap-1 text-xs text-muted-foreground/40 hover:text-muted-foreground transition-colors cursor-pointer"
-              aria-label="Custom instructions"
-            >
-              <Settings2 className="h-3 w-3" />
-              Instructions
-            </button>
-          </div>
-          <p className="text-xs text-muted-foreground/40">
-            Shift + Enter for new line
-          </p>
-        </div>
-      </div>
+      )}
 
       <InstructionsDialog
         open={instructionsOpen}
@@ -415,7 +432,7 @@ export function CapyOverlay({
         instructions={instructions}
         onSave={onSaveInstructions}
       />
-    </div>
+    </aside>
   )
 }
 
@@ -450,6 +467,7 @@ interface UnconfiguredEmptyStateProps {
   claudeCliAvailable: boolean | null
   onPickProvider: (provider: IntelligenceProvider) => void
   onOpenSettings: () => void
+  firstChipRef: RefObject<HTMLButtonElement | null>
 }
 
 const PROVIDER_CHIPS: ReadonlyArray<{ provider: IntelligenceProvider; label: string }> = [
@@ -462,6 +480,7 @@ function UnconfiguredEmptyState({
   claudeCliAvailable,
   onPickProvider,
   onOpenSettings,
+  firstChipRef,
 }: UnconfiguredEmptyStateProps) {
   return (
     <div className="flex flex-col items-center justify-center px-2 py-10 text-center">
@@ -474,14 +493,23 @@ function UnconfiguredEmptyState({
         Anthropic, or OpenAI in settings.
       </p>
       <div className="mt-5 flex flex-wrap justify-center gap-2">
-        {PROVIDER_CHIPS.map(({ provider, label }) => {
+        {PROVIDER_CHIPS.map(({ provider, label }, idx) => {
           const isClaudeCli = provider === "claude-cli"
-          const disabled = isClaudeCli && claudeCliAvailable === false
-          const title = disabled ? "Claude Code CLI not detected on this machine" : undefined
+          // Disable the Claude Code chip while detection is pending (null)
+          // and when the CLI is absent (false). Only `true` enables the
+          // chip — otherwise a fast clicker can race-set provider on a
+          // machine where the CLI isn't actually installed.
+          const disabled = isClaudeCli && claudeCliAvailable !== true
+          const title = disabled
+            ? claudeCliAvailable === null
+              ? "Checking for Claude Code CLI…"
+              : "Claude Code CLI not detected on this machine"
+            : undefined
           return (
             <button
               key={provider}
               type="button"
+              ref={idx === 0 ? firstChipRef : undefined}
               onClick={() => onPickProvider(provider)}
               disabled={disabled}
               title={title}
