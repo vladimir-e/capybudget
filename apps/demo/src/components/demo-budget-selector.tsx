@@ -1,5 +1,7 @@
 import { useNavigate } from "@tanstack/react-router";
 import { useTheme } from "next-themes";
+import { ExternalLink } from "lucide-react";
+import { open as openExternal } from "@tauri-apps/plugin-shell";
 
 import { ThemeToggle } from "@/components/theme-toggle";
 import { BudgetTile } from "@/components/budget/budget-tile";
@@ -74,6 +76,18 @@ export function DemoBudgetSelector() {
                 onClick={() => handleSelect(preset)}
               />
             ))}
+          </div>
+
+          {/* Footer — link to the marketing site. */}
+          <div className="mt-6 text-center">
+            <button
+              type="button"
+              className="inline-flex items-center gap-1 text-xs text-muted-foreground/50 hover:text-muted-foreground transition-colors"
+              onClick={() => { void openExternal("https://capybudget.app"); }}
+            >
+              capybudget.app
+              <ExternalLink className="h-3 w-3" />
+            </button>
           </div>
         </div>
       </div>

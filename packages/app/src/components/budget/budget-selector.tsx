@@ -1,8 +1,9 @@
 import { useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { open } from "@tauri-apps/plugin-dialog";
+import { open as openExternal } from "@tauri-apps/plugin-shell";
 import { toast } from "sonner";
-import { FolderPlus, FolderOpen, HelpCircle, AlertCircle } from "lucide-react";
+import { FolderPlus, FolderOpen, HelpCircle, AlertCircle, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Popover,
@@ -232,6 +233,18 @@ export function BudgetSelector() {
               </div>
             </div>
           )}
+
+          {/* Footer — link to the marketing site. */}
+          <div className="mt-6 text-center">
+            <button
+              type="button"
+              className="inline-flex items-center gap-1 text-xs text-muted-foreground/50 hover:text-muted-foreground transition-colors"
+              onClick={() => { void openExternal("https://capybudget.app"); }}
+            >
+              capybudget.app
+              <ExternalLink className="h-3 w-3" />
+            </button>
+          </div>
         </div>
       </div>
 

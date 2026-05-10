@@ -1,7 +1,9 @@
 /** Stub for @tauri-apps/plugin-shell — used in browser demo. */
 
-export async function open(_target: string): Promise<void> {
-  // no-op in browser
+export async function open(target: string): Promise<void> {
+  if (typeof window !== "undefined") {
+    window.open(target, "_blank", "noopener,noreferrer");
+  }
 }
 
 // Minimal `Command` shape so the renamed app code (claude-cli detect,
