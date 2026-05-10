@@ -24,7 +24,7 @@ export function BudgetTile({
     <div
       role="button"
       tabIndex={0}
-      className="group flex items-center gap-3 rounded-lg border border-border/40 bg-background/40 px-3 py-2.5 cursor-pointer transition-colors hover:bg-accent/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+      className="group flex items-center gap-3 rounded-lg border border-border/40 bg-background/40 px-3 py-2.5 cursor-pointer transition-colors hover:bg-accent/60 dark:hover:bg-background/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
       onClick={onClick}
       onKeyDown={(e) => {
         if (e.key === "Enter" || e.key === " ") {
