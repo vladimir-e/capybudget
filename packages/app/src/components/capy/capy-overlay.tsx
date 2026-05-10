@@ -27,6 +27,7 @@ import { getToolLabel } from "@/lib/tool-labels"
 import { useIntelligenceStore } from "@/stores/intelligence-store"
 import { detectClaudeCli } from "@/services/claude-cli-detect"
 import type { CapyCommand } from "@/hooks/use-custom-commands"
+import { useMediaQuery, usePanelResize } from "@/hooks/use-panel-resize"
 import {
   MAX_ATTACHMENT_SIZE,
   MAX_TOTAL_ATTACHMENT_SIZE,
@@ -41,6 +42,17 @@ import {
   type TableBlock,
   type ToolActivityBlock,
 } from "@capybudget/intelligence"
+
+// Panel sizing — the desktop default and lower bound. Below `sm:`
+// the panel goes full-width and the resize handle is hidden, which
+// preserves the mobile layout for the web demo.
+const PANEL_MIN_WIDTH = 440
+const PANEL_MAX_WIDTH_CAP = 720
+const PANEL_WIDTH_STORAGE_KEY = "capy-panel-width"
+
+function panelMaxWidth(win: Window): number {
+  return Math.min(win.innerWidth * 0.5, PANEL_MAX_WIDTH_CAP)
+}
 
 interface CapyOverlayProps {
   open: boolean
@@ -78,6 +90,15 @@ export function CapyOverlay({
   const firstChipRef = useRef<HTMLButtonElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const dragCounterRef = useRef(0)
+
+  // Resize: only on `sm:` and up — mobile keeps the full-width design
+  // used by the demo. The drag handle is hidden below the breakpoint.
+  const isResizable = useMediaQuery("(min-width: 640px)")
+  const resize = usePanelResize({
+    minWidth: PANEL_MIN_WIDTH,
+    maxWidth: panelMaxWidth,
+    storageKey: PANEL_WIDTH_STORAGE_KEY,
+  })
 
   // Intelligence config — used to decide whether to show the
   // "set up your AI assistant" empty state and to hide the input
@@ -245,14 +266,28 @@ export function CapyOverlay({
     <aside
       aria-label="Capy assistant"
       inert={!open}
-      className={`fixed inset-y-0 right-0 z-50 flex w-full flex-col border-l border-border/50 bg-background shadow-2xl transition-transform duration-200 ease-out sm:w-[440px] ${
+      style={isResizable ? { width: `${resize.width}px` } : undefined}
+      className={`fixed inset-y-0 right-0 z-50 flex w-full flex-col border-l border-border/50 bg-background shadow-2xl transition-transform duration-200 ease-out ${
         open ? "translate-x-0" : "translate-x-full pointer-events-none"
-      }`}
+      } ${resize.isDragging ? "select-none" : ""}`}
       onDragEnter={isConfigured ? handleDragEnter : undefined}
       onDragLeave={isConfigured ? handleDragLeave : undefined}
       onDragOver={isConfigured ? handleDragOver : undefined}
       onDrop={isConfigured ? handleDrop : undefined}
     >
+      {/* Drag handle — left edge, sm+ only. Thin strip with a wider
+          hit-target via padding; the visible band lives at left:0. */}
+      {isResizable && (
+        <div
+          role="separator"
+          aria-orientation="vertical"
+          aria-label="Resize Capy panel"
+          onPointerDown={resize.onPointerDown}
+          className={`absolute inset-y-0 left-0 z-30 w-1 cursor-ew-resize bg-transparent transition-colors hover:bg-brand/30 ${
+            resize.isDragging ? "bg-brand/40" : ""
+          }`}
+        />
+      )}
       {/* Drop zone indicator — only when configured (drag handlers are gated too) */}
       {isConfigured && isDragging && (
         <div className="absolute inset-4 z-20 flex items-center justify-center rounded-2xl border-2 border-dashed border-brand/50 bg-brand/5 backdrop-blur-sm">
