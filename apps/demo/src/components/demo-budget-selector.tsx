@@ -2,7 +2,6 @@ import { useNavigate } from "@tanstack/react-router";
 import { useTheme } from "next-themes";
 
 import { ThemeToggle } from "@/components/theme-toggle";
-import { ColorThemeSwitcher } from "@/components/color-theme-switcher";
 import { BudgetTile } from "@/components/budget/budget-tile";
 import bgDay from "@/assets/capy-bg-day.avif";
 import bgNight from "@/assets/capy-bg-night.avif";
@@ -41,7 +40,6 @@ export function DemoBudgetSelector() {
 
       {/* Top-right controls */}
       <div className="fixed top-4 right-4 z-10 flex items-center gap-1">
-        <ColorThemeSwitcher />
         <ThemeToggle />
       </div>
 

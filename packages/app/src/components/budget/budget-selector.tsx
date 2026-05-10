@@ -24,7 +24,6 @@ import {
   inspectFolder,
 } from "../../../../../src/services/budget";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { ColorThemeSwitcher } from "@/components/color-theme-switcher";
 import { RecentBudgetCard } from "@/components/budget/recent-budget-card";
 import bgDay from "@/assets/capy-bg-day.avif";
 import bgNight from "@/assets/capy-bg-night.avif";
@@ -153,7 +152,6 @@ export function BudgetSelector() {
 
       {/* Top-right controls */}
       <div className="fixed top-4 right-4 z-10 flex items-center gap-1">
-        <ColorThemeSwitcher />
         <ThemeToggle />
       </div>
 
@@ -171,7 +169,7 @@ export function BudgetSelector() {
               Capy Budget
             </h1>
             <p className="text-sm text-muted-foreground">
-              Create a budget or open an existing one.
+              Free, open source, with AI powers.
             </p>
           </div>
 
