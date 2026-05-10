@@ -1,11 +1,28 @@
 import { useRef, useEffect, useState, useCallback, type KeyboardEvent, type ChangeEvent, type DragEvent } from "react"
 import { useNavigate } from "@tanstack/react-router"
-import { File as FileIcon, Image, Paperclip, RotateCcw, Send, Settings2, Sparkles, Square, X, Wrench } from "lucide-react"
+import {
+  CreditCard,
+  File as FileIcon,
+  Image,
+  Paperclip,
+  PieChart,
+  Receipt,
+  RotateCcw,
+  Send,
+  Settings,
+  Settings2,
+  Square,
+  TrendingUp,
+  Wrench,
+  X,
+} from "lucide-react"
 import { toast } from "sonner"
+import capyMascot from "@/assets/capy-neutral.webp"
 import { CommandPicker } from "./command-picker"
 import { InstructionsDialog } from "./instructions-dialog"
 import { getToolLabel } from "@/lib/tool-labels"
 import { useIntelligenceStore } from "@/stores/intelligence-store"
+import { detectClaudeCli } from "@/services/claude-cli-detect"
 import type { CapyCommand } from "@/hooks/use-custom-commands"
 import {
   MAX_ATTACHMENT_SIZE,
@@ -16,6 +33,7 @@ import {
   type ContentBlock,
   type BarChartBlock,
   type DonutChartBlock,
+  type IntelligenceProvider,
   type TableBlock,
 } from "@capybudget/intelligence"
 
@@ -60,12 +78,32 @@ export function CapyOverlay({
   // until a provider + key are configured.
   const navigate = useNavigate()
   const config = useIntelligenceStore((s) => s.config)
+  const setProvider = useIntelligenceStore((s) => s.setProvider)
   const isConfigured =
     config.provider === "claude-cli" ||
     (config.provider === "anthropic" && !!config.anthropic.apiKey) ||
     (config.provider === "openai" && !!config.openai.apiKey)
 
-  function openSettings() {
+  // Detect Claude Code CLI on mount so we can disable that chip when it
+  // isn't installed. detectClaudeCli is cached and idempotent — repeat
+  // calls are cheap.
+  const [claudeCliAvailable, setClaudeCliAvailable] = useState<boolean | null>(null)
+  useEffect(() => {
+    let cancelled = false
+    detectClaudeCli()
+      .then((available) => {
+        if (!cancelled) setClaudeCliAvailable(available)
+      })
+      .catch(() => {
+        if (!cancelled) setClaudeCliAvailable(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  function openSettings(provider?: IntelligenceProvider) {
+    if (provider) setProvider(provider)
     onClose()
     navigate({ to: "/settings" })
   }
@@ -131,6 +169,11 @@ export function CapyOverlay({
     setAttachments([])
   }
 
+  const handleSuggestion = (prompt: string) => {
+    if (isStreaming) return
+    onSend(prompt)
+  }
+
   const handleKeyDown = (e: KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault()
@@ -174,226 +217,195 @@ export function CapyOverlay({
 
   return (
     <div
-      className={`fixed inset-0 z-50 flex flex-col transition-all duration-300 ease-out ${
-        open
-          ? "opacity-100 pointer-events-auto"
-          : "opacity-0 pointer-events-none"
+      role="dialog"
+      aria-label="Capy assistant"
+      aria-hidden={!open}
+      className={`fixed inset-y-0 right-0 z-50 flex w-full flex-col border-l border-border/50 bg-background shadow-2xl transition-transform duration-200 ease-out sm:w-[440px] ${
+        open ? "translate-x-0" : "translate-x-full pointer-events-none"
       }`}
+      onDragEnter={handleDragEnter}
+      onDragLeave={handleDragLeave}
+      onDragOver={handleDragOver}
+      onDrop={handleDrop}
     >
-      {/* Backdrop — the app bleeds through */}
-      <div
-        className="absolute inset-0 bg-background/85 backdrop-blur-lg"
-        onClick={onClose}
-      />
-
-      {/* Chat column — drop zone */}
-      <div
-        className={`relative flex flex-1 flex-col mx-auto w-full max-w-3xl overflow-hidden transition-all duration-300 ease-out ${
-          open ? "translate-y-0 scale-100" : "-translate-y-6 scale-[0.98]"
-        }`}
-        onDragEnter={handleDragEnter}
-        onDragLeave={handleDragLeave}
-        onDragOver={handleDragOver}
-        onDrop={handleDrop}
-      >
-        {/* Drop zone indicator */}
-        {isDragging && (
-          <div className="absolute inset-4 z-20 flex items-center justify-center rounded-2xl border-2 border-dashed border-brand/50 bg-brand/5 backdrop-blur-sm">
-            <div className="flex flex-col items-center gap-2 text-brand">
-              <Paperclip className="h-6 w-6" />
-              <p className="text-sm font-medium">Drop files here</p>
-            </div>
+      {/* Drop zone indicator */}
+      {isDragging && (
+        <div className="absolute inset-4 z-20 flex items-center justify-center rounded-2xl border-2 border-dashed border-brand/50 bg-brand/5 backdrop-blur-sm">
+          <div className="flex flex-col items-center gap-2 text-brand">
+            <Paperclip className="h-6 w-6" />
+            <p className="text-sm font-medium">Drop files here</p>
           </div>
-        )}
-        {/* Overlay header */}
-        <div className="flex items-center justify-between px-6 pt-16 pb-3">
-          <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand/15 text-brand">
-              <Sparkles className="h-4.5 w-4.5" />
-            </div>
-            <div>
-              <h2 className="text-lg font-semibold text-foreground leading-tight">
-                Capy
-              </h2>
-              <p className="text-xs text-muted-foreground">
+        </div>
+      )}
+
+      {/* Persistent header */}
+      <div className="flex items-center justify-between gap-2 border-b border-border/40 px-5 py-4">
+        <div className="flex min-w-0 items-center gap-3">
+          <img
+            src={capyMascot}
+            alt=""
+            className="h-8 w-8 shrink-0 rounded-full object-cover"
+          />
+          <div className="min-w-0">
+            <h2 className="text-sm font-semibold text-foreground leading-tight">
+              Capy
+            </h2>
+            <div className="mt-0.5 flex items-center gap-1.5">
+              <span className="h-1.5 w-1.5 rounded-full bg-green-500" aria-hidden="true" />
+              <p className="truncate text-xs text-muted-foreground">
                 Your financial assistant
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-1">
-            {messages.length > 0 && (
+        </div>
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            onClick={onNewChat}
+            disabled={messages.length === 0}
+            className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-muted-foreground"
+            aria-label="New chat"
+          >
+            <RotateCcw className="h-3.5 w-3.5" />
+            New chat
+          </button>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-lg p-2 text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground"
+            aria-label="Close Capy"
+          >
+            <X className="h-4.5 w-4.5" />
+          </button>
+        </div>
+      </div>
+
+      {/* Messages */}
+      <div
+        ref={scrollRef}
+        className="flex-1 overflow-y-auto px-5 pb-4 capy-scroll"
+      >
+        <div className="space-y-5 py-4">
+          {messages.length === 0 && !isConfigured && (
+            <UnconfiguredEmptyState
+              claudeCliAvailable={claudeCliAvailable}
+              onPickProvider={openSettings}
+              onOpenSettings={() => openSettings()}
+            />
+          )}
+          {messages.length === 0 && isConfigured && (
+            <ConfiguredEmptyState onSuggestion={handleSuggestion} />
+          )}
+          {messages.map((msg) => (
+            <MessageBubble key={msg.id} message={msg} />
+          ))}
+          {isStreaming && (
+            <div className="flex justify-start">
+              <div className="rounded-2xl rounded-bl-sm bg-muted/40 px-5 py-4">
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <div className="capy-thinking flex gap-1">
+                    <span className="h-1.5 w-1.5 rounded-full bg-brand/60" />
+                    <span className="h-1.5 w-1.5 rounded-full bg-brand/60" />
+                    <span className="h-1.5 w-1.5 rounded-full bg-brand/60" />
+                  </div>
+                  Thinking...
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Input */}
+      <div className="px-5 pb-5 pt-2">
+        <input
+          ref={fileInputRef}
+          type="file"
+          multiple
+          className="hidden"
+          onChange={handleFileSelect}
+        />
+        <div className="relative rounded-2xl border border-border/50 bg-card/80 shadow-overlay backdrop-blur-sm">
+          {attachments.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 px-5 pt-3.5 pb-0">
+              {attachments.map((att, i) => (
+                <FileChip
+                  key={i}
+                  name={att.name}
+                  size={att.size}
+                  mediaType={att.mediaType}
+                  onRemove={() => removeAttachment(i)}
+                />
+              ))}
+            </div>
+          )}
+          <textarea
+            ref={inputRef}
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder={
+              isConfigured
+                ? "Ask Capy anything about your finances..."
+                : "Set up Capy in settings to enable chat"
+            }
+            rows={3}
+            disabled={!isConfigured}
+            aria-disabled={!isConfigured}
+            className="w-full resize-none rounded-2xl bg-transparent px-5 py-4 pr-14 pl-12 text-base text-foreground placeholder:text-muted-foreground/50 focus:outline-none disabled:cursor-not-allowed disabled:text-muted-foreground/40"
+          />
+          <div className="absolute left-3 bottom-3">
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className="rounded-xl p-2.5 text-muted-foreground/40 hover:text-muted-foreground hover:bg-muted/50 transition-colors"
+              aria-label="Attach file"
+            >
+              <Paperclip className="h-4.5 w-4.5" />
+            </button>
+          </div>
+          <div className="absolute right-3 bottom-3 flex items-center gap-1">
+            {isStreaming && (
               <button
                 type="button"
-                onClick={onNewChat}
-                className="rounded-xl px-3 py-2 text-xs text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors flex items-center gap-1.5"
-                aria-label="New chat"
+                onClick={onStop}
+                className="rounded-xl p-2.5 text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
+                aria-label="Stop response"
               >
-                <RotateCcw className="h-3.5 w-3.5" />
-                New Chat
+                <Square className="h-4 w-4 fill-current" />
               </button>
             )}
             <button
               type="button"
-              onClick={onClose}
-              className="rounded-xl p-2.5 text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
-              aria-label="Close Capy"
+              onClick={handleSend}
+              disabled={
+                !isConfigured ||
+                (!input.trim() && attachments.length === 0) ||
+                isStreaming
+              }
+              className="rounded-xl p-2.5 text-brand hover:bg-brand/10 disabled:opacity-25 disabled:hover:bg-transparent transition-colors"
+              aria-label="Send message"
             >
-              <X className="h-5 w-5" />
+              <Send className="h-5 w-5" />
             </button>
           </div>
         </div>
-
-        {/* Messages */}
-        <div
-          ref={scrollRef}
-          className="flex-1 overflow-y-auto px-6 pb-4 capy-scroll"
-        >
-          <div className="space-y-5 py-4">
-            {messages.length === 0 && !isConfigured && (
-              <div className="flex flex-col items-center justify-center py-20 text-center">
-                <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-brand/10 text-brand mb-4">
-                  <Sparkles className="h-7 w-7" />
-                </div>
-                <p className="text-lg font-medium text-foreground/80">
-                  Set up your AI assistant
-                </p>
-                <p className="mt-1 max-w-sm text-sm text-muted-foreground/60">
-                  Capy needs an AI provider before it can help. Choose Claude
-                  Code, Anthropic, or OpenAI in settings.
-                </p>
-                <button
-                  type="button"
-                  onClick={openSettings}
-                  className="mt-5 inline-flex items-center gap-1.5 rounded-xl bg-brand px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-brand/90 transition-colors"
-                >
-                  Open settings
-                </button>
-              </div>
-            )}
-            {messages.length === 0 && isConfigured && (
-              <div className="flex flex-col items-center justify-center py-20 text-center">
-                <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-brand/10 text-brand mb-4">
-                  <Sparkles className="h-7 w-7" />
-                </div>
-                <p className="text-lg font-medium text-foreground/80">
-                  Ask me anything about your finances
-                </p>
-                <p className="mt-1 text-sm text-muted-foreground/60">
-                  Spending breakdowns, categorization, trends, and more
-                </p>
-              </div>
-            )}
-            {messages.map((msg) => (
-              <MessageBubble key={msg.id} message={msg} />
-            ))}
-            {isStreaming && (
-              <div className="flex justify-start">
-                <div className="rounded-2xl rounded-bl-sm bg-muted/40 px-5 py-4">
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <div className="capy-thinking flex gap-1">
-                      <span className="h-1.5 w-1.5 rounded-full bg-brand/60" />
-                      <span className="h-1.5 w-1.5 rounded-full bg-brand/60" />
-                      <span className="h-1.5 w-1.5 rounded-full bg-brand/60" />
-                    </div>
-                    Thinking...
-                  </div>
-                </div>
-              </div>
-            )}
+        <div className="mt-1.5 flex items-center justify-between px-1">
+          <div className="flex items-center gap-2">
+            <CommandPicker commands={commands} onSelect={setInput} onSave={onSaveCommands} />
+            <button
+              type="button"
+              onClick={() => setInstructionsOpen(true)}
+              className="inline-flex items-center gap-1 text-xs text-muted-foreground/40 hover:text-muted-foreground transition-colors cursor-pointer"
+              aria-label="Custom instructions"
+            >
+              <Settings2 className="h-3 w-3" />
+              Instructions
+            </button>
           </div>
-        </div>
-
-        {/* Input */}
-        <div className="px-6 pb-8 pt-2">
-          <input
-            ref={fileInputRef}
-            type="file"
-            multiple
-            className="hidden"
-            onChange={handleFileSelect}
-          />
-          <div className="relative rounded-2xl border border-border/50 bg-card/80 shadow-overlay backdrop-blur-sm">
-            {attachments.length > 0 && (
-              <div className="flex flex-wrap gap-1.5 px-5 pt-3.5 pb-0">
-                {attachments.map((att, i) => (
-                  <FileChip
-                    key={i}
-                    name={att.name}
-                    size={att.size}
-                    mediaType={att.mediaType}
-                    onRemove={() => removeAttachment(i)}
-                  />
-                ))}
-              </div>
-            )}
-            <textarea
-              ref={inputRef}
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder={
-                isConfigured
-                  ? "Ask Capy anything about your finances..."
-                  : "Set up Capy in settings to enable chat"
-              }
-              rows={3}
-              disabled={!isConfigured}
-              aria-disabled={!isConfigured}
-              className="w-full resize-none rounded-2xl bg-transparent px-5 py-4 pr-14 pl-12 text-base text-foreground placeholder:text-muted-foreground/50 focus:outline-none disabled:cursor-not-allowed disabled:text-muted-foreground/40"
-            />
-            <div className="absolute left-3 bottom-3">
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                className="rounded-xl p-2.5 text-muted-foreground/40 hover:text-muted-foreground hover:bg-muted/50 transition-colors"
-                aria-label="Attach file"
-              >
-                <Paperclip className="h-4.5 w-4.5" />
-              </button>
-            </div>
-            <div className="absolute right-3 bottom-3 flex items-center gap-1">
-              {isStreaming && (
-                <button
-                  type="button"
-                  onClick={onStop}
-                  className="rounded-xl p-2.5 text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
-                  aria-label="Stop response"
-                >
-                  <Square className="h-4 w-4 fill-current" />
-                </button>
-              )}
-              <button
-                type="button"
-                onClick={handleSend}
-                disabled={
-                  !isConfigured ||
-                  (!input.trim() && attachments.length === 0) ||
-                  isStreaming
-                }
-                className="rounded-xl p-2.5 text-brand hover:bg-brand/10 disabled:opacity-25 disabled:hover:bg-transparent transition-colors"
-                aria-label="Send message"
-              >
-                <Send className="h-5 w-5" />
-              </button>
-            </div>
-          </div>
-          <div className="mt-1.5 flex items-center justify-between px-1">
-            <div className="flex items-center gap-2">
-              <CommandPicker commands={commands} onSelect={setInput} onSave={onSaveCommands} />
-              <button
-                type="button"
-                onClick={() => setInstructionsOpen(true)}
-                className="inline-flex items-center gap-1 text-xs text-muted-foreground/40 hover:text-muted-foreground transition-colors cursor-pointer"
-                aria-label="Custom instructions"
-              >
-                <Settings2 className="h-3 w-3" />
-                Instructions
-              </button>
-            </div>
-            <p className="text-xs text-muted-foreground/40">
-              Shift + Enter for new line
-            </p>
-          </div>
+          <p className="text-xs text-muted-foreground/40">
+            Shift + Enter for new line
+          </p>
         </div>
       </div>
 
@@ -403,6 +415,157 @@ export function CapyOverlay({
         instructions={instructions}
         onSave={onSaveInstructions}
       />
+    </div>
+  )
+}
+
+/* ── Mascot hero ───────────────────────────────────────────────── */
+
+function MascotHero() {
+  return (
+    <div
+      className="relative mx-auto mb-6 flex h-28 w-28 items-center justify-center"
+      aria-hidden="true"
+    >
+      <div
+        className="absolute inset-0 rounded-full"
+        style={{
+          background:
+            "radial-gradient(circle at center, color-mix(in oklab, var(--brand) 55%, transparent) 0%, color-mix(in oklab, var(--brand) 18%, transparent) 45%, transparent 75%)",
+          filter: "blur(14px)",
+        }}
+      />
+      <img
+        src={capyMascot}
+        alt=""
+        className="relative h-24 w-24 rounded-full object-cover"
+      />
+    </div>
+  )
+}
+
+/* ── Empty states ─────────────────────────────────────────────── */
+
+interface UnconfiguredEmptyStateProps {
+  claudeCliAvailable: boolean | null
+  onPickProvider: (provider: IntelligenceProvider) => void
+  onOpenSettings: () => void
+}
+
+const PROVIDER_CHIPS: ReadonlyArray<{ provider: IntelligenceProvider; label: string }> = [
+  { provider: "claude-cli", label: "Claude Code" },
+  { provider: "anthropic", label: "Anthropic" },
+  { provider: "openai", label: "OpenAI" },
+]
+
+function UnconfiguredEmptyState({
+  claudeCliAvailable,
+  onPickProvider,
+  onOpenSettings,
+}: UnconfiguredEmptyStateProps) {
+  return (
+    <div className="flex flex-col items-center justify-center px-2 py-10 text-center">
+      <MascotHero />
+      <h3 className="text-lg font-semibold text-foreground">
+        Set up your AI assistant
+      </h3>
+      <p className="mt-2 max-w-xs text-sm text-muted-foreground">
+        Capy needs an AI provider before it can help. Choose Claude Code,
+        Anthropic, or OpenAI in settings.
+      </p>
+      <div className="mt-5 flex flex-wrap justify-center gap-2">
+        {PROVIDER_CHIPS.map(({ provider, label }) => {
+          const isClaudeCli = provider === "claude-cli"
+          const disabled = isClaudeCli && claudeCliAvailable === false
+          const title = disabled ? "Claude Code CLI not detected on this machine" : undefined
+          return (
+            <button
+              key={provider}
+              type="button"
+              onClick={() => onPickProvider(provider)}
+              disabled={disabled}
+              title={title}
+              className="rounded-full border border-border/40 bg-muted/40 px-3.5 py-1.5 text-xs font-medium text-foreground/80 transition-colors hover:border-brand/40 hover:bg-brand/10 hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-border/40 disabled:hover:bg-muted/40 disabled:hover:text-foreground/80"
+            >
+              {label}
+            </button>
+          )
+        })}
+      </div>
+      <button
+        type="button"
+        onClick={onOpenSettings}
+        className="mt-5 inline-flex items-center gap-1.5 rounded-xl bg-brand px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-brand/90"
+      >
+        <Settings className="h-4 w-4" />
+        Open settings
+      </button>
+    </div>
+  )
+}
+
+interface SuggestionCard {
+  icon: typeof TrendingUp
+  label: string
+  prompt: string
+}
+
+const SUGGESTION_CARDS: ReadonlyArray<SuggestionCard> = [
+  {
+    icon: TrendingUp,
+    label: "How am I doing this month?",
+    prompt: "How am I doing this month?",
+  },
+  {
+    icon: PieChart,
+    label: "Where did my money go in 2025?",
+    prompt: "Where did my money go in 2025?",
+  },
+  {
+    icon: Receipt,
+    label: "Find duplicate transactions",
+    prompt: "Find duplicate transactions in my budget",
+  },
+  {
+    icon: CreditCard,
+    label: "Help me set a grocery budget",
+    prompt: "Help me set a grocery budget",
+  },
+]
+
+interface ConfiguredEmptyStateProps {
+  onSuggestion: (prompt: string) => void
+}
+
+function ConfiguredEmptyState({ onSuggestion }: ConfiguredEmptyStateProps) {
+  return (
+    <div className="flex flex-col items-center px-2 py-8 text-center">
+      <MascotHero />
+      <h3 className="text-lg font-semibold text-foreground">
+        Hey, I&apos;m Capy.
+      </h3>
+      <p className="mt-2 max-w-xs text-sm text-muted-foreground">
+        Ask me about your spending, budgets, or transactions. I see everything
+        in this folder.
+      </p>
+      <div className="mt-6 grid w-full grid-cols-2 gap-2">
+        {SUGGESTION_CARDS.map((card) => {
+          const Icon = card.icon
+          return (
+            <button
+              key={card.prompt}
+              type="button"
+              onClick={() => onSuggestion(card.prompt)}
+              className="group flex items-start gap-2.5 rounded-xl border border-border/40 bg-muted/30 p-3 text-left transition-colors hover:border-brand/40 hover:bg-brand/5"
+            >
+              <Icon className="mt-0.5 h-4 w-4 shrink-0 text-brand transition-colors group-hover:text-brand" />
+              <span className="text-xs font-medium text-foreground/85 leading-snug">
+                {card.label}
+              </span>
+            </button>
+          )
+        })}
+      </div>
     </div>
   )
 }

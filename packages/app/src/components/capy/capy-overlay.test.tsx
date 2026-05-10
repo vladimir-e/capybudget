@@ -85,8 +85,20 @@ describe("CapyOverlay empty state", () => {
 
     expect(screen.getByText("Set up your AI assistant")).toBeInTheDocument()
     expect(
-      screen.getByRole("button", { name: "Open settings" }),
+      screen.getByRole("button", { name: /Open settings/i }),
     ).toBeInTheDocument()
+  })
+
+  it("offers a quick-pick chip for each provider", async () => {
+    useIntelligenceStore.setState({
+      hydrated: true,
+      config: { ...DEFAULT_INTELLIGENCE_CONFIG, provider: null },
+    })
+    await mountOverlay()
+
+    expect(screen.getByRole("button", { name: "Claude Code" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Anthropic" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "OpenAI" })).toBeInTheDocument()
   })
 
   it("shows the empty state when an API provider has no API key", async () => {
@@ -116,15 +128,16 @@ describe("CapyOverlay empty state", () => {
     expect(textarea).toBeDisabled()
   })
 
-  it("shows the regular intro and enables input when configured", async () => {
+  it("shows the welcome state and enables input when configured", async () => {
     useIntelligenceStore.setState({
       hydrated: true,
       config: { ...DEFAULT_INTELLIGENCE_CONFIG, provider: "claude-cli" },
     })
     await mountOverlay()
 
+    expect(screen.getByText(/Hey, I.m Capy\./)).toBeInTheDocument()
     expect(
-      screen.getByText("Ask me anything about your finances"),
+      screen.getByRole("button", { name: "How am I doing this month?" }),
     ).toBeInTheDocument()
     const textarea = screen.getByPlaceholderText(
       "Ask Capy anything about your finances...",
@@ -143,8 +156,6 @@ describe("CapyOverlay empty state", () => {
     })
     await mountOverlay()
 
-    expect(
-      screen.getByText("Ask me anything about your finances"),
-    ).toBeInTheDocument()
+    expect(screen.getByText(/Hey, I.m Capy\./)).toBeInTheDocument()
   })
 })
