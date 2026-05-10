@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { open } from "@tauri-apps/plugin-dialog";
 import { open as openExternal } from "@tauri-apps/plugin-shell";
+import { exists } from "@tauri-apps/plugin-fs";
 import { toast } from "sonner";
 import { FolderPlus, FolderOpen, HelpCircle, AlertCircle, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -23,6 +24,7 @@ import {
   detectBudget,
   bootstrapBudget,
   inspectFolder,
+  findMissingBudgetPaths,
 } from "../../../../../src/services/budget";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { RecentBudgetCard } from "@/components/budget/recent-budget-card";
@@ -54,6 +56,20 @@ export function BudgetSelector() {
   const isDark = (resolvedTheme ?? theme) === "dark";
   const bgUrl = isDark ? bgNight : bgDay;
 
+  // Prune dead recents on mount: any path whose budget.json is gone (folder
+  // deleted, drive unmounted, etc.) gets dropped silently. Runs once.
+  useEffect(() => {
+    let cancelled = false;
+    const paths = useAppStore.getState().recentBudgets.map((b) => b.path);
+    if (paths.length === 0) return;
+    void findMissingBudgetPaths(paths).then((missing) => {
+      if (cancelled) return;
+      const remove = useAppStore.getState().removeRecentBudget;
+      for (const p of missing) remove(p);
+    });
+    return () => { cancelled = true; };
+  }, []);
+
   // ── navigation helper ───────────────────────────────────────────────────────
 
   async function navigateToBudget(folderPath: string, name: string) {
@@ -72,6 +88,17 @@ export function BudgetSelector() {
   async function processFolder(folderPath: string, intent: Intent) {
     setLoading(true);
     try {
+      // Most often a stale recent: folder was deleted or its drive
+      // unmounted. Translate the otherwise-cryptic fs error into something
+      // human and quietly clean up the recent if it's there.
+      if (!(await exists(folderPath))) {
+        toast.error("This folder no longer exists.", {
+          description: "Removed from recents.",
+        });
+        removeRecentBudget(folderPath);
+        return;
+      }
+
       const info = await inspectFolder(folderPath);
 
       if (info.hasBudget) {
