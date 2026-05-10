@@ -746,17 +746,14 @@ function BlockRenderer({
     case "donut-chart":
       return <DonutChart title={block.title} data={block.data} />
     case "tool-activity":
-      // Tool blocks are normally grouped inside MessageBubble. This
-      // branch only fires if a tool-activity block somehow reaches the
-      // renderer ungrouped — keep the legacy single-line look as a
-      // safety net.
-      return <ToolActivity tool={block.tool} />
+      // Grouped into ToolGroupCard by groupBlocks() before reaching
+      // BlockRenderer.
+      return null
     case "file-attachment":
       return <FileChip name={block.name} size={block.size} mediaType={block.mediaType} />
     case "followups":
-      // Followups are extracted in MessageBubble and rendered outside
-      // the bubble. If we hit this branch the grouping logic missed
-      // something — render a no-op rather than crash.
+      // Lifted out of the bubble by groupBlocks() and rendered as a
+      // separate FollowupChips group.
       return null
   }
 }
@@ -819,22 +816,7 @@ function readFileAsBase64(file: Blob): Promise<string> {
   })
 }
 
-/* ── Tool Activity ────────────────────────────────────────────── */
-
-/**
- * Single-row legacy renderer — only used as a safety net if a
- * tool-activity block reaches the renderer ungrouped (shouldn't happen
- * in practice; MessageBubble groups consecutive tool blocks before
- * dispatching to BlockRenderer).
- */
-function ToolActivity({ tool }: { tool: string }) {
-  return (
-    <div className="flex items-center gap-2 text-xs text-muted-foreground/70">
-      <Check className="h-3.5 w-3.5 text-brand/70" />
-      <span>{getToolLabel(tool)}</span>
-    </div>
-  )
-}
+/* ── Tool group card ──────────────────────────────────────────── */
 
 /**
  * Grouped tool-progress card. Rows show the friendly label and a

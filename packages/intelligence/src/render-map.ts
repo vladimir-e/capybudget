@@ -47,9 +47,8 @@ const BUILDERS: Record<string, RenderBuilder> = {
 }
 
 /**
- * Build a fresh copy of the render-tool map. Adapters take a fresh copy
- * (rather than the shared object) so any per-adapter extension stays
- * scoped — none currently do, but the contract is forward-friendly.
+ * Build the render-tool map. Returns a fresh copy so adapter modules
+ * can't accidentally mutate the shared definition.
  */
 export function buildRenderToolMap(): Record<string, RenderBuilder> {
   return { ...BUILDERS }
