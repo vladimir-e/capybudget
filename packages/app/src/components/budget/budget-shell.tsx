@@ -226,11 +226,15 @@ export function BudgetShell({ path, name }: BudgetShellProps) {
                 <ChevronDown className="h-3 w-3 text-muted-foreground" />
               </DropdownMenuTrigger>
               <DropdownMenuContent align="start" className="min-w-48">
-                <DropdownMenuItem onClick={() => shellOpen(path)}>
-                  <FolderOpen className="h-4 w-4" />
-                  Reveal in Finder
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
+                {!__IS_DEMO__ && (
+                  <>
+                    <DropdownMenuItem onClick={() => shellOpen(path)}>
+                      <FolderOpen className="h-4 w-4" />
+                      Reveal in Finder
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                  </>
+                )}
                 <DropdownMenuItem onClick={() => navigate({ to: "/" })}>
                   <LogOut className="h-4 w-4" />
                   Close Budget
