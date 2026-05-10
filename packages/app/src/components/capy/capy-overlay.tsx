@@ -543,8 +543,7 @@ function UnconfiguredEmptyState({
         Set up your AI assistant
       </h3>
       <p className="mt-2 max-w-xs text-sm text-muted-foreground">
-        Capy needs an AI provider before it can help. Choose Claude Code,
-        Anthropic, or OpenAI in settings.
+        Capy needs an AI provider before it can help.
       </p>
       <div className="mt-5 flex flex-wrap justify-center gap-2">
         {PROVIDER_CHIPS.map(({ provider, label }, idx) => {
