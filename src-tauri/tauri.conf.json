@@ -12,6 +12,9 @@
   "plugins": {
     "fs": {
       "requireLiteralLeadingDot": false
+    },
+    "shell": {
+      "open": "^(https?://|/).+"
     }
   },
   "app": {
