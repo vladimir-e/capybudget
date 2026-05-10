@@ -34,9 +34,6 @@ describe("Settings navigation", () => {
       expect(screen.getByRole("heading", { name: "All Accounts" })).toBeInTheDocument();
     });
 
-    // Settings now lives at the bottom of the left navigation rail
-    // (rendered as a TanStack Link → role="link"), not in the top
-    // header where it used to sit.
     await user.click(screen.getByRole("link", { name: "Settings" }));
 
     await waitFor(() => {
