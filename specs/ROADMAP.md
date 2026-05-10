@@ -274,10 +274,15 @@ The path from current state to a public, signed, auto-updating Alpha release. Or
   - On first launch: prompt to create or select a budget
   - No empty/broken initial state
 
-- [ ] **10.4 — Budget selector polish**
-  - Recent budgets in a scrollable area (no full-app scroll with 3+ budgets)
-  - Prune missing paths from recents automatically
-  - Fix "Reveal in Finder" action
+- [x] **10.4 — Budget selector polish**
+  - Visual redesign: room background, glassmorphic card, shared BudgetTile (recents + demo presets), capybudget.app footer link
+  - UX: split into "New budget" / "Open existing…" with forgiving routing — empty → bootstrap, has budget.json → open, non-empty no-budget → modal error with retry
+  - Service hardening: `inspectFolder()` helper, `bootstrapBudget` no-clobber guard, `findMissingBudgetPaths()`
+  - Recent budgets list capped at ~176px and scrollable
+  - Prune missing recents automatically on welcome-screen mount
+  - Friendly "this folder no longer exists" error with auto-cleanup of stale recents
+  - Reveal in Finder fixed (Tauri `shell.open` validator now allows local paths)
+  - Demo welcome adopts the same shell with three preset tiles using new capy art
 
 - [x] **10.5a — Provider adapters** (Phase A + Phase B)
   - Pluggable intelligence layer with three providers: Claude Code CLI, Anthropic API, OpenAI API
