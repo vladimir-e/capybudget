@@ -1,6 +1,5 @@
-import { describe, it, expect, vi, afterEach } from "vitest";
+import { describe, it, expect, afterEach } from "vitest";
 import { render, screen, waitFor, cleanup } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
 import {
   createMemoryHistory,
   createRootRoute,
@@ -11,8 +10,6 @@ import { NavigationRail, type Section } from "./navigation-rail";
 
 async function renderRail(props: {
   activeSection: Section;
-  sidebarOpen?: boolean;
-  onToggleSidebar?: () => void;
   hasImportData?: boolean;
   initialPath?: string;
 }) {
@@ -22,8 +19,6 @@ async function renderRail(props: {
         budgetPath="/test"
         budgetName="Test"
         activeSection={props.activeSection}
-        sidebarOpen={props.sidebarOpen ?? false}
-        onToggleSidebar={props.onToggleSidebar ?? (() => {})}
         hasImportData={props.hasImportData}
       />
     ),
@@ -59,41 +54,6 @@ describe("NavigationRail", () => {
 
     expect(budgetLinks.some((el) => el.getAttribute("aria-current") === "page")).toBe(true);
     expect(accountsLinks.every((el) => el.getAttribute("aria-current") !== "page")).toBe(true);
-  });
-
-  it("shows sidebar toggle on accounts section", async () => {
-    await renderRail({ activeSection: "accounts", sidebarOpen: true });
-    expect(screen.getByLabelText("Collapse sidebar")).toBeInTheDocument();
-  });
-
-  it("hides sidebar toggle on budget section", async () => {
-    await renderRail({ activeSection: "budget" });
-    expect(screen.queryByLabelText("Collapse sidebar")).not.toBeInTheDocument();
-    expect(screen.queryByLabelText("Expand sidebar")).not.toBeInTheDocument();
-  });
-
-  it("hides sidebar toggle on import section", async () => {
-    await renderRail({ activeSection: "import" });
-    expect(screen.queryByLabelText("Collapse sidebar")).not.toBeInTheDocument();
-    expect(screen.queryByLabelText("Expand sidebar")).not.toBeInTheDocument();
-  });
-
-  it("sidebar toggle label reflects open/closed state", async () => {
-    const { unmount } = await renderRail({ activeSection: "accounts", sidebarOpen: true });
-    expect(screen.getByLabelText("Collapse sidebar")).toBeInTheDocument();
-    unmount();
-
-    await renderRail({ activeSection: "accounts", sidebarOpen: false });
-    expect(screen.getByLabelText("Expand sidebar")).toBeInTheDocument();
-  });
-
-  it("calls onToggleSidebar when toggle is clicked", async () => {
-    const user = userEvent.setup();
-    const onToggle = vi.fn();
-    await renderRail({ activeSection: "accounts", sidebarOpen: true, onToggleSidebar: onToggle });
-
-    await user.click(screen.getByLabelText("Collapse sidebar"));
-    expect(onToggle).toHaveBeenCalledOnce();
   });
 
   it("shows import indicator when hasImportData is true", async () => {

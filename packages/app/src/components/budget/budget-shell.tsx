@@ -295,8 +295,6 @@ export function BudgetShell({ path, name }: BudgetShellProps) {
             budgetPath={path}
             budgetName={name}
             activeSection={activeSection}
-            sidebarOpen={activeSection === "accounts" && !sidebarCollapsed}
-            onToggleSidebar={() => setSidebarCollapsed((prev) => !prev)}
             hasImportData={hasImportData || isImportBusy}
           />
 

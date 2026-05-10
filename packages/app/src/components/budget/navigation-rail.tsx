@@ -1,6 +1,6 @@
 import { useEffect, useMemo } from "react";
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
-import { Receipt, PieChart, FileUp, PanelLeftClose, PanelLeftOpen, Settings } from "lucide-react";
+import { Receipt, PieChart, FileUp, Settings } from "lucide-react";
 
 export type Section = "accounts" | "budget" | "import";
 
@@ -8,8 +8,6 @@ interface NavigationRailProps {
   budgetPath: string;
   budgetName: string;
   activeSection: Section;
-  sidebarOpen: boolean;
-  onToggleSidebar: () => void;
   hasImportData?: boolean;
 }
 
@@ -17,8 +15,6 @@ export function NavigationRail({
   budgetPath,
   budgetName,
   activeSection,
-  sidebarOpen,
-  onToggleSidebar,
   hasImportData,
 }: NavigationRailProps) {
   const search = useMemo(() => ({ path: budgetPath, name: budgetName }), [budgetPath, budgetName]);
@@ -61,22 +57,8 @@ export function NavigationRail({
         <NavItem variant="rail" to="/budget/import" search={search} active={isImport} icon={FileUp} label="Import" indicator={hasImportData} />
 
         {/* Bottom utility cluster — separated from primary nav.
-            Sidebar toggle (when on accounts) sits above settings. */}
+            Sidebar collapse lives on the sidebar itself, not the rail. */}
         <div className="mt-auto flex flex-col items-center gap-1 pb-3 pt-2 border-t border-sidebar-border/40 w-full">
-          {isAccounts && (
-            <button
-              type="button"
-              onClick={onToggleSidebar}
-              className="flex w-10 h-10 items-center justify-center rounded-lg text-sidebar-foreground/40 hover:text-sidebar-foreground hover:bg-sidebar-accent/50 transition-colors"
-              aria-label={sidebarOpen ? "Collapse sidebar" : "Expand sidebar"}
-            >
-              {sidebarOpen ? (
-                <PanelLeftClose className="h-4 w-4" />
-              ) : (
-                <PanelLeftOpen className="h-4 w-4" />
-              )}
-            </button>
-          )}
           <NavItem variant="rail" to="/settings" active={isSettings} icon={Settings} label="Settings" />
         </div>
       </nav>
