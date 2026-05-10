@@ -8,7 +8,7 @@
 - **No opinionated methodology.** The app tracks what happened — you decide how to budget.
 - **Sync for free.** Point the data folder at iCloud or Dropbox and get cross-device sync without a backend.
 - **Self-describing data.** Metadata lives alongside data files. Copy a folder to another machine and it just works.
-- **Intelligence is optional.** An optional layer powered by Claude Code adds smart import, auto-categorization, and natural language insights. The app is fully functional without it.
+- **Intelligence is optional.** An optional layer (Capy) adds smart import, auto-categorization, and natural language insights — pluggable across Claude Code CLI, Anthropic API, and OpenAI API. The app is fully functional without it.
 
 ## Core Principle
 
@@ -42,9 +42,10 @@ By default transaction category is null, in the UI this surfaces as 'Uncategoriz
 
 Accounts grouped by type: Cash, Checking, Savings, Credit, Investment, Loans, Archived. Each group shows a subtotal; each account shows its live derived balance.
 
-### Intelligence Layer (Claude Code)
+### Intelligence Layer (Capy)
 
-- **Smart import** — paste a bank screenshot or CSV, Claude parses it, you review and confirm.
+- **Chat panel** — right-edge slide-out with conversation, tool activity, charts, and follow-up suggestions. See `FRONTEND_DESIGN.md` for the interaction model.
+- **Smart import** — paste a bank screenshot or CSV, Capy parses it, you review and confirm.
 - **Auto-categorization** — learns from existing spending patterns.
 - **Insights** — natural language queries about spending.
 - **Anomaly detection** — flags unusual transactions or spending spikes.

@@ -39,8 +39,23 @@ Three top-level sections: **Accounts**, **Budget** (categories), and **Import**.
 
 - **Desktop**: vertical navigation rail (left edge, 64px) with icon+label links. The header spans full width above the rail.
 - **Mobile**: bottom tab bar with the same three sections.
-- **Sidebar**: scoped to the Accounts section only. Slides in/out via an edge handle and a toggle button at the bottom of the rail. Budget and Import sections get full content width.
+- **Sidebar**: scoped to the Accounts section only. Slides in/out via its own edge handle. Budget and Import sections get full content width.
 - **Settings**: lives in a bottom utility cluster on the desktop rail (gear icon), kept separate from the primary three to signal "infrequent / configuration." Intentionally not surfaced in the mobile bottom-tab bar — mobile is a read-mostly surface and the rail's vertical room doesn't translate there.
+
+## Chat Panel
+
+Capy's chat panel slides out from the right edge — full-width on mobile, default 440px on desktop with a draggable left edge (max `min(50vw, 720px)`, width persisted). Non-modal: the rest of the app stays interactive while the panel is open.
+
+The header (mascot avatar, name, status, "New chat", close) is persistent across every state. The close icon is "Hide panel" — collapsing the panel preserves the session; "New chat" is the explicit reset.
+
+Empty states:
+- **Unconfigured** (`provider === null`): mascot + setup copy + provider quick-pick chips + "Open settings". Input is hidden until a provider is configured.
+- **Welcome** (configured, no messages): mascot + greeting + four suggestion cards (click sends prompt as user message).
+
+Conversation:
+- Tool calls render as a stacked card with spinner→checkmark; the card persists in history.
+- Money and percentages get inline emphasis via lightweight `**bold**` parsing rendered in brand color (bold/italic XOR — not nestable).
+- Follow-up suggestion chips appear after responses (model-driven via `render_followups`) and click-to-send.
 
 ## UX Principles
 

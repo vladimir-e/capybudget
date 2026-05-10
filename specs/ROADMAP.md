@@ -284,7 +284,7 @@ The path from current state to a public, signed, auto-updating Alpha release. Or
   - `/settings` route + provider radio + per-provider config + connection test
   - Imports work end-to-end on every provider (multimodal images / PDFs in the initial message)
 
-- [ ] **10.5b — Intelligence layer UX redesign**
+- [x] **10.5b — Intelligence layer UX redesign**
   - Slide out chat UX
   - Apply new design
 
@@ -319,7 +319,7 @@ The path from current state to a public, signed, auto-updating Alpha release. Or
 ### Branding & content
 
 - [ ] **10.10 — Capy mascot & "Alpha" labeling**
-  - Mascot art in app and on promo site
+  - Mascot art in app ✓ (landed in 10.5b) — promo site integration pending
   - "Alpha" indicator visible in app
   - App icon
 
