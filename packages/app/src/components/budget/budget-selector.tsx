@@ -220,7 +220,7 @@ export function BudgetSelector() {
                 </p>
                 <div className="h-px flex-1 bg-border/50" />
               </div>
-              <div className="max-h-64 space-y-2 overflow-y-auto pr-1 -mr-1">
+              <div className="max-h-44 space-y-2 overflow-y-auto pr-1 -mr-1">
                 {recentBudgets.map((budget) => (
                   <RecentBudgetCard
                     key={budget.path}
