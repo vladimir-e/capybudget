@@ -143,6 +143,32 @@ describe("parseStreamLine", () => {
         },
       ])
     })
+
+    it("maps render_followups to a followups ContentBlock", () => {
+      const chips = [
+        { label: "Compare to 2023", prompt: "How does that compare to 2023?" },
+        { label: "Monthly breakdown", prompt: "Show me the monthly breakdown." },
+      ]
+      const line = JSON.stringify({
+        type: "assistant",
+        message: {
+          content: [
+            {
+              type: "tool_use",
+              name: "render_followups",
+              input: { chips },
+            },
+          ],
+        },
+      })
+
+      expect(parseStreamLine(line)).toEqual([
+        {
+          type: "content",
+          blocks: [{ type: "followups", chips }],
+        },
+      ])
+    })
   })
 
   describe("render tools — MCP-prefixed names", () => {
@@ -426,6 +452,59 @@ describe("parseStreamLine", () => {
         },
       })
       expect(parseStreamLine(line)).toEqual([])
+    })
+
+    it("skips render_followups with empty chips array", () => {
+      const line = JSON.stringify({
+        type: "assistant",
+        message: {
+          content: [
+            {
+              type: "tool_use",
+              name: "render_followups",
+              input: { chips: [] },
+            },
+          ],
+        },
+      })
+      expect(parseStreamLine(line)).toEqual([])
+    })
+
+    it("filters malformed chips and keeps the valid ones", () => {
+      const line = JSON.stringify({
+        type: "assistant",
+        message: {
+          content: [
+            {
+              type: "tool_use",
+              name: "render_followups",
+              input: {
+                chips: [
+                  { label: "Good chip", prompt: "Good prompt" },
+                  { label: "", prompt: "missing label" },
+                  { label: "missing prompt" },
+                  null,
+                  { label: "Another good", prompt: "Another good prompt" },
+                ],
+              },
+            },
+          ],
+        },
+      })
+      expect(parseStreamLine(line)).toEqual([
+        {
+          type: "content",
+          blocks: [
+            {
+              type: "followups",
+              chips: [
+                { label: "Good chip", prompt: "Good prompt" },
+                { label: "Another good", prompt: "Another good prompt" },
+              ],
+            },
+          ],
+        },
+      ])
     })
   })
 

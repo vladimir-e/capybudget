@@ -64,6 +64,16 @@ export interface FileAttachmentBlock {
   mediaType: string
 }
 
+export interface FollowupChip {
+  label: string
+  prompt: string
+}
+
+export interface FollowupsBlock {
+  type: "followups"
+  chips: FollowupChip[]
+}
+
 export type ContentBlock =
   | TextBlock
   | TableBlock
@@ -71,6 +81,7 @@ export type ContentBlock =
   | DonutChartBlock
   | ToolActivityBlock
   | FileAttachmentBlock
+  | FollowupsBlock
 
 export interface ChatMessage {
   id: string

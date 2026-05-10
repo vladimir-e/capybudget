@@ -1,9 +1,11 @@
 import { useRef, useEffect, useState, useCallback, type KeyboardEvent, type ChangeEvent, type DragEvent, type RefObject } from "react"
 import { useNavigate } from "@tanstack/react-router"
 import {
+  Check,
   CreditCard,
   File as FileIcon,
   Image,
+  Loader2,
   Paperclip,
   PieChart,
   Receipt,
@@ -13,13 +15,13 @@ import {
   Settings2,
   Square,
   TrendingUp,
-  Wrench,
   X,
 } from "lucide-react"
 import { toast } from "sonner"
 import capyMascot from "@/assets/capy-neutral.webp"
 import { CommandPicker } from "./command-picker"
 import { InstructionsDialog } from "./instructions-dialog"
+import { formatText } from "@/lib/format-text"
 import { getToolLabel } from "@/lib/tool-labels"
 import { useIntelligenceStore } from "@/stores/intelligence-store"
 import { detectClaudeCli } from "@/services/claude-cli-detect"
@@ -33,8 +35,10 @@ import {
   type ContentBlock,
   type BarChartBlock,
   type DonutChartBlock,
+  type FollowupChip,
   type IntelligenceProvider,
   type TableBlock,
+  type ToolActivityBlock,
 } from "@capybudget/intelligence"
 
 interface CapyOverlayProps {
@@ -317,10 +321,22 @@ export function CapyOverlay({
           {messages.length === 0 && isConfigured && (
             <ConfiguredEmptyState onSuggestion={handleSuggestion} />
           )}
-          {messages.map((msg) => (
-            <MessageBubble key={msg.id} message={msg} />
-          ))}
-          {isStreaming && (
+          {messages.map((msg, i) => {
+            // Only the trailing assistant message can be "still streaming";
+            // earlier messages are settled history. Tool-progress cards
+            // and the in-progress spinner only appear on this turn.
+            const isLastAssistant =
+              msg.role === "assistant" && i === messages.length - 1
+            return (
+              <MessageBubble
+                key={msg.id}
+                message={msg}
+                isStreaming={isStreaming && isLastAssistant}
+                onSend={onSend}
+              />
+            )
+          })}
+          {isStreaming && lastMessageHasNoBlocks(messages) && (
             <div className="flex justify-start">
               <div className="rounded-2xl rounded-bl-sm bg-muted/40 px-5 py-4">
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -600,22 +616,105 @@ function ConfiguredEmptyState({ onSuggestion }: ConfiguredEmptyStateProps) {
 
 /* ── Message Bubble ───────────────────────────────────────────── */
 
-function MessageBubble({ message }: { message: ChatMessage }) {
+/**
+ * Render groups for a single message:
+ *   - "bubble"  — runs of mixed content (text, tables, charts, file attachments)
+ *                 rendered inside the chat bubble
+ *   - "tools"   — runs of consecutive tool-activity blocks rendered as a
+ *                 single grouped card (also inside the bubble — this gives
+ *                 the persistent, design-mockup look)
+ *   - "followups" — a `followups` block, rendered outside the bubble below
+ *                   the message so the chips reflow at panel width
+ *
+ * Walking the blocks once and pre-grouping keeps the JSX tree flat and
+ * avoids the "are these tool-activity blocks consecutive?" check from
+ * leaking into BlockRenderer.
+ */
+type MessageGroup =
+  | { kind: "bubble"; blocks: ContentBlock[] }
+  | { kind: "tools"; blocks: ToolActivityBlock[]; trailing: boolean }
+  | { kind: "followups"; chips: FollowupChip[] }
+
+function groupBlocks(blocks: ContentBlock[]): MessageGroup[] {
+  const groups: MessageGroup[] = []
+  let bubble: ContentBlock[] = []
+  let tools: ToolActivityBlock[] = []
+
+  const flushBubble = () => {
+    if (bubble.length > 0) {
+      groups.push({ kind: "bubble", blocks: bubble })
+      bubble = []
+    }
+  }
+  const flushTools = (trailing: boolean) => {
+    if (tools.length > 0) {
+      groups.push({ kind: "tools", blocks: tools, trailing })
+      tools = []
+    }
+  }
+
+  for (const block of blocks) {
+    if (block.type === "tool-activity") {
+      flushBubble()
+      tools.push(block)
+    } else if (block.type === "followups") {
+      flushBubble()
+      flushTools(false)
+      groups.push({ kind: "followups", chips: block.chips })
+    } else {
+      flushTools(false)
+      bubble.push(block)
+    }
+  }
+  // The trailing tool group is special: when the message is still
+  // streaming, the last tool in this group is in-progress (spinner).
+  flushTools(true)
+  flushBubble()
+  return groups
+}
+
+function MessageBubble({
+  message,
+  isStreaming,
+  onSend,
+}: {
+  message: ChatMessage
+  isStreaming: boolean
+  onSend: (text: string) => void
+}) {
   const isUser = message.role === "user"
+  const groups = groupBlocks(message.blocks)
 
   return (
-    <div className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
-      <div
-        className={`space-y-4 ${
-          isUser
-            ? "max-w-[80%] rounded-2xl rounded-br-sm bg-brand/12 px-5 py-4"
-            : "max-w-[90%] rounded-2xl rounded-bl-sm bg-muted/40 px-5 py-4"
-        }`}
-      >
-        {message.blocks.map((block, i) => (
-          <BlockRenderer key={i} block={block} isUser={isUser} />
-        ))}
-      </div>
+    <div className="space-y-3">
+      {groups.map((group, gi) => {
+        if (group.kind === "followups") {
+          return <FollowupChips key={gi} chips={group.chips} onSend={onSend} disabled={isStreaming} />
+        }
+
+        return (
+          <div key={gi} className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
+            <div
+              className={
+                isUser
+                  ? "max-w-[80%] rounded-2xl rounded-br-sm bg-brand/12 px-5 py-4 space-y-4"
+                  : "max-w-[90%] rounded-2xl rounded-bl-sm bg-muted/40 px-5 py-4 space-y-4"
+              }
+            >
+              {group.kind === "bubble"
+                ? group.blocks.map((block, i) => (
+                    <BlockRenderer key={i} block={block} isUser={isUser} />
+                  ))
+                : (
+                  <ToolGroupCard
+                    blocks={group.blocks}
+                    inProgress={isStreaming && group.trailing}
+                  />
+                )}
+            </div>
+          </div>
+        )
+      })}
     </div>
   )
 }
@@ -637,7 +736,7 @@ function BlockRenderer({
             isUser ? "text-foreground" : "text-foreground/90"
           }`}
         >
-          {block.content}
+          {formatText(block.content)}
         </p>
       )
     case "table":
@@ -647,9 +746,18 @@ function BlockRenderer({
     case "donut-chart":
       return <DonutChart title={block.title} data={block.data} />
     case "tool-activity":
+      // Tool blocks are normally grouped inside MessageBubble. This
+      // branch only fires if a tool-activity block somehow reaches the
+      // renderer ungrouped — keep the legacy single-line look as a
+      // safety net.
       return <ToolActivity tool={block.tool} />
     case "file-attachment":
       return <FileChip name={block.name} size={block.size} mediaType={block.mediaType} />
+    case "followups":
+      // Followups are extracted in MessageBubble and rendered outside
+      // the bubble. If we hit this branch the grouping logic missed
+      // something — render a no-op rather than crash.
+      return null
   }
 }
 
@@ -688,7 +796,7 @@ function FileChip({
   )
 }
 
-/* ── Helpers ──────────────────────────────────────────────────── */
+/* ── File helpers ─────────────────────────────────────────────── */
 
 const TEXT_EXTENSIONS = new Set([".csv", ".tsv", ".json", ".xml", ".md", ".txt", ".log"])
 
@@ -713,13 +821,99 @@ function readFileAsBase64(file: Blob): Promise<string> {
 
 /* ── Tool Activity ────────────────────────────────────────────── */
 
+/**
+ * Single-row legacy renderer — only used as a safety net if a
+ * tool-activity block reaches the renderer ungrouped (shouldn't happen
+ * in practice; MessageBubble groups consecutive tool blocks before
+ * dispatching to BlockRenderer).
+ */
 function ToolActivity({ tool }: { tool: string }) {
   return (
-    <div className="flex items-center gap-2 text-xs text-muted-foreground/60">
-      <Wrench className="h-3 w-3" />
+    <div className="flex items-center gap-2 text-xs text-muted-foreground/70">
+      <Check className="h-3.5 w-3.5 text-brand/70" />
       <span>{getToolLabel(tool)}</span>
     </div>
   )
+}
+
+/**
+ * Grouped tool-progress card. Rows show the friendly label and a
+ * status indicator: spinner for the in-progress row, checkmark for
+ * completed rows. Renders even with one row (matches the design
+ * mockup — every tool-activity sequence ends up in a card).
+ */
+function ToolGroupCard({
+  blocks,
+  inProgress,
+}: {
+  blocks: ToolActivityBlock[]
+  inProgress: boolean
+}) {
+  return (
+    <div className="rounded-xl bg-muted/40 px-3.5 py-2.5">
+      <div className="flex flex-col gap-1.5">
+        {blocks.map((block, i) => {
+          const isLast = i === blocks.length - 1
+          const isCurrent = inProgress && isLast
+          return (
+            <div
+              key={i}
+              className="flex items-center gap-2 text-xs text-muted-foreground/80"
+            >
+              {isCurrent ? (
+                <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-brand" />
+              ) : (
+                <Check className="h-3.5 w-3.5 shrink-0 text-brand/80" />
+              )}
+              <span>{getToolLabel(block.tool)}</span>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+/* ── Follow-up chips ──────────────────────────────────────────── */
+
+function FollowupChips({
+  chips,
+  onSend,
+  disabled,
+}: {
+  chips: FollowupChip[]
+  onSend: (text: string) => void
+  disabled: boolean
+}) {
+  if (chips.length === 0) return null
+  return (
+    <div className="flex flex-wrap gap-2">
+      {chips.map((chip, i) => (
+        <button
+          key={i}
+          type="button"
+          onClick={() => onSend(chip.prompt)}
+          disabled={disabled}
+          className="rounded-full border border-border/40 bg-muted/40 px-3.5 py-1.5 text-xs font-medium text-foreground/80 transition-colors hover:border-brand/40 hover:bg-brand/10 hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-border/40 disabled:hover:bg-muted/40 disabled:hover:text-foreground/80"
+        >
+          {chip.label}
+        </button>
+      ))}
+    </div>
+  )
+}
+
+/* ── Helpers ──────────────────────────────────────────────────── */
+
+/**
+ * True when the last message is an assistant turn with no blocks yet.
+ * Used to gate the "Thinking..." indicator — once the first content
+ * block lands the bubble itself shows progress (text streaming in,
+ * tool group with spinner).
+ */
+function lastMessageHasNoBlocks(messages: ChatMessage[]): boolean {
+  const last = messages[messages.length - 1]
+  return !!last && last.role === "assistant" && last.blocks.length === 0
 }
 
 /* ── Table ─────────────────────────────────────────────────────── */

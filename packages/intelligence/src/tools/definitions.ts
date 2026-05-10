@@ -676,6 +676,38 @@ export const RENDER_TOOL_DEFS = [
       required: ["title", "data"],
     },
   },
+  {
+    name: "render_followups",
+    description:
+      "Render 2-3 follow-up suggestion chips below the response. Each chip has a short label (button text) and a prompt (sent as the user's next message when clicked). Use for natural follow-up questions or related views.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        chips: {
+          type: "array",
+          minItems: 1,
+          maxItems: 4,
+          items: {
+            type: "object",
+            properties: {
+              label: {
+                type: "string",
+                description: "Short button text (3-5 words)",
+              },
+              prompt: {
+                type: "string",
+                description:
+                  "The full prompt sent as the user's next message when the chip is clicked",
+              },
+            },
+            required: ["label", "prompt"],
+          },
+          description: "1-4 follow-up chips, ideally 2-3.",
+        },
+      },
+      required: ["chips"],
+    },
+  },
 ] as const
 
 // ── Public surface ───────────────────────────────────────────────

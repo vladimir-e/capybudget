@@ -12,6 +12,8 @@ export type {
   DonutChartBlock,
   ToolActivityBlock,
   FileAttachmentBlock,
+  FollowupChip,
+  FollowupsBlock,
   ContentBlock,
   ChatMessage,
   StreamEvent,
@@ -41,6 +43,9 @@ export type {
 
 // Prompt
 export { SYSTEM_PROMPT, buildContext } from "./prompt"
+
+// Render-tool → ContentBlock map (shared by every adapter)
+export { buildRenderToolMap } from "./render-map"
 
 // Attachments
 export {

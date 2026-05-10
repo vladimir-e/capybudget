@@ -34,6 +34,7 @@
 
 import OpenAI from "openai"
 import {
+  buildRenderToolMap,
   runTool,
   getToolDefinitions,
   type ApiAdapterOptions,
@@ -57,22 +58,9 @@ function getOpenAiTools(): OpenAI.Chat.Completions.ChatCompletionTool[] {
   }))
 }
 
-/** Render-tool name → ContentBlock builder. Mirrors the dispatch in
- *  `claude-cli-stream.ts`'s `RENDER_TOOL_MAP`. */
-const RENDER_TOOL_MAP: Record<string, (input: Record<string, unknown>) => ContentBlock | null> = {
-  render_table: (input) => {
-    if (!Array.isArray(input.headers) || !Array.isArray(input.rows)) return null
-    return { type: "table", headers: input.headers, rows: input.rows }
-  },
-  render_bar_chart: (input) => {
-    if (typeof input.title !== "string" || !Array.isArray(input.data)) return null
-    return { type: "bar-chart", title: input.title, data: input.data }
-  },
-  render_donut_chart: (input) => {
-    if (typeof input.title !== "string" || !Array.isArray(input.data)) return null
-    return { type: "donut-chart", title: input.title, data: input.data }
-  },
-}
+/** Render-tool name → ContentBlock builder. Shared with every adapter
+ *  via `buildRenderToolMap()` so the contract lives in one place. */
+const RENDER_TOOL_MAP = buildRenderToolMap()
 
 function toolUseToContentBlock(name: string, input: Record<string, unknown>): ContentBlock | null {
   const renderFn = RENDER_TOOL_MAP[name]

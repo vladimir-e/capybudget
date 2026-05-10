@@ -317,3 +317,209 @@ describe("CapyOverlay click-through behavior", () => {
     expect(onNewChat).toHaveBeenCalledTimes(1)
   })
 })
+
+describe("CapyOverlay tool-progress grouping", () => {
+  beforeEach(() => {
+    useIntelligenceStore.setState({
+      hydrated: true,
+      config: { ...DEFAULT_INTELLIGENCE_CONFIG, provider: "claude-cli" },
+    })
+  })
+
+  it("groups consecutive tool-activity blocks into a single card", async () => {
+    const messages: ChatMessage[] = [
+      { id: "u1", role: "user", blocks: [{ type: "text", content: "hi" }] },
+      {
+        id: "a1",
+        role: "assistant",
+        blocks: [
+          { type: "tool-activity", tool: "list_transactions" },
+          { type: "tool-activity", tool: "spending_summary" },
+          { type: "tool-activity", tool: "list_categories" },
+          { type: "text", content: "Done." },
+        ],
+      },
+    ]
+    await mountOverlay({ messages, isStreaming: false })
+
+    // All three tool labels render
+    expect(screen.getByText("Querying transactions")).toBeInTheDocument()
+    expect(screen.getByText("Calculating spending")).toBeInTheDocument()
+    expect(screen.getByText("Querying categories")).toBeInTheDocument()
+  })
+
+  it("shows a spinner on the trailing tool while streaming", async () => {
+    const messages: ChatMessage[] = [
+      { id: "u1", role: "user", blocks: [{ type: "text", content: "hi" }] },
+      {
+        id: "a1",
+        role: "assistant",
+        blocks: [
+          { type: "tool-activity", tool: "list_transactions" },
+          { type: "tool-activity", tool: "spending_summary" },
+        ],
+      },
+    ]
+    const { container } = await mountOverlay({ messages, isStreaming: true })
+
+    // Exactly one spinner (the trailing in-progress tool); the earlier
+    // row shows a checkmark instead.
+    const spinners = container.querySelectorAll(".animate-spin")
+    expect(spinners.length).toBe(1)
+  })
+
+  it("shows checkmarks on every row when streaming has finished", async () => {
+    const messages: ChatMessage[] = [
+      { id: "u1", role: "user", blocks: [{ type: "text", content: "hi" }] },
+      {
+        id: "a1",
+        role: "assistant",
+        blocks: [
+          { type: "tool-activity", tool: "list_transactions" },
+          { type: "tool-activity", tool: "spending_summary" },
+          { type: "text", content: "Done." },
+        ],
+      },
+    ]
+    const { container } = await mountOverlay({ messages, isStreaming: false })
+
+    expect(container.querySelectorAll(".animate-spin").length).toBe(0)
+  })
+
+  it("splits tool blocks into two cards when separated by a non-tool block", async () => {
+    const messages: ChatMessage[] = [
+      { id: "u1", role: "user", blocks: [{ type: "text", content: "hi" }] },
+      {
+        id: "a1",
+        role: "assistant",
+        blocks: [
+          { type: "tool-activity", tool: "list_transactions" },
+          { type: "text", content: "Here you go." },
+          { type: "tool-activity", tool: "spending_summary" },
+        ],
+      },
+    ]
+    const { container } = await mountOverlay({ messages, isStreaming: false })
+
+    // Each tool group is its own rounded card with bg-muted/40.
+    // A non-tool block in between forces a split, so we expect at least
+    // two distinct grouped cards (not one merged card with both labels).
+    const labels = container.querySelectorAll("[class*='rounded-xl'][class*='bg-muted']")
+    // Grouped cards live inside the bubbles; can be 2+ depending on
+    // surrounding bubble layout. Both labels must be present.
+    expect(screen.getByText("Querying transactions")).toBeInTheDocument()
+    expect(screen.getByText("Calculating spending")).toBeInTheDocument()
+    // Sanity: at least the two tool group cards exist.
+    expect(labels.length).toBeGreaterThanOrEqual(2)
+  })
+})
+
+describe("CapyOverlay follow-up chips", () => {
+  beforeEach(() => {
+    useIntelligenceStore.setState({
+      hydrated: true,
+      config: { ...DEFAULT_INTELLIGENCE_CONFIG, provider: "claude-cli" },
+    })
+  })
+
+  it("renders chips and clicking one calls onSend with the chip's prompt", async () => {
+    const user = userEvent.setup()
+    const onSend = vi.fn()
+    const messages: ChatMessage[] = [
+      { id: "u1", role: "user", blocks: [{ type: "text", content: "hi" }] },
+      {
+        id: "a1",
+        role: "assistant",
+        blocks: [
+          { type: "text", content: "Here's the summary." },
+          {
+            type: "followups",
+            chips: [
+              { label: "Compare to 2023", prompt: "How does that compare to 2023?" },
+              { label: "Monthly breakdown", prompt: "Show me the monthly breakdown." },
+            ],
+          },
+        ],
+      },
+    ]
+    await mountOverlay({ messages, onSend })
+
+    const chip = screen.getByRole("button", { name: "Compare to 2023" })
+    await user.click(chip)
+
+    expect(onSend).toHaveBeenCalledTimes(1)
+    expect(onSend).toHaveBeenCalledWith("How does that compare to 2023?")
+  })
+
+  it("does not render anything for an empty chips array", async () => {
+    const messages: ChatMessage[] = [
+      { id: "u1", role: "user", blocks: [{ type: "text", content: "hi" }] },
+      {
+        id: "a1",
+        role: "assistant",
+        blocks: [
+          { type: "text", content: "Done." },
+          { type: "followups", chips: [] },
+        ],
+      },
+    ]
+    await mountOverlay({ messages })
+
+    // The text block still renders.
+    expect(screen.getByText("Done.")).toBeInTheDocument()
+    // No follow-up buttons should be present (the only buttons in the
+    // message area are the chat header controls).
+    expect(screen.queryByRole("button", { name: /Compare/i })).not.toBeInTheDocument()
+  })
+
+  it("disables chips while streaming so a click can't queue a duplicate send", async () => {
+    const messages: ChatMessage[] = [
+      { id: "u1", role: "user", blocks: [{ type: "text", content: "hi" }] },
+      {
+        id: "a1",
+        role: "assistant",
+        blocks: [
+          { type: "text", content: "Here's the summary." },
+          {
+            type: "followups",
+            chips: [{ label: "Compare to 2023", prompt: "How does that compare to 2023?" }],
+          },
+        ],
+      },
+    ]
+    await mountOverlay({ messages, isStreaming: true })
+
+    const chip = screen.getByRole("button", { name: "Compare to 2023" })
+    expect(chip).toBeDisabled()
+  })
+})
+
+describe("CapyOverlay inline markdown", () => {
+  beforeEach(() => {
+    useIntelligenceStore.setState({
+      hydrated: true,
+      config: { ...DEFAULT_INTELLIGENCE_CONFIG, provider: "claude-cli" },
+    })
+  })
+
+  it("renders dollar amounts in the brand color and non-money in plain bold", async () => {
+    const messages: ChatMessage[] = [
+      { id: "u1", role: "user", blocks: [{ type: "text", content: "hi" }] },
+      {
+        id: "a1",
+        role: "assistant",
+        blocks: [
+          { type: "text", content: "You spent **$1,234** in **food**." },
+        ],
+      },
+    ]
+    const { container } = await mountOverlay({ messages })
+
+    const strongs = container.querySelectorAll("strong")
+    expect(strongs.length).toBe(2)
+    expect(strongs[0].textContent).toBe("$1,234")
+    expect(strongs[0].className).toContain("text-brand")
+    expect(strongs[1].textContent).toBe("food")
+    expect(strongs[1].className).not.toContain("text-brand")
+  })
+})

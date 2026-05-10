@@ -13,32 +13,18 @@
  * testing.
  */
 
-import type {
-  ContentBlock,
-  BarChartBlock,
-  DonutChartBlock,
-  StreamEvent,
-  TableBlock,
+import {
+  buildRenderToolMap,
+  type ContentBlock,
+  type StreamEvent,
 } from "@capybudget/intelligence"
 
 // ── Render tool → ContentBlock mapping ───────────────────────────
+// Shared with the API adapters via `buildRenderToolMap()` —
+// single source of truth for the render-tool → ContentBlock contract.
 
-const RENDER_TOOL_MAP: Record<string, (input: Record<string, unknown>) => ContentBlock | null> = {
-  render_table: (input) => {
-    if (!Array.isArray(input.headers) || !Array.isArray(input.rows)) return null
-    return { type: "table", headers: input.headers, rows: input.rows } satisfies TableBlock
-  },
-
-  render_bar_chart: (input) => {
-    if (typeof input.title !== "string" || !Array.isArray(input.data)) return null
-    return { type: "bar-chart", title: input.title, data: input.data } satisfies BarChartBlock
-  },
-
-  render_donut_chart: (input) => {
-    if (typeof input.title !== "string" || !Array.isArray(input.data)) return null
-    return { type: "donut-chart", title: input.title, data: input.data } satisfies DonutChartBlock
-  },
-}
+const RENDER_TOOL_MAP: Record<string, (input: Record<string, unknown>) => ContentBlock | null> =
+  buildRenderToolMap()
 
 // ── Parser ───────────────────────────────────────────────────────
 
