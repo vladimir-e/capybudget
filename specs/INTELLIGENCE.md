@@ -119,7 +119,7 @@ Notable protocol deltas vs Anthropic:
 - System prompt is a `{ role: "system" }` message at the head of each request.
 - `delta.content` is non-cumulative — accumulated locally before emit.
 
-PDFs aren't supported on `chat.completions`; the import UI gates this upstream (banner: switch to Anthropic or remove the PDF). If a `document` block reaches the converter anyway, it's replaced with an explanatory text block so the model still gets a coherent message.
+PDFs aren't supported on `chat.completions`. The adapter drops any `document` block and substitutes an explanatory text note describing what happened, so the model can respond coherently (e.g. ask the user to paste contents or share a screenshot). Callers attach PDF blocks uniformly across providers; provider divergence is the adapter's responsibility.
 
 All three adapters share `buildRenderToolMap()` from `@capybudget/intelligence` for the render-tool → ContentBlock contract. Adding a new render tool means defining it once in `RENDER_TOOL_DEFS` plus its mapping in `render-map.ts`; the three adapters pick it up automatically.
 
@@ -241,9 +241,7 @@ Smart Import uses two sequential AI sessions, each with a focused prompt. Both w
 Takes dropped files, detects format, extracts transactions into a uniform CSV. Leaves enrichment columns empty.
 
 - **Text sources (CSV / OFX / etc.)** are listed by name in the initial message; the agent calls `analyze_csv` → `preview_transform` → `transform_csv` to process them in code.
-- **Images and PDFs** ride into the **initial user message as multimodal blocks** — image bytes become `image` content (rendered as `image_url` for OpenAI), PDF bytes become `document` content (Anthropic + Claude CLI only). The agent reads them directly from the message and calls `write_import_file` / `append_import_file` to record extracted rows.
-
-OpenAI doesn't accept PDFs on chat.completions; the import UI gates this with a "switch provider or remove the PDF" banner before the session starts.
+- **Images and PDFs** ride into the **initial user message as multimodal blocks** — image bytes become `image` content (rendered as `image_url` for OpenAI), PDF bytes become `document` content. The agent reads them directly from the message and calls `write_import_file` / `append_import_file` to record extracted rows. Provider-specific handling (e.g. OpenAI replacing PDF blocks with a text note) lives in each adapter; the import screen stays provider-agnostic.
 
 ### Enrich
 

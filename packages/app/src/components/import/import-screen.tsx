@@ -140,15 +140,14 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
   const [selectedAccountId, setSelectedAccountId] = useState("");
   const { data: accounts = [] } = useAccounts();
 
-  // Imports work on every configured provider in Phase B. The only
-  // residual gates: (1) the user has actually picked a provider, and
-  // (2) the user hasn't dropped a PDF while OpenAI is selected (PDFs
-  // aren't supported by chat.completions — banner nudges to switch).
+  // Import only requires a configured AI provider — provider-specific
+  // capability gaps (e.g. OpenAI's chat API not accepting PDF bytes)
+  // are encapsulated in each adapter. The OpenAI adapter drops PDF
+  // blocks and substitutes an explanatory text note so the model can
+  // still respond coherently.
   const navigate = useNavigate();
   const provider = useIntelligenceStore((s) => s.config.provider);
-  const hasPdf = sourceFiles.some((f) => isPdfFilename(f.name));
-  const pdfBlocksOpenAi = provider === "openai" && hasPdf;
-  const importSupported = provider !== null && !pdfBlocksOpenAi;
+  const importSupported = provider !== null;
 
   // Seed local instructions from persisted value once loaded
   useEffect(() => {
@@ -327,14 +326,12 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
 
     // Build the initial multimodal message. Text files get listed by
     // name (the agent reads them via analyze_csv / read_file); image
-    // and PDF bytes ride in the message itself so every provider sees
-    // them the same way (Anthropic + Claude CLI: native image/document
-    // blocks; OpenAI: image_url for images, PDFs are gated upstream).
+    // and PDF bytes ride in the message itself. PDFs ship as `document`
+    // blocks uniformly; the OpenAI adapter substitutes an explanatory
+    // text note since chat.completions can't ingest PDFs.
     const textFiles = sourceFiles.filter((f) => !isImageFilename(f.name) && !isPdfFilename(f.name));
     const imageFiles = sourceFiles.filter((f) => isImageFilename(f.name));
-    const pdfFiles = provider === "openai"
-      ? [] // OpenAI can't ingest PDFs — banner gates this above; belt-and-suspenders here
-      : sourceFiles.filter((f) => isPdfFilename(f.name));
+    const pdfFiles = sourceFiles.filter((f) => isPdfFilename(f.name));
 
     const attachments: Array<CliImageContent | CliDocumentContent> = [];
     for (const f of imageFiles) {
@@ -461,7 +458,6 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
             <>
               {!importSupported && (
                 <ProviderUnsupportedBanner
-                  reason={provider === null ? "unconfigured" : "pdf-on-openai"}
                   onOpenSettings={() => navigate({ to: "/settings" })}
                 />
               )}
@@ -500,7 +496,7 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
                     {isDragging ? "Drop files here" : "Drop files or click to browse"}
                   </p>
                   <p className="mt-1.5 text-sm text-muted-foreground/60">
-                    CSV, PDF, images of bank statements
+                    CSV and images of bank statements
                   </p>
                 </div>
               </div>
@@ -647,35 +643,24 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
 /* ── Provider Unsupported Banner ─────────────────────────────────── */
 
 /**
- * Two cases gate Start Import:
- *   - `unconfigured`: no provider picked yet — same nudge the empty
- *     Capy overlay shows.
- *   - `pdf-on-openai`: OpenAI's chat.completions can't accept PDF
- *     bytes; ask the user to switch providers or drop the PDF.
+ * Shown when no AI provider is configured — same nudge the empty Capy
+ * overlay surfaces. Import needs intelligence; this is the single
+ * provider-agnostic gate.
  */
 function ProviderUnsupportedBanner({
-  reason,
   onOpenSettings,
 }: {
-  reason: "unconfigured" | "pdf-on-openai";
   onOpenSettings: () => void;
 }) {
-  const heading =
-    reason === "unconfigured"
-      ? "Set up your AI assistant"
-      : "PDF imports need a provider with PDF support";
-  const detail =
-    reason === "unconfigured"
-      ? "Pick an AI provider in settings before importing transactions."
-      : "OpenAI's chat API doesn't accept PDF input. Switch to Claude Code or Anthropic in settings, or remove the PDF file from this batch.";
-
   return (
     <div className="flex flex-col items-center justify-center rounded-2xl border border-brand/20 bg-brand/5 px-6 py-10 text-center">
       <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-brand/10 text-brand">
         <Sparkles className="h-7 w-7" />
       </div>
-      <p className="text-lg font-medium text-foreground/80">{heading}</p>
-      <p className="mt-1 max-w-sm text-sm text-muted-foreground/70">{detail}</p>
+      <p className="text-lg font-medium text-foreground/80">Set up your AI assistant</p>
+      <p className="mt-1 max-w-sm text-sm text-muted-foreground/70">
+        Pick an AI provider in settings before importing transactions.
+      </p>
       <button
         type="button"
         onClick={onOpenSettings}
