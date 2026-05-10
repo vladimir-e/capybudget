@@ -154,16 +154,31 @@ export function useCapySession(opts: UseCapySessionOptions): UseCapySessionRetur
     return lifecycle.sessionRef.current
   }, [lifecycle])
 
-  // When the user switches the provider to "off" (or away from any
-  // configured provider), tear down any running session so we don't
-  // keep a Claude CLI subprocess alive or an in-flight API request
-  // running against the now-disabled provider.
+  // When the user changes provider or swaps the model within a
+  // provider, tear down any running session so the next message goes
+  // to the freshly-configured adapter. Without this, `ensureSession()`
+  // would short-circuit on the still-populated `sessionRef` and route
+  // user messages to the previous adapter (e.g. an old Claude CLI
+  // subprocess after switching to Anthropic), or to a session running
+  // against the previous model.
   const provider = useIntelligenceStore((s) => s.config.provider)
+  const anthropicModel = useIntelligenceStore((s) => s.config.anthropic.model)
+  const openaiModel = useIntelligenceStore((s) => s.config.openai.model)
+  // Single "session signature" — any change to provider or the model
+  // for the active provider should rebuild the session.
+  const sessionSignature =
+    provider === "anthropic"
+      ? `anthropic:${anthropicModel}`
+      : provider === "openai"
+        ? `openai:${openaiModel}`
+        : provider // "claude-cli" and "off" carry no model in this config
+  const prevSignatureRef = useRef(sessionSignature)
   useEffect(() => {
-    if (provider === "off") {
+    if (prevSignatureRef.current !== sessionSignature) {
       lifecycle.cancel()
+      prevSignatureRef.current = sessionSignature
     }
-  }, [provider, lifecycle])
+  }, [sessionSignature, lifecycle])
 
   const sendMessage = useCallback(
     (text: string, files?: FileAttachment[]) => {
