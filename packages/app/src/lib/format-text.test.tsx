@@ -105,4 +105,23 @@ describe("formatText — money detection", () => {
     const strong = root.querySelector("strong")
     expect(strong?.className).toContain("text-brand")
   })
+
+  it("treats bare integer multipliers like 2x as money", () => {
+    const root = rendered("**2x** the spend")
+    const strong = root.querySelector("strong")
+    expect(strong?.textContent).toBe("2x")
+    expect(strong?.className).toContain("text-brand")
+  })
+})
+
+describe("formatText — graceful degradation", () => {
+  it("does not crash on nested markdown and still produces a <strong>", () => {
+    // Bold and italic are XOR — `**bold *italic***` is not supported.
+    // The expectation is "doesn't crash + degrades visibly", not a
+    // specific malformed shape. We only check that *some* <strong>
+    // exists; the inner structure can drift without breaking this.
+    const root = rendered("**bold *italic***")
+    const strongs = root.querySelectorAll("strong")
+    expect(strongs.length).toBeGreaterThanOrEqual(1)
+  })
 })

@@ -3,6 +3,16 @@
  * `*italic*` only. Bolded content that looks like a financial figure
  * (dollar amount, percentage, ratio) is emphasized in the brand color.
  *
+ * **Bold and italic are XOR — nesting is not supported.** This
+ * renderer is intentionally minimal, designed for the two shapes that
+ * actually appear in Capy's chat output: `**$1,234**` (money figures
+ * the model emphasizes) and the occasional `*emphasis*`. Input like
+ * `**bold *italic***` will not render the inner italic; it degrades
+ * to a `<strong>` containing literal `*` characters and a stray
+ * trailing marker. That's acceptable — it doesn't crash and stays
+ * visibly readable. Adding real nesting would require a stateful
+ * parser, and the value isn't worth the surface area.
+ *
  * Why a roll-your-own renderer rather than `react-markdown`: we only
  * need two inline transforms over `whitespace-pre-wrap` text. Pulling
  * in a full markdown stack for that is overkill — bigger bundle, more

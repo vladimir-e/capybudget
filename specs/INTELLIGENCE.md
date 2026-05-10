@@ -70,6 +70,7 @@ The tool handlers don't know which transport called them.
 | `donut-chart` | Title + label/value pairs |
 | `tool-activity` | Tool name (persists in chat history) |
 | `file-attachment` | File name, size, mediaType (rendered as chip) |
+| `followups` | Array of `{label, prompt}` follow-up suggestion chips. Click sends `prompt` as next user message. |
 
 A `BlockRenderer` routes each block to its specialized renderer.
 
@@ -120,6 +121,8 @@ Notable protocol deltas vs Anthropic:
 
 PDFs aren't supported on `chat.completions`; the import UI gates this upstream (banner: switch to Anthropic or remove the PDF). If a `document` block reaches the converter anyway, it's replaced with an explanatory text block so the model still gets a coherent message.
 
+All three adapters share `buildRenderToolMap()` from `@capybudget/intelligence` for the render-tool → ContentBlock contract. Adding a new render tool means defining it once in `RENDER_TOOL_DEFS` plus its mapping in `render-map.ts`; the three adapters pick it up automatically.
+
 ## Tool Layer
 
 Single source of truth shared between transports:
@@ -147,6 +150,7 @@ When the app detects mutation tool activity during a turn, it invalidates the re
 | `render_table` | `{ headers, rows }` | Data table with amount coloring |
 | `render_bar_chart` | `{ title, data: [{label, value}] }` | Horizontal bar chart |
 | `render_donut_chart` | `{ title, data: [{label, value}] }` | SVG donut chart with legend |
+| `render_followups` | `{ chips: [{label, prompt}] }` (1–4 items) | Follow-up suggestion chips after an answer. |
 
 No-ops on the dispatch side — they carry structured data from AI to frontend via `tool_use` events.
 

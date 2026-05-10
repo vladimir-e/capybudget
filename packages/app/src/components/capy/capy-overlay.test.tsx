@@ -414,6 +414,88 @@ describe("CapyOverlay tool-progress grouping", () => {
   })
 })
 
+describe("CapyOverlay 'Thinking…' placeholder gate", () => {
+  beforeEach(() => {
+    useIntelligenceStore.setState({
+      hydrated: true,
+      config: { ...DEFAULT_INTELLIGENCE_CONFIG, provider: "claude-cli" },
+    })
+  })
+
+  it("shows the placeholder when the trailing assistant message is empty and streaming", async () => {
+    const messages: ChatMessage[] = [
+      { id: "u1", role: "user", blocks: [{ type: "text", content: "hi" }] },
+      { id: "a1", role: "assistant", blocks: [] },
+    ]
+    await mountOverlay({ messages, isStreaming: true })
+
+    expect(screen.getByText(/Thinking/)).toBeInTheDocument()
+  })
+
+  it("hides the placeholder when the trailing assistant message is empty but not streaming", async () => {
+    const messages: ChatMessage[] = [
+      { id: "u1", role: "user", blocks: [{ type: "text", content: "hi" }] },
+      { id: "a1", role: "assistant", blocks: [] },
+    ]
+    await mountOverlay({ messages, isStreaming: false })
+
+    expect(screen.queryByText(/Thinking/)).not.toBeInTheDocument()
+  })
+
+  it("hides the placeholder once the assistant message has at least one block, even while streaming", async () => {
+    const messages: ChatMessage[] = [
+      { id: "u1", role: "user", blocks: [{ type: "text", content: "hi" }] },
+      {
+        id: "a1",
+        role: "assistant",
+        blocks: [{ type: "text", content: "Working on it…" }],
+      },
+    ]
+    await mountOverlay({ messages, isStreaming: true })
+
+    expect(screen.queryByText(/Thinking/)).not.toBeInTheDocument()
+  })
+})
+
+describe("CapyOverlay tool → text → tool while streaming", () => {
+  beforeEach(() => {
+    useIntelligenceStore.setState({
+      hydrated: true,
+      config: { ...DEFAULT_INTELLIGENCE_CONFIG, provider: "claude-cli" },
+    })
+  })
+
+  it("splits into two tool cards; only the trailing card spins", async () => {
+    const messages: ChatMessage[] = [
+      { id: "u1", role: "user", blocks: [{ type: "text", content: "hi" }] },
+      {
+        id: "a1",
+        role: "assistant",
+        blocks: [
+          { type: "tool-activity", tool: "list_transactions" },
+          { type: "text", content: "I see…" },
+          { type: "tool-activity", tool: "spending_summary" },
+        ],
+      },
+    ]
+    const { container } = await mountOverlay({ messages, isStreaming: true })
+
+    // Both labels render.
+    expect(screen.getByText("Querying transactions")).toBeInTheDocument()
+    expect(screen.getByText("Calculating spending")).toBeInTheDocument()
+
+    // Two grouped tool cards (text in between forces a split).
+    const toolCards = container.querySelectorAll(
+      "[class*='rounded-xl'][class*='bg-muted']",
+    )
+    expect(toolCards.length).toBeGreaterThanOrEqual(2)
+
+    // Exactly one spinner — only the trailing tool group is in-progress.
+    // The first card's row shows a checkmark.
+    expect(container.querySelectorAll(".animate-spin").length).toBe(1)
+  })
+})
+
 describe("CapyOverlay follow-up chips", () => {
   beforeEach(() => {
     useIntelligenceStore.setState({
