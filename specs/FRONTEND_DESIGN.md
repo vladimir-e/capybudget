@@ -40,6 +40,7 @@ Three top-level sections: **Accounts**, **Budget** (categories), and **Import**.
 - **Desktop**: vertical navigation rail (left edge, 64px) with icon+label links. The header spans full width above the rail.
 - **Mobile**: bottom tab bar with the same three sections.
 - **Sidebar**: scoped to the Accounts section only. Slides in/out via an edge handle and a toggle button at the bottom of the rail. Budget and Import sections get full content width.
+- **Settings**: lives in a bottom utility cluster on the desktop rail (gear icon), kept separate from the primary three to signal "infrequent / configuration." Intentionally not surfaced in the mobile bottom-tab bar — mobile is a read-mostly surface and the rail's vertical room doesn't translate there.
 
 ## UX Principles
 

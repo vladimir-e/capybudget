@@ -3,9 +3,9 @@
  * of the viewport. Width is dragged from a left-edge handle, persisted
  * to localStorage, and clamped to [min, computed-max].
  *
- * The max bound is computed lazily at drag time (`maxWidth(window)`) so
- * window resizes don't strand a previously-saved width above the new
- * max — clamping happens whenever the width is read or written.
+ * The max bound is computed lazily at read time (`maxWidth(window)`)
+ * and re-applied on `window.resize` so shrinking the viewport
+ * immediately collapses a previously-saved width that no longer fits.
  *
  * Pointer events use capture so the drag survives the cursor leaving
  * the handle. The handle is intentionally a thin strip; the visible
@@ -174,6 +174,20 @@ export function usePanelResize(opts: PanelResizeOptions): PanelResizeReturn {
       window.removeEventListener("pointermove", refs.forwardMove)
       window.removeEventListener("pointerup", refs.forwardUp)
     }
+  }, [])
+
+  // Re-clamp on window resize. Without this, a persisted width above
+  // the freshly-shrunk max stays visibly wrong until the next mount or
+  // drag — the panel can overflow off-screen on the demo when the user
+  // narrows the browser. Resize events are user-paced so no throttle.
+  useEffect(() => {
+    if (typeof window === "undefined") return
+    const onResize = () => {
+      const o = optsRef.current
+      setWidth((w) => clamp(w, o.minWidth, o.maxWidth(window)))
+    }
+    window.addEventListener("resize", onResize)
+    return () => window.removeEventListener("resize", onResize)
   }, [])
 
   return { width, isDragging, onPointerDown }

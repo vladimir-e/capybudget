@@ -19,24 +19,28 @@ import { DEFAULT_INTELLIGENCE_CONFIG, type CapySession } from "@capybudget/intel
 // vi.fn spies, and we keep a reference to every session it produced so
 // the test can assert teardown.
 
-interface FakeSession extends CapySession {
-  kill: ReturnType<typeof vi.fn>
-  stop: ReturnType<typeof vi.fn>
-  send: ReturnType<typeof vi.fn>
-  restart: ReturnType<typeof vi.fn>
+interface FakeSession {
+  session: CapySession
+  killSpy: ReturnType<typeof vi.fn>
+  sendSpy: ReturnType<typeof vi.fn>
+  stopSpy: ReturnType<typeof vi.fn>
 }
 
 const { createdSessions, createSessionMock } = vi.hoisted(() => {
   const list: FakeSession[] = []
-  const mock = vi.fn(() => {
-    const session: FakeSession = {
+  const mock = vi.fn((): CapySession => {
+    const killSpy = vi.fn(async () => {})
+    const sendSpy = vi.fn(async () => {})
+    const stopSpy = vi.fn(async () => {})
+    const restartSpy = vi.fn(async () => {})
+    const session: CapySession = {
       isAlive: true,
-      send: vi.fn().mockResolvedValue(undefined),
-      stop: vi.fn().mockResolvedValue(undefined),
-      restart: vi.fn().mockResolvedValue(undefined),
-      kill: vi.fn().mockResolvedValue(undefined),
+      send: sendSpy,
+      stop: stopSpy,
+      restart: restartSpy,
+      kill: killSpy,
     }
-    list.push(session)
+    list.push({ session, killSpy, sendSpy, stopSpy })
     return session
   })
   return { createdSessions: list, createSessionMock: mock }
@@ -83,7 +87,7 @@ describe("useCapySession session teardown", () => {
     })
     expect(createdSessions).toHaveLength(1)
     const firstSession = createdSessions[0]
-    expect(firstSession.kill).not.toHaveBeenCalled()
+    expect(firstSession.killSpy).not.toHaveBeenCalled()
 
     // Switch provider — the effect must tear the running session down.
     act(() => {
@@ -96,7 +100,7 @@ describe("useCapySession session teardown", () => {
         },
       })
     })
-    expect(firstSession.kill).toHaveBeenCalled()
+    expect(firstSession.killSpy).toHaveBeenCalled()
   })
 
   it("kills the session when the Anthropic model changes", () => {
@@ -121,7 +125,7 @@ describe("useCapySession session teardown", () => {
     act(() => {
       useIntelligenceStore.getState().setAnthropicModel("claude-opus-4-7")
     })
-    expect(firstSession.kill).toHaveBeenCalled()
+    expect(firstSession.killSpy).toHaveBeenCalled()
   })
 
   it("kills the session when the OpenAI model changes", () => {
@@ -145,7 +149,7 @@ describe("useCapySession session teardown", () => {
     act(() => {
       useIntelligenceStore.getState().setOpenAiModel("gpt-5-pro")
     })
-    expect(firstSession.kill).toHaveBeenCalled()
+    expect(firstSession.killSpy).toHaveBeenCalled()
   })
 
   it("does NOT kill the session when an unrelated model field changes", () => {
@@ -169,7 +173,7 @@ describe("useCapySession session teardown", () => {
     act(() => {
       useIntelligenceStore.getState().setOpenAiModel("gpt-5-pro")
     })
-    expect(firstSession.kill).not.toHaveBeenCalled()
+    expect(firstSession.killSpy).not.toHaveBeenCalled()
   })
 
   it("kills the session when the provider goes to 'off'", () => {
@@ -187,6 +191,6 @@ describe("useCapySession session teardown", () => {
     act(() => {
       useIntelligenceStore.getState().setProvider("off")
     })
-    expect(firstSession.kill).toHaveBeenCalled()
+    expect(firstSession.killSpy).toHaveBeenCalled()
   })
 })

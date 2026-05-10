@@ -15,10 +15,11 @@ export const Route = createFileRoute("/settings")({
 
 /**
  * Stub settings page for the web demo. The desktop shell renders a gear
- * icon in the budget header that links here; without a route the demo
- * would show TanStack Router's not-found page. The demo can't persist
- * provider config (no Tauri plugin-store), so the message is the entire
- * UX — keeps demo and desktop entry points symmetric.
+ * icon at the bottom of the left navigation rail that links here;
+ * without a route the demo would show TanStack Router's not-found
+ * page. The demo can't persist provider config (no Tauri plugin-store),
+ * so the message is the entire UX — keeps demo and desktop entry
+ * points symmetric.
  */
 function DemoSettingsStub() {
   const router = useRouter();

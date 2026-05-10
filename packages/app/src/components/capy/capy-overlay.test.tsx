@@ -103,7 +103,7 @@ afterEach(() => {
 })
 
 describe("CapyOverlay empty state", () => {
-  it("shows the 'Set up your AI assistant' card when provider is null", async () => {
+  it("shows the 'Set up your AI assistant' card when provider is off", async () => {
     useIntelligenceStore.setState({
       hydrated: true,
       config: { ...DEFAULT_INTELLIGENCE_CONFIG, provider: "off" },
@@ -188,6 +188,18 @@ describe("CapyOverlay empty state", () => {
     await mountOverlay()
 
     expect(screen.getByText(/Hey, I.m Capy\./)).toBeInTheDocument()
+  })
+
+  it("renders the close button with 'Hide panel' as its accessible name", async () => {
+    // Locks the icon's accessible label so the underlying icon swap
+    // (PanelRightClose) can't drift the name without a test change.
+    useIntelligenceStore.setState({
+      hydrated: true,
+      config: { ...DEFAULT_INTELLIGENCE_CONFIG, provider: "claude-cli" },
+    })
+    await mountOverlay()
+
+    expect(screen.getByLabelText("Hide panel")).toBeInTheDocument()
   })
 })
 

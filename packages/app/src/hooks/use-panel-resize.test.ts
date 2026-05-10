@@ -161,6 +161,38 @@ describe("usePanelResize", () => {
     handle.remove()
   })
 
+  it("re-clamps the width when the window shrinks below the saved max", () => {
+    // Seed a width that fits the current viewport but exceeds a smaller
+    // future window.
+    window.localStorage.setItem(STORAGE_KEY, "700")
+    const { result } = renderHook(() =>
+      usePanelResize({ minWidth: MIN, maxWidth: MAX, storageKey: STORAGE_KEY }),
+    )
+    expect(result.current.width).toBe(700)
+
+    const originalInnerWidth = window.innerWidth
+    try {
+      // Shrink the window so the new max is below 700, then fire resize.
+      act(() => {
+        Object.defineProperty(window, "innerWidth", {
+          configurable: true,
+          writable: true,
+          value: 600,
+        })
+        window.dispatchEvent(new Event("resize"))
+      })
+
+      // MAX(window) = min(600, 720) = 600 → width clamps down.
+      expect(result.current.width).toBe(600)
+    } finally {
+      Object.defineProperty(window, "innerWidth", {
+        configurable: true,
+        writable: true,
+        value: originalInnerWidth,
+      })
+    }
+  })
+
   it("isDragging is true during a drag", () => {
     const { result } = renderHook(() =>
       usePanelResize({ minWidth: MIN, maxWidth: MAX, storageKey: STORAGE_KEY }),

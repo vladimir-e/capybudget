@@ -236,8 +236,9 @@ export class OpenAiSession implements CapySession {
 
       // ── Per-stream state ──────────────────────────────────────
       // Text deltas are not cumulative; accumulate locally and emit
-      // cumulative `content` events so prefix-detection text-merging
-      // downstream keeps working unchanged.
+      // `content` events carrying the full cumulative blocks array so
+      // consumers can replace the trailing assistant message's blocks
+      // wholesale on every tick.
       let accumulatedText = ""
       const completedBlocks: ContentBlock[] = []
       let currentTextDraftIndex: number | null = null

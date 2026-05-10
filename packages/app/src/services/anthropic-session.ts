@@ -9,10 +9,10 @@
  * the API would reject on the next turn).
  *
  * Stream-event shape: this adapter emits `StreamEvent`s directly —
- * cumulative-text `content` blocks during streaming, `done` on turn
- * completion, `error` on failure. Text deltas are accumulated locally
- * before each emit so consumers can keep their prefix-detection
- * text-merging logic (which assumes cumulative text) unchanged.
+ * `content` blocks carry the **complete cumulative blocks array** for
+ * the current assistant turn (never deltas), `done` on turn completion,
+ * `error` on failure. Text deltas are accumulated locally so every emit
+ * carries a full snapshot the consumer can replace wholesale.
  *
  * Tauri's webview is a real browser, so the SDK works with
  * `dangerouslyAllowBrowser: true`. The flag is intended to discourage
@@ -188,8 +188,9 @@ export class AnthropicSession implements CapySession {
       )
 
       // Stream content blocks to the UI as they arrive. Text is
-      // accumulated locally so each emit carries cumulative text —
-      // matches the prefix-detection text-merging downstream.
+      // accumulated locally so each emit carries the full cumulative
+      // blocks array — consumers replace the trailing assistant
+      // message's blocks wholesale on every tick.
       let accumulatedText = ""
       const completedBlocks: ContentBlock[] = []
       let currentTextDraftIndex: number | null = null
@@ -216,9 +217,9 @@ export class AnthropicSession implements CapySession {
       stream.on("contentBlock", (block) => {
         if (block.type === "tool_use") {
           // A tool_use ends the current text run. Reset the accumulator
-          // so any subsequent text starts fresh — matches the
-          // prefix-detection assumption that each text block stands
-          // alone.
+          // so any subsequent text starts fresh as its own block —
+          // matches the assistant-turn shape downstream consumers expect
+          // (each text block stands alone, tool blocks are interleaved).
           accumulatedText = ""
           currentTextDraftIndex = null
           const cb = toolUseToContentBlock(
