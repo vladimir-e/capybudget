@@ -224,7 +224,7 @@ export class CapySession {
     if (this.cancelled) return;
 
     const closingText =
-      "This is a demo — AI features require the Capy Budget desktop app with Claude CLI installed. Download it to get personalized insights, spending analysis, and natural-language budget management.";
+      "This is a demo — AI features require the Capy Budget desktop app. Download it to get personalized insights, spending analysis, and natural-language budget management.";
     const words = closingText.split(" ");
     let accumulated = "";
     const textBlockIndex = blocks.length;
