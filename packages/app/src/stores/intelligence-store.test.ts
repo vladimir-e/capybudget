@@ -76,19 +76,6 @@ describe("useIntelligenceStore.hydrate", () => {
     expect(useIntelligenceStore.getState().config.provider).toBeNull()
   })
 
-  it("normalizes legacy `provider: \"off\"` configs to null on load", async () => {
-    // Mid-Phase-10.5b configs persisted "off" for the same meaning.
-    const backend = makeBackend({
-      provider: "off",
-      anthropic: { apiKey: "", model: "claude-sonnet-4-6" },
-      openai: { apiKey: "", model: "gpt-5.4" },
-    })
-    _setStoreLoaderForTests(async () => backend)
-
-    await useIntelligenceStore.getState().hydrate()
-    expect(useIntelligenceStore.getState().config.provider).toBeNull()
-  })
-
   it("preserves an existing user's provider choice", async () => {
     const backend = makeBackend({
       provider: "claude-cli",

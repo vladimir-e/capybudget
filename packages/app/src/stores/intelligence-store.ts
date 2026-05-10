@@ -7,9 +7,7 @@
  *   1. Initial state mirrors DEFAULT_INTELLIGENCE_CONFIG (provider null).
  *   2. `hydrate()` loads from disk on first call. First-run default is
  *      `null` — users explicitly pick a provider to enable AI features
- *      so they're never surprised by quota usage. Legacy configs that
- *      persisted `provider: "off"` (mid-Phase-10.5b) are normalized to
- *      `null` on load.
+ *      so they're never surprised by quota usage.
  *   3. Setters write through to disk; UI subscribers see the new value
  *      synchronously.
  *
@@ -114,16 +112,7 @@ export const useIntelligenceStore = create<IntelligenceStore>((set, get) => ({
         return
       }
 
-      // Normalize a legacy `provider: "off"` sentinel (mid-Phase-10.5b)
-      // back to `null` — they meant the same thing, so we collapse to
-      // the standard absence value.
-      const rawProvider = (loaded as { provider: unknown }).provider
-      const provider: IntelligenceProvider =
-        rawProvider === "off" || rawProvider == null
-          ? null
-          : (rawProvider as IntelligenceProvider)
-      const normalized: IntelligenceConfig = { ...loaded, provider }
-      set({ config: normalized, hydrated: true })
+      set({ config: loaded, hydrated: true })
     })()
 
     try {
