@@ -214,7 +214,7 @@ export function BudgetSelector() {
 
             <Button
               variant="outline"
-              className="h-12 w-full gap-2 text-sm"
+              className="h-12 w-full gap-2 text-sm dark:bg-input/50 dark:hover:bg-background/70"
               onClick={handleOpenExisting}
               disabled={loading}
             >
