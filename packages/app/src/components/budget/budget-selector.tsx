@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { open } from "@tauri-apps/plugin-dialog";
 import { toast } from "sonner";
-import { FolderPlus, FolderOpen, HelpCircle, File } from "lucide-react";
+import { FolderPlus, FolderOpen, HelpCircle, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Popover,
@@ -44,11 +44,10 @@ export function BudgetSelector() {
   const { recentBudgets, addRecentBudget, removeRecentBudget } = useAppStore();
   const [loading, setLoading] = useState(false);
 
-  // Non-empty-folder confirmation dialog state
-  const [pendingFolder, setPendingFolder] = useState<{
-    path: string;
-    itemCount: number;
-  } | null>(null);
+  // Error modal state — shown when the user picks a folder that's non-empty
+  // but doesn't contain a budget. Both intents share the dialog, copy varies.
+  type Intent = "new" | "open";
+  const [errorModal, setErrorModal] = useState<Intent | null>(null);
 
   // Resolve which background to use: prefer explicit user choice, fall back
   // to system preference.
@@ -65,111 +64,80 @@ export function BudgetSelector() {
     });
   }
 
-  // ── open existing flow ──────────────────────────────────────────────────────
+  // ── shared folder processor ─────────────────────────────────────────────────
+  //
+  // Both buttons converge here: empty folder → bootstrap, budget folder → open,
+  // non-empty non-budget → error modal (with intent-flavored copy).
 
-  async function openExistingAt(folderPath: string) {
-    setLoading(true);
-    try {
-      const meta = await detectBudget(folderPath);
-      if (!meta) {
-        // No budget here — offer to flip into new flow.
-        toast.error("This folder doesn't contain a budget.", {
-          action: {
-            label: "Create here instead",
-            onClick: () => runNewFlow(folderPath),
-          },
-        });
-        return;
-      }
-      await navigateToBudget(folderPath, meta.name);
-    } catch (err) {
-      toast.error("Failed to open budget", {
-        description: err instanceof Error ? err.message : String(err),
-      });
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function handleOpenExisting() {
-    if (loading) return;
-    setLoading(true);
-    let selected: string | null = null;
-    try {
-      selected = (await open({ directory: true, multiple: false })) as
-        | string
-        | null;
-    } finally {
-      setLoading(false);
-    }
-    if (!selected) return;
-    await openExistingAt(selected);
-  }
-
-  // ── new budget flow ─────────────────────────────────────────────────────────
-
-  async function handleNewBudget() {
-    if (loading) return;
-    setLoading(true);
-    let selected: string | null = null;
-    try {
-      selected = (await open({ directory: true, multiple: false })) as
-        | string
-        | null;
-    } finally {
-      setLoading(false);
-    }
-    if (!selected) return;
-    await runNewFlow(selected);
-  }
-
-  async function runNewFlow(folderPath: string) {
+  async function processFolder(folderPath: string, intent: Intent) {
     setLoading(true);
     try {
       const info = await inspectFolder(folderPath);
 
       if (info.hasBudget) {
-        toast.error("This folder is already a budget. Use Open existing.");
+        const meta = await detectBudget(folderPath);
+        if (!meta) {
+          // budget.json disappeared between inspect and detect — treat as failure
+          toast.error("Failed to open budget");
+          return;
+        }
+        await navigateToBudget(folderPath, meta.name);
         return;
       }
 
-      if (!info.isEmpty) {
-        // Ask for confirmation before bootstrapping into a non-empty folder.
-        setPendingFolder({ path: folderPath, itemCount: info.itemCount });
+      if (info.isEmpty) {
+        const name = deriveNameFromPath(folderPath);
+        const meta = await bootstrapBudget(folderPath, name);
+        toast.success("New budget created");
+        await navigateToBudget(folderPath, meta.name);
         return;
       }
 
-      await doBootstrap(folderPath);
+      // Non-empty, no budget — show error modal.
+      setErrorModal(intent);
     } catch (err) {
-      toast.error("Failed to create budget", {
-        description: err instanceof Error ? err.message : String(err),
-      });
+      toast.error(
+        intent === "new" ? "Failed to create budget" : "Failed to open budget",
+        {
+          description: err instanceof Error ? err.message : String(err),
+        }
+      );
     } finally {
       setLoading(false);
     }
   }
 
-  async function doBootstrap(folderPath: string) {
-    const name = deriveNameFromPath(folderPath);
-    const meta = await bootstrapBudget(folderPath, name);
-    toast.success("New budget created");
-    await navigateToBudget(folderPath, meta.name);
-  }
-
-  async function confirmNonEmptyCreate() {
-    if (!pendingFolder) return;
-    const { path } = pendingFolder;
-    setPendingFolder(null);
+  async function pickAndProcess(intent: Intent) {
+    if (loading) return;
     setLoading(true);
+    let selected: string | null = null;
     try {
-      await doBootstrap(path);
-    } catch (err) {
-      toast.error("Failed to create budget", {
-        description: err instanceof Error ? err.message : String(err),
-      });
+      selected = (await open({ directory: true, multiple: false })) as
+        | string
+        | null;
     } finally {
       setLoading(false);
     }
+    if (!selected) return;
+    await processFolder(selected, intent);
+  }
+
+  function handleNewBudget() {
+    void pickAndProcess("new");
+  }
+
+  function handleOpenExisting() {
+    void pickAndProcess("open");
+  }
+
+  function handleRecentOpen(folderPath: string) {
+    void processFolder(folderPath, "open");
+  }
+
+  function dismissErrorAndRetry() {
+    const intent = errorModal;
+    setErrorModal(null);
+    if (intent) void pickAndProcess(intent);
   }
 
   // ── render ──────────────────────────────────────────────────────────────────
@@ -259,7 +227,7 @@ export function BudgetSelector() {
                   <RecentBudgetCard
                     key={budget.path}
                     budget={budget}
-                    onOpen={openExistingAt}
+                    onOpen={handleRecentOpen}
                     onRemove={removeRecentBudget}
                   />
                 ))}
@@ -269,29 +237,34 @@ export function BudgetSelector() {
         </div>
       </div>
 
-      {/* Non-empty folder confirmation dialog */}
+      {/* Folder error modal — non-empty folder with no budget. Copy reflects
+          which button the user pressed; primary action re-opens the picker. */}
       <Dialog
-        open={!!pendingFolder}
-        onOpenChange={(isOpen) => { if (!isOpen) setPendingFolder(null); }}
+        open={!!errorModal}
+        onOpenChange={(isOpen) => { if (!isOpen) setErrorModal(null); }}
       >
         <DialogContent showCloseButton={false}>
           <DialogHeader>
             <div className="flex items-center gap-2 mb-1">
-              <File className="h-5 w-5 text-muted-foreground" />
-              <DialogTitle>This folder isn&rsquo;t empty</DialogTitle>
+              <AlertCircle className="h-5 w-5 text-muted-foreground" />
+              <DialogTitle>
+                {errorModal === "new"
+                  ? "This folder isn’t empty"
+                  : "No budget in this folder"}
+              </DialogTitle>
             </div>
             <DialogDescription>
-              This folder contains {pendingFolder?.itemCount ?? 0} item
-              {(pendingFolder?.itemCount ?? 0) !== 1 ? "s" : ""}.
-              Create a budget here anyway?
+              {errorModal === "new"
+                ? "Pick an empty folder to start a new budget."
+                : "Pick a folder that already has a budget, or an empty folder to start a new one."}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setPendingFolder(null)}>
+            <Button variant="outline" onClick={() => setErrorModal(null)}>
               Cancel
             </Button>
-            <Button onClick={confirmNonEmptyCreate}>
-              Create budget
+            <Button onClick={dismissErrorAndRetry}>
+              Pick another folder
             </Button>
           </DialogFooter>
         </DialogContent>
