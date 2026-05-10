@@ -6,6 +6,7 @@ import {
   File as FileIcon,
   Image,
   Loader2,
+  PanelRightClose,
   Paperclip,
   PieChart,
   Receipt,
@@ -297,9 +298,10 @@ export function CapyOverlay({
             type="button"
             onClick={onClose}
             className="rounded-lg p-2 text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground"
-            aria-label="Close Capy"
+            aria-label="Hide panel"
+            title="Hide panel"
           >
-            <X className="h-4.5 w-4.5" />
+            <PanelRightClose className="h-4.5 w-4.5" />
           </button>
         </div>
       </div>
