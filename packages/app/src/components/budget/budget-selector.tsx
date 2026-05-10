@@ -206,7 +206,7 @@ export function BudgetSelector() {
               </PopoverTrigger>
               <PopoverContent side="bottom" align="start" className="w-80 text-sm leading-relaxed text-muted-foreground">
                 Capy stores everything as plain files inside a folder you
-                choose &mdash; accounts, transactions, budgets. Sync across
+                choose &mdash; transactions.csv, budget.json. Sync across
                 devices by putting it in iCloud or Google Drive.
               </PopoverContent>
             </Popover>
