@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { detectBudget, bootstrapBudget, inspectFolder } from "./budget";
+import { detectBudget, bootstrapBudget, inspectFolder, findMissingBudgetPaths } from "./budget";
 import { DEFAULT_CATEGORIES } from "@capybudget/core";
 
 vi.mock("@tauri-apps/api/path", () => ({
@@ -9,14 +9,12 @@ vi.mock("@tauri-apps/api/path", () => ({
 const mockExists = vi.fn();
 const mockReadTextFile = vi.fn();
 const mockWriteTextFile = vi.fn().mockResolvedValue(undefined);
-const mockMkdir = vi.fn().mockResolvedValue(undefined);
 const mockReadDir = vi.fn();
 
 vi.mock("@tauri-apps/plugin-fs", () => ({
   exists: (...args: unknown[]) => mockExists(...args),
   readTextFile: (...args: unknown[]) => mockReadTextFile(...args),
   writeTextFile: (...args: unknown[]) => mockWriteTextFile(...args),
-  mkdir: (...args: unknown[]) => mockMkdir(...args),
   readDir: (...args: unknown[]) => mockReadDir(...args),
 }));
 
@@ -217,7 +215,6 @@ describe("bootstrapBudget", () => {
     // mockExists returns undefined (falsy) unless explicitly set by a test.
     vi.resetAllMocks();
     mockWriteTextFile.mockResolvedValue(undefined);
-    mockMkdir.mockResolvedValue(undefined);
   });
 
   it("returns a BudgetMeta with the current schema version", async () => {
@@ -227,11 +224,6 @@ describe("bootstrapBudget", () => {
     expect(result.currency).toBe("USD");
     expect(result.createdAt).toBeTruthy();
     expect(result.lastModified).toBeTruthy();
-  });
-
-  it("creates the directory recursively", async () => {
-    await bootstrapBudget("/new/budget", "Test");
-    expect(mockMkdir).toHaveBeenCalledWith("/new/budget", { recursive: true });
   });
 
   it("writes budget.json", async () => {
@@ -339,5 +331,38 @@ describe("inspectFolder", () => {
     expect(result.hasBudget).toBe(false);
     expect(result.isEmpty).toBe(false);
     expect(result.itemCount).toBe(2);
+  });
+});
+
+describe("findMissingBudgetPaths", () => {
+  beforeEach(() => {
+    vi.resetAllMocks();
+  });
+
+  it("returns empty array when all paths exist", async () => {
+    mockExists.mockResolvedValue(true);
+    const missing = await findMissingBudgetPaths(["/a", "/b", "/c"]);
+    expect(missing).toEqual([]);
+  });
+
+  it("returns paths whose budget.json is missing", async () => {
+    mockExists.mockImplementation(async (p: string) => p.startsWith("/keep/"));
+    const missing = await findMissingBudgetPaths(["/keep/one", "/gone/two", "/keep/three", "/gone/four"]);
+    expect(missing).toEqual(["/gone/two", "/gone/four"]);
+  });
+
+  it("treats fs errors as missing (e.g. unmounted external drive)", async () => {
+    mockExists.mockImplementation(async (p: string) => {
+      if (p.startsWith("/external/")) throw new Error("device not mounted");
+      return true;
+    });
+    const missing = await findMissingBudgetPaths(["/local/a", "/external/b"]);
+    expect(missing).toEqual(["/external/b"]);
+  });
+
+  it("handles empty input", async () => {
+    const missing = await findMissingBudgetPaths([]);
+    expect(missing).toEqual([]);
+    expect(mockExists).not.toHaveBeenCalled();
   });
 });
