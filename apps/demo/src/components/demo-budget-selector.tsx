@@ -1,7 +1,12 @@
 import { useNavigate } from "@tanstack/react-router";
+import { useTheme } from "next-themes";
 
 import { ThemeToggle } from "@/components/theme-toggle";
 import { ColorThemeSwitcher } from "@/components/color-theme-switcher";
+import { BudgetTile } from "@/components/budget/budget-tile";
+import bgDay from "@/assets/capy-bg-day.avif";
+import bgNight from "@/assets/capy-bg-night.avif";
+
 import { PRESET_LIST } from "../data/presets";
 import type { DemoPreset } from "../data/presets";
 
@@ -13,50 +18,67 @@ const PRESET_STICKERS: Record<string, string> = {
 
 export function DemoBudgetSelector() {
   const navigate = useNavigate();
+  const { theme, resolvedTheme } = useTheme();
+
+  const isDark = (resolvedTheme ?? theme) === "dark";
+  const bgUrl = isDark ? bgNight : bgDay;
 
   function handleSelect(preset: DemoPreset) {
-    navigate({
+    void navigate({
       to: "/budget",
       search: { path: preset.id, name: preset.name },
     });
   }
 
   return (
-    <div className="flex h-screen items-center justify-center">
-      <div className="absolute top-4 right-4 flex items-center gap-1">
+    <>
+      {/* Full-bleed background */}
+      <div
+        className="fixed inset-0 bg-cover bg-center"
+        style={{ backgroundImage: `url(${bgUrl})` }}
+        aria-hidden
+      />
+
+      {/* Top-right controls */}
+      <div className="fixed top-4 right-4 z-10 flex items-center gap-1">
         <ColorThemeSwitcher />
         <ThemeToggle />
       </div>
-      <div className="w-full max-w-3xl space-y-8 px-6">
-        <div className="text-center space-y-2">
-          <h1 className="text-3xl font-bold tracking-tight">Capy Budget</h1>
-          <p className="text-muted-foreground">
-            Select a budget to explore
-          </p>
-        </div>
 
-        <div className="flex flex-col sm:flex-row items-center justify-center gap-8 sm:gap-12">
-          {PRESET_LIST.map((preset) => {
-            const sticker = PRESET_STICKERS[preset.id];
-            return (
-              <button
+      {/* Centered glass card */}
+      <div className="relative z-0 flex h-screen items-center justify-center px-4">
+        <div className="w-full max-w-md rounded-2xl border border-border/40 bg-card/85 p-8 shadow-overlay backdrop-blur-md dark:bg-card/70">
+          {/* Eyebrow + title + subtitle */}
+          <div className="space-y-1 mb-8">
+            <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground/60 font-mono">
+              Demo
+            </p>
+            <h1 className="text-3xl font-bold tracking-tight">Capy Budget</h1>
+            <p className="text-sm text-muted-foreground">
+              Pick a scenario to explore.
+            </p>
+          </div>
+
+          {/* Preset tiles */}
+          <div className="space-y-2">
+            {PRESET_LIST.map((preset) => (
+              <BudgetTile
                 key={preset.id}
-                className="flex flex-col items-center gap-3 cursor-pointer transition-transform hover:scale-110"
-                onClick={() => handleSelect(preset)}
-              >
-                {sticker && (
+                title={preset.name}
+                subtitle={preset.description}
+                icon={
                   <img
-                    src={sticker}
-                    alt={preset.name}
-                    className="h-40 w-40 object-contain"
+                    src={PRESET_STICKERS[preset.id]}
+                    alt=""
+                    className="h-8 w-8 shrink-0 object-contain"
                   />
-                )}
-                <span className="text-lg font-semibold whitespace-nowrap">{preset.name}</span>
-              </button>
-            );
-          })}
+                }
+                onClick={() => handleSelect(preset)}
+              />
+            ))}
+          </div>
         </div>
       </div>
-    </div>
+    </>
   );
 }
