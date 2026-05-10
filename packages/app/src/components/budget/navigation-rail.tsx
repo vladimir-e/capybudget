@@ -1,6 +1,6 @@
 import { useEffect, useMemo } from "react";
-import { Link, useNavigate } from "@tanstack/react-router";
-import { Receipt, PieChart, FileUp, PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
+import { Receipt, PieChart, FileUp, PanelLeftClose, PanelLeftOpen, Settings } from "lucide-react";
 
 export type Section = "accounts" | "budget" | "import";
 
@@ -45,6 +45,13 @@ export function NavigationRail({
   const isBudget = activeSection === "budget";
   const isImport = activeSection === "import";
 
+  // Settings is rendered as a sibling of the budget routes, not part
+  // of `activeSection` (which is scoped to budget tabs). The router
+  // gives us the active path so the gear icon highlights when on
+  // /settings — the canonical location post-Phase-10.5b.
+  const currentPath = useRouterState({ select: (s) => s.location.pathname });
+  const isSettings = currentPath === "/settings";
+
   return (
     <>
       {/* Desktop: vertical rail */}
@@ -53,9 +60,10 @@ export function NavigationRail({
         <NavItem variant="rail" to="/budget/categories" search={search} active={isBudget} icon={PieChart} label="Budget" />
         <NavItem variant="rail" to="/budget/import" search={search} active={isImport} icon={FileUp} label="Import" indicator={hasImportData} />
 
-        {/* Sidebar toggle — pushed to bottom */}
-        {isAccounts && (
-          <div className="mt-auto pb-3">
+        {/* Bottom utility cluster — separated from primary nav.
+            Sidebar toggle (when on accounts) sits above settings. */}
+        <div className="mt-auto flex flex-col items-center gap-1 pb-3 pt-2 border-t border-sidebar-border/40 w-full">
+          {isAccounts && (
             <button
               type="button"
               onClick={onToggleSidebar}
@@ -68,8 +76,9 @@ export function NavigationRail({
                 <PanelLeftOpen className="h-4 w-4" />
               )}
             </button>
-          </div>
-        )}
+          )}
+          <NavItem variant="rail" to="/settings" active={isSettings} icon={Settings} label="Settings" />
+        </div>
       </nav>
 
       {/* Mobile: bottom tab bar */}
@@ -114,7 +123,9 @@ function NavItem({
 }: {
   variant: "rail" | "tab";
   to: string;
-  search: Record<string, string>;
+  /** Budget routes carry path/name search params; non-budget routes
+   *  (e.g. /settings) omit this and link without search. */
+  search?: Record<string, string>;
   active: boolean;
   icon: React.ComponentType<{ className?: string }>;
   label: string;

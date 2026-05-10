@@ -14,6 +14,7 @@ async function renderRail(props: {
   sidebarOpen?: boolean;
   onToggleSidebar?: () => void;
   hasImportData?: boolean;
+  initialPath?: string;
 }) {
   const rootRoute = createRootRoute({
     component: () => (
@@ -30,7 +31,7 @@ async function renderRail(props: {
 
   const router = createRouter({
     routeTree: rootRoute,
-    history: createMemoryHistory({ initialEntries: ["/"] }),
+    history: createMemoryHistory({ initialEntries: [props.initialPath ?? "/"] }),
   });
 
   await router.load();
@@ -110,5 +111,27 @@ describe("NavigationRail", () => {
     expect(screen.getAllByRole("link", { name: "Accounts" }).length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByRole("link", { name: "Budget" }).length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByRole("link", { name: "Import" }).length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("renders the settings gear at the bottom of the rail", async () => {
+    await renderRail({ activeSection: "accounts" });
+
+    const settingsLink = screen.getByRole("link", { name: "Settings" });
+    expect(settingsLink).toBeInTheDocument();
+    expect(settingsLink.getAttribute("href")).toBe("/settings");
+  });
+
+  it("marks settings as active when on /settings", async () => {
+    await renderRail({ activeSection: "accounts", initialPath: "/settings" });
+
+    const settingsLink = screen.getByRole("link", { name: "Settings" });
+    expect(settingsLink.getAttribute("aria-current")).toBe("page");
+  });
+
+  it("does not mark settings as active when on a budget route", async () => {
+    await renderRail({ activeSection: "accounts", initialPath: "/budget" });
+
+    const settingsLink = screen.getByRole("link", { name: "Settings" });
+    expect(settingsLink.getAttribute("aria-current")).not.toBe("page");
   });
 });

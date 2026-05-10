@@ -33,7 +33,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { ChevronDown, ChevronLeft, ChevronRight, FolderOpen, Github, LogOut, Settings } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight, FolderOpen, Github, LogOut } from "lucide-react";
 import { open as shellOpen } from "@tauri-apps/plugin-shell";
 import type { Account, Transaction, TransactionFormData } from "@capybudget/core";
 import { toast } from "sonner";
@@ -279,16 +279,6 @@ export function BudgetShell({ path, name }: BudgetShellProps) {
               )}
               <ColorThemeSwitcher />
               <ThemeToggle />
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8"
-                onClick={() => navigate({ to: "/settings" })}
-                aria-label="Settings"
-                title="Settings"
-              >
-                <Settings className="h-4 w-4" />
-              </Button>
             </div>
             <div className="md:ml-1.5 md:border-l md:border-border/50 md:pl-2.5">
               <CapyButton
