@@ -1,28 +1,22 @@
 import { describe, it, expect, beforeEach, vi } from "vitest"
 import { DEFAULT_INTELLIGENCE_CONFIG } from "@capybudget/intelligence"
 
-const { storeMock, claudeDetectorMock } = vi.hoisted(() => ({
+const { storeMock } = vi.hoisted(() => ({
   storeMock: {
     get: vi.fn<() => Promise<unknown>>(),
     set: vi.fn<(value: unknown) => Promise<void>>(),
     save: vi.fn<() => Promise<void>>(),
   },
-  claudeDetectorMock: vi.fn<() => Promise<boolean>>(),
 }))
 
 vi.mock("@tauri-apps/plugin-store", () => ({
   Store: { load: vi.fn(async () => storeMock) },
 }))
 
-vi.mock("@/services/claude-cli-detect", () => ({
-  detectClaudeCli: claudeDetectorMock,
-}))
-
 import {
   useIntelligenceStore,
   _resetIntelligenceStoreForTests,
   _setStoreLoaderForTests,
-  _setClaudeDetectorForTests,
   _resetStoreForTests,
   type ConfigStoreBackend,
 } from "./intelligence-store"
@@ -31,7 +25,6 @@ beforeEach(() => {
   storeMock.get.mockReset()
   storeMock.set.mockReset().mockResolvedValue(undefined)
   storeMock.save.mockReset().mockResolvedValue(undefined)
-  claudeDetectorMock.mockReset()
   _resetStoreForTests()
   _resetIntelligenceStoreForTests()
 })
@@ -61,38 +54,53 @@ describe("useIntelligenceStore.hydrate", () => {
     expect(state.config.anthropic.apiKey).toBe("sk-x")
   })
 
-  it("auto-defaults to claude-cli on first run when claude is detected", async () => {
+  it("seeds provider \"off\" on first run and persists it", async () => {
     const backend = makeBackend(null)
     _setStoreLoaderForTests(async () => backend)
-    _setClaudeDetectorForTests(async () => true)
 
     await useIntelligenceStore.getState().hydrate()
     const state = useIntelligenceStore.getState()
-    expect(state.config.provider).toBe("claude-cli")
-    // Persists the seed so it sticks across restarts
+    expect(state.config.provider).toBe("off")
     expect(backend.set).toHaveBeenCalledWith(
-      expect.objectContaining({ provider: "claude-cli" }),
+      expect.objectContaining({ provider: "off" }),
     )
   })
 
-  it("leaves provider null on first run when claude is not detected", async () => {
+  it("does not auto-detect Claude Code on first run", async () => {
+    // Phase 10.5b: Vlad's call — users opt in explicitly. The store
+    // must not call out to detect Claude on first run.
     const backend = makeBackend(null)
     _setStoreLoaderForTests(async () => backend)
-    _setClaudeDetectorForTests(async () => false)
 
     await useIntelligenceStore.getState().hydrate()
-    expect(useIntelligenceStore.getState().config.provider).toBeNull()
+    expect(useIntelligenceStore.getState().config.provider).toBe("off")
   })
 
-  it("treats detector errors as 'claude not detected'", async () => {
-    const backend = makeBackend(null)
-    _setStoreLoaderForTests(async () => backend)
-    _setClaudeDetectorForTests(async () => {
-      throw new Error("shell unavailable")
+  it("migrates legacy `provider: null` configs to \"off\" on load", async () => {
+    // Pre-Phase-10.5b configs persisted `null` for the same meaning.
+    const backend = makeBackend({
+      provider: null,
+      anthropic: { apiKey: "", model: "claude-sonnet-4-6" },
+      openai: { apiKey: "", model: "gpt-5.4" },
     })
+    _setStoreLoaderForTests(async () => backend)
 
     await useIntelligenceStore.getState().hydrate()
-    expect(useIntelligenceStore.getState().config.provider).toBeNull()
+    expect(useIntelligenceStore.getState().config.provider).toBe("off")
+  })
+
+  it("preserves an existing user's provider choice", async () => {
+    const backend = makeBackend({
+      provider: "claude-cli",
+      anthropic: { apiKey: "", model: "claude-sonnet-4-6" },
+      openai: { apiKey: "", model: "gpt-5.4" },
+    })
+    _setStoreLoaderForTests(async () => backend)
+
+    await useIntelligenceStore.getState().hydrate()
+    expect(useIntelligenceStore.getState().config.provider).toBe("claude-cli")
+    // No re-persist — existing config left untouched.
+    expect(backend.set).not.toHaveBeenCalled()
   })
 
   it("is idempotent — calling twice loads only once", async () => {

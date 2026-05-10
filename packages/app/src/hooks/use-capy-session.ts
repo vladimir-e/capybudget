@@ -10,6 +10,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react"
 import { useSessionLifecycle } from "@/hooks/use-session-lifecycle"
+import { useIntelligenceStore } from "@/stores/intelligence-store"
 import {
   buildContext,
   formatAttachments,
@@ -172,6 +173,17 @@ export function useCapySession(opts: UseCapySessionOptions): UseCapySessionRetur
     }
     return lifecycle.sessionRef.current
   }, [lifecycle])
+
+  // When the user switches the provider to "off" (or away from any
+  // configured provider), tear down any running session so we don't
+  // keep a Claude CLI subprocess alive or an in-flight API request
+  // running against the now-disabled provider.
+  const provider = useIntelligenceStore((s) => s.config.provider)
+  useEffect(() => {
+    if (provider === "off") {
+      lifecycle.cancel()
+    }
+  }, [provider, lifecycle])
 
   const sendMessage = useCallback(
     (text: string, files?: FileAttachment[]) => {

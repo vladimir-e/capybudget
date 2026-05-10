@@ -34,7 +34,6 @@ import {
   useIntelligenceStore,
   _resetIntelligenceStoreForTests,
   _setStoreLoaderForTests,
-  _setClaudeDetectorForTests,
   _resetStoreForTests,
 } from "@/stores/intelligence-store"
 
@@ -71,12 +70,11 @@ beforeEach(() => {
   _resetIntelligenceStoreForTests()
   recheckMock.mockReset()
   recheckMock.mockResolvedValue(true)
-  // Default backend: empty config
+  // Default backend: explicit "off" — Phase 10.5b first-run default.
   _setStoreLoaderForTests(async () => ({
-    get: async () => ({ ...DEFAULT_INTELLIGENCE_CONFIG, provider: null }),
+    get: async () => ({ ...DEFAULT_INTELLIGENCE_CONFIG, provider: "off" }),
     set: async () => {},
   }))
-  _setClaudeDetectorForTests(async () => true)
 })
 
 afterEach(() => {
@@ -86,14 +84,40 @@ afterEach(() => {
 // ── Tests ───────────────────────────────────────────────
 
 describe("SettingsScreen", () => {
-  it("renders the AI Provider card with all three options", async () => {
+  it("renders the AI Provider card with all four options", async () => {
     await renderSettings()
 
     expect(screen.getByRole("heading", { name: "Settings" })).toBeInTheDocument()
     expect(screen.getByText("AI Provider")).toBeInTheDocument()
+    expect(screen.getByText("Off")).toBeInTheDocument()
     expect(screen.getByText("Claude Code")).toBeInTheDocument()
     expect(screen.getByText("Anthropic API")).toBeInTheDocument()
     expect(screen.getByText("OpenAI API")).toBeInTheDocument()
+  })
+
+  it("'Off' is the selected radio for first-run users", async () => {
+    useIntelligenceStore.setState({
+      hydrated: true,
+      config: { ...DEFAULT_INTELLIGENCE_CONFIG },
+    })
+    await renderSettings()
+
+    // The Off label is the first option and matches the default config.
+    expect(
+      screen.getByText(
+        "Capy is disabled. Pick a provider above to enable AI features.",
+      ),
+    ).toBeInTheDocument()
+  })
+
+  it("hides per-provider configuration when provider is 'off'", async () => {
+    useIntelligenceStore.setState({
+      hydrated: true,
+      config: { ...DEFAULT_INTELLIGENCE_CONFIG, provider: "off" },
+    })
+    await renderSettings()
+
+    expect(screen.queryByLabelText("API key")).not.toBeInTheDocument()
   })
 
   it("disables the Claude Code option when CLI is not detected", async () => {

@@ -148,7 +148,7 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
   const provider = useIntelligenceStore((s) => s.config.provider);
   const hasPdf = sourceFiles.some((f) => isPdfFilename(f.name));
   const pdfBlocksOpenAi = provider === "openai" && hasPdf;
-  const importSupported = provider !== null && !pdfBlocksOpenAi;
+  const importSupported = provider !== "off" && !pdfBlocksOpenAi;
 
   // Seed local instructions from persisted value once loaded
   useEffect(() => {
@@ -461,7 +461,7 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
             <>
               {!importSupported && (
                 <ProviderUnsupportedBanner
-                  reason={provider === null ? "unconfigured" : "pdf-on-openai"}
+                  reason={provider === "off" ? "unconfigured" : "pdf-on-openai"}
                   onOpenSettings={() => navigate({ to: "/settings" })}
                 />
               )}

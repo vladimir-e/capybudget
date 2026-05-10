@@ -156,10 +156,17 @@ function ProviderSection() {
         )}
 
         <RadioGroup
-          value={provider ?? ""}
+          value={provider}
           onValueChange={(v) => handleProviderChange(v as IntelligenceProvider)}
           className="gap-3"
         >
+          {/* "Off" is first so the default radio is visibly the
+              opt-out — users explicitly enable AI features. */}
+          <ProviderRadio
+            value="off"
+            label="Off"
+            description="Capy is disabled. Pick a provider above to enable AI features."
+          />
           <ProviderRadio
             value="claude-cli"
             label="Claude Code"
@@ -199,8 +206,8 @@ function ProviderSection() {
           />
         </RadioGroup>
 
-        {/* Per-provider configuration */}
-        {provider && (
+        {/* Per-provider configuration — "off" has no sub-config. */}
+        {provider !== "off" && (
           <div className="border-t pt-6">
             {provider === "claude-cli" && (
               <ClaudeCliConfig
@@ -228,6 +235,7 @@ function ProviderSection() {
 }
 
 const PROVIDER_LABELS: Record<IntelligenceProvider, string> = {
+  off: "Off",
   "claude-cli": "Claude Code",
   anthropic: "Anthropic API",
   openai: "OpenAI API",
