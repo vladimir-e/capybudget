@@ -95,6 +95,27 @@ export function SettingsScreen() {
 
 /* ── AI Provider Section ────────────────────────────────────── */
 
+// The provider radio control needs a string per option; `null` (our
+// "no provider" storage value) maps to/from this sentinel only inside
+// the form. Outside this component, the provider is `null` again.
+const OFF_FORM_VALUE = "off"
+type ProviderFormValue = "off" | Exclude<IntelligenceProvider, null>
+
+function toFormValue(provider: IntelligenceProvider): ProviderFormValue {
+  return provider ?? OFF_FORM_VALUE
+}
+
+function fromFormValue(value: ProviderFormValue): IntelligenceProvider {
+  return value === OFF_FORM_VALUE ? null : value
+}
+
+const PROVIDER_LABELS: Record<ProviderFormValue, string> = {
+  off: "Off",
+  "claude-cli": "Claude Code",
+  anthropic: "Anthropic API",
+  openai: "OpenAI API",
+}
+
 function ProviderSection() {
   const provider = useIntelligenceStore((s) => s.config.provider)
   const setProvider = useIntelligenceStore((s) => s.setProvider)
@@ -121,9 +142,10 @@ function ProviderSection() {
     }
   }, [])
 
-  function handleProviderChange(next: IntelligenceProvider) {
-    if (next === provider) return
-    setProvider(next)
+  function handleProviderChange(next: ProviderFormValue) {
+    const nextProvider = fromFormValue(next)
+    if (nextProvider === provider) return
+    setProvider(nextProvider)
     toast.success(`Provider set to ${PROVIDER_LABELS[next]}`)
   }
 
@@ -156,14 +178,14 @@ function ProviderSection() {
         )}
 
         <RadioGroup
-          value={provider}
-          onValueChange={(v) => handleProviderChange(v as IntelligenceProvider)}
+          value={toFormValue(provider)}
+          onValueChange={(v) => handleProviderChange(v as ProviderFormValue)}
           className="gap-3"
         >
           {/* "Off" is first so the default radio is visibly the
               opt-out — users explicitly enable AI features. */}
           <ProviderRadio
-            value="off"
+            value={OFF_FORM_VALUE}
             label="Off"
             description="Capy is disabled. Pick a provider above to enable AI features."
           />
@@ -206,8 +228,8 @@ function ProviderSection() {
           />
         </RadioGroup>
 
-        {/* Per-provider configuration — "off" has no sub-config. */}
-        {provider !== "off" && (
+        {/* Per-provider configuration — null (Off) has no sub-config. */}
+        {provider !== null && (
           <div className="border-t pt-6">
             {provider === "claude-cli" && (
               <ClaudeCliConfig
@@ -234,15 +256,8 @@ function ProviderSection() {
   )
 }
 
-const PROVIDER_LABELS: Record<IntelligenceProvider, string> = {
-  off: "Off",
-  "claude-cli": "Claude Code",
-  anthropic: "Anthropic API",
-  openai: "OpenAI API",
-}
-
 interface ProviderRadioProps {
-  value: IntelligenceProvider
+  value: ProviderFormValue
   label: string
   description: string
   disabled?: boolean

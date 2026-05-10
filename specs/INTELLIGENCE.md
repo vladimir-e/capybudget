@@ -178,15 +178,15 @@ User-facing config persists via `@tauri-apps/plugin-store` (file-based, in the a
 
 ```ts
 interface IntelligenceConfig {
-  provider: "off" | "claude-cli" | "anthropic" | "openai"
+  provider: "claude-cli" | "anthropic" | "openai" | null
   anthropic: { apiKey: string; model: string }
   openai:    { apiKey: string; model: string }
 }
 ```
 
-The `/settings` route renders a provider radio + per-provider config (API key, model dropdown, custom-model toggle, test-connection button). First-run defaults to `"off"` — users must explicitly pick a provider so they're never surprised by quota usage. Claude Code is still auto-detected via `claude --version` and disabled in the picker if not installed. Pre-Phase-10.5b configs persisted `null` for the disabled state; the store maps `null` → `"off"` on load so the on-disk format stays compatible.
+The `/settings` route renders a provider radio + per-provider config (API key, model dropdown, custom-model toggle, test-connection button). First-run defaults to `null` — users must explicitly pick a provider so they're never surprised by quota usage. The radio's "Off" label maps to `null` at the form boundary. Claude Code is still auto-detected via `claude --version` and disabled in the picker if not installed. Configs from a brief window mid-Phase-10.5b that persisted `"off"` are normalized to `null` on load.
 
-When `provider === "off"`, the Capy overlay shows an empty-state CTA instead of the chat UI.
+When `provider === null`, the Capy overlay shows an empty-state CTA instead of the chat UI.
 
 ## Context Enrichment
 

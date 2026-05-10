@@ -4,12 +4,12 @@
  * plugin-store as `intelligence-config.json` in the app config dir.
  *
  * Lifecycle:
- *   1. Initial state mirrors DEFAULT_INTELLIGENCE_CONFIG (provider "off").
+ *   1. Initial state mirrors DEFAULT_INTELLIGENCE_CONFIG (provider null).
  *   2. `hydrate()` loads from disk on first call. First-run default is
- *      `"off"` — users explicitly pick a provider to enable AI features
+ *      `null` — users explicitly pick a provider to enable AI features
  *      so they're never surprised by quota usage. Legacy configs that
- *      persisted `provider: null` (pre-Phase-10.5b) are mapped to
- *      `"off"` on load.
+ *      persisted `provider: "off"` (mid-Phase-10.5b) are normalized to
+ *      `null` on load.
  *   3. Setters write through to disk; UI subscribers see the new value
  *      synchronously.
  *
@@ -104,7 +104,7 @@ export const useIntelligenceStore = create<IntelligenceStore>((set, get) => ({
       const b = await loadBackend()
       const loaded = await b.get()
 
-      // First-run: no config on disk yet. Default to "off" — users
+      // First-run: no config on disk yet. Default to null — users
       // explicitly pick a provider so they're never surprised by
       // quota usage.
       if (!loaded) {
@@ -114,13 +114,14 @@ export const useIntelligenceStore = create<IntelligenceStore>((set, get) => ({
         return
       }
 
-      // Migrate legacy `provider: null` (pre-Phase-10.5b) to "off".
-      // The on-disk shape stays compatible; we just normalize at load.
-      // The double-cast is necessary because the new IntelligenceConfig
-      // type no longer admits `null` as a provider, but pre-migration
-      // configs may have it on disk.
-      const rawProvider = (loaded as { provider: IntelligenceProvider | null }).provider
-      const provider: IntelligenceProvider = rawProvider ?? "off"
+      // Normalize a legacy `provider: "off"` sentinel (mid-Phase-10.5b)
+      // back to `null` — they meant the same thing, so we collapse to
+      // the standard absence value.
+      const rawProvider = (loaded as { provider: unknown }).provider
+      const provider: IntelligenceProvider =
+        rawProvider === "off" || rawProvider == null
+          ? null
+          : (rawProvider as IntelligenceProvider)
       const normalized: IntelligenceConfig = { ...loaded, provider }
       set({ config: normalized, hydrated: true })
     })()

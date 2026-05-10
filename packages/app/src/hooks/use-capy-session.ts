@@ -171,7 +171,7 @@ export function useCapySession(opts: UseCapySessionOptions): UseCapySessionRetur
       ? `anthropic:${anthropicModel}`
       : provider === "openai"
         ? `openai:${openaiModel}`
-        : provider // "claude-cli" and "off" carry no model in this config
+        : (provider ?? "off") // "claude-cli" / null carry no model — stable string signature
   const prevSignatureRef = useRef(sessionSignature)
   useEffect(() => {
     if (prevSignatureRef.current !== sessionSignature) {

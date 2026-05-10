@@ -102,7 +102,7 @@ export function CapyOverlay({
 
   // Intelligence config — used to decide whether to show the
   // "set up your AI assistant" empty state and to hide the input
-  // entirely until a provider + key are configured. "off" is the
+  // entirely until a provider + key are configured. `null` is the
   // explicit opt-out and behaves like an unconfigured provider.
   const navigate = useNavigate()
   const config = useIntelligenceStore((s) => s.config)

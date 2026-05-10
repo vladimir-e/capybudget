@@ -103,10 +103,10 @@ afterEach(() => {
 })
 
 describe("CapyOverlay empty state", () => {
-  it("shows the 'Set up your AI assistant' card when provider is off", async () => {
+  it("shows the 'Set up your AI assistant' card when provider is null", async () => {
     useIntelligenceStore.setState({
       hydrated: true,
-      config: { ...DEFAULT_INTELLIGENCE_CONFIG, provider: "off" },
+      config: { ...DEFAULT_INTELLIGENCE_CONFIG, provider: null },
     })
     await mountOverlay()
 
@@ -119,7 +119,7 @@ describe("CapyOverlay empty state", () => {
   it("offers a quick-pick chip for each provider", async () => {
     useIntelligenceStore.setState({
       hydrated: true,
-      config: { ...DEFAULT_INTELLIGENCE_CONFIG, provider: "off" },
+      config: { ...DEFAULT_INTELLIGENCE_CONFIG, provider: null },
     })
     await mountOverlay()
 
@@ -145,7 +145,7 @@ describe("CapyOverlay empty state", () => {
   it("hides the chat input entirely when not configured", async () => {
     useIntelligenceStore.setState({
       hydrated: true,
-      config: { ...DEFAULT_INTELLIGENCE_CONFIG, provider: "off" },
+      config: { ...DEFAULT_INTELLIGENCE_CONFIG, provider: null },
     })
     await mountOverlay()
 
@@ -208,7 +208,7 @@ describe("CapyOverlay click-through behavior", () => {
     const user = userEvent.setup()
     useIntelligenceStore.setState({
       hydrated: true,
-      config: { ...DEFAULT_INTELLIGENCE_CONFIG, provider: "off" },
+      config: { ...DEFAULT_INTELLIGENCE_CONFIG, provider: null },
     })
     const { router } = await mountOverlay()
 
@@ -231,7 +231,7 @@ describe("CapyOverlay click-through behavior", () => {
     const user = userEvent.setup()
     useIntelligenceStore.setState({
       hydrated: true,
-      config: { ...DEFAULT_INTELLIGENCE_CONFIG, provider: "off" },
+      config: { ...DEFAULT_INTELLIGENCE_CONFIG, provider: null },
     })
     const { router } = await mountOverlay()
 
@@ -247,7 +247,7 @@ describe("CapyOverlay click-through behavior", () => {
     const user = userEvent.setup()
     useIntelligenceStore.setState({
       hydrated: true,
-      config: { ...DEFAULT_INTELLIGENCE_CONFIG, provider: "off" },
+      config: { ...DEFAULT_INTELLIGENCE_CONFIG, provider: null },
     })
     const { router } = await mountOverlay()
 
@@ -263,7 +263,7 @@ describe("CapyOverlay click-through behavior", () => {
     const user = userEvent.setup()
     useIntelligenceStore.setState({
       hydrated: true,
-      config: { ...DEFAULT_INTELLIGENCE_CONFIG, provider: "off" },
+      config: { ...DEFAULT_INTELLIGENCE_CONFIG, provider: null },
     })
     const { router } = await mountOverlay()
 
@@ -273,7 +273,7 @@ describe("CapyOverlay click-through behavior", () => {
       expect(router.state.location.pathname).toBe("/settings")
     })
     // Provider must remain untouched.
-    expect(useIntelligenceStore.getState().config.provider).toBe("off")
+    expect(useIntelligenceStore.getState().config.provider).toBeNull()
   })
 
   it("disables the Claude Code chip when the CLI is not detected", async () => {
@@ -282,7 +282,7 @@ describe("CapyOverlay click-through behavior", () => {
     detectMock.mockResolvedValue(false)
     useIntelligenceStore.setState({
       hydrated: true,
-      config: { ...DEFAULT_INTELLIGENCE_CONFIG, provider: "off" },
+      config: { ...DEFAULT_INTELLIGENCE_CONFIG, provider: null },
     })
     await mountOverlay()
 
@@ -293,7 +293,7 @@ describe("CapyOverlay click-through behavior", () => {
 
     // userEvent respects `disabled` and does not fire the click.
     await user.click(chip)
-    expect(useIntelligenceStore.getState().config.provider).toBe("off")
+    expect(useIntelligenceStore.getState().config.provider).toBeNull()
   })
 
   it("clicking a suggestion card sends the prompt", async () => {

@@ -54,15 +54,15 @@ describe("useIntelligenceStore.hydrate", () => {
     expect(state.config.anthropic.apiKey).toBe("sk-x")
   })
 
-  it("seeds provider \"off\" on first run and persists it", async () => {
+  it("seeds provider null on first run and persists it", async () => {
     const backend = makeBackend(null)
     _setStoreLoaderForTests(async () => backend)
 
     await useIntelligenceStore.getState().hydrate()
     const state = useIntelligenceStore.getState()
-    expect(state.config.provider).toBe("off")
+    expect(state.config.provider).toBeNull()
     expect(backend.set).toHaveBeenCalledWith(
-      expect.objectContaining({ provider: "off" }),
+      expect.objectContaining({ provider: null }),
     )
   })
 
@@ -73,20 +73,20 @@ describe("useIntelligenceStore.hydrate", () => {
     _setStoreLoaderForTests(async () => backend)
 
     await useIntelligenceStore.getState().hydrate()
-    expect(useIntelligenceStore.getState().config.provider).toBe("off")
+    expect(useIntelligenceStore.getState().config.provider).toBeNull()
   })
 
-  it("migrates legacy `provider: null` configs to \"off\" on load", async () => {
-    // Pre-Phase-10.5b configs persisted `null` for the same meaning.
+  it("normalizes legacy `provider: \"off\"` configs to null on load", async () => {
+    // Mid-Phase-10.5b configs persisted "off" for the same meaning.
     const backend = makeBackend({
-      provider: null,
+      provider: "off",
       anthropic: { apiKey: "", model: "claude-sonnet-4-6" },
       openai: { apiKey: "", model: "gpt-5.4" },
     })
     _setStoreLoaderForTests(async () => backend)
 
     await useIntelligenceStore.getState().hydrate()
-    expect(useIntelligenceStore.getState().config.provider).toBe("off")
+    expect(useIntelligenceStore.getState().config.provider).toBeNull()
   })
 
   it("preserves an existing user's provider choice", async () => {

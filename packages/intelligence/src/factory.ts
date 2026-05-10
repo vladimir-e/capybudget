@@ -8,7 +8,7 @@
  * package free of Tauri / SDK deps.
  *
  * Returns null when:
- *   - config.provider is "off" (AI features disabled by the user)
+ *   - config.provider is null (AI features disabled by the user)
  *   - the chosen provider's adapter wasn't injected
  *   - an API provider is selected but its API key is empty
  *
@@ -79,7 +79,7 @@ export function createIntelligenceSession(
 ): CapySession | null {
   const { config, adapters, options } = deps
   const provider = config.provider
-  if (provider === "off") return null
+  if (provider === null) return null
 
   switch (provider) {
     case "claude-cli": {

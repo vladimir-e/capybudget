@@ -70,9 +70,9 @@ beforeEach(() => {
   _resetIntelligenceStoreForTests()
   recheckMock.mockReset()
   recheckMock.mockResolvedValue(true)
-  // Default backend: explicit "off" — Phase 10.5b first-run default.
+  // Default backend: explicit null — Phase 10.5b first-run default.
   _setStoreLoaderForTests(async () => ({
-    get: async () => ({ ...DEFAULT_INTELLIGENCE_CONFIG, provider: "off" }),
+    get: async () => ({ ...DEFAULT_INTELLIGENCE_CONFIG, provider: null }),
     set: async () => {},
   }))
 })
@@ -110,10 +110,10 @@ describe("SettingsScreen", () => {
     ).toBeInTheDocument()
   })
 
-  it("hides per-provider configuration when provider is 'off'", async () => {
+  it("hides per-provider configuration when provider is null", async () => {
     useIntelligenceStore.setState({
       hydrated: true,
-      config: { ...DEFAULT_INTELLIGENCE_CONFIG, provider: "off" },
+      config: { ...DEFAULT_INTELLIGENCE_CONFIG, provider: null },
     })
     await renderSettings()
 

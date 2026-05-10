@@ -176,7 +176,7 @@ describe("useCapySession session teardown", () => {
     expect(firstSession.killSpy).not.toHaveBeenCalled()
   })
 
-  it("kills the session when the provider goes to 'off'", () => {
+  it("kills the session when the provider goes to null", () => {
     useIntelligenceStore.setState({
       hydrated: true,
       config: { ...DEFAULT_INTELLIGENCE_CONFIG, provider: "claude-cli" },
@@ -189,7 +189,7 @@ describe("useCapySession session teardown", () => {
     const firstSession = createdSessions[0]
 
     act(() => {
-      useIntelligenceStore.getState().setProvider("off")
+      useIntelligenceStore.getState().setProvider(null)
     })
     expect(firstSession.killSpy).toHaveBeenCalled()
   })
