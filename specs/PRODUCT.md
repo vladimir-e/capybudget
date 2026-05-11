@@ -63,3 +63,7 @@ See `FRONTEND_DESIGN.md` for interaction patterns, color scheme, typography, and
 ## Distribution
 
 Open source, MIT license. Public GitHub repo with architecture docs, web demo, promo website, and a standalone MCP server (`@capybudget/mcp`) that works with any MCP-compatible AI agent.
+
+---
+
+**Maintenance note.** Everything in this file *above* `## Target Platforms` is excerpted into Capy's chat system prompt as the always-on product brief — see `packages/intelligence/src/prompt.ts` and the curation step in `packages/intelligence/scripts/generate-specs.ts`. The Target Platforms / Distribution sections (this part) are intentionally excluded. When editing the feature inventory above, the change ships to every chat session on the next prompt build. Make sure additions/removals read well as Capy's working knowledge of what the app can do.

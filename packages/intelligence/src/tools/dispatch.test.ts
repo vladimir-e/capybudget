@@ -79,6 +79,10 @@ describe("isDispatchTool", () => {
     expect(isDispatchTool("read_file")).toBe(true)
   })
 
+  it("recognizes read_spec", () => {
+    expect(isDispatchTool("read_spec")).toBe(true)
+  })
+
   it("rejects unknown tools", () => {
     expect(isDispatchTool("nonsense")).toBe(false)
   })
@@ -137,5 +141,14 @@ describe("runTool", () => {
     await expect(runTool("unknown_tool", {}, makeCtx())).rejects.toThrow(
       "Unknown tool: unknown_tool",
     )
+  })
+
+  it("dispatches read_spec from the bundled spec map", async () => {
+    const out = await runTool(
+      "read_spec",
+      { filename: "DATA_MODEL.md" },
+      makeCtx(),
+    )
+    expect(out).toContain("# Data Model")
   })
 })

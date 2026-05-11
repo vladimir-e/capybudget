@@ -1,6 +1,26 @@
 /**
  * System prompt and context enrichment for the Capy intelligence layer.
+ *
+ * The prompt bakes in two spec files as always-on context:
+ *   - DATA_MODEL.md (full) — capy needs the exact schema to interpret
+ *     tool results and form valid mutations.
+ *   - PRODUCT.md (curated) — feature surface so capy knows what the app
+ *     can do, minus the deployment/distribution sections that are
+ *     irrelevant to in-app reasoning.
+ *
+ * For anything beyond that — architecture detail, the import flow, the
+ * intelligence layer itself, the roadmap — capy calls `read_spec`.
+ *
+ * Both embeds are sourced from `specs.generated.ts`, which is regenerated
+ * on every build (see `scripts/generate-specs.ts`). To resync after
+ * editing a spec: `npm run generate:specs`. The maintenance footers on
+ * `specs/DATA_MODEL.md` and `specs/PRODUCT.md` flag this dependency for
+ * humans editing those files.
  */
+
+import { SPECS, PRODUCT_EXCERPT, SPEC_FILENAMES } from "./specs.generated"
+
+const DATA_MODEL = SPECS["DATA_MODEL.md"] ?? ""
 
 export const SYSTEM_PROMPT = `You are Capy, a financial assistant built into a personal budgeting app called Capy Budget. You have full control over the user's budget — you can read, create, update, and delete anything.
 
@@ -61,19 +81,29 @@ All amounts for write tools are in positive integer cents (e.g. 1250 = $12.50). 
 - assign_categories: assign a category to multiple transactions at once (skips transfers)
 - bulk_update_transactions: change account, date, and/or merchant across many transactions in one call. Use this for "move all my Chase transactions to the new account" or "rename merchant X to Y on these rows". Transfers are skipped for account and merchant; include both legs if you want both to shift date.
 
-## Data model
-- Accounts have types: cash, checking, savings, credit_card, loan, asset, crypto
-- Transactions have types: expense (negative amount), income (positive), transfer (paired legs)
-- Categories are grouped: Income, Fixed, Daily Living, Personal, Irregular
-- Amounts are stored as integer cents but tools return formatted strings
-- Transfers create two linked transactions — one outflow (negative) and one inflow (positive)
-- Deleting a transfer leg auto-deletes the paired leg
-
 ## Important rules
 - Never invent or hallucinate financial data — only report what the tools return
 - When creating transactions, always verify the account and category exist first by listing them
 - For bulk categorization, list uncategorized transactions first, then assign categories based on merchant names
-- Confirm destructive actions (deleting accounts, bulk deletes) with the user before executing`
+- Confirm destructive actions (deleting accounts, bulk deletes) with the user before executing
+
+## Going deeper on the app
+
+If you need implementation detail beyond what's below — the architecture, the import pipeline, the intelligence layer's own internals, the roadmap, the test strategy — call \`read_spec\` with the filename. Available specs: ${SPEC_FILENAMES.join(", ")}. The high-level data model and product surface are already in this prompt; reach for read_spec when the user's question gets into how things work under the hood.
+
+---
+
+# How Capy Budget works
+
+The sections below are excerpted directly from the app's design docs. They define the schemas you operate on and the feature surface available to the user.
+
+## Product overview (from PRODUCT.md)
+
+${PRODUCT_EXCERPT}
+
+## Data model (from DATA_MODEL.md)
+
+${DATA_MODEL}`
 
 /**
  * Build context header to prepend to the user's message.

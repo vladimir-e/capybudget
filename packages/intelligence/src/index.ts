@@ -64,6 +64,7 @@ export {
   IMPORT_TOOL_DEFS,
   CSV_TOOL_DEFS,
   READ_FILE_TOOL_DEF,
+  READ_SPEC_TOOL_DEF,
   RENDER_TOOL_DEFS,
   MUTATION_TOOL_NAMES,
   getToolDefinitions,
@@ -101,6 +102,7 @@ export {
   handleEnrichSample,
   handleEnrichUpdate,
   handleReadFile,
+  handleReadSpec,
 } from "./tools"
 export type { ToolDefinition, ToolContext } from "./tools"
 

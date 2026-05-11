@@ -135,6 +135,7 @@ Single source of truth shared between transports:
   - **Import tools** — `read_import_file`, `write_import_file`, `append_import_file`, `list_import_files` (over `.capy/import/`)
   - **CSV tools** — `analyze_csv`, `preview_transform`, `transform_csv`, `auto_enrich`, `enrich_stats`, `enrich_sample`, `enrich_update`
   - **read_file** — generic budget-folder text reader; mirrors what Claude CLI's built-in `Read` provides natively
+  - **read_spec** — reads one of the app's design docs (`specs/*.md`). Content is bundled at build time into `specs.generated.ts` — no filesystem access, no path resolution surface. Use when capy needs implementation detail beyond what the system prompt already embeds.
   - **Render tools** — no-op on dispatch (return `"Rendered."`); the frontend intercepts the `tool_use` event and emits the corresponding ContentBlock
 
 All filesystem access goes through the `FileAdapter` on the context, so the same handler runs against node fs (MCP server) and Tauri fs (API adapters in the renderer). The `FileAdapter` interface covers core CSV repo ops (read/write/rename/join) plus the import-handler ops (`mkdir`, `exists`, `readDir`, `appendFile`, `remove`, `stat`).
@@ -230,7 +231,12 @@ Establishes Capy's personality:
 - Concise, direct answers
 - Confirms destructive actions before executing
 
-Includes a complete data model description and tool reference so the AI interprets results correctly.
+The prompt also bakes in two spec files as always-on context so capy understands the app's surface area without having to ask:
+
+- **`DATA_MODEL.md`** — embedded in full. Capy needs the exact schema to interpret tool results and form valid mutations.
+- **`PRODUCT.md`** — curated excerpt (everything above `## Target Platforms`). The deployment/distribution sections are skipped — capy reasons about how the app works, not how it ships.
+
+Both embeds are sourced from `packages/intelligence/src/specs.generated.ts`, which is regenerated on every build by `scripts/generate-specs.ts`. The two spec files carry maintenance-note footers flagging this dependency for human editors. For anything beyond the always-on context — architecture, the import pipeline, the intelligence layer itself, the roadmap — capy calls `read_spec`.
 
 ## Import Sessions
 

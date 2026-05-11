@@ -135,3 +135,7 @@ Each migration `n → n+1` is a pure-ish function on the budget folder, idempote
 |-----------|--------|
 | 1 → 2     | Add `excludeFromNetWorth` column to accounts.csv (default `false`). |
 | 2 → 3     | Add `assigned` column to categories.csv (empty cell = `null` = untracked). |
+
+---
+
+**Maintenance note.** This file is baked into Capy's chat system prompt verbatim — see `packages/intelligence/src/prompt.ts` and the bundling step in `packages/intelligence/scripts/generate-specs.ts`. When you edit this file, the prompt picks up the change on the next build (or `npm run generate:specs`), but the change also goes live to every running session on the next prompt build. Make sure additions/removals here read well as Capy's working knowledge — it's not just a spec, it's instructions.

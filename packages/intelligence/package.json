@@ -8,6 +8,9 @@
   "exports": {
     ".": "./src/index.ts"
   },
+  "scripts": {
+    "generate:specs": "tsx scripts/generate-specs.ts"
+  },
   "dependencies": {
     "@capybudget/core": "*",
     "@capybudget/persistence": "*",

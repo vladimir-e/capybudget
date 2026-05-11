@@ -1,9 +1,11 @@
 /**
  * Single source of truth for tool descriptors that the model sees —
- * data, mutation, import, csv, read_file, and render tools all live
- * here. Both the MCP server and the in-process API adapters consume
- * these.
+ * data, mutation, import, csv, read_file, read_spec, and render tools
+ * all live here. Both the MCP server and the in-process API adapters
+ * consume these.
  */
+
+import { SPEC_FILENAMES } from "../specs.generated"
 
 // ── Data tool schemas ────────────────────────────────────────────
 
@@ -731,6 +733,27 @@ export const READ_FILE_TOOL_DEF = {
   },
 } as const
 
+// ── read_spec ────────────────────────────────────────────────────
+// Bundled spec docs (specs/*.md) — content is generated into
+// specs.generated.ts at build time. Used when capy needs implementation
+// detail beyond what the system prompt already embeds.
+
+export const READ_SPEC_TOOL_DEF = {
+  name: "read_spec",
+  description: `Read one of Capy Budget's design specs. The chat prompt already embeds DATA_MODEL.md and a high-level PRODUCT.md excerpt — reach for this tool when you need deeper detail on architecture, the import pipeline, the intelligence layer internals, or the roadmap. Available files: ${SPEC_FILENAMES.join(", ")}.`,
+  inputSchema: {
+    type: "object" as const,
+    properties: {
+      filename: {
+        type: "string",
+        description: `Spec filename, e.g. 'ARCHITECTURE.md'. Must be one of: ${SPEC_FILENAMES.join(", ")}.`,
+        enum: [...SPEC_FILENAMES],
+      },
+    },
+    required: ["filename"],
+  },
+} as const
+
 // ── Render tool schemas ──────────────────────────────────────────
 // These are no-ops on the dispatch side — the frontend intercepts the
 // tool_use events and renders the corresponding UI components.
@@ -869,6 +892,7 @@ export function getToolDefinitions(): ToolDefinition[] {
     ...IMPORT_TOOL_DEFS,
     ...CSV_TOOL_DEFS,
     READ_FILE_TOOL_DEF,
+    READ_SPEC_TOOL_DEF,
     ...RENDER_TOOL_DEFS,
   ]
 }

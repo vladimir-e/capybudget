@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { buildContext } from "./prompt";
+import { buildContext, SYSTEM_PROMPT } from "./prompt";
+import { SPECS, PRODUCT_EXCERPT, SPEC_FILENAMES } from "./specs.generated";
 
 describe("buildContext", () => {
   afterEach(() => {
@@ -48,5 +49,29 @@ describe("buildContext", () => {
     expect(budgetIndex).toBeLessThan(userIndex);
     expect(dateIndex).toBeGreaterThan(contextIndex);
     expect(dateIndex).toBeLessThan(userIndex);
+  });
+});
+
+describe("SYSTEM_PROMPT", () => {
+  it("embeds the full DATA_MODEL.md", () => {
+    expect(SYSTEM_PROMPT).toContain(SPECS["DATA_MODEL.md"]);
+  });
+
+  it("embeds the curated PRODUCT.md excerpt", () => {
+    expect(SYSTEM_PROMPT).toContain(PRODUCT_EXCERPT);
+  });
+
+  it("excludes the deployment/distribution sections from PRODUCT.md", () => {
+    // These sections are intentionally curated out — capy doesn't need
+    // to reason about how the project is shipped.
+    expect(SYSTEM_PROMPT).not.toContain("## Target Platforms");
+    expect(SYSTEM_PROMPT).not.toContain("## Distribution");
+  });
+
+  it("tells the model about read_spec and lists the available files", () => {
+    expect(SYSTEM_PROMPT).toContain("read_spec");
+    for (const name of SPEC_FILENAMES) {
+      expect(SYSTEM_PROMPT).toContain(name);
+    }
   });
 });

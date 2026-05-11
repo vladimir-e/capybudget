@@ -15,6 +15,7 @@
  *   - csv tools (analyze_csv, preview_transform, transform_csv,
  *                auto_enrich, enrich_*)
  *   - read_file (generic budget-folder text reader)
+ *   - read_spec (bundled spec doc reader)
  *   - render tools (render_*)
  */
 
@@ -61,6 +62,7 @@ import {
   handleEnrichUpdate,
 } from "./handlers/csv"
 import { handleReadFile } from "./handlers/read-file"
+import { handleReadSpec } from "./handlers/spec"
 
 export interface ToolContext {
   repo: BudgetRepository
@@ -118,6 +120,9 @@ const HANDLERS: Record<string, ToolHandler> = {
   // Generic file reader (claude-cli has Read built-in; api adapters
   // get this so the import flow's text-file ingestion works)
   read_file: (ctx, args) => handleReadFile(ctx, args),
+
+  // Spec reader (bundled at build time; scope-locked to specs/*.md)
+  read_spec: (_ctx, args) => handleReadSpec(args),
 }
 
 /**
