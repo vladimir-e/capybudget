@@ -198,6 +198,7 @@ export class OpenAiSession implements CapySession {
     this.abortController = null
     this.messages.length = 0
     this.alive = false
+    this.toolCallCount = 0
   }
 
   /** Hard stop: abort, mark dead. */

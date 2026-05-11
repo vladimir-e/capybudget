@@ -186,8 +186,10 @@ describe("handleEnrichStats", () => {
 
     const result = await handleEnrichStats(ctx)
     expect(result).toContain("Total: 4 rows")
-    expect(result).toContain("Merchants: 1/4")
-    expect(result).toContain("Categories: 1/2")
+    // Transfers excluded from both denominators — they don't get merchants
+    // or categories (merge code clears them in import-merge.ts).
+    expect(result).toContain("Merchants: 1/2 (2 transfers excluded)")
+    expect(result).toContain("Categories: 1/2 (2 transfers excluded)")
     expect(result).toContain("Unmatched transfers: 1")
   })
 })

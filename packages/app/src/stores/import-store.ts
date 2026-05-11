@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { createSession } from "@/services/create-session";
 import {
   buildContext,
+  runTool,
   type CapySession,
   type ChatMessage,
   type ContentBlock,
@@ -299,12 +300,32 @@ export const useImportStore = create<ImportStore>((set, get) => ({
       return;
     }
 
-    session.send(message).catch((err) => {
-      handleEnrichStreamEvent(
-        { type: "error", message: err instanceof Error ? err.message : "Failed to start enrichment" },
-        set,
-        get,
-      );
+    // Pre-run auto_enrich so the prompt's "Already ran before this prompt"
+    // wording is accurate. Mint-style CSVs with sourceCategory /
+    // sourceAccount populated get deterministic fuzzy-matching before
+    // the model wakes up; without this, the model would redo the same
+    // work by hand via enrich_update. Best-effort: if it fails, the
+    // model can still call auto_enrich itself as fallback.
+    const preEnrich = repo && fileAdapter
+      ? runTool("auto_enrich", {}, { repo, fileAdapter, budgetPath }).catch(
+          (err: unknown) => {
+            console.warn("[import-store] pre-enrich auto_enrich failed:", err);
+          },
+        )
+      : Promise.resolve();
+
+    preEnrich.then(() => {
+      // User may have cancelled while auto_enrich was running — the
+      // store kills the session and clears `enrichSession`. Skip the
+      // send if the state no longer matches the one we started.
+      if (get().enrichSession !== session) return;
+      session.send(message).catch((err) => {
+        handleEnrichStreamEvent(
+          { type: "error", message: err instanceof Error ? err.message : "Failed to start enrichment" },
+          set,
+          get,
+        );
+      });
     });
   },
 

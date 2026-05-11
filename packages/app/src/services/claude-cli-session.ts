@@ -240,6 +240,10 @@ export class ClaudeCliSession implements CapySession {
     await this.kill()
     this.sessionId = crypto.randomUUID()
     this.interruptedMessages = null
+    // Reset budget tracking so the next session starts fresh.
+    // `killed` is reset by the next `spawn()`.
+    this.seenToolUseIds.clear()
+    this.budgetTerminated = false
   }
 
   /** Kill the process. */
@@ -288,8 +292,10 @@ export class ClaudeCliSession implements CapySession {
 
   /**
    * Kill the subprocess and surface a budget-exhausted error event.
-   * The close handler is short-circuited via `budgetTerminated` so we
-   * don't fire the unexpected-death onExit path.
+   * Sets `this.killed` first so the close handler's `if (!this.killed)`
+   * guard skips the unexpected-death onExit path. `budgetTerminated`
+   * is a re-entry guard — multiple tool_use blocks in the same line
+   * shouldn't fire the error twice.
    */
   private terminateOnBudgetExhausted(): void {
     if (this.budgetTerminated) return

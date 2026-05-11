@@ -633,7 +633,7 @@ export const CSV_TOOL_DEFS = [
   {
     name: "auto_enrich",
     description:
-      "Code-based enrichment: (1) maps sourceCategory → budget categories, (2) matches sourceAccount → budget accounts, (3) resolves transfer target accounts. Leaves merchant empty for the model to fill with cleaned names. Call this FIRST.",
+      "Code-based enrichment: (1) maps sourceCategory → budget categories, (2) matches sourceAccount → budget accounts, (3) resolves transfer target accounts. Leaves merchant empty for the model to fill with cleaned names. Runs automatically when an enrichment session starts. Call it again only if you suspect it didn't run (e.g., after a manual `write_import_file`).",
     inputSchema: {
       type: "object" as const,
       properties: {},

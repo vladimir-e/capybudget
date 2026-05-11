@@ -31,14 +31,19 @@ OpenAI's chat.completions API doesn't accept PDF input. When the OpenAI provider
 
 | Column | Type | Description |
 |---|---|---|
-| `id` | string | Unique row identifier |
-| `date` | string | Transaction date |
-| `description` | string | Raw description from source |
-| `amount` | integer | Amount in cents |
+| `id` | string | Sequential: `imp-1`, `imp-2`, `imp-3`, … |
+| `date` | string | `YYYY-MM-DD` |
+| `description` | string | Raw description from source — preserved exactly as-is |
+| `amount` | integer | Cents. Negative = expense, positive = income |
 | `type` | string | `expense`, `income`, or `transfer` |
 | `sourceAccount` | string | Raw account string from source file — not yet matched |
 | `sourceCategory` | string | Raw category string from source file — not yet matched |
-| `memo` | string | Additional notes |
+| `memo` | string | Additional notes or reference numbers |
+| `merchant` | string | Clean human-readable merchant name. Set during normalize for unambiguous receipt/PDF cases, otherwise filled during enrichment |
+| `accountId` | string | Budget account UUID — set during enrichment |
+| `targetAccountId` | string | Target account UUID for transfers — set during enrichment |
+| `categoryId` | string | Budget category UUID. Set during normalize when confident, otherwise filled during enrichment |
+| `categoryConfidence` | string | `high` for unambiguous matches, `low` for inferred. Set alongside `categoryId` |
 
 `sourceAccount` and `sourceCategory` are raw strings extracted from the file. They are resolved to budget entities later during enrichment.
 

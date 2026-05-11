@@ -272,10 +272,16 @@ export async function handleEnrichStats(ctx: ToolContext): Promise<string> {
 
   const needCategory = data.length - withCategory - transfers
 
+  // Transfers don't have merchants — the merge code clears them
+  // (packages/core/src/import-merge.ts). Match that in the denominator
+  // so "complete" means "every non-transfer row has a merchant".
+  const transferSuffix =
+    transfers > 0 ? ` (${transfers} transfers excluded)` : ""
+
   return [
     `Total: ${data.length} rows`,
-    `Merchants: ${withMerchant}/${data.length}`,
-    `Categories: ${withCategory}/${data.length - transfers} (${transfers} transfers excluded)`,
+    `Merchants: ${withMerchant}/${data.length - transfers}${transferSuffix}`,
+    `Categories: ${withCategory}/${data.length - transfers}${transferSuffix}`,
     `Accounts: ${withAccount}/${data.length}`,
     needCategory > 0 ? `Still need category: ${needCategory}` : `All categorized!`,
     unmatchedTransfers > 0

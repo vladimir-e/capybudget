@@ -218,4 +218,57 @@ describe("ClaudeCliSession", () => {
     expect(child.kill).not.toHaveBeenCalled()
     expect(events.some((e) => e.type === "error")).toBe(false)
   })
+
+  it("restart() resets the budget counter so the next session starts fresh", async () => {
+    const { SESSION_TOOL_CALL_BUDGET } = await import("@capybudget/intelligence")
+    const { session, events } = makeSession()
+    await session.send("loop forever")
+
+    // Burn the entire budget on the first session.
+    const handlers1 = latestHandlers.current!
+    for (let i = 0; i <= SESSION_TOOL_CALL_BUDGET; i++) {
+      handlers1.stdout!(
+        JSON.stringify({
+          type: "assistant",
+          message: {
+            content: [
+              {
+                type: "tool_use",
+                id: `tu-burn-${i}`,
+                name: "list_accounts",
+                input: {},
+              },
+            ],
+          },
+        }),
+      )
+    }
+    const initialErrorCount = events.filter((e) => e.type === "error").length
+    expect(initialErrorCount).toBeGreaterThanOrEqual(1)
+
+    // restart() must clear the budget state so the next send starts
+    // fresh — single tool_use after restart must NOT trip the cap.
+    await session.restart()
+    await session.send("after restart")
+    const handlers2 = latestHandlers.current!
+    const child2 = latestChild.current!
+
+    handlers2.stdout!(
+      JSON.stringify({
+        type: "assistant",
+        message: {
+          content: [
+            { type: "tool_use", id: "tu-post-restart", name: "list_accounts", input: {} },
+          ],
+        },
+      }),
+    )
+
+    expect(child2.kill).not.toHaveBeenCalled()
+    const errorsAfterRestart = events.filter(
+      (e) => e.type === "error" && /budget exhausted/i.test(e.message),
+    ).length
+    // Only the original budget-exhausted error, no new one.
+    expect(errorsAfterRestart).toBe(initialErrorCount)
+  })
 })

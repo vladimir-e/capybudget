@@ -19,7 +19,7 @@ Your task: normalize every source file into a single uniform CSV called "transac
 File: transactions.csv
 Columns (in order):
 
-id,date,description,amount,type,sourceAccount,sourceCategory,memo,merchant,accountId,categoryId,categoryConfidence
+id,date,description,amount,type,sourceAccount,sourceCategory,memo,merchant,accountId,targetAccountId,categoryId,categoryConfidence
 
 | Column | Type | Description |
 |---|---|---|
@@ -33,6 +33,7 @@ id,date,description,amount,type,sourceAccount,sourceCategory,memo,merchant,accou
 | memo | string | Additional notes or reference numbers, empty string otherwise |
 | merchant | string | Optional: fill with a clean merchant name when you can read it unambiguously from a receipt image or bank description. Leave empty otherwise — enrichment will handle it. |
 | accountId | string | Leave empty — set during enrichment |
+| targetAccountId | string | Target account UUID for transfers — set during enrichment |
 | categoryId | string | Optional: fill with a real category UUID (from \`list_categories\`) when you're confident. Leave empty otherwise — enrichment will handle it. |
 | categoryConfidence | string | Set alongside categoryId. "high" for unambiguous matches, "low" for inferred. Leave empty if categoryId is empty. |
 

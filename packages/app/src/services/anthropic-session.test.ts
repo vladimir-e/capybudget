@@ -465,4 +465,38 @@ describe("AnthropicSession", () => {
     expect(errorEvent?.message).toMatch(/budget exhausted/i)
     expect(events.some((e) => e.type === "done")).toBe(false)
   })
+
+  it("restart() resets the budget counter so the next session starts fresh", async () => {
+    const { SESSION_TOOL_CALL_BUDGET } = await import("@capybudget/intelligence")
+    // Burn the entire budget on the first send.
+    for (let i = 0; i < SESSION_TOOL_CALL_BUDGET + 1; i++) {
+      queueTurn({
+        toolUses: [{ id: `tu-${i}`, name: "list_accounts", input: {} }],
+        stop_reason: "tool_use",
+      })
+    }
+    mockRunTool.mockResolvedValue("ok")
+
+    const { session } = makeSession()
+    await session.send("Loop forever")
+    expect(mockRunTool).toHaveBeenCalledTimes(SESSION_TOOL_CALL_BUDGET)
+
+    // After restart, the counter should be back at zero — a single
+    // tool call must NOT trip the cap immediately.
+    await session.restart()
+    mockRunTool.mockClear()
+    queueTurn({
+      toolUses: [{ id: "tu-post-restart", name: "list_accounts", input: {} }],
+      stop_reason: "tool_use",
+    })
+    queueTurn({
+      textDeltas: ["Done."],
+      stop_reason: "end_turn",
+    })
+
+    await session.send("After restart")
+
+    // Exactly one fresh tool dispatch, no budget-exhausted error this time.
+    expect(mockRunTool).toHaveBeenCalledTimes(1)
+  })
 })
