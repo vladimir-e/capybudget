@@ -1,47 +1,52 @@
 @import "tailwindcss";
 @import "@fontsource-variable/geist";
+@import "@fontsource-variable/fraunces";
+@import "@fontsource-variable/geist-mono";
 
 @custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
 
-/* Semantic color values — switch with data-theme */
+/* Semantic color values — switch with data-theme.
+   Light theme: warm cream / unbleached muslin. Dark theme: deep charcoal. */
 :root {
-  --sem-heading: oklch(0.16 0.02 55);
-  --sem-body: oklch(0.35 0.02 55);
-  --sem-muted: oklch(0.49 0.02 55);
+  --sem-heading: oklch(0.22 0.03 50);
+  --sem-body: oklch(0.42 0.025 55);
+  --sem-muted: oklch(0.52 0.025 55);
   --sem-subtle: oklch(0.62 0.025 55);
-  --sem-faint: oklch(0.62 0.025 55);
-  --sem-page: oklch(0.993 0.003 80);
-  --sem-surface: #ffffff;
-  --sem-surface-alt: oklch(0.975 0.015 62);
-  --sem-surface-nav: oklch(0.993 0.003 80 / 0.8);
-  --sem-surface-hover: oklch(0.955 0.01 68);
-  --sem-line: oklch(0.91 0.012 68);
-  --sem-code-bg: oklch(0.955 0.01 68);
-  --sem-code-text: oklch(0.22 0.03 55);
-  --sem-pre-bg: oklch(0.12 0.015 55);
-  --sem-pre-text: oklch(0.955 0.01 68);
+  --sem-faint: oklch(0.7 0.02 55);
+  --sem-page: oklch(0.96 0.025 80);
+  --sem-surface: oklch(0.975 0.018 82);
+  --sem-surface-alt: oklch(0.94 0.028 78);
+  --sem-surface-nav: oklch(0.96 0.025 80 / 0.85);
+  --sem-surface-hover: oklch(0.93 0.03 78);
+  --sem-line: oklch(0.88 0.025 75);
+  --sem-code-bg: oklch(0.93 0.028 78);
+  --sem-code-text: oklch(0.28 0.03 55);
+  --sem-pre-bg: oklch(0.18 0.018 55);
+  --sem-pre-text: oklch(0.94 0.025 78);
 }
 
 [data-theme="dark"] {
   --sem-heading: #fef3c7;
-  --sem-body: rgba(254, 243, 199, 0.6);
+  --sem-body: rgba(254, 243, 199, 0.65);
   --sem-muted: rgba(254, 243, 199, 0.5);
-  --sem-subtle: rgba(254, 243, 199, 0.4);
-  --sem-faint: rgba(254, 243, 199, 0.2);
+  --sem-subtle: rgba(254, 243, 199, 0.42);
+  --sem-faint: rgba(254, 243, 199, 0.25);
   --sem-page: #0c0a09;
-  --sem-surface: rgba(255, 255, 255, 0.03);
+  --sem-surface: rgba(255, 255, 255, 0.04);
   --sem-surface-alt: rgba(255, 255, 255, 0.02);
-  --sem-surface-nav: rgba(12, 10, 9, 0.7);
-  --sem-surface-hover: rgba(255, 255, 255, 0.1);
-  --sem-line: rgba(255, 255, 255, 0.05);
-  --sem-code-bg: rgba(255, 255, 255, 0.1);
+  --sem-surface-nav: rgba(12, 10, 9, 0.75);
+  --sem-surface-hover: rgba(255, 255, 255, 0.08);
+  --sem-line: rgba(255, 255, 255, 0.08);
+  --sem-code-bg: rgba(255, 255, 255, 0.08);
   --sem-code-text: #fbbf24;
-  --sem-pre-bg: rgba(255, 255, 255, 0.05);
+  --sem-pre-bg: rgba(255, 255, 255, 0.04);
   --sem-pre-text: rgba(254, 243, 199, 0.7);
 }
 
 @theme {
   --font-sans: "Geist Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-serif: "Fraunces Variable", "Fraunces", ui-serif, Georgia, serif;
+  --font-mono: "Geist Mono Variable", ui-monospace, SFMono-Regular, Menlo, monospace;
 
   /* Semantic colors — auto-switch with data-theme */
   --color-heading: var(--sem-heading);
@@ -60,15 +65,12 @@
   --color-pre-bg: var(--sem-pre-bg);
   --color-pre-text: var(--sem-pre-text);
 
-  /* Accent palette — theme-independent */
-  --color-brand: oklch(0.58 0.14 55);
-  --color-brand-light: oklch(0.74 0.11 58);
+  /* Accent palette — theme-independent. Terracotta is the only chromatic. */
+  --color-brand: oklch(0.62 0.16 38);
+  --color-brand-light: oklch(0.72 0.12 40);
   --color-terra: oklch(0.62 0.16 38);
   --color-terra-light: oklch(0.72 0.12 40);
-  --color-sage: oklch(0.62 0.10 148);
-  --color-sage-light: oklch(0.78 0.08 148);
-  --color-gold: oklch(0.72 0.14 85);
-  --color-gold-light: oklch(0.82 0.10 85);
+  --color-terra-soft: oklch(0.93 0.05 40);
 }
 
 html {
@@ -77,6 +79,13 @@ html {
 }
 
 body {
-  color: var(--color-heading);
+  color: var(--color-body);
   background-color: var(--color-page);
+}
+
+/* Optical sizing for Fraunces — bigger sizes lean into the display look. */
+.font-serif {
+  font-family: var(--font-serif);
+  font-variation-settings: "opsz" 144, "SOFT" 50;
+  letter-spacing: -0.02em;
 }
