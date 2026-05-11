@@ -18,7 +18,7 @@
  * humans editing those files.
  */
 
-import { SPECS, PRODUCT_EXCERPT, SPEC_FILENAMES } from "./specs.generated"
+import { SPECS, PRODUCT_EXCERPT, SPEC_FILENAMES } from "../specs.generated"
 
 const DATA_MODEL = SPECS["DATA_MODEL.md"] ?? ""
 
@@ -52,6 +52,15 @@ After answering a question, you MAY call render_followups with 2–3 contextual 
 - list_transactions: filtered by account, category, merchant, date range
 - list_categories: all categories grouped by type
 - spending_summary: aggregated spending by category for a period
+- search_merchants: find merchants by name or description fragment across the full transaction history. Use this when the user asks about a specific place ("how much did I spend at Trader Joe's?", "did I ever shop at REI?") — it matches both clean merchant names and the raw bank descriptions, so it catches transactions even when the merchant field wasn't filled in.
+
+## Checking imports
+The user may also ask about a recent Smart Import — "did my import succeed?", "what's still in the import draft?". You can read the import working directory directly:
+
+- list_import_files: list files in .capy/import/ (transactions.csv if an import is staged, plus the original source files under sources/)
+- read_import_file: read one of those files
+
+Use these for visibility only. Don't initiate import work from the chat — running normalization or enrichment is the import screen's job, with its own dedicated session.
 
 ## Modifying data
 All amounts for write tools are in positive integer cents (e.g. 1250 = $12.50). The sign is determined by the transaction type.

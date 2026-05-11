@@ -41,8 +41,8 @@ export type {
   ApiAdapterOptions,
 } from "./factory"
 
-// Prompt
-export { SYSTEM_PROMPT, buildContext } from "./prompt"
+// Prompts (chat / import / enrich)
+export { SYSTEM_PROMPT, buildContext, IMPORT_SYSTEM_PROMPT, ENRICH_SYSTEM_PROMPT } from "./prompts"
 
 // Render-tool → ContentBlock map (shared by every adapter)
 export { buildRenderToolMap } from "./render-map"
@@ -106,8 +106,3 @@ export {
 } from "./tools"
 export type { ToolDefinition, ToolContext } from "./tools"
 
-// Import prompt
-export { IMPORT_SYSTEM_PROMPT } from "./import-prompt"
-
-// Enrich prompt
-export { ENRICH_SYSTEM_PROMPT } from "./enrich-prompt"

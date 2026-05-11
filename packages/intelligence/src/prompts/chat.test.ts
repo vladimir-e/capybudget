@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { buildContext, SYSTEM_PROMPT } from "./prompt";
-import { SPECS, PRODUCT_EXCERPT, SPEC_FILENAMES } from "./specs.generated";
+import { buildContext, SYSTEM_PROMPT } from "./chat";
+import { SPECS, PRODUCT_EXCERPT, SPEC_FILENAMES } from "../specs.generated";
 
 describe("buildContext", () => {
   afterEach(() => {
@@ -73,5 +73,24 @@ describe("SYSTEM_PROMPT", () => {
     for (const name of SPEC_FILENAMES) {
       expect(SYSTEM_PROMPT).toContain(name);
     }
+  });
+
+  it("mentions search_merchants so chat can answer merchant-by-name questions", () => {
+    expect(SYSTEM_PROMPT).toContain("search_merchants");
+  });
+
+  it("acknowledges the import-side read tools available in the chat session", () => {
+    expect(SYSTEM_PROMPT).toContain("read_import_file");
+    expect(SYSTEM_PROMPT).toContain("list_import_files");
+  });
+
+  it("does not promote the import-flow tools as chat actions", () => {
+    // The chat shouldn't initiate normalization or enrichment — those
+    // belong to the import screen's dedicated session. We still want to
+    // surface read-only awareness without prompting the model to drive
+    // the pipeline.
+    expect(SYSTEM_PROMPT).not.toContain("analyze_csv");
+    expect(SYSTEM_PROMPT).not.toContain("transform_csv");
+    expect(SYSTEM_PROMPT).not.toContain("auto_enrich");
   });
 });

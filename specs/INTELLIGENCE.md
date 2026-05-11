@@ -185,7 +185,7 @@ interface IntelligenceConfig {
 }
 ```
 
-The `/settings` route renders a provider radio + per-provider config (API key, model dropdown, custom-model toggle, test-connection button). First-run defaults to `null` — users must explicitly pick a provider so they're never surprised by quota usage. The radio's "Off" label maps to `null` at the form boundary. Claude Code is still auto-detected via `claude --version` and disabled in the picker if not installed. Configs from a brief window mid-Phase-10.5b that persisted `"off"` are normalized to `null` on load.
+The `/settings` route renders a provider radio + per-provider config (API key, model dropdown, custom-model toggle, test-connection button). First-run defaults to `null` — users must explicitly pick a provider so they're never surprised by quota usage. The radio's "Off" label maps to `null` at the form boundary. Claude Code is still auto-detected via `claude --version` and disabled in the picker if not installed.
 
 When `provider === null`, the Capy overlay shows an empty-state CTA instead of the chat UI.
 
@@ -205,7 +205,7 @@ What did I spend on food this month?
 
 ## Custom Instructions
 
-Users can write custom instructions in `capy-instructions.md` in the budget folder. These compose into the system prompt at session start:
+Users can write custom instructions for the chat assistant in `capy-instructions.md` in the budget folder. These compose into the chat system prompt at session start:
 
 ```
 {SYSTEM_PROMPT}
@@ -214,7 +214,7 @@ Users can write custom instructions in `capy-instructions.md` in the budget fold
 {contents of capy-instructions.md}
 ```
 
-User-provided, takes effect on next session.
+Import sessions read a separate `import-instructions.md` from the same folder — the chat-tuning instructions ("answer in fewer words", "always show charts") rarely overlap with import-tuning instructions ("treat ATM withdrawals as transfers to cash"), so the two surfaces are kept distinct. Each file is user-provided and takes effect on the next session of its respective surface.
 
 ## Custom Commands
 

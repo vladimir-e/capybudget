@@ -18,7 +18,7 @@ Supported input: CSV, images, PDFs.
 
 ### 2. Normalization (Intelligence)
 
-Start triggers intelligence. The agent reads the same custom instructions as the Capy chat (`capy-instructions.md`).
+Start triggers intelligence. The agent reads its own `import-instructions.md` from the budget folder — kept separate from the chat's `capy-instructions.md` so import-tuning notes don't bleed into chat behavior and vice versa.
 
 The agent converts dropped files into a uniform internal CSV format, stored in `.capy/import/transactions.csv`. Two normalization paths:
 
@@ -167,7 +167,7 @@ Deterministic functions querying budget data, available during both normalizatio
 
 ## Custom Instructions
 
-The import screen exposes an editor for `capy-instructions.md` — the same file used by the Capy overlay. Users can tune agent behavior before running normalization or enrichment.
+The import screen exposes an editor for `import-instructions.md` in the budget folder — separate from the chat overlay's `capy-instructions.md` so import-specific notes don't bleed into chat behavior. Users can tune agent behavior here before running normalization or enrichment.
 
 ## Design Principles
 
