@@ -43,11 +43,16 @@ export {
   handleUpdateAccount,
   handleDeleteAccount,
   handleArchiveAccount,
+  handleUnarchiveAccount,
+  handleSetNetWorthExclusions,
   handleCreateCategory,
   handleUpdateCategory,
   handleDeleteCategory,
   handleArchiveCategory,
+  handleUnarchiveCategory,
+  handleSetCategoryBudget,
   handleAssignCategories,
+  handleBulkUpdateTransactions,
 } from "./handlers/mutation"
 export {
   handleReadImportFile,

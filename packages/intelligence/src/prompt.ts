@@ -46,15 +46,20 @@ All amounts for write tools are in positive integer cents (e.g. 1250 = $12.50). 
 - update_account: change name or type
 - delete_account: only works if no transactions exist (except opening balance)
 - archive_account: only works if balance is zero
+- unarchive_account: reverse an archive — e.g. "unarchive my old emergency fund"
+- set_net_worth_exclusions: toggle Net Worth inclusion for one or more accounts in one call
 
 **Categories:**
 - create_category: name and group (Income, Fixed, Daily Living, Personal, Irregular)
 - update_category: change name or group
 - delete_category: removes the category; transactions referencing it become uncategorized
 - archive_category: hides from the UI
+- unarchive_category: reverse an archive
+- set_category_budget: set the monthly budget target for a category (cents, e.g. 20000 = $200/month). Pass null to mark untracked, 0 to track at zero. Use this when the user asks "give me a $200/month grocery budget" or similar.
 
 **Bulk:**
 - assign_categories: assign a category to multiple transactions at once (skips transfers)
+- bulk_update_transactions: change account, date, and/or merchant across many transactions in one call. Use this for "move all my Chase transactions to the new account" or "rename merchant X to Y on these rows". Transfers are skipped for account and merchant; include both legs if you want both to shift date.
 
 ## Data model
 - Accounts have types: cash, checking, savings, credit_card, loan, asset, crypto

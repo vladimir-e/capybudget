@@ -293,6 +293,42 @@ export const MUTATION_TOOL_DEFS = [
       required: ["id"],
     },
   },
+  {
+    name: "unarchive_account",
+    description:
+      "Unarchive an account so it reappears in the sidebar and net-worth calculations.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        id: {
+          type: "string",
+          description: "Account ID to unarchive",
+        },
+      },
+      required: ["id"],
+    },
+  },
+  {
+    name: "set_net_worth_exclusions",
+    description:
+      "Toggle whether one or more accounts are excluded from Net Worth. `exclude: true` excludes them; `exclude: false` includes them. Archived accounts are skipped (the flag is meaningless until they're unarchived).",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        accountIds: {
+          type: "array",
+          items: { type: "string" },
+          minItems: 1,
+          description: "Account IDs to update",
+        },
+        exclude: {
+          type: "boolean",
+          description: "true = exclude from Net Worth, false = include",
+        },
+      },
+      required: ["accountIds", "exclude"],
+    },
+  },
 
   // ── Categories ──────────────────────────────────────────────────
   {
@@ -366,6 +402,40 @@ export const MUTATION_TOOL_DEFS = [
       required: ["id"],
     },
   },
+  {
+    name: "unarchive_category",
+    description: "Unarchive a category so it reappears in the UI.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        id: {
+          type: "string",
+          description: "Category ID to unarchive",
+        },
+      },
+      required: ["id"],
+    },
+  },
+  {
+    name: "set_category_budget",
+    description:
+      "Set the monthly budget target for a category. `assigned` is in integer cents (e.g. 20000 = $200/month). Pass `null` to mark the category as untracked. `0` is a distinct, valid value (tracked at zero).",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        categoryId: {
+          type: "string",
+          description: "Category ID",
+        },
+        assigned: {
+          type: ["integer", "null"],
+          description:
+            "Monthly target in cents. null = untracked. 0 = tracked at zero.",
+        },
+      },
+      required: ["categoryId", "assigned"],
+    },
+  },
 
   // ── Bulk ────────────────────────────────────────────────────────
   {
@@ -386,6 +456,43 @@ export const MUTATION_TOOL_DEFS = [
         },
       },
       required: ["transactionIds", "categoryId"],
+    },
+  },
+  {
+    name: "bulk_update_transactions",
+    description:
+      "Apply account, date, and/or merchant changes to many transactions in one call. At least one field in `set` is required. Transfers are skipped for account and merchant changes (transfers move money — they have no merchant, and an account move would orphan the pair). Date changes apply to whatever IDs are passed; if you want both legs of a transfer to shift, include both IDs.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        transactionIds: {
+          type: "array",
+          items: { type: "string" },
+          minItems: 1,
+          description: "Transaction IDs to update",
+        },
+        set: {
+          type: "object",
+          description:
+            "Fields to change. At least one of accountId, date, merchant must be present.",
+          properties: {
+            accountId: {
+              type: "string",
+              description: "New account ID. Validated against existing accounts.",
+            },
+            date: {
+              type: "string",
+              description:
+                "New date in YYYY-MM-DD format. The existing time-of-day is preserved on each transaction.",
+            },
+            merchant: {
+              type: "string",
+              description: "New merchant name.",
+            },
+          },
+        },
+      },
+      required: ["transactionIds", "set"],
     },
   },
 ] as const

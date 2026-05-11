@@ -34,11 +34,16 @@ import {
   handleUpdateAccount,
   handleDeleteAccount,
   handleArchiveAccount,
+  handleUnarchiveAccount,
+  handleSetNetWorthExclusions,
   handleCreateCategory,
   handleUpdateCategory,
   handleDeleteCategory,
   handleArchiveCategory,
+  handleUnarchiveCategory,
+  handleSetCategoryBudget,
   handleAssignCategories,
+  handleBulkUpdateTransactions,
 } from "./handlers/mutation"
 import {
   handleReadImportFile,
@@ -84,11 +89,16 @@ const HANDLERS: Record<string, ToolHandler> = {
   update_account: ({ repo }, args) => handleUpdateAccount(repo, args),
   delete_account: ({ repo }, args) => handleDeleteAccount(repo, args),
   archive_account: ({ repo }, args) => handleArchiveAccount(repo, args),
+  unarchive_account: ({ repo }, args) => handleUnarchiveAccount(repo, args),
+  set_net_worth_exclusions: ({ repo }, args) => handleSetNetWorthExclusions(repo, args),
   create_category: ({ repo }, args) => handleCreateCategory(repo, args),
   update_category: ({ repo }, args) => handleUpdateCategory(repo, args),
   delete_category: ({ repo }, args) => handleDeleteCategory(repo, args),
   archive_category: ({ repo }, args) => handleArchiveCategory(repo, args),
+  unarchive_category: ({ repo }, args) => handleUnarchiveCategory(repo, args),
+  set_category_budget: ({ repo }, args) => handleSetCategoryBudget(repo, args),
   assign_categories: ({ repo }, args) => handleAssignCategories(repo, args),
+  bulk_update_transactions: ({ repo }, args) => handleBulkUpdateTransactions(repo, args),
 
   // Import working directory
   read_import_file: (ctx, args) => handleReadImportFile(ctx, args),

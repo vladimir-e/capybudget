@@ -19,11 +19,16 @@ const TOOL_LABELS: Record<string, string> = {
   update_account: "Updating account",
   delete_account: "Deleting account",
   archive_account: "Archiving account",
+  unarchive_account: "Unarchiving account",
+  set_net_worth_exclusions: "Updating Net Worth filter",
   create_category: "Creating category",
   update_category: "Updating category",
   delete_category: "Deleting category",
   archive_category: "Archiving category",
+  unarchive_category: "Unarchiving category",
+  set_category_budget: "Setting category budget",
   assign_categories: "Assigning categories",
+  bulk_update_transactions: "Updating transactions",
 }
 
 export function getToolLabel(tool: string): string {

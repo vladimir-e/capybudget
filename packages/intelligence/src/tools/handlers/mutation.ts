@@ -10,14 +10,21 @@ import {
   updateAccount,
   deleteAccount,
   archiveAccount,
+  unarchiveAccount,
+  setNetWorthExclusions,
   createCategory,
   updateCategory,
   deleteCategory,
   archiveCategory,
+  unarchiveCategory,
+  setCategoryAssigned,
   createTransaction,
   updateTransaction,
   deleteTransaction,
   bulkAssignCategory,
+  bulkMoveAccount,
+  bulkChangeDate,
+  bulkChangeMerchant,
   formatMoney,
   type AccountType,
   type TransactionType,
@@ -195,6 +202,61 @@ export async function handleArchiveAccount(
   return JSON.stringify({ success: true, id: args.id })
 }
 
+export async function handleUnarchiveAccount(
+  repo: BudgetRepository,
+  args: Record<string, unknown>,
+): Promise<string> {
+  const accounts = await repo.getAccounts()
+  if (!accounts.some((a) => a.id === args.id)) {
+    return JSON.stringify({
+      error: `Invalid accountId "${args.id}". Call list_accounts to see valid IDs.`,
+    })
+  }
+  const next = unarchiveAccount(args.id as string, accounts)
+  await repo.saveAccounts(next)
+  return JSON.stringify({ success: true, id: args.id })
+}
+
+export async function handleSetNetWorthExclusions(
+  repo: BudgetRepository,
+  args: Record<string, unknown>,
+): Promise<string> {
+  const accountIds = args.accountIds as string[] | undefined
+  const exclude = args.exclude as boolean | undefined
+  if (!Array.isArray(accountIds) || accountIds.length === 0) {
+    return JSON.stringify({ error: "accountIds must be a non-empty array" })
+  }
+  if (typeof exclude !== "boolean") {
+    return JSON.stringify({ error: "exclude must be a boolean" })
+  }
+
+  const accounts = await repo.getAccounts()
+  const known = new Set(accounts.map((a) => a.id))
+  const invalid = accountIds.filter((id) => !known.has(id))
+  if (invalid.length > 0) {
+    return JSON.stringify({
+      error: `Invalid accountId(s) ${JSON.stringify(invalid)}. Call list_accounts to see valid IDs.`,
+    })
+  }
+
+  // setNetWorthExclusions takes the full excluded set, so merge the new
+  // intent with the existing flags on every other active account.
+  const target = new Set(accountIds)
+  const finalExcluded = new Set<string>()
+  for (const a of accounts) {
+    if (a.archived) continue
+    const next = target.has(a.id) ? exclude : a.excludeFromNetWorth
+    if (next) finalExcluded.add(a.id)
+  }
+  const nextAccounts = setNetWorthExclusions(finalExcluded, accounts)
+  await repo.saveAccounts(nextAccounts)
+  return JSON.stringify({
+    success: true,
+    updated: accountIds.length,
+    exclude,
+  })
+}
+
 export async function handleCreateCategory(
   repo: BudgetRepository,
   args: Record<string, unknown>,
@@ -262,6 +324,53 @@ export async function handleArchiveCategory(
   return JSON.stringify({ success: true, id: args.id })
 }
 
+export async function handleUnarchiveCategory(
+  repo: BudgetRepository,
+  args: Record<string, unknown>,
+): Promise<string> {
+  const existing = await repo.getCategories()
+  if (!existing.some((c) => c.id === args.id)) {
+    return JSON.stringify({
+      error: `Invalid categoryId "${args.id}". Call list_categories to see valid IDs.`,
+    })
+  }
+  const next = unarchiveCategory(args.id as string, existing)
+  await repo.saveCategories(next)
+  return JSON.stringify({ success: true, id: args.id })
+}
+
+export async function handleSetCategoryBudget(
+  repo: BudgetRepository,
+  args: Record<string, unknown>,
+): Promise<string> {
+  const categoryId = args.categoryId as string | undefined
+  // assigned is meaningful as null (untracked) vs omitted — guard via
+  // `in` so `null` survives, while a missing key trips the error.
+  if (!("assigned" in args)) {
+    return JSON.stringify({ error: "assigned is required (use null for untracked)" })
+  }
+  const assigned = args.assigned as number | null
+  if (assigned !== null && (!Number.isInteger(assigned) || assigned < 0)) {
+    return JSON.stringify({
+      error: "assigned must be a non-negative integer (cents) or null",
+    })
+  }
+
+  const existing = await repo.getCategories()
+  if (!existing.some((c) => c.id === categoryId)) {
+    return JSON.stringify({
+      error: `Invalid categoryId "${categoryId}". Call list_categories to see valid IDs.`,
+    })
+  }
+  const next = setCategoryAssigned(categoryId as string, assigned, existing)
+  await repo.saveCategories(next)
+  return JSON.stringify({
+    success: true,
+    categoryId,
+    assigned,
+  })
+}
+
 export async function handleAssignCategories(
   repo: BudgetRepository,
   args: Record<string, unknown>,
@@ -271,4 +380,87 @@ export async function handleAssignCategories(
   const next = bulkAssignCategory(ids, args.categoryId as string, transactions)
   await repo.saveTransactions(next)
   return JSON.stringify({ success: true, updated: ids.size })
+}
+
+export async function handleBulkUpdateTransactions(
+  repo: BudgetRepository,
+  args: Record<string, unknown>,
+): Promise<string> {
+  const transactionIds = args.transactionIds as string[] | undefined
+  const set = args.set as
+    | { accountId?: string; date?: string; merchant?: string }
+    | undefined
+
+  if (!Array.isArray(transactionIds) || transactionIds.length === 0) {
+    return JSON.stringify({ error: "transactionIds must be a non-empty array" })
+  }
+  if (!set || typeof set !== "object") {
+    return JSON.stringify({ error: "set is required" })
+  }
+  const accountId = set.accountId
+  const date = set.date
+  const merchant = set.merchant
+  if (accountId === undefined && date === undefined && merchant === undefined) {
+    return JSON.stringify({
+      error: "set must include at least one of accountId, date, merchant",
+    })
+  }
+
+  // Mirror the UI: account moves and merchant changes both skip transfers,
+  // so the "Nothing to do" check has to account for that, not the raw count.
+  const ids = new Set(transactionIds)
+  let transactions = await repo.getTransactions()
+  const targeted = transactions.filter((t) => ids.has(t.id))
+  if (targeted.length === 0) {
+    return JSON.stringify({
+      error: "None of the provided transactionIds matched existing transactions.",
+    })
+  }
+  const nonTransferTargeted = targeted.filter((t) => t.type !== "transfer").length
+
+  // Per-field counters — matches the enrich_update style so the model can
+  // tell which fields actually landed (transfers silently skipped show up as
+  // 0 for account/merchant, non-zero for date).
+  const counts = { accountId: 0, date: 0, merchant: 0 }
+
+  if (accountId !== undefined) {
+    const accounts = await repo.getAccounts()
+    if (!accounts.some((a) => a.id === accountId)) {
+      return JSON.stringify({
+        error: `Invalid accountId "${accountId}". Call list_accounts to see valid IDs.`,
+      })
+    }
+    transactions = bulkMoveAccount(ids, accountId, transactions)
+    counts.accountId = nonTransferTargeted
+  }
+  if (date !== undefined) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      return JSON.stringify({
+        error: `Invalid date "${date}". Expected YYYY-MM-DD.`,
+      })
+    }
+    transactions = bulkChangeDate(ids, date, transactions)
+    counts.date = targeted.length
+  }
+  if (merchant !== undefined) {
+    transactions = bulkChangeMerchant(ids, merchant, transactions)
+    counts.merchant = nonTransferTargeted
+  }
+
+  await repo.saveTransactions(transactions)
+
+  // Summary mirrors the enrich_update voice: tell the model exactly what
+  // happened per field so it doesn't re-issue the same call.
+  const parts: string[] = []
+  if (accountId !== undefined) parts.push(`account on ${counts.accountId}`)
+  if (date !== undefined) parts.push(`date on ${counts.date}`)
+  if (merchant !== undefined) parts.push(`merchant on ${counts.merchant}`)
+  const summary = `Updated ${targeted.length} transaction(s): ${parts.join(", ")}.`
+
+  return JSON.stringify({
+    success: true,
+    matched: targeted.length,
+    counts,
+    summary,
+  })
 }

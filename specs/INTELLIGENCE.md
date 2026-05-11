@@ -131,7 +131,7 @@ Single source of truth shared between transports:
 - **Dispatch** — `runTool(name, input, ctx) → string`. The MCP server and the API adapters call this with the same signature. `ToolContext` is `{ repo, fileAdapter, budgetPath }`.
 - **Handlers** — per-tool implementations:
   - **Data tools** — `list_accounts`, `list_transactions`, `list_categories`, `spending_summary`, `search_merchants`
-  - **Mutation tools** — full CRUD for transactions / accounts / categories plus `assign_categories`
+  - **Mutation tools** — full CRUD for transactions / accounts / categories, plus `assign_categories`, `bulk_update_transactions` (account/date/merchant across many rows), `set_category_budget` (monthly target), `unarchive_account` / `unarchive_category` (reverse archive), `set_net_worth_exclusions` (toggle Net Worth inclusion)
   - **Import tools** — `read_import_file`, `write_import_file`, `append_import_file`, `list_import_files` (over `.capy/import/`)
   - **CSV tools** — `analyze_csv`, `preview_transform`, `transform_csv`, `auto_enrich`, `enrich_stats`, `enrich_sample`, `enrich_update`
   - **read_file** — generic budget-folder text reader; mirrors what Claude CLI's built-in `Read` provides natively
