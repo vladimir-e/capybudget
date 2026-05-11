@@ -441,4 +441,28 @@ describe("AnthropicSession", () => {
     const blocks = messages[0].content as Array<{ type: string }>
     expect(blocks.map((b) => b.type)).toEqual(["text", "image", "document"])
   })
+
+  it("terminates with a budget-exhausted error after SESSION_TOOL_CALL_BUDGET tool calls", async () => {
+    const { SESSION_TOOL_CALL_BUDGET } = await import("@capybudget/intelligence")
+    // Queue (budget + 1) turns, each firing one tool. The session must
+    // stop processing once the counter ticks past the budget.
+    for (let i = 0; i < SESSION_TOOL_CALL_BUDGET + 1; i++) {
+      queueTurn({
+        toolUses: [{ id: `tu-${i}`, name: "list_accounts", input: {} }],
+        stop_reason: "tool_use",
+      })
+    }
+    mockRunTool.mockResolvedValue("ok")
+
+    const { session, events } = makeSession()
+    await session.send("Loop forever")
+
+    // Real tool dispatch should run exactly SESSION_TOOL_CALL_BUDGET times.
+    expect(mockRunTool).toHaveBeenCalledTimes(SESSION_TOOL_CALL_BUDGET)
+
+    // The session emits a budget-exhausted error and stops.
+    const errorEvent = events.find((e) => e.type === "error")
+    expect(errorEvent?.message).toMatch(/budget exhausted/i)
+    expect(events.some((e) => e.type === "done")).toBe(false)
+  })
 })

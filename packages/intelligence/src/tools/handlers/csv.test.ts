@@ -224,15 +224,76 @@ describe("handleEnrichUpdate", () => {
       ].join("\n"),
     )
 
-    const result = await handleEnrichUpdate(ctx, {
-      set: { categoryId: "cat-coffee", categoryConfidence: "low" },
-      where: { field: "description", contains: "STARBUCKS" },
+    const repo = makeRepo({
+      categories: [
+        { id: "cat-coffee", name: "Dining Out", group: "Daily Living", archived: false, sortOrder: 1, assigned: null },
+      ],
     })
+    const result = await handleEnrichUpdate(
+      { ...ctx, repo },
+      {
+        set: { categoryId: "cat-coffee", categoryConfidence: "low" },
+        where: { field: "description", contains: "STARBUCKS" },
+      },
+      repo,
+    )
 
-    expect(result).toBe("Updated 1 rows.")
+    expect(result).toContain("Matched 1 rows.")
+    expect(result).toContain("categoryId: 1 set, 0 skipped")
+    expect(result).toContain("categoryConfidence: 1 set, 0 skipped")
     const csv = fs.files.get(`${IMPORT_DIR}/transactions.csv`)!
     expect(csv).toMatch(/STARBUCKS.*cat-coffee/)
     expect(csv).not.toMatch(/WHOLE FOODS.*cat-coffee/)
+  })
+
+  it("returns per-field counts including skipped-already-populated fields", async () => {
+    fs.files.set(
+      `${IMPORT_DIR}/transactions.csv`,
+      [
+        "id,date,description,amount,type,sourceAccount,sourceCategory,memo,merchant,accountId,targetAccountId,categoryId,categoryConfidence",
+        // Row already has merchant set but no categoryId — model trying to set both
+        "imp-1,2024-01-01,STARBUCKS COFFEE,-450,expense,,,,Starbucks,,,,",
+      ].join("\n"),
+    )
+
+    const repo = makeRepo({
+      categories: [
+        { id: "cat-coffee", name: "Dining Out", group: "Daily Living", archived: false, sortOrder: 1, assigned: null },
+      ],
+    })
+    const result = await handleEnrichUpdate(
+      { ...ctx, repo },
+      {
+        set: { merchant: "Starbucks Coffee", categoryId: "cat-coffee", categoryConfidence: "high" },
+        where: { field: "description", contains: "STARBUCKS" },
+      },
+      repo,
+    )
+
+    expect(result).toContain("Matched 1 rows.")
+    expect(result).toContain("merchant: 0 set, 1 skipped")
+    expect(result).toContain("categoryId: 1 set, 0 skipped")
+    expect(result).toContain("categoryConfidence: 1 set, 0 skipped")
+    const csv = fs.files.get(`${IMPORT_DIR}/transactions.csv`)!
+    // Merchant kept its existing value, categoryId got the new one.
+    expect(csv).toMatch(/STARBUCKS COFFEE.*Starbucks(?!.*Coffee).*cat-coffee/)
+  })
+
+  it("returns 'Matched 0 rows.' when no row matches the WHERE", async () => {
+    fs.files.set(
+      `${IMPORT_DIR}/transactions.csv`,
+      [
+        "id,date,description,amount,type,sourceAccount,sourceCategory,memo,merchant,accountId,targetAccountId,categoryId,categoryConfidence",
+        "imp-1,2024-01-01,STARBUCKS COFFEE,-450,expense,,,,,,,,",
+      ].join("\n"),
+    )
+
+    const result = await handleEnrichUpdate(ctx, {
+      set: { merchant: "Whatever" },
+      where: { field: "description", contains: "NETFLIX" },
+    })
+
+    expect(result).toBe("Matched 0 rows.")
   })
 
   it("rejects unknown fields", async () => {
@@ -247,12 +308,71 @@ describe("handleEnrichUpdate", () => {
     })
     expect(result).toContain("Error")
   })
+
+  it("rejects categoryId not present in the budget's categories", async () => {
+    fs.files.set(
+      `${IMPORT_DIR}/transactions.csv`,
+      [
+        "id,date,description,amount,type,sourceAccount,sourceCategory,memo,merchant,accountId,targetAccountId,categoryId,categoryConfidence",
+        "imp-1,2024-01-01,STARBUCKS COFFEE,-450,expense,,,,,,,,",
+      ].join("\n"),
+    )
+
+    const repo = makeRepo({
+      categories: [
+        { id: "cat-real", name: "Dining Out", group: "Daily Living", archived: false, sortOrder: 1, assigned: null },
+      ],
+    })
+
+    const result = await handleEnrichUpdate(
+      { ...ctx, repo },
+      {
+        set: { categoryId: "cat-invented" },
+        where: { field: "description", contains: "STARBUCKS" },
+      },
+      repo,
+    )
+
+    expect(result).toContain("Error: invalid categoryId")
+    expect(result).toContain("list_categories")
+    // Should NOT have written the row.
+    const csv = fs.files.get(`${IMPORT_DIR}/transactions.csv`)!
+    expect(csv).not.toContain("cat-invented")
+  })
+
+  it("accepts categoryId when present in the budget's categories", async () => {
+    fs.files.set(
+      `${IMPORT_DIR}/transactions.csv`,
+      [
+        "id,date,description,amount,type,sourceAccount,sourceCategory,memo,merchant,accountId,targetAccountId,categoryId,categoryConfidence",
+        "imp-1,2024-01-01,STARBUCKS COFFEE,-450,expense,,,,,,,,",
+      ].join("\n"),
+    )
+
+    const repo = makeRepo({
+      categories: [
+        { id: "cat-real", name: "Dining Out", group: "Daily Living", archived: false, sortOrder: 1, assigned: null },
+      ],
+    })
+
+    const result = await handleEnrichUpdate(
+      { ...ctx, repo },
+      {
+        set: { categoryId: "cat-real" },
+        where: { field: "description", contains: "STARBUCKS" },
+      },
+      repo,
+    )
+
+    expect(result).toContain("Matched 1 rows.")
+    expect(result).toContain("categoryId: 1 set")
+  })
 })
 
 // ── auto_enrich ──────────────────────────────────────────────────
 
 describe("handleAutoEnrich", () => {
-  it("matches sourceCategory to budget category and sets merchant from description", async () => {
+  it("matches sourceCategory to budget category", async () => {
     fs.files.set(
       `${IMPORT_DIR}/transactions.csv`,
       [
@@ -280,5 +400,29 @@ describe("handleAutoEnrich", () => {
     expect(result).toContain("Categories matched: 1")
     const csv = fs.files.get(`${IMPORT_DIR}/transactions.csv`)!
     expect(csv).toMatch(/Whole Foods.*cat-grocery/)
+  })
+
+  it("does NOT copy description into merchant — leaves merchant empty for the model", async () => {
+    fs.files.set(
+      `${IMPORT_DIR}/transactions.csv`,
+      [
+        "id,date,description,amount,type,sourceAccount,sourceCategory,memo,merchant,accountId,targetAccountId,categoryId,categoryConfidence",
+        "imp-1,2024-01-01,CHECKCARD 0315 TRADER JOE'S #123 SEATTLE WA,-3000,expense,,,,,,,,",
+      ].join("\n"),
+    )
+
+    const repo = makeRepo({ accounts: [], categories: [] })
+
+    const result = await handleAutoEnrich({ ...ctx, repo }, repo)
+    expect(result).not.toContain("Merchants set")
+    const csv = fs.files.get(`${IMPORT_DIR}/transactions.csv`)!
+    // After the description / amount / type, every remaining column
+    // must be empty — most importantly `merchant`. If auto_enrich had
+    // copied the description in we'd see CHECKCARD-prefixed text
+    // showing up again in the trailing columns.
+    expect(csv).toMatch(/TRADER JOE'S #123 SEATTLE WA,-3000,expense,,,,,,,,/)
+    // Defense in depth: count how many times the raw description token
+    // appears. Exactly once — in the description column itself.
+    expect(csv.match(/CHECKCARD/g)?.length).toBe(1)
   })
 })

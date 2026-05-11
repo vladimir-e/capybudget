@@ -152,4 +152,70 @@ describe("ClaudeCliSession", () => {
       message: "spawn failed: ENOENT",
     })
   })
+
+  it("kills the subprocess and emits a budget-exhausted error after the per-session cap", async () => {
+    const { SESSION_TOOL_CALL_BUDGET } = await import("@capybudget/intelligence")
+    const { session, events, exitHandler } = makeSession()
+    await session.send("loop forever")
+
+    const handlers = latestHandlers.current!
+    const child = latestChild.current!
+
+    // Feed SESSION_TOOL_CALL_BUDGET + 1 distinct tool_use IDs through
+    // the cumulative-snapshot stream. Each "assistant" line carries one
+    // new tool_use block so the dedup-by-ID counter ticks up.
+    for (let i = 0; i <= SESSION_TOOL_CALL_BUDGET; i++) {
+      handlers.stdout!(
+        JSON.stringify({
+          type: "assistant",
+          message: {
+            content: [
+              {
+                type: "tool_use",
+                id: `tu-${i}`,
+                name: "list_accounts",
+                input: {},
+              },
+            ],
+          },
+        }),
+      )
+    }
+
+    expect(child.kill).toHaveBeenCalled()
+    const budgetErr = events.find(
+      (e) => e.type === "error" && /budget exhausted/i.test(e.message),
+    )
+    expect(budgetErr).toBeTruthy()
+    // The deliberate-kill flag must suppress the unexpected-death path.
+    handlers.close?.({ code: 0 })
+    expect(exitHandler).not.toHaveBeenCalled()
+  })
+
+  it("dedups tool_use IDs across cumulative assistant snapshots before counting", async () => {
+    const { session, events } = makeSession()
+    await session.send("hi")
+
+    const handlers = latestHandlers.current!
+    const child = latestChild.current!
+
+    // Same tool_use appears in many lines (cumulative content) — it
+    // should count exactly once. Loop 200 times: well past the budget
+    // of 100, but with only ONE distinct ID it stays under cap.
+    for (let i = 0; i < 200; i++) {
+      handlers.stdout!(
+        JSON.stringify({
+          type: "assistant",
+          message: {
+            content: [
+              { type: "tool_use", id: "tu-same", name: "list_accounts", input: {} },
+            ],
+          },
+        }),
+      )
+    }
+
+    expect(child.kill).not.toHaveBeenCalled()
+    expect(events.some((e) => e.type === "error")).toBe(false)
+  })
 })

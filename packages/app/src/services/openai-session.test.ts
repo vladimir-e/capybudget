@@ -596,4 +596,30 @@ describe("OpenAiSession", () => {
     expect(userBlocks.map((b) => b.type)).toEqual(["text", "image_url", "text"])
     expect(userBlocks[2].text).toContain("PDF")
   })
+
+  it("terminates with a budget-exhausted error after SESSION_TOOL_CALL_BUDGET tool calls", async () => {
+    const { SESSION_TOOL_CALL_BUDGET } = await import("@capybudget/intelligence")
+    for (let i = 0; i < SESSION_TOOL_CALL_BUDGET + 1; i++) {
+      queueTurn({
+        toolCallDeltas: [
+          {
+            index: 0,
+            id: `tc-${i}`,
+            name: "list_accounts",
+            argFragments: ["{}"],
+          },
+        ],
+        finish_reason: "tool_calls",
+      })
+    }
+    mockRunTool.mockResolvedValue("ok")
+
+    const { session, events } = makeSession()
+    await session.send("Loop forever")
+
+    expect(mockRunTool).toHaveBeenCalledTimes(SESSION_TOOL_CALL_BUDGET)
+    const errorEvent = events.find((e) => e.type === "error")
+    expect(errorEvent?.message).toMatch(/budget exhausted/i)
+    expect(events.some((e) => e.type === "done")).toBe(false)
+  })
 })

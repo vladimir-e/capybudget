@@ -31,10 +31,10 @@ id,date,description,amount,type,sourceAccount,sourceCategory,memo,merchant,accou
 | sourceAccount | string | Account name from source |
 | sourceCategory | string | Category from source if available, empty string otherwise |
 | memo | string | Additional notes or reference numbers, empty string otherwise |
-| merchant | string | Leave empty — set during enrichment |
+| merchant | string | Optional: fill with a clean merchant name when you can read it unambiguously from a receipt image or bank description. Leave empty otherwise — enrichment will handle it. |
 | accountId | string | Leave empty — set during enrichment |
-| categoryId | string | Leave empty — set during enrichment |
-| categoryConfidence | string | Leave empty — set during enrichment |
+| categoryId | string | Optional: fill with a real category UUID (from \`list_categories\`) when you're confident. Leave empty otherwise — enrichment will handle it. |
+| categoryConfidence | string | Set alongside categoryId. "high" for unambiguous matches, "low" for inferred. Leave empty if categoryId is empty. |
 
 ---
 
@@ -211,6 +211,12 @@ When images or PDFs are attached to your initial user message (receipts, bank st
 3. Append the rows to transactions.csv via \`write_import_file\` (or \`append_import_file\` if you've already written some rows from a CSV source)
 
 This path is expected for small-volume visual sources. For larger printed statements, the CSV transform pipeline above is faster and more accurate when an equivalent CSV is also available.
+
+### Inline enrichment for confident cases
+
+Receipts give you full visual context: merchant name, items, total. Small bank statements often have clean merchant names too. When you can read the merchant and pick a category unambiguously, fill \`merchant\` and \`categoryId\` (with \`categoryConfidence\`) directly during normalize. Call \`list_categories\` once to get valid UUIDs. The enrichment step then becomes a no-op for these rows — faster, cheaper.
+
+When uncertain about merchant or category, leave those fields empty. Enrichment will handle them. Don't guess.
 
 ---
 

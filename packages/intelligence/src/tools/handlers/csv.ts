@@ -339,6 +339,7 @@ type WhereCondition = { field: string; equals?: string; contains?: string }
 export async function handleEnrichUpdate(
   ctx: ToolContext,
   args: Record<string, unknown>,
+  repo?: BudgetRepository,
 ): Promise<string> {
   const { data, filePath } = await readImportCsv(ctx)
   const setFields = args.set as Record<string, string>
@@ -360,7 +361,28 @@ export async function handleEnrichUpdate(
     }
   }
 
-  let updated = 0
+  // Validate categoryId against real budget category UUIDs when set. The
+  // model otherwise gets no signal that a stale or invented UUID was
+  // silently ignored — the row would land uncategorized after a
+  // "success" tool result.
+  if (setFields.categoryId && repo) {
+    const categories = await repo.getCategories()
+    const known = new Set(categories.map((c) => c.id))
+    if (!known.has(setFields.categoryId)) {
+      return `Error: invalid categoryId "${setFields.categoryId}". Call list_categories to get valid IDs.`
+    }
+  }
+
+  // Per-field counters so the model sees exactly what landed. Skipped
+  // fields are equally informative — they signal "this field already
+  // has a value", which tells the model to move on instead of retrying.
+  const setCounts: Record<string, number> = {}
+  const skippedCounts: Record<string, number> = {}
+  for (const key of Object.keys(setFields)) {
+    setCounts[key] = 0
+    skippedCounts[key] = 0
+  }
+  let matched = 0
 
   for (const row of data) {
     const matches = conditions.every((cond) => {
@@ -371,20 +393,29 @@ export async function handleEnrichUpdate(
     })
 
     if (!matches) continue
+    matched++
 
-    let rowChanged = false
     for (const [key, val] of Object.entries(setFields)) {
       if (!row[key]) {
         row[key] = val
-        rowChanged = true
+        setCounts[key]++
+      } else {
+        skippedCounts[key]++
       }
     }
-    if (rowChanged) updated++
   }
 
   await writeImportCsv(ctx, filePath, data)
 
-  return `Updated ${updated} rows.`
+  if (matched === 0) {
+    return `Matched 0 rows.`
+  }
+
+  const fieldLines = Object.keys(setFields).map(
+    (key) =>
+      `${key}: ${setCounts[key]} set, ${skippedCounts[key]} skipped (already populated)`,
+  )
+  return [`Matched ${matched} rows.`, ...fieldLines].join("\n")
 }
 
 // ── auto_enrich + matchers ───────────────────────────────────────
@@ -459,7 +490,6 @@ export async function handleAutoEnrich(
 
   let categoriesMatched = 0,
     accountsMatched = 0,
-    merchantsSet = 0,
     transferTargetsMatched = 0
 
   // 1. Source category → budget category
@@ -512,12 +542,11 @@ export async function handleAutoEnrich(
     }
   }
 
-  // 4. Merchant from description
-  for (const row of data) {
-    if (row.merchant || !row.description) continue
-    row.merchant = row.description.trim()
-    merchantsSet++
-  }
+  // Note: merchant is intentionally NOT populated from description here.
+  // The raw description is the wrong value for Transaction.merchant —
+  // it would propagate through to the final budget (Transaction has no
+  // description field; raw text belongs in `note`). Cleaned merchant
+  // names come from the model via enrich_update.
 
   await writeImportCsv(ctx, filePath, data)
 
@@ -536,7 +565,6 @@ export async function handleAutoEnrich(
     `Categories matched: ${categoriesMatched} (from sourceCategory)`,
     `Accounts matched: ${accountsMatched}`,
     `Transfer targets matched: ${transferTargetsMatched}`,
-    `Merchants set: ${merchantsSet} (from description)`,
     uncategorized > 0
       ? `Still need category: ${uncategorized} rows`
       : `All non-transfer rows categorized!`,

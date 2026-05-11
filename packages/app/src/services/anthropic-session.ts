@@ -25,6 +25,7 @@ import {
   buildRenderToolMap,
   runTool,
   getToolDefinitions,
+  SESSION_TOOL_CALL_BUDGET,
   type ApiAdapterOptions,
   type CapySession,
   type ContentBlock,
@@ -95,6 +96,9 @@ export class AnthropicSession implements CapySession {
   /** Flipped by stop(); checked in the agentic loop so we don't push
    *  tool_results that reference an assistant turn we just dropped. */
   private interrupted = false
+  /** Per-session tool-call counter. Compared against
+   *  SESSION_TOOL_CALL_BUDGET to halt runaway loops. */
+  private toolCallCount = 0
 
   constructor(opts: ApiAdapterOptions) {
     this.opts = opts
@@ -246,10 +250,25 @@ export class AnthropicSession implements CapySession {
       if (finalMessage.stop_reason !== "tool_use") return
 
       // Execute every tool_use block in this turn; the API wants all
-      // tool_results back as a single user turn.
+      // tool_results back as a single user turn. Each call counts
+      // against the per-session budget — once exhausted, the remaining
+      // calls in this turn get a "budget exhausted" error result and
+      // we exit cleanly after pushing them all back so the API doesn't
+      // see dangling tool_use blocks.
       const toolResults: Anthropic.ToolResultBlockParam[] = []
+      let budgetExhausted = false
       for (const block of finalMessage.content) {
         if (block.type !== "tool_use") continue
+        this.toolCallCount++
+        if (this.toolCallCount > SESSION_TOOL_CALL_BUDGET) {
+          budgetExhausted = true
+          toolResults.push({
+            type: "tool_result",
+            tool_use_id: block.id,
+            content: `Error: tool-call budget exhausted (${SESSION_TOOL_CALL_BUDGET} calls). Stopping. Run again if more work is needed.`,
+          })
+          continue
+        }
         let resultText: string
         try {
           resultText = await runTool(
@@ -277,6 +296,16 @@ export class AnthropicSession implements CapySession {
       if (this.interrupted || this.killed) return
 
       this.messages.push({ role: "user", content: toolResults })
+      if (budgetExhausted) {
+        // Suppress the post-loop `done` event — we surfaced an error
+        // instead. Re-use the interrupted flag for that signal.
+        this.interrupted = true
+        this.opts.onEvent({
+          type: "error",
+          message: `Tool-call budget exhausted (${SESSION_TOOL_CALL_BUDGET} calls). Stopping. Run again if more work is needed.`,
+        })
+        return
+      }
       // Loop continues with the tool results in context.
     }
   }

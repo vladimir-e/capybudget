@@ -103,7 +103,7 @@ const HANDLERS: Record<string, ToolHandler> = {
   auto_enrich: (ctx) => handleAutoEnrich(ctx, ctx.repo),
   enrich_stats: (ctx) => handleEnrichStats(ctx),
   enrich_sample: (ctx, args) => handleEnrichSample(ctx, args),
-  enrich_update: (ctx, args) => handleEnrichUpdate(ctx, args),
+  enrich_update: (ctx, args) => handleEnrichUpdate(ctx, args, ctx.repo),
 
   // Generic file reader (claude-cli has Read built-in; api adapters
   // get this so the import flow's text-file ingestion works)

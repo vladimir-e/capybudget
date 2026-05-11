@@ -524,7 +524,7 @@ export const CSV_TOOL_DEFS = [
   {
     name: "auto_enrich",
     description:
-      "Code-based enrichment: (1) maps sourceCategory → budget categories, (2) matches sourceAccount → budget accounts, (3) sets merchant from description for empty merchants. Call this FIRST.",
+      "Code-based enrichment: (1) maps sourceCategory → budget categories, (2) matches sourceAccount → budget accounts, (3) resolves transfer target accounts. Leaves merchant empty for the model to fill with cleaned names. Call this FIRST.",
     inputSchema: {
       type: "object" as const,
       properties: {},
@@ -561,16 +561,39 @@ export const CSV_TOOL_DEFS = [
   {
     name: "enrich_update",
     description:
-      "Bulk update: set field(s) on all rows matching a condition. Like SQL UPDATE ... WHERE. Only sets empty fields (won't overwrite existing values).",
+      "Bulk update: set field(s) on all rows matching a condition. Like SQL UPDATE ... WHERE. Only sets empty fields (won't overwrite existing values). Returns per-field counts of what was set vs skipped — read this to see exactly what landed.",
     inputSchema: {
       type: "object" as const,
       properties: {
         set: {
           type: "object",
           description:
-            "Fields to set. Keys: merchant, categoryId, categoryConfidence, accountId, targetAccountId. Example: {\"categoryId\": \"uuid\", \"categoryConfidence\": \"low\"}",
+            "Fields to set. Keys: merchant, categoryId, categoryConfidence, accountId, targetAccountId. Example: {\"merchant\": \"Starbucks\", \"categoryId\": \"<uuid>\", \"categoryConfidence\": \"high\"}. categoryId must be a real UUID from list_categories.",
         },
         where: {
+          oneOf: [
+            {
+              type: "object",
+              properties: {
+                field: { type: "string" },
+                equals: { type: "string" },
+                contains: { type: "string" },
+              },
+              required: ["field"],
+            },
+            {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  field: { type: "string" },
+                  equals: { type: "string" },
+                  contains: { type: "string" },
+                },
+                required: ["field"],
+              },
+            },
+          ],
           description:
             "Single condition or array of conditions (AND logic). Each: {field, equals?, contains?}. Example: {\"field\": \"description\", \"contains\": \"STARBUCKS\"} or [{\"field\": \"description\", \"contains\": \"AMAZON\"}, {\"field\": \"type\", \"equals\": \"expense\"}]",
         },

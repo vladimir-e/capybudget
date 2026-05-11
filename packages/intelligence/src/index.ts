@@ -70,6 +70,7 @@ export {
   // Dispatch
   runTool,
   isDispatchTool,
+  SESSION_TOOL_CALL_BUDGET,
   // Handlers (re-exported for transports / tests that use them directly)
   handleListAccounts,
   handleListTransactions,
