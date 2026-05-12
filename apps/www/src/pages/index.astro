@@ -262,7 +262,7 @@ const releasesUrl = `${repoUrl}/releases`;
   <!-- ============================================================ -->
   <!-- WHY CAPY                                                      -->
   <!-- ============================================================ -->
-  <section id="features" class="bg-surface-alt border-y border-line">
+  <section class="bg-surface-alt border-y border-line">
     <div class="mx-auto max-w-5xl px-6 py-24">
       <p class="eyebrow">WHY CAPY</p>
       <h2 class="mt-3 text-center font-serif font-bold text-heading text-4xl sm:text-5xl text-balance">
@@ -317,6 +317,54 @@ const releasesUrl = `${repoUrl}/releases`;
           </p>
           <p class="why-footer">0 KB sent</p>
         </article>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================ -->
+  <!-- FEATURES                                                      -->
+  <!-- ============================================================ -->
+  <section id="features" class="border-b border-line">
+    <div class="mx-auto max-w-5xl px-6 py-24">
+      <p class="eyebrow">FEATURES</p>
+      <h2 class="mt-3 text-center font-serif font-bold text-heading text-4xl sm:text-5xl text-balance">
+        Everything Capy does.
+      </h2>
+
+      <div class="mt-14 grid gap-12 sm:grid-cols-3 sm:gap-10">
+        <div>
+          <p class="feature-group-label">Data</p>
+          <ul class="feature-list">
+            <li>Cash, checking, credit cards, investments, loans</li>
+            <li>Net worth tracking with monthly deltas</li>
+            <li>Category budgets with progress bars</li>
+            <li>CSV import — banks, Plaid, Mint exports</li>
+            <li>Manual transactions and transfers between accounts</li>
+            <li>Plain CSV + JSON on disk, no proprietary database</li>
+          </ul>
+        </div>
+        <div>
+          <p class="feature-group-label">Intelligence</p>
+          <ul class="feature-list">
+            <li>Auto-categorization on import</li>
+            <li>Natural language queries — "where did my money go last month?"</li>
+            <li>Duplicate detection across imports</li>
+            <li>Spending summaries and category trends</li>
+            <li>Works with Claude, OpenAI, or Claude Code</li>
+            <li>MCP server — query your budget from any agent</li>
+          </ul>
+        </div>
+        <div>
+          <p class="feature-group-label">Privacy &amp; ownership</p>
+          <ul class="feature-list">
+            <li>No account, no sign-up, no telemetry</li>
+            <li>Your data never leaves your machine</li>
+            <li>Sync via iCloud, Dropbox, or git — your choice</li>
+            <li>Bring your own API key for AI features</li>
+            <li>MIT licensed — read every line</li>
+            <li>Light and dark themes, fully native</li>
+          </ul>
+        </div>
       </div>
     </div>
   </section>
@@ -989,6 +1037,46 @@ const releasesUrl = `${repoUrl}/releases`;
     font-size: 0.7rem;
     letter-spacing: 0.08em;
     color: var(--color-muted);
+  }
+
+  /* ============================================================ */
+  /* FEATURES                                                      */
+  /* ============================================================ */
+  .feature-group-label {
+    font-family: var(--font-serif);
+    font-variation-settings: "opsz" 60, "SOFT" 50;
+    font-size: 1.15rem;
+    font-weight: 600;
+    color: var(--color-heading);
+    letter-spacing: -0.01em;
+    padding-bottom: 0.65rem;
+    border-bottom: 1px solid var(--color-line);
+  }
+  .feature-list {
+    margin-top: 0.9rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.55rem;
+    font-size: 0.92rem;
+    line-height: 1.55;
+    color: var(--color-body);
+  }
+  .feature-list li {
+    position: relative;
+    padding-left: 1rem;
+  }
+  .feature-list li::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 0.55rem;
+    width: 0.32rem;
+    height: 0.32rem;
+    border-radius: 9999px;
+    background: var(--color-terra);
+  }
+  :global([data-theme="dark"]) .feature-list li::before {
+    background: oklch(0.82 0.14 50);
   }
 
   /* ============================================================ */
