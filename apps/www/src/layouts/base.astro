@@ -8,7 +8,7 @@ interface Props {
 
 const {
   title,
-  description = "Local-first budgeting for your Mac. Plain CSV files, AI inside, no cloud.",
+  description = "Local-first budgeting for your computer. Plain CSV files, AI inside, no cloud.",
 } = Astro.props;
 
 const repoUrl = "https://github.com/vladimir-e/capybudget";
@@ -137,7 +137,7 @@ const year = new Date().getFullYear();
 
         <div class="mt-10 border-t border-line pt-6 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between text-xs text-muted">
           <p>© {year} Capy Budget · MIT licensed</p>
-          <p>Made on a Mac, in a folder.</p>
+          <p>Made by hand, in a folder.</p>
         </div>
       </div>
     </footer>
