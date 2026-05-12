@@ -2,11 +2,11 @@
  * System prompt and context enrichment for the Capy intelligence layer.
  *
  * The prompt bakes in two spec files as always-on context:
+ *   - PRODUCT.md (full) — feature surface so capy knows what the app
+ *     can do. Deployment/distribution detail lives in ARCHITECTURE.md
+ *     instead, kept out of every chat session.
  *   - DATA_MODEL.md (full) — capy needs the exact schema to interpret
  *     tool results and form valid mutations.
- *   - PRODUCT.md (curated) — feature surface so capy knows what the app
- *     can do, minus the deployment/distribution sections that are
- *     irrelevant to in-app reasoning.
  *
  * For anything beyond that — architecture detail, the import flow, the
  * intelligence layer itself, the roadmap — capy calls `read_spec`.
@@ -18,8 +18,9 @@
  * humans editing those files.
  */
 
-import { SPECS, PRODUCT_EXCERPT, SPEC_FILENAMES } from "../specs.generated"
+import { SPECS, SPEC_FILENAMES } from "../specs.generated"
 
+const PRODUCT = SPECS["PRODUCT.md"] ?? ""
 const DATA_MODEL = SPECS["DATA_MODEL.md"] ?? ""
 
 export const SYSTEM_PROMPT = `You are Capy, a financial assistant built into a personal budgeting app called Capy Budget. You have full control over the user's budget — you can read, create, update, and delete anything.
@@ -108,7 +109,7 @@ The sections below are excerpted directly from the app's design docs. They defin
 
 ## Product overview (from PRODUCT.md)
 
-${PRODUCT_EXCERPT}
+${PRODUCT}
 
 ## Data model (from DATA_MODEL.md)
 

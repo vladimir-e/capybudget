@@ -122,3 +122,13 @@ kebab-case for all files (e.g. `budget-shell.tsx`, `csv-repository.ts`).
 - Co-locate component logic in the same file
 - Extract when reused or > ~150 lines
 - shadcn components in `components/ui/`, customized freely
+
+## Target Platforms
+
+- **Desktop** — macOS first (native .dmg via Tauri). Windows and Linux via Tauri cross-compilation.
+- **Web demo** — browser-based demo with preset data at [demo.capybudget.app](https://demo.capybudget.app). Full UI, no persistence, stub intelligence layer.
+- **Promo website** — static marketing site at [capybudget.app](https://capybudget.app). Landing page, privacy policy, documentation. Astro 6, deployed to Vercel.
+
+## Distribution
+
+Open source, MIT license. Public GitHub repo with architecture docs, web demo, promo website, and a standalone MCP server (`@capybudget/mcp`) that works with any MCP-compatible AI agent.

@@ -9,13 +9,9 @@
  *
  * - `SPECS` — { filename → file content } for every `specs/*.md` file.
  *   The `read_spec` tool reads this map directly; no runtime fs access.
+ *   The chat prompt embeds `SPECS["PRODUCT.md"]` and `SPECS["DATA_MODEL.md"]`
+ *   in full as always-on context.
  * - `SPEC_FILENAMES` — sorted array of available filenames.
- * - `PRODUCT_EXCERPT` — `PRODUCT.md` truncated at `## Target Platforms`.
- *   Embedded in the chat system prompt as always-on context. Capy
- *   doesn't need to know how the app is distributed, only how it works.
- *
- * `DATA_MODEL.md` is small and entirely relevant — the prompt embeds the
- * full file via `SPECS["DATA_MODEL.md"]`.
  */
 
 import { readFileSync, readdirSync, writeFileSync } from "node:fs"
@@ -25,17 +21,6 @@ import { fileURLToPath } from "node:url"
 const HERE = dirname(fileURLToPath(import.meta.url))
 export const DEFAULT_SPECS_DIR = join(HERE, "..", "..", "..", "specs")
 export const DEFAULT_OUT_PATH = join(HERE, "..", "src", "specs.generated.ts")
-
-/**
- * Cut PRODUCT.md off before the deployment/distribution section. Capy
- * needs the feature inventory and philosophy — not target platforms or
- * licensing. Keeps the always-on prompt context tight.
- */
-export function curateProduct(raw: string): string {
-  const marker = "## Target Platforms"
-  const idx = raw.indexOf(marker)
-  return idx === -1 ? raw.trimEnd() : raw.slice(0, idx).trimEnd()
-}
 
 export function buildSpecsModule(specsDir: string = DEFAULT_SPECS_DIR): string {
   const files = readdirSync(specsDir)
@@ -47,12 +32,6 @@ export function buildSpecsModule(specsDir: string = DEFAULT_SPECS_DIR): string {
     return { name, content }
   })
 
-  const productEntry = entries.find((e) => e.name === "PRODUCT.md")
-  if (!productEntry) {
-    throw new Error("PRODUCT.md not found in specs/")
-  }
-  const productExcerpt = curateProduct(productEntry.content)
-
   const specsEntries = entries
     .map((e) => `  ${JSON.stringify(e.name)}: ${JSON.stringify(e.content)},`)
     .join("\n")
@@ -63,10 +42,9 @@ export function buildSpecsModule(specsDir: string = DEFAULT_SPECS_DIR): string {
 // \`npm run prebuild -w @capybudget/intelligence\` (or any build) to
 // refresh after editing a spec.
 //
-// SPECS: map of filename → full file content, consumed by the
-//        \`read_spec\` tool.
-// PRODUCT_EXCERPT: \`PRODUCT.md\` minus deployment/distribution; baked
-//                  into the chat system prompt.
+// SPECS: map of filename → full file content. Consumed by the
+//        \`read_spec\` tool, and by the chat prompt which embeds
+//        \`PRODUCT.md\` and \`DATA_MODEL.md\` in full.
 
 export const SPECS: Readonly<Record<string, string>> = Object.freeze({
 ${specsEntries}
@@ -75,8 +53,6 @@ ${specsEntries}
 export const SPEC_FILENAMES: readonly string[] = Object.freeze([
 ${files.map((n) => `  ${JSON.stringify(n)},`).join("\n")}
 ])
-
-export const PRODUCT_EXCERPT: string = ${JSON.stringify(productExcerpt)}
 `
 }
 
