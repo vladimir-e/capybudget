@@ -53,15 +53,6 @@ export class ClaudeCliSession implements CapySession {
   private killed = false
   /** Set by markInterrupted(); consumed (and cleared) on the next send. */
   private interruptedMessages: readonly ChatMessage[] | null = null
-  /** Distinct tool_use IDs observed so far. The CLI emits cumulative
-   *  assistant snapshots, so the same tool_use block appears in many
-   *  consecutive lines — dedup by ID gives us a true call count. Once
-   *  this exceeds SESSION_TOOL_CALL_BUDGET the subprocess is killed and
-   *  an error event surfaces — backstop against runaway loops. */
-  private readonly seenToolUseIds = new Set<string>()
-  /** Set when the budget triggers a kill so the close handler can skip
-   *  the onExit unexpected-death path. */
-  private budgetTerminated = false
 
   constructor(opts: ClaudeCliAdapterOptions) {
     this.budgetPath = opts.budgetPath
@@ -118,18 +109,19 @@ export class ClaudeCliSession implements CapySession {
       this.budgetPath,
       "--setting-sources",
       "",
+      // Runaway-loop backstop. The CLI tracks turns itself and exits
+      // with an `error_max_turns` result line when the cap trips; the
+      // parser turns that into a StreamEvent.error.
+      "--max-turns",
+      String(SESSION_TOOL_CALL_BUDGET),
     ])
 
     command.stdout.on("data", (line: string) => {
-      // Count distinct tool_use IDs straight from the raw stream-json
-      // line. We could derive this from parsed StreamEvents, but the
-      // CLI emits cumulative assistant snapshots — the same tool_use
-      // appears in N consecutive lines — so deduping by ID is the
-      // honest count, and looking at the wire format directly is
-      // simpler than threading IDs through the parser.
-      if (this.countToolUsesAndCheckBudget(line)) return
-
       for (const event of parseStreamLine(line)) {
+        // An error event means the CLI is shutting itself down (e.g.
+        // `--max-turns` tripped). Mark the teardown as deliberate so
+        // the close handler skips the unexpected-death onExit path.
+        if (event.type === "error") this.killed = true
         this.onEvent(event)
       }
     })
@@ -240,10 +232,7 @@ export class ClaudeCliSession implements CapySession {
     await this.kill()
     this.sessionId = crypto.randomUUID()
     this.interruptedMessages = null
-    // Reset budget tracking so the next session starts fresh.
     // `killed` is reset by the next `spawn()`.
-    this.seenToolUseIds.clear()
-    this.budgetTerminated = false
   }
 
   /** Kill the process. */
@@ -257,59 +246,5 @@ export class ClaudeCliSession implements CapySession {
       }
       this.child = null
     }
-  }
-
-  /**
-   * Scan a stream-json line for tool_use blocks, track distinct IDs,
-   * and trip the per-session budget if exceeded. Returns true if the
-   * caller should skip further processing (we've terminated the
-   * session). Malformed lines are silently ignored — the parser will
-   * surface them as a no-op.
-   */
-  private countToolUsesAndCheckBudget(line: string): boolean {
-    const trimmed = line.trim()
-    if (!trimmed) return false
-    let parsed: { type?: string; message?: { content?: Array<{ type?: string; id?: string }> } }
-    try {
-      parsed = JSON.parse(trimmed)
-    } catch {
-      return false
-    }
-    if (parsed.type !== "assistant") return false
-    const content = parsed.message?.content ?? []
-    for (const block of content) {
-      if (block.type === "tool_use" && typeof block.id === "string") {
-        if (this.seenToolUseIds.has(block.id)) continue
-        this.seenToolUseIds.add(block.id)
-        if (this.seenToolUseIds.size > SESSION_TOOL_CALL_BUDGET) {
-          this.terminateOnBudgetExhausted()
-          return true
-        }
-      }
-    }
-    return false
-  }
-
-  /**
-   * Kill the subprocess and surface a budget-exhausted error event.
-   * Sets `this.killed` first so the close handler's `if (!this.killed)`
-   * guard skips the unexpected-death onExit path. `budgetTerminated`
-   * is a re-entry guard — multiple tool_use blocks in the same line
-   * shouldn't fire the error twice.
-   */
-  private terminateOnBudgetExhausted(): void {
-    if (this.budgetTerminated) return
-    this.budgetTerminated = true
-    this.killed = true
-    if (this.child) {
-      this.child.kill().catch(() => {
-        // already dead
-      })
-      this.child = null
-    }
-    this.onEvent({
-      type: "error",
-      message: `Tool-call budget exhausted (${SESSION_TOOL_CALL_BUDGET} calls). Stopping. Run again if more work is needed.`,
-    })
   }
 }

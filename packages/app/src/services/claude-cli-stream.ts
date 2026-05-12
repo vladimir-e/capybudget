@@ -75,9 +75,20 @@ export function parseStreamLine(line: string): StreamEvent[] {
       break
     }
 
-    case "result":
-      events.push({ type: "done" })
+    case "result": {
+      // Result lines mark the end of a turn. Most are clean completions
+      // (`{type: "result"}`); error terminations carry `is_error: true`
+      // and an `errors` array — `error_max_turns` is the main one we
+      // care about (the CLI's runaway backstop, enabled via `--max-turns`).
+      if (event.is_error) {
+        const errs = event.errors as string[] | undefined
+        const message = errs?.[0] ?? "Session terminated with an error."
+        events.push({ type: "error", message })
+      } else {
+        events.push({ type: "done" })
+      }
       break
+    }
 
     case "error":
       events.push({

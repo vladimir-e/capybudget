@@ -351,9 +351,29 @@ describe("parseStreamLine", () => {
   })
 
   describe("result event", () => {
-    it("emits done", () => {
+    it("emits done on a clean result", () => {
       const line = JSON.stringify({ type: "result" })
       expect(parseStreamLine(line)).toEqual([{ type: "done" }])
+    })
+
+    it("emits error when the result carries is_error", () => {
+      // `--max-turns` produces this shape when the cap trips.
+      const line = JSON.stringify({
+        type: "result",
+        subtype: "error_max_turns",
+        is_error: true,
+        errors: ["Reached maximum number of turns (100)"],
+      })
+      expect(parseStreamLine(line)).toEqual([
+        { type: "error", message: "Reached maximum number of turns (100)" },
+      ])
+    })
+
+    it("falls back to a generic message when is_error has no details", () => {
+      const line = JSON.stringify({ type: "result", is_error: true })
+      expect(parseStreamLine(line)).toEqual([
+        { type: "error", message: "Session terminated with an error." },
+      ])
     })
   })
 

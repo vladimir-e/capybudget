@@ -153,122 +153,42 @@ describe("ClaudeCliSession", () => {
     })
   })
 
-  it("kills the subprocess and emits a budget-exhausted error after the per-session cap", async () => {
+  it("passes --max-turns to the CLI as the runaway-loop backstop", async () => {
     const { SESSION_TOOL_CALL_BUDGET } = await import("@capybudget/intelligence")
+    const { Command } = await import("@tauri-apps/plugin-shell")
+    const { session } = makeSession()
+    await session.send("hi")
+
+    const args = (Command.create as ReturnType<typeof vi.fn>).mock.calls[0][1] as string[]
+    const idx = args.indexOf("--max-turns")
+    expect(idx).toBeGreaterThan(-1)
+    expect(args[idx + 1]).toBe(String(SESSION_TOOL_CALL_BUDGET))
+  })
+
+  it("surfaces an error_max_turns result as an error event and suppresses onExit", async () => {
+    // When `--max-turns` trips, the CLI emits an `error_max_turns`
+    // result line, then exits cleanly. The parser turns the line into
+    // an error event; the session must mark the teardown deliberate so
+    // the close handler doesn't fire the unexpected-death onExit.
     const { session, events, exitHandler } = makeSession()
     await session.send("loop forever")
 
     const handlers = latestHandlers.current!
-    const child = latestChild.current!
-
-    // Feed SESSION_TOOL_CALL_BUDGET + 1 distinct tool_use IDs through
-    // the cumulative-snapshot stream. Each "assistant" line carries one
-    // new tool_use block so the dedup-by-ID counter ticks up.
-    for (let i = 0; i <= SESSION_TOOL_CALL_BUDGET; i++) {
-      handlers.stdout!(
-        JSON.stringify({
-          type: "assistant",
-          message: {
-            content: [
-              {
-                type: "tool_use",
-                id: `tu-${i}`,
-                name: "list_accounts",
-                input: {},
-              },
-            ],
-          },
-        }),
-      )
-    }
-
-    expect(child.kill).toHaveBeenCalled()
-    const budgetErr = events.find(
-      (e) => e.type === "error" && /budget exhausted/i.test(e.message),
-    )
-    expect(budgetErr).toBeTruthy()
-    // The deliberate-kill flag must suppress the unexpected-death path.
-    handlers.close?.({ code: 0 })
-    expect(exitHandler).not.toHaveBeenCalled()
-  })
-
-  it("dedups tool_use IDs across cumulative assistant snapshots before counting", async () => {
-    const { session, events } = makeSession()
-    await session.send("hi")
-
-    const handlers = latestHandlers.current!
-    const child = latestChild.current!
-
-    // Same tool_use appears in many lines (cumulative content) — it
-    // should count exactly once. Loop 200 times: well past the budget
-    // of 100, but with only ONE distinct ID it stays under cap.
-    for (let i = 0; i < 200; i++) {
-      handlers.stdout!(
-        JSON.stringify({
-          type: "assistant",
-          message: {
-            content: [
-              { type: "tool_use", id: "tu-same", name: "list_accounts", input: {} },
-            ],
-          },
-        }),
-      )
-    }
-
-    expect(child.kill).not.toHaveBeenCalled()
-    expect(events.some((e) => e.type === "error")).toBe(false)
-  })
-
-  it("restart() resets the budget counter so the next session starts fresh", async () => {
-    const { SESSION_TOOL_CALL_BUDGET } = await import("@capybudget/intelligence")
-    const { session, events } = makeSession()
-    await session.send("loop forever")
-
-    // Burn the entire budget on the first session.
-    const handlers1 = latestHandlers.current!
-    for (let i = 0; i <= SESSION_TOOL_CALL_BUDGET; i++) {
-      handlers1.stdout!(
-        JSON.stringify({
-          type: "assistant",
-          message: {
-            content: [
-              {
-                type: "tool_use",
-                id: `tu-burn-${i}`,
-                name: "list_accounts",
-                input: {},
-              },
-            ],
-          },
-        }),
-      )
-    }
-    const initialErrorCount = events.filter((e) => e.type === "error").length
-    expect(initialErrorCount).toBeGreaterThanOrEqual(1)
-
-    // restart() must clear the budget state so the next send starts
-    // fresh — single tool_use after restart must NOT trip the cap.
-    await session.restart()
-    await session.send("after restart")
-    const handlers2 = latestHandlers.current!
-    const child2 = latestChild.current!
-
-    handlers2.stdout!(
+    handlers.stdout!(
       JSON.stringify({
-        type: "assistant",
-        message: {
-          content: [
-            { type: "tool_use", id: "tu-post-restart", name: "list_accounts", input: {} },
-          ],
-        },
+        type: "result",
+        subtype: "error_max_turns",
+        is_error: true,
+        errors: ["Reached maximum number of turns (100)"],
       }),
     )
 
-    expect(child2.kill).not.toHaveBeenCalled()
-    const errorsAfterRestart = events.filter(
-      (e) => e.type === "error" && /budget exhausted/i.test(e.message),
-    ).length
-    // Only the original budget-exhausted error, no new one.
-    expect(errorsAfterRestart).toBe(initialErrorCount)
+    expect(events).toContainEqual({
+      type: "error",
+      message: "Reached maximum number of turns (100)",
+    })
+
+    handlers.close?.({ code: 0 })
+    expect(exitHandler).not.toHaveBeenCalled()
   })
 })
