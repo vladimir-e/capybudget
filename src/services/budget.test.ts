@@ -332,6 +332,21 @@ describe("inspectFolder", () => {
     expect(result.isEmpty).toBe(false);
     expect(result.itemCount).toBe(2);
   });
+
+  it("treats hidden-only folders as empty", async () => {
+    // User deletes a budget in Finder — `.capy/` and `.DS_Store` survive
+    // because Finder hides them. Should still be usable for a new budget.
+    mockExists.mockResolvedValue(false);
+    mockReadDir.mockResolvedValue([
+      { name: ".capy" },
+      { name: ".git" },
+      { name: ".DS_Store" },
+    ]);
+    const result = await inspectFolder("/looks/empty");
+    expect(result.hasBudget).toBe(false);
+    expect(result.isEmpty).toBe(true);
+    expect(result.itemCount).toBe(0);
+  });
 });
 
 describe("findMissingBudgetPaths", () => {

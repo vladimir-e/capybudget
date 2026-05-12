@@ -14,15 +14,20 @@ export interface FolderInfo {
   itemCount: number;
 }
 
-/** Inspect a folder: check for budget.json and count total entries. */
+/** Inspect a folder: check for budget.json and count visible entries.
+ *  Hidden entries (dotfiles like `.capy`, `.git`, `.DS_Store`) don't count —
+ *  a folder that looks empty in Finder should be usable for a new budget.
+ *  `bootstrapBudget`'s PROTECTED_FILES guard still catches collisions with
+ *  the canonical files (none of which start with `.`). */
 export async function inspectFolder(folderPath: string): Promise<FolderInfo> {
   const metaPath = await join(folderPath, BUDGET_FILE);
   const hasBudget = await exists(metaPath);
   const entries = await readDir(folderPath);
+  const visible = entries.filter((e) => !e.name.startsWith("."));
   return {
     hasBudget,
-    isEmpty: entries.length === 0,
-    itemCount: entries.length,
+    isEmpty: visible.length === 0,
+    itemCount: visible.length,
   };
 }
 
