@@ -288,7 +288,7 @@ The path from current state to a public, signed, auto-updating Alpha release. Or
   - Slide out chat UX
   - Apply new design
 
-- [ ] **10.5c — Intelligence layer hardening**
+- [x] **10.5c — Intelligence layer hardening**
   - Review and tighten Capy instructions
   - Make specs available to Capy (so it can troubleshoot — e.g. recommend cleaning `.capy/import` on import issues)
   - Recommend archive over delete for accounts/categories
