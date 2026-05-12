@@ -662,6 +662,16 @@ const releasesUrl = `${repoUrl}/releases`;
     backdrop-filter: blur(8px);
   }
 
+  /* Astro scopes .btn-primary / .platform-mini to this component, which
+     bumps their specificity above Tailwind's global .hidden. Override
+     here so JS-driven platform swapping actually hides the off-platform
+     buttons and pills. */
+  .btn-primary.hidden,
+  .platform-mini.hidden,
+  .platform-mini-sep.hidden {
+    display: none;
+  }
+
   .platform-mini {
     display: inline-flex;
     align-items: center;
