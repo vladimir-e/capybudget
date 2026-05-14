@@ -1,9 +1,9 @@
 ---
 import Base from "../layouts/base.astro";
 
-const version = "1.0";
 const repoUrl = "https://github.com/vladimir-e/capybudget";
 const releasesUrl = `${repoUrl}/releases`;
+const demoUrl = "https://demo.capybudget.app";
 ---
 
 <Base
@@ -15,17 +15,12 @@ const releasesUrl = `${repoUrl}/releases`;
   <!-- ============================================================ -->
   <section class="relative">
     <div class="mx-auto max-w-5xl px-6 pt-20 pb-20 sm:pt-24 sm:pb-28 text-center">
-      <p class="version-pill">
-        <span aria-hidden="true">•</span> Open source · v{version}
-      </p>
-
-      <h1 class="mt-6 font-serif font-extrabold tracking-tight text-heading text-5xl sm:text-7xl text-balance leading-[1.05]">
+      <h1 class="font-serif font-extrabold tracking-tight text-heading text-5xl sm:text-7xl text-balance leading-[1.05]">
         Budgeting with a brain.
       </h1>
 
       <p class="mx-auto mt-7 max-w-2xl text-lg leading-relaxed text-body">
-        No subscription, no cloud, no lock-in. Plain CSV files. Open your
-        data in Excel any time.
+        No subscription, no cloud, no lock-in. Plain CSV files that you can open in Excel.
       </p>
 
       <div class="mt-10 flex flex-wrap items-center justify-center gap-3">
@@ -259,6 +254,16 @@ const releasesUrl = `${repoUrl}/releases`;
           </div>
         </div>
       </div>
+
+      <div class="mt-10 flex justify-center">
+        <a href={demoUrl} class="btn-secondary" target="_blank" rel="noopener noreferrer">
+          <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M14.25 9.75 16.5 12l-2.25 2.25m-4.5 0L7.5 12l2.25-2.25M6 20.25h12A2.25 2.25 0 0 0 20.25 18V6A2.25 2.25 0 0 0 18 3.75H6A2.25 2.25 0 0 0 3.75 6v12A2.25 2.25 0 0 0 6 20.25Z" />
+          </svg>
+          <span>Try the live demo</span>
+          <span class="arrow" aria-hidden="true">→</span>
+        </a>
+      </div>
     </div>
   </section>
 
@@ -284,7 +289,8 @@ const releasesUrl = `${repoUrl}/releases`;
           </div>
           <p class="why-body">
             Your budget lives in a folder of plain CSV files. Drop it in
-            iCloud, Dropbox, or git — sync however you already sync.
+            iCloud, Google Drive, Dropbox, or git — sync however you already
+            sync.
           </p>
           <p class="why-footer">CSV · JSON</p>
         </article>
@@ -293,32 +299,32 @@ const releasesUrl = `${repoUrl}/releases`;
           <div class="why-header">
             <span class="why-icon" aria-hidden="true">
               <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M12 3v18M3 12h18M5.6 5.6l12.8 12.8M18.4 5.6 5.6 18.4" />
+                <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
               </svg>
             </span>
-            <h3 class="why-title">AI that knows your money</h3>
+            <h3 class="why-title">Skip the data entry</h3>
           </div>
           <p class="why-body">
-            Ask Capy to find duplicates, summarize spending, or set budgets.
-            Bring your own key — Claude, OpenAI, or Claude Code with your subscription.
+            Drag a CSV from your bank, snap a receipt, or paste from anywhere.
+            Capy logs the transactions for you.
           </p>
-          <p class="why-footer">BYO key</p>
+          <p class="why-footer">CSV · receipts · paste</p>
         </article>
 
         <article class="why-card">
           <div class="why-header">
             <span class="why-icon" aria-hidden="true">
               <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12c0 1.268-.63 2.39-1.593 3.068a3.745 3.745 0 0 1-1.043 3.296 3.745 3.745 0 0 1-3.296 1.043A3.745 3.745 0 0 1 12 21c-1.268 0-2.39-.63-3.068-1.593a3.746 3.746 0 0 1-3.296-1.043 3.745 3.745 0 0 1-1.043-3.296A3.745 3.745 0 0 1 3 12c0-1.268.63-2.39 1.593-3.068a3.745 3.745 0 0 1 1.043-3.296 3.746 3.746 0 0 1 3.296-1.043A3.746 3.746 0 0 1 12 3c1.268 0 2.39.63 3.068 1.593a3.746 3.746 0 0 1 3.296 1.043 3.746 3.746 0 0 1 1.043 3.296A3.745 3.745 0 0 1 21 12Z" />
+                <path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 0 1 3 19.875v-6.75ZM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V8.625ZM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V4.125Z" />
               </svg>
             </span>
-            <h3 class="why-title">Stays on your machine</h3>
+            <h3 class="why-title">See where it goes</h3>
           </div>
           <p class="why-body">
-            No telemetry. No accounts. No cloud database. Your transactions
-            never touch our servers because there are no servers.
+            Spending breakdowns, monthly budgets, net worth over time. Ask in
+            plain English, or just click around.
           </p>
-          <p class="why-footer">0 KB sent</p>
+          <p class="why-footer">charts · chat</p>
         </article>
       </div>
     </div>
@@ -363,11 +369,21 @@ const releasesUrl = `${repoUrl}/releases`;
           <ul class="feature-list">
             <li>Your data never leaves your machine</li>
             <li>No account, no sign-up, no telemetry</li>
-            <li>Sync via iCloud, Google Drive, or git</li>
+            <li>Sync via iCloud, Google Drive, Dropbox, or git</li>
             <li>Bring your own API key for AI features</li>
             <li>Open Source — fork or contribute</li>
           </ul>
         </div>
+      </div>
+
+      <div class="mt-14 flex justify-center">
+        <a href={demoUrl} class="btn-secondary" target="_blank" rel="noopener noreferrer">
+          <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M14.25 9.75 16.5 12l-2.25 2.25m-4.5 0L7.5 12l2.25-2.25M6 20.25h12A2.25 2.25 0 0 0 20.25 18V6A2.25 2.25 0 0 0 18 3.75H6A2.25 2.25 0 0 0 3.75 6v12A2.25 2.25 0 0 0 6 20.25Z" />
+        </svg>
+          <span>Try the live demo</span>
+          <span class="arrow" aria-hidden="true">→</span>
+        </a>
       </div>
     </div>
   </section>
@@ -379,103 +395,36 @@ const releasesUrl = `${repoUrl}/releases`;
     <div class="mx-auto max-w-5xl px-6 py-24">
       <p class="eyebrow">HOW IT WORKS</p>
       <h2 class="mt-3 text-center font-serif font-bold text-heading text-4xl sm:text-5xl text-balance">
-        Three steps, zero ceremony.
+        Three steps.
       </h2>
 
       <div class="mt-14 border-t border-line pt-10 grid gap-10 sm:grid-cols-3">
         <div class="step">
-          <p class="step-num">01</p>
-          <h3 class="step-title">Create or open a folder</h3>
+          <div class="step-header">
+            <span class="step-num">01</span>
+            <h3 class="step-title">Create or open a folder</h3>
+          </div>
           <p class="step-body">
             Pick a folder on your computer. That's your budget. Capy creates a few CSVs.
           </p>
         </div>
         <div class="step">
-          <p class="step-num">02</p>
-          <h3 class="step-title">Import transactions</h3>
+          <div class="step-header">
+            <span class="step-num">02</span>
+            <h3 class="step-title">Import transactions</h3>
+          </div>
           <p class="step-body">
             Drag in CSVs from your bank, paste from Plaid, or type them. Capy categorizes.
           </p>
         </div>
         <div class="step">
-          <p class="step-num">03</p>
-          <h3 class="step-title">Ask Capy anything</h3>
+          <div class="step-header">
+            <span class="step-num">03</span>
+            <h3 class="step-title">Ask Capy anything</h3>
+          </div>
           <p class="step-body">
             "Where did my money go in March?" "Find duplicates." "Set a grocery budget."
           </p>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- ============================================================ -->
-  <!-- LOCAL-FIRST                                                   -->
-  <!-- ============================================================ -->
-  <section class="bg-surface-alt border-b border-line">
-    <div class="mx-auto max-w-5xl px-6 py-24">
-      <div class="grid gap-16 md:grid-cols-2 md:items-center">
-        <div>
-          <p class="eyebrow eyebrow-left">LOCAL-FIRST, BY DESIGN</p>
-          <h2 class="mt-3 font-serif font-bold text-heading text-4xl sm:text-5xl text-balance leading-[1.08]">
-            Your money. Your machine. Your rules.
-          </h2>
-          <p class="mt-6 text-body leading-relaxed">
-            Capy is a desktop app, not a cloud service. There's no account to make,
-            no subscription to cancel, and nowhere for us to leak your data —
-            because we never have it.
-          </p>
-          <ul class="mt-8 space-y-3.5">
-            <li class="local-row">
-              <svg class="local-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75m-3-7.036A11.959 11.959 0 0 1 3.598 6 11.99 11.99 0 0 0 3 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.249-8.25-3.285Z" />
-              </svg>
-              <span>Zero telemetry by default</span>
-            </li>
-            <li class="local-row">
-              <svg class="local-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
-              </svg>
-              <span>Plain CSV — open in Excel, Numbers, or vim</span>
-            </li>
-            <li class="local-row">
-              <svg class="local-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 9.776c.112-.017.227-.026.344-.026h15.812c.117 0 .232.009.344.026M3.75 9.776a2.25 2.25 0 0 0-1.883 2.542l.857 6a2.25 2.25 0 0 0 2.227 1.932H19.05a2.25 2.25 0 0 0 2.227-1.932l.857-6a2.25 2.25 0 0 0-1.883-2.542M3.75 9.776V6A2.25 2.25 0 0 1 6 3.75h3.879a1.5 1.5 0 0 1 1.06.44l2.122 2.12a1.5 1.5 0 0 0 1.06.44H18A2.25 2.25 0 0 1 20.25 9v.776" />
-              </svg>
-              <span>Your folder, your sync (iCloud, Dropbox, git)</span>
-            </li>
-            <li class="local-row">
-              <svg class="local-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
-                <path stroke-linecap="round" stroke-linejoin="round" d="m6.75 7.5 3 2.25-3 2.25m4.5 0h3m-9 8.25h13.5A2.25 2.25 0 0 0 21 18V6a2.25 2.25 0 0 0-2.25-2.25H5.25A2.25 2.25 0 0 0 3 6v12a2.25 2.25 0 0 0 2.25 2.25Z" />
-              </svg>
-              <span>Open source — audit anything</span>
-            </li>
-          </ul>
-        </div>
-
-        <div class="csv-stack-wrap" aria-hidden="true">
-          <div class="csv-stack">
-            <div class="csv-card csv-bottom">
-              <p class="csv-name"><span>budgets</span><span class="csv-ext">.csv</span></p>
-              <div class="csv-line w-3/4"></div>
-              <div class="csv-line w-full"></div>
-              <div class="csv-line w-2/3"></div>
-              <div class="csv-line w-5/6"></div>
-            </div>
-            <div class="csv-card csv-middle">
-              <p class="csv-name"><span>transactions</span><span class="csv-ext">.csv</span></p>
-              <div class="csv-line w-full"></div>
-              <div class="csv-line w-4/5"></div>
-              <div class="csv-line w-2/3"></div>
-              <div class="csv-line w-11/12"></div>
-            </div>
-            <div class="csv-card csv-top">
-              <p class="csv-name"><span>accounts</span><span class="csv-ext">.csv</span></p>
-              <div class="csv-line w-5/6"></div>
-              <div class="csv-line w-3/4"></div>
-              <div class="csv-line w-full"></div>
-              <div class="csv-line w-2/3"></div>
-            </div>
-          </div>
         </div>
       </div>
     </div>
@@ -579,29 +528,8 @@ const releasesUrl = `${repoUrl}/releases`;
     letter-spacing: 0.2em;
     color: var(--color-terra);
   }
-  .eyebrow-left {
-    text-align: left;
-  }
   :global([data-theme="dark"]) .eyebrow {
     color: oklch(0.78 0.14 50);
-  }
-
-  .version-pill {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.35rem;
-    padding: 0.4rem 0.85rem;
-    border-radius: 9999px;
-    background: var(--color-terra-soft);
-    color: var(--color-terra);
-    font-family: var(--font-mono);
-    font-size: 0.72rem;
-    font-weight: 500;
-    letter-spacing: 0.02em;
-  }
-  :global([data-theme="dark"]) .version-pill {
-    background: rgba(245, 158, 11, 0.12);
-    color: oklch(0.82 0.14 50);
   }
 
   .text-link {
@@ -1095,109 +1023,33 @@ const releasesUrl = `${repoUrl}/releases`;
   /* ============================================================ */
   /* HOW IT WORKS                                                  */
   /* ============================================================ */
+  .step-header {
+    display: flex;
+    align-items: baseline;
+    gap: 0.65rem;
+  }
   .step-num {
     font-family: var(--font-mono);
     font-size: 0.85rem;
     color: var(--color-terra);
     letter-spacing: 0.04em;
+    flex-shrink: 0;
+  }
+  :global([data-theme="dark"]) .step-num {
+    color: oklch(0.82 0.14 50);
   }
   .step-title {
-    margin-top: 0.6rem;
     font-size: 1.1rem;
     font-weight: 600;
     color: var(--color-heading);
     letter-spacing: -0.01em;
   }
   .step-body {
-    margin-top: 0.5rem;
+    margin-top: 0.6rem;
     font-size: 0.92rem;
     line-height: 1.55;
     color: var(--color-body);
   }
-
-  /* ============================================================ */
-  /* LOCAL-FIRST                                                   */
-  /* ============================================================ */
-  .local-row {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    font-size: 0.95rem;
-    color: var(--color-body);
-  }
-  .local-icon {
-    width: 1rem;
-    height: 1rem;
-    color: var(--color-terra);
-    flex-shrink: 0;
-  }
-  :global([data-theme="dark"]) .local-icon {
-    color: oklch(0.82 0.14 50);
-  }
-
-  .csv-stack-wrap {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    min-height: 320px;
-  }
-  .csv-stack {
-    position: relative;
-    width: 240px;
-    height: 280px;
-  }
-  .csv-card {
-    position: absolute;
-    width: 100%;
-    background: var(--color-surface);
-    border: 1px solid var(--color-line);
-    border-radius: 0.6rem;
-    padding: 0.95rem 1rem 1.1rem;
-    box-shadow: 0 8px 24px -8px oklch(0.4 0.05 55 / 0.18), 0 2px 4px -1px oklch(0.4 0.05 55 / 0.1);
-  }
-  .csv-top {
-    top: 0;
-    transform: rotate(-3deg) translateX(-10px);
-    z-index: 3;
-  }
-  .csv-middle {
-    top: 30px;
-    transform: rotate(0deg);
-    z-index: 2;
-  }
-  .csv-bottom {
-    top: 60px;
-    transform: rotate(3deg) translateX(10px);
-    z-index: 1;
-  }
-  :global([data-theme="dark"]) .csv-card {
-    background: rgba(255, 255, 255, 0.05);
-    border-color: rgba(255, 255, 255, 0.08);
-    box-shadow: 0 10px 30px -8px rgba(0, 0, 0, 0.6);
-    backdrop-filter: blur(8px);
-  }
-  .csv-name {
-    font-family: var(--font-mono);
-    font-size: 0.8rem;
-    font-weight: 600;
-    color: var(--color-heading);
-    margin-bottom: 0.85rem;
-    letter-spacing: -0.01em;
-  }
-  .csv-ext {
-    font-weight: 300;
-    color: var(--color-muted);
-  }
-  .csv-line {
-    height: 6px;
-    background: var(--color-line);
-    border-radius: 9999px;
-    margin-bottom: 0.45rem;
-  }
-  :global([data-theme="dark"]) .csv-line {
-    background: rgba(255, 255, 255, 0.08);
-  }
-  .csv-line:last-child { margin-bottom: 0; }
 
   /* ============================================================ */
   /* GET IT                                                        */
@@ -1255,15 +1107,6 @@ const releasesUrl = `${repoUrl}/releases`;
   .arrow {
     color: var(--color-terra);
     font-weight: 500;
-  }
-
-  .brew-code {
-    font-family: var(--font-mono);
-    font-size: 0.82rem;
-    padding: 0.18rem 0.5rem;
-    border-radius: 0.35rem;
-    background: var(--color-code-bg);
-    color: var(--color-code-text);
   }
 
   /* ============================================================ */
