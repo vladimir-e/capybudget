@@ -26,6 +26,10 @@ Read the specs before making changes — they are the source of truth:
 - `specs/DATA_MODEL.md` — CSV schemas, budget.json, migration strategy
 - `specs/FRONTEND_DESIGN.md` — color scheme, interaction patterns, typography, accessibility
 
+## Promo Site Mocks
+
+The promo site at `apps/www/` uses **interactive HTML mockups** of the app UI in its showcase sections — not screenshots. When the app's visual design changes significantly (new tabs, restructured sidebar, redesigned components, theme tweaks, new top-level surfaces), update the corresponding mock in `apps/www/src/pages/index.astro` to keep the promo coherent with the product. Treat the mocks as editorial: curated US-relatable demo data, marketing-sized layouts, slightly simplified — not a pixel-for-pixel replica of the live app.
+
 ## Conventions
 
 - **Money is always integer cents.** `$12.50` → `1250`. No floats in the data layer.
