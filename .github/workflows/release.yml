@@ -1,0 +1,180 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: write
+
+jobs:
+  create-release:
+    name: Draft GitHub release
+    runs-on: ubuntu-latest
+    outputs:
+      release_id: ${{ steps.create.outputs.id }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create draft release
+        id: create
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const tag = context.ref.replace('refs/tags/', '');
+            const { data } = await github.rest.repos.createRelease({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              tag_name: tag,
+              name: tag,
+              body: `Release ${tag}.\n\nSee [CHANGELOG.md](https://github.com/${context.repo.owner}/${context.repo.repo}/blob/main/CHANGELOG.md) for details.`,
+              draft: true,
+              prerelease: false,
+            });
+            core.setOutput('id', data.id);
+
+  build:
+    name: Build ${{ matrix.platform }}
+    needs: create-release
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: macos-latest
+            args: --target universal-apple-darwin
+            rust-targets: aarch64-apple-darwin,x86_64-apple-darwin
+          - platform: ubuntu-22.04
+            args: ""
+            rust-targets: ""
+          - platform: windows-latest
+            args: ""
+            rust-targets: ""
+
+    runs-on: ${{ matrix.platform }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.rust-targets }}
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Install Linux dependencies
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            patchelf
+
+      - run: npm ci
+
+      - name: Generate route trees
+        run: npm run routes:generate
+
+      - name: Build & publish (tauri-action)
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Updater signing — used on every platform so each artifact
+          # gets its companion .sig file consumed by the updater.
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          # macOS signing + notarization. Empty on other platforms,
+          # which tauri-action treats as "no signing".
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        with:
+          releaseId: ${{ needs.create-release.outputs.release_id }}
+          args: ${{ matrix.args }}
+
+  rename-stable-assets:
+    name: Attach stable-named assets
+    needs: [create-release, build]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Mirror versioned artifacts to stable names
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          mkdir -p stable
+          cd stable
+
+          # List every asset on the draft release so we can match by
+          # suffix without worrying about the version number embedded
+          # in the filename.
+          mapfile -t ASSETS < <(gh release view "$TAG" --json assets --jq '.assets[].name')
+
+          pick() {
+            local pattern="$1"
+            for a in "${ASSETS[@]}"; do
+              if [[ "$a" == $pattern ]]; then
+                echo "$a"
+                return 0
+              fi
+            done
+            return 1
+          }
+
+          declare -A MAP
+          # macOS universal DMG.
+          if dmg=$(pick "*universal*.dmg"); then
+            MAP["$dmg"]="capybudget-macos.dmg"
+          elif dmg=$(pick "*.dmg"); then
+            MAP["$dmg"]="capybudget-macos.dmg"
+          fi
+          # Windows x64 MSI.
+          if msi=$(pick "*x64*.msi"); then
+            MAP["$msi"]="capybudget-windows-x64.msi"
+          elif msi=$(pick "*.msi"); then
+            MAP["$msi"]="capybudget-windows-x64.msi"
+          fi
+          # Linux AppImage + deb.
+          if appimage=$(pick "*amd64*.AppImage") || appimage=$(pick "*.AppImage"); then
+            MAP["$appimage"]="capybudget-linux-x64.AppImage"
+          fi
+          if deb=$(pick "*amd64*.deb") || deb=$(pick "*.deb"); then
+            MAP["$deb"]="capybudget-linux-x64.deb"
+          fi
+
+          for src in "${!MAP[@]}"; do
+            dst="${MAP[$src]}"
+            echo "::group::Mirror $src -> $dst"
+            gh release download "$TAG" --pattern "$src" --dir .
+            cp -- "$src" "$dst"
+            gh release upload "$TAG" "$dst" --clobber
+            rm -- "$src" "$dst"
+            echo "::endgroup::"
+          done
+
+  publish-release:
+    name: Publish release
+    needs: [create-release, rename-stable-assets]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Mark release as published
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.ref_name }}
+        run: gh release edit "$TAG" --draft=false --latest

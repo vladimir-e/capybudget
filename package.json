@@ -25,7 +25,8 @@
     "demo:preview": "npm run preview --workspace=@capybudget/demo",
     "www": "npm run dev --workspace=@capybudget/www",
     "www:build": "npm run build --workspace=@capybudget/www",
-    "www:preview": "npm run preview --workspace=@capybudget/www"
+    "www:preview": "npm run preview --workspace=@capybudget/www",
+    "release": "node scripts/release.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.2.0",

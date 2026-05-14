@@ -43,6 +43,44 @@ npm run tauri build
 
 Produces a native `.dmg` (macOS), `.msi` (Windows), or `.deb`/`.AppImage` (Linux).
 
+### Releasing
+
+Releases are cut from `main` via a tag. The `release.yml` workflow then builds
+and signs installers for macOS, Windows, and Linux, attaches them to a GitHub
+Release, and publishes a Tauri updater manifest (`latest.json`) so existing
+installs can auto-update.
+
+```bash
+npm run release 0.2.0      # bumps versions, commits, tags v0.2.0
+git push --follow-tags     # triggers the Release workflow
+```
+
+The stable download URLs (used by the website and the auto-updater) always
+resolve to the newest published release:
+
+- `https://github.com/vladimir-e/capybudget/releases/latest/download/capybudget-macos.dmg`
+- `https://github.com/vladimir-e/capybudget/releases/latest/download/capybudget-windows-x64.msi`
+- `https://github.com/vladimir-e/capybudget/releases/latest/download/capybudget-linux-x64.AppImage`
+- `https://github.com/vladimir-e/capybudget/releases/latest/download/capybudget-linux-x64.deb`
+
+**Required repo secrets:**
+
+| Secret | Purpose |
+| --- | --- |
+| `TAURI_SIGNING_PRIVATE_KEY` | Tauri updater private key (`tauri signer generate`) |
+| `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` | Password for the updater key |
+| `APPLE_CERTIFICATE` | Base64-encoded Developer ID `.p12` |
+| `APPLE_CERTIFICATE_PASSWORD` | Password for the `.p12` |
+| `APPLE_SIGNING_IDENTITY` | e.g. `Developer ID Application: Name (TEAMID)` |
+| `APPLE_ID` | Apple ID used for notarization |
+| `APPLE_PASSWORD` | App-specific password (appleid.apple.com) |
+| `APPLE_TEAM_ID` | Apple Developer Team ID |
+
+After running `tauri signer generate`, paste the **public key** into
+`src-tauri/tauri.conf.json` (`plugins.updater.pubkey`, replacing the
+`__REPLACE_WITH_TAURI_UPDATER_PUBKEY__` placeholder) and add the **private
+key + password** as repo secrets above.
+
 ### Demo & Website
 
 ```bash

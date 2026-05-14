@@ -1,5 +1,13 @@
 ---
 import Base from "../layouts/base.astro";
+
+const RELEASES_BASE = "https://github.com/vladimir-e/capybudget/releases/latest/download";
+const downloads = [
+  { os: "macOS", href: `${RELEASES_BASE}/capybudget-macos.dmg` },
+  { os: "Windows", href: `${RELEASES_BASE}/capybudget-windows-x64.msi` },
+  { os: "Linux (AppImage)", href: `${RELEASES_BASE}/capybudget-linux-x64.AppImage` },
+  { os: "Linux (.deb)", href: `${RELEASES_BASE}/capybudget-linux-x64.deb` },
+];
 ---
 
 <Base title="Capy Budget — Personal Finance, Your Way">
@@ -24,11 +32,8 @@ import Base from "../layouts/base.astro";
     </p>
 
     <div class="mt-10 flex flex-wrap items-center justify-center gap-4">
-      <a
-        href="https://github.com/vladimir-e/capybudget/releases"
-        class="btn-primary"
-      >
-        Download for macOS
+      <a href={downloads[0].href} class="btn-primary">
+        Download for {downloads[0].os}
       </a>
       <a
         href="https://demo.capybudget.app"
@@ -47,6 +52,15 @@ import Base from "../layouts/base.astro";
         View on GitHub
       </a>
     </div>
+
+    <p class="mt-6 flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-sm text-muted">
+      {downloads.slice(1).map((d, i) => (
+        <>
+          {i > 0 && <span aria-hidden="true">·</span>}
+          <a href={d.href} class="download-link">{d.os}</a>
+        </>
+      ))}
+    </p>
   </section>
 
   <!-- Features -->
@@ -148,11 +162,8 @@ import Base from "../layouts/base.astro";
         </div>
       </div>
       <div class="mt-8 flex flex-wrap items-center justify-center gap-4">
-        <a
-          href="https://github.com/vladimir-e/capybudget/releases"
-          class="btn-primary"
-        >
-          Download for macOS
+        <a href={downloads[0].href} class="btn-primary">
+          Download for {downloads[0].os}
         </a>
         <a
           href="https://demo.capybudget.app"
@@ -163,6 +174,14 @@ import Base from "../layouts/base.astro";
           Try the Demo
         </a>
       </div>
+      <p class="mt-5 flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-sm text-muted">
+        {downloads.slice(1).map((d, i) => (
+          <>
+            {i > 0 && <span aria-hidden="true">·</span>}
+            <a href={d.href} class="download-link">{d.os}</a>
+          </>
+        ))}
+      </p>
     </div>
   </section>
 </Base>
@@ -265,6 +284,23 @@ import Base from "../layouts/base.astro";
     transform: translateY(-1px);
     background: rgba(255, 255, 255, 0.1);
     border-color: rgba(245, 158, 11, 0.3);
+  }
+
+  /* ========== Secondary platform download links ========== */
+  .download-link {
+    color: var(--sem-heading);
+    text-decoration: underline;
+    text-decoration-color: var(--sem-line);
+    text-underline-offset: 3px;
+    transition: text-decoration-color 0.2s ease, color 0.2s ease;
+  }
+  .download-link:hover {
+    color: var(--color-terra);
+    text-decoration-color: var(--color-terra);
+  }
+  :global([data-theme="dark"]) .download-link:hover {
+    color: #f59e0b;
+    text-decoration-color: #f59e0b;
   }
 
   /* ========== Feature cards ========== */

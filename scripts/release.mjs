@@ -1,0 +1,89 @@
+#!/usr/bin/env node
+// Bump the version across all sources of truth, then commit + tag.
+// Usage: node scripts/release.mjs <version>     e.g. 0.2.0
+
+import { execSync } from "node:child_process";
+import { readFileSync, writeFileSync } from "node:fs";
+import { resolve, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+
+const SEMVER = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
+
+function fail(msg) {
+  console.error(`error: ${msg}`);
+  process.exit(1);
+}
+
+const version = process.argv[2];
+if (!version) fail("missing version argument (e.g. 0.2.0)");
+if (!SEMVER.test(version)) fail(`"${version}" is not a valid semver`);
+
+function gitClean() {
+  const out = execSync("git status --porcelain", { cwd: ROOT, encoding: "utf8" });
+  if (out.trim().length > 0) fail("working tree is dirty — commit or stash first");
+}
+
+function bumpJson(relPath, key = "version") {
+  const path = resolve(ROOT, relPath);
+  const raw = readFileSync(path, "utf8");
+  const m = raw.match(new RegExp(`("${key}"\\s*:\\s*")([^"]+)(")`));
+  if (!m) fail(`couldn't find "${key}" in ${relPath}`);
+  const next = raw.replace(m[0], `${m[1]}${version}${m[3]}`);
+  writeFileSync(path, next);
+  console.log(`  ${relPath}: ${m[2]} -> ${version}`);
+}
+
+function bumpCargoToml(relPath) {
+  const path = resolve(ROOT, relPath);
+  const raw = readFileSync(path, "utf8");
+  // Only replace the version under [package], not under any nested table.
+  const m = raw.match(/(\[package\][^[]*?version\s*=\s*")([^"]+)(")/s);
+  if (!m) fail(`couldn't find [package] version in ${relPath}`);
+  const next = raw.replace(m[0], `${m[1]}${version}${m[3]}`);
+  writeFileSync(path, next);
+  console.log(`  ${relPath}: ${m[2]} -> ${version}`);
+}
+
+function bumpCargoLock() {
+  // Keep Cargo.lock in sync so `cargo build` doesn't re-resolve in CI.
+  const path = resolve(ROOT, "src-tauri/Cargo.lock");
+  const raw = readFileSync(path, "utf8");
+  const re = /(name = "capybudget"\nversion = ")([^"]+)(")/;
+  const m = raw.match(re);
+  if (!m) {
+    console.log("  src-tauri/Cargo.lock: capybudget entry not found (skipping)");
+    return;
+  }
+  writeFileSync(path, raw.replace(re, `$1${version}$3`));
+  console.log(`  src-tauri/Cargo.lock: ${m[2]} -> ${version}`);
+}
+
+gitClean();
+
+console.log(`Bumping to v${version}:`);
+bumpJson("package.json");
+bumpJson("packages/app/package.json");
+bumpJson("src-tauri/tauri.conf.json");
+bumpCargoToml("src-tauri/Cargo.toml");
+bumpCargoLock();
+
+const files = [
+  "package.json",
+  "packages/app/package.json",
+  "src-tauri/tauri.conf.json",
+  "src-tauri/Cargo.toml",
+  "src-tauri/Cargo.lock",
+];
+
+execSync(`git add ${files.join(" ")}`, { cwd: ROOT, stdio: "inherit" });
+execSync(`git commit -m "chore: release v${version}"`, { cwd: ROOT, stdio: "inherit" });
+execSync(`git tag -a v${version} -m "v${version}"`, { cwd: ROOT, stdio: "inherit" });
+
+console.log("");
+console.log(`Tagged v${version}.`);
+console.log("Push to trigger the release workflow:");
+console.log("");
+console.log("    git push --follow-tags");
+console.log("");
