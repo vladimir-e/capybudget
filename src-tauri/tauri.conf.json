@@ -20,7 +20,7 @@
       "endpoints": [
         "https://github.com/vladimir-e/capybudget/releases/latest/download/latest.json"
       ],
-      "pubkey": "__REPLACE_WITH_TAURI_UPDATER_PUBKEY__"
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDNDMTE2RDQ2RTU3NTE1NjAKUldSZ0ZYWGxSbTBSUFA3UzN6WlN2dzc3c0FZdXJPbTE5a1cyMWZUQWNBdGRXd3ZHeHBFbUsyYXgK"
     }
   },
   "app": {
