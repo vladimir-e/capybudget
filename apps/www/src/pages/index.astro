@@ -53,7 +53,7 @@ const demoUrl = "https://demo.capybudget.app";
         </a>
       </div>
 
-      <p class="platform-mini-row mt-5 flex items-center justify-center gap-2 text-xs font-mono text-muted">
+      <p class="mt-5 flex items-center justify-center gap-2 text-xs font-mono text-muted">
         <a href={releasesUrl} class="platform-mini hidden" data-mini="mac" target="_blank" rel="noopener noreferrer">
           <svg class="h-3.5 w-3.5" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
             <path d="M11.6 8.4c0-1.5 1.2-2.2 1.3-2.2-.7-1-1.8-1.2-2.2-1.2-.9-.1-1.8.6-2.3.6-.5 0-1.2-.5-2-.5-1 0-2 .6-2.5 1.5-1.1 1.9-.3 4.7.8 6.2.5.8 1.1 1.6 1.9 1.6.8 0 1.1-.5 2-.5.9 0 1.2.5 2 .5.8 0 1.4-.8 1.9-1.5.6-.9.9-1.8.9-1.9-.1 0-1.7-.7-1.8-2.6zM10.1 4c.4-.5.7-1.2.6-1.9-.6.1-1.3.4-1.7.9-.4.4-.8 1.1-.7 1.8.7.1 1.4-.3 1.8-.8z" />
@@ -88,7 +88,7 @@ const demoUrl = "https://demo.capybudget.app";
               <span class="dot dot-amber"></span>
               <span class="dot dot-green"></span>
             </div>
-            <div class="mockup-title">Capy Budget — Household 2026</div>
+            <div class="mockup-title">Capy Budget — Household</div>
             <div class="w-[60px]"></div>
           </div>
 
@@ -279,8 +279,8 @@ const demoUrl = "https://demo.capybudget.app";
 
       <!-- Trigger cards — text-only on both desktop and mobile. The matching -->
       <!-- vignette renders in the shared canvas (desktop) or canvas-mobile.   -->
-      <div class="showcase-cards mt-14" role="tablist" aria-label="Why Capy showcase">
-        <button class="showcase-card" type="button" role="tab" data-showcase-trigger="accounts" aria-selected="false">
+      <div class="showcase-cards mt-14" aria-label="Why Capy showcase">
+        <button class="showcase-card" type="button" data-showcase-trigger="accounts" aria-selected="false">
           <span class="showcase-card-icon" aria-hidden="true">
             <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
               <path stroke-linecap="round" stroke-linejoin="round" d="M6 6.878V6a2.25 2.25 0 0 1 2.25-2.25h7.5A2.25 2.25 0 0 1 18 6v.878m-12 0c.235-.083.487-.128.75-.128h10.5c.263 0 .515.045.75.128m-12 0A2.25 2.25 0 0 0 4.5 9v.878m13.5-3A2.25 2.25 0 0 1 19.5 9v.878m0 0a2.246 2.246 0 0 0-.75-.128H5.25c-.263 0-.515.045-.75.128m15 0A2.25 2.25 0 0 1 21 12v6a2.25 2.25 0 0 1-2.25 2.25H5.25A2.25 2.25 0 0 1 3 18v-6c0-.98.626-1.813 1.5-2.122" />
@@ -293,7 +293,7 @@ const demoUrl = "https://demo.capybudget.app";
           </p>
         </button>
 
-        <button class="showcase-card is-active" type="button" role="tab" data-showcase-trigger="budget" aria-selected="true">
+        <button class="showcase-card is-active" type="button" data-showcase-trigger="budget" aria-selected="true">
           <span class="showcase-card-icon" aria-hidden="true">
             <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
               <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 6a7.5 7.5 0 1 0 7.5 7.5h-7.5V6Z" />
@@ -307,7 +307,7 @@ const demoUrl = "https://demo.capybudget.app";
           </p>
         </button>
 
-        <button class="showcase-card" type="button" role="tab" data-showcase-trigger="import" aria-selected="false">
+        <button class="showcase-card" type="button" data-showcase-trigger="import" aria-selected="false">
           <span class="showcase-card-icon" aria-hidden="true">
             <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
               <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
@@ -707,7 +707,7 @@ const demoUrl = "https://demo.capybudget.app";
             <section class="mockup-main mockup-main-budget">
               <!-- Tab bar -->
               <div class="budget-tabs" role="tablist">
-                <button class="budget-tab" type="button" role="tab" data-budget-tab="monthly">Monthly Budget</button>
+                <button class="budget-tab" type="button" role="tab" data-budget-tab="monthly" aria-selected="false">Monthly Budget</button>
                 <button class="budget-tab" type="button" role="tab" data-budget-tab="spending" aria-selected="false">Spending</button>
                 <button class="budget-tab" type="button" role="tab" data-budget-tab="cashflow" aria-selected="false">Cash Flow</button>
                 <button class="budget-tab is-active" type="button" role="tab" data-budget-tab="networth" aria-selected="true">Net Worth</button>
@@ -2500,6 +2500,7 @@ const demoUrl = "https://demo.capybudget.app";
     margin-bottom: -1px;
     transition: color 0.15s ease, border-color 0.15s ease;
     white-space: nowrap;
+    cursor: pointer;
   }
   .budget-tab:hover {
     color: rgba(254, 243, 199, 0.85);
