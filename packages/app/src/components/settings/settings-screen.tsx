@@ -46,6 +46,17 @@ const OPENAI_MODELS = [
   { value: "gpt-5.4-nano", label: "GPT-5.4 nano" },
 ]
 
+// The Claude Code adapter spawns the `claude` CLI and routes tool calls
+// through an MCP server we run as a child Node process. In a distributed
+// build that server isn't bundled yet (the path bakes in the build-time
+// `process.cwd()` and `tsx` isn't on the user's machine), so even if
+// `claude` itself is reachable on PATH, the session would die on first
+// tool call. Until we ship a bundled MCP server resource, gate the
+// provider on dev builds and point users to the source-build instructions.
+const IS_DIST_BUILD = !import.meta.env.DEV
+const BUILD_FROM_SOURCE_URL =
+  "https://github.com/vladimir-e/capybudget#run-locally"
+
 export function SettingsScreen() {
   const router = useRouter()
 
@@ -125,6 +136,14 @@ function ProviderSection() {
   const [claudeProbing, setClaudeProbing] = useState(true)
 
   useEffect(() => {
+    if (IS_DIST_BUILD) {
+      // Skip the probe — Claude Code provider can't function without
+      // the bundled MCP server (see IS_DIST_BUILD comment). Treat as
+      // unavailable and let the hint copy point users at source build.
+      setClaudeDetected(false)
+      setClaudeProbing(false)
+      return
+    }
     let cancelled = false
     setClaudeProbing(true)
     recheckClaudeCli()
@@ -168,11 +187,35 @@ function ProviderSection() {
           <div className="flex items-start gap-3 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2.5 text-sm text-destructive">
             <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
             <div className="flex-1">
-              <p className="font-medium">Claude Code is no longer detected</p>
-              <p className="text-xs text-destructive/80 mt-0.5">
-                Reinstall Claude Code or pick another provider to keep using
-                Capy.
-              </p>
+              {IS_DIST_BUILD ? (
+                <>
+                  <p className="font-medium">
+                    Claude Code requires a source build
+                  </p>
+                  <p className="text-xs text-destructive/80 mt-0.5">
+                    The desktop app can't run Claude Code yet. Pick another
+                    provider, or{" "}
+                    <button
+                      type="button"
+                      className="underline hover:text-foreground transition-colors"
+                      onClick={() => {
+                        void shellOpen(BUILD_FROM_SOURCE_URL)
+                      }}
+                    >
+                      run Capy from source
+                    </button>{" "}
+                    to use your Claude subscription.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p className="font-medium">Claude Code is no longer detected</p>
+                  <p className="text-xs text-destructive/80 mt-0.5">
+                    Reinstall Claude Code or pick another provider to keep using
+                    Capy.
+                  </p>
+                </>
+              )}
             </div>
           </div>
         )}
@@ -195,7 +238,21 @@ function ProviderSection() {
             description="Use the local Claude Code CLI. Runs against your Claude subscription."
             disabled={claudeDetected === false || claudeProbing}
             hint={
-              claudeProbing ? (
+              IS_DIST_BUILD ? (
+                <span>
+                  Not available in the desktop build —{" "}
+                  <button
+                    type="button"
+                    className="underline hover:text-foreground transition-colors"
+                    onClick={() => {
+                      void shellOpen(BUILD_FROM_SOURCE_URL)
+                    }}
+                  >
+                    build from source
+                  </button>{" "}
+                  to use your Claude subscription.
+                </span>
+              ) : claudeProbing ? (
                 <span className="inline-flex items-center gap-1.5">
                   <Loader2 className="h-3 w-3 animate-spin" />
                   Checking…

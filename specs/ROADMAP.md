@@ -345,6 +345,13 @@ The path from current state to a public, signed, auto-updating Alpha release. Or
   - Update channel served from GitHub Releases ✓ (`latest.json` at `/releases/latest/download/latest.json`)
   - Must ship with v1 — users on the first DMG will get future updates automatically
 
+- [ ] **10.14b — Bundle MCP server for production Claude Code provider**
+  - Currently Claude Code provider is gated to dev builds (`IS_DIST_BUILD` in `settings-screen.tsx`) because the MCP server is run via `npx tsx <__PROJECT_ROOT__>/packages/mcp/src/server.ts` — paths baked at build time and `tsx` not on user's machine
+  - Bundle `packages/mcp/src/server.ts` into a single JS file (esbuild) → `src-tauri/resources/mcp-server.js`
+  - Add `"resources"` entry in `tauri.conf.json` and resolve at runtime via `resolveResource()`
+  - Spawn via detected/configured `node` path instead of `npx tsx`
+  - Remove the `IS_DIST_BUILD` gate
+
 - [ ] **10.15 — Launch**
   - Cut `v1.0.0-alpha` release
   - Publish DMG to GitHub Releases
