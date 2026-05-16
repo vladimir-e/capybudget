@@ -45,14 +45,17 @@ Produces a native `.dmg` (macOS), `.msi` (Windows), or `.deb`/`.AppImage` (Linux
 
 ### Releasing
 
-Releases are cut from `main` via a tag. The `release.yml` workflow then builds
-and signs installers for macOS, Windows, and Linux, attaches them to a GitHub
-Release, and publishes a Tauri updater manifest (`latest.json`) so existing
-installs can auto-update.
+Releases are cut from `main` via a tag. The `release.yml` workflow builds
+and signs installers for macOS, Windows, and Linux, attaches them to a
+**draft** GitHub Release along with a Tauri updater manifest (`latest.json`).
+Promotion is manual — test the draft's artifacts, then publish it from the
+GitHub UI (or `gh release edit vX.Y.Z --draft=false --latest`). The auto-
+updater only sees the new version once the release is promoted, since
+`/releases/latest` skips drafts.
 
 ```bash
 npm run release 0.2.0      # bumps versions, commits, tags v0.2.0
-git push --follow-tags     # triggers the Release workflow
+git push --follow-tags     # triggers the Release workflow (draft only)
 ```
 
 The stable download URLs (used by the website and the auto-updater) always

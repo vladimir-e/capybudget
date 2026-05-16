@@ -168,14 +168,3 @@ jobs:
             rm -- "$src" "$dst"
             echo "::endgroup::"
           done
-
-  publish-release:
-    name: Publish release
-    needs: [create-release, rename-stable-assets]
-    runs-on: ubuntu-latest
-    steps:
-      - name: Mark release as published
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAG: ${{ github.ref_name }}
-        run: gh release edit "$TAG" --draft=false --latest -R "${{ github.repository }}"
