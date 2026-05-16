@@ -35,6 +35,8 @@ export default defineConfig({
       { find: "@tauri-apps/plugin-store", replacement: path.resolve(__dirname, "src/stubs/tauri-store") },
       { find: "@tauri-apps/api/path", replacement: path.resolve(__dirname, "src/stubs/tauri-path") },
       { find: "@tauri-apps/plugin-dialog", replacement: path.resolve(__dirname, "src/stubs/tauri-dialog") },
+      { find: "@tauri-apps/plugin-updater", replacement: path.resolve(__dirname, "src/stubs/tauri-updater") },
+      { find: "@tauri-apps/plugin-process", replacement: path.resolve(__dirname, "src/stubs/tauri-process") },
       // App alias — same as desktop
       { find: "@/", replacement: path.resolve(__dirname, "../../packages/app/src/") },
       { find: "@", replacement: path.resolve(__dirname, "../../packages/app/src") },
