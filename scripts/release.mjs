@@ -88,8 +88,30 @@ const files = [
 ];
 
 execSync(`git add ${files.join(" ")}`, { cwd: ROOT, stdio: "inherit" });
-execSync(`git commit -m "chore: release v${version}"`, { cwd: ROOT, stdio: "inherit" });
-execSync(`git tag -a v${version} -m "v${version}"`, { cwd: ROOT, stdio: "inherit" });
+
+// If versions were already at the target, there's nothing to commit.
+// Skip the commit step so retries (e.g. after a failed push) are safe.
+const staged = execSync("git diff --cached --name-only", { cwd: ROOT, encoding: "utf8" }).trim();
+if (staged.length === 0) {
+  console.log(`No version changes to commit — HEAD already at v${version}.`);
+} else {
+  execSync(`git commit -m "chore: release v${version}"`, { cwd: ROOT, stdio: "inherit" });
+}
+
+// Create the tag only if it doesn't already exist at HEAD. If it
+// exists elsewhere, bail — the caller needs to resolve that manually.
+const existingTagCommit = execSync(`git rev-parse -q --verify "v${version}^{commit}" || true`, {
+  cwd: ROOT,
+  encoding: "utf8",
+}).trim();
+const headCommit = execSync("git rev-parse HEAD", { cwd: ROOT, encoding: "utf8" }).trim();
+if (!existingTagCommit) {
+  execSync(`git tag -a v${version} -m "v${version}"`, { cwd: ROOT, stdio: "inherit" });
+} else if (existingTagCommit === headCommit) {
+  console.log(`Tag v${version} already exists at HEAD.`);
+} else {
+  fail(`tag v${version} already exists at ${existingTagCommit.slice(0, 7)}, not HEAD (${headCommit.slice(0, 7)}). Delete it with \`git tag -d v${version}\` if you want to retag.`);
+}
 
 console.log("");
 console.log(`Tagged v${version}.`);
