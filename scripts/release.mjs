@@ -69,8 +69,18 @@ bumpJson("src-tauri/tauri.conf.json");
 bumpCargoToml("src-tauri/Cargo.toml");
 bumpCargoLock();
 
+// Sync package-lock.json so the bumped root version lands in the
+// lockfile too. Without this, the next `npm install` after a release
+// rewrites the lockfile and dirties everyone's working tree.
+console.log("Syncing package-lock.json (npm install --package-lock-only)…");
+execSync("npm install --package-lock-only --no-audit --no-fund", {
+  cwd: ROOT,
+  stdio: "inherit",
+});
+
 const files = [
   "package.json",
+  "package-lock.json",
   "packages/app/package.json",
   "src-tauri/tauri.conf.json",
   "src-tauri/Cargo.toml",
