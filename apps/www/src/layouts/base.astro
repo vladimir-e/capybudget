@@ -71,13 +71,7 @@ const year = new Date().getFullYear();
     <nav class="sticky top-0 z-50 border-b border-line bg-surface-nav backdrop-blur-md">
       <div class="mx-auto max-w-5xl flex items-center justify-between gap-6 px-6 py-3.5">
         <a href="/" class="flex items-center gap-2.5 text-[15px] font-semibold text-heading">
-          <span class="logo-mark" aria-hidden="true">
-            <svg viewBox="0 0 32 32" class="h-8 w-8" fill="none">
-              <rect width="32" height="32" rx="8" fill="var(--color-terra)" />
-              <path d="M10 11.5C10 10.6716 10.6716 10 11.5 10H17L21 14V20.5C21 21.3284 20.3284 22 19.5 22H11.5C10.6716 22 10 21.3284 10 20.5V11.5Z" stroke="#FFF8EC" stroke-width="1.5" stroke-linejoin="round" />
-              <path d="M17 10V14H21" stroke="#FFF8EC" stroke-width="1.5" stroke-linejoin="round" />
-            </svg>
-          </span>
+          <img src="/logo.png" alt="" aria-hidden="true" class="logo-mark h-8 w-8 rounded-lg" />
           Capy Budget
         </a>
         <div class="flex items-center gap-1 sm:gap-5 text-sm text-muted">
@@ -146,10 +140,6 @@ const year = new Date().getFullYear();
   }
   .nav-link:hover {
     color: var(--color-heading);
-  }
-
-  .logo-mark {
-    display: inline-flex;
   }
 
   /* Dark mode orbs */
