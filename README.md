@@ -59,7 +59,7 @@ The stable download URLs (used by the website and the auto-updater) always
 resolve to the newest published release:
 
 - `https://github.com/vladimir-e/capybudget/releases/latest/download/capybudget-macos.dmg`
-- `https://github.com/vladimir-e/capybudget/releases/latest/download/capybudget-windows-x64.msi`
+- `https://github.com/vladimir-e/capybudget/releases/latest/download/capybudget-windows-x64.exe`
 - `https://github.com/vladimir-e/capybudget/releases/latest/download/capybudget-linux-x64.AppImage`
 - `https://github.com/vladimir-e/capybudget/releases/latest/download/capybudget-linux-x64.deb`
 

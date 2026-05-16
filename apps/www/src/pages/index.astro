@@ -1,370 +1,3102 @@
 ---
 import Base from "../layouts/base.astro";
 
-const RELEASES_BASE = "https://github.com/vladimir-e/capybudget/releases/latest/download";
-const downloads = [
-  { os: "macOS", href: `${RELEASES_BASE}/capybudget-macos.dmg` },
-  { os: "Windows", href: `${RELEASES_BASE}/capybudget-windows-x64.msi` },
-  { os: "Linux (AppImage)", href: `${RELEASES_BASE}/capybudget-linux-x64.AppImage` },
-  { os: "Linux (.deb)", href: `${RELEASES_BASE}/capybudget-linux-x64.deb` },
-];
+const repoUrl = "https://github.com/vladimir-e/capybudget";
+const releasesUrl = `${repoUrl}/releases`;
+const downloadBase = `${releasesUrl}/latest/download`;
+const macUrl = `${downloadBase}/capybudget-macos.dmg`;
+const windowsUrl = `${downloadBase}/capybudget-windows-x64.exe`;
+const linuxUrl = `${downloadBase}/capybudget-linux-x64.AppImage`;
+const demoUrl = "https://demo.capybudget.app";
 ---
 
-<Base title="Capy Budget — Personal Finance, Your Way">
-  <!-- Hero -->
-  <section class="relative mx-auto max-w-5xl px-6 pt-28 pb-24 text-center">
-    <div class="mascot-wrap mx-auto mb-10">
-      <div class="mascot-glow"></div>
-      <img
-        src="/capy-great.png"
-        alt="Capybara mascot in a suit sipping a cocktail"
-        class="mascot relative z-10 mx-auto h-48 w-48 drop-shadow-lg"
-      />
+<Base
+  title="Capy Budget — AI-powered budgeting app. Local-first, private, plain CSV."
+  description="Local-first budgeting app with AI built in. Your data stays on your machine in plain CSV files. Free and open source for macOS, Windows, and Linux."
+>
+  <!-- ============================================================ -->
+  <!-- HERO                                                          -->
+  <!-- ============================================================ -->
+  <section class="relative">
+    <div class="mx-auto max-w-5xl px-6 pt-20 pb-20 sm:pt-24 sm:pb-28 text-center">
+      <h1 class="font-serif font-extrabold tracking-tight text-heading text-5xl sm:text-7xl text-balance leading-[1.05]">
+        Budgeting with a brain.
+      </h1>
+
+      <p class="mx-auto mt-7 max-w-2xl text-lg leading-relaxed text-body">
+        No subscription, no cloud, no lock-in. Plain CSV files that you can open in Excel.
+      </p>
+
+      <div class="mt-10 flex flex-wrap items-center justify-center gap-3">
+        <a href={macUrl} class="btn-primary" data-cta="mac" target="_blank" rel="noopener noreferrer">
+          <svg class="h-4 w-4" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+            <path d="M11.6 8.4c0-1.5 1.2-2.2 1.3-2.2-.7-1-1.8-1.2-2.2-1.2-.9-.1-1.8.6-2.3.6-.5 0-1.2-.5-2-.5-1 0-2 .6-2.5 1.5-1.1 1.9-.3 4.7.8 6.2.5.8 1.1 1.6 1.9 1.6.8 0 1.1-.5 2-.5.9 0 1.2.5 2 .5.8 0 1.4-.8 1.9-1.5.6-.9.9-1.8.9-1.9-.1 0-1.7-.7-1.8-2.6zM10.1 4c.4-.5.7-1.2.6-1.9-.6.1-1.3.4-1.7.9-.4.4-.8 1.1-.7 1.8.7.1 1.4-.3 1.8-.8z" />
+          </svg>
+          <span>Download for macOS</span>
+          <span class="font-mono text-[11px] font-normal opacity-70">.dmg</span>
+        </a>
+        <a href={windowsUrl} class="btn-primary hidden" data-cta="windows" target="_blank" rel="noopener noreferrer">
+          <svg class="h-4 w-4" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+            <path d="M0 2.3 6.5 1.4v5.9H0V2.3zm0 5.6h6.5v5.9L0 13V7.9zm7.2-6.6L16 0v7.3H7.2V1.3zm0 6.7H16V16l-8.8-1.3V7.9z" />
+          </svg>
+          <span>Download for Windows</span>
+          <span class="font-mono text-[11px] font-normal opacity-70">.exe</span>
+        </a>
+        <a href={linuxUrl} class="btn-primary hidden" data-cta="linux" target="_blank" rel="noopener noreferrer">
+          <svg class="h-4 w-4" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+            <path d="M7.96 2.06c-1.62 0-2.43 1.46-2.43 3.4 0 .7.13 1.34.4 1.85.27.5.66.92 1.08 1.3.42.36.92.74 1.36 1.04.45.3.84.5.94.5.1 0 .49-.2.94-.5.44-.3.94-.68 1.36-1.04.42-.38.81-.8 1.08-1.3.27-.51.4-1.15.4-1.85 0-1.94-.81-3.4-2.43-3.4-.8 0-1.16.4-1.35.8-.19-.4-.55-.8-1.35-.8zM6.5 5c.28 0 .5.36.5.8s-.22.8-.5.8c-.28 0-.5-.36-.5-.8s.22-.8.5-.8zm3 0c.28 0 .5.36.5.8s-.22.8-.5.8c-.28 0-.5-.36-.5-.8s.22-.8.5-.8zM5.2 10.1c-.32.1-.6.4-.84.74-.5.7-.86 1.74-1.07 2.46-.1.36-.2.78-.06 1.18.13.4.5.66.94.74.42.07.83-.07 1.2-.22.5-.2 1.02-.34 1.55-.34.6 0 1.13.16 1.62.34.5.2 1 .42 1.55.42.55 0 1.05-.22 1.55-.42.48-.18 1.03-.34 1.62-.34.53 0 1.04.14 1.55.34.36.15.77.29 1.2.22.42-.08.8-.34.94-.74.13-.4.04-.82-.06-1.18-.21-.72-.57-1.76-1.07-2.46-.24-.34-.52-.64-.84-.74-.34-.1-.7.04-.96.27-.46.4-.94 1.06-1.6 1.4-.46.24-.96.4-1.5.4-.4 0-.78-.08-1.13-.22a3.7 3.7 0 0 1-.95-.54c-.17-.14-.34-.3-.5-.42-.16-.13-.32-.24-.5-.32-.17-.07-.36-.1-.55-.1s-.38.03-.55.1z" />
+          </svg>
+          <span>Download for Linux</span>
+          <span class="font-mono text-[11px] font-normal opacity-70">.AppImage</span>
+        </a>
+        <a href={repoUrl} class="btn-secondary" target="_blank" rel="noopener noreferrer">
+          <svg class="h-4 w-4" fill="currentColor" viewBox="0 0 16 16" aria-hidden="true">
+            <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z" />
+          </svg>
+          <span>View on GitHub</span>
+        </a>
+      </div>
+
+      <p class="mt-5 flex items-center justify-center gap-2 text-xs font-mono text-muted">
+        <a href={macUrl} class="platform-mini hidden" data-mini="mac" target="_blank" rel="noopener noreferrer">
+          <svg class="h-3.5 w-3.5" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+            <path d="M11.6 8.4c0-1.5 1.2-2.2 1.3-2.2-.7-1-1.8-1.2-2.2-1.2-.9-.1-1.8.6-2.3.6-.5 0-1.2-.5-2-.5-1 0-2 .6-2.5 1.5-1.1 1.9-.3 4.7.8 6.2.5.8 1.1 1.6 1.9 1.6.8 0 1.1-.5 2-.5.9 0 1.2.5 2 .5.8 0 1.4-.8 1.9-1.5.6-.9.9-1.8.9-1.9-.1 0-1.7-.7-1.8-2.6zM10.1 4c.4-.5.7-1.2.6-1.9-.6.1-1.3.4-1.7.9-.4.4-.8 1.1-.7 1.8.7.1 1.4-.3 1.8-.8z" />
+          </svg>
+          macOS
+        </a>
+        <span data-sep-deps="mac" class="platform-mini-sep hidden opacity-40">·</span>
+        <a href={windowsUrl} class="platform-mini" data-mini="windows" target="_blank" rel="noopener noreferrer">
+          <svg class="h-3 w-3" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+            <path d="M0 2.3 6.5 1.4v5.9H0V2.3zm0 5.6h6.5v5.9L0 13V7.9zm7.2-6.6L16 0v7.3H7.2V1.3zm0 6.7H16V16l-8.8-1.3V7.9z" />
+          </svg>
+          Windows
+        </a>
+        <span data-sep-deps="windows,linux" class="platform-mini-sep opacity-40">·</span>
+        <a href={linuxUrl} class="platform-mini" data-mini="linux" target="_blank" rel="noopener noreferrer">
+          <svg class="h-3.5 w-3.5" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+            <path d="M7.96 2.06c-1.62 0-2.43 1.46-2.43 3.4 0 .7.13 1.34.4 1.85.27.5.66.92 1.08 1.3.42.36.92.74 1.36 1.04.45.3.84.5.94.5.1 0 .49-.2.94-.5.44-.3.94-.68 1.36-1.04.42-.38.81-.8 1.08-1.3.27-.51.4-1.15.4-1.85 0-1.94-.81-3.4-2.43-3.4-.8 0-1.16.4-1.35.8-.19-.4-.55-.8-1.35-.8zM6.5 5c.28 0 .5.36.5.8s-.22.8-.5.8c-.28 0-.5-.36-.5-.8s.22-.8.5-.8zm3 0c.28 0 .5.36.5.8s-.22.8-.5.8c-.28 0-.5-.36-.5-.8s.22-.8.5-.8zM5.2 10.1c-.32.1-.6.4-.84.74-.5.7-.86 1.74-1.07 2.46-.1.36-.2.78-.06 1.18.13.4.5.66.94.74.42.07.83-.07 1.2-.22.5-.2 1.02-.34 1.55-.34.6 0 1.13.16 1.62.34.5.2 1 .42 1.55.42.55 0 1.05-.22 1.55-.42.48-.18 1.03-.34 1.62-.34.53 0 1.04.14 1.55.34.36.15.77.29 1.2.22.42-.08.8-.34.94-.74.13-.4.04-.82-.06-1.18-.21-.72-.57-1.76-1.07-2.46-.24-.34-.52-.64-.84-.74-.34-.1-.7.04-.96.27-.46.4-.94 1.06-1.6 1.4-.46.24-.96.4-1.5.4-.4 0-.78-.08-1.13-.22a3.7 3.7 0 0 1-.95-.54c-.17-.14-.34-.3-.5-.42-.16-.13-.32-.24-.5-.32-.17-.07-.36-.1-.55-.1s-.38.03-.55.1z" />
+          </svg>
+          Linux
+        </a>
+      </p>
+
+      <!-- ============================================================ -->
+      <!-- APP MOCKUP                                                    -->
+      <!-- ============================================================ -->
+      <div class="mockup-wrap mt-16" aria-hidden="true">
+        <div class="mockup">
+          <!-- macOS window chrome -->
+          <div class="mockup-chrome">
+            <div class="mockup-dots">
+              <span class="dot dot-red"></span>
+              <span class="dot dot-amber"></span>
+              <span class="dot dot-green"></span>
+            </div>
+            <div class="mockup-title">Capy Budget — Household</div>
+            <div class="w-[60px]"></div>
+          </div>
+
+          <div class="mockup-body">
+            <!-- LEFT SIDEBAR -->
+            <aside class="mockup-sidebar">
+              <p class="mockup-path">~/budgets/Household 2026</p>
+
+              <div class="net-worth-card">
+                <p class="net-worth-label">NET WORTH</p>
+                <p class="net-worth-value">$142,835</p>
+                <p class="net-worth-delta">+$2,341 this month</p>
+              </div>
+
+              <div class="sidebar-group">
+                <div class="group-header">
+                  <span>CASH</span>
+                  <span class="group-total pos">$1,425</span>
+                </div>
+                <div class="account-row">
+                  <span class="acc-name"><span class="acc-emoji">💵</span>Cash</span>
+                  <span class="acc-amount pos">$425</span>
+                </div>
+                <div class="account-row">
+                  <span class="acc-name"><span class="acc-emoji">💵</span>Stash</span>
+                  <span class="acc-amount pos">$1,000</span>
+                </div>
+              </div>
+
+              <div class="sidebar-group">
+                <div class="group-header">
+                  <span>CHECKING</span>
+                  <span class="group-total neg">-$2,423</span>
+                </div>
+                <div class="account-row">
+                  <span class="acc-name"><span class="acc-emoji">🏦</span>BofA Checking</span>
+                  <span class="acc-amount neg">-$2,423</span>
+                </div>
+              </div>
+
+              <div class="sidebar-group">
+                <div class="group-header">
+                  <span>CREDIT CARD</span>
+                  <span class="group-total neg">-$5,328</span>
+                </div>
+                <div class="account-row">
+                  <span class="acc-name"><span class="acc-emoji">🍎</span>Apple Card</span>
+                  <span class="acc-amount neg">-$2,619</span>
+                </div>
+                <div class="account-row">
+                  <span class="acc-name"><span class="acc-emoji">💳</span>BofA Rewards</span>
+                  <span class="acc-amount neg">-$2,709</span>
+                </div>
+              </div>
+
+              <div class="sidebar-group">
+                <div class="group-header">
+                  <span>INVESTMENTS</span>
+                  <span class="group-total pos">$149,161</span>
+                </div>
+                <div class="account-row">
+                  <span class="acc-name"><span class="acc-emoji">📈</span>Merrill Edge</span>
+                  <span class="acc-amount pos">$34,958</span>
+                </div>
+                <div class="account-row">
+                  <span class="acc-name"><span class="acc-emoji">🏛</span>401(k)</span>
+                  <span class="acc-amount pos">$104,290</span>
+                </div>
+              </div>
+            </aside>
+
+            <!-- RIGHT PANE -->
+            <section class="mockup-main">
+              <div class="overview-header">
+                <p class="overview-label">📈 Spending overview</p>
+                <p class="overview-value">$3,847.52 <span class="overview-suffix">this month</span></p>
+              </div>
+
+              <div class="chart-card">
+                <p class="chart-label">LAST 6 MONTHS</p>
+                <svg viewBox="0 0 400 100" preserveAspectRatio="none" class="chart-svg">
+                  <defs>
+                    <linearGradient id="chartFill" x1="0" x2="0" y1="0" y2="1">
+                      <stop offset="0%" stop-color="oklch(0.62 0.16 38)" stop-opacity="0.4" />
+                      <stop offset="100%" stop-color="oklch(0.62 0.16 38)" stop-opacity="0" />
+                    </linearGradient>
+                  </defs>
+                  <polygon
+                    points="20,70 100,55 180,60 260,40 340,30 380,20 380,100 20,100"
+                    fill="url(#chartFill)"
+                  />
+                  <polyline
+                    points="20,70 100,55 180,60 260,40 340,30 380,20"
+                    fill="none"
+                    stroke="oklch(0.72 0.16 40)"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  />
+                </svg>
+              </div>
+
+              <div class="budget-row">
+                <div class="budget-card">
+                  <p class="budget-name">Housing</p>
+                  <p class="budget-amount">$2,941</p>
+                  <div class="budget-bar"><div class="budget-fill terra" style="width: 81%"></div></div>
+                  <p class="budget-pct">81% of budget</p>
+                </div>
+                <div class="budget-card">
+                  <p class="budget-name">Food</p>
+                  <p class="budget-amount">$487</p>
+                  <div class="budget-bar"><div class="budget-fill green" style="width: 62%"></div></div>
+                  <p class="budget-pct">62% of budget</p>
+                </div>
+                <div class="budget-card">
+                  <p class="budget-name">Transport</p>
+                  <p class="budget-amount">$215</p>
+                  <div class="budget-bar"><div class="budget-fill terra" style="width: 34%"></div></div>
+                  <p class="budget-pct">34% of budget</p>
+                </div>
+              </div>
+
+              <div class="txn-table">
+                <div class="txn-header">
+                  <span>DATE</span>
+                  <span>MERCHANT</span>
+                  <span>CATEGORY</span>
+                  <span class="ta-right">AMOUNT</span>
+                </div>
+                <div class="txn-row">
+                  <span class="txn-date">May 6</span>
+                  <span class="txn-merchant">Whole Foods</span>
+                  <span class="txn-category">Groceries</span>
+                  <span class="txn-amount neg">-$87.42</span>
+                </div>
+                <div class="txn-row">
+                  <span class="txn-date">May 5</span>
+                  <span class="txn-merchant">Salary</span>
+                  <span class="txn-category">Income</span>
+                  <span class="txn-amount pos">+$4,230.00</span>
+                </div>
+                <div class="txn-row">
+                  <span class="txn-date">May 4</span>
+                  <span class="txn-merchant">Apple</span>
+                  <span class="txn-category">Subscriptions</span>
+                  <span class="txn-amount neg">-$9.99</span>
+                </div>
+                <div class="txn-row">
+                  <span class="txn-date">May 3</span>
+                  <span class="txn-merchant">Uber</span>
+                  <span class="txn-category">Transport</span>
+                  <span class="txn-amount neg">-$23.40</span>
+                </div>
+                <div class="txn-row fade-out">
+                  <span class="txn-date">May 3</span>
+                  <span class="txn-merchant">Stripe</span>
+                  <span class="txn-category">Income</span>
+                  <span class="txn-amount pos">+$1,200.00</span>
+                </div>
+              </div>
+            </section>
+          </div>
+        </div>
+      </div>
+
+      <div class="mt-10 flex justify-center">
+        <a href={demoUrl} class="btn-secondary" target="_blank" rel="noopener noreferrer">
+          <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M14.25 9.75 16.5 12l-2.25 2.25m-4.5 0L7.5 12l2.25-2.25M6 20.25h12A2.25 2.25 0 0 0 20.25 18V6A2.25 2.25 0 0 0 18 3.75H6A2.25 2.25 0 0 0 3.75 6v12A2.25 2.25 0 0 0 6 20.25Z" />
+          </svg>
+          <span>Try the live demo</span>
+          <span class="arrow" aria-hidden="true">→</span>
+        </a>
+      </div>
     </div>
-
-    <h1 class="text-5xl font-extrabold tracking-tight sm:text-7xl">
-      Budget like a <span class="gradient-text">capybara</span>.
-    </h1>
-
-    <p class="mx-auto mt-6 max-w-2xl text-lg leading-relaxed text-muted sm:text-xl">
-      A local-first personal finance app. Your data lives in plain CSV files
-      in a folder you choose. No cloud, no subscription, no nonsense.
-    </p>
-
-    <div class="mt-10 flex flex-wrap items-center justify-center gap-4">
-      <a href={downloads[0].href} class="btn-primary">
-        Download for {downloads[0].os}
-      </a>
-      <a
-        href="https://demo.capybudget.app"
-        class="btn-secondary"
-        target="_blank"
-        rel="noopener noreferrer"
-      >
-        Try the Demo
-      </a>
-      <a
-        href="https://github.com/vladimir-e/capybudget"
-        class="btn-secondary"
-        target="_blank"
-        rel="noopener noreferrer"
-      >
-        View on GitHub
-      </a>
-    </div>
-
-    <p class="mt-6 flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-sm text-muted">
-      {downloads.slice(1).map((d, i) => (
-        <>
-          {i > 0 && <span aria-hidden="true">·</span>}
-          <a href={d.href} class="download-link">{d.os}</a>
-        </>
-      ))}
-    </p>
   </section>
 
-  <!-- Features -->
-  <section class="border-t border-line bg-surface-alt">
-    <div class="mx-auto max-w-5xl px-6 py-20">
-      <h2 class="text-center text-2xl font-bold text-heading sm:text-3xl">
-        Why Capy Budget?
+  <!-- ============================================================ -->
+  <!-- WHY CAPY                                                      -->
+  <!-- ============================================================ -->
+  <section class="bg-surface-alt border-y border-line">
+    <div class="mx-auto max-w-6xl px-6 py-24">
+      <p class="eyebrow">WHY CAPY</p>
+      <h2 class="mt-3 text-center font-serif font-bold text-heading text-4xl sm:text-5xl text-balance">
+        Built like a tool, not a service.
       </h2>
-      <div class="mt-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-        <div class="feature-card">
-          <div class="feature-icon">
-            <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 9.776c.112-.017.227-.026.344-.026h15.812c.117 0 .232.009.344.026m-16.5 0a2.25 2.25 0 0 0-1.883 2.542l.857 6a2.25 2.25 0 0 0 2.227 1.932H19.05a2.25 2.25 0 0 0 2.227-1.932l.857-6a2.25 2.25 0 0 0-1.883-2.542m-16.5 0V6A2.25 2.25 0 0 1 6 3.75h3.879a1.5 1.5 0 0 1 1.06.44l2.122 2.12a1.5 1.5 0 0 0 1.06.44H18A2.25 2.25 0 0 1 20.25 9v.776" />
+
+      <!-- Trigger cards — text-only on both desktop and mobile. The matching -->
+      <!-- vignette renders in the shared canvas (desktop) or canvas-mobile.   -->
+      <div class="showcase-cards mt-14" aria-label="Why Capy showcase">
+        <button class="showcase-card" type="button" data-showcase-trigger="accounts" aria-selected="false">
+          <span class="showcase-card-icon" aria-hidden="true">
+            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M6 6.878V6a2.25 2.25 0 0 1 2.25-2.25h7.5A2.25 2.25 0 0 1 18 6v.878m-12 0c.235-.083.487-.128.75-.128h10.5c.263 0 .515.045.75.128m-12 0A2.25 2.25 0 0 0 4.5 9v.878m13.5-3A2.25 2.25 0 0 1 19.5 9v.878m0 0a2.246 2.246 0 0 0-.75-.128H5.25c-.263 0-.515.045-.75.128m15 0A2.25 2.25 0 0 1 21 12v6a2.25 2.25 0 0 1-2.25 2.25H5.25A2.25 2.25 0 0 1 3 18v-6c0-.98.626-1.813 1.5-2.122" />
             </svg>
-          </div>
-          <h3 class="mt-4 font-semibold text-heading">Plain CSV Files</h3>
-          <p class="mt-2 text-sm leading-relaxed text-subtle">
-            Your data is human-readable CSV. Open it in Excel, write scripts
-            against it, or just back it up by copying a folder.
+          </span>
+          <h3 class="showcase-card-title">All your money in one place</h3>
+          <p class="showcase-card-body">
+            Cash, checking, savings, credit cards, investments. Every account,
+            every transaction, one view.
           </p>
+        </button>
+
+        <button class="showcase-card is-active" type="button" data-showcase-trigger="budget" aria-selected="true">
+          <span class="showcase-card-icon" aria-hidden="true">
+            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 6a7.5 7.5 0 1 0 7.5 7.5h-7.5V6Z" />
+              <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 10.5H21A7.5 7.5 0 0 0 13.5 3v7.5Z" />
+            </svg>
+          </span>
+          <h3 class="showcase-card-title">See where it goes</h3>
+          <p class="showcase-card-body">
+            Spending breakdowns, monthly budgets, net worth over time. Ask
+            in plain English, or just click around.
+          </p>
+        </button>
+
+        <button class="showcase-card" type="button" data-showcase-trigger="import" aria-selected="false">
+          <span class="showcase-card-icon" aria-hidden="true">
+            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
+            </svg>
+          </span>
+          <h3 class="showcase-card-title">Skip the data entry</h3>
+          <p class="showcase-card-body">
+            Drop in a CSV from your bank, a statement screenshot, a photo of a
+            receipt. Tell Capy what's there. It does the rest.
+          </p>
+        </button>
+      </div>
+
+      <!-- Shared mobile canvas: dedicated vignettes per card. Stacks like the -->
+      <!-- desktop canvas (only .is-active is visible). Desktop hides this.    -->
+      <div class="showcase-canvas-mobile" aria-live="polite">
+        <!-- Mobile vignette: account hierarchy close-up -->
+        <div class="showcase-mobile-mockup" data-showcase-panel-mobile="accounts">
+          <p class="smv-path">~/budgets/Household</p>
+          <div class="smv-networth">
+            <p class="smv-networth-label">NET WORTH</p>
+            <p class="smv-networth-value">$46,437.58</p>
+            <p class="smv-networth-delta">+$1,820.34 this month</p>
+          </div>
+          <div class="sidebar-group">
+            <div class="group-header">
+              <span>CHECKING</span>
+            </div>
+            <div class="account-row">
+              <span class="acc-name"><span class="acc-emoji">🏦</span>Checking</span>
+              <span class="acc-amount pos">$2,450.18</span>
+            </div>
+          </div>
+          <div class="sidebar-group">
+            <div class="group-header">
+              <span>SAVINGS</span>
+            </div>
+            <div class="account-row">
+              <span class="acc-name"><span class="acc-emoji">💰</span>Savings</span>
+              <span class="acc-amount pos">$12,840.55</span>
+            </div>
+          </div>
+          <div class="sidebar-group">
+            <div class="group-header">
+              <span>CREDIT CARD</span>
+            </div>
+            <div class="account-row">
+              <span class="acc-name"><span class="acc-emoji">🍎</span>Apple Card</span>
+              <span class="acc-amount neg">-$1,247.33</span>
+            </div>
+            <div class="account-row">
+              <span class="acc-name"><span class="acc-emoji">💳</span>Capital One Venture</span>
+              <span class="acc-amount neg">-$456.92</span>
+            </div>
+          </div>
         </div>
 
-        <div class="feature-card">
-          <div class="feature-icon feature-icon-sage">
-            <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z" />
+        <!-- Mobile vignette: spending donut + category list -->
+        <div class="showcase-mobile-mockup is-active" data-showcase-panel-mobile="budget">
+          <div class="smv-stat-row">
+            <div class="smv-stat">
+              <p class="smv-stat-label">INCOME</p>
+              <p class="smv-stat-value pos">$5,890</p>
+            </div>
+            <div class="smv-stat">
+              <p class="smv-stat-label">EXPENSES</p>
+              <p class="smv-stat-value neg">$5,243</p>
+            </div>
+            <div class="smv-stat">
+              <p class="smv-stat-label">NET</p>
+              <p class="smv-stat-value pos">+$647</p>
+            </div>
+          </div>
+          <div class="smv-toggle-row">
+            <div class="smv-toggle">
+              <span class="smv-toggle-pill is-active">Expenses</span>
+              <span class="smv-toggle-pill">Income</span>
+            </div>
+          </div>
+          <div class="smv-donut-wrap">
+            <svg viewBox="0 0 200 200" class="smv-donut" aria-hidden="true">
+              <g transform="rotate(-90 100 100)">
+                <circle cx="100" cy="100" r="80" fill="none" stroke="oklch(0.7 0.16 40)" stroke-width="32" stroke-dasharray="211.4 502.7" stroke-dashoffset="0" />
+                <circle cx="100" cy="100" r="80" fill="none" stroke="oklch(0.74 0.16 145)" stroke-width="32" stroke-dasharray="59.3 502.7" stroke-dashoffset="-211.4" />
+                <circle cx="100" cy="100" r="80" fill="none" stroke="oklch(0.62 0.17 250)" stroke-width="32" stroke-dasharray="46.2 502.7" stroke-dashoffset="-270.7" />
+                <circle cx="100" cy="100" r="80" fill="none" stroke="oklch(0.6 0.2 25)" stroke-width="32" stroke-dasharray="40.2 502.7" stroke-dashoffset="-316.9" />
+                <circle cx="100" cy="100" r="80" fill="none" stroke="oklch(0.65 0.18 300)" stroke-width="32" stroke-dasharray="32.7 502.7" stroke-dashoffset="-357.1" />
+                <circle cx="100" cy="100" r="80" fill="none" stroke="oklch(0.7 0.14 100)" stroke-width="32" stroke-dasharray="27.6 502.7" stroke-dashoffset="-389.8" />
+                <circle cx="100" cy="100" r="80" fill="none" stroke="oklch(0.6 0.1 200)" stroke-width="32" stroke-dasharray="26.6 502.7" stroke-dashoffset="-417.4" />
+                <circle cx="100" cy="100" r="80" fill="none" stroke="oklch(0.7 0.13 340)" stroke-width="32" stroke-dasharray="17.6 502.7" stroke-dashoffset="-444.0" />
+                <circle cx="100" cy="100" r="80" fill="none" stroke="oklch(0.6 0.12 60)" stroke-width="32" stroke-dasharray="17.1 502.7" stroke-dashoffset="-461.6" />
+                <circle cx="100" cy="100" r="80" fill="none" stroke="oklch(0.65 0.1 170)" stroke-width="32" stroke-dasharray="14.6 502.7" stroke-dashoffset="-478.7" />
+                <circle cx="100" cy="100" r="80" fill="none" stroke="oklch(0.55 0.08 280)" stroke-width="32" stroke-dasharray="9.1 502.7" stroke-dashoffset="-493.3" />
+                <circle cx="100" cy="100" r="80" fill="none" stroke="oklch(0.45 0.02 50)" stroke-width="32" stroke-dasharray="0.5 502.7" stroke-dashoffset="-502.4" />
+              </g>
+              <text x="100" y="96" text-anchor="middle" class="smv-donut-total">$5,243</text>
+              <text x="100" y="116" text-anchor="middle" class="smv-donut-label">total spent</text>
             </svg>
           </div>
-          <h3 class="mt-4 font-semibold text-heading">No Cloud, No Account</h3>
-          <p class="mt-2 text-sm leading-relaxed text-subtle">
-            Everything runs locally. No sign-ups, no servers, no telemetry.
-            Point your data folder at iCloud or Dropbox for free sync.
-          </p>
+          <div class="smv-cat-list">
+            <div class="smv-cat-row">
+              <span class="smv-cat-dot" style="background: oklch(0.7 0.16 40)"></span>
+              <span class="smv-cat-name">Housing</span>
+              <span class="smv-cat-amount">$2,200.00</span>
+            </div>
+            <div class="smv-cat-row">
+              <span class="smv-cat-dot" style="background: oklch(0.74 0.16 145)"></span>
+              <span class="smv-cat-name">Groceries</span>
+              <span class="smv-cat-amount">$620.45</span>
+            </div>
+            <div class="smv-cat-row">
+              <span class="smv-cat-dot" style="background: oklch(0.62 0.17 250)"></span>
+              <span class="smv-cat-name">Transportation</span>
+              <span class="smv-cat-amount">$480.20</span>
+            </div>
+            <div class="smv-cat-row">
+              <span class="smv-cat-dot" style="background: oklch(0.6 0.2 25)"></span>
+              <span class="smv-cat-name">Travel</span>
+              <span class="smv-cat-amount">$418.00</span>
+            </div>
+          </div>
         </div>
 
-        <div class="feature-card">
-          <div class="feature-icon feature-icon-gold">
-            <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 0 0-2.455 2.456ZM16.894 20.567 16.5 21.75l-.394-1.183a2.25 2.25 0 0 0-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 0 0 1.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 0 0 1.423 1.423l1.183.394-1.183.394a2.25 2.25 0 0 0-1.423 1.423Z" />
-            </svg>
+        <!-- Mobile vignette: drop & describe -->
+        <div class="showcase-mobile-mockup" data-showcase-panel-mobile="import">
+          <div class="smv-import-head">
+            <span class="smv-import-head-icon">📥</span>
+            <p class="smv-import-title">Import</p>
           </div>
-          <h3 class="mt-4 font-semibold text-heading">AI-Powered Import</h3>
-          <p class="mt-2 text-sm leading-relaxed text-subtle">
-            Paste a bank statement or CSV and let Claude parse, categorize, and
-            deduplicate your transactions. You review before anything is saved.
-          </p>
+          <div class="smv-drop-zone">
+            <svg class="smv-drop-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M9 13.5 12 16.5m0 0 3-3m-3 3v-9m6.75 4.5h.75A2.25 2.25 0 0 1 21 14.25v3A2.25 2.25 0 0 1 18.75 19.5H5.25A2.25 2.25 0 0 1 3 17.25v-3a2.25 2.25 0 0 1 2.25-2.25H6" />
+            </svg>
+            <p class="smv-drop-title">Drop files or click to browse</p>
+          </div>
+          <p class="smv-files-label">2 FILES READY</p>
+          <div class="smv-files">
+            <div class="smv-file">
+              <span class="smv-file-icon">🖼</span>
+              <span class="smv-file-name">receipts-may.jpeg</span>
+              <span class="smv-file-size">1.9 MB</span>
+              <span class="smv-file-x">✕</span>
+            </div>
+            <div class="smv-file">
+              <span class="smv-file-icon">📄</span>
+              <span class="smv-file-name">chase-statement.csv</span>
+              <span class="smv-file-size">2.4 MB</span>
+              <span class="smv-file-x">✕</span>
+            </div>
+          </div>
+          <div class="smv-prompt">
+            Set up my May spending — chase statement plus a couple receipts from my phone
+          </div>
+          <div class="smv-import-actions">
+            <span class="smv-import-pill">Any account <span class="caret">▾</span></span>
+            <span class="smv-import-cta">
+              <span>✨</span>
+              <span>Start Import</span>
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Shared desktop canvas: mockups stack here, only one visible at a time -->
+      <div class="showcase-canvas" aria-live="polite">
+        <!-- ====================================================== -->
+        <!-- MOCKUP 1 — ACCOUNTS                                     -->
+        <!-- ====================================================== -->
+        <div class="mockup showcase-mockup" data-showcase-panel="accounts">
+          <div class="mockup-chrome">
+            <div class="mockup-dots">
+              <span class="dot dot-red"></span>
+              <span class="dot dot-amber"></span>
+              <span class="dot dot-green"></span>
+            </div>
+            <div class="mockup-title">Capy Budget — Household</div>
+            <div class="w-[60px]"></div>
+          </div>
+
+          <div class="mockup-body">
+            <!-- SIDEBAR -->
+            <aside class="mockup-sidebar">
+              <p class="mockup-path">~/budgets/Household</p>
+
+              <div class="net-worth-card">
+                <p class="net-worth-label">NET WORTH</p>
+                <p class="net-worth-value">$46,437.58</p>
+                <p class="net-worth-delta">+$1,820.34 this month</p>
+              </div>
+
+              <div class="sidebar-group">
+                <div class="group-header">
+                  <span>CASH</span>
+                </div>
+                <div class="account-row">
+                  <span class="acc-name"><span class="acc-emoji">💵</span>Wallet</span>
+                  <span class="acc-amount pos">$340.00</span>
+                </div>
+              </div>
+
+              <div class="sidebar-group">
+                <div class="group-header">
+                  <span>CHECKING</span>
+                </div>
+                <div class="account-row">
+                  <span class="acc-name"><span class="acc-emoji">🏦</span>Checking</span>
+                  <span class="acc-amount pos">$2,450.18</span>
+                </div>
+              </div>
+
+              <div class="sidebar-group">
+                <div class="group-header">
+                  <span>SAVINGS</span>
+                </div>
+                <div class="account-row">
+                  <span class="acc-name"><span class="acc-emoji">💰</span>Savings</span>
+                  <span class="acc-amount pos">$12,840.55</span>
+                </div>
+              </div>
+
+              <div class="sidebar-group">
+                <div class="group-header">
+                  <span>CREDIT CARD</span>
+                </div>
+                <div class="account-row">
+                  <span class="acc-name"><span class="acc-emoji">🍎</span>Apple Card</span>
+                  <span class="acc-amount neg">-$1,247.33</span>
+                </div>
+                <div class="account-row">
+                  <span class="acc-name"><span class="acc-emoji">💳</span>Capital One Venture</span>
+                  <span class="acc-amount neg">-$456.92</span>
+                </div>
+              </div>
+
+              <div class="sidebar-group">
+                <div class="group-header">
+                  <span>DEBT</span>
+                </div>
+                <div class="account-row">
+                  <span class="acc-name"><span class="acc-emoji">💳</span>Personal Loan</span>
+                  <span class="acc-amount neg">-$8,420.00</span>
+                </div>
+              </div>
+
+              <div class="sidebar-group">
+                <div class="group-header">
+                  <span>ASSETS</span>
+                  <span class="group-total pos">$40,931.10</span>
+                </div>
+                <div class="account-row">
+                  <span class="acc-name"><span class="acc-emoji">🏛</span>401(k)</span>
+                  <span class="acc-amount pos">$28,950.34</span>
+                </div>
+                <div class="account-row">
+                  <span class="acc-name"><span class="acc-emoji">📈</span>Stonks</span>
+                  <span class="acc-amount pos">$9,840.55</span>
+                </div>
+                <div class="account-row">
+                  <span class="acc-name"><span class="acc-emoji">₿</span>Coinbase</span>
+                  <span class="acc-amount pos">$2,140.21</span>
+                </div>
+              </div>
+            </aside>
+
+            <!-- MAIN PANE — All Accounts -->
+            <section class="mockup-main">
+              <header class="pane-head">
+                <div>
+                  <h4 class="pane-title">All Accounts</h4>
+                  <p class="pane-sub">2,034 transactions</p>
+                </div>
+              </header>
+
+              <div class="filter-row">
+                <div class="search-input">
+                  <svg class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="m21 21-4.34-4.34m0 0A8 8 0 1 0 5.32 5.32a8 8 0 0 0 11.34 11.34Z" />
+                  </svg>
+                  <span>Search transactions…</span>
+                </div>
+                <div class="filter-pill">All Categories <span class="caret">▾</span></div>
+                <div class="filter-pill">All time <span class="caret">▾</span></div>
+              </div>
+
+              <div class="txn-table">
+                <div class="txn-header txn-header-wide">
+                  <span>DATE</span>
+                  <span>ACCOUNT</span>
+                  <span>MERCHANT</span>
+                  <span>CATEGORY</span>
+                  <span class="ta-right">AMOUNT</span>
+                </div>
+                <div class="txn-row txn-row-wide">
+                  <span class="txn-date">May 12</span>
+                  <span class="txn-account">Apple Card</span>
+                  <span class="txn-merchant">Whole Foods</span>
+                  <span class="txn-category">Groceries</span>
+                  <span class="txn-amount neg">-$87.42</span>
+                </div>
+                <div class="txn-row txn-row-wide">
+                  <span class="txn-date">May 11</span>
+                  <span class="txn-account">Checking</span>
+                  <span class="txn-merchant">Salary</span>
+                  <span class="txn-category">Income</span>
+                  <span class="txn-amount pos">+$4,230.00</span>
+                </div>
+                <div class="txn-row txn-row-wide">
+                  <span class="txn-date">May 11</span>
+                  <span class="txn-account">Apple Card</span>
+                  <span class="txn-merchant">Apple</span>
+                  <span class="txn-category">Subscriptions</span>
+                  <span class="txn-amount neg">-$9.99</span>
+                </div>
+                <div class="txn-row txn-row-wide">
+                  <span class="txn-date">May 10</span>
+                  <span class="txn-account">Capital One Venture</span>
+                  <span class="txn-merchant">Uber</span>
+                  <span class="txn-category">Transportation</span>
+                  <span class="txn-amount neg">-$23.40</span>
+                </div>
+                <div class="txn-row txn-row-wide">
+                  <span class="txn-date">May 10</span>
+                  <span class="txn-account">Apple Card</span>
+                  <span class="txn-merchant">Trader Joe's</span>
+                  <span class="txn-category">Groceries</span>
+                  <span class="txn-amount neg">-$62.18</span>
+                </div>
+                <div class="txn-row txn-row-wide">
+                  <span class="txn-date">May 9</span>
+                  <span class="txn-account">Apple Card</span>
+                  <span class="txn-merchant">Netflix</span>
+                  <span class="txn-category">Subscriptions</span>
+                  <span class="txn-amount neg">-$15.49</span>
+                </div>
+                <div class="txn-row txn-row-wide">
+                  <span class="txn-date">May 9</span>
+                  <span class="txn-account">Capital One Venture</span>
+                  <span class="txn-merchant">Costco</span>
+                  <span class="txn-category">Groceries</span>
+                  <span class="txn-amount neg">-$184.22</span>
+                </div>
+                <div class="txn-row txn-row-wide">
+                  <span class="txn-date">May 8</span>
+                  <span class="txn-account">Checking</span>
+                  <span class="txn-merchant">Stripe</span>
+                  <span class="txn-category">Income</span>
+                  <span class="txn-amount pos">+$1,200.00</span>
+                </div>
+                <div class="txn-row txn-row-wide">
+                  <span class="txn-date">May 8</span>
+                  <span class="txn-account">Apple Card</span>
+                  <span class="txn-merchant">Spotify</span>
+                  <span class="txn-category">Subscriptions</span>
+                  <span class="txn-amount neg">-$11.99</span>
+                </div>
+                <div class="txn-row txn-row-wide">
+                  <span class="txn-date">May 7</span>
+                  <span class="txn-account">Capital One</span>
+                  <span class="txn-merchant">Delta Air Lines</span>
+                  <span class="txn-category">Travel</span>
+                  <span class="txn-amount neg">-$418.00</span>
+                </div>
+                <div class="txn-row txn-row-wide">
+                  <span class="txn-date">May 7</span>
+                  <span class="txn-account">Apple Card</span>
+                  <span class="txn-merchant">Starbucks</span>
+                  <span class="txn-category">Dining Out</span>
+                  <span class="txn-amount neg">-$6.85</span>
+                </div>
+                <div class="txn-row txn-row-wide fade-out">
+                  <span class="txn-date">May 6</span>
+                  <span class="txn-account">Checking</span>
+                  <span class="txn-merchant">Rent</span>
+                  <span class="txn-category">Housing</span>
+                  <span class="txn-amount neg">-$2,200.00</span>
+                </div>
+              </div>
+            </section>
+          </div>
         </div>
 
-        <div class="feature-card">
-          <div class="feature-icon">
-            <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 18.75a60.07 60.07 0 0 1 15.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5v.75A.75.75 0 0 1 3 6h-.75m0 0v-.375c0-.621.504-1.125 1.125-1.125H20.25M2.25 6v9m18-10.5v.75c0 .414.336.75.75.75h.75m-1.5-1.5h.375c.621 0 1.125.504 1.125 1.125v9.75c0 .621-.504 1.125-1.125 1.125h-.375m1.5-1.5H21a.75.75 0 0 0-.75.75v.75m0 0H3.75m0 0h-.375a1.125 1.125 0 0 1-1.125-1.125V15m1.5 1.5v-.75A.75.75 0 0 0 3 15h-.75M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Zm3 0h.008v.008H18V10.5Zm-12 0h.008v.008H6V10.5Z" />
-            </svg>
+        <!-- ====================================================== -->
+        <!-- MOCKUP 2 — BUDGET (INTERACTIVE TABS)                    -->
+        <!-- ====================================================== -->
+        <div class="mockup showcase-mockup is-active" data-showcase-panel="budget">
+          <div class="mockup-chrome">
+            <div class="mockup-dots">
+              <span class="dot dot-red"></span>
+              <span class="dot dot-amber"></span>
+              <span class="dot dot-green"></span>
+            </div>
+            <div class="mockup-title">Capy Budget — Household</div>
+            <div class="w-[60px]"></div>
           </div>
-          <h3 class="mt-4 font-semibold text-heading">Every Account Type</h3>
-          <p class="mt-2 text-sm leading-relaxed text-subtle">
-            Cash, checking, savings, credit cards, investments, loans, crypto
-            — track everything in one place with derived balances.
-          </p>
+
+          <div class="mockup-body mockup-body-budget">
+            <section class="mockup-main mockup-main-budget">
+              <!-- Tab bar -->
+              <div class="budget-tabs" role="tablist">
+                <button class="budget-tab" type="button" role="tab" data-budget-tab="monthly" aria-selected="false">Monthly Budget</button>
+                <button class="budget-tab" type="button" role="tab" data-budget-tab="spending" aria-selected="false">Spending</button>
+                <button class="budget-tab" type="button" role="tab" data-budget-tab="cashflow" aria-selected="false">Cash Flow</button>
+                <button class="budget-tab is-active" type="button" role="tab" data-budget-tab="networth" aria-selected="true">Net Worth</button>
+              </div>
+
+              <!-- ============================== -->
+              <!-- SPENDING PANEL                  -->
+              <!-- ============================== -->
+              <div class="budget-panel" data-budget-panel="spending">
+                <div class="period-row">
+                  <div class="period-nav">
+                    <span class="period-arrow">‹</span>
+                    <span class="period-label">February 2026</span>
+                    <span class="period-arrow">›</span>
+                  </div>
+                  <div class="period-pills">
+                    <span class="period-pill is-active">Month</span>
+                    <span class="period-pill">Quarter</span>
+                    <span class="period-pill">Year</span>
+                    <span class="period-pill">All Time</span>
+                    <span class="period-pill">Custom</span>
+                  </div>
+                </div>
+
+                <div class="stat-row">
+                  <div class="stat-card">
+                    <p class="stat-label">INCOME</p>
+                    <p class="stat-value pos">$5,890.45</p>
+                  </div>
+                  <div class="stat-card">
+                    <p class="stat-label">EXPENSES</p>
+                    <p class="stat-value neg">$5,243.12</p>
+                  </div>
+                  <div class="stat-card">
+                    <p class="stat-label">NET</p>
+                    <p class="stat-value pos">+$647.33</p>
+                  </div>
+                </div>
+
+                <div class="toggle-row">
+                  <div class="toggle-group">
+                    <span class="toggle-pill is-active">Expenses</span>
+                    <span class="toggle-pill">Income</span>
+                  </div>
+                </div>
+
+                <div class="donut-row">
+                  <div class="donut-wrap">
+                    <svg viewBox="0 0 200 200" class="donut-svg" aria-hidden="true">
+                      <!-- 12 segments, total circumference ~503.2, percentages from spec -->
+                      <g transform="rotate(-90 100 100)">
+                        <circle cx="100" cy="100" r="80" fill="none" stroke="oklch(0.7 0.16 40)" stroke-width="32" stroke-dasharray="211.4 502.7" stroke-dashoffset="0" />
+                        <circle cx="100" cy="100" r="80" fill="none" stroke="oklch(0.74 0.16 145)" stroke-width="32" stroke-dasharray="59.3 502.7" stroke-dashoffset="-211.4" />
+                        <circle cx="100" cy="100" r="80" fill="none" stroke="oklch(0.62 0.17 250)" stroke-width="32" stroke-dasharray="46.2 502.7" stroke-dashoffset="-270.7" />
+                        <circle cx="100" cy="100" r="80" fill="none" stroke="oklch(0.6 0.2 25)" stroke-width="32" stroke-dasharray="40.2 502.7" stroke-dashoffset="-316.9" />
+                        <circle cx="100" cy="100" r="80" fill="none" stroke="oklch(0.65 0.18 300)" stroke-width="32" stroke-dasharray="32.7 502.7" stroke-dashoffset="-357.1" />
+                        <circle cx="100" cy="100" r="80" fill="none" stroke="oklch(0.7 0.14 100)" stroke-width="32" stroke-dasharray="27.6 502.7" stroke-dashoffset="-389.8" />
+                        <circle cx="100" cy="100" r="80" fill="none" stroke="oklch(0.6 0.1 200)" stroke-width="32" stroke-dasharray="26.6 502.7" stroke-dashoffset="-417.4" />
+                        <circle cx="100" cy="100" r="80" fill="none" stroke="oklch(0.7 0.13 340)" stroke-width="32" stroke-dasharray="17.6 502.7" stroke-dashoffset="-444.0" />
+                        <circle cx="100" cy="100" r="80" fill="none" stroke="oklch(0.6 0.12 60)" stroke-width="32" stroke-dasharray="17.1 502.7" stroke-dashoffset="-461.6" />
+                        <circle cx="100" cy="100" r="80" fill="none" stroke="oklch(0.65 0.1 170)" stroke-width="32" stroke-dasharray="14.6 502.7" stroke-dashoffset="-478.7" />
+                        <circle cx="100" cy="100" r="80" fill="none" stroke="oklch(0.55 0.08 280)" stroke-width="32" stroke-dasharray="9.1 502.7" stroke-dashoffset="-493.3" />
+                        <circle cx="100" cy="100" r="80" fill="none" stroke="oklch(0.45 0.02 50)" stroke-width="32" stroke-dasharray="0.5 502.7" stroke-dashoffset="-502.4" />
+                      </g>
+                      <text x="100" y="95" text-anchor="middle" class="donut-text-total">$5,243</text>
+                      <text x="100" y="115" text-anchor="middle" class="donut-text-label">total spent</text>
+                    </svg>
+                  </div>
+                  <div class="legend">
+                    <div class="legend-row">
+                      <span class="legend-dot" style="background: oklch(0.7 0.16 40)"></span>
+                      <span class="legend-name">Housing</span>
+                      <span class="legend-amount">$2,200.00</span>
+                      <span class="legend-pct">42.0%</span>
+                    </div>
+                    <div class="legend-row">
+                      <span class="legend-dot" style="background: oklch(0.74 0.16 145)"></span>
+                      <span class="legend-name">Groceries</span>
+                      <span class="legend-amount">$620.45</span>
+                      <span class="legend-pct">11.8%</span>
+                    </div>
+                    <div class="legend-row">
+                      <span class="legend-dot" style="background: oklch(0.62 0.17 250)"></span>
+                      <span class="legend-name">Transportation</span>
+                      <span class="legend-amount">$480.20</span>
+                      <span class="legend-pct">9.2%</span>
+                    </div>
+                    <div class="legend-row">
+                      <span class="legend-dot" style="background: oklch(0.6 0.2 25)"></span>
+                      <span class="legend-name">Travel</span>
+                      <span class="legend-amount">$418.00</span>
+                      <span class="legend-pct">8.0%</span>
+                    </div>
+                    <div class="legend-row">
+                      <span class="legend-dot" style="background: oklch(0.65 0.18 300)"></span>
+                      <span class="legend-name">Dining Out</span>
+                      <span class="legend-amount">$340.55</span>
+                      <span class="legend-pct">6.5%</span>
+                    </div>
+                    <div class="legend-row">
+                      <span class="legend-dot" style="background: oklch(0.7 0.14 100)"></span>
+                      <span class="legend-name">Fun &amp; Hobbies</span>
+                      <span class="legend-amount">$290.18</span>
+                      <span class="legend-pct">5.5%</span>
+                    </div>
+                    <div class="legend-row">
+                      <span class="legend-dot" style="background: oklch(0.6 0.1 200)"></span>
+                      <span class="legend-name">Bills &amp; Utilities</span>
+                      <span class="legend-amount">$280.00</span>
+                      <span class="legend-pct">5.3%</span>
+                    </div>
+                    <div class="legend-row">
+                      <span class="legend-dot" style="background: oklch(0.7 0.13 340)"></span>
+                      <span class="legend-name">Subscriptions</span>
+                      <span class="legend-amount">$185.50</span>
+                      <span class="legend-pct">3.5%</span>
+                    </div>
+                    <div class="legend-row">
+                      <span class="legend-dot" style="background: oklch(0.6 0.12 60)"></span>
+                      <span class="legend-name">Clothing</span>
+                      <span class="legend-amount">$180.40</span>
+                      <span class="legend-pct">3.4%</span>
+                    </div>
+                    <div class="legend-row">
+                      <span class="legend-dot" style="background: oklch(0.65 0.1 170)"></span>
+                      <span class="legend-name">Allowances</span>
+                      <span class="legend-amount">$150.00</span>
+                      <span class="legend-pct">2.9%</span>
+                    </div>
+                    <div class="legend-row">
+                      <span class="legend-dot" style="background: oklch(0.55 0.08 280)"></span>
+                      <span class="legend-name">Health &amp; Beauty</span>
+                      <span class="legend-amount">$95.30</span>
+                      <span class="legend-pct">1.8%</span>
+                    </div>
+                    <div class="legend-row">
+                      <span class="legend-dot" style="background: oklch(0.45 0.02 50)"></span>
+                      <span class="legend-name">Uncategorized</span>
+                      <span class="legend-amount">$2.54</span>
+                      <span class="legend-pct">0.1%</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- ============================== -->
+              <!-- MONTHLY BUDGET PANEL            -->
+              <!-- ============================== -->
+              <div class="budget-panel" data-budget-panel="monthly">
+                <div class="period-row">
+                  <div class="period-nav">
+                    <span class="period-arrow">‹</span>
+                    <span class="period-label">February 2026</span>
+                    <span class="period-arrow">›</span>
+                  </div>
+                  <div class="period-pills">
+                    <span class="period-pill is-active">Month</span>
+                  </div>
+                </div>
+
+                <div class="stat-row stat-row-4">
+                  <div class="stat-card">
+                    <p class="stat-label">ASSIGNED</p>
+                    <p class="stat-value">$5,500.00</p>
+                  </div>
+                  <div class="stat-card">
+                    <p class="stat-label">SPENT (TRACKED)</p>
+                    <p class="stat-value neg">$5,243.12</p>
+                  </div>
+                  <div class="stat-card">
+                    <p class="stat-label">REMAINING</p>
+                    <p class="stat-value pos">$256.88</p>
+                  </div>
+                  <div class="stat-card">
+                    <p class="stat-label">OTHER SPENDING</p>
+                    <p class="stat-value">$120.45</p>
+                  </div>
+                </div>
+
+                <div class="checkbox-row">
+                  <span class="cb-wrap">
+                    <span class="cb">✓</span>
+                    <span>Display only tracked categories</span>
+                  </span>
+                  <span class="cb-meta">3 of 17 tracked</span>
+                </div>
+
+                <div class="budget-cat-group">
+                  <div class="budget-cat-header">
+                    <span class="bcg-name">FIXED</span>
+                    <span class="bcg-meta">1/3 tracked</span>
+                  </div>
+                  <div class="budget-cat-row">
+                    <span class="bcr-name">• Housing</span>
+                    <span class="bcr-assigned">$2,200.00</span>
+                    <span class="bcr-spent">$2,200.00</span>
+                    <div class="bcr-bar"><div class="bcr-fill terra" style="width: 100%"></div></div>
+                    <span class="bcr-remaining">$0.00</span>
+                  </div>
+                </div>
+
+                <div class="budget-cat-group">
+                  <div class="budget-cat-header">
+                    <span class="bcg-name">DAILY LIVING</span>
+                    <span class="bcg-meta">2/3 tracked</span>
+                  </div>
+                  <div class="budget-cat-row">
+                    <span class="bcr-name">• Groceries</span>
+                    <span class="bcr-assigned">$700.00</span>
+                    <span class="bcr-spent">$620.45</span>
+                    <div class="bcr-bar"><div class="bcr-fill green" style="width: 89%"></div></div>
+                    <span class="bcr-remaining pos">$79.55</span>
+                  </div>
+                  <div class="budget-cat-row">
+                    <span class="bcr-name">• Transportation</span>
+                    <span class="bcr-assigned">$400.00</span>
+                    <span class="bcr-spent">$480.20</span>
+                    <div class="bcr-bar"><div class="bcr-fill red" style="width: 100%"></div></div>
+                    <span class="bcr-remaining neg">-$80.20</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- ============================== -->
+              <!-- CASH FLOW PANEL                 -->
+              <!-- ============================== -->
+              <div class="budget-panel" data-budget-panel="cashflow">
+                <div class="period-row">
+                  <div class="period-nav">
+                    <span class="period-arrow">‹</span>
+                    <span class="period-label">2026</span>
+                    <span class="period-arrow">›</span>
+                  </div>
+                  <div class="period-pills">
+                    <span class="period-pill is-active">Year</span>
+                    <span class="period-pill">All Time</span>
+                    <span class="period-pill">Custom</span>
+                  </div>
+                </div>
+
+                <div class="stat-row">
+                  <div class="stat-card">
+                    <p class="stat-label">INCOME</p>
+                    <p class="stat-value pos">$14,580.18</p>
+                  </div>
+                  <div class="stat-card">
+                    <p class="stat-label">EXPENSES</p>
+                    <p class="stat-value neg">$11,243.12</p>
+                  </div>
+                  <div class="stat-card">
+                    <p class="stat-label">NET</p>
+                    <p class="stat-value pos">+$3,337.06</p>
+                  </div>
+                </div>
+
+                <div class="bars-chart-wrap">
+                  <svg viewBox="0 0 600 260" class="bars-chart" aria-hidden="true">
+                    <!-- Grid -->
+                    <line x1="40" y1="220" x2="580" y2="220" stroke="rgba(255,255,255,0.08)" stroke-width="1" />
+                    <line x1="40" y1="170" x2="580" y2="170" stroke="rgba(255,255,255,0.04)" stroke-width="1" stroke-dasharray="2 4" />
+                    <line x1="40" y1="120" x2="580" y2="120" stroke="rgba(255,255,255,0.04)" stroke-width="1" stroke-dasharray="2 4" />
+                    <line x1="40" y1="70" x2="580" y2="70" stroke="rgba(255,255,255,0.04)" stroke-width="1" stroke-dasharray="2 4" />
+                    <!-- Y axis labels -->
+                    <text x="32" y="223" class="bars-axis-label" text-anchor="end">$0</text>
+                    <text x="32" y="173" class="bars-axis-label" text-anchor="end">$2K</text>
+                    <text x="32" y="123" class="bars-axis-label" text-anchor="end">$4K</text>
+                    <text x="32" y="73" class="bars-axis-label" text-anchor="end">$6K</text>
+
+                    <!-- Bars: each month gets two bars (income green, expense red) -->
+                    <!-- Jan: income 5800 (h=145), expenses 3200 (h=80) -->
+                    <rect x="55" y="75" width="16" height="145" fill="oklch(0.74 0.16 145)" rx="2"></rect>
+                    <rect x="73" y="140" width="16" height="80" fill="oklch(0.7 0.15 30)" rx="2"></rect>
+                    <text x="74" y="240" class="bars-axis-label" text-anchor="middle">Jan</text>
+
+                    <!-- Feb: income 5890 (h=147), expenses 5243 (h=131) -->
+                    <rect x="110" y="73" width="16" height="147" fill="oklch(0.74 0.16 145)" rx="2"></rect>
+                    <rect x="128" y="89" width="16" height="131" fill="oklch(0.7 0.15 30)" rx="2"></rect>
+                    <text x="129" y="240" class="bars-axis-label" text-anchor="middle">Feb</text>
+
+                    <!-- Mar: income 2890 (h=72), expenses 2800 (h=70) -->
+                    <rect x="165" y="148" width="16" height="72" fill="oklch(0.74 0.16 145)" rx="2"></rect>
+                    <rect x="183" y="150" width="16" height="70" fill="oklch(0.7 0.15 30)" rx="2"></rect>
+                    <text x="184" y="240" class="bars-axis-label" text-anchor="middle">Mar</text>
+
+                    <!-- Apr: smaller -->
+                    <rect x="220" y="180" width="16" height="40" fill="oklch(0.74 0.16 145)" rx="2"></rect>
+                    <rect x="238" y="190" width="16" height="30" fill="oklch(0.7 0.15 30)" rx="2"></rect>
+                    <text x="239" y="240" class="bars-axis-label" text-anchor="middle">Apr</text>
+
+                    <!-- May: smaller -->
+                    <rect x="275" y="186" width="16" height="34" fill="oklch(0.74 0.16 145)" rx="2"></rect>
+                    <rect x="293" y="195" width="16" height="25" fill="oklch(0.7 0.15 30)" rx="2"></rect>
+                    <text x="294" y="240" class="bars-axis-label" text-anchor="middle">May</text>
+
+                    <!-- Faded future months -->
+                    <rect x="330" y="215" width="16" height="5" fill="rgba(255,255,255,0.08)" rx="2"></rect>
+                    <rect x="348" y="215" width="16" height="5" fill="rgba(255,255,255,0.08)" rx="2"></rect>
+                    <text x="349" y="240" class="bars-axis-label muted" text-anchor="middle">Jun</text>
+
+                    <rect x="385" y="215" width="16" height="5" fill="rgba(255,255,255,0.08)" rx="2"></rect>
+                    <rect x="403" y="215" width="16" height="5" fill="rgba(255,255,255,0.08)" rx="2"></rect>
+                    <text x="404" y="240" class="bars-axis-label muted" text-anchor="middle">Jul</text>
+
+                    <rect x="440" y="215" width="16" height="5" fill="rgba(255,255,255,0.08)" rx="2"></rect>
+                    <rect x="458" y="215" width="16" height="5" fill="rgba(255,255,255,0.08)" rx="2"></rect>
+                    <text x="459" y="240" class="bars-axis-label muted" text-anchor="middle">Aug</text>
+
+                    <rect x="495" y="215" width="16" height="5" fill="rgba(255,255,255,0.08)" rx="2"></rect>
+                    <rect x="513" y="215" width="16" height="5" fill="rgba(255,255,255,0.08)" rx="2"></rect>
+                    <text x="514" y="240" class="bars-axis-label muted" text-anchor="middle">Sep</text>
+
+                    <rect x="550" y="215" width="16" height="5" fill="rgba(255,255,255,0.08)" rx="2"></rect>
+                    <text x="558" y="240" class="bars-axis-label muted" text-anchor="middle">Oct</text>
+                  </svg>
+                </div>
+
+                <div class="chart-legend">
+                  <span class="legend-tag"><span class="legend-dot" style="background: oklch(0.7 0.15 30)"></span>Expenses</span>
+                  <span class="legend-tag"><span class="legend-dot" style="background: oklch(0.74 0.16 145)"></span>Income</span>
+                </div>
+              </div>
+
+              <!-- ============================== -->
+              <!-- NET WORTH PANEL                 -->
+              <!-- ============================== -->
+              <div class="budget-panel is-active" data-budget-panel="networth">
+                <div class="period-row">
+                  <div class="period-nav">
+                    <span class="period-arrow">‹</span>
+                    <span class="period-label">2025</span>
+                    <span class="period-arrow">›</span>
+                  </div>
+                  <div class="period-pills">
+                    <span class="period-pill is-active">Year</span>
+                    <span class="period-pill">All Time</span>
+                    <span class="period-pill">Custom</span>
+                  </div>
+                </div>
+
+                <div class="stat-row">
+                  <div class="stat-card">
+                    <p class="stat-label">INCOME</p>
+                    <p class="stat-value">$98,540.20</p>
+                  </div>
+                  <div class="stat-card">
+                    <p class="stat-label">EXPENSES</p>
+                    <p class="stat-value">$74,820.45</p>
+                  </div>
+                  <div class="stat-card">
+                    <p class="stat-label">NET</p>
+                    <p class="stat-value pos">+$23,719.75</p>
+                  </div>
+                </div>
+
+                <div class="toggle-row">
+                  <div class="toggle-group">
+                    <span class="toggle-pill is-active">Bar</span>
+                    <span class="toggle-pill">Area</span>
+                  </div>
+                </div>
+
+                <div class="bars-chart-wrap">
+                  <svg viewBox="0 0 600 260" class="bars-chart" aria-hidden="true">
+                    <!-- Grid lines (every $15K, peak ~$54K so axis to $60K) -->
+                    <line x1="40" y1="220" x2="580" y2="220" stroke="rgba(255,255,255,0.08)" stroke-width="1" />
+                    <line x1="40" y1="170" x2="580" y2="170" stroke="rgba(255,255,255,0.04)" stroke-width="1" stroke-dasharray="2 4" />
+                    <line x1="40" y1="120" x2="580" y2="120" stroke="rgba(255,255,255,0.04)" stroke-width="1" stroke-dasharray="2 4" />
+                    <line x1="40" y1="70" x2="580" y2="70" stroke="rgba(255,255,255,0.04)" stroke-width="1" stroke-dasharray="2 4" />
+                    <text x="32" y="223" class="bars-axis-label" text-anchor="end">$0</text>
+                    <text x="32" y="173" class="bars-axis-label" text-anchor="end">$20K</text>
+                    <text x="32" y="123" class="bars-axis-label" text-anchor="end">$40K</text>
+                    <text x="32" y="73" class="bars-axis-label" text-anchor="end">$60K</text>
+
+                    <!-- 12 monthly bars Jan→Dec 2025, growing 30K → 54K -->
+                    <!-- y scale: $60K → 50px, $0 → 220px. Each $1K = ~2.83px -->
+                    <!-- Jan: 30000 → y=135, h=85 -->
+                    <rect x="55" y="135" width="30" height="85" fill="oklch(0.7 0.16 40)" rx="3"></rect>
+                    <text x="70" y="240" class="bars-axis-label" text-anchor="middle">Jan</text>
+                    <!-- Feb: 32500 → y=128, h=92 -->
+                    <rect x="100" y="128" width="30" height="92" fill="oklch(0.7 0.16 40)" rx="3"></rect>
+                    <text x="115" y="240" class="bars-axis-label" text-anchor="middle">Feb</text>
+                    <!-- Mar: 35200 -->
+                    <rect x="145" y="120" width="30" height="100" fill="oklch(0.7 0.16 40)" rx="3"></rect>
+                    <text x="160" y="240" class="bars-axis-label" text-anchor="middle">Mar</text>
+                    <!-- Apr: 37800 -->
+                    <rect x="190" y="113" width="30" height="107" fill="oklch(0.7 0.16 40)" rx="3"></rect>
+                    <text x="205" y="240" class="bars-axis-label" text-anchor="middle">Apr</text>
+                    <!-- May: 40500 -->
+                    <rect x="235" y="106" width="30" height="114" fill="oklch(0.7 0.16 40)" rx="3"></rect>
+                    <text x="250" y="240" class="bars-axis-label" text-anchor="middle">May</text>
+                    <!-- Jun: 43200 -->
+                    <rect x="280" y="98" width="30" height="122" fill="oklch(0.7 0.16 40)" rx="3"></rect>
+                    <text x="295" y="240" class="bars-axis-label" text-anchor="middle">Jun</text>
+                    <!-- Jul: 45800 -->
+                    <rect x="325" y="91" width="30" height="129" fill="oklch(0.7 0.16 40)" rx="3"></rect>
+                    <text x="340" y="240" class="bars-axis-label" text-anchor="middle">Jul</text>
+                    <!-- Aug: 48201 — highlighted -->
+                    <rect x="370" y="84" width="30" height="136" fill="oklch(0.75 0.18 40)" rx="3" stroke="#fef3c7" stroke-width="1"></rect>
+                    <text x="385" y="240" class="bars-axis-label" text-anchor="middle">Aug</text>
+                    <!-- Sep: 49800 -->
+                    <rect x="415" y="79" width="30" height="141" fill="oklch(0.7 0.16 40)" rx="3"></rect>
+                    <text x="430" y="240" class="bars-axis-label" text-anchor="middle">Sep</text>
+                    <!-- Oct: 51500 -->
+                    <rect x="460" y="74" width="30" height="146" fill="oklch(0.7 0.16 40)" rx="3"></rect>
+                    <text x="475" y="240" class="bars-axis-label" text-anchor="middle">Oct</text>
+                    <!-- Nov: 53000 -->
+                    <rect x="505" y="70" width="30" height="150" fill="oklch(0.7 0.16 40)" rx="3"></rect>
+                    <text x="520" y="240" class="bars-axis-label" text-anchor="middle">Nov</text>
+                    <!-- Dec: 54465 -->
+                    <rect x="550" y="65" width="30" height="155" fill="oklch(0.7 0.16 40)" rx="3"></rect>
+                    <text x="565" y="240" class="bars-axis-label" text-anchor="middle">Dec</text>
+
+                    <!-- Tooltip on Aug -->
+                    <g class="bar-tooltip">
+                      <rect x="345" y="40" width="98" height="38" rx="5" fill="rgba(12,10,9,0.95)" stroke="rgba(255,255,255,0.12)" stroke-width="1" />
+                      <text x="394" y="55" text-anchor="middle" class="tt-title">Aug 2025</text>
+                      <text x="394" y="71" text-anchor="middle" class="tt-value">$48,201.55</text>
+                      <path d="M385 78 L394 88 L403 78 Z" fill="rgba(12,10,9,0.95)" stroke="rgba(255,255,255,0.12)" stroke-width="1" />
+                    </g>
+                  </svg>
+                </div>
+              </div>
+            </section>
+          </div>
         </div>
 
-        <div class="feature-card">
-          <div class="feature-icon feature-icon-sage">
-            <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-              <path stroke-linecap="round" stroke-linejoin="round" d="m6.75 7.5 3 2.25-3 2.25m4.5 0h3m-9 8.25h13.5A2.25 2.25 0 0 0 21 18V6a2.25 2.25 0 0 0-2.25-2.25H5.25A2.25 2.25 0 0 0 3 6v12a2.25 2.25 0 0 0 2.25 2.25Z" />
-            </svg>
+        <!-- ====================================================== -->
+        <!-- MOCKUP 3 — IMPORT                                       -->
+        <!-- ====================================================== -->
+        <div class="mockup showcase-mockup" data-showcase-panel="import">
+          <div class="mockup-chrome">
+            <div class="mockup-dots">
+              <span class="dot dot-red"></span>
+              <span class="dot dot-amber"></span>
+              <span class="dot dot-green"></span>
+            </div>
+            <div class="mockup-title">Capy Budget — Household</div>
+            <div class="w-[60px]"></div>
           </div>
-          <h3 class="mt-4 font-semibold text-heading">Keyboard-First</h3>
-          <p class="mt-2 text-sm leading-relaxed text-subtle">
-            Built for speed. Type transactions, navigate with shortcuts,
-            and manage your budget without reaching for the mouse.
+
+          <div class="mockup-body mockup-body-import">
+            <section class="mockup-main mockup-main-import">
+              <header class="import-head">
+                <span class="import-head-icon">📥</span>
+                <div>
+                  <h4 class="pane-title">Import</h4>
+                  <p class="pane-sub">Drop files to import transactions</p>
+                </div>
+              </header>
+
+              <div class="drop-zone">
+                <svg class="drop-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M9 13.5 12 16.5m0 0 3-3m-3 3v-9m6.75 4.5h.75A2.25 2.25 0 0 1 21 14.25v3A2.25 2.25 0 0 1 18.75 19.5H5.25A2.25 2.25 0 0 1 3 17.25v-3a2.25 2.25 0 0 1 2.25-2.25H6" />
+                </svg>
+                <p class="drop-title">Drop files or click to browse</p>
+                <p class="drop-sub">CSV and images of bank statements</p>
+              </div>
+
+              <p class="files-label">3 FILES READY</p>
+              <div class="file-list">
+                <div class="file-row">
+                  <span class="file-icon">🖼</span>
+                  <span class="file-name">receipts-may.jpeg</span>
+                  <span class="file-size">1.9 MB</span>
+                  <span class="file-x">✕</span>
+                </div>
+                <div class="file-row">
+                  <span class="file-icon">📄</span>
+                  <span class="file-name">chase-statement.csv</span>
+                  <span class="file-size">2.4 MB</span>
+                  <span class="file-x">✕</span>
+                </div>
+                <div class="file-row">
+                  <span class="file-icon">📄</span>
+                  <span class="file-name">venmo-history.csv</span>
+                  <span class="file-size">837 KB</span>
+                  <span class="file-x">✕</span>
+                </div>
+              </div>
+
+              <div class="prompt-box">
+                Set up my May spending — chase statement plus a couple receipts from my phone
+              </div>
+
+              <div class="import-actions">
+                <div class="filter-pill">Any account <span class="caret">▾</span></div>
+                <div class="import-cta">
+                  <span>✨</span>
+                  <span>Start Import</span>
+                </div>
+              </div>
+            </section>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================ -->
+  <!-- FEATURES                                                      -->
+  <!-- ============================================================ -->
+  <section id="features" class="border-b border-line">
+    <div class="mx-auto max-w-5xl px-6 py-24">
+      <p class="eyebrow">FEATURES</p>
+      <h2 class="mt-3 text-center font-serif font-bold text-heading text-4xl sm:text-5xl text-balance">
+        Everything Capy does.
+      </h2>
+
+      <div class="mt-14 grid gap-12 sm:grid-cols-3 sm:gap-10">
+        <div>
+          <p class="feature-group-label">Data</p>
+          <ul class="feature-list">
+            <li>Cash, credit cards, investments, loans</li>
+            <li>Net worth tracking</li>
+            <li>Monthly budgeting</li>
+            <li>Spending summaries and trends</li>
+            <li>CSV import — banks, Mint, YNAB</li>
+            <li>Manual transactions entry</li>
+            <li>Plain CSV files on disk</li>
+          </ul>
+        </div>
+        <div>
+          <p class="feature-group-label">Intelligence</p>
+          <ul class="feature-list">
+            <li>Auto-categorization on import</li>
+            <li>Image recognition for receipts</li>
+            <li>Natural language queries</li>
+            <li>AI model can perform all actions</li>
+            <li>Works with OpenAI, Claude API, or Claude Code with your subscription</li>
+            <li>MCP server — allow other agents to work with your budget</li>
+          </ul>
+        </div>
+        <div>
+          <p class="feature-group-label">Privacy &amp; ownership</p>
+          <ul class="feature-list">
+            <li>Your data never leaves your machine</li>
+            <li>No account, no sign-up, no telemetry</li>
+            <li>Sync via iCloud, Google Drive, or git</li>
+            <li>Bring your own API key for AI features</li>
+            <li>Open Source — fork or contribute</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="mt-14 flex justify-center">
+        <a href={demoUrl} class="btn-secondary" target="_blank" rel="noopener noreferrer">
+          <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M14.25 9.75 16.5 12l-2.25 2.25m-4.5 0L7.5 12l2.25-2.25M6 20.25h12A2.25 2.25 0 0 0 20.25 18V6A2.25 2.25 0 0 0 18 3.75H6A2.25 2.25 0 0 0 3.75 6v12A2.25 2.25 0 0 0 6 20.25Z" />
+        </svg>
+          <span>Try the live demo</span>
+          <span class="arrow" aria-hidden="true">→</span>
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================ -->
+  <!-- HOW IT WORKS                                                  -->
+  <!-- ============================================================ -->
+  <section id="how-it-works" class="border-b border-line">
+    <div class="mx-auto max-w-5xl px-6 py-24">
+      <p class="eyebrow">HOW TO START</p>
+      <h2 class="mt-3 text-center font-serif font-bold text-heading text-4xl sm:text-5xl text-balance">
+        Three steps.
+      </h2>
+
+      <div class="mt-14 border-t border-line pt-10 grid gap-10 sm:grid-cols-3">
+        <div class="step">
+          <div class="step-header">
+            <span class="step-num">01</span>
+            <h3 class="step-title">Create or open a folder</h3>
+          </div>
+          <p class="step-body">
+            Pick a folder on your computer. That's your budget. Capy creates a few CSVs.
           </p>
         </div>
-
-        <div class="feature-card">
-          <div class="feature-icon feature-icon-gold">
-            <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M17.25 6.75 22.5 12l-5.25 5.25m-10.5 0L1.5 12l5.25-5.25m7.5-3-4.5 16.5" />
-            </svg>
+        <div class="step">
+          <div class="step-header">
+            <span class="step-num">02</span>
+            <h3 class="step-title">Import transactions</h3>
           </div>
-          <h3 class="mt-4 font-semibold text-heading">Open Source</h3>
-          <p class="mt-2 text-sm leading-relaxed text-subtle">
-            MIT licensed. Read every line, fork it, extend it.
-            Built with Tauri, React, and TypeScript.
+          <p class="step-body">
+            Drag in CSVs from your bank, paste from Plaid, or type them. Capy categorizes.
+          </p>
+        </div>
+        <div class="step">
+          <div class="step-header">
+            <span class="step-num">03</span>
+            <h3 class="step-title">Ask Capy anything</h3>
+          </div>
+          <p class="step-body">
+            "How do I import from Chase?" "Find duplicates." "Set a grocery budget."
           </p>
         </div>
       </div>
     </div>
   </section>
 
-  <!-- CTA -->
-  <section class="mx-auto max-w-5xl px-6 py-20 text-center">
-    <div class="cta-card rounded-2xl px-8 py-14">
-      <div class="flex flex-col items-center gap-4 sm:flex-row sm:justify-center">
-        <img src="/capy-fine.png" alt="" class="h-24 w-24 mascot" />
-        <div class="text-left">
-          <h2 class="text-2xl font-bold text-heading">Ready to take control?</h2>
-          <p class="mt-1 text-muted">Download the app or try the web demo first.</p>
-        </div>
-      </div>
-      <div class="mt-8 flex flex-wrap items-center justify-center gap-4">
-        <a href={downloads[0].href} class="btn-primary">
-          Download for {downloads[0].os}
+  <!-- ============================================================ -->
+  <!-- GET IT                                                        -->
+  <!-- ============================================================ -->
+  <section id="download">
+    <div class="mx-auto max-w-5xl px-6 py-24 text-center">
+      <p class="eyebrow">GET IT</p>
+      <h2 class="mt-3 font-serif font-bold text-heading text-4xl sm:text-5xl text-balance leading-[1.1]">
+        Free and open source.<br />Pick your platform.
+      </h2>
+
+      <div class="mt-12 grid gap-4 sm:grid-cols-3" id="platform-cards">
+        <a href={macUrl} class="platform-card" data-platform="mac" target="_blank" rel="noopener noreferrer">
+          <span class="platform-detected" data-detected-badge>DETECTED</span>
+          <svg class="platform-icon" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+            <path d="M11.6 8.4c0-1.5 1.2-2.2 1.3-2.2-.7-1-1.8-1.2-2.2-1.2-.9-.1-1.8.6-2.3.6-.5 0-1.2-.5-2-.5-1 0-2 .6-2.5 1.5-1.1 1.9-.3 4.7.8 6.2.5.8 1.1 1.6 1.9 1.6.8 0 1.1-.5 2-.5.9 0 1.2.5 2 .5.8 0 1.4-.8 1.9-1.5.6-.9.9-1.8.9-1.9-.1 0-1.7-.7-1.8-2.6zM10.1 4c.4-.5.7-1.2.6-1.9-.6.1-1.3.4-1.7.9-.4.4-.8 1.1-.7 1.8.7.1 1.4-.3 1.8-.8z" />
+          </svg>
+          <p class="platform-name">macOS</p>
+          <p class="platform-cta">Download .dmg <span class="arrow">→</span></p>
         </a>
-        <a
-          href="https://demo.capybudget.app"
-          class="btn-secondary"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Try the Demo
+
+        <a href={windowsUrl} class="platform-card" data-platform="windows" target="_blank" rel="noopener noreferrer">
+          <span class="platform-detected" data-detected-badge>DETECTED</span>
+          <svg class="platform-icon" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+            <path d="M0 2.3 6.5 1.4v5.9H0V2.3zm0 5.6h6.5v5.9L0 13V7.9zm7.2-6.6L16 0v7.3H7.2V1.3zm0 6.7H16V16l-8.8-1.3V7.9z" />
+          </svg>
+          <p class="platform-name">Windows</p>
+          <p class="platform-cta">Download .exe <span class="arrow">→</span></p>
+        </a>
+
+        <a href={linuxUrl} class="platform-card" data-platform="linux" target="_blank" rel="noopener noreferrer">
+          <span class="platform-detected" data-detected-badge>DETECTED</span>
+          <svg class="platform-icon" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+            <path d="M7.96 2.06c-1.62 0-2.43 1.46-2.43 3.4 0 .7.13 1.34.4 1.85.27.5.66.92 1.08 1.3.42.36.92.74 1.36 1.04.45.3.84.5.94.5.1 0 .49-.2.94-.5.44-.3.94-.68 1.36-1.04.42-.38.81-.8 1.08-1.3.27-.51.4-1.15.4-1.85 0-1.94-.81-3.4-2.43-3.4-.8 0-1.16.4-1.35.8-.19-.4-.55-.8-1.35-.8zM6.5 5c.28 0 .5.36.5.8s-.22.8-.5.8c-.28 0-.5-.36-.5-.8s.22-.8.5-.8zm3 0c.28 0 .5.36.5.8s-.22.8-.5.8c-.28 0-.5-.36-.5-.8s.22-.8.5-.8zM5.2 10.1c-.32.1-.6.4-.84.74-.5.7-.86 1.74-1.07 2.46-.1.36-.2.78-.06 1.18.13.4.5.66.94.74.42.07.83-.07 1.2-.22.5-.2 1.02-.34 1.55-.34.6 0 1.13.16 1.62.34.5.2 1 .42 1.55.42.55 0 1.05-.22 1.55-.42.48-.18 1.03-.34 1.62-.34.53 0 1.04.14 1.55.34.36.15.77.29 1.2.22.42-.08.8-.34.94-.74.13-.4.04-.82-.06-1.18-.21-.72-.57-1.76-1.07-2.46-.24-.34-.52-.64-.84-.74-.34-.1-.7.04-.96.27-.46.4-.94 1.06-1.6 1.4-.46.24-.96.4-1.5.4-.4 0-.78-.08-1.13-.22a3.7 3.7 0 0 1-.95-.54c-.17-.14-.34-.3-.5-.42-.16-.13-.32-.24-.5-.32-.17-.07-.36-.1-.55-.1s-.38.03-.55.1z" />
+          </svg>
+          <p class="platform-name">Linux</p>
+          <p class="platform-cta">Download .AppImage <span class="arrow">→</span></p>
         </a>
       </div>
-      <p class="mt-5 flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-sm text-muted">
-        {downloads.slice(1).map((d, i) => (
-          <>
-            {i > 0 && <span aria-hidden="true">·</span>}
-            <a href={d.href} class="download-link">{d.os}</a>
-          </>
-        ))}
+
+      <p class="mt-8 text-sm text-muted">
+        <a href={releasesUrl} class="text-link" target="_blank" rel="noopener noreferrer">See all releases</a>
       </p>
     </div>
   </section>
+
+  <script is:inline>
+    // Detect platform; swap the hero CTA, mini links, and Get It badge.
+    (function() {
+      var ua = navigator.userAgent.toLowerCase();
+      var plat = (navigator.platform || '').toLowerCase();
+      var detected = 'mac';
+      if (/win/.test(plat) || /windows/.test(ua)) detected = 'windows';
+      else if (/linux/.test(plat) || /linux/.test(ua)) detected = 'linux';
+      else if (/mac/.test(plat) || /macintosh/.test(ua)) detected = 'mac';
+
+      // Hero CTA: show the detected platform's button, hide the others.
+      document.querySelectorAll('[data-cta]').forEach(function(cta) {
+        if (cta.getAttribute('data-cta') === detected) cta.classList.remove('hidden');
+        else cta.classList.add('hidden');
+      });
+
+      // Hero mini row: hide the detected platform (it's the primary CTA),
+      // show the other two as alternatives.
+      document.querySelectorAll('[data-mini]').forEach(function(mini) {
+        if (mini.getAttribute('data-mini') === detected) mini.classList.add('hidden');
+        else mini.classList.remove('hidden');
+      });
+      // Separator dots: hide if any of the platforms they depend on is hidden.
+      document.querySelectorAll('[data-sep-deps]').forEach(function(sep) {
+        var deps = sep.getAttribute('data-sep-deps').split(',');
+        var anyHidden = deps.some(function(p) { return p === detected; });
+        if (anyHidden) sep.classList.add('hidden');
+        else sep.classList.remove('hidden');
+      });
+
+      // Get It section: highlight the matching platform card.
+      document.querySelectorAll('[data-platform]').forEach(function(card) {
+        if (card.getAttribute('data-platform') === detected) {
+          card.classList.add('is-detected');
+        }
+      });
+    })();
+  </script>
+
+  <script is:inline>
+    // Showcase: trigger cards swap the active mockup in both the desktop
+    // canvas and the mobile canvas. On mobile, horizontal scroll auto-
+    // activates whichever card is centered (via IntersectionObserver).
+    (function() {
+      var triggers = document.querySelectorAll('[data-showcase-trigger]');
+      var panels = document.querySelectorAll('[data-showcase-panel]');
+      var mPanels = document.querySelectorAll('[data-showcase-panel-mobile]');
+      if (!triggers.length || !panels.length) return;
+
+      function activate(key) {
+        triggers.forEach(function(t) {
+          var on = t.getAttribute('data-showcase-trigger') === key;
+          t.classList.toggle('is-active', on);
+          t.setAttribute('aria-selected', on ? 'true' : 'false');
+        });
+        panels.forEach(function(p) {
+          p.classList.toggle('is-active', p.getAttribute('data-showcase-panel') === key);
+        });
+        mPanels.forEach(function(p) {
+          p.classList.toggle('is-active', p.getAttribute('data-showcase-panel-mobile') === key);
+        });
+      }
+
+      triggers.forEach(function(t) {
+        t.addEventListener('click', function() {
+          activate(t.getAttribute('data-showcase-trigger'));
+          // On mobile, also scroll the tapped card into the snap-center
+          // position. Without this, tapping a peeking card edge activates it
+          // but the IntersectionObserver immediately overrides because the
+          // originally-centered card still has the higher intersection ratio.
+          if (mql.matches) {
+            t.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'smooth' });
+          }
+        });
+      });
+
+      // Budget tabs inside Mockup 2 (desktop canvas only — mobile vignette
+      // for Budget has no tabs, just donut + category list).
+      var canvasBudget = document.querySelector('.showcase-canvas [data-showcase-panel="budget"]');
+      if (canvasBudget) {
+        var tabs = canvasBudget.querySelectorAll('[data-budget-tab]');
+        var bpanels = canvasBudget.querySelectorAll('[data-budget-panel]');
+        tabs.forEach(function(tab) {
+          tab.addEventListener('click', function() {
+            var key = tab.getAttribute('data-budget-tab');
+            tabs.forEach(function(t) {
+              var on = t.getAttribute('data-budget-tab') === key;
+              t.classList.toggle('is-active', on);
+              t.setAttribute('aria-selected', on ? 'true' : 'false');
+            });
+            bpanels.forEach(function(p) {
+              p.classList.toggle('is-active', p.getAttribute('data-budget-panel') === key);
+            });
+          });
+        });
+      }
+
+      // Mobile: pre-scroll cards row so Card 2 (Budget) is centered, and
+      // hook up an IntersectionObserver so horizontal scroll auto-selects.
+      var cardsRow = document.querySelector('.showcase-cards');
+      if (!cardsRow) return;
+      var mql = window.matchMedia('(max-width: 767px)');
+      var observer = null;
+      var ratios = new Map();
+
+      function centerActiveCard() {
+        var active = cardsRow.querySelector('.showcase-card.is-active');
+        if (!active) return;
+        cardsRow.scrollLeft = active.offsetLeft - (cardsRow.clientWidth - active.clientWidth) / 2;
+      }
+
+      function pickFromRatios() {
+        var best = null;
+        var bestRatio = 0;
+        ratios.forEach(function(ratio, el) {
+          if (ratio > bestRatio) { bestRatio = ratio; best = el; }
+        });
+        if (best && bestRatio > 0.6) {
+          var key = best.getAttribute('data-showcase-trigger');
+          if (key && !best.classList.contains('is-active')) activate(key);
+        }
+      }
+
+      function enableObserver() {
+        if (observer) return;
+        observer = new IntersectionObserver(function(entries) {
+          entries.forEach(function(entry) {
+            ratios.set(entry.target, entry.intersectionRatio);
+          });
+          pickFromRatios();
+        }, { root: cardsRow, threshold: [0, 0.3, 0.6, 0.9, 1] });
+        triggers.forEach(function(t) { observer.observe(t); });
+      }
+
+      function disableObserver() {
+        if (!observer) return;
+        observer.disconnect();
+        observer = null;
+        ratios.clear();
+      }
+
+      function syncMode() {
+        if (mql.matches) {
+          requestAnimationFrame(centerActiveCard);
+          enableObserver();
+        } else {
+          disableObserver();
+        }
+      }
+
+      syncMode();
+      // matchMedia listener: addEventListener is the modern API; fall back
+      // to addListener for older Safari versions that still ship in the wild.
+      if (mql.addEventListener) mql.addEventListener('change', syncMode);
+      else if (mql.addListener) mql.addListener(syncMode);
+    })();
+  </script>
 </Base>
 
 <style>
-  /* ========== Gradient text ========== */
-  .gradient-text {
-    background: linear-gradient(135deg, var(--color-terra) 0%, var(--color-gold) 50%, var(--color-sage) 100%);
-    -webkit-background-clip: text;
-    background-clip: text;
-    -webkit-text-fill-color: transparent;
+  /* ============================================================ */
+  /* SHARED                                                        */
+  /* ============================================================ */
+  .eyebrow {
+    text-align: center;
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.2em;
+    color: var(--color-terra);
   }
-  :global([data-theme="dark"]) .gradient-text {
-    background: linear-gradient(135deg, #f59e0b, #ea580c, #f59e0b);
-    background-size: 200% 200%;
-    -webkit-background-clip: text;
-    background-clip: text;
-    -webkit-text-fill-color: transparent;
-    animation: gradient-shift 6s ease-in-out infinite;
-  }
-  @keyframes gradient-shift {
-    0%, 100% { background-position: 0% 50%; }
-    50% { background-position: 100% 50%; }
+  :global([data-theme="dark"]) .eyebrow {
+    color: oklch(0.78 0.14 50);
   }
 
-  /* ========== Mascot ========== */
-  .mascot-wrap {
-    position: relative;
-    width: 12rem;
-    height: 12rem;
+  .text-link {
+    color: var(--color-body);
+    text-decoration: underline;
+    text-decoration-color: var(--color-terra);
+    text-underline-offset: 3px;
   }
-  .mascot-glow {
-    display: none;
-    position: absolute;
-    inset: -20%;
-    border-radius: 50%;
-    background: radial-gradient(circle, rgba(245, 158, 11, 0.35), rgba(234, 88, 12, 0.15), transparent 70%);
-    animation: pulse 4s ease-in-out infinite;
-  }
-  :global([data-theme="dark"]) .mascot-glow {
-    display: block;
-  }
-  .mascot {
-    animation: float 6s ease-in-out infinite;
-  }
-  @keyframes float {
-    0%, 100% { transform: translateY(0); }
-    50% { transform: translateY(-10px); }
-  }
-  @keyframes pulse {
-    0%, 100% { transform: scale(1); opacity: 0.7; }
-    50% { transform: scale(1.12); opacity: 1; }
+  .text-link:hover {
+    color: var(--color-heading);
   }
 
-  /* ========== Buttons ========== */
+  /* ============================================================ */
+  /* HERO BUTTONS                                                  */
+  /* ============================================================ */
   .btn-primary {
     display: inline-flex;
     align-items: center;
-    padding: 0.75rem 2rem;
+    gap: 0.55rem;
+    padding: 0.7rem 1.4rem;
     border-radius: 9999px;
     font-size: 0.9rem;
-    font-weight: 600;
-    color: white;
-    background: linear-gradient(135deg, var(--color-terra), var(--color-terra-light));
-    box-shadow: 0 4px 14px oklch(0.5 0.12 38 / 0.3);
-    transition: all 0.25s ease;
+    font-weight: 500;
+    color: #fff;
+    background: oklch(0.28 0.04 50);
+    box-shadow: 0 1px 2px rgba(0,0,0,0.08), 0 4px 14px oklch(0.4 0.08 50 / 0.18);
+    transition: transform 0.18s ease, background 0.18s ease, box-shadow 0.18s ease;
   }
   .btn-primary:hover {
-    transform: scale(1.06);
-    box-shadow: 0 6px 20px oklch(0.5 0.12 38 / 0.4);
+    background: oklch(0.22 0.04 50);
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1), 0 6px 18px oklch(0.4 0.08 50 / 0.25);
   }
   :global([data-theme="dark"]) .btn-primary {
-    background: linear-gradient(135deg, #f59e0b, #ea580c);
-    box-shadow: 0 0 20px rgba(245, 158, 11, 0.3), 0 0 60px rgba(245, 158, 11, 0.1);
+    background: var(--color-terra);
+    box-shadow: 0 0 20px rgba(245, 158, 11, 0.25);
   }
   :global([data-theme="dark"]) .btn-primary:hover {
-    transform: translateY(-1px);
-    box-shadow: 0 0 30px rgba(245, 158, 11, 0.5), 0 0 80px rgba(245, 158, 11, 0.2);
+    background: var(--color-terra-light);
   }
 
   .btn-secondary {
     display: inline-flex;
     align-items: center;
-    padding: 0.75rem 2rem;
+    gap: 0.55rem;
+    padding: 0.7rem 1.4rem;
     border-radius: 9999px;
     font-size: 0.9rem;
-    font-weight: 600;
-    color: var(--sem-heading);
-    background: var(--sem-surface);
-    border: 2px solid var(--sem-line);
-    transition: all 0.25s ease;
+    font-weight: 500;
+    color: var(--color-heading);
+    background: var(--color-surface);
+    border: 1px solid var(--color-line);
+    transition: transform 0.18s ease, background 0.18s ease, border-color 0.18s ease;
   }
   .btn-secondary:hover {
-    transform: scale(1.06);
+    transform: translateY(-1px);
+    background: var(--color-surface-hover);
+    border-color: var(--color-terra);
   }
   :global([data-theme="dark"]) .btn-secondary {
     backdrop-filter: blur(8px);
   }
-  :global([data-theme="dark"]) .btn-secondary:hover {
-    transform: translateY(-1px);
-    background: rgba(255, 255, 255, 0.1);
-    border-color: rgba(245, 158, 11, 0.3);
+
+  /* Astro scopes .btn-primary / .platform-mini to this component, which
+     bumps their specificity above Tailwind's global .hidden. Override
+     here so JS-driven platform swapping actually hides the off-platform
+     buttons and pills. */
+  .btn-primary.hidden,
+  .platform-mini.hidden,
+  .platform-mini-sep.hidden {
+    display: none;
   }
 
-  /* ========== Secondary platform download links ========== */
-  .download-link {
-    color: var(--sem-heading);
-    text-decoration: underline;
-    text-decoration-color: var(--sem-line);
-    text-underline-offset: 3px;
-    transition: text-decoration-color 0.2s ease, color 0.2s ease;
+  .platform-mini {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    color: var(--color-muted);
+    transition: color 0.18s ease;
   }
-  .download-link:hover {
-    color: var(--color-terra);
-    text-decoration-color: var(--color-terra);
-  }
-  :global([data-theme="dark"]) .download-link:hover {
-    color: #f59e0b;
-    text-decoration-color: #f59e0b;
+  .platform-mini:hover {
+    color: var(--color-heading);
   }
 
-  /* ========== Feature cards ========== */
-  .feature-card {
-    background: var(--sem-surface);
+  /* ============================================================ */
+  /* APP MOCKUP                                                    */
+  /* ============================================================ */
+  .mockup-wrap {
+    position: relative;
+    text-align: left;
+  }
+  .mockup-wrap::before {
+    content: "";
+    position: absolute;
+    inset: 5% -2% -10% -2%;
+    background: radial-gradient(60% 60% at 50% 50%, oklch(0.62 0.16 38 / 0.18), transparent 70%);
+    filter: blur(40px);
+    z-index: -1;
+    pointer-events: none;
+  }
+
+  .mockup {
+    overflow: hidden;
     border-radius: 1rem;
-    padding: 1.75rem;
-    border: 1px solid var(--sem-line);
-    box-shadow: 0 2px 12px oklch(0.5 0.03 55 / 0.08);
-    transition: all 0.3s ease;
-  }
-  .feature-card:hover {
-    transform: translateY(-4px);
-    box-shadow: 0 8px 30px oklch(0.5 0.05 55 / 0.12);
-  }
-  :global([data-theme="dark"]) .feature-card {
-    backdrop-filter: blur(12px);
-    box-shadow: none;
-  }
-  :global([data-theme="dark"]) .feature-card:hover {
-    background: rgba(255, 255, 255, 0.06);
-    border-color: rgba(245, 158, 11, 0.2);
-    box-shadow: 0 8px 32px rgba(245, 158, 11, 0.08);
+    background: #0c0a09;
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    box-shadow:
+      0 1px 0 rgba(255, 255, 255, 0.04) inset,
+      0 30px 60px -20px rgba(0, 0, 0, 0.45),
+      0 0 0 1px rgba(0, 0, 0, 0.04);
+    color: #fef3c7;
+    font-size: 12px;
+    line-height: 1.4;
   }
 
-  /* ========== Feature icons ========== */
-  .feature-icon {
+  .mockup-chrome {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.65rem 0.9rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    background: rgba(255, 255, 255, 0.015);
+  }
+  .mockup-dots {
+    display: flex;
+    gap: 6px;
+    width: 60px;
+  }
+  .dot {
+    display: inline-block;
+    width: 11px;
+    height: 11px;
+    border-radius: 50%;
+  }
+  .dot-red { background: #ff5f57; }
+  .dot-amber { background: #febc2e; }
+  .dot-green { background: #28c840; }
+  .mockup-title {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: rgba(254, 243, 199, 0.55);
+    letter-spacing: 0.02em;
+  }
+
+  .mockup-body {
+    display: grid;
+    grid-template-columns: 1fr 2fr;
+    min-height: 380px;
+  }
+  @media (max-width: 767px) {
+    .mockup-body { grid-template-columns: 1fr; }
+    /* Hero mockup is dense — drop the sidebar on mobile so the spending */
+    /* overview pane gets the full width. Showcase mockups override this. */
+    .mockup-wrap > .mockup .mockup-sidebar { display: none; }
+  }
+
+  /* Sidebar */
+  .mockup-sidebar {
+    padding: 0.85rem 0.9rem 1rem;
+    border-right: 1px solid rgba(255, 255, 255, 0.04);
+  }
+  .mockup-path {
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    color: rgba(254, 243, 199, 0.4);
+    margin-bottom: 0.65rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .net-worth-card {
+    padding: 0.65rem 0.75rem;
+    background: oklch(0.62 0.16 38 / 0.1);
+    border: 1px solid oklch(0.62 0.16 38 / 0.18);
+    border-radius: 0.5rem;
+    margin-bottom: 0.85rem;
+  }
+  .net-worth-label {
+    font-family: var(--font-mono);
+    font-size: 9.5px;
+    letter-spacing: 0.1em;
+    color: oklch(0.82 0.14 50);
+  }
+  .net-worth-value {
+    font-family: var(--font-mono);
+    font-size: 18px;
+    font-weight: 600;
+    color: #fef3c7;
+    margin-top: 0.1rem;
+    letter-spacing: -0.01em;
+  }
+  .net-worth-delta {
+    font-size: 10.5px;
+    color: oklch(0.74 0.18 145);
+    margin-top: 0.15rem;
+  }
+
+  .sidebar-group {
+    margin-top: 0.85rem;
+  }
+  .group-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    font-family: var(--font-mono);
+    font-size: 9.5px;
+    letter-spacing: 0.1em;
+    color: rgba(254, 243, 199, 0.55);
+    padding-bottom: 0.3rem;
+    border-bottom: 1px dashed rgba(255, 255, 255, 0.06);
+  }
+  .group-total {
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    letter-spacing: 0;
+  }
+  .group-total.pos { color: oklch(0.78 0.16 145); }
+  .group-total.neg { color: oklch(0.7 0.15 30); }
+
+  .account-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.3rem 0;
+    font-size: 11.5px;
+    color: rgba(254, 243, 199, 0.7);
+  }
+  .acc-name {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .acc-emoji {
+    font-size: 11px;
+    filter: grayscale(0.1);
+  }
+  .acc-amount {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    flex-shrink: 0;
+  }
+  .acc-amount.pos { color: oklch(0.78 0.16 145); }
+  .acc-amount.neg { color: oklch(0.7 0.15 30); }
+
+  /* Main pane */
+  .mockup-main {
+    padding: 0.9rem 1rem 1.1rem;
+    min-width: 0;
+  }
+  .overview-header {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    margin-bottom: 0.85rem;
+  }
+  .overview-label {
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    color: rgba(254, 243, 199, 0.55);
+    letter-spacing: 0.04em;
+  }
+  .overview-value {
+    font-family: var(--font-mono);
+    font-size: 22px;
+    font-weight: 600;
+    color: #fef3c7;
+    letter-spacing: -0.02em;
+  }
+  .overview-suffix {
+    font-size: 11px;
+    font-weight: 400;
+    color: rgba(254, 243, 199, 0.4);
+    margin-left: 0.4rem;
+  }
+
+  .chart-card {
+    background: rgba(255, 255, 255, 0.025);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 0.55rem;
+    padding: 0.65rem 0.75rem 0.5rem;
+    margin-bottom: 0.7rem;
+  }
+  .chart-label {
+    text-align: center;
+    font-family: var(--font-mono);
+    font-size: 9.5px;
+    letter-spacing: 0.12em;
+    color: rgba(254, 243, 199, 0.5);
+    margin-bottom: 0.35rem;
+  }
+  .chart-svg {
+    width: 100%;
+    height: 60px;
+    display: block;
+  }
+
+  .budget-row {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.5rem;
+    margin-bottom: 0.85rem;
+  }
+  .budget-card {
+    padding: 0.55rem 0.65rem;
+    background: rgba(255, 255, 255, 0.025);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 0.5rem;
+  }
+  .budget-name {
+    font-size: 11px;
+    color: rgba(254, 243, 199, 0.75);
+    margin-bottom: 0.1rem;
+  }
+  .budget-amount {
+    font-family: var(--font-mono);
+    font-size: 14px;
+    font-weight: 600;
+    color: #fef3c7;
+    margin-bottom: 0.35rem;
+    letter-spacing: -0.01em;
+  }
+  .budget-bar {
+    width: 100%;
+    height: 4px;
+    background: rgba(255, 255, 255, 0.06);
+    border-radius: 9999px;
+    overflow: hidden;
+  }
+  .budget-fill {
+    height: 100%;
+    border-radius: 9999px;
+  }
+  .budget-fill.terra { background: oklch(0.7 0.16 40); }
+  .budget-fill.green { background: oklch(0.74 0.16 145); }
+  .budget-pct {
+    font-family: var(--font-mono);
+    font-size: 9.5px;
+    color: rgba(254, 243, 199, 0.5);
+    margin-top: 0.3rem;
+    letter-spacing: 0.02em;
+  }
+
+  .txn-table {
+    border-top: 1px solid rgba(255, 255, 255, 0.05);
+    padding-top: 0.5rem;
+  }
+  .txn-header,
+  .txn-row {
+    display: grid;
+    grid-template-columns: 50px 1fr 1fr auto;
+    gap: 0.6rem;
+    align-items: center;
+    padding: 0.32rem 0.1rem;
+    font-size: 11px;
+  }
+  .txn-header {
+    font-family: var(--font-mono);
+    font-size: 9.5px;
+    color: rgba(254, 243, 199, 0.4);
+    letter-spacing: 0.12em;
+    padding-bottom: 0.4rem;
+  }
+  .ta-right { text-align: right; }
+  .txn-date {
+    font-family: var(--font-mono);
+    color: rgba(254, 243, 199, 0.55);
+  }
+  .txn-merchant {
+    color: #fef3c7;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .txn-category {
+    color: rgba(254, 243, 199, 0.55);
+  }
+  .txn-amount {
+    font-family: var(--font-mono);
+    text-align: right;
+  }
+  .txn-amount.pos { color: oklch(0.78 0.16 145); }
+  .txn-amount.neg { color: rgba(254, 243, 199, 0.78); }
+  .txn-row.fade-out {
+    mask-image: linear-gradient(to bottom, #000 30%, transparent 100%);
+    -webkit-mask-image: linear-gradient(to bottom, #000 30%, transparent 100%);
+  }
+
+  /* ============================================================ */
+  /* WHY CAPY — SHOWCASE                                           */
+  /* ============================================================ */
+
+  /* Trigger cards: desktop = row of 3 compact buttons.            */
+  /*                mobile  = horizontal scroll with snap.         */
+  .showcase-cards {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1rem;
+  }
+  @media (max-width: 767px) {
+    .showcase-cards {
+      display: flex;
+      grid-template-columns: none;
+      gap: 0.85rem;
+      overflow-x: auto;
+      scroll-snap-type: x mandatory;
+      -webkit-overflow-scrolling: touch;
+      /* Extra bottom padding so the .is-active card's ▼ arrow has room   */
+      /* to render inside the scroll container without being clipped.     */
+      /* No horizontal padding/margin so cards inherit the same width     */
+      /* math as the canvas below (both 85% of the section inner width).  */
+      padding: 0 0 1.75rem;
+      margin-top: 2.5rem;
+      scrollbar-width: none;
+    }
+    .showcase-cards::-webkit-scrollbar { display: none; }
+  }
+
+  .showcase-card {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.8rem;
+    padding: 1.4rem 1.4rem 1.25rem;
+    background: var(--color-surface);
+    border: 1px solid var(--color-line);
+    border-radius: 1rem;
+    text-align: left;
+    cursor: pointer;
+    transition: border-color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
+  }
+  .showcase-card:hover {
+    border-color: oklch(0.78 0.07 60);
+  }
+  :global([data-theme="dark"]) .showcase-card:hover {
+    border-color: rgba(245, 158, 11, 0.25);
+  }
+  .showcase-card.is-active {
+    border-color: var(--color-terra);
+    background: color-mix(in oklab, var(--color-terra-soft) 50%, var(--color-surface));
+    box-shadow: 0 0 0 1px var(--color-terra) inset;
+  }
+  :global([data-theme="dark"]) .showcase-card.is-active {
+    background: color-mix(in oklab, oklch(0.62 0.16 38) 8%, var(--color-surface));
+    border-color: oklch(0.82 0.14 50);
+    box-shadow: 0 0 0 1px oklch(0.82 0.14 50) inset;
+  }
+  /* Active cue — a terra ▼ arrow sits below the selected card, pointing  */
+  /* at the matching mockup in the canvas (desktop) or canvas-mobile.     */
+  .showcase-card.is-active::after {
+    content: "";
+    position: absolute;
+    left: 50%;
+    bottom: -0.85rem;
+    transform: translateX(-50%);
+    width: 0;
+    height: 0;
+    border-left: 7px solid transparent;
+    border-right: 7px solid transparent;
+    border-top: 7px solid var(--color-terra);
+    pointer-events: none;
+  }
+  :global([data-theme="dark"]) .showcase-card.is-active::after {
+    border-top-color: oklch(0.82 0.14 50);
+  }
+  @media (min-width: 768px) {
+    .showcase-cards {
+      overflow: visible;
+    }
+  }
+  @media (max-width: 767px) {
+    .showcase-card {
+      flex: 0 0 85%;
+      scroll-snap-align: center;
+      cursor: default;
+    }
+  }
+
+  .showcase-card-icon {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 2.75rem;
-    height: 2.75rem;
+    width: 1.75rem;
+    height: 1.75rem;
+    border-radius: 0.5rem;
+    background: var(--color-terra-soft);
+    color: var(--color-terra);
+    flex-shrink: 0;
+  }
+  :global([data-theme="dark"]) .showcase-card-icon {
+    background: rgba(245, 158, 11, 0.12);
+    color: oklch(0.82 0.14 50);
+  }
+  .showcase-card-title {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--color-heading);
+    letter-spacing: -0.01em;
+    line-height: 1.3;
+  }
+  .showcase-card-body {
+    font-size: 0.9rem;
+    line-height: 1.55;
+    color: var(--color-body);
+  }
+
+  /* Shared desktop canvas: stacks mockups, cross-fades active one */
+  .showcase-canvas {
+    position: relative;
+    margin-top: 2.5rem;
+    min-height: 750px;
+  }
+  @media (max-width: 767px) {
+    .showcase-canvas { display: none; }
+  }
+
+  .showcase-mockup {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.18s ease, visibility 0.18s ease;
+    pointer-events: none;
+  }
+  .showcase-mockup.is-active {
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+    position: relative;
+  }
+
+  /* Mobile canvas: parallel to the desktop one, stacks dedicated mobile  */
+  /* vignettes that cross-fade as cards activate. Hidden on desktop.      */
+  .showcase-canvas-mobile {
+    display: none;
+  }
+  @media (max-width: 767px) {
+    .showcase-canvas-mobile {
+      display: block;
+      position: relative;
+      width: 85%;
+      max-width: 420px;
+      margin: 1.5rem auto 0;
+    }
+  }
+
+  /* Mobile vignettes: small focused compositions. Each panel stacks      */
+  /* absolutely inside .showcase-canvas-mobile; only .is-active is shown. */
+  .showcase-mobile-mockup {
+    display: none;
+  }
+  @media (max-width: 767px) {
+    .showcase-mobile-mockup {
+      display: block;
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      background: #0c0a09;
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      border-radius: 0.75rem;
+      padding: 0.9rem;
+      color: #fef3c7;
+      font-size: 11px;
+      line-height: 1.4;
+      box-shadow:
+        0 1px 0 rgba(255, 255, 255, 0.04) inset,
+        0 12px 28px -16px rgba(0, 0, 0, 0.5);
+      opacity: 0;
+      visibility: hidden;
+      transition: opacity 0.18s ease, visibility 0.18s ease;
+      pointer-events: none;
+    }
+    .showcase-mobile-mockup.is-active {
+      opacity: 1;
+      visibility: visible;
+      pointer-events: auto;
+      position: relative;
+    }
+  }
+
+  /* Mobile vignette: account hierarchy (Card 1) */
+  .smv-path {
+    font-family: var(--font-mono);
+    font-size: 9.5px;
+    color: rgba(254, 243, 199, 0.4);
+    margin-bottom: 0.55rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .smv-networth {
+    padding: 0.55rem 0.65rem;
+    background: oklch(0.62 0.16 38 / 0.1);
+    border: 1px solid oklch(0.62 0.16 38 / 0.18);
+    border-radius: 0.5rem;
+    margin-bottom: 0.75rem;
+  }
+  .smv-networth-label {
+    font-family: var(--font-mono);
+    font-size: 9px;
+    letter-spacing: 0.1em;
+    color: oklch(0.82 0.14 50);
+  }
+  .smv-networth-value {
+    font-family: var(--font-mono);
+    font-size: 16px;
+    font-weight: 600;
+    color: #fef3c7;
+    margin-top: 0.1rem;
+    letter-spacing: -0.01em;
+  }
+  .smv-networth-delta {
+    font-size: 10px;
+    color: oklch(0.74 0.18 145);
+    margin-top: 0.1rem;
+  }
+
+  /* Mobile vignette: spending donut (Card 2) */
+  .smv-stat-row {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.4rem;
+    margin-bottom: 0.7rem;
+  }
+  .smv-stat {
+    padding: 0.45rem 0.5rem;
+    background: rgba(255, 255, 255, 0.025);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 0.4rem;
+  }
+  .smv-stat-label {
+    font-family: var(--font-mono);
+    font-size: 8.5px;
+    letter-spacing: 0.1em;
+    color: rgba(254, 243, 199, 0.45);
+  }
+  .smv-stat-value {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    font-weight: 600;
+    color: #fef3c7;
+    letter-spacing: -0.01em;
+    margin-top: 0.1rem;
+  }
+  .smv-stat-value.pos { color: oklch(0.78 0.16 145); }
+  .smv-stat-value.neg { color: oklch(0.72 0.16 30); }
+  .smv-toggle-row {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 0.5rem;
+  }
+  .smv-toggle {
+    display: inline-flex;
+    gap: 0.15rem;
+    padding: 0.18rem;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 0.4rem;
+  }
+  .smv-toggle-pill {
+    padding: 0.28rem 0.7rem;
+    font-size: 10px;
+    color: rgba(254, 243, 199, 0.6);
+    border-radius: 0.28rem;
+  }
+  .smv-toggle-pill.is-active {
+    background: rgba(255, 255, 255, 0.07);
+    color: #fef3c7;
+  }
+  .smv-donut-wrap {
+    display: flex;
+    justify-content: center;
+    padding: 0.3rem 0 0.1rem;
+  }
+  .smv-donut {
+    width: 160px;
+    height: 160px;
+  }
+  .smv-donut-total {
+    font-family: var(--font-mono);
+    font-size: 18px;
+    font-weight: 600;
+    fill: #fef3c7;
+    letter-spacing: -0.01em;
+  }
+  .smv-donut-label {
+    font-family: var(--font-mono);
+    font-size: 8px;
+    fill: rgba(254, 243, 199, 0.45);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+  /* Category list under the donut — last row fades to suggest "more below". */
+  /* Palette matches the desktop donut legend (top 4 categories).            */
+  .smv-cat-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+    margin-top: 0.5rem;
+    mask-image: linear-gradient(to bottom, #000 60%, transparent 100%);
+    -webkit-mask-image: linear-gradient(to bottom, #000 60%, transparent 100%);
+  }
+  .smv-cat-row {
+    display: grid;
+    grid-template-columns: 10px 1fr auto;
+    align-items: center;
+    gap: 0.55rem;
+    padding: 0.25rem 0.1rem;
+    font-size: 11px;
+  }
+  .smv-cat-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    display: inline-block;
+  }
+  .smv-cat-name {
+    color: #fef3c7;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .smv-cat-amount {
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    color: rgba(254, 243, 199, 0.7);
+  }
+
+  /* Mobile vignette: import (Card 3) */
+  .smv-import-head {
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+    margin-bottom: 0.65rem;
+  }
+  .smv-import-head-icon {
+    font-size: 18px;
+    line-height: 1;
+  }
+  .smv-import-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: #fef3c7;
+    letter-spacing: -0.01em;
+  }
+  .smv-drop-zone {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.3rem;
+    min-height: 100px;
+    padding: 0.7rem;
+    border: 1.5px dashed rgba(254, 243, 199, 0.18);
+    border-radius: 0.6rem;
+    background: rgba(255, 255, 255, 0.015);
+    text-align: center;
+    margin-bottom: 0.55rem;
+  }
+  .smv-drop-icon {
+    width: 26px;
+    height: 26px;
+    color: rgba(254, 243, 199, 0.55);
+  }
+  .smv-drop-title {
+    font-size: 11px;
+    color: #fef3c7;
+    font-weight: 500;
+  }
+  .smv-files-label {
+    font-family: var(--font-mono);
+    font-size: 9px;
+    letter-spacing: 0.12em;
+    color: rgba(254, 243, 199, 0.5);
+    margin-bottom: 0.3rem;
+  }
+  .smv-files {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+    margin-bottom: 0.55rem;
+  }
+  .smv-file {
+    display: grid;
+    grid-template-columns: 16px 1fr auto 12px;
+    gap: 0.45rem;
+    align-items: center;
+    padding: 0.38rem 0.55rem;
+    background: rgba(255, 255, 255, 0.025);
+    border: 1px solid rgba(255, 255, 255, 0.04);
+    border-radius: 0.35rem;
+  }
+  .smv-file-icon { font-size: 12px; }
+  .smv-file-name {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: #fef3c7;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .smv-file-size {
+    font-family: var(--font-mono);
+    font-size: 9.5px;
+    color: rgba(254, 243, 199, 0.5);
+  }
+  .smv-file-x {
+    color: rgba(254, 243, 199, 0.35);
+    font-size: 10px;
+    text-align: center;
+  }
+  .smv-prompt {
+    padding: 0.6rem 0.75rem;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    border-radius: 0.45rem;
+    font-size: 10.5px;
+    color: #fef3c7;
+    line-height: 1.45;
+    margin-bottom: 0.55rem;
+  }
+  .smv-import-actions {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  .smv-import-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.32rem 0.55rem;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 0.35rem;
+    font-size: 10px;
+    color: rgba(254, 243, 199, 0.72);
+  }
+  .smv-import-pill .caret {
+    font-size: 8.5px;
+    color: rgba(254, 243, 199, 0.45);
+  }
+  .smv-import-cta {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.42rem 0.85rem;
+    background: oklch(0.62 0.16 38);
+    color: #fff;
+    font-size: 11px;
+    font-weight: 600;
+    border-radius: 0.4rem;
+    box-shadow: 0 0 14px oklch(0.62 0.16 38 / 0.35);
+  }
+
+  /* Account hierarchy vignette reuses sidebar styles directly, no  */
+  /* extra rules needed beyond the wrapping .showcase-mobile-mockup. */
+
+  /* ============================================================ */
+  /* MOCKUP — BODY LAYOUTS (showcase)                              */
+  /* ============================================================ */
+  /* Budget + Import mockups have no sidebar, so the main pane     */
+  /* spans the full body width.                                    */
+  .mockup-body-budget,
+  .mockup-body-import {
+    grid-template-columns: 1fr;
+  }
+
+  /* ============================================================ */
+  /* MOCKUP — ACCOUNTS PANE                                         */
+  /* ============================================================ */
+  .pane-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 0.7rem;
+  }
+  .pane-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: #fef3c7;
+    letter-spacing: -0.01em;
+  }
+  .pane-sub {
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    color: rgba(254, 243, 199, 0.45);
+    margin-top: 0.1rem;
+    letter-spacing: 0.02em;
+  }
+
+  .filter-row {
+    display: flex;
+    gap: 0.4rem;
+    align-items: center;
+    margin-bottom: 0.7rem;
+    flex-wrap: wrap;
+  }
+  .search-input {
+    flex: 1 1 200px;
+    min-width: 0;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.35rem 0.6rem;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 0.4rem;
+    font-size: 10.5px;
+    color: rgba(254, 243, 199, 0.45);
+  }
+  .search-input svg {
+    color: rgba(254, 243, 199, 0.35);
+    flex-shrink: 0;
+  }
+  .filter-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0.35rem 0.65rem;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 0.4rem;
+    font-size: 10.5px;
+    color: rgba(254, 243, 199, 0.72);
+    white-space: nowrap;
+  }
+  .filter-pill .caret {
+    font-size: 9px;
+    color: rgba(254, 243, 199, 0.45);
+  }
+
+  /* Wide transaction table — adds Account column */
+  .txn-header-wide,
+  .txn-row-wide {
+    grid-template-columns: 50px 110px 1fr 1fr 90px;
+  }
+
+  .txn-account {
+    color: rgba(254, 243, 199, 0.65);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* ============================================================ */
+  /* MOCKUP — BUDGET TABS + PANELS                                  */
+  /* ============================================================ */
+  .mockup-main-budget {
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .budget-tabs {
+    display: flex;
+    gap: 0.1rem;
+    padding: 0 1rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    background: rgba(0, 0, 0, 0.12);
+  }
+  .budget-tab {
+    padding: 0.8rem 0.85rem;
+    background: transparent;
+    color: rgba(254, 243, 199, 0.55);
+    font-size: 12px;
+    font-weight: 500;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+    transition: color 0.15s ease, border-color 0.15s ease;
+    white-space: nowrap;
+    cursor: pointer;
+  }
+  .budget-tab:hover {
+    color: rgba(254, 243, 199, 0.85);
+  }
+  .budget-tab.is-active {
+    color: oklch(0.85 0.14 50);
+    border-bottom-color: oklch(0.7 0.16 40);
+  }
+
+  .budget-panel {
+    display: none;
+    padding: 1rem 1.2rem 1.2rem;
+    min-height: 600px;
+  }
+  .budget-panel.is-active {
+    display: flex;
+    flex-direction: column;
+    gap: 0.85rem;
+    animation: fadePanel 180ms ease;
+  }
+  @keyframes fadePanel {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+
+  .period-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+  }
+  .period-nav {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.6rem;
+    font-size: 14px;
+    color: #fef3c7;
+    font-weight: 500;
+  }
+  .period-arrow {
+    color: rgba(254, 243, 199, 0.45);
+    font-size: 16px;
+    cursor: default;
+  }
+  .period-label {
+    letter-spacing: -0.01em;
+  }
+  .period-pills {
+    display: inline-flex;
+    gap: 0.15rem;
+    padding: 0.2rem;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 0.45rem;
+  }
+  .period-pill {
+    padding: 0.3rem 0.6rem;
+    font-size: 10.5px;
+    color: rgba(254, 243, 199, 0.6);
+    border-radius: 0.3rem;
+    white-space: nowrap;
+  }
+  .period-pill.is-active {
+    background: oklch(0.62 0.16 38 / 0.22);
+    color: oklch(0.88 0.12 50);
+  }
+
+  .stat-row {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.6rem;
+  }
+  .stat-row-4 {
+    grid-template-columns: repeat(4, 1fr);
+  }
+  .stat-card {
+    padding: 0.7rem 0.85rem;
+    background: rgba(255, 255, 255, 0.025);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 0.5rem;
+  }
+  .stat-label {
+    font-family: var(--font-mono);
+    font-size: 9.5px;
+    letter-spacing: 0.1em;
+    color: rgba(254, 243, 199, 0.45);
+  }
+  .stat-value {
+    font-family: var(--font-mono);
+    font-size: 18px;
+    font-weight: 600;
+    color: #fef3c7;
+    letter-spacing: -0.01em;
+    margin-top: 0.2rem;
+  }
+  .stat-value.pos { color: oklch(0.78 0.16 145); }
+  .stat-value.neg { color: oklch(0.72 0.16 30); }
+
+  .toggle-row {
+    display: flex;
+  }
+  .toggle-group {
+    display: inline-flex;
+    gap: 0.15rem;
+    padding: 0.2rem;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 0.45rem;
+  }
+  .toggle-pill {
+    padding: 0.32rem 0.85rem;
+    font-size: 10.5px;
+    color: rgba(254, 243, 199, 0.6);
+    border-radius: 0.3rem;
+  }
+  .toggle-pill.is-active {
+    background: rgba(255, 255, 255, 0.07);
+    color: #fef3c7;
+  }
+
+  /* Donut + legend layout — always side-by-side on desktop (mobile uses
+     its own dedicated vignette, so this never needs to stack). */
+  .donut-row {
+    display: grid;
+    grid-template-columns: minmax(180px, 240px) 1fr;
+    gap: 1.5rem;
+    align-items: center;
+  }
+  .donut-wrap {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .donut-svg {
+    width: 100%;
+    max-width: 240px;
+    height: auto;
+  }
+  .donut-text-total {
+    font-family: var(--font-mono);
+    font-size: 20px;
+    font-weight: 600;
+    fill: #fef3c7;
+    letter-spacing: -0.01em;
+  }
+  .donut-text-label {
+    font-family: var(--font-mono);
+    font-size: 9px;
+    fill: rgba(254, 243, 199, 0.45);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+
+  .legend {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 0.15rem;
+    font-size: 11px;
+  }
+  .legend-row {
+    display: grid;
+    grid-template-columns: 12px 1fr auto auto;
+    gap: 0.55rem;
+    align-items: center;
+    padding: 0.2rem 0;
+  }
+  .legend-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .legend-name {
+    color: rgba(254, 243, 199, 0.78);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .legend-amount {
+    font-family: var(--font-mono);
+    color: rgba(254, 243, 199, 0.78);
+    font-size: 10.5px;
+  }
+  .legend-pct {
+    font-family: var(--font-mono);
+    color: rgba(254, 243, 199, 0.45);
+    font-size: 10.5px;
+    text-align: right;
+    min-width: 36px;
+  }
+
+  /* Monthly Budget panel */
+  .checkbox-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 11.5px;
+    color: rgba(254, 243, 199, 0.7);
+    padding: 0.3rem 0;
+  }
+  .cb-wrap {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  .cb {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 14px;
+    height: 14px;
+    border-radius: 3px;
+    background: oklch(0.62 0.16 38);
+    color: #fff;
+    font-size: 9px;
+    line-height: 1;
+  }
+  .cb-meta {
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    color: rgba(254, 243, 199, 0.45);
+  }
+
+  .budget-cat-group {
+    border-top: 1px solid rgba(255, 255, 255, 0.05);
+    padding-top: 0.55rem;
+  }
+  .budget-cat-header {
+    display: flex;
+    justify-content: space-between;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    color: rgba(254, 243, 199, 0.5);
+    padding: 0.3rem 0 0.45rem;
+  }
+  .bcg-meta {
+    color: rgba(254, 243, 199, 0.35);
+    letter-spacing: 0.05em;
+  }
+  .budget-cat-row {
+    display: grid;
+    grid-template-columns: 160px 90px 90px 1fr 70px;
+    gap: 0.7rem;
+    align-items: center;
+    padding: 0.35rem 0;
+    font-size: 11.5px;
+  }
+  .bcr-name {
+    color: #fef3c7;
+  }
+  .bcr-assigned,
+  .bcr-spent {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: rgba(254, 243, 199, 0.7);
+  }
+  .bcr-bar {
+    height: 5px;
+    background: rgba(255, 255, 255, 0.06);
+    border-radius: 9999px;
+    overflow: hidden;
+  }
+  .bcr-fill {
+    height: 100%;
+    border-radius: 9999px;
+  }
+  .bcr-fill.terra { background: oklch(0.7 0.16 40); }
+  .bcr-fill.green { background: oklch(0.74 0.16 145); }
+  .bcr-fill.red { background: oklch(0.7 0.15 30); }
+  .bcr-remaining {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: rgba(254, 243, 199, 0.7);
+    text-align: right;
+  }
+  .bcr-remaining.pos { color: oklch(0.78 0.16 145); }
+  .bcr-remaining.neg { color: oklch(0.72 0.16 30); }
+
+  /* Cash flow + Net worth charts */
+  .bars-chart-wrap {
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid rgba(255, 255, 255, 0.04);
+    border-radius: 0.55rem;
+    padding: 0.85rem 0.9rem;
+  }
+  .bars-chart {
+    width: 100%;
+    height: auto;
+    display: block;
+  }
+  .bars-axis-label {
+    font-family: var(--font-mono);
+    font-size: 9px;
+    fill: rgba(254, 243, 199, 0.45);
+  }
+  .bars-axis-label.muted {
+    fill: rgba(254, 243, 199, 0.25);
+  }
+  .tt-title {
+    font-family: var(--font-mono);
+    font-size: 9px;
+    fill: rgba(254, 243, 199, 0.55);
+    letter-spacing: 0.04em;
+  }
+  .tt-value {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    fill: #fef3c7;
+    font-weight: 600;
+  }
+
+  .chart-legend {
+    display: inline-flex;
+    gap: 1rem;
+    align-self: flex-start;
+    padding: 0.3rem 0;
+  }
+  .legend-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 10.5px;
+    color: rgba(254, 243, 199, 0.7);
+  }
+
+  /* ============================================================ */
+  /* MOCKUP — IMPORT PANE                                           */
+  /* ============================================================ */
+  .mockup-main-import {
+    display: flex;
+    flex-direction: column;
+    gap: 0.85rem;
+    width: 100%;
+    max-width: 560px;
+    margin: 0 auto;
+    padding-top: 1.5rem;
+    padding-bottom: 1.5rem;
+  }
+  .import-head {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+  }
+  .import-head-icon {
+    font-size: 22px;
+    line-height: 1;
+  }
+
+  .drop-zone {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    min-height: 190px;
+    padding: 1.25rem;
+    border: 1.5px dashed rgba(254, 243, 199, 0.18);
     border-radius: 0.75rem;
-    background: oklch(0.95 0.06 38);
+    background: rgba(255, 255, 255, 0.015);
+    text-align: center;
+  }
+  .drop-icon {
+    width: 36px;
+    height: 36px;
+    color: rgba(254, 243, 199, 0.55);
+  }
+  .drop-title {
+    font-size: 13px;
+    color: #fef3c7;
+    font-weight: 500;
+  }
+  .drop-sub {
+    font-size: 11px;
+    color: rgba(254, 243, 199, 0.45);
+  }
+
+  .files-label {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 0.12em;
+    color: rgba(254, 243, 199, 0.5);
+    margin-top: 0.2rem;
+  }
+  .file-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+  }
+  .file-row {
+    display: grid;
+    grid-template-columns: 20px 1fr auto 16px;
+    gap: 0.6rem;
+    align-items: center;
+    padding: 0.5rem 0.7rem;
+    background: rgba(255, 255, 255, 0.025);
+    border: 1px solid rgba(255, 255, 255, 0.04);
+    border-radius: 0.4rem;
+    font-size: 11.5px;
+  }
+  .file-icon { font-size: 14px; }
+  .file-name {
+    color: #fef3c7;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .file-size {
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    color: rgba(254, 243, 199, 0.5);
+  }
+  .file-x {
+    color: rgba(254, 243, 199, 0.35);
+    font-size: 11px;
+    text-align: center;
+  }
+
+  .prompt-box {
+    padding: 0.85rem 1rem;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    border-radius: 0.55rem;
+    font-size: 12.5px;
+    color: #fef3c7;
+    line-height: 1.5;
+    min-height: 60px;
+  }
+
+  .import-actions {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.6rem;
+  }
+  .import-cta {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    padding: 0.55rem 1.1rem;
+    background: oklch(0.62 0.16 38);
+    color: #fff;
+    font-size: 12.5px;
+    font-weight: 600;
+    border-radius: 0.5rem;
+    box-shadow: 0 0 16px oklch(0.62 0.16 38 / 0.35);
+  }
+
+  /* ============================================================ */
+  /* FEATURES                                                      */
+  /* ============================================================ */
+  .feature-group-label {
+    font-family: var(--font-serif);
+    font-variation-settings: "opsz" 60, "SOFT" 50;
+    font-size: 1.15rem;
+    font-weight: 600;
+    color: var(--color-heading);
+    letter-spacing: -0.01em;
+    padding-bottom: 0.65rem;
+    border-bottom: 1px solid var(--color-line);
+  }
+  .feature-list {
+    margin-top: 0.9rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.55rem;
+    font-size: 0.92rem;
+    line-height: 1.55;
+    color: var(--color-body);
+  }
+  .feature-list li {
+    position: relative;
+    padding-left: 1rem;
+  }
+  .feature-list li::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 0.55rem;
+    width: 0.32rem;
+    height: 0.32rem;
+    border-radius: 9999px;
+    background: var(--color-terra);
+  }
+  :global([data-theme="dark"]) .feature-list li::before {
+    background: oklch(0.82 0.14 50);
+  }
+
+  /* ============================================================ */
+  /* HOW IT WORKS                                                  */
+  /* ============================================================ */
+  .step-header {
+    display: flex;
+    align-items: baseline;
+    gap: 0.65rem;
+  }
+  .step-num {
+    font-family: var(--font-mono);
+    font-size: 0.85rem;
+    color: var(--color-terra);
+    letter-spacing: 0.04em;
+    flex-shrink: 0;
+  }
+  :global([data-theme="dark"]) .step-num {
+    color: oklch(0.82 0.14 50);
+  }
+  .step-title {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--color-heading);
+    letter-spacing: -0.01em;
+  }
+  .step-body {
+    margin-top: 0.6rem;
+    font-size: 0.92rem;
+    line-height: 1.55;
+    color: var(--color-body);
+  }
+
+  /* ============================================================ */
+  /* GET IT                                                        */
+  /* ============================================================ */
+  .platform-card {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.55rem;
+    padding: 1.35rem 1.4rem 1.25rem;
+    background: var(--color-surface);
+    border: 1px solid var(--color-line);
+    border-radius: 1rem;
+    text-align: left;
+    transition: transform 0.2s ease, border-color 0.2s ease;
+  }
+  .platform-card:hover {
+    transform: translateY(-2px);
+    border-color: var(--color-terra);
+  }
+  .platform-card.is-detected {
+    border-color: var(--color-terra);
+    box-shadow: 0 0 0 1px var(--color-terra) inset;
+  }
+  .platform-detected {
+    display: none;
+    position: absolute;
+    top: 0.85rem;
+    right: 0.95rem;
+    font-family: var(--font-mono);
+    font-size: 0.65rem;
+    font-weight: 500;
+    letter-spacing: 0.16em;
     color: var(--color-terra);
   }
-  .feature-icon-sage {
-    background: oklch(0.94 0.05 148);
-    color: var(--color-sage);
+  .platform-card.is-detected .platform-detected {
+    display: inline;
   }
-  .feature-icon-gold {
-    background: oklch(0.94 0.06 85);
-    color: oklch(0.55 0.14 85);
+  .platform-icon {
+    width: 1.25rem;
+    height: 1.25rem;
+    color: var(--color-heading);
   }
-  :global([data-theme="dark"]) .feature-icon,
-  :global([data-theme="dark"]) .feature-icon-sage,
-  :global([data-theme="dark"]) .feature-icon-gold {
-    background: linear-gradient(135deg, rgba(245, 158, 11, 0.15), rgba(234, 88, 12, 0.1));
-    border: 1px solid rgba(245, 158, 11, 0.2);
-    color: #f59e0b;
+  .platform-name {
+    font-size: 1.05rem;
+    font-weight: 600;
+    color: var(--color-heading);
+    letter-spacing: -0.01em;
+  }
+  .platform-cta {
+    font-size: 0.875rem;
+    color: var(--color-body);
+  }
+  .arrow {
+    color: var(--color-terra);
+    font-weight: 500;
   }
 
-  /* ========== CTA card ========== */
-  :global([data-theme="dark"]) .cta-card {
-    background: linear-gradient(135deg, rgba(245, 158, 11, 0.06), rgba(234, 88, 12, 0.03), rgba(255, 255, 255, 0.02));
-    border: 1px solid rgba(245, 158, 11, 0.1);
-    backdrop-filter: blur(16px);
-  }
-
-  /* ========== Reduced motion ========== */
+  /* ============================================================ */
+  /* REDUCED MOTION                                                */
+  /* ============================================================ */
   @media (prefers-reduced-motion: reduce) {
-    .mascot, .mascot-glow { animation: none; }
-    :global([data-theme="dark"]) .gradient-text { animation: none; }
-    .feature-card:hover { transform: none; }
-    .btn-primary:hover, .btn-secondary:hover { transform: none; }
+    .showcase-card:hover,
+    .platform-card:hover,
+    .btn-primary:hover,
+    .btn-secondary:hover {
+      transform: none;
+    }
+    .showcase-mockup,
+    .budget-panel.is-active {
+      transition: none;
+      animation: none;
+    }
   }
 </style>

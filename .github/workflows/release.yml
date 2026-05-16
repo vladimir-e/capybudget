@@ -144,11 +144,12 @@ jobs:
           elif dmg=$(pick "*.dmg"); then
             MAP["$dmg"]="capybudget-macos.dmg"
           fi
-          # Windows x64 MSI.
-          if msi=$(pick "*x64*.msi"); then
-            MAP["$msi"]="capybudget-windows-x64.msi"
-          elif msi=$(pick "*.msi"); then
-            MAP["$msi"]="capybudget-windows-x64.msi"
+          # Windows x64 NSIS installer (we ship NSIS, not MSI — see
+          # bundle.targets in tauri.conf.json).
+          if exe=$(pick "*x64-setup.exe"); then
+            MAP["$exe"]="capybudget-windows-x64.exe"
+          elif exe=$(pick "*.exe"); then
+            MAP["$exe"]="capybudget-windows-x64.exe"
           fi
           # Linux AppImage + deb.
           if appimage=$(pick "*amd64*.AppImage") || appimage=$(pick "*.AppImage"); then
