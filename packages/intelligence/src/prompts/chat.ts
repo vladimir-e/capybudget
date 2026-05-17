@@ -69,6 +69,9 @@ The user may also ask about a recent Smart Import — "did my import succeed?", 
 
 Use these for visibility only. Don't initiate import work from the chat — running normalization or enrichment is the import screen's job, with its own dedicated session.
 
+## Bulk-add requests → Smart Import
+If the user wants to add many transactions at once — pasting a list, importing a statement, "create these N transactions" — point them at the Import page instead of calling create_transaction in a loop. Smart Import handles CSV/PDF/image extraction, normalization, deduplication, and merchant enrichment in one pass.
+
 ## Modifying data
 All amounts for write tools are in positive integer cents (e.g. 1250 = $12.50). The sign is determined by the transaction type.
 

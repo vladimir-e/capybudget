@@ -424,8 +424,34 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
     );
   }
 
+  // The drop *surface* is the whole import route; the small dashed zone
+  // below is just a click-to-upload affordance. Listeners live on the
+  // outer container so a drag anywhere over the import page triggers
+  // the full-screen overlay.
+  const dropZoneActive = showDropZone && importSupported;
+  const dropHandlers = dropZoneActive
+    ? {
+        onDragEnter: handleDragEnter,
+        onDragLeave: handleDragLeave,
+        onDragOver: handleDragOver,
+        onDrop: handleDrop,
+      }
+    : {};
+
   return (
-    <div className="flex h-full flex-col">
+    <div className="relative flex h-full flex-col" {...dropHandlers}>
+      {/* Full-screen drop overlay — only while dragging over the import route */}
+      {dropZoneActive && isDragging && (
+        <div className="pointer-events-none absolute inset-0 z-40 flex items-center justify-center rounded-none border-4 border-dashed border-brand bg-brand/10 backdrop-blur-sm">
+          <div className="flex flex-col items-center gap-3 text-brand">
+            <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-brand/15">
+              <FileUp className="h-8 w-8" />
+            </div>
+            <p className="text-lg font-semibold">Drop files to import</p>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div className="border-b bg-gradient-to-b from-brand-subtle/40 to-transparent px-6 py-5">
         <div className="flex items-center gap-3">
@@ -469,31 +495,19 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
                 onChange={handleFileSelect}
               />
               <div
-                onDragEnter={handleDragEnter}
-                onDragLeave={handleDragLeave}
-                onDragOver={handleDragOver}
-                onDrop={handleDrop}
                 onClick={() => fileInputRef.current?.click()}
                 className={`group relative cursor-pointer rounded-2xl border-2 border-dashed transition-all duration-200 ${
-                  isDragging
-                    ? "border-brand bg-brand/5 scale-[1.01]"
-                    : sourceFiles.length > 0
-                      ? "border-border/50 bg-card/30 hover:border-brand/30 hover:bg-brand/3"
-                      : "border-border/40 bg-card/20 hover:border-brand/30 hover:bg-brand/3"
+                  sourceFiles.length > 0
+                    ? "border-border/50 bg-card/30 hover:border-brand/30 hover:bg-brand/3"
+                    : "border-border/40 bg-card/20 hover:border-brand/30 hover:bg-brand/3"
                 }`}
               >
                 <div className="flex flex-col items-center justify-center px-6 py-16">
-                  <div
-                    className={`mb-4 flex h-14 w-14 items-center justify-center rounded-2xl transition-colors ${
-                      isDragging
-                        ? "bg-brand/15 text-brand"
-                        : "bg-muted/40 text-muted-foreground group-hover:bg-brand/10 group-hover:text-brand"
-                    }`}
-                  >
+                  <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-muted/40 text-muted-foreground transition-colors group-hover:bg-brand/10 group-hover:text-brand">
                     <FileUp className="h-7 w-7" />
                   </div>
                   <p className="text-base font-medium text-foreground/80">
-                    {isDragging ? "Drop files here" : "Drop files or click to browse"}
+                    Drop files anywhere, or click to browse
                   </p>
                   <p className="mt-1.5 text-sm text-muted-foreground/60">
                     CSV and images of bank statements

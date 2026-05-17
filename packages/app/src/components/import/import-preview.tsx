@@ -182,18 +182,17 @@ export function ImportPreview({ budgetPath, budgetName, onMergeComplete }: Impor
 
   // Merge
   const [showMergeDialog, setShowMergeDialog] = useState(false);
-  const [merging, setMerging] = useState(false);
-  const { merge } = useImportMerge(budgetPath);
+  const { merge, mergePhase } = useImportMerge(budgetPath);
+  const merging = mergePhase !== null;
 
   const newAccountCount = sourceAccounts.filter(
     (s) => !accountMapping[s] || accountMapping[s] === "__create__",
   ).length;
 
   const handleMerge = useCallback(async () => {
-    setShowMergeDialog(false);
-    setMerging(true);
     try {
       const result = await merge({ transactions, selectedIds, accountMapping });
+      setShowMergeDialog(false);
       toast.success(
         `Merged ${result.transactionCount} transaction${result.transactionCount !== 1 ? "s" : ""}` +
           (result.accountsCreated > 0
@@ -202,13 +201,25 @@ export function ImportPreview({ budgetPath, budgetName, onMergeComplete }: Impor
       );
       onMergeComplete();
     } catch (err) {
+      setShowMergeDialog(false);
       toast.error(
         `Merge failed: ${err instanceof Error ? err.message : "Unknown error"}`,
       );
-    } finally {
-      setMerging(false);
     }
   }, [merge, transactions, selectedIds, accountMapping, onMergeComplete]);
+
+  const mergePhaseLabel = (() => {
+    switch (mergePhase) {
+      case "preparing":
+        return "Preparing import…";
+      case "saving":
+        return `Saving ${selectedCount} transaction${selectedCount !== 1 ? "s" : ""}…`;
+      case "finalizing":
+        return "Finalizing…";
+      default:
+        return "";
+    }
+  })();
 
   if (loading) {
     return (
@@ -412,48 +423,75 @@ export function ImportPreview({ budgetPath, budgetName, onMergeComplete }: Impor
         </div>
       )}
 
-      {/* ── Merge confirmation dialog ────────────────────── */}
+      {/* ── Merge confirmation / progress dialog ──────────── */}
       {showMergeDialog && (
         <Dialog
           open
-          onOpenChange={(open) => {
+          onOpenChange={(open, eventDetails) => {
+            // Don't allow dismissal while the merge is in flight.
+            if (merging && !open) {
+              eventDetails.cancel();
+              return;
+            }
             if (!open) setShowMergeDialog(false);
           }}
         >
-          <DialogContent className="sm:max-w-md">
-            <DialogHeader>
-              <DialogTitle>Merge {selectedCount} transactions?</DialogTitle>
-              <DialogDescription>
-                <span className="space-y-2 block">
-                  <span className="block">
-                    This will add{" "}
-                    <strong>
-                      {selectedCount} transaction
-                      {selectedCount !== 1 ? "s" : ""}
-                    </strong>{" "}
-                    ({formatMoney(selectedTotal)}) to your budget.
-                  </span>
-                  {newAccountCount > 0 && (
-                    <span className="block">
-                      {newAccountCount} new account
-                      {newAccountCount > 1 ? "s" : ""} will be created.
+          <DialogContent
+            className="sm:max-w-md"
+            showCloseButton={!merging}
+          >
+            {merging ? (
+              <>
+                <DialogHeader>
+                  <DialogTitle>Merging import</DialogTitle>
+                  <DialogDescription>
+                    Don't close the app — this only takes a moment.
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="flex flex-col items-center gap-4 py-6">
+                  <Loader2 className="h-8 w-8 animate-spin text-brand" />
+                  <p className="text-sm text-foreground/80 tabular-nums">
+                    {mergePhaseLabel}
+                  </p>
+                </div>
+              </>
+            ) : (
+              <>
+                <DialogHeader>
+                  <DialogTitle>Merge {selectedCount} transactions?</DialogTitle>
+                  <DialogDescription>
+                    <span className="space-y-2 block">
+                      <span className="block">
+                        This will add{" "}
+                        <strong>
+                          {selectedCount} transaction
+                          {selectedCount !== 1 ? "s" : ""}
+                        </strong>{" "}
+                        ({formatMoney(selectedTotal)}) to your budget.
+                      </span>
+                      {newAccountCount > 0 && (
+                        <span className="block">
+                          {newAccountCount} new account
+                          {newAccountCount > 1 ? "s" : ""} will be created.
+                        </span>
+                      )}
                     </span>
-                  )}
-                </span>
-              </DialogDescription>
-            </DialogHeader>
-            <DialogFooter>
-              <Button
-                variant="outline"
-                onClick={() => setShowMergeDialog(false)}
-              >
-                Cancel
-              </Button>
-              <Button onClick={handleMerge} className="gap-1.5">
-                <GitMerge className="h-3.5 w-3.5" />
-                Merge
-              </Button>
-            </DialogFooter>
+                  </DialogDescription>
+                </DialogHeader>
+                <DialogFooter>
+                  <Button
+                    variant="outline"
+                    onClick={() => setShowMergeDialog(false)}
+                  >
+                    Cancel
+                  </Button>
+                  <Button onClick={handleMerge} className="gap-1.5">
+                    <GitMerge className="h-3.5 w-3.5" />
+                    Merge
+                  </Button>
+                </DialogFooter>
+              </>
+            )}
           </DialogContent>
         </Dialog>
       )}

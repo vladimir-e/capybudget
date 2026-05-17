@@ -12,6 +12,7 @@ CHANGELOG PHILOSOPHY:
 ## Unreleased
 
 - **Chat** - Fix AI output overwrite cascade; tighten render discipline; OpenAI follow-ups.
+- **Import** - Full-screen drop zone, stray-drop protection, merge progress dialog, and chat nudge toward Smart Import for bulk adds.
 
 ## 0.21.0 — 2026-05-16
 

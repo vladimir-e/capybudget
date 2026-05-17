@@ -319,10 +319,10 @@ Numbered phases retired — work clusters by mode rather than sequence. Polish f
 
 #### Smart Import
 
-- [ ] Full-screen drop zone with stray-drop protection (don't open files dragged elsewhere in the app window)
-- [ ] Huge-import guidance
-- [ ] Higher contrast on import page
-- [ ] Nicer merge flow — progress bar, page-switching allowed during merge, ensure import directory cleans up
+- [x] Full-screen drop zone with stray-drop protection (don't open files dragged elsewhere in the app window)
+- [x] Huge-import guidance
+- [x] Merge progress indicator (blocking dialog during merge)
+- [ ] Allow page-switching during merge; ensure import directory cleans up on failure
 
 #### Settings
 
