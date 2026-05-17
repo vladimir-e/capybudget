@@ -11,8 +11,14 @@ import {
 import { createDebouncedWriter } from "./debounced-writer";
 
 export interface DisposableRepository extends BudgetRepository {
-  /** Clear in-memory cache so next get*() re-reads from disk. */
-  invalidateCache(): void;
+  /**
+   * Flush any pending debounced writes, then clear the in-memory cache so the
+   * next `get*()` re-reads from disk. The flush step matters when an
+   * in-process write (e.g. Capy's chat tools) has updated the in-memory state
+   * but the disk write is still debounced — without it, the subsequent read
+   * would return stale on-disk data.
+   */
+  invalidateCache(): Promise<void>;
   dispose(): Promise<void>;
 }
 
@@ -107,7 +113,12 @@ export function createCsvRepository(
       else writers.transactions.schedule();
     },
 
-    invalidateCache() {
+    async invalidateCache() {
+      await Promise.all([
+        writers.accounts.flush(),
+        writers.categories.flush(),
+        writers.transactions.flush(),
+      ]);
       accounts = null;
       categories = null;
       transactions = null;

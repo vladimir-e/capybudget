@@ -87,10 +87,12 @@ export function BudgetShell({ path, name }: BudgetShellProps) {
 
   const repo = useBudgetRepository();
 
-  const invalidateBudgetData = useCallback(() => {
-    // Clear the repo's in-memory cache so it re-reads from disk
-    // (the MCP server wrote directly to the CSV files)
-    (repo as DisposableRepository).invalidateCache?.();
+  const invalidateBudgetData = useCallback(async () => {
+    // Flush pending debounced writes and clear the in-memory cache so the
+    // next read pulls fresh data — works for both MCP-CLI (where the MCP
+    // server wrote directly to CSV) and in-process (where the chat's tool
+    // dispatch updated the repo but the disk write is still debounced).
+    await (repo as DisposableRepository).invalidateCache?.();
     queryClient.invalidateQueries({ queryKey: budgetKeys.all });
   }, [queryClient, repo]);
 

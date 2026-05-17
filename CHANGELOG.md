@@ -12,6 +12,7 @@ CHANGELOG PHILOSOPHY:
 ## Unreleased
 
 - **Chat** - Fix AI output overwrite cascade; tighten render discipline; OpenAI follow-ups.
+- **Chat** - Fix UI not refreshing after Capy writes via in-process tool dispatch (debounced-write race in invalidateCache).
 
 ## 0.21.0 — 2026-05-16
 

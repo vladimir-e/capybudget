@@ -364,6 +364,49 @@ describe("createCsvRepository", () => {
       await vi.advanceTimersByTimeAsync(300);
       expect(mockAdapter.mockWriteFile).toHaveBeenCalled();
     });
+
+    it("invalidateCache flushes pending writes before clearing, so re-read returns fresh data", async () => {
+      // Regression: Capy's chat tool dispatch updates the repo's in-memory
+      // state and schedules a debounced write. If invalidateCache cleared
+      // memory without flushing first, the next read would hit stale disk.
+      stubCsvReads();
+      const repo = createCsvRepository("/budgets/test", mockAdapter.adapter);
+
+      const fresh: Transaction = {
+        id: "txn-new",
+        datetime: "2026-01-15T00:00:00.000Z",
+        type: "expense",
+        amount: -1234,
+        categoryId: "cat-1",
+        accountId: "acc-1",
+        transferPairId: "",
+        merchant: "Fresh",
+        note: "",
+        createdAt: "2026-01-15T00:00:00.000Z",
+      };
+      await repo.saveTransactions([fresh]);
+
+      // Pending debounced write — disk hasn't been touched yet.
+      expect(mockAdapter.mockWriteFile).not.toHaveBeenCalled();
+
+      // Capture the bytes that get written, then route the next read back
+      // at them — simulating the post-flush disk state.
+      let writtenCsv = "";
+      mockAdapter.mockWriteFile.mockImplementationOnce(async (_p, content) => {
+        writtenCsv = content as string;
+      });
+
+      await repo.invalidateCache();
+
+      // Flush must have fired during invalidateCache.
+      expect(mockAdapter.mockWriteFile).toHaveBeenCalledTimes(1);
+
+      mockAdapter.mockReadFile.mockResolvedValueOnce(writtenCsv);
+      const result = await repo.getTransactions();
+      expect(result).toHaveLength(1);
+      expect(result[0].id).toBe("txn-new");
+      expect(result[0].amount).toBe(-1234);
+    });
   });
 
   describe("dispose", () => {

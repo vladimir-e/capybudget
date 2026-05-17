@@ -29,7 +29,7 @@ export function createInMemoryRepository(
     async saveAccounts(next) { data.accounts = [...next]; },
     async saveCategories(next) { data.categories = [...next]; },
     async saveTransactions(next) { data.transactions = [...next]; },
-    invalidateCache() { /* no-op — data is already in memory */ },
+    async invalidateCache() { /* no-op — data is already in memory */ },
     async dispose() { /* no-op */ },
   };
 }
