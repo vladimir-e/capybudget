@@ -8,13 +8,9 @@
  * in-flight request without leaving dangling `tool_use` blocks (which
  * the API would reject on the next turn).
  *
- * Stream-event shape: this adapter emits `StreamEvent`s directly —
- * `content` blocks carry the **complete cumulative blocks array** for
- * the current user→done cycle (entire agentic loop, across iterations
- * and tool calls — never just one model turn), `done` on cycle
- * completion, `error` on failure. Text deltas are accumulated locally
- * so every emit carries a full snapshot the consumer can replace
- * wholesale.
+ * Stream-event shape: `content` emits carry the cumulative blocks for
+ * the whole user→done cycle (accumulator hoisted out of the agentic
+ * loop), so a turn-2 chart never wipes a turn-1 chart.
  *
  * Tauri's webview is a real browser, so the SDK works with
  * `dangerouslyAllowBrowser: true`. The flag is intended to discourage
@@ -177,11 +173,7 @@ export class AnthropicSession implements CapySession {
   private async runAgenticLoop(): Promise<void> {
     const tools = getAnthropicTools()
 
-    // Cumulative across the entire user→done cycle. Each agentic-loop
-    // iteration is one model turn; its blocks append here rather than
-    // replacing per-iteration state. Emits carry the full array so the
-    // consumer can replace the trailing assistant message wholesale
-    // without losing earlier turns' charts/tables.
+    // Cumulative across the user→done cycle; survives loop iterations.
     const completedBlocks: ContentBlock[] = []
     const emitContent = () => {
       if (completedBlocks.length === 0) return
@@ -205,11 +197,6 @@ export class AnthropicSession implements CapySession {
         { signal: this.abortController.signal },
       )
 
-      // Per-turn state: text deltas accumulate into a fresh text block.
-      // Each loop iteration starts a new text block in `completedBlocks`
-      // — resetting the draft index here doesn't lose prior turns'
-      // text, which already sits at an earlier index. Text never spans
-      // iterations: each model turn is a distinct assistant message.
       let accumulatedText = ""
       let currentTextDraftIndex: number | null = null
 

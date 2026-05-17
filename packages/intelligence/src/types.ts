@@ -95,16 +95,7 @@ export type StreamEvent =
   | {
       type: "content"
       blocks: ContentBlock[]
-      /**
-       * Optional turn-boundary signal. Only the Claude CLI adapter
-       * sets this — its stream-json `assistant` events carry a per-turn
-       * `message.id` that flips when the model starts a new turn
-       * inside the same user→done cycle. Stateless decoders pass it
-       * through; the session accumulates blocks across turns by
-       * promoting them whenever the id changes.
-       * API adapters keep an in-memory accumulator instead and never
-       * emit this field.
-       */
+      /** Per-turn boundary signal from Claude CLI's stream-json. */
       messageId?: string
     }
   | { type: "done" }

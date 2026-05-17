@@ -6,14 +6,6 @@
  * - Handles session restart on crash or "New Chat"
  * - Detects mutation tool calls and notifies for cache invalidation
  * - On stop: forwards conversation context to the next session
- *
- * Stream contract: every adapter emits `StreamEvent.content` with the
- * **complete cumulative blocks array** for the current user→done
- * cycle (entire agentic loop, across iterations and tool calls — not
- * just one model turn). The hook replaces the trailing assistant
- * message's blocks wholesale on each event, so non-text blocks
- * (tool-activity, charts, attachments) never duplicate, and earlier
- * turns' charts/tables persist when the model takes another tool turn.
  */
 
 import { useCallback, useEffect, useRef, useState } from "react"
@@ -70,12 +62,6 @@ export function useCapySession(opts: UseCapySessionOptions): UseCapySessionRetur
     (event: StreamEvent, ctx) => {
       switch (event.type) {
         case "content": {
-          // Adapters emit the complete cumulative blocks array for the
-          // current user→done cycle (across loop iterations and tool
-          // calls) — `mergeStreamContent` replaces the trailing
-          // assistant message's blocks wholesale. The pre-Phase-10.5b
-          // append-each-block path duplicated tool cards, charts, and
-          // attachments on every cumulative tick (demo regression).
           setMessages((prev) => mergeStreamContent(prev, event.blocks))
 
           for (const block of event.blocks) {

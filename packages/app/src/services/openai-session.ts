@@ -13,10 +13,9 @@
  * Mirrors `AnthropicSession`'s shape: same lifecycle (`send`/`stop`/
  * `restart`/`kill`), same `interrupted` flag pattern that drops
  * trailing assistant turns with unmatched `tool_calls` (OpenAI's
- * analogue of unmatched `tool_use`). Emits `StreamEvent`s directly —
- * `content` blocks carry the **complete cumulative blocks array** for
- * the current user→done cycle (entire agentic loop, across iterations
- * and tool calls — never just one model turn).
+ * analogue of unmatched `tool_use`). `content` emits carry the
+ * cumulative blocks for the whole user→done cycle (accumulator hoisted
+ * out of the agentic loop), so a turn-2 chart never wipes a turn-1.
  *
  * Tauri's webview is a real browser, so the SDK works with
  * `dangerouslyAllowBrowser: true`. The flag is intended to discourage
@@ -217,11 +216,7 @@ export class OpenAiSession implements CapySession {
   private async runAgenticLoop(): Promise<void> {
     const tools = getOpenAiTools()
 
-    // Cumulative across the entire user→done cycle. Each agentic-loop
-    // iteration is one model turn; its blocks append here rather than
-    // replacing per-iteration state. Emits carry the full array so the
-    // consumer can replace the trailing assistant message wholesale
-    // without losing earlier turns' charts/tables.
+    // Cumulative across the user→done cycle; survives loop iterations.
     const completedBlocks: ContentBlock[] = []
     const emitContent = () => {
       if (completedBlocks.length === 0) return
@@ -254,12 +249,6 @@ export class OpenAiSession implements CapySession {
         { signal: this.abortController.signal },
       )
 
-      // ── Per-stream state ──────────────────────────────────────
-      // Text deltas are not cumulative; accumulate locally into a
-      // fresh text block for this iteration. Resetting the draft
-      // index doesn't lose prior turns' text — that sits at earlier
-      // indices in `completedBlocks`. Text never spans iterations:
-      // each model turn is a distinct assistant message.
       let accumulatedText = ""
       let currentTextDraftIndex: number | null = null
       // Tool calls stream as deltas keyed by `index`; arguments arrive

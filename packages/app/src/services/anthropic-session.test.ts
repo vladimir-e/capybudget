@@ -467,11 +467,6 @@ describe("AnthropicSession", () => {
   })
 
   it("accumulates render blocks across agentic-loop iterations (cumulative cycle)", async () => {
-    // Regression: each agentic-loop iteration used to keep its own
-    // `completedBlocks`, so a turn-2 render-table would emit without
-    // the turn-1 donut — the UI replaced wholesale and the chart
-    // vanished. The fix hoists the accumulator out of the while loop;
-    // the final emit must carry BOTH render blocks.
     queueTurn({
       textDeltas: ["Here's the split:"],
       toolUses: [

@@ -167,16 +167,11 @@ describe("ClaudeCliSession", () => {
 
   describe("cross-turn content accumulation", () => {
     it("accumulates blocks from successive turns into one cumulative cycle", async () => {
-      // The CLI emits one `assistant` event per model turn, each
-      // carrying only that turn's blocks. The session must stitch them
-      // into a single cumulative array so a turn-2 render-table never
-      // wipes a turn-1 donut chart from the UI.
       const { session, events } = makeSession()
       await session.send("breakdown")
 
       const handlers = latestHandlers.current!
 
-      // Turn 1: text + donut chart.
       handlers.stdout!(
         JSON.stringify({
           type: "assistant",
@@ -197,7 +192,6 @@ describe("ClaudeCliSession", () => {
         }),
       )
 
-      // Turn 2: a follow-up table (different message.id).
       handlers.stdout!(
         JSON.stringify({
           type: "assistant",
@@ -220,16 +214,11 @@ describe("ClaudeCliSession", () => {
       const lastContent = [...events].reverse().find((e) => e.type === "content")
       expect(lastContent).toBeTruthy()
       if (lastContent?.type !== "content") throw new Error("unreachable")
-      // Final cumulative emit must carry both the donut AND the table.
       const types = lastContent.blocks.map((b) => b.type)
       expect(types).toEqual(["text", "donut-chart", "table"])
     })
 
     it("grows the in-progress text block when same-id text deltas arrive", async () => {
-      // The CLI streams text deltas as repeated `assistant` events with
-      // the same `message.id`, each carrying the latest cumulative text
-      // for the in-progress text block. The accumulator must replace,
-      // not append, so streaming "Hel" → "Hello" doesn't emit two blocks.
       const { session, events } = makeSession()
       await session.send("hi")
 
@@ -253,12 +242,9 @@ describe("ClaudeCliSession", () => {
     })
 
     it("preserves text when a same-id tool_use delta follows it", async () => {
-      // Real wire format (verified empirically): within one message.id,
-      // the CLI emits a text event then a SEPARATE tool_use event whose
-      // content does NOT include the prior text. The accumulator must
-      // append the tool block alongside the text, not clobber it. This
-      // is the regression that caused the "text → tool replaces text"
-      // cascade in the Claude CLI provider.
+      // Wire format: within one message.id, the CLI emits a text event
+      // then a separate tool_use event whose content does NOT include
+      // the prior text. The accumulator must append, not clobber.
       const { session, events } = makeSession()
       await session.send("hi")
 
@@ -294,9 +280,6 @@ describe("ClaudeCliSession", () => {
     })
 
     it("preserves prior turn when a new message.id starts (delta-style sequence)", async () => {
-      // Full delta sequence: turn-1 text, turn-1 tool_use (same id),
-      // then turn-2 text under a new id, then turn-2 render_table.
-      // Final state must include all four blocks in order.
       const { session, events } = makeSession()
       await session.send("breakdown")
 

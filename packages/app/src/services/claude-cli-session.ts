@@ -21,15 +21,8 @@
  * the consumer side only ever sees typed `StreamEvent`s. Process-level
  * events (stderr noise, unexpected exits, spawn failures) are handled
  * here too: stderr is logged at debug, exits route through `onExit`,
- * and spawn errors emit a `StreamEvent.error`.
- *
- * Stream-event shape: `content` blocks carry the **complete cumulative
- * blocks array** for the current user→done cycle (entire agentic
- * loop, across iterations and tool calls). The parser is stateless and
- * each CLI `assistant` event is a per-turn snapshot; this session
- * tracks the turn boundary via `messageId` and accumulates blocks
- * across turns so consumers can replace the trailing assistant
- * message's blocks wholesale on every tick.
+ * and spawn errors emit a `StreamEvent.error`. Block accumulation
+ * across the user→done cycle is non-trivial — see `accumulateCycleEvent`.
  */
 
 import { Command, type Child } from "@tauri-apps/plugin-shell"
@@ -62,16 +55,7 @@ export class ClaudeCliSession implements CapySession {
   private killed = false
   /** Set by markInterrupted(); consumed (and cleared) on the next send. */
   private interruptedMessages: readonly ChatMessage[] | null = null
-  // ── Per-cycle (user→done) content accumulator ────────────────────
-  // The CLI's stream-json is delta-style WITHIN a single `message.id`:
-  // each `assistant` event carries ONLY the new content for that delta,
-  // NOT a cumulative snapshot. Text deltas update the in-progress text
-  // block; non-text blocks (tool_use → render/tool-activity) append. A
-  // new `message.id` marks a turn boundary — promote `currentTurnBlocks`
-  // into `finishedTurns` and start fresh. `inProgressTextIndex` points
-  // at the text block being streamed, or `null` when the last appended
-  // block was non-text (any further text in the same turn starts a new
-  // block).
+  // Per-cycle (user→done) content accumulator — see accumulateCycleEvent.
   private finishedTurns: ContentBlock[] = []
   private currentTurnId: string | null = null
   private currentTurnBlocks: ContentBlock[] = []
@@ -177,9 +161,6 @@ export class ClaudeCliSession implements CapySession {
       await this.spawn()
     }
 
-    // Reset per-cycle accumulator: every send() starts a fresh
-    // user→done window. Without this, blocks from a previous reply
-    // would leak into the next one.
     this.resetCycleAccumulator()
 
     const payload = JSON.stringify({
@@ -278,12 +259,13 @@ export class ClaudeCliSession implements CapySession {
 
   /**
    * Stitch delta-style stream-json events into a cumulative cycle.
-   * Same `messageId` events feed in-turn deltas — text grows the
-   * in-progress text block, anything else appends. A new `messageId`
-   * promotes the current turn into `finishedTurns` and starts a fresh
-   * one. `done` and `error` reset the accumulator so the next send()
-   * starts clean. Events without `messageId` (non-CLI usage) are
-   * treated as belonging to the current turn.
+   *
+   * The CLI's stream-json is delta-style within one `message.id`: each
+   * event carries only the new block(s), NOT a cumulative snapshot. So
+   * a text event followed by a same-id tool_use event would clobber the
+   * text if we replaced wholesale. Within a turn: text grows the
+   * in-progress text block, anything else appends. A new `message.id`
+   * promotes `currentTurnBlocks` into `finishedTurns` and starts fresh.
    */
   private accumulateCycleEvent(event: StreamEvent): StreamEvent {
     if (event.type === "done" || event.type === "error") {
@@ -294,9 +276,6 @@ export class ClaudeCliSession implements CapySession {
 
     const incomingId = event.messageId
     if (incomingId !== undefined && incomingId !== this.currentTurnId) {
-      // New turn: finalize the previous one before starting fresh.
-      // The CLI never re-emits a prior turn id once a new one starts,
-      // so promotion is final for the rest of this cycle.
       if (this.currentTurnBlocks.length > 0) {
         this.finishedTurns.push(...this.currentTurnBlocks)
       }
@@ -305,8 +284,6 @@ export class ClaudeCliSession implements CapySession {
       this.inProgressTextIndex = null
     }
 
-    // Within-turn delta merge: text grows the in-progress text block;
-    // anything else appends and finalizes whatever text preceded it.
     for (const block of event.blocks) {
       if (block.type === "text" && this.inProgressTextIndex !== null) {
         this.currentTurnBlocks[this.inProgressTextIndex] = block

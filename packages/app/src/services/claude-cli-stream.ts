@@ -1,19 +1,8 @@
 /**
  * Claude CLI stream-json decoder — internal to `ClaudeCliSession`.
- *
- * The CLI emits each model turn's `assistant` event as a cumulative
- * snapshot of THAT turn's content blocks; the snapshot resets between
- * turns inside a single user→done cycle. The parser is stateless: it
- * relays the snapshot as a `StreamEvent.content` and forwards the
- * per-turn `message.id` so the session can accumulate blocks across
- * turns. Other adapters (Anthropic, OpenAI) emit `StreamEvent`s
- * directly without roundtripping through the CLI's wire format — so
- * this decoder lives here only to bridge the one provider that
- * actually speaks it.
- *
- * Kept in its own file (rather than inlined in `claude-cli-session.ts`)
- * because the parser is non-trivial and benefits from independent
- * testing.
+ * Stateless: each line is parsed into one or more `StreamEvent`s and
+ * forwarded with the per-turn `message.id`. Accumulation logic lives
+ * in the session (see `accumulateCycleEvent`).
  */
 
 import {
