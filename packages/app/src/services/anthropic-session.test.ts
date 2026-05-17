@@ -541,4 +541,43 @@ describe("AnthropicSession", () => {
     // Exactly one fresh tool dispatch, no budget-exhausted error this time.
     expect(mockRunTool).toHaveBeenCalledTimes(1)
   })
+
+  it("emits data-changed after each successful mutation tool, not for reads", async () => {
+    queueTurn({
+      toolUses: [
+        { id: "tu1", name: "list_accounts", input: {} },
+        { id: "tu2", name: "create_transaction", input: { type: "expense", amount: 1500, accountId: "a1", date: "2026-03-01" } },
+        { id: "tu3", name: "create_transaction", input: { type: "expense", amount: 1500, accountId: "a1", date: "2026-04-01" } },
+      ],
+      stop_reason: "tool_use",
+    })
+    queueTurn({
+      textDeltas: ["Created."],
+      stop_reason: "end_turn",
+    })
+    mockRunTool.mockResolvedValue("ok")
+
+    const { session, events } = makeSession()
+    await session.send("add two txns")
+
+    const dataChanged = events.filter((e) => e.type === "data-changed")
+    expect(dataChanged).toHaveLength(2)
+  })
+
+  it("does not emit data-changed when a mutation tool throws", async () => {
+    queueTurn({
+      toolUses: [{ id: "tu1", name: "create_transaction", input: { bad: true } }],
+      stop_reason: "tool_use",
+    })
+    queueTurn({
+      textDeltas: ["Sorry."],
+      stop_reason: "end_turn",
+    })
+    mockRunTool.mockRejectedValueOnce(new Error("boom"))
+
+    const { session, events } = makeSession()
+    await session.send("add one")
+
+    expect(events.some((e) => e.type === "data-changed")).toBe(false)
+  })
 })

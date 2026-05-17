@@ -23,6 +23,7 @@ import {
   buildRenderToolMap,
   runTool,
   getToolDefinitions,
+  MUTATION_TOOL_NAMES,
   SESSION_TOOL_CALL_BUDGET,
   type ApiAdapterOptions,
   type CapySession,
@@ -266,6 +267,7 @@ export class AnthropicSession implements CapySession {
           continue
         }
         let resultText: string
+        let toolSucceeded = false
         try {
           resultText = await runTool(
             block.name,
@@ -276,6 +278,7 @@ export class AnthropicSession implements CapySession {
               budgetPath: this.opts.budgetPath,
             },
           )
+          toolSucceeded = true
         } catch (err) {
           resultText = `Error: ${err instanceof Error ? err.message : String(err)}`
         }
@@ -284,6 +287,12 @@ export class AnthropicSession implements CapySession {
           tool_use_id: block.id,
           content: resultText,
         })
+        // Mutation tools update repo state; signal the UI so it can refresh
+        // incrementally (and flush the debounced write before the next
+        // tool reads a stale baseline).
+        if (toolSucceeded && MUTATION_TOOL_NAMES.has(block.name)) {
+          this.opts.onEvent({ type: "data-changed" })
+        }
       }
 
       // If stop() ran while tools were executing, the trailing

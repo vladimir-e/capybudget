@@ -98,5 +98,12 @@ export type StreamEvent =
       /** Per-turn boundary signal from Claude CLI's stream-json. */
       messageId?: string
     }
+  /**
+   * Emitted by adapters right after a mutation tool has successfully run.
+   * The UI listens for this to refresh data incrementally — so the user
+   * sees each transaction land as the agentic loop creates it, rather
+   * than waiting until end-of-turn.
+   */
+  | { type: "data-changed" }
   | { type: "done" }
   | { type: "error"; message: string }

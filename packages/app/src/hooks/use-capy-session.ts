@@ -64,6 +64,12 @@ export function useCapySession(opts: UseCapySessionOptions): UseCapySessionRetur
         case "content": {
           setMessages((prev) => mergeStreamContent(prev, event.blocks))
 
+          // Claude CLI doesn't emit `data-changed` (the CLI's stream-json
+          // doesn't surface per-tool completion), so detect mutations from
+          // the content stream and let the `done` handler do a single
+          // end-of-turn refresh. In-process adapters emit `data-changed`
+          // explicitly per tool and clear this flag, so the done-handler
+          // skips the redundant invalidation.
           for (const block of event.blocks) {
             if (block.type === "tool-activity" && MUTATION_TOOL_NAMES.has(block.tool)) {
               hadMutationsRef.current = true
@@ -72,6 +78,11 @@ export function useCapySession(opts: UseCapySessionOptions): UseCapySessionRetur
           }
           break
         }
+
+        case "data-changed":
+          hadMutationsRef.current = false
+          ctx.optsRef.current.onDataChanged?.()
+          break
 
         case "done":
           ctx.setIsStreaming(false)

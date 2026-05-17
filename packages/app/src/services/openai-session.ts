@@ -39,6 +39,7 @@ import {
   buildRenderToolMap,
   runTool,
   getToolDefinitions,
+  MUTATION_TOOL_NAMES,
   SESSION_TOOL_CALL_BUDGET,
   type ApiAdapterOptions,
   type CapySession,
@@ -368,12 +369,14 @@ export class OpenAiSession implements CapySession {
           continue
         }
         let resultText: string
+        let toolSucceeded = false
         try {
           resultText = await runTool(acc.name, parsed, {
             repo: this.opts.repo,
             fileAdapter: this.opts.fileAdapter,
             budgetPath: this.opts.budgetPath,
           })
+          toolSucceeded = true
         } catch (err) {
           resultText = `Error: ${err instanceof Error ? err.message : String(err)}`
         }
@@ -382,6 +385,12 @@ export class OpenAiSession implements CapySession {
           tool_call_id: acc.id,
           content: resultText,
         })
+        // Mutation tools update repo state; signal the UI so it can refresh
+        // incrementally (and flush the debounced write before the next
+        // tool reads a stale baseline).
+        if (toolSucceeded && MUTATION_TOOL_NAMES.has(acc.name)) {
+          this.opts.onEvent({ type: "data-changed" })
+        }
       }
 
       // If stop() ran while tools were executing, the trailing assistant
