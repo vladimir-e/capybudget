@@ -8,7 +8,7 @@
  *
  * The chat system prompt already embeds `DATA_MODEL.md` and a curated
  * `PRODUCT.md` excerpt as always-on context. This tool is for the rest:
- * architecture deep-dives, the import flow, the roadmap.
+ * architecture deep-dives, the import flow, intelligence-layer internals.
  */
 
 import { SPECS, SPEC_FILENAMES } from "../../specs.generated"

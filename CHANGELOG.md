@@ -11,6 +11,7 @@ CHANGELOG PHILOSOPHY:
 
 ## Unreleased
 
+- **Specs** - Drop roadmap from spec set; trim intelligence-layer references.
 - **Chat** - Fix AI output overwrite cascade; tighten render discipline; OpenAI follow-ups.
 
 ## 0.21.0 — 2026-05-16

@@ -237,7 +237,7 @@ The prompt also bakes in two spec files as always-on context so capy understands
 - **`DATA_MODEL.md`** — embedded in full. Capy needs the exact schema to interpret tool results and form valid mutations.
 - **`PRODUCT.md`** — curated excerpt (everything above `## Target Platforms`). The deployment/distribution sections are skipped — capy reasons about how the app works, not how it ships.
 
-Both embeds are sourced from `packages/intelligence/src/specs.generated.ts`, which is regenerated on every build by `scripts/generate-specs.ts`. The two spec files carry maintenance-note footers flagging this dependency for human editors. For anything beyond the always-on context — architecture, the import pipeline, the intelligence layer itself, the roadmap — capy calls `read_spec`.
+Both embeds are sourced from `packages/intelligence/src/specs.generated.ts`, which is regenerated on every build by `scripts/generate-specs.ts`. The two spec files carry maintenance-note footers flagging this dependency for human editors. For anything beyond the always-on context — architecture, the import pipeline, the intelligence layer itself — capy calls `read_spec`.
 
 ## Import Sessions
 

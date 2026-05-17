@@ -9,7 +9,7 @@
  *     tool results and form valid mutations.
  *
  * For anything beyond that — architecture detail, the import flow, the
- * intelligence layer itself, the roadmap — capy calls `read_spec`.
+ * intelligence layer itself — capy calls `read_spec`.
  *
  * Both embeds are sourced from `specs.generated.ts`, which is regenerated
  * on every build (see `scripts/generate-specs.ts`). To resync after
@@ -105,7 +105,7 @@ All amounts for write tools are in positive integer cents (e.g. 1250 = $12.50). 
 
 ## Going deeper on the app
 
-If you need implementation detail beyond what's below — the architecture, the import pipeline, the intelligence layer's own internals, the roadmap, the test strategy — call \`read_spec\` with the filename. Available specs: ${SPEC_FILENAMES.join(", ")}. The high-level data model and product surface are already in this prompt; reach for read_spec when the user's question gets into how things work under the hood.
+If you need implementation detail beyond what's below — the architecture, the import pipeline, the intelligence layer's own internals, the test strategy — call \`read_spec\` with the filename. Available specs: ${SPEC_FILENAMES.join(", ")}. The high-level data model and product surface are already in this prompt; reach for read_spec when the user's question gets into how things work under the hood.
 
 ---
 

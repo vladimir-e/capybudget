@@ -740,7 +740,7 @@ export const READ_FILE_TOOL_DEF = {
 
 export const READ_SPEC_TOOL_DEF = {
   name: "read_spec",
-  description: `Read one of Capy Budget's design specs. The chat prompt already embeds DATA_MODEL.md and a high-level PRODUCT.md excerpt — reach for this tool when you need deeper detail on architecture, the import pipeline, the intelligence layer internals, or the roadmap. Available files: ${SPEC_FILENAMES.join(", ")}.`,
+  description: `Read one of Capy Budget's design specs. The chat prompt already embeds DATA_MODEL.md and a high-level PRODUCT.md excerpt — reach for this tool when you need deeper detail on architecture, the import pipeline, or the intelligence layer internals. Available files: ${SPEC_FILENAMES.join(", ")}.`,
   inputSchema: {
     type: "object" as const,
     properties: {
