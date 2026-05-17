@@ -9,6 +9,10 @@ CHANGELOG PHILOSOPHY:
 - Resist the urge to be thorough here. Thoroughness goes in specs, not changelog.
 -->
 
+## Unreleased
+
+- **Chat** - Fix AI output overwrite cascade; tighten render discipline; OpenAI follow-ups.
+
 ## 0.21.0 — 2026-05-16
 
 Release prep: branding, promo redesign, auto-updater scaffolding.

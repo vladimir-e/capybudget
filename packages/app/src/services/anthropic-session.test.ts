@@ -466,6 +466,53 @@ describe("AnthropicSession", () => {
     expect(events.some((e) => e.type === "done")).toBe(false)
   })
 
+  it("accumulates render blocks across agentic-loop iterations (cumulative cycle)", async () => {
+    // Regression: each agentic-loop iteration used to keep its own
+    // `completedBlocks`, so a turn-2 render-table would emit without
+    // the turn-1 donut — the UI replaced wholesale and the chart
+    // vanished. The fix hoists the accumulator out of the while loop;
+    // the final emit must carry BOTH render blocks.
+    queueTurn({
+      textDeltas: ["Here's the split:"],
+      toolUses: [
+        {
+          id: "tu-donut",
+          name: "render_donut_chart",
+          input: {
+            title: "Spending",
+            data: [{ label: "Food", value: 50 }],
+          },
+        },
+      ],
+      stop_reason: "tool_use",
+    })
+    queueTurn({
+      toolUses: [
+        {
+          id: "tu-table",
+          name: "render_table",
+          input: {
+            headers: ["Category", "Amount"],
+            rows: [["Food", "$50"]],
+          },
+        },
+      ],
+      stop_reason: "end_turn",
+    })
+
+    mockRunTool.mockResolvedValue("Rendered.")
+
+    const { session, events } = makeSession()
+    await session.send("Breakdown please")
+
+    const contentEvents = events.filter((e) => e.type === "content")
+    const finalEmit = contentEvents[contentEvents.length - 1]
+    if (finalEmit?.type !== "content") throw new Error("expected content event")
+    const types = finalEmit.blocks.map((b) => b.type)
+    expect(types).toContain("donut-chart")
+    expect(types).toContain("table")
+  })
+
   it("restart() resets the budget counter so the next session starts fresh", async () => {
     const { SESSION_TOOL_CALL_BUDGET } = await import("@capybudget/intelligence")
     // Burn the entire budget on the first send.

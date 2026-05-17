@@ -528,6 +528,39 @@ describe("parseStreamLine", () => {
     })
   })
 
+  describe("messageId propagation", () => {
+    it("attaches message.id to the content event when present", () => {
+      const line = JSON.stringify({
+        type: "assistant",
+        message: {
+          id: "msg_abc123",
+          content: [{ type: "text", text: "Hello" }],
+        },
+      })
+
+      expect(parseStreamLine(line)).toEqual([
+        {
+          type: "content",
+          blocks: [{ type: "text", content: "Hello" }],
+          messageId: "msg_abc123",
+        },
+      ])
+    })
+
+    it("omits messageId when the assistant event has no message.id", () => {
+      const line = JSON.stringify({
+        type: "assistant",
+        message: {
+          content: [{ type: "text", text: "Hello" }],
+        },
+      })
+
+      const events = parseStreamLine(line)
+      expect(events).toHaveLength(1)
+      expect(events[0]).not.toHaveProperty("messageId")
+    })
+  })
+
   describe("assistant with empty / missing content", () => {
     it("returns [] when message has no content array", () => {
       const line = JSON.stringify({

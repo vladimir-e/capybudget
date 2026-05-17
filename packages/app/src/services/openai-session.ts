@@ -13,7 +13,10 @@
  * Mirrors `AnthropicSession`'s shape: same lifecycle (`send`/`stop`/
  * `restart`/`kill`), same `interrupted` flag pattern that drops
  * trailing assistant turns with unmatched `tool_calls` (OpenAI's
- * analogue of unmatched `tool_use`). Emits `StreamEvent`s directly.
+ * analogue of unmatched `tool_use`). Emits `StreamEvent`s directly —
+ * `content` blocks carry the **complete cumulative blocks array** for
+ * the current user→done cycle (entire agentic loop, across iterations
+ * and tool calls — never just one model turn).
  *
  * Tauri's webview is a real browser, so the SDK works with
  * `dangerouslyAllowBrowser: true`. The flag is intended to discourage
@@ -214,6 +217,17 @@ export class OpenAiSession implements CapySession {
   private async runAgenticLoop(): Promise<void> {
     const tools = getOpenAiTools()
 
+    // Cumulative across the entire user→done cycle. Each agentic-loop
+    // iteration is one model turn; its blocks append here rather than
+    // replacing per-iteration state. Emits carry the full array so the
+    // consumer can replace the trailing assistant message wholesale
+    // without losing earlier turns' charts/tables.
+    const completedBlocks: ContentBlock[] = []
+    const emitContent = () => {
+      if (completedBlocks.length === 0) return
+      this.opts.onEvent({ type: "content", blocks: [...completedBlocks] })
+    }
+
     while (true) {
       if (this.killed) return
       if (this.interrupted) return
@@ -241,22 +255,15 @@ export class OpenAiSession implements CapySession {
       )
 
       // ── Per-stream state ──────────────────────────────────────
-      // Text deltas are not cumulative; accumulate locally and emit
-      // `content` events carrying the full cumulative blocks array so
-      // consumers can replace the trailing assistant message's blocks
-      // wholesale on every tick.
+      // Text deltas are not cumulative; accumulate locally into a
+      // fresh text block for this iteration (previous turns' text is
+      // already finalized in `completedBlocks`).
       let accumulatedText = ""
-      const completedBlocks: ContentBlock[] = []
       let currentTextDraftIndex: number | null = null
       // Tool calls stream as deltas keyed by `index`; arguments arrive
       // sliced across many chunks. Parse only after the stream ends.
       const toolAccs = new Map<number, ToolCallAccumulator>()
       let finishReason: string | null = null
-
-      const emitContent = () => {
-        if (completedBlocks.length === 0) return
-        this.opts.onEvent({ type: "content", blocks: [...completedBlocks] })
-      }
 
       for await (const chunk of stream) {
         const choice = chunk.choices[0]

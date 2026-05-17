@@ -1,12 +1,15 @@
 /**
  * Claude CLI stream-json decoder — internal to `ClaudeCliSession`.
  *
- * The CLI emits assistant turns as cumulative JSON lines (each event
- * carries ALL content blocks so far). This module reconstructs the
- * full block list and yields a `StreamEvent` per parsed line. Other
- * adapters (Anthropic, OpenAI) emit `StreamEvent`s directly without
- * roundtripping through the CLI's wire format — so this decoder lives
- * here only to bridge the one provider that actually speaks it.
+ * The CLI emits each model turn's `assistant` event as a cumulative
+ * snapshot of THAT turn's content blocks; the snapshot resets between
+ * turns inside a single user→done cycle. The parser is stateless: it
+ * relays the snapshot as a `StreamEvent.content` and forwards the
+ * per-turn `message.id` so the session can accumulate blocks across
+ * turns. Other adapters (Anthropic, OpenAI) emit `StreamEvent`s
+ * directly without roundtripping through the CLI's wire format — so
+ * this decoder lives here only to bridge the one provider that
+ * actually speaks it.
  *
  * Kept in its own file (rather than inlined in `claude-cli-session.ts`)
  * because the parser is non-trivial and benefits from independent
@@ -47,7 +50,9 @@ export function parseStreamLine(line: string): StreamEvent[] {
 
   switch (event.type) {
     case "assistant": {
-      const message = event.message as { content?: Array<Record<string, unknown>> } | undefined
+      const message = event.message as
+        | { id?: string; content?: Array<Record<string, unknown>> }
+        | undefined
       const rawBlocks = message?.content ?? []
       const blocks: ContentBlock[] = []
 
@@ -70,7 +75,10 @@ export function parseStreamLine(line: string): StreamEvent[] {
       }
 
       if (blocks.length > 0) {
-        events.push({ type: "content", blocks })
+        const messageId = typeof message?.id === "string" ? message.id : undefined
+        events.push(
+          messageId ? { type: "content", blocks, messageId } : { type: "content", blocks },
+        )
       }
       break
     }

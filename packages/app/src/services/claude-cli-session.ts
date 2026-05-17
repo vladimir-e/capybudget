@@ -22,6 +22,14 @@
  * events (stderr noise, unexpected exits, spawn failures) are handled
  * here too: stderr is logged at debug, exits route through `onExit`,
  * and spawn errors emit a `StreamEvent.error`.
+ *
+ * Stream-event shape: `content` blocks carry the **complete cumulative
+ * blocks array** for the current user→done cycle (entire agentic
+ * loop, across iterations and tool calls). The parser is stateless and
+ * each CLI `assistant` event is a per-turn snapshot; this session
+ * tracks the turn boundary via `messageId` and accumulates blocks
+ * across turns so consumers can replace the trailing assistant
+ * message's blocks wholesale on every tick.
  */
 
 import { Command, type Child } from "@tauri-apps/plugin-shell"
@@ -29,6 +37,7 @@ import { writeTextFile } from "@tauri-apps/plugin-fs"
 import { tempDir, join as joinPath } from "@tauri-apps/api/path"
 import {
   SESSION_TOOL_CALL_BUDGET,
+  type ContentBlock,
   type StreamEvent,
   type ClaudeCliAdapterOptions,
   type MessageContent,
@@ -53,6 +62,13 @@ export class ClaudeCliSession implements CapySession {
   private killed = false
   /** Set by markInterrupted(); consumed (and cleared) on the next send. */
   private interruptedMessages: readonly ChatMessage[] | null = null
+  // ── Per-cycle (user→done) content accumulator ────────────────────
+  // The CLI emits per-turn `assistant` snapshots; this state stitches
+  // them into a single cumulative array so the consumer sees the whole
+  // user→done cycle, not just the last model turn.
+  private finishedTurns: ContentBlock[] = []
+  private currentTurnId: string | null = null
+  private currentTurnBlocks: ContentBlock[] = []
 
   constructor(opts: ClaudeCliAdapterOptions) {
     this.budgetPath = opts.budgetPath
@@ -122,7 +138,7 @@ export class ClaudeCliSession implements CapySession {
         // `--max-turns` tripped). Mark the teardown as deliberate so
         // the close handler skips the unexpected-death onExit path.
         if (event.type === "error") this.killed = true
-        this.onEvent(event)
+        this.onEvent(this.accumulateCycleEvent(event))
       }
     })
 
@@ -153,6 +169,11 @@ export class ClaudeCliSession implements CapySession {
     if (!this.child) {
       await this.spawn()
     }
+
+    // Reset per-cycle accumulator: every send() starts a fresh
+    // user→done window. Without this, blocks from a previous reply
+    // would leak into the next one.
+    this.resetCycleAccumulator()
 
     const payload = JSON.stringify({
       type: "user",
@@ -246,5 +267,47 @@ export class ClaudeCliSession implements CapySession {
       }
       this.child = null
     }
+  }
+
+  /**
+   * Stitch per-turn snapshots from the CLI into a cumulative cycle.
+   * `content` events with the same `messageId` replace the current
+   * turn's blocks; a new `messageId` promotes the current turn into
+   * `finishedTurns` and starts a fresh one. `done` and `error` reset
+   * the accumulator so the next send() starts clean. Events without
+   * `messageId` (or non-content events) pass through unchanged.
+   */
+  private accumulateCycleEvent(event: StreamEvent): StreamEvent {
+    if (event.type === "done" || event.type === "error") {
+      this.resetCycleAccumulator()
+      return event
+    }
+    if (event.type !== "content") return event
+
+    const incomingId = event.messageId
+    if (incomingId === undefined) {
+      // No turn-boundary signal — treat as the current turn.
+      this.currentTurnBlocks = [...event.blocks]
+    } else if (incomingId === this.currentTurnId) {
+      this.currentTurnBlocks = [...event.blocks]
+    } else {
+      // New turn: finalize the previous one before starting fresh.
+      if (this.currentTurnId !== null && this.currentTurnBlocks.length > 0) {
+        this.finishedTurns.push(...this.currentTurnBlocks)
+      }
+      this.currentTurnId = incomingId
+      this.currentTurnBlocks = [...event.blocks]
+    }
+
+    return {
+      type: "content",
+      blocks: [...this.finishedTurns, ...this.currentTurnBlocks],
+    }
+  }
+
+  private resetCycleAccumulator(): void {
+    this.finishedTurns = []
+    this.currentTurnId = null
+    this.currentTurnBlocks = []
   }
 }

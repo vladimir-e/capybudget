@@ -623,6 +623,50 @@ describe("OpenAiSession", () => {
     expect(events.some((e) => e.type === "done")).toBe(false)
   })
 
+  it("accumulates render blocks across agentic-loop iterations (cumulative cycle)", async () => {
+    // Regression: each agentic-loop iteration used to keep its own
+    // `completedBlocks`, so a turn-2 render-table would emit without
+    // the turn-1 donut — the UI replaced wholesale and the chart
+    // vanished. The fix hoists the accumulator out of the while loop;
+    // the final emit must carry BOTH render blocks.
+    queueTurn({
+      textDeltas: ["Here's the split:"],
+      toolCallDeltas: [
+        {
+          index: 0,
+          id: "tc-donut",
+          name: "render_donut_chart",
+          argFragments: ['{"title":"Spending","data":[{"label":"Food","value":50}]}'],
+        },
+      ],
+      finish_reason: "tool_calls",
+    })
+    queueTurn({
+      toolCallDeltas: [
+        {
+          index: 0,
+          id: "tc-table",
+          name: "render_table",
+          argFragments: ['{"headers":["Category","Amount"],"rows":[["Food","$50"]]}'],
+        },
+      ],
+      finish_reason: "tool_calls",
+    })
+    queueTurn({ textDeltas: ["done"], finish_reason: "stop" })
+
+    mockRunTool.mockResolvedValue("Rendered.")
+
+    const { session, events } = makeSession()
+    await session.send("Breakdown please")
+
+    const contentEvents = events.filter((e) => e.type === "content")
+    const finalEmit = contentEvents[contentEvents.length - 1]
+    if (finalEmit?.type !== "content") throw new Error("expected content event")
+    const types = finalEmit.blocks.map((b) => b.type)
+    expect(types).toContain("donut-chart")
+    expect(types).toContain("table")
+  })
+
   it("restart() resets the budget counter so the next session starts fresh", async () => {
     const { SESSION_TOOL_CALL_BUDGET } = await import("@capybudget/intelligence")
     for (let i = 0; i < SESSION_TOOL_CALL_BUDGET + 1; i++) {

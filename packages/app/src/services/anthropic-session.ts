@@ -10,9 +10,11 @@
  *
  * Stream-event shape: this adapter emits `StreamEvent`s directly —
  * `content` blocks carry the **complete cumulative blocks array** for
- * the current assistant turn (never deltas), `done` on turn completion,
- * `error` on failure. Text deltas are accumulated locally so every emit
- * carries a full snapshot the consumer can replace wholesale.
+ * the current user→done cycle (entire agentic loop, across iterations
+ * and tool calls — never just one model turn), `done` on cycle
+ * completion, `error` on failure. Text deltas are accumulated locally
+ * so every emit carries a full snapshot the consumer can replace
+ * wholesale.
  *
  * Tauri's webview is a real browser, so the SDK works with
  * `dangerouslyAllowBrowser: true`. The flag is intended to discourage
@@ -175,6 +177,17 @@ export class AnthropicSession implements CapySession {
   private async runAgenticLoop(): Promise<void> {
     const tools = getAnthropicTools()
 
+    // Cumulative across the entire user→done cycle. Each agentic-loop
+    // iteration is one model turn; its blocks append here rather than
+    // replacing per-iteration state. Emits carry the full array so the
+    // consumer can replace the trailing assistant message wholesale
+    // without losing earlier turns' charts/tables.
+    const completedBlocks: ContentBlock[] = []
+    const emitContent = () => {
+      if (completedBlocks.length === 0) return
+      this.opts.onEvent({ type: "content", blocks: [...completedBlocks] })
+    }
+
     while (true) {
       if (this.killed) return
       if (this.interrupted) return
@@ -192,18 +205,11 @@ export class AnthropicSession implements CapySession {
         { signal: this.abortController.signal },
       )
 
-      // Stream content blocks to the UI as they arrive. Text is
-      // accumulated locally so each emit carries the full cumulative
-      // blocks array — consumers replace the trailing assistant
-      // message's blocks wholesale on every tick.
+      // Per-turn state: text deltas accumulate into a fresh text block.
+      // Each loop iteration starts a new text block in `completedBlocks`
+      // (the previous turn's text is already finalized in the array).
       let accumulatedText = ""
-      const completedBlocks: ContentBlock[] = []
       let currentTextDraftIndex: number | null = null
-
-      const emitContent = () => {
-        if (completedBlocks.length === 0) return
-        this.opts.onEvent({ type: "content", blocks: [...completedBlocks] })
-      }
 
       stream.on("text", (delta) => {
         accumulatedText += delta

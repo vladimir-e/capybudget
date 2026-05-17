@@ -165,6 +165,129 @@ describe("ClaudeCliSession", () => {
     expect(args[idx + 1]).toBe(String(SESSION_TOOL_CALL_BUDGET))
   })
 
+  describe("cross-turn content accumulation", () => {
+    it("accumulates blocks from successive turns into one cumulative cycle", async () => {
+      // The CLI emits one `assistant` event per model turn, each
+      // carrying only that turn's blocks. The session must stitch them
+      // into a single cumulative array so a turn-2 render-table never
+      // wipes a turn-1 donut chart from the UI.
+      const { session, events } = makeSession()
+      await session.send("breakdown")
+
+      const handlers = latestHandlers.current!
+
+      // Turn 1: text + donut chart.
+      handlers.stdout!(
+        JSON.stringify({
+          type: "assistant",
+          message: {
+            id: "msg_turn1",
+            content: [
+              { type: "text", text: "Here's the split:" },
+              {
+                type: "tool_use",
+                name: "mcp__capy__render_donut_chart",
+                input: {
+                  title: "Spending",
+                  data: [{ label: "Food", value: 50 }],
+                },
+              },
+            ],
+          },
+        }),
+      )
+
+      // Turn 2: a follow-up table (different message.id).
+      handlers.stdout!(
+        JSON.stringify({
+          type: "assistant",
+          message: {
+            id: "msg_turn2",
+            content: [
+              {
+                type: "tool_use",
+                name: "mcp__capy__render_table",
+                input: {
+                  headers: ["Category", "Amount"],
+                  rows: [["Food", "$50"]],
+                },
+              },
+            ],
+          },
+        }),
+      )
+
+      const lastContent = [...events].reverse().find((e) => e.type === "content")
+      expect(lastContent).toBeTruthy()
+      if (lastContent?.type !== "content") throw new Error("unreachable")
+      // Final cumulative emit must carry both the donut AND the table.
+      const types = lastContent.blocks.map((b) => b.type)
+      expect(types).toEqual(["text", "donut-chart", "table"])
+    })
+
+    it("replaces blocks within a turn when the same message.id is seen twice", async () => {
+      // Inside one turn, the CLI may emit cumulative snapshots. Two
+      // events with the same id should replace, not append.
+      const { session, events } = makeSession()
+      await session.send("hi")
+
+      const handlers = latestHandlers.current!
+      handlers.stdout!(
+        JSON.stringify({
+          type: "assistant",
+          message: { id: "msg_a", content: [{ type: "text", text: "He" }] },
+        }),
+      )
+      handlers.stdout!(
+        JSON.stringify({
+          type: "assistant",
+          message: { id: "msg_a", content: [{ type: "text", text: "Hello" }] },
+        }),
+      )
+
+      const lastContent = [...events].reverse().find((e) => e.type === "content")
+      if (lastContent?.type !== "content") throw new Error("unreachable")
+      expect(lastContent.blocks).toEqual([{ type: "text", content: "Hello" }])
+    })
+
+    it("resets the accumulator between sends so a new cycle starts clean", async () => {
+      const { session, events } = makeSession()
+      await session.send("first")
+
+      const firstHandlers = latestHandlers.current!
+      firstHandlers.stdout!(
+        JSON.stringify({
+          type: "assistant",
+          message: {
+            id: "msg_t1",
+            content: [{ type: "text", text: "first reply" }],
+          },
+        }),
+      )
+      firstHandlers.stdout!(JSON.stringify({ type: "result" }))
+
+      // Second send — start fresh; previous content must NOT bleed in.
+      events.length = 0
+      await session.send("second")
+      const secondHandlers = latestHandlers.current!
+      secondHandlers.stdout!(
+        JSON.stringify({
+          type: "assistant",
+          message: {
+            id: "msg_t2",
+            content: [{ type: "text", text: "second reply" }],
+          },
+        }),
+      )
+
+      const lastContent = [...events].reverse().find((e) => e.type === "content")
+      if (lastContent?.type !== "content") throw new Error("unreachable")
+      expect(lastContent.blocks).toEqual([
+        { type: "text", content: "second reply" },
+      ])
+    })
+  })
+
   it("surfaces an error_max_turns result as an error event and suppresses onExit", async () => {
     // When `--max-turns` trips, the CLI emits an `error_max_turns`
     // result line, then exits cleanly. The parser turns the line into
