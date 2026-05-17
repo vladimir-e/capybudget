@@ -313,9 +313,9 @@ Numbered phases retired — work clusters by mode rather than sequence. Polish f
 
 #### Chat & Intelligence
 
-- [ ] Fix AI output overwrite cascade (text → diagram → table → pills disappear in sequence; user only sees the last block)
-- [ ] Tighten rendering discipline — rich data on diagrams, no summary padding alongside charts; work like a tool, not a chat buddy
-- [ ] OpenAI provider doesn't offer follow-up chips
+- [x] Fix AI output overwrite cascade (text → diagram → table → pills disappear in sequence; user only sees the last block)
+- [x] Tighten rendering discipline — rich data on diagrams, no summary padding alongside charts; work like a tool, not a chat buddy
+- [x] OpenAI provider doesn't offer follow-up chips
 
 #### Smart Import
 
