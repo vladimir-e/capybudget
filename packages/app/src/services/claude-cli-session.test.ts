@@ -225,9 +225,11 @@ describe("ClaudeCliSession", () => {
       expect(types).toEqual(["text", "donut-chart", "table"])
     })
 
-    it("replaces blocks within a turn when the same message.id is seen twice", async () => {
-      // Inside one turn, the CLI may emit cumulative snapshots. Two
-      // events with the same id should replace, not append.
+    it("grows the in-progress text block when same-id text deltas arrive", async () => {
+      // The CLI streams text deltas as repeated `assistant` events with
+      // the same `message.id`, each carrying the latest cumulative text
+      // for the in-progress text block. The accumulator must replace,
+      // not append, so streaming "Hel" → "Hello" doesn't emit two blocks.
       const { session, events } = makeSession()
       await session.send("hi")
 
@@ -248,6 +250,108 @@ describe("ClaudeCliSession", () => {
       const lastContent = [...events].reverse().find((e) => e.type === "content")
       if (lastContent?.type !== "content") throw new Error("unreachable")
       expect(lastContent.blocks).toEqual([{ type: "text", content: "Hello" }])
+    })
+
+    it("preserves text when a same-id tool_use delta follows it", async () => {
+      // Real wire format (verified empirically): within one message.id,
+      // the CLI emits a text event then a SEPARATE tool_use event whose
+      // content does NOT include the prior text. The accumulator must
+      // append the tool block alongside the text, not clobber it. This
+      // is the regression that caused the "text → tool replaces text"
+      // cascade in the Claude CLI provider.
+      const { session, events } = makeSession()
+      await session.send("hi")
+
+      const handlers = latestHandlers.current!
+      handlers.stdout!(
+        JSON.stringify({
+          type: "assistant",
+          message: { id: "msg_a", content: [{ type: "text", text: "Hello." }] },
+        }),
+      )
+      handlers.stdout!(
+        JSON.stringify({
+          type: "assistant",
+          message: {
+            id: "msg_a",
+            content: [
+              {
+                type: "tool_use",
+                name: "mcp__capy__list_accounts",
+                input: {},
+              },
+            ],
+          },
+        }),
+      )
+
+      const lastContent = [...events].reverse().find((e) => e.type === "content")
+      if (lastContent?.type !== "content") throw new Error("unreachable")
+      expect(lastContent.blocks).toEqual([
+        { type: "text", content: "Hello." },
+        { type: "tool-activity", tool: "list_accounts" },
+      ])
+    })
+
+    it("preserves prior turn when a new message.id starts (delta-style sequence)", async () => {
+      // Full delta sequence: turn-1 text, turn-1 tool_use (same id),
+      // then turn-2 text under a new id, then turn-2 render_table.
+      // Final state must include all four blocks in order.
+      const { session, events } = makeSession()
+      await session.send("breakdown")
+
+      const handlers = latestHandlers.current!
+
+      handlers.stdout!(
+        JSON.stringify({
+          type: "assistant",
+          message: { id: "msg_t1", content: [{ type: "text", text: "Querying…" }] },
+        }),
+      )
+      handlers.stdout!(
+        JSON.stringify({
+          type: "assistant",
+          message: {
+            id: "msg_t1",
+            content: [
+              {
+                type: "tool_use",
+                name: "mcp__capy__list_transactions",
+                input: {},
+              },
+            ],
+          },
+        }),
+      )
+      handlers.stdout!(
+        JSON.stringify({
+          type: "assistant",
+          message: { id: "msg_t2", content: [{ type: "text", text: "Here it is:" }] },
+        }),
+      )
+      handlers.stdout!(
+        JSON.stringify({
+          type: "assistant",
+          message: {
+            id: "msg_t2",
+            content: [
+              {
+                type: "tool_use",
+                name: "mcp__capy__render_table",
+                input: {
+                  headers: ["Category", "Amount"],
+                  rows: [["Food", "$50"]],
+                },
+              },
+            ],
+          },
+        }),
+      )
+
+      const lastContent = [...events].reverse().find((e) => e.type === "content")
+      if (lastContent?.type !== "content") throw new Error("unreachable")
+      const types = lastContent.blocks.map((b) => b.type)
+      expect(types).toEqual(["text", "tool-activity", "text", "table"])
     })
 
     it("resets the accumulator between sends so a new cycle starts clean", async () => {
