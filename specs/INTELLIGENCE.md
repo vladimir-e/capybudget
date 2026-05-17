@@ -56,8 +56,8 @@ The tool handlers don't know which transport called them.
 
 | Event | Meaning |
 |---|---|
-| `content` | Full blocks array from cumulative assistant message (replaces previous snapshot) |
-| `done` | Turn complete |
+| `content` | Full cumulative blocks array for the current user→done cycle (entire agentic loop, across iterations and tool calls). Consumer replaces the trailing assistant message's blocks wholesale on every emit. |
+| `done` | Cycle complete |
 | `error` | Error message |
 
 ### Content Blocks
@@ -76,13 +76,14 @@ A `BlockRenderer` routes each block to its specialized renderer.
 
 ### Streaming Behavior
 
-Content blocks are **append-only** in the UI:
+Every `content` event carries the **complete cumulative blocks array** for the current user→done cycle — the entire agentic loop, across iterations and tool calls. The consumer (`mergeStreamContent`) replaces the trailing assistant message's blocks wholesale on every tick. Adapters are responsible for accumulating across model turns so non-text blocks (charts, tables, follow-up pills) survive subsequent turns.
 
-- Text blocks: cumulative growth detected by prefix matching — the last text block is updated in-place.
-- Non-text blocks (tool activity, tables, charts): always appended.
-- After tool results, fresh blocks emit a new sub-message; the handler appends rather than replaces.
+Adapter accumulation:
 
-Adapters emit `StreamEvent`s directly (`content` / `done` / `error`) — there's no transport-level event layer above this. Text deltas accumulate inside each adapter so every `content` event carries cumulative text, matching what the prefix-detection text-merging downstream expects.
+- Anthropic + OpenAI adapters: a `completedBlocks` array lives outside the agentic loop. Each iteration appends a fresh text block (driven by streamed text deltas) and pushes any tool-use blocks (rendered or `tool-activity`). The array survives across tool-result rounds.
+- Claude Code adapter: the CLI emits each model turn's `assistant` event as a per-turn snapshot. The decoder is stateless and forwards `message.id` as the optional `messageId` on `StreamEvent.content`; the session stitches turns into one cumulative array, promoting blocks into a finished-turns buffer when `messageId` changes.
+
+Adapters emit `StreamEvent`s directly (`content` / `done` / `error`) — there's no transport-level event layer above this.
 
 ## Adapters
 

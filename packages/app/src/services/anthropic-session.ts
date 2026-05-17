@@ -207,7 +207,9 @@ export class AnthropicSession implements CapySession {
 
       // Per-turn state: text deltas accumulate into a fresh text block.
       // Each loop iteration starts a new text block in `completedBlocks`
-      // (the previous turn's text is already finalized in the array).
+      // — resetting the draft index here doesn't lose prior turns'
+      // text, which already sits at an earlier index. Text never spans
+      // iterations: each model turn is a distinct assistant message.
       let accumulatedText = ""
       let currentTextDraftIndex: number | null = null
 

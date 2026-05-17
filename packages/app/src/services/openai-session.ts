@@ -256,8 +256,10 @@ export class OpenAiSession implements CapySession {
 
       // ── Per-stream state ──────────────────────────────────────
       // Text deltas are not cumulative; accumulate locally into a
-      // fresh text block for this iteration (previous turns' text is
-      // already finalized in `completedBlocks`).
+      // fresh text block for this iteration. Resetting the draft
+      // index doesn't lose prior turns' text — that sits at earlier
+      // indices in `completedBlocks`. Text never spans iterations:
+      // each model turn is a distinct assistant message.
       let accumulatedText = ""
       let currentTextDraftIndex: number | null = null
       // Tool calls stream as deltas keyed by `index`; arguments arrive

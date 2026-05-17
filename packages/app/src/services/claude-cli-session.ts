@@ -292,6 +292,8 @@ export class ClaudeCliSession implements CapySession {
       this.currentTurnBlocks = [...event.blocks]
     } else {
       // New turn: finalize the previous one before starting fresh.
+      // The CLI never re-emits a prior turn id once a new one starts,
+      // so promotion is final for the rest of this cycle.
       if (this.currentTurnId !== null && this.currentTurnBlocks.length > 0) {
         this.finishedTurns.push(...this.currentTurnBlocks)
       }
