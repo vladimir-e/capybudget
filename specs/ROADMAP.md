@@ -295,64 +295,79 @@ The path from current state to a public, signed, auto-updating Alpha release. Or
   - Recommend new budget folder over budget reset
   - Route big-file uploads to the import page instead of in-chat
 
-- [ ] **10.6 — Import polish**
-  - Guidance for breaking up huge imports
-  - More contrast on the import page
-  - Nicer merge flow: progress bar, page-switching allowed during merge, ensure import directory cleans up
+### Shipped — marketing & distribution
 
-- [ ] **10.7 — Auto backups**
-  - Dated zip files (`yyyy-mm-dd-budget_name.zip`)
-  - Rotation: keep 5 recent + 1 per month (last of month) preserved forever
+- [x] **Capy mascot** — landed in 10.5b chat redesign, used throughout the app
+- [x] **Promo site polish** — magazine-layout redesign, real Features section, off-platform CTAs hidden, light/dark theme
+- [x] **Branding** — app icon, favicons, social meta
+- [x] **DMG signing + notarization** — workflow wired in `.github/workflows/release.yml`
+- [x] **Auto-updater** — Tauri updater + `latest.json` channel served from GitHub Releases
 
-- [ ] **10.8 — Error state hardening**
-  - Mid-run file deletion recovery
-  - JS crash recovery
+---
 
-- [ ] **10.9 — UI polish pass**
-  - Fix transactions scrollbar (handle too small / hides behind header on long lists)
-  - Bulk-delete progress bar (50+ records)
-  - Cmd-key shortcut overlay (rail nav, transaction, intelligence, budget tabs)
-  - Router back/forward navigation controls
-  - Right-click context menus (accounts, transactions)
-  - Undo/Redo decision: remove or surface (and decide on import undo/redo)
+## Remaining to v1.0.0-alpha
 
-### Branding & content
+Numbered phases retired — work clusters by mode rather than sequence. Polish first, then reliability, then demo refresh, then pre-launch instrumentation. Launch (cutting the release, publishing the DMG, flipping the promo download link) is handled outside this doc.
 
-- [ ] **10.10 — Capy mascot & "Alpha" labeling**
-  - Mascot art in app ✓ (landed in 10.5b) — promo site integration pending
-  - "Alpha" indicator visible in app
-  - App icon
+### Polish (in-app)
 
-- [ ] **10.11 — Demo refresh**
-  - Surface analytics in demo presets
-  - Anchor demo dates to current date
+#### Chat & Intelligence
 
-- [ ] **10.12 — Promo site polish**
-  - Mascot integrated
-  - "Alpha" tag on site
-  - "How to start your budget" getting-started content
-  - Install instructions
+- [ ] Fix AI output overwrite cascade (text → diagram → table → pills disappear in sequence; user only sees the last block)
+- [ ] Tighten rendering discipline — rich data on diagrams, no summary padding alongside charts; work like a tool, not a chat buddy
+- [ ] OpenAI provider doesn't offer follow-up chips
 
-### Distribution
+#### Smart Import
 
-- [ ] **10.13 — DMG: sign, notarize, package**
-  - Apple Developer cert + notarization workflow ✓ wired in `.github/workflows/release.yml`
-  - Test installed app on a clean Mac (pending — requires Apple Developer secrets in repo)
+- [ ] Full-screen drop zone with stray-drop protection (don't open files dragged elsewhere in the app window)
+- [ ] Huge-import guidance
+- [ ] Higher contrast on import page
+- [ ] Nicer merge flow — progress bar, page-switching allowed during merge, ensure import directory cleans up
 
-- [ ] **10.14 — Auto-updater**
-  - Tauri updater wired up ✓ (`tauri-plugin-updater`, JS check on app startup)
-  - Signing key for update artifacts — pending: run `npx @tauri-apps/cli signer generate`, paste pubkey into `src-tauri/tauri.conf.json`, add private key + password as repo secrets
-  - Update channel served from GitHub Releases ✓ (`latest.json` at `/releases/latest/download/latest.json`)
-  - Must ship with v1 — users on the first DMG will get future updates automatically
+#### Settings
 
-- [ ] **10.14b — Bundle MCP server for production Claude Code provider**
-  - Currently Claude Code provider is gated to dev builds (`IS_DIST_BUILD` in `settings-screen.tsx`) because the MCP server is run via `npx tsx <__PROJECT_ROOT__>/packages/mcp/src/server.ts` — paths baked at build time and `tsx` not on user's machine
-  - Bundle `packages/mcp/src/server.ts` into a single JS file (esbuild) → `src-tauri/resources/mcp-server.js`
-  - Add `"resources"` entry in `tauri.conf.json` and resolve at runtime via `resolveResource()`
-  - Spawn via detected/configured `node` path instead of `npx tsx`
-  - Remove the `IS_DIST_BUILD` gate
+- [ ] Move categories management here
+- [ ] Sidebar layout for settings sections
+- [ ] Chat instructions live in settings (import instructions stay on import)
+- [ ] `Cmd+,` shortcut
 
-- [ ] **10.15 — Launch**
-  - Cut `v1.0.0-alpha` release
-  - Publish DMG to GitHub Releases
-  - Promo site live with download link
+#### Transactions
+
+- [ ] Scrollbar fix (handle too small, hides behind header on long lists)
+- [ ] "Uncategorized" filter on transactions screen
+- [ ] Bulk-delete progress bar (50+ records)
+- [ ] Merchant name → pre-filtered transactions link
+- [ ] Category hover popup with transactions
+- [ ] "This month NET" line under sidebar net worth
+
+#### Navigation chrome
+
+- [ ] Cmd-key shortcut overlay (rail nav, transaction, intelligence, budget tabs)
+- [ ] Router back/forward controls
+- [ ] Right-click context menus (accounts, transactions)
+
+#### Decisions to make
+
+- [ ] Undo/Redo: remove or surface (and decide on import undo/redo)
+
+#### Data integrity
+
+- [ ] Transfer-pair sync on bulk-date change — DATA_MODEL.md says pair dates stay in sync; UI doesn't enforce on bulk edit
+
+### Reliability
+
+- [ ] JS crash recovery
+- [ ] Mid-run file deletion recovery
+- [ ] Demo: refreshing on Accounts route returns 404
+
+### Demo refresh
+
+- [ ] Anchor demo dates to current date
+- [ ] 24 months of demo data
+- [ ] Import screen stub in demo
+- [ ] "Download" button leading to promo site
+- [ ] Mobile warning ("this is a desktop app")
+
+### Pre-launch
+
+- [ ] Download analytics — instrumentation so launch can be measured

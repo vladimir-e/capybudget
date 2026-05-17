@@ -9,6 +9,43 @@ CHANGELOG PHILOSOPHY:
 - Resist the urge to be thorough here. Thoroughness goes in specs, not changelog.
 -->
 
+## 0.21.0 — 2026-05-16
+
+Release prep: branding, promo redesign, auto-updater scaffolding.
+
+- App icon, favicons, and social meta for capybudget.app
+- Promo site magazine-layout redesign with serif headlines and app-mockup hero
+- Auto-updater wired up; release workflow signs and publishes builds
+
+## 0.20.0 — 2026-05-11
+
+Welcome redesign, chat panel redesign, intelligence hardening.
+
+- Welcome screen split into New / Open Existing with demo refresh
+- Chat panel redesign with Capy mascot as load-bearing UI (Phase 10.5b)
+- Intelligence layer hardening (Phase 10.5c): idempotent enrich, fixed receipt-stall regression
+- Five new tools: `set_category_budget`, `unarchive_account`, `unarchive_category`, `set_net_worth_exclusions`, `bulk_update_transactions`
+- DATA_MODEL + PRODUCT excerpts baked into chat prompt; `read_spec` exposes the rest
+
+## 0.19.0 — 2026-05-03
+
+Phase 10 kick-off: Net Worth filter, Monthly Budget tab, multi-provider intelligence.
+
+- Net Worth account filter — choose which accounts contribute to net worth (Phase 10.1)
+- Monthly Budget tab — per-category budgets with progress (Phase 10.2)
+- Multi-provider intelligence — Anthropic API and OpenAI alongside Claude Code CLI (Phase 10.5)
+- Chat and Smart Import work identically across all three providers
+- Demo: Analytics dashboard renders on Budget tab; GitHub source link in demo header
+
+## 0.18.0 — 2026-05-02
+
+Analytics dashboard (Phase 8) — tab-based budget exploration.
+
+- Six tabs: Spending, Cash Flow, Net Worth, Compare, Merchants, Monthly Budget (stub)
+- Per-tab date controls with period pills
+- Compare tab: category checklist with multi-line chart
+- Category management dialog moved to gear icon
+
 ## 0.17.0 — 2026-03-23
 
 Smart Import v2 — CSV transform engine, instant normalization.
