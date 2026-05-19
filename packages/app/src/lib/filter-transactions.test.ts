@@ -122,6 +122,28 @@ describe("filterTransactions", () => {
     const result = filterTransactions(txns, { ...noFilter, search: "nonexistent" }, accounts, categories);
     expect(result).toHaveLength(0);
   });
+
+  it("filters by merchant (case-insensitive, whitespace-trimmed)", () => {
+    const result = filterTransactions(
+      txns,
+      { ...noFilter, merchant: "  TRADER JOE'S  " },
+      accounts,
+      categories,
+    );
+    expect(result).toHaveLength(1);
+    expect(result[0].id).toBe("t1");
+  });
+
+  it("merchant filter is exact-match, not substring", () => {
+    // "Trader" is a substring of "Trader Joe's" but not an exact match
+    const result = filterTransactions(
+      txns,
+      { ...noFilter, merchant: "Trader" },
+      accounts,
+      categories,
+    );
+    expect(result).toHaveLength(0);
+  });
 });
 
 describe("sortTransactions", () => {

@@ -78,6 +78,25 @@ Keyboard-first workflow for the majority of user actions. Controls are intuitive
 - "All Accounts" view for cross-account overview.
 - Transfers don't have category/merchant columns and display from/to accounts instead.
 
+### Transactions Browser (Drilldown)
+
+Analytics surfaces — Monthly Budget, Spending, Merchants — each render aggregate numbers. Every meaningful aggregate is a drilldown into the underlying transactions: clicking opens a **read-only, pre-filtered transactions popup** (modal, portalled, ESC + click-outside close) showing exactly the rows that produced that number.
+
+- **Read-only.** No inline editing, deletion, selection, or bulk actions in the popup. Editing remains the job of the account-detail view.
+- **Pre-filtered, locked context.** The caller filters the transactions array and passes locked-filter chips for display (category, merchant, date range). Chips are not removable — to broaden, the user closes the modal.
+- **Conditional search.** A local substring search field (across merchant, category, note, and amount in both formatted and raw forms) appears only when the list has **more than 10 rows**. Below that threshold a search box is clutter and the eye can scan faster.
+- **Virtualization** carries over from the shared `TransactionList` — the popup handles a category with hundreds of transactions without jank.
+
+Drilldown points wired this pass:
+
+| Surface | Click target | Locked filter |
+|---|---|---|
+| Monthly Budget | "Spent" cell on a category row (when > $0) | category + month |
+| Spending | Pie slice (current view mode: expenses or income) | category + period |
+| Merchants | Merchant name in the ranked list, or its bar in the chart | merchant + period |
+
+The same component is shaped to render later as a Capy-chat block (no modal chrome) and behind a `/transactions` deeplink route. Modal-only this pass.
+
 ### Confirmation Dialogs
 
 Be explicit about consequences. Warn when deleting a transfer (both legs go), deleting a category (N transactions affected), or explain why an archive is blocked.

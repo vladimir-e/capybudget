@@ -15,6 +15,9 @@ dist-ssr
 # TanStack Router generated
 src/routeTree.gen.ts
 
+# Local task notes (not part of shipped specs)
+tasks/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

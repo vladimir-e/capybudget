@@ -6,6 +6,7 @@ import {
   parseMoney,
   centsToEditString,
   CATEGORY_GROUP_ORDER,
+  filterTransactionsByDateRange,
 } from "@capybudget/core";
 import type {
   Category,
@@ -16,6 +17,8 @@ import type {
 import { useSetCategoryAssigned } from "@/hooks/use-category-mutations";
 import { toast } from "sonner";
 import { progressState } from "./monthly-budget-progress";
+import { TransactionsModal } from "@/components/budget/transactions-modal";
+import { formatRangeLabel } from "./format-range";
 
 // ── Color palette (matches spec: well-under / close / over) ────
 //
@@ -233,12 +236,14 @@ function Editor({ category, onDone }: { category: Category; onDone: () => void }
 interface CategoryRowProps {
   category: Category;
   spent: number;
+  onDrilldown: (category: Category) => void;
 }
 
-function CategoryRow({ category, spent }: CategoryRowProps) {
+function CategoryRow({ category, spent, onDrilldown }: CategoryRowProps) {
   const tracked = category.assigned !== null;
   const remaining = tracked ? category.assigned! - spent : null;
   const state = progressState(spent, category.assigned);
+  const hasSpent = spent > 0;
 
   return (
     <div
@@ -260,14 +265,27 @@ function CategoryRow({ category, spent }: CategoryRowProps) {
 
       {/* Spent — tracked rows always show the number (incl. $0.00).
        *  Untracked rows show their spend if any, em-dash otherwise — that's
-       *  the per-category counterpart to the "Other Spending" KPI. */}
-      <span className="text-right text-sm tabular-nums">
-        {tracked || spent > 0 ? (
-          formatMoney(spent)
-        ) : (
-          <span className="text-muted-foreground/50">—</span>
-        )}
-      </span>
+       *  the per-category counterpart to the "Other Spending" KPI.
+       *  Clickable when there's spending to show; opens the transactions
+       *  browser pre-filtered to this category + month. */}
+      {hasSpent ? (
+        <button
+          type="button"
+          onClick={() => onDrilldown(category)}
+          className="text-right text-sm tabular-nums hover:text-brand hover:underline underline-offset-2 transition-colors cursor-pointer"
+          aria-label={`View ${category.name} transactions`}
+        >
+          {formatMoney(spent)}
+        </button>
+      ) : (
+        <span className="text-right text-sm tabular-nums">
+          {tracked ? (
+            formatMoney(spent)
+          ) : (
+            <span className="text-muted-foreground/50">—</span>
+          )}
+        </span>
+      )}
 
       {/* Progress */}
       <div>
@@ -317,6 +335,7 @@ interface GroupSectionProps {
   categories: Category[];
   spentByCategory: Map<string, number>;
   showOnlyTracked: boolean;
+  onDrilldown: (category: Category) => void;
 }
 
 function GroupSection({
@@ -324,6 +343,7 @@ function GroupSection({
   categories,
   spentByCategory,
   showOnlyTracked,
+  onDrilldown,
 }: GroupSectionProps) {
   const visible = showOnlyTracked
     ? categories.filter((c) => c.assigned !== null)
@@ -357,6 +377,7 @@ function GroupSection({
           key={c.id}
           category={c}
           spent={spentByCategory.get(c.id) ?? 0}
+          onDrilldown={onDrilldown}
         />
       ))}
     </div>
@@ -371,12 +392,18 @@ interface MonthlyBudgetTabProps {
   dateRange: DateRange;
 }
 
+/** When the user clicks a Spent cell. */
+interface CategoryDrilldown {
+  category: Category;
+}
+
 export function MonthlyBudgetTab({
   transactions,
   categories,
   dateRange,
 }: MonthlyBudgetTabProps) {
   const [showOnlyTracked, setShowOnlyTracked] = useState(false);
+  const [drilldown, setDrilldown] = useState<CategoryDrilldown | null>(null);
 
   const summary = useMemo(
     () => getMonthlyBudgetSummary(transactions, categories, dateRange),
@@ -423,6 +450,15 @@ export function MonthlyBudgetTab({
   }, [grouped]);
 
   const remaining = summary.totalAssigned - summary.totalSpentTracked;
+
+  // Pre-filtered transactions for the active drilldown.
+  const drilldownTransactions = useMemo(() => {
+    if (!drilldown) return [];
+    const inRange = filterTransactionsByDateRange(transactions, dateRange);
+    return inRange.filter(
+      (t) => t.type === "expense" && t.categoryId === drilldown.category.id,
+    );
+  }, [drilldown, transactions, dateRange]);
 
   return (
     // `pt-4` lives on the tab itself rather than the outer scroll container so
@@ -480,12 +516,35 @@ export function MonthlyBudgetTab({
                   categories={cats}
                   spentByCategory={spentByCategory}
                   showOnlyTracked={showOnlyTracked}
+                  onDrilldown={(category) => setDrilldown({ category })}
                 />
               );
             })}
           </div>
         </div>
       )}
+
+      <TransactionsModal
+        open={drilldown !== null}
+        onOpenChange={(open) => !open && setDrilldown(null)}
+        transactions={drilldownTransactions}
+        lockedFilters={
+          drilldown
+            ? {
+                categoryId: drilldown.category.id,
+                dateRange: { from: dateRange.start, to: dateRange.end },
+              }
+            : {}
+        }
+        title={drilldown?.category.name ?? ""}
+        subtitle={
+          drilldown
+            ? `${formatRangeLabel(dateRange, "month")} · ${drilldownTransactions.length} transaction${
+                drilldownTransactions.length === 1 ? "" : "s"
+              }`
+            : undefined
+        }
+      />
     </div>
   );
 }

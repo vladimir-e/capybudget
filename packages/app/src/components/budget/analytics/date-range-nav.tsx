@@ -11,6 +11,7 @@ import {
 import type { DateRange } from "@capybudget/core";
 import type { PeriodType } from "@/stores/analytics-store";
 import type { DateRange as CalendarDateRange } from "react-day-picker";
+import { formatRangeLabel } from "./format-range";
 
 interface DateRangeNavProps {
   periodType: PeriodType;
@@ -24,16 +25,6 @@ interface DateRangeNavProps {
   onCustomRange: (range: DateRange) => void;
 }
 
-const MONTH_NAMES = [
-  "January", "February", "March", "April", "May", "June",
-  "July", "August", "September", "October", "November", "December",
-];
-
-const SHORT_MONTHS = [
-  "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
-];
-
 const PERIOD_LABELS: Record<PeriodType, string> = {
   month: "Month",
   quarter: "Quarter",
@@ -41,43 +32,6 @@ const PERIOD_LABELS: Record<PeriodType, string> = {
   allTime: "All Time",
   custom: "Custom",
 };
-
-function formatRangeLabel(range: DateRange, periodType: PeriodType): string {
-  if (periodType === "allTime") return "All Time";
-
-  const start = range.start;
-  const endDate = new Date(range.end);
-  endDate.setDate(endDate.getDate() - 1);
-
-  if (periodType === "month") {
-    return `${MONTH_NAMES[start.getMonth()]} ${start.getFullYear()}`;
-  }
-
-  if (periodType === "quarter") {
-    const q = Math.floor(start.getMonth() / 3) + 1;
-    return `Q${q} ${start.getFullYear()}`;
-  }
-
-  if (periodType === "year") {
-    return `${start.getFullYear()}`;
-  }
-
-  // custom
-  const startMonth = start.getMonth();
-  const startYear = start.getFullYear();
-  const endMonth = endDate.getMonth();
-  const endYear = endDate.getFullYear();
-
-  if (startMonth === endMonth && startYear === endYear) {
-    return `${MONTH_NAMES[startMonth]} ${startYear}`;
-  }
-
-  if (startYear === endYear) {
-    return `${SHORT_MONTHS[startMonth]} \u2013 ${SHORT_MONTHS[endMonth]} ${startYear}`;
-  }
-
-  return `${SHORT_MONTHS[startMonth]} ${startYear} \u2013 ${SHORT_MONTHS[endMonth]} ${endYear}`;
-}
 
 export function DateRangeNav({
   periodType,

@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import {
   BarChart,
   Bar,
@@ -13,8 +13,12 @@ import {
   formatMoneyCompact,
   getTopMerchants,
 } from "@capybudget/core";
-import type { Transaction } from "@capybudget/core";
+import type { Transaction, DateRange } from "@capybudget/core";
 import { useThemeColors } from "./use-theme-colors";
+import { TransactionsModal } from "@/components/budget/transactions-modal";
+import { normalizeMerchant } from "@/lib/filter-transactions";
+import type { PeriodType } from "@/stores/analytics-store";
+import { formatRangeLabel } from "./format-range";
 
 // ── Tooltip ──
 
@@ -41,13 +45,40 @@ function MerchantTooltipContent({
 
 interface MerchantsTabProps {
   transactions: Transaction[];
+  dateRange: DateRange;
+  periodType: PeriodType;
 }
 
-export function MerchantsTab({ transactions }: MerchantsTabProps) {
+export function MerchantsTab({
+  transactions,
+  dateRange,
+  periodType,
+}: MerchantsTabProps) {
   const merchants = useMemo(
     () => getTopMerchants(transactions, 15),
     [transactions],
   );
+
+  const [drilldown, setDrilldown] = useState<{ merchant: string } | null>(null);
+
+  // Pre-filter to expenses for this merchant — mirrors getTopMerchants's
+  // grouping (expenses only, case-insensitive whitespace-trimmed equality).
+  const drilldownTransactions = useMemo(() => {
+    if (!drilldown) return [];
+    // `getTopMerchants` displays the synthetic "Unknown" bucket for empty
+    // merchant strings — match those back here.
+    const isUnknown = drilldown.merchant === "Unknown";
+    const target = normalizeMerchant(drilldown.merchant);
+    return transactions.filter((t) => {
+      if (t.type !== "expense") return false;
+      const norm = normalizeMerchant(t.merchant);
+      return isUnknown ? norm === "" : norm === target;
+    });
+  }, [drilldown, transactions]);
+
+  const handleMerchantClick = (merchant: string) => {
+    setDrilldown({ merchant });
+  };
 
   const { brandColor } = useThemeColors({
     brandColor: ["--brand", "oklch(0.58 0.14 55)"],
@@ -89,6 +120,11 @@ export function MerchantsTab({ transactions }: MerchantsTabProps) {
             dataKey="total"
             fill={brandColor}
             radius={[0, 4, 4, 0]}
+            onClick={(d) => {
+              const payload = (d as { payload?: { merchant?: string } }).payload;
+              if (payload?.merchant) handleMerchantClick(payload.merchant);
+            }}
+            className="cursor-pointer"
           />
         </BarChart>
       </ResponsiveContainer>
@@ -105,7 +141,14 @@ export function MerchantsTab({ transactions }: MerchantsTabProps) {
         {merchants.map((m, i) => (
           <div key={m.merchant} className="contents">
             <span className="tabular-nums text-muted-foreground">{i + 1}</span>
-            <span className="text-foreground truncate">{m.merchant}</span>
+            <button
+              type="button"
+              onClick={() => handleMerchantClick(m.merchant)}
+              className="text-foreground truncate text-left hover:text-brand hover:underline underline-offset-2 transition-colors cursor-pointer"
+              aria-label={`View ${m.merchant} transactions`}
+            >
+              {m.merchant}
+            </button>
             <span className="tabular-nums font-medium text-foreground text-right">
               {formatMoney(m.total)}
             </span>
@@ -118,6 +161,28 @@ export function MerchantsTab({ transactions }: MerchantsTabProps) {
           </div>
         ))}
       </div>
+
+      <TransactionsModal
+        open={drilldown !== null}
+        onOpenChange={(open) => !open && setDrilldown(null)}
+        transactions={drilldownTransactions}
+        lockedFilters={
+          drilldown
+            ? {
+                merchant: drilldown.merchant === "Unknown" ? "" : drilldown.merchant,
+                dateRange: { from: dateRange.start, to: dateRange.end },
+              }
+            : {}
+        }
+        title={drilldown?.merchant ?? ""}
+        subtitle={
+          drilldown
+            ? `${formatRangeLabel(dateRange, periodType)} · ${drilldownTransactions.length} transaction${
+                drilldownTransactions.length === 1 ? "" : "s"
+              }`
+            : undefined
+        }
+      />
     </div>
   );
 }

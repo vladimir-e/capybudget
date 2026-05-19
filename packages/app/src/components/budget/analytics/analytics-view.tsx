@@ -164,7 +164,12 @@ export function AnalyticsView() {
        *  zone above sticky elements (e.g. the Monthly Budget column header). */}
       <div className="flex-1 overflow-y-auto px-6 pb-4">
         {activeTab === "spending" && (
-          <SpendingTab transactions={filtered} categories={categories} />
+          <SpendingTab
+            transactions={filtered}
+            categories={categories}
+            dateRange={dateRange}
+            periodType={periodType}
+          />
         )}
         {activeTab === "netWorth" && (
           <NetWorthTab accounts={accounts} transactions={transactions} dateRange={dateRange} />
@@ -176,7 +181,11 @@ export function AnalyticsView() {
           <CompareTab transactions={transactions} categories={categories} dateRange={dateRange} />
         )}
         {activeTab === "merchants" && (
-          <MerchantsTab transactions={filtered} />
+          <MerchantsTab
+            transactions={filtered}
+            dateRange={dateRange}
+            periodType={periodType}
+          />
         )}
         {activeTab === "monthlyBudget" && (
           <MonthlyBudgetTab

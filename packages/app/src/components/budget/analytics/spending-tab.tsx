@@ -11,8 +11,11 @@ import {
   getSpendingByCategory,
   getIncomeByCategory,
 } from "@capybudget/core";
-import type { Transaction, Category } from "@capybudget/core";
+import type { Transaction, Category, DateRange } from "@capybudget/core";
 import { ChartSwitcher } from "./chart-switcher";
+import { TransactionsModal } from "@/components/budget/transactions-modal";
+import type { PeriodType } from "@/stores/analytics-store";
+import { formatRangeLabel } from "./format-range";
 
 // ── Chart colors ──
 
@@ -73,6 +76,8 @@ function PieTooltipContent({
 interface SpendingTabProps {
   transactions: Transaction[];
   categories: Category[];
+  dateRange: DateRange;
+  periodType: PeriodType;
 }
 
 type ViewMode = "expenses" | "income";
@@ -82,8 +87,22 @@ const VIEW_OPTIONS: Array<{ value: ViewMode; label: string }> = [
   { value: "income", label: "Income" },
 ];
 
-export function SpendingTab({ transactions, categories }: SpendingTabProps) {
+/** Drilldown state — `categoryId === ""` is the synthetic Uncategorized
+ *  bucket (mirrors how `breakdownByCategory` represents it). */
+interface SliceDrilldown {
+  categoryId: string;
+  categoryName: string;
+  mode: ViewMode;
+}
+
+export function SpendingTab({
+  transactions,
+  categories,
+  dateRange,
+  periodType,
+}: SpendingTabProps) {
   const [viewMode, setViewMode] = useState<ViewMode>("expenses");
+  const [drilldown, setDrilldown] = useState<SliceDrilldown | null>(null);
 
   const spending = useMemo(
     () => getSpendingByCategory(transactions, categories),
@@ -99,13 +118,37 @@ export function SpendingTab({ transactions, categories }: SpendingTabProps) {
   const palette = viewMode === "expenses" ? EXPENSE_COLORS : INCOME_COLORS;
 
   const chartData = useMemo(
-    () => breakdown.map((s) => ({ name: s.categoryName, value: s.total, percentage: s.percentage })),
+    () =>
+      breakdown.map((s) => ({
+        categoryId: s.categoryId,
+        name: s.categoryName,
+        value: s.total,
+        percentage: s.percentage,
+      })),
     [breakdown],
   );
 
   const emptyMessage = viewMode === "expenses"
     ? "No expenses in this period"
     : "No income in this period";
+
+  // Pre-filtered transactions for the active drilldown — the same `type`
+  // gating `breakdown` produces (expense or income), then by categoryId.
+  const drilldownTransactions = useMemo(() => {
+    if (!drilldown) return [];
+    const wantType = drilldown.mode === "expenses" ? "expense" : "income";
+    return transactions.filter(
+      (t) => t.type === wantType && t.categoryId === drilldown.categoryId,
+    );
+  }, [drilldown, transactions]);
+
+  const handleSliceClick = (data: { categoryId: string; name: string }) => {
+    setDrilldown({
+      categoryId: data.categoryId,
+      categoryName: data.name,
+      mode: viewMode,
+    });
+  };
 
   return (
     <div className="space-y-4">
@@ -127,6 +170,14 @@ export function SpendingTab({ transactions, categories }: SpendingTabProps) {
                   outerRadius={140}
                   paddingAngle={2}
                   dataKey="value"
+                  onClick={(e) => {
+                    // recharts spreads the data object into the sector arg
+                    // and also exposes it via `.payload` — prefer payload
+                    // when present for stability.
+                    const data = (e as { payload?: { categoryId: string; name: string } }).payload ?? (e as unknown as { categoryId: string; name: string });
+                    if (data?.categoryId !== undefined) handleSliceClick(data);
+                  }}
+                  className="cursor-pointer"
                 >
                   {chartData.map((_, i) => (
                     <Cell key={i} fill={palette[i % palette.length]} />
@@ -163,6 +214,28 @@ export function SpendingTab({ transactions, categories }: SpendingTabProps) {
           {emptyMessage}
         </p>
       )}
+
+      <TransactionsModal
+        open={drilldown !== null}
+        onOpenChange={(open) => !open && setDrilldown(null)}
+        transactions={drilldownTransactions}
+        lockedFilters={
+          drilldown
+            ? {
+                categoryId: drilldown.categoryId,
+                dateRange: { from: dateRange.start, to: dateRange.end },
+              }
+            : {}
+        }
+        title={drilldown?.categoryName ?? ""}
+        subtitle={
+          drilldown
+            ? `${formatRangeLabel(dateRange, periodType)} · ${drilldownTransactions.length} transaction${
+                drilldownTransactions.length === 1 ? "" : "s"
+              }`
+            : undefined
+        }
+      />
     </div>
   );
 }

@@ -23,6 +23,19 @@ export interface TransactionFilterCriteria {
   search: string;
   categoryId: string | null;
   dateRange: DateRangeValue | null;
+  /** Exact-match merchant filter. Comparison is case-insensitive and
+   *  whitespace-trimmed on both sides to mirror how merchants are grouped
+   *  in `getTopMerchants`. Empty/whitespace merchant matches the synthetic
+   *  "Unknown" bucket. */
+  merchant?: string;
+}
+
+/** Normalize a merchant string for equality comparison.
+ *  Mirrors the grouping key in `getTopMerchants` (lowercase + trim).
+ *  Exported so analytics drilldowns can pre-filter by the same key the
+ *  merchants chart uses for grouping. */
+export function normalizeMerchant(raw: string): string {
+  return raw.trim().toLowerCase();
 }
 
 export type SortColumn = "date" | "account" | "category" | "merchant" | "amount";
@@ -42,6 +55,11 @@ export function filterTransactions(
 
   if (filters.categoryId) {
     result = result.filter((t) => t.categoryId === filters.categoryId);
+  }
+
+  if (filters.merchant !== undefined) {
+    const target = normalizeMerchant(filters.merchant);
+    result = result.filter((t) => normalizeMerchant(t.merchant) === target);
   }
 
   if (filters.dateRange) {
