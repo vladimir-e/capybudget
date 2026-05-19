@@ -243,7 +243,18 @@ export interface MerchantSpending {
   total: number; // absolute cents
   count: number;
   percentage: number; // of total spending
+  /** True iff this row aggregates transactions whose `merchant` is empty
+   *  or whitespace-only. Display name is "Unknown" — but that name is
+   *  ambiguous with a legitimate merchant literally named "Unknown", so
+   *  consumers that need to route by identity (drilldowns, filters)
+   *  should branch on this flag rather than on the display string. */
+  isUnknown: boolean;
 }
+
+/** Synthetic group key for empty/whitespace-only merchant. Distinct from
+ *  any normalized merchant name (which is lowercased and can never start
+ *  with `__`). */
+const UNKNOWN_KEY = "__unknown__";
 
 /** Top merchants by spending amount. Expenses only, excludes transfers. */
 export function getTopMerchants(
@@ -257,7 +268,7 @@ export function getTopMerchants(
 
   for (const t of expenses) {
     const raw = t.merchant.trim();
-    const key = raw === "" ? "__unknown__" : raw.toLowerCase();
+    const key = raw === "" ? UNKNOWN_KEY : raw.toLowerCase();
     const entry = groups.get(key) ?? { displayName: raw === "" ? "Unknown" : raw, total: 0, count: 0 };
     entry.total += Math.abs(t.amount);
     entry.count += 1;
@@ -267,12 +278,13 @@ export function getTopMerchants(
   const grandTotal = [...groups.values()].reduce((s, g) => s + g.total, 0);
 
   const result: MerchantSpending[] = [];
-  for (const [, { displayName, total, count }] of groups) {
+  for (const [key, { displayName, total, count }] of groups) {
     result.push({
       merchant: displayName,
       total,
       count,
       percentage: grandTotal > 0 ? (total / grandTotal) * 100 : 0,
+      isUnknown: key === UNKNOWN_KEY,
     });
   }
 

@@ -21,13 +21,14 @@ export function TransactionToolbar({ filters, onFiltersChange }: TransactionTool
   const hasSearch = filters.search.length > 0;
   const hasCategory = filters.categoryId !== null;
   const hasDateRange = filters.dateRange !== null;
-  const hasActiveFilters = hasSearch || hasCategory || hasDateRange;
+  const hasMerchant = filters.merchant !== undefined;
+  const hasActiveFilters = hasSearch || hasCategory || hasDateRange || hasMerchant;
 
   const update = (patch: Partial<TransactionFilterCriteria>) =>
     onFiltersChange({ ...filters, ...patch });
 
   const clearAll = () =>
-    onFiltersChange({ search: "", categoryId: null, dateRange: null });
+    onFiltersChange({ search: "", categoryId: null, dateRange: null, merchant: undefined });
 
   return (
     <div className="flex items-center gap-2">

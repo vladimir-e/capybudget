@@ -82,9 +82,29 @@ describe("TransactionsModal", () => {
       />,
     );
 
-    expect(screen.getByRole("heading", { name: "Groceries" })).toBeInTheDocument();
+    // Two headings carry the title: the visible `<h2>` inside
+    // TransactionsBrowser and the screen-reader-only `<DialogTitle>` that
+    // gives Base UI an `aria-labelledby` target. Both are intentional.
+    const headings = screen.getAllByRole("heading", { name: "Groceries" });
+    expect(headings.length).toBeGreaterThanOrEqual(2);
     expect(screen.getByText("May 2026 · 1 transaction")).toBeInTheDocument();
     expect(screen.getByText("Trader Joe's")).toBeInTheDocument();
+  });
+
+  it("exposes an accessible name via DialogTitle so Base UI can label the popup", () => {
+    renderWithProviders(
+      <TransactionsModal
+        open={true}
+        onOpenChange={() => {}}
+        transactions={txns}
+        lockedFilters={{}}
+        title="Groceries"
+      />,
+    );
+
+    // The dialog role itself must carry the accessible name — Base UI
+    // wires `aria-labelledby` to the rendered DialogTitle.
+    expect(screen.getByRole("dialog", { name: "Groceries" })).toBeInTheDocument();
   });
 
   it("invokes onOpenChange(false) when Escape is pressed", async () => {

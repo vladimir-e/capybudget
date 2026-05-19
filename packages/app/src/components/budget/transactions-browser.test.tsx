@@ -79,10 +79,12 @@ describe("TransactionsBrowser", () => {
   });
 
   it("renders a chip for each locked filter", () => {
+    // `to` is exclusive per the LockedFilters contract — Jun 1 means
+    // "through end of May". The chip should subtract one day for display.
     // Build dates in local TZ (not "2026-05-31" which parses as UTC and can
     // render as the previous day in negative-offset zones).
     const from = new Date(2026, 4, 1);
-    const to = new Date(2026, 4, 31);
+    const to = new Date(2026, 5, 1);
 
     renderWithProviders(
       <TransactionsBrowser
@@ -98,11 +100,15 @@ describe("TransactionsBrowser", () => {
     // "Groceries" appears as the header, the category chip, and inside the
     // transaction row's category cell — at least 2 occurrences (header + chip).
     expect(screen.getAllByText("Groceries").length).toBeGreaterThanOrEqual(2);
-    // The date-range chip is a single text node with the full range string.
+    // The chip displays the inclusive range "May 1 – May 31", not the
+    // exclusive "Jun 1" end.
     const matches = screen.queryAllByText((content) =>
       content.includes("May 1, 2026") && content.includes("May 31, 2026"),
     );
     expect(matches.length).toBeGreaterThanOrEqual(1);
+    // No "Jun 1" anywhere — that would mean the chip leaked the exclusive
+    // end into the visible range.
+    expect(screen.queryByText(/Jun 1, 2026/)).not.toBeInTheDocument();
   });
 
   it("renders the merchant chip for a merchant filter, and falls back to 'Unknown' for empty", () => {
@@ -191,6 +197,30 @@ describe("TransactionsBrowser", () => {
     await user.type(input, "trader");
 
     expect(screen.getByText("Trader Joe's")).toBeInTheDocument();
+    expect(screen.queryByText("Merchant 0")).not.toBeInTheDocument();
+  });
+
+  it("matches the synthetic 'Uncategorized' label when typed into search", async () => {
+    const user = userEvent.setup();
+    const txns = [
+      ...makeTxns(10, { categoryId: groceries.id }),
+      makeTransaction({
+        id: "uncat",
+        accountId: account.id,
+        categoryId: "", // synthetic Uncategorized
+        merchant: "Mystery Charge",
+        amount: -999,
+      }),
+    ];
+
+    renderWithProviders(
+      <TransactionsBrowser transactions={txns} lockedFilters={{}} title="All" />,
+    );
+
+    const input = screen.getByLabelText(/search transactions/i);
+    await user.type(input, "uncategorized");
+
+    expect(screen.getByText("Mystery Charge")).toBeInTheDocument();
     expect(screen.queryByText("Merchant 0")).not.toBeInTheDocument();
   });
 

@@ -16,9 +16,14 @@ import {
 import type { Transaction, DateRange } from "@capybudget/core";
 import { useThemeColors } from "./use-theme-colors";
 import { TransactionsModal } from "@/components/budget/transactions-modal";
-import { normalizeMerchant } from "@/lib/filter-transactions";
 import type { PeriodType } from "@/stores/analytics-store";
 import { formatRangeLabel } from "./format-range";
+import { getRechartsPayload } from "./recharts-payload";
+import {
+  matchesTarget,
+  targetForRow,
+  type MerchantDrilldownTarget,
+} from "./merchant-drilldown";
 
 // ── Tooltip ──
 
@@ -59,25 +64,22 @@ export function MerchantsTab({
     [transactions],
   );
 
-  const [drilldown, setDrilldown] = useState<{ merchant: string } | null>(null);
+  const [drilldown, setDrilldown] = useState<MerchantDrilldownTarget | null>(null);
 
   // Pre-filter to expenses for this merchant — mirrors getTopMerchants's
   // grouping (expenses only, case-insensitive whitespace-trimmed equality).
   const drilldownTransactions = useMemo(() => {
     if (!drilldown) return [];
-    // `getTopMerchants` displays the synthetic "Unknown" bucket for empty
-    // merchant strings — match those back here.
-    const isUnknown = drilldown.merchant === "Unknown";
-    const target = normalizeMerchant(drilldown.merchant);
-    return transactions.filter((t) => {
-      if (t.type !== "expense") return false;
-      const norm = normalizeMerchant(t.merchant);
-      return isUnknown ? norm === "" : norm === target;
-    });
+    return transactions.filter(
+      (t) => t.type === "expense" && matchesTarget(t.merchant, drilldown),
+    );
   }, [drilldown, transactions]);
 
-  const handleMerchantClick = (merchant: string) => {
-    setDrilldown({ merchant });
+  /** Open the drilldown for a row of the merchants list. The row's own
+   *  `isUnknown` flag (from `getTopMerchants`) is the source of truth —
+   *  do not compare display strings. */
+  const handleMerchantClick = (row: { merchant: string; isUnknown: boolean }) => {
+    setDrilldown(targetForRow(row));
   };
 
   const { brandColor } = useThemeColors({
@@ -121,8 +123,10 @@ export function MerchantsTab({
             fill={brandColor}
             radius={[0, 4, 4, 0]}
             onClick={(d) => {
-              const payload = (d as { payload?: { merchant?: string } }).payload;
-              if (payload?.merchant) handleMerchantClick(payload.merchant);
+              const payload = getRechartsPayload<{ merchant?: string; isUnknown?: boolean }>(d);
+              if (payload?.merchant !== undefined && payload.isUnknown !== undefined) {
+                handleMerchantClick({ merchant: payload.merchant, isUnknown: payload.isUnknown });
+              }
             }}
             className="cursor-pointer"
           />
@@ -139,11 +143,14 @@ export function MerchantsTab({
         <span className="text-xs text-muted-foreground font-medium text-right">%</span>
 
         {merchants.map((m, i) => (
-          <div key={m.merchant} className="contents">
+          // Two rows can share the display name "Unknown" (synthetic empty
+          // bucket + a real merchant literally named "Unknown") — disambiguate
+          // the React key with the `isUnknown` flag.
+          <div key={`${m.merchant}|${m.isUnknown ? "u" : "n"}`} className="contents">
             <span className="tabular-nums text-muted-foreground">{i + 1}</span>
             <button
               type="button"
-              onClick={() => handleMerchantClick(m.merchant)}
+              onClick={() => handleMerchantClick(m)}
               className="text-foreground truncate text-left hover:text-brand hover:underline underline-offset-2 transition-colors cursor-pointer"
               aria-label={`View ${m.merchant} transactions`}
             >
@@ -169,12 +176,16 @@ export function MerchantsTab({
         lockedFilters={
           drilldown
             ? {
-                merchant: drilldown.merchant === "Unknown" ? "" : drilldown.merchant,
+                // Empty string in the criteria maps to the empty-merchant
+                // bucket via `normalizeMerchant`; non-empty maps to the
+                // named merchant. The `kind` discriminator above guarantees
+                // these two paths don't collide on a real "Unknown" merchant.
+                merchant: drilldown.kind === "unknown" ? "" : drilldown.value,
                 dateRange: { from: dateRange.start, to: dateRange.end },
               }
             : {}
         }
-        title={drilldown?.merchant ?? ""}
+        title={drilldown?.kind === "unknown" ? "Unknown" : (drilldown?.value ?? "")}
         subtitle={
           drilldown
             ? `${formatRangeLabel(dateRange, periodType)} · ${drilldownTransactions.length} transaction${

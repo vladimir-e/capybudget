@@ -452,6 +452,38 @@ describe("getTopMerchants", () => {
     // Empty string + whitespace-only both become unknown
     expect(unknown.total).toBe(15000); // 10000 + 5000
     expect(unknown.count).toBe(2);
+    // Flagged so consumers can route by identity rather than display string
+    expect(unknown.isUnknown).toBe(true);
+  });
+
+  it("does not collide a real merchant named 'Unknown' with the empty-merchant bucket", () => {
+    // Both empty AND a literal "Unknown" merchant in the same dataset
+    const mixed: Transaction[] = [
+      txn({ id: "x1", amount: -10000, accountId: "acc-checking", merchant: "" }),
+      txn({ id: "x2", amount: -7000, accountId: "acc-checking", merchant: "Unknown" }),
+      txn({ id: "x3", amount: -3000, accountId: "acc-checking", merchant: "unknown" }), // same as above (case-merge)
+    ];
+    const result = getTopMerchants(mixed);
+    // Two separate rows: synthetic empty bucket + the real "Unknown" merchant
+    const rows = result.filter((m) => m.merchant === "Unknown");
+    expect(rows.length).toBe(2);
+
+    const empty = rows.find((m) => m.isUnknown)!;
+    const real = rows.find((m) => !m.isUnknown)!;
+    expect(empty).toBeDefined();
+    expect(real).toBeDefined();
+
+    expect(empty.total).toBe(10000);
+    expect(empty.count).toBe(1);
+    // Real "Unknown" + "unknown" merge case-insensitively into one bucket
+    expect(real.total).toBe(10000);
+    expect(real.count).toBe(2);
+  });
+
+  it("non-empty merchants get isUnknown=false", () => {
+    const result = getTopMerchants(merchantTxns);
+    const wf = result.find((m) => m.merchant === "Whole Foods")!;
+    expect(wf.isUnknown).toBe(false);
   });
 
   it("excludes transfers", () => {

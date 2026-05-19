@@ -16,6 +16,13 @@ import { ChartSwitcher } from "./chart-switcher";
 import { TransactionsModal } from "@/components/budget/transactions-modal";
 import type { PeriodType } from "@/stores/analytics-store";
 import { formatRangeLabel } from "./format-range";
+import { getRechartsPayload } from "./recharts-payload";
+import {
+  buildSliceDrilldown,
+  filterForSliceDrilldown,
+  type SliceDrilldown,
+  type SpendingViewMode,
+} from "./spending-drilldown";
 
 // ── Chart colors ──
 
@@ -80,20 +87,12 @@ interface SpendingTabProps {
   periodType: PeriodType;
 }
 
-type ViewMode = "expenses" | "income";
+type ViewMode = SpendingViewMode;
 
 const VIEW_OPTIONS: Array<{ value: ViewMode; label: string }> = [
   { value: "expenses", label: "Expenses" },
   { value: "income", label: "Income" },
 ];
-
-/** Drilldown state — `categoryId === ""` is the synthetic Uncategorized
- *  bucket (mirrors how `breakdownByCategory` represents it). */
-interface SliceDrilldown {
-  categoryId: string;
-  categoryName: string;
-  mode: ViewMode;
-}
 
 export function SpendingTab({
   transactions,
@@ -134,20 +133,13 @@ export function SpendingTab({
 
   // Pre-filtered transactions for the active drilldown — the same `type`
   // gating `breakdown` produces (expense or income), then by categoryId.
-  const drilldownTransactions = useMemo(() => {
-    if (!drilldown) return [];
-    const wantType = drilldown.mode === "expenses" ? "expense" : "income";
-    return transactions.filter(
-      (t) => t.type === wantType && t.categoryId === drilldown.categoryId,
-    );
-  }, [drilldown, transactions]);
+  const drilldownTransactions = useMemo(
+    () => (drilldown ? filterForSliceDrilldown(transactions, drilldown) : []),
+    [drilldown, transactions],
+  );
 
   const handleSliceClick = (data: { categoryId: string; name: string }) => {
-    setDrilldown({
-      categoryId: data.categoryId,
-      categoryName: data.name,
-      mode: viewMode,
-    });
+    setDrilldown(buildSliceDrilldown(data, viewMode));
   };
 
   return (
@@ -171,10 +163,7 @@ export function SpendingTab({
                   paddingAngle={2}
                   dataKey="value"
                   onClick={(e) => {
-                    // recharts spreads the data object into the sector arg
-                    // and also exposes it via `.payload` — prefer payload
-                    // when present for stability.
-                    const data = (e as { payload?: { categoryId: string; name: string } }).payload ?? (e as unknown as { categoryId: string; name: string });
+                    const data = getRechartsPayload<{ categoryId: string; name: string }>(e);
                     if (data?.categoryId !== undefined) handleSliceClick(data);
                   }}
                   className="cursor-pointer"

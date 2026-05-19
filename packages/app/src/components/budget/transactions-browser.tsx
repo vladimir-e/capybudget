@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { TransactionList } from "@/components/budget/transaction-list";
 import { useAccounts, useCategories } from "@/hooks/use-budget-data";
 import {
+  DEFAULT_SORT,
   sortTransactions,
   type SortConfig,
 } from "@/lib/filter-transactions";
@@ -16,7 +17,11 @@ import {
 
 /** Locked context the browser displays as non-removable chips. Callers
  *  pre-filter `transactions` themselves; these fields drive the chip row
- *  and the title bar — they are not re-applied to the data here. */
+ *  and the title bar — they are not re-applied to the data here.
+ *
+ *  `dateRange.to` is **exclusive** (first instant *after* the period) to
+ *  match the analytics `DateRange.end` convention. The chip renderer
+ *  subtracts one day internally so the displayed range is inclusive. */
 export interface LockedFilters {
   categoryId?: string;
   merchant?: string;
@@ -34,8 +39,6 @@ interface TransactionsBrowserProps {
 
 /** Below this row count, the search field adds clutter without value. */
 const SEARCH_THRESHOLD = 10;
-
-const DEFAULT_SORT: SortConfig = { column: "date", direction: "desc" };
 
 // ---------------------------------------------------------------------------
 // Local search — substring match across merchant, category, note, amount.
@@ -101,8 +104,13 @@ function FilterChips({
   }
 
   if (locked.dateRange) {
+    // `to` is exclusive per the LockedFilters contract — subtract one day
+    // for display so the chip reads as an inclusive range matching what the
+    // analytics surface showed before the user drilled in.
+    const inclusiveTo = new Date(locked.dateRange.to);
+    inclusiveTo.setDate(inclusiveTo.getDate() - 1);
     chips.push(
-      `${formatDateLabel(locked.dateRange.from)} – ${formatDateLabel(locked.dateRange.to)}`,
+      `${formatDateLabel(locked.dateRange.from)} – ${formatDateLabel(inclusiveTo)}`,
     );
   }
 
@@ -140,17 +148,26 @@ export function TransactionsBrowser({
 
   const showSearch = transactions.length > SEARCH_THRESHOLD;
 
-  const categoryMap = useMemo(
-    () => new Map(categories.map((c) => [c.id, c.name.toLowerCase()])),
-    [categories],
-  );
+  const categoryMap = useMemo(() => {
+    const m = new Map(categories.map((c) => [c.id, c.name.toLowerCase()]));
+    // The transaction list renders missing `categoryId` as "Uncategorized" —
+    // mirror that here so typing "uncategorized" in the search matches.
+    m.set("", "uncategorized");
+    return m;
+  }, [categories]);
 
-  const visible = useMemo(() => {
-    const filtered = showSearch
-      ? searchTransactions(transactions, search, categoryMap)
-      : transactions;
-    return sortTransactions(filtered, sort, accounts, categories);
-  }, [transactions, search, showSearch, categoryMap, sort, accounts, categories]);
+  // The search field unmounts when `showSearch === false`, so `search`
+  // can't change in that branch. Gating the body keeps the search work
+  // off the small-list path even if a previous render left `search`
+  // non-empty (e.g. the underlying data shrank past the threshold).
+  const filteredBySearch = useMemo(
+    () => (showSearch ? searchTransactions(transactions, search, categoryMap) : transactions),
+    [showSearch, transactions, search, categoryMap],
+  );
+  const visible = useMemo(
+    () => sortTransactions(filteredBySearch, sort, accounts, categories),
+    [filteredBySearch, sort, accounts, categories],
+  );
 
   const hasSearchQuery = search.trim().length > 0;
   const emptyFromSearch = hasSearchQuery && visible.length === 0;

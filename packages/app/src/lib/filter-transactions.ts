@@ -45,6 +45,10 @@ export interface SortConfig {
   direction: SortDirection;
 }
 
+/** Default sort for any new transaction grid instrument (main list, drilldown
+ *  popups, future chat block). Newest first by date. */
+export const DEFAULT_SORT: SortConfig = { column: "date", direction: "desc" };
+
 export function filterTransactions(
   transactions: Transaction[],
   filters: TransactionFilterCriteria,

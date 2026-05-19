@@ -1,6 +1,7 @@
 import { useMemo, useState, useCallback } from "react";
 import type { Account, Category, Transaction } from "@capybudget/core";
 import {
+  DEFAULT_SORT,
   filterTransactions,
   sortTransactions,
   type TransactionFilterCriteria,
@@ -9,8 +10,6 @@ import {
 import { useAppStore } from "@/stores/app-store";
 
 export type { TransactionFilterCriteria, SortConfig };
-
-const DEFAULT_SORT: SortConfig = { column: "date", direction: "desc" };
 
 export function useTransactionFilters(
   transactions: Transaction[],
