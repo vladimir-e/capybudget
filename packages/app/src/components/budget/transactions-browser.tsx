@@ -41,10 +41,10 @@ interface TransactionsBrowserProps {
 const SEARCH_THRESHOLD = 10;
 
 // ---------------------------------------------------------------------------
-// Local search — substring match across merchant, category, note, amount.
-// Intentionally narrower than `filterTransactions`: no account search, no
-// sort/date/category coupling. This is the local feel of a popup, not the
-// full toolbar.
+// Local search — substring match across every column the user sees in the
+// table: merchant, category, account, note, amount. Intentionally narrower
+// than `filterTransactions` in that it doesn't carry sort/date/category
+// state — this is the local feel of a popup, not the full toolbar.
 // ---------------------------------------------------------------------------
 
 function matchesAmount(cents: number, q: string): boolean {
@@ -60,6 +60,7 @@ function searchTransactions(
   transactions: Transaction[],
   query: string,
   categoryMap: Map<string, string>,
+  accountMap: Map<string, string>,
 ): Transaction[] {
   const q = query.trim().toLowerCase();
   if (!q) return transactions;
@@ -67,6 +68,7 @@ function searchTransactions(
     if (t.merchant.toLowerCase().includes(q)) return true;
     if (t.note.toLowerCase().includes(q)) return true;
     if (categoryMap.get(t.categoryId)?.includes(q)) return true;
+    if (accountMap.get(t.accountId)?.includes(q)) return true;
     if (matchesAmount(t.amount, q)) return true;
     return false;
   });
@@ -156,13 +158,21 @@ export function TransactionsBrowser({
     return m;
   }, [categories]);
 
+  const accountMap = useMemo(
+    () => new Map(accounts.map((a) => [a.id, a.name.toLowerCase()])),
+    [accounts],
+  );
+
   // The search field unmounts when `showSearch === false`, so `search`
   // can't change in that branch. Gating the body keeps the search work
   // off the small-list path even if a previous render left `search`
   // non-empty (e.g. the underlying data shrank past the threshold).
   const filteredBySearch = useMemo(
-    () => (showSearch ? searchTransactions(transactions, search, categoryMap) : transactions),
-    [showSearch, transactions, search, categoryMap],
+    () =>
+      showSearch
+        ? searchTransactions(transactions, search, categoryMap, accountMap)
+        : transactions,
+    [showSearch, transactions, search, categoryMap, accountMap],
   );
   const visible = useMemo(
     () => sortTransactions(filteredBySearch, sort, accounts, categories),

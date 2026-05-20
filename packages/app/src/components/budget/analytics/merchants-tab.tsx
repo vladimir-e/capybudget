@@ -16,6 +16,7 @@ import {
 import type { Transaction, DateRange } from "@capybudget/core";
 import { useThemeColors } from "./use-theme-colors";
 import { TransactionsModal } from "@/components/budget/transactions-modal";
+import { TransactionsDrilldownLink } from "@/components/budget/transactions-drilldown-link";
 import type { PeriodType } from "@/stores/analytics-store";
 import { formatRangeLabel } from "./format-range";
 import { getRechartsPayload } from "./recharts-payload";
@@ -148,14 +149,14 @@ export function MerchantsTab({
           // the React key with the `isUnknown` flag.
           <div key={`${m.merchant}|${m.isUnknown ? "u" : "n"}`} className="contents">
             <span className="tabular-nums text-muted-foreground">{i + 1}</span>
-            <button
-              type="button"
-              onClick={() => handleMerchantClick(m)}
-              className="text-foreground truncate text-left hover:text-brand hover:underline underline-offset-2 transition-colors cursor-pointer"
-              aria-label={`View ${m.merchant} transactions`}
-            >
-              {m.merchant}
-            </button>
+            <span className="truncate">
+              <TransactionsDrilldownLink
+                onClick={() => handleMerchantClick(m)}
+                ariaLabel={`View ${m.merchant} transactions`}
+              >
+                {m.merchant}
+              </TransactionsDrilldownLink>
+            </span>
             <span className="tabular-nums font-medium text-foreground text-right">
               {formatMoney(m.total)}
             </span>

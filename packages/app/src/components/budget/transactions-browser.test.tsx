@@ -248,6 +248,34 @@ describe("TransactionsBrowser", () => {
     expect(screen.queryByText("Merchant 0")).not.toBeInTheDocument();
   });
 
+  it("filters by account name (case-insensitive substring)", async () => {
+    const user = userEvent.setup();
+    const appleCard = makeAccount({ id: "acc-apple", name: "Apple Card" });
+    mockAccounts = [account, appleCard];
+
+    const txns = [
+      ...makeTxns(10),
+      makeTransaction({
+        id: "apple-1",
+        accountId: appleCard.id,
+        categoryId: groceries.id,
+        merchant: "Whole Foods",
+        amount: -2500,
+      }),
+    ];
+
+    renderWithProviders(
+      <TransactionsBrowser transactions={txns} lockedFilters={{}} title="All" />,
+    );
+
+    const input = screen.getByLabelText(/search transactions/i);
+    await user.type(input, "apple");
+
+    // Account name matches even though the merchant string is "Whole Foods"
+    expect(screen.getByText("Whole Foods")).toBeInTheDocument();
+    expect(screen.queryByText("Merchant 0")).not.toBeInTheDocument();
+  });
+
   it("filters by note", async () => {
     const user = userEvent.setup();
     const txns = [

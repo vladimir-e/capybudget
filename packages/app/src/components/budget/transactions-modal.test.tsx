@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, cleanup } from "@testing-library/react";
+import { render, screen, cleanup, act, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach } from "vitest";
@@ -105,6 +105,140 @@ describe("TransactionsModal", () => {
     // The dialog role itself must carry the accessible name — Base UI
     // wires `aria-labelledby` to the rendered DialogTitle.
     expect(screen.getByRole("dialog", { name: "Groceries" })).toBeInTheDocument();
+  });
+
+  it("locks the popup to its natural height once measured, even as search shrinks the list", async () => {
+    // JSDOM returns offsetHeight = 0 for every element. Stub the prototype
+    // to return a fixed natural height so the measurement code has something
+    // realistic to lock onto. Restore after the test.
+    const MEASURED = 640;
+    const original = Object.getOwnPropertyDescriptor(
+      window.HTMLElement.prototype,
+      "offsetHeight",
+    );
+    Object.defineProperty(window.HTMLElement.prototype, "offsetHeight", {
+      configurable: true,
+      get() {
+        return MEASURED;
+      },
+    });
+
+    try {
+      // Need > 10 transactions to surface the search field; the bug being
+      // tested is "modal shrinks under the cursor as the user types".
+      const many: Transaction[] = Array.from({ length: 50 }, (_, i) =>
+        makeTransaction({
+          id: `m-${i}`,
+          accountId: account.id,
+          categoryId: groceries.id,
+          merchant: `Merchant ${i}`,
+          amount: -((i + 1) * 100),
+        }),
+      );
+      mockAllTransactions = many;
+
+      const user = userEvent.setup();
+      renderWithProviders(
+        <TransactionsModal
+          open={true}
+          onOpenChange={() => {}}
+          transactions={many}
+          lockedFilters={{}}
+          title="All"
+        />,
+      );
+
+      // Wait for the rAF inside the modal to fire and pin the height.
+      await waitFor(() => {
+        const dialog = screen.getByRole("dialog");
+        expect(dialog.style.height).toBe(`${MEASURED}px`);
+      });
+
+      // Type a query that filters to ~zero or one row.
+      const input = screen.getByLabelText(/search transactions/i);
+      await user.type(input, "zzznoresults");
+
+      // Height stays pinned — the shrinking list does not pull the modal up.
+      const dialog = screen.getByRole("dialog");
+      expect(dialog.style.height).toBe(`${MEASURED}px`);
+    } finally {
+      if (original) {
+        Object.defineProperty(window.HTMLElement.prototype, "offsetHeight", original);
+      } else {
+        delete (window.HTMLElement.prototype as unknown as Record<string, unknown>).offsetHeight;
+      }
+    }
+  });
+
+  it("clears the locked height when closed so the next open re-measures", async () => {
+    const MEASURED = 480;
+    const original = Object.getOwnPropertyDescriptor(
+      window.HTMLElement.prototype,
+      "offsetHeight",
+    );
+    Object.defineProperty(window.HTMLElement.prototype, "offsetHeight", {
+      configurable: true,
+      get() {
+        return MEASURED;
+      },
+    });
+
+    try {
+      const { rerender } = renderWithProviders(
+        <TransactionsModal
+          open={true}
+          onOpenChange={() => {}}
+          transactions={txns}
+          lockedFilters={{}}
+          title="Groceries"
+        />,
+      );
+
+      await waitFor(() => {
+        expect(screen.getByRole("dialog").style.height).toBe(`${MEASURED}px`);
+      });
+
+      // Close → popup unmounts; the lock state should reset internally.
+      // Re-open and verify we measure fresh (height applies again).
+      rerender(
+        <QueryClientProvider client={new QueryClient()}>
+          <TransactionsModal
+            open={false}
+            onOpenChange={() => {}}
+            transactions={txns}
+            lockedFilters={{}}
+            title="Groceries"
+          />
+        </QueryClientProvider>,
+      );
+
+      // Allow the layout-effect's reset to run.
+      await act(async () => {
+        await new Promise((r) => requestAnimationFrame(() => r(undefined)));
+      });
+
+      rerender(
+        <QueryClientProvider client={new QueryClient()}>
+          <TransactionsModal
+            open={true}
+            onOpenChange={() => {}}
+            transactions={txns}
+            lockedFilters={{}}
+            title="Groceries"
+          />
+        </QueryClientProvider>,
+      );
+
+      await waitFor(() => {
+        expect(screen.getByRole("dialog").style.height).toBe(`${MEASURED}px`);
+      });
+    } finally {
+      if (original) {
+        Object.defineProperty(window.HTMLElement.prototype, "offsetHeight", original);
+      } else {
+        delete (window.HTMLElement.prototype as unknown as Record<string, unknown>).offsetHeight;
+      }
+    }
   });
 
   it("invokes onOpenChange(false) when Escape is pressed", async () => {

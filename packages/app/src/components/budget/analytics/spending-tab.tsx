@@ -14,6 +14,7 @@ import {
 import type { Transaction, Category, DateRange } from "@capybudget/core";
 import { ChartSwitcher } from "./chart-switcher";
 import { TransactionsModal } from "@/components/budget/transactions-modal";
+import { TransactionsDrilldownLink } from "@/components/budget/transactions-drilldown-link";
 import type { PeriodType } from "@/stores/analytics-store";
 import { formatRangeLabel } from "./format-range";
 import { getRechartsPayload } from "./recharts-payload";
@@ -177,7 +178,10 @@ export function SpendingTab({
             </ResponsiveContainer>
           </div>
 
-          {/* Breakdown list — grid keeps columns aligned */}
+          {/* Breakdown list — grid keeps columns aligned. The amount in
+           *  the third column is a drilldown link with the same behavior
+           *  as clicking the corresponding pie slice — gives users with
+           *  thin slices a fatter click target. */}
           <div className="grid grid-cols-[auto_auto_auto_auto] gap-x-2.5 gap-y-1.5 items-center pt-2">
             {chartData.map((entry, i) => (
               <div key={entry.name} className="contents text-sm">
@@ -189,7 +193,12 @@ export function SpendingTab({
                   {entry.name}
                 </span>
                 <span className="tabular-nums text-sm font-medium text-foreground text-right pl-4">
-                  {formatMoney(entry.value)}
+                  <TransactionsDrilldownLink
+                    onClick={() => handleSliceClick(entry)}
+                    ariaLabel={`View ${entry.name} transactions`}
+                  >
+                    {formatMoney(entry.value)}
+                  </TransactionsDrilldownLink>
                 </span>
                 <span className="tabular-nums text-xs text-muted-foreground text-right">
                   {entry.percentage.toFixed(1)}%

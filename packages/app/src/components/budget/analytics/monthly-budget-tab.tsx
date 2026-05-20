@@ -6,7 +6,6 @@ import {
   parseMoney,
   centsToEditString,
   CATEGORY_GROUP_ORDER,
-  filterTransactionsByDateRange,
 } from "@capybudget/core";
 import type {
   Category,
@@ -18,7 +17,14 @@ import { useSetCategoryAssigned } from "@/hooks/use-category-mutations";
 import { toast } from "sonner";
 import { progressState } from "./monthly-budget-progress";
 import { TransactionsModal } from "@/components/budget/transactions-modal";
+import { TransactionsDrilldownLink } from "@/components/budget/transactions-drilldown-link";
 import { formatRangeLabel } from "./format-range";
+import {
+  budgetDrilldownTitle,
+  filterForBudgetDrilldown,
+  partitionCategoriesForBudget,
+  type MonthlyBudgetDrilldown,
+} from "./monthly-budget-drilldown";
 
 // ── Color palette (matches spec: well-under / close / over) ────
 //
@@ -38,29 +44,42 @@ interface KPICard {
   label: string;
   value: number;
   tone?: "default" | "income" | "expense";
+  /** When set, the value renders as a drilldown link that opens the
+   *  transactions browser for whatever scope this card represents. */
+  onClick?: () => void;
 }
 
 function KpiStrip({ cards }: { cards: KPICard[] }) {
   return (
     <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-      {cards.map((c) => (
-        <div key={c.label} className="rounded-lg border bg-card px-4 py-3">
-          <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-            {c.label}
+      {cards.map((c) => {
+        const toneClass =
+          c.tone === "income"
+            ? "text-amount-income"
+            : c.tone === "expense"
+              ? "text-amount-expense"
+              : "text-foreground";
+        const valueClass = `text-xl font-bold tabular-nums mt-1 ${toneClass}`;
+        return (
+          <div key={c.label} className="rounded-lg border bg-card px-4 py-3">
+            <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+              {c.label}
+            </div>
+            {c.onClick ? (
+              <div className={valueClass}>
+                <TransactionsDrilldownLink
+                  onClick={c.onClick}
+                  ariaLabel={`View ${c.label} transactions`}
+                >
+                  {formatMoney(c.value)}
+                </TransactionsDrilldownLink>
+              </div>
+            ) : (
+              <div className={valueClass}>{formatMoney(c.value)}</div>
+            )}
           </div>
-          <div
-            className={`text-xl font-bold tabular-nums mt-1 ${
-              c.tone === "income"
-                ? "text-amount-income"
-                : c.tone === "expense"
-                  ? "text-amount-expense"
-                  : "text-foreground"
-            }`}
-          >
-            {formatMoney(c.value)}
-          </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
@@ -269,14 +288,14 @@ function CategoryRow({ category, spent, onDrilldown }: CategoryRowProps) {
        *  Clickable when there's spending to show; opens the transactions
        *  browser pre-filtered to this category + month. */}
       {hasSpent ? (
-        <button
-          type="button"
-          onClick={() => onDrilldown(category)}
-          className="text-right text-sm tabular-nums hover:text-brand hover:underline underline-offset-2 transition-colors cursor-pointer"
-          aria-label={`View ${category.name} transactions`}
-        >
-          {formatMoney(spent)}
-        </button>
+        <div className="text-right text-sm tabular-nums">
+          <TransactionsDrilldownLink
+            onClick={() => onDrilldown(category)}
+            ariaLabel={`View ${category.name} transactions`}
+          >
+            {formatMoney(spent)}
+          </TransactionsDrilldownLink>
+        </div>
       ) : (
         <span className="text-right text-sm tabular-nums">
           {tracked ? (
@@ -392,18 +411,13 @@ interface MonthlyBudgetTabProps {
   dateRange: DateRange;
 }
 
-/** When the user clicks a Spent cell. */
-interface CategoryDrilldown {
-  category: Category;
-}
-
 export function MonthlyBudgetTab({
   transactions,
   categories,
   dateRange,
 }: MonthlyBudgetTabProps) {
   const [showOnlyTracked, setShowOnlyTracked] = useState(false);
-  const [drilldown, setDrilldown] = useState<CategoryDrilldown | null>(null);
+  const [drilldown, setDrilldown] = useState<MonthlyBudgetDrilldown | null>(null);
 
   const summary = useMemo(
     () => getMonthlyBudgetSummary(transactions, categories, dateRange),
@@ -451,14 +465,21 @@ export function MonthlyBudgetTab({
 
   const remaining = summary.totalAssigned - summary.totalSpentTracked;
 
+  // Mirror `getMonthlyBudgetSummary`'s partitioning so the KPI-bucket
+  // drilldowns sum to the displayed totals.
+  const partition = useMemo(
+    () => partitionCategoriesForBudget(categories),
+    [categories],
+  );
+
   // Pre-filtered transactions for the active drilldown.
-  const drilldownTransactions = useMemo(() => {
-    if (!drilldown) return [];
-    const inRange = filterTransactionsByDateRange(transactions, dateRange);
-    return inRange.filter(
-      (t) => t.type === "expense" && t.categoryId === drilldown.category.id,
-    );
-  }, [drilldown, transactions, dateRange]);
+  const drilldownTransactions = useMemo(
+    () =>
+      drilldown
+        ? filterForBudgetDrilldown(transactions, dateRange, drilldown, partition)
+        : [],
+    [drilldown, transactions, dateRange, partition],
+  );
 
   return (
     // `pt-4` lives on the tab itself rather than the outer scroll container so
@@ -467,17 +488,35 @@ export function MonthlyBudgetTab({
     // scrolls with the content, the sticky header still pins flush with the
     // viewport top).
     <div className="space-y-5 pt-4">
-      {/* KPI strip */}
+      {/* KPI strip. `Assigned` and `Remaining` are math over `category.assigned`
+       *  values — no transaction set maps cleanly to them, so they stay
+       *  display-only. `Spent (tracked)` and `Other Spending` are sums of
+       *  real expense transactions, so they get drilldown links. */}
       <KpiStrip
         cards={[
           { label: "Assigned", value: summary.totalAssigned },
-          { label: "Spent (tracked)", value: summary.totalSpentTracked, tone: "expense" },
+          {
+            label: "Spent (tracked)",
+            value: summary.totalSpentTracked,
+            tone: "expense",
+            onClick:
+              summary.totalSpentTracked > 0
+                ? () => setDrilldown({ kind: "tracked" })
+                : undefined,
+          },
           {
             label: "Remaining",
             value: remaining,
             tone: remaining < 0 ? "expense" : "income",
           },
-          { label: "Other Spending", value: summary.totalOtherSpending },
+          {
+            label: "Other Spending",
+            value: summary.totalOtherSpending,
+            onClick:
+              summary.totalOtherSpending > 0
+                ? () => setDrilldown({ kind: "other" })
+                : undefined,
+          },
         ]}
       />
 
@@ -516,7 +555,7 @@ export function MonthlyBudgetTab({
                   categories={cats}
                   spentByCategory={spentByCategory}
                   showOnlyTracked={showOnlyTracked}
-                  onDrilldown={(category) => setDrilldown({ category })}
+                  onDrilldown={(category) => setDrilldown({ kind: "category", category })}
                 />
               );
             })}
@@ -531,12 +570,17 @@ export function MonthlyBudgetTab({
         lockedFilters={
           drilldown
             ? {
-                categoryId: drilldown.category.id,
+                // `categoryId` chip only makes sense for the per-category
+                // drilldown; the tracked / other buckets span many
+                // categories and the period chip is enough context.
+                ...(drilldown.kind === "category"
+                  ? { categoryId: drilldown.category.id }
+                  : {}),
                 dateRange: { from: dateRange.start, to: dateRange.end },
               }
             : {}
         }
-        title={drilldown?.category.name ?? ""}
+        title={drilldown ? budgetDrilldownTitle(drilldown) : ""}
         subtitle={
           drilldown
             ? `${formatRangeLabel(dateRange, "month")} · ${drilldownTransactions.length} transaction${
