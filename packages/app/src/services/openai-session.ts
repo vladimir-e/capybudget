@@ -360,6 +360,9 @@ export class OpenAiSession implements CapySession {
         }
         const parsed = finalizeToolArgs(acc)
         if (parsed instanceof Error) {
+          // Malformed args never reached the handler — emit a failed
+          // tool-result so the hook accounts for the call.
+          this.opts.onEvent({ type: "tool-result", tool: acc.name, id: acc.id, ok: false })
           toolMessages.push({
             role: "tool",
             tool_call_id: acc.id,
@@ -368,6 +371,7 @@ export class OpenAiSession implements CapySession {
           continue
         }
         let resultText: string
+        let ok = true
         try {
           resultText = await runTool(acc.name, parsed, {
             repo: this.opts.repo,
@@ -375,8 +379,12 @@ export class OpenAiSession implements CapySession {
             budgetPath: this.opts.budgetPath,
           })
         } catch (err) {
+          ok = false
           resultText = `Error: ${err instanceof Error ? err.message : String(err)}`
         }
+        // Signal completion so the hook can invalidate caches per-call
+        // (mutations only — the hook filters).
+        this.opts.onEvent({ type: "tool-result", tool: acc.name, id: acc.id, ok })
         toolMessages.push({
           role: "tool",
           tool_call_id: acc.id,

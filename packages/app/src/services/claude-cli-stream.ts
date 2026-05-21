@@ -22,9 +22,20 @@ const RENDER_TOOL_MAP: Record<string, (input: Record<string, unknown>) => Conten
 
 /**
  * Parse a single stdout JSON line from the Claude CLI.
+ *
  * Returns an array of StreamEvents (typically one per line).
+ *
+ * The optional `toolUseRegistry` map is read+written across lines: when
+ * the parser sees a `tool_use` block in an `assistant` event it records
+ * `id → name`; when it later sees a matching `tool_result` in a `user`
+ * event it looks the name back up so the emitted `tool-result` event
+ * carries the tool name. Callers own the map's lifetime (the session
+ * resets it on each user→done cycle).
  */
-export function parseStreamLine(line: string): StreamEvent[] {
+export function parseStreamLine(
+  line: string,
+  toolUseRegistry?: Map<string, string>,
+): StreamEvent[] {
   const trimmed = line.trim()
   if (!trimmed) return []
 
@@ -52,6 +63,10 @@ export function parseStreamLine(line: string): StreamEvent[] {
           const rawName = block.name as string
           const baseName = rawName.replace(/^mcp__\w+__/, "")
           const input = block.input as Record<string, unknown>
+          const toolUseId = block.id as string | undefined
+          if (toolUseRegistry && toolUseId) {
+            toolUseRegistry.set(toolUseId, baseName)
+          }
 
           const renderFn = RENDER_TOOL_MAP[baseName]
           if (renderFn) {
@@ -68,6 +83,30 @@ export function parseStreamLine(line: string): StreamEvent[] {
         events.push(
           messageId ? { type: "content", blocks, messageId } : { type: "content", blocks },
         )
+      }
+      break
+    }
+
+    case "user": {
+      // The CLI wraps MCP tool results inside a `user` message whose
+      // content array carries one or more `tool_result` blocks. The
+      // model also sees this — for the consumer we only need the
+      // completion signal (per-call cache invalidation in the hook).
+      // The result block carries the `tool_use_id` but not the name;
+      // we look the name up in the registry populated when we parsed
+      // the matching assistant turn.
+      const message = event.message as
+        | { content?: Array<Record<string, unknown>> }
+        | undefined
+      const rawBlocks = message?.content ?? []
+      for (const block of rawBlocks) {
+        if (block.type !== "tool_result") continue
+        const toolUseId = block.tool_use_id as string | undefined
+        if (!toolUseId) continue
+        const name = toolUseRegistry?.get(toolUseId)
+        if (!name) continue // unknown id (registry not provided or mismatched) — skip
+        const ok = block.is_error !== true
+        events.push({ type: "tool-result", tool: name, id: toolUseId, ok })
       }
       break
     }

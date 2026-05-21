@@ -60,6 +60,10 @@ export class ClaudeCliSession implements CapySession {
   private currentTurnId: string | null = null
   private currentTurnBlocks: ContentBlock[] = []
   private inProgressTextIndex: number | null = null
+  // tool_use_id → tool name, populated when parsing assistant `tool_use`
+  // blocks and read when matching `tool_result`s arrive in a `user`
+  // event. Reset per cycle alongside the content accumulator.
+  private toolUseRegistry: Map<string, string> = new Map()
 
   constructor(opts: ClaudeCliAdapterOptions) {
     this.budgetPath = opts.budgetPath
@@ -124,11 +128,17 @@ export class ClaudeCliSession implements CapySession {
     ])
 
     command.stdout.on("data", (line: string) => {
-      for (const event of parseStreamLine(line)) {
+      for (const event of parseStreamLine(line, this.toolUseRegistry)) {
         // An error event means the CLI is shutting itself down (e.g.
         // `--max-turns` tripped). Mark the teardown as deliberate so
         // the close handler skips the unexpected-death onExit path.
         if (event.type === "error") this.killed = true
+        // tool-result events bypass the cycle accumulator (they aren't
+        // content); pass them straight through to the consumer.
+        if (event.type === "tool-result") {
+          this.onEvent(event)
+          continue
+        }
         this.onEvent(this.accumulateCycleEvent(event))
       }
     })
@@ -305,5 +315,6 @@ export class ClaudeCliSession implements CapySession {
     this.currentTurnId = null
     this.currentTurnBlocks = []
     this.inProgressTextIndex = null
+    this.toolUseRegistry.clear()
   }
 }

@@ -48,7 +48,15 @@ interface UseCapySessionReturn {
 
 export function useCapySession(opts: UseCapySessionOptions): UseCapySessionReturn {
   const [messages, setMessages] = useState<ChatMessage[]>([])
+  // True once any mutation tool-activity has been seen this turn. Used
+  // as a safety-net trigger for `onDataChanged` on `done` when no
+  // per-call invalidation fired (e.g. an adapter bug, or a tool that
+  // crashed before a `tool-result` could be emitted).
   const hadMutationsRef = useRef(false)
+  // tool-result IDs already acked this turn. Per-call invalidation
+  // dedups against this set — and the presence of any entry suppresses
+  // the `done` fallback so we never invalidate twice.
+  const ackedToolCallsRef = useRef<Set<string>>(new Set())
 
   // Keep a ref to messages for use in sendMessage / stopStreaming without
   // stale closures.
@@ -73,17 +81,38 @@ export function useCapySession(opts: UseCapySessionOptions): UseCapySessionRetur
           break
         }
 
+        case "tool-result": {
+          // Live cache invalidation per mutation tool call. Fires the
+          // moment a mutation finishes (in-process for API adapters, or
+          // when the CLI's tool_result block arrives) — so the UI
+          // reflects each change as Capy works, not at end-of-turn.
+          // Deduped by id so adapters can re-emit safely; the `done`
+          // fallback below only runs when no per-call ack has fired.
+          if (!event.ok) break
+          if (!MUTATION_TOOL_NAMES.has(event.tool)) break
+          if (ackedToolCallsRef.current.has(event.id)) break
+          ackedToolCallsRef.current.add(event.id)
+          ctx.optsRef.current.onDataChanged?.()
+          break
+        }
+
         case "done":
           ctx.setIsStreaming(false)
-          if (hadMutationsRef.current) {
-            hadMutationsRef.current = false
+          // Defense-in-depth: if any mutation tool-activity was seen
+          // but no per-call ack ever landed (adapter bug, tool crashed
+          // before completing, etc.), fire once on `done` so the UI
+          // still catches up.
+          if (hadMutationsRef.current && ackedToolCallsRef.current.size === 0) {
             ctx.optsRef.current.onDataChanged?.()
           }
+          hadMutationsRef.current = false
+          ackedToolCallsRef.current = new Set()
           break
 
         case "error":
           ctx.setIsStreaming(false)
           hadMutationsRef.current = false
+          ackedToolCallsRef.current = new Set()
           setMessages((prev) => {
             const updated = [...prev]
             const last = updated[updated.length - 1]
@@ -113,6 +142,7 @@ export function useCapySession(opts: UseCapySessionOptions): UseCapySessionRetur
     // onExit — process crashed unexpectedly, append recovery message
     () => {
       hadMutationsRef.current = false
+      ackedToolCallsRef.current = new Set()
       setMessages((prev) => [
         ...prev,
         {
@@ -227,6 +257,7 @@ export function useCapySession(opts: UseCapySessionOptions): UseCapySessionRetur
       setMessages((prev) => [...prev, userMsg, assistantMsg])
       lifecycle.setIsStreaming(true)
       hadMutationsRef.current = false
+      ackedToolCallsRef.current = new Set()
 
       const session = ensureSession()
       if (!session) {
@@ -275,16 +306,20 @@ export function useCapySession(opts: UseCapySessionOptions): UseCapySessionRetur
       ]
     })
 
-    if (hadMutationsRef.current) {
-      hadMutationsRef.current = false
+    // Mirror the `done` fallback: only fire if per-call invalidation
+    // hasn't already covered the mutations seen this turn.
+    if (hadMutationsRef.current && ackedToolCallsRef.current.size === 0) {
       lifecycle.optsRef.current.onDataChanged?.()
     }
+    hadMutationsRef.current = false
+    ackedToolCallsRef.current = new Set()
   }, [lifecycle])
 
   const newChat = useCallback(() => {
     lifecycle.cancel()
     setMessages([])
     hadMutationsRef.current = false
+    ackedToolCallsRef.current = new Set()
   }, [lifecycle])
 
   return { messages, isStreaming: lifecycle.isStreaming, sendMessage, stopStreaming, newChat }

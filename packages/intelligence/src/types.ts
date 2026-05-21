@@ -98,5 +98,22 @@ export type StreamEvent =
       /** Per-turn boundary signal from Claude CLI's stream-json. */
       messageId?: string
     }
+  | {
+      /**
+       * Signals that a tool call has *finished executing* and any side
+       * effects (mutations) are now reflected in the underlying data.
+       * Distinct from the `tool-activity` ContentBlock, which is emitted
+       * when the model *requests* the call. The hook uses this to
+       * invalidate caches live, per-call, rather than waiting for `done`.
+       */
+      type: "tool-result"
+      tool: string
+      /** Adapter-specific tool-call id; stable within a session so the
+       *  consumer can debounce duplicates if the same result is forwarded
+       *  more than once. */
+      id: string
+      /** True for clean runs, false when the handler threw. */
+      ok: boolean
+    }
   | { type: "done" }
   | { type: "error"; message: string }

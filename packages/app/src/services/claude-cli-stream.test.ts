@@ -561,6 +561,112 @@ describe("parseStreamLine", () => {
     })
   })
 
+  describe("tool_result → tool-result event", () => {
+    it("emits a tool-result event from a user message carrying a tool_result block", () => {
+      const registry = new Map<string, string>()
+      // First, the assistant turn that requested the call — registers
+      // the id → name mapping.
+      parseStreamLine(
+        JSON.stringify({
+          type: "assistant",
+          message: {
+            content: [
+              {
+                type: "tool_use",
+                id: "toolu_01",
+                name: "mcp__capy__create_transaction",
+                input: {},
+              },
+            ],
+          },
+        }),
+        registry,
+      )
+
+      // Then the user message wrapping the MCP tool result.
+      const events = parseStreamLine(
+        JSON.stringify({
+          type: "user",
+          message: {
+            content: [
+              {
+                type: "tool_result",
+                tool_use_id: "toolu_01",
+                content: "{ \"success\": true }",
+              },
+            ],
+          },
+        }),
+        registry,
+      )
+
+      expect(events).toEqual([
+        { type: "tool-result", tool: "create_transaction", id: "toolu_01", ok: true },
+      ])
+    })
+
+    it("marks tool-result as not-ok when is_error is set", () => {
+      const registry = new Map<string, string>([["toolu_02", "create_transaction"]])
+      const events = parseStreamLine(
+        JSON.stringify({
+          type: "user",
+          message: {
+            content: [
+              {
+                type: "tool_result",
+                tool_use_id: "toolu_02",
+                is_error: true,
+                content: "Error: nope",
+              },
+            ],
+          },
+        }),
+        registry,
+      )
+      expect(events).toEqual([
+        { type: "tool-result", tool: "create_transaction", id: "toolu_02", ok: false },
+      ])
+    })
+
+    it("skips tool_result with an unknown tool_use_id (no registry entry)", () => {
+      const registry = new Map<string, string>()
+      const events = parseStreamLine(
+        JSON.stringify({
+          type: "user",
+          message: {
+            content: [
+              {
+                type: "tool_result",
+                tool_use_id: "toolu_ghost",
+                content: "stale",
+              },
+            ],
+          },
+        }),
+        registry,
+      )
+      expect(events).toEqual([])
+    })
+
+    it("registry is optional — no tool-result emitted without one", () => {
+      const events = parseStreamLine(
+        JSON.stringify({
+          type: "user",
+          message: {
+            content: [
+              {
+                type: "tool_result",
+                tool_use_id: "toolu_03",
+                content: "ok",
+              },
+            ],
+          },
+        }),
+      )
+      expect(events).toEqual([])
+    })
+  })
+
   describe("assistant with empty / missing content", () => {
     it("returns [] when message has no content array", () => {
       const line = JSON.stringify({
