@@ -940,7 +940,14 @@ export function getToolDefinitions(): ToolDefinition[] {
 
 /**
  * Names of mutation tools — the app uses this set to decide when to
- * invalidate cached data after a turn completes.
+ * invalidate cached data and refetch from disk.
+ *
+ * Scope is budget-data mutations only (accounts, categories, transactions,
+ * budgets, net-worth exclusions). Import/CSV workspace writes
+ * (`write_import_file`, `append_import_file`, `transform_csv`, `auto_enrich`,
+ * `enrich_update`, etc.) are intentionally excluded — they touch
+ * `.capy/import/`, which the budget UI doesn't read from. Invalidating
+ * on those would refetch budget CSVs that haven't changed.
  */
 export const MUTATION_TOOL_NAMES: ReadonlySet<string> = new Set(
   MUTATION_TOOL_DEFS.map((t) => t.name),
