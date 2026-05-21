@@ -705,4 +705,89 @@ describe("OpenAiSession", () => {
 
     expect(mockRunTool).toHaveBeenCalledTimes(1)
   })
+
+  // ── tool-result emission ─────────────────────────────────────────
+
+  it("emits a tool-result event with ok=true after a tool resolves", async () => {
+    queueTurn({
+      toolCallDeltas: [
+        {
+          index: 0,
+          id: "call_ok",
+          name: "create_transaction",
+          argFragments: ["{}"],
+        },
+      ],
+      finish_reason: "tool_calls",
+    })
+    queueTurn({ textDeltas: ["Done."], finish_reason: "stop" })
+    mockRunTool.mockResolvedValueOnce(JSON.stringify({ success: true }))
+
+    const { session, events } = makeSession()
+    await session.send("Add it.")
+
+    const toolResults = events.filter((e) => e.type === "tool-result")
+    expect(toolResults).toEqual([
+      { type: "tool-result", tool: "create_transaction", id: "call_ok", ok: true },
+    ])
+  })
+
+  it("emits tool-result with ok=false when the handler throws", async () => {
+    queueTurn({
+      toolCallDeltas: [
+        {
+          index: 0,
+          id: "call_err",
+          name: "create_transaction",
+          argFragments: ["{}"],
+        },
+      ],
+      finish_reason: "tool_calls",
+    })
+    queueTurn({ textDeltas: ["Sorry."], finish_reason: "stop" })
+    mockRunTool.mockRejectedValueOnce(new Error("disk full"))
+
+    const { session, events } = makeSession()
+    await session.send("Add it.")
+
+    const toolResults = events.filter((e) => e.type === "tool-result")
+    expect(toolResults).toEqual([
+      { type: "tool-result", tool: "create_transaction", id: "call_err", ok: false },
+    ])
+  })
+
+  it("emits tool-result with ok=false when tool_call arguments are malformed JSON", async () => {
+    // Args arrive as broken JSON — the handler is never invoked, but the
+    // adapter still emits a failed tool-result so the hook accounts for
+    // the call.
+    queueTurn({
+      toolCallDeltas: [
+        {
+          index: 0,
+          id: "call_bad_args",
+          name: "create_transaction",
+          // No closing brace — JSON.parse will throw.
+          argFragments: ['{"amount": 100'],
+        },
+      ],
+      finish_reason: "tool_calls",
+    })
+    queueTurn({ textDeltas: ["Recovered."], finish_reason: "stop" })
+
+    const { session, events } = makeSession()
+    await session.send("Add it.")
+
+    // Handler should NOT have been called — args never parsed.
+    expect(mockRunTool).not.toHaveBeenCalled()
+
+    const toolResults = events.filter((e) => e.type === "tool-result")
+    expect(toolResults).toEqual([
+      {
+        type: "tool-result",
+        tool: "create_transaction",
+        id: "call_bad_args",
+        ok: false,
+      },
+    ])
+  })
 })

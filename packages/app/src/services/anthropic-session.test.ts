@@ -541,4 +541,63 @@ describe("AnthropicSession", () => {
     // Exactly one fresh tool dispatch, no budget-exhausted error this time.
     expect(mockRunTool).toHaveBeenCalledTimes(1)
   })
+
+  // ── tool-result emission ─────────────────────────────────────────
+
+  it("emits a tool-result event with ok=true after a tool resolves", async () => {
+    queueTurn({
+      toolUses: [{ id: "tu_ok", name: "create_transaction", input: {} }],
+      stop_reason: "tool_use",
+    })
+    queueTurn({ textDeltas: ["Done."], stop_reason: "end_turn" })
+    mockRunTool.mockResolvedValueOnce(JSON.stringify({ success: true }))
+
+    const { session, events } = makeSession()
+    await session.send("Add it.")
+
+    const toolResults = events.filter((e) => e.type === "tool-result")
+    expect(toolResults).toEqual([
+      { type: "tool-result", tool: "create_transaction", id: "tu_ok", ok: true },
+    ])
+  })
+
+  it("emits tool-result with ok=false when the handler throws", async () => {
+    queueTurn({
+      toolUses: [{ id: "tu_err", name: "create_transaction", input: {} }],
+      stop_reason: "tool_use",
+    })
+    queueTurn({ textDeltas: ["Sorry."], stop_reason: "end_turn" })
+    mockRunTool.mockRejectedValueOnce(new Error("disk full"))
+
+    const { session, events } = makeSession()
+    await session.send("Add it.")
+
+    const toolResults = events.filter((e) => e.type === "tool-result")
+    expect(toolResults).toEqual([
+      { type: "tool-result", tool: "create_transaction", id: "tu_err", ok: false },
+    ])
+  })
+
+  it("emits one tool-result per tool when a turn carries multiple tool_use blocks", async () => {
+    queueTurn({
+      toolUses: [
+        { id: "tu_a", name: "create_transaction", input: {} },
+        { id: "tu_b", name: "list_accounts", input: {} },
+      ],
+      stop_reason: "tool_use",
+    })
+    queueTurn({ textDeltas: ["Done."], stop_reason: "end_turn" })
+    mockRunTool
+      .mockResolvedValueOnce(JSON.stringify({ success: true }))
+      .mockResolvedValueOnce("[]")
+
+    const { session, events } = makeSession()
+    await session.send("Two things.")
+
+    const toolResults = events.filter((e) => e.type === "tool-result")
+    expect(toolResults).toEqual([
+      { type: "tool-result", tool: "create_transaction", id: "tu_a", ok: true },
+      { type: "tool-result", tool: "list_accounts", id: "tu_b", ok: true },
+    ])
+  })
 })

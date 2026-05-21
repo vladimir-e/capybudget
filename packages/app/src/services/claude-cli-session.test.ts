@@ -401,4 +401,114 @@ describe("ClaudeCliSession", () => {
     handlers.close?.({ code: 0 })
     expect(exitHandler).not.toHaveBeenCalled()
   })
+
+  describe("tool-result wire-up", () => {
+    it("resolves tool name from the registry when a tool_result lands", async () => {
+      const { session, events } = makeSession()
+      await session.send("Add it.")
+
+      const handlers = latestHandlers.current!
+
+      // Model asks for a mutation tool — registers the id → name mapping.
+      handlers.stdout!(
+        JSON.stringify({
+          type: "assistant",
+          message: {
+            content: [
+              {
+                type: "tool_use",
+                id: "toolu_01",
+                name: "mcp__capy__create_transaction",
+                input: {},
+              },
+            ],
+          },
+        }),
+      )
+      // MCP returns the result — forwarded as a `user` event with a
+      // tool_result content block. Tool name comes from the registry.
+      handlers.stdout!(
+        JSON.stringify({
+          type: "user",
+          message: {
+            content: [
+              {
+                type: "tool_result",
+                tool_use_id: "toolu_01",
+                content: "{\"success\":true}",
+              },
+            ],
+          },
+        }),
+      )
+
+      expect(events).toContainEqual({
+        type: "tool-result",
+        tool: "create_transaction",
+        id: "toolu_01",
+        ok: true,
+      })
+    })
+
+    it("clears the registry on done so a reused id from the next turn doesn't false-hit", async () => {
+      const { session, events } = makeSession()
+      await session.send("first turn")
+
+      const handlers = latestHandlers.current!
+
+      // Turn 1: register toolu_X for create_transaction, then finish.
+      handlers.stdout!(
+        JSON.stringify({
+          type: "assistant",
+          message: {
+            content: [
+              {
+                type: "tool_use",
+                id: "toolu_X",
+                name: "mcp__capy__create_transaction",
+                input: {},
+              },
+            ],
+          },
+        }),
+      )
+      handlers.stdout!(
+        JSON.stringify({
+          type: "user",
+          message: {
+            content: [
+              { type: "tool_result", tool_use_id: "toolu_X", content: "ok" },
+            ],
+          },
+        }),
+      )
+      handlers.stdout!(JSON.stringify({ type: "result" }))
+
+      // Turn 2: the CLI happens to reuse toolu_X, but registry was
+      // cleared on `done`. Without an assistant turn re-registering it,
+      // a stray tool_result must NOT emit a phantom tool-result event.
+      await session.send("second turn")
+      handlers.stdout!(
+        JSON.stringify({
+          type: "user",
+          message: {
+            content: [
+              { type: "tool_result", tool_use_id: "toolu_X", content: "stale" },
+            ],
+          },
+        }),
+      )
+
+      // Exactly one tool-result event across both turns — the registered
+      // one from turn 1, not the stale turn-2 hit.
+      const toolResults = events.filter((e) => e.type === "tool-result")
+      expect(toolResults).toHaveLength(1)
+      expect(toolResults[0]).toEqual({
+        type: "tool-result",
+        tool: "create_transaction",
+        id: "toolu_X",
+        ok: true,
+      })
+    })
+  })
 })
