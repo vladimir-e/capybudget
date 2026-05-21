@@ -732,4 +732,66 @@ describe("handleTransactionBounds", () => {
     expect(result.minDate).toBe("2024-01-01")
     expect(result.maxDate).toBe("2026-05-20")
   })
+
+  it("respects startDate filter", async () => {
+    const repo = createMockRepo({
+      accounts: baseAccounts,
+      categories: baseCategories,
+      transactions: [
+        makeTxn({ id: "t1", datetime: "2024-01-01T00:00:00.000Z" }),
+        makeTxn({ id: "t2", datetime: "2025-06-15T00:00:00.000Z" }),
+        makeTxn({ id: "t3", datetime: "2026-05-20T00:00:00.000Z" }),
+      ],
+    })
+
+    const result = JSON.parse(
+      await handleTransactionBounds(repo, { startDate: "2025-01-01" }),
+    )
+    expect(result.count).toBe(2)
+    expect(result.minDate).toBe("2025-06-15")
+    expect(result.maxDate).toBe("2026-05-20")
+  })
+
+  it("respects endDate filter (inclusive of the full day)", async () => {
+    const repo = createMockRepo({
+      accounts: baseAccounts,
+      categories: baseCategories,
+      transactions: [
+        makeTxn({ id: "t1", datetime: "2024-01-01T00:00:00.000Z" }),
+        makeTxn({ id: "t2", datetime: "2025-06-15T18:30:00.000Z" }),
+        makeTxn({ id: "t3", datetime: "2026-05-20T00:00:00.000Z" }),
+      ],
+    })
+
+    const result = JSON.parse(
+      await handleTransactionBounds(repo, { endDate: "2025-06-15" }),
+    )
+    expect(result.count).toBe(2)
+    expect(result.minDate).toBe("2024-01-01")
+    expect(result.maxDate).toBe("2025-06-15")
+  })
+
+  it("combines merchant + date filters (e.g. first time at Whole Foods in 2025)", async () => {
+    const repo = createMockRepo({
+      accounts: baseAccounts,
+      categories: baseCategories,
+      transactions: [
+        makeTxn({ id: "t1", merchant: "Whole Foods", datetime: "2024-12-01T00:00:00.000Z" }),
+        makeTxn({ id: "t2", merchant: "Whole Foods", datetime: "2025-03-10T00:00:00.000Z" }),
+        makeTxn({ id: "t3", merchant: "Whole Foods", datetime: "2025-11-22T00:00:00.000Z" }),
+        makeTxn({ id: "t4", merchant: "Trader Joe's", datetime: "2025-04-05T00:00:00.000Z" }),
+      ],
+    })
+
+    const result = JSON.parse(
+      await handleTransactionBounds(repo, {
+        merchant: "whole foods",
+        startDate: "2025-01-01",
+        endDate: "2025-12-31",
+      }),
+    )
+    expect(result.count).toBe(2)
+    expect(result.minDate).toBe("2025-03-10")
+    expect(result.maxDate).toBe("2025-11-22")
+  })
 })

@@ -113,7 +113,7 @@ export const DATA_TOOL_DEFS = [
   {
     name: "transaction_bounds",
     description:
-      "Return the count and date range (min/max) of transactions, with the same optional filters as `list_transactions`. Use this to answer 'when did I start tracking?', 'how long is my history?', or 'what's the date range of my data?' in one call instead of probing.",
+      "Return the count and date range (min/max) of transactions, with the same optional filters as `list_transactions`. Use this to answer 'when did I start tracking?', 'how long is my history?', or 'what's the date range of my data?' in one call instead of probing. Combine with `startDate`/`endDate` to scope to a window (e.g. 'when did I first shop at Whole Foods in 2025').",
     inputSchema: {
       type: "object" as const,
       properties: {
@@ -128,6 +128,14 @@ export const DATA_TOOL_DEFS = [
         merchant: {
           type: "string",
           description: "Filter by merchant name (case-insensitive substring match)",
+        },
+        startDate: {
+          type: "string",
+          description: "Filter transactions on or after this date (YYYY-MM-DD)",
+        },
+        endDate: {
+          type: "string",
+          description: "Filter transactions on or before this date (YYYY-MM-DD)",
         },
       },
     },
