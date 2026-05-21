@@ -24,6 +24,8 @@ import { useCustomInstructions } from "@/hooks/use-custom-instructions";
 import { useCustomCommands } from "@/hooks/use-custom-commands";
 import { useBudgetRepository } from "@/providers/repository-provider";
 import { useImportStore } from "@/stores/import-store";
+import { useIntelligenceStore } from "@/stores/intelligence-store";
+import { invalidateAfterCapyMutation } from "@/components/budget/capy-invalidation";
 import { tauriFileAdapter } from "../../../../../src/adapters/tauri-file-adapter";
 import type { DisposableRepository } from "@capybudget/persistence";
 import {
@@ -86,13 +88,16 @@ export function BudgetShell({ path, name }: BudgetShellProps) {
   const customCommands = useCustomCommands(path);
 
   const repo = useBudgetRepository();
+  const provider = useIntelligenceStore((s) => s.config.provider);
 
   const invalidateBudgetData = useCallback(() => {
-    // Clear the repo's in-memory cache so it re-reads from disk
-    // (the MCP server wrote directly to the CSV files)
-    (repo as DisposableRepository).invalidateCache?.();
-    queryClient.invalidateQueries({ queryKey: budgetKeys.all });
-  }, [queryClient, repo]);
+    invalidateAfterCapyMutation({
+      provider,
+      repo: repo as DisposableRepository,
+      invalidateQueries: () =>
+        queryClient.invalidateQueries({ queryKey: budgetKeys.all }),
+    });
+  }, [queryClient, repo, provider]);
 
   const capy = useCapySession({
     budgetPath: path,

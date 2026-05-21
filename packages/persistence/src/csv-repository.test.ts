@@ -470,4 +470,89 @@ describe("createCsvRepository", () => {
       expect(accountsA).not.toBe(accountsB);
     });
   });
+
+  describe("invalidateCache contract", () => {
+    // These tests pin down the persistence-layer rule that callers must
+    // not interleave `invalidateCache()` with debounced `save*()` calls.
+    // Sequential `save → invalidate → save` discards in-memory truth
+    // before the writer flushes, so the next `get*()` re-reads stale
+    // disk state and the next save overwrites everything that wasn't on
+    // disk yet. This is the root of the OpenAI/Anthropic multi-tool
+    // data-loss bug — `budget-shell` no longer invalidates for shared
+    // in-process repos, and `capy-invalidation.test.ts` covers that
+    // policy. This documents *why* the policy exists.
+
+    function makeTxn(id: string): Transaction {
+      return {
+        id,
+        datetime: "2026-01-15T00:00:00.000Z",
+        type: "expense",
+        amount: -1000,
+        categoryId: "cat-1",
+        accountId: "acc-1",
+        transferPairId: "",
+        merchant: "Store",
+        note: "",
+        createdAt: "2026-01-15T00:00:00.000Z",
+      };
+    }
+
+    /** Capture the most recent write so we can inspect the final state
+     *  that would have hit disk. */
+    function lastWrittenCsv(): string | null {
+      const calls = mockAdapter.mockWriteFile.mock.calls;
+      if (calls.length === 0) return null;
+      return String(calls[calls.length - 1][1]);
+    }
+
+    it("save → invalidate → save loses the first write (existing contract — destructive interleave)", async () => {
+      // Disk starts with no transactions; the in-memory cache mirrors that.
+      stubCsvReads({ transactions: [] });
+      const repo = createCsvRepository("/budgets/test", mockAdapter.adapter);
+
+      // Mutation 1: read empty, append t1, save (debounced).
+      const cur1 = await repo.getTransactions();
+      await repo.saveTransactions([...cur1, makeTxn("t1")]);
+
+      // Cache invalidated BEFORE the debounced writer fires — disk is
+      // still the pre-mutation empty state.
+      repo.invalidateCache();
+
+      // Mutation 2: read disk (empty!), append t2, save. t1 is lost.
+      const cur2 = await repo.getTransactions();
+      expect(cur2).toEqual([]); // The bug shape: stale disk read.
+      await repo.saveTransactions([...cur2, makeTxn("t2")]);
+
+      // Flush whatever ends up scheduled.
+      await repo.dispose();
+
+      // Final CSV reflects mutation 2 only.
+      const written = lastWrittenCsv();
+      expect(written).not.toBeNull();
+      expect(written).toContain("t2");
+      expect(written).not.toContain("t1");
+    });
+
+    it("without invalidate, 4 sequential saves preserve every mutation through dispose", async () => {
+      // Mirrors Vlad's failure case: a single Capy turn with four
+      // create_transaction calls. Without the destructive invalidate,
+      // the in-memory cache carries each append forward and the final
+      // flush writes all four.
+      stubCsvReads({ transactions: [] });
+      const repo = createCsvRepository("/budgets/test", mockAdapter.adapter);
+
+      let cur = await repo.getTransactions();
+      for (const id of ["t1", "t2", "t3", "t4"]) {
+        cur = [...cur, makeTxn(id)];
+        await repo.saveTransactions(cur);
+      }
+      await repo.dispose();
+
+      const written = lastWrittenCsv();
+      expect(written).not.toBeNull();
+      for (const id of ["t1", "t2", "t3", "t4"]) {
+        expect(written).toContain(id);
+      }
+    });
+  });
 });

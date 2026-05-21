@@ -12,6 +12,7 @@ CHANGELOG PHILOSOPHY:
 ## Unreleased
 
 - **Capy** - Live cache invalidation per mutation; `list_transactions` gains `sort` + `offset`; new `transaction_bounds` tool.
+- **Capy** - Don't drop the in-memory repo cache between in-process mutations — was silently losing all-but-the-last write in multi-tool Anthropic/OpenAI turns.
 - **Transactions Browser** - Read-only pre-filtered transaction popup, drilldowns from Monthly Budget / Spending / Merchants tabs.
 - **Specs** - Drop roadmap from spec set; trim intelligence-layer references.
 - **Chat** - Fix AI output overwrite cascade; tighten render discipline; OpenAI follow-ups.
