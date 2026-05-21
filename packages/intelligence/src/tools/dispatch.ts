@@ -26,6 +26,7 @@ import {
   handleListCategories,
   handleSpendingSummary,
   handleSearchMerchants,
+  handleTransactionBounds,
 } from "./handlers/data"
 import {
   handleCreateTransaction,
@@ -82,6 +83,7 @@ const HANDLERS: Record<string, ToolHandler> = {
   list_categories: ({ repo }) => handleListCategories(repo),
   spending_summary: ({ repo }, args) => handleSpendingSummary(repo, args),
   search_merchants: ({ repo }, args) => handleSearchMerchants(repo, args),
+  transaction_bounds: ({ repo }, args) => handleTransactionBounds(repo, args),
 
   // Mutations
   create_transaction: ({ repo }, args) => handleCreateTransaction(repo, args),

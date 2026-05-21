@@ -22,7 +22,7 @@ export const DATA_TOOL_DEFS = [
   {
     name: "list_transactions",
     description:
-      "List transactions with optional filters. Amounts are in cents (negative = expense). Dates are ISO strings.",
+      "List transactions with optional filters, sort, and pagination. Amounts are in cents (negative = expense). Dates are ISO strings. Combine `sort: \"oldest\"` with `limit: 1` to fetch the very first transaction in one call.",
     inputSchema: {
       type: "object" as const,
       properties: {
@@ -46,9 +46,20 @@ export const DATA_TOOL_DEFS = [
           type: "string",
           description: "Filter transactions on or before this date (YYYY-MM-DD)",
         },
+        sort: {
+          type: "string",
+          enum: ["newest", "oldest", "amount_asc", "amount_desc"],
+          description:
+            "Sort order. Default 'newest' (most recent first). 'amount_asc' is most-negative-first (biggest expenses); 'amount_desc' is most-positive-first (biggest income).",
+        },
         limit: {
           type: "number",
           description: "Maximum number of transactions to return (default: 50)",
+        },
+        offset: {
+          type: "number",
+          description:
+            "Number of transactions to skip before returning results (default: 0). Use with `limit` to paginate.",
         },
       },
     },
@@ -97,6 +108,28 @@ export const DATA_TOOL_DEFS = [
         },
       },
       required: ["query"],
+    },
+  },
+  {
+    name: "transaction_bounds",
+    description:
+      "Return the count and date range (min/max) of transactions, with the same optional filters as `list_transactions`. Use this to answer 'when did I start tracking?', 'how long is my history?', or 'what's the date range of my data?' in one call instead of probing.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        accountId: {
+          type: "string",
+          description: "Filter by account ID",
+        },
+        categoryId: {
+          type: "string",
+          description: "Filter by category ID",
+        },
+        merchant: {
+          type: "string",
+          description: "Filter by merchant name (case-insensitive substring match)",
+        },
+      },
     },
   },
 ] as const

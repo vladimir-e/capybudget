@@ -6,6 +6,7 @@ import {
   handleListCategories,
   handleListTransactions,
   handleSpendingSummary,
+  handleTransactionBounds,
 } from "./data"
 
 // ── Test data factories ─────────────────────────────────────────
@@ -521,5 +522,214 @@ describe("handleSpendingSummary", () => {
       await handleSpendingSummary(repo, { startDate: "2026-01-01", endDate: "2026-01-31" }),
     )
     expect(result.spending).toEqual([])
+  })
+})
+
+// ── handleListTransactions: sort + offset ───────────────────────
+
+describe("handleListTransactions sort + offset", () => {
+  const baseAccounts = [makeAccount({ id: "acc-1", name: "Checking" })]
+  const baseCategories = [makeCategory({ id: "cat-1", name: "Groceries" })]
+
+  function buildRepo() {
+    return createMockRepo({
+      accounts: baseAccounts,
+      categories: baseCategories,
+      transactions: [
+        makeTxn({ id: "txn-old-small", datetime: "2024-01-01T00:00:00.000Z", amount: -1000 }),
+        makeTxn({ id: "txn-mid-big-exp", datetime: "2025-06-15T00:00:00.000Z", amount: -50000 }),
+        makeTxn({ id: "txn-new-income", datetime: "2026-03-10T00:00:00.000Z", amount: 200000 }),
+        makeTxn({ id: "txn-newest-small", datetime: "2026-05-20T00:00:00.000Z", amount: -500 }),
+      ],
+    })
+  }
+
+  it("default sort is newest first (no `sort` arg)", async () => {
+    const repo = buildRepo()
+    const result = JSON.parse(await handleListTransactions(repo, {}))
+    expect(result.map((t: { id: string }) => t.id)).toEqual([
+      "txn-newest-small",
+      "txn-new-income",
+      "txn-mid-big-exp",
+      "txn-old-small",
+    ])
+  })
+
+  it("`sort: \"oldest\"` returns earliest first", async () => {
+    const repo = buildRepo()
+    const result = JSON.parse(await handleListTransactions(repo, { sort: "oldest" }))
+    expect(result.map((t: { id: string }) => t.id)).toEqual([
+      "txn-old-small",
+      "txn-mid-big-exp",
+      "txn-new-income",
+      "txn-newest-small",
+    ])
+  })
+
+  it("`sort: \"oldest\"` with `limit: 1` answers 'find my first transaction' in one call", async () => {
+    const repo = buildRepo()
+    const result = JSON.parse(
+      await handleListTransactions(repo, { sort: "oldest", limit: 1 }),
+    )
+    expect(result).toHaveLength(1)
+    expect(result[0].id).toBe("txn-old-small")
+  })
+
+  it("`sort: \"amount_asc\"` puts the largest expenses (most-negative) first", async () => {
+    const repo = buildRepo()
+    const result = JSON.parse(await handleListTransactions(repo, { sort: "amount_asc" }))
+    expect(result.map((t: { id: string }) => t.id)).toEqual([
+      "txn-mid-big-exp",
+      "txn-old-small",
+      "txn-newest-small",
+      "txn-new-income",
+    ])
+  })
+
+  it("`sort: \"amount_desc\"` puts the largest income (most-positive) first", async () => {
+    const repo = buildRepo()
+    const result = JSON.parse(await handleListTransactions(repo, { sort: "amount_desc" }))
+    expect(result.map((t: { id: string }) => t.id)).toEqual([
+      "txn-new-income",
+      "txn-newest-small",
+      "txn-old-small",
+      "txn-mid-big-exp",
+    ])
+  })
+
+  it("`offset` skips rows after the sort and before the limit", async () => {
+    const repo = buildRepo()
+    const result = JSON.parse(
+      await handleListTransactions(repo, { sort: "oldest", offset: 2, limit: 1 }),
+    )
+    expect(result).toHaveLength(1)
+    expect(result[0].id).toBe("txn-new-income")
+  })
+
+  it("`offset` past the end returns an empty array", async () => {
+    const repo = buildRepo()
+    const result = JSON.parse(await handleListTransactions(repo, { offset: 100 }))
+    expect(result).toEqual([])
+  })
+
+  it("negative `offset` is treated as 0", async () => {
+    const repo = buildRepo()
+    const result = JSON.parse(
+      await handleListTransactions(repo, { offset: -5, limit: 1 }),
+    )
+    expect(result).toHaveLength(1)
+    expect(result[0].id).toBe("txn-newest-small") // default sort: newest first
+  })
+})
+
+// ── handleTransactionBounds ─────────────────────────────────────
+
+describe("handleTransactionBounds", () => {
+  const baseAccounts = [
+    makeAccount({ id: "acc-1", name: "Checking" }),
+    makeAccount({ id: "acc-2", name: "Savings" }),
+  ]
+  const baseCategories = [
+    makeCategory({ id: "cat-1", name: "Groceries" }),
+    makeCategory({ id: "cat-2", name: "Rent" }),
+  ]
+
+  it("returns count, min/max dates, and spanDays across all transactions", async () => {
+    const repo = createMockRepo({
+      accounts: baseAccounts,
+      categories: baseCategories,
+      transactions: [
+        makeTxn({ id: "t1", datetime: "2024-01-01T00:00:00.000Z" }),
+        makeTxn({ id: "t2", datetime: "2025-06-15T12:30:00.000Z" }),
+        makeTxn({ id: "t3", datetime: "2026-05-20T23:59:00.000Z" }),
+      ],
+    })
+
+    const result = JSON.parse(await handleTransactionBounds(repo, {}))
+    expect(result.count).toBe(3)
+    expect(result.minDate).toBe("2024-01-01")
+    expect(result.maxDate).toBe("2026-05-20")
+    expect(result.spanDays).toBe(870) // 2024-01-01 → 2026-05-20
+  })
+
+  it("handles a single transaction with zero spanDays", async () => {
+    const repo = createMockRepo({
+      accounts: baseAccounts,
+      categories: baseCategories,
+      transactions: [makeTxn({ datetime: "2026-03-14T10:00:00.000Z" })],
+    })
+
+    const result = JSON.parse(await handleTransactionBounds(repo, {}))
+    expect(result.count).toBe(1)
+    expect(result.minDate).toBe("2026-03-14")
+    expect(result.maxDate).toBe("2026-03-14")
+    expect(result.spanDays).toBe(0)
+  })
+
+  it("returns nulls and zero when no transactions match", async () => {
+    const repo = createMockRepo({
+      accounts: baseAccounts,
+      categories: baseCategories,
+      transactions: [],
+    })
+
+    const result = JSON.parse(await handleTransactionBounds(repo, {}))
+    expect(result).toEqual({ count: 0, minDate: null, maxDate: null, spanDays: 0 })
+  })
+
+  it("respects accountId filter", async () => {
+    const repo = createMockRepo({
+      accounts: baseAccounts,
+      categories: baseCategories,
+      transactions: [
+        makeTxn({ id: "t1", accountId: "acc-1", datetime: "2024-01-01T00:00:00.000Z" }),
+        makeTxn({ id: "t2", accountId: "acc-2", datetime: "2025-06-15T00:00:00.000Z" }),
+        makeTxn({ id: "t3", accountId: "acc-1", datetime: "2026-05-20T00:00:00.000Z" }),
+      ],
+    })
+
+    const result = JSON.parse(
+      await handleTransactionBounds(repo, { accountId: "acc-1" }),
+    )
+    expect(result.count).toBe(2)
+    expect(result.minDate).toBe("2024-01-01")
+    expect(result.maxDate).toBe("2026-05-20")
+  })
+
+  it("respects categoryId filter", async () => {
+    const repo = createMockRepo({
+      accounts: baseAccounts,
+      categories: baseCategories,
+      transactions: [
+        makeTxn({ id: "t1", categoryId: "cat-1", datetime: "2024-01-01T00:00:00.000Z" }),
+        makeTxn({ id: "t2", categoryId: "cat-2", datetime: "2025-06-15T00:00:00.000Z" }),
+      ],
+    })
+
+    const result = JSON.parse(
+      await handleTransactionBounds(repo, { categoryId: "cat-2" }),
+    )
+    expect(result.count).toBe(1)
+    expect(result.minDate).toBe("2025-06-15")
+    expect(result.maxDate).toBe("2025-06-15")
+  })
+
+  it("respects merchant filter (case-insensitive substring)", async () => {
+    const repo = createMockRepo({
+      accounts: baseAccounts,
+      categories: baseCategories,
+      transactions: [
+        makeTxn({ id: "t1", merchant: "Whole Foods", datetime: "2024-01-01T00:00:00.000Z" }),
+        makeTxn({ id: "t2", merchant: "Trader Joe's", datetime: "2025-06-15T00:00:00.000Z" }),
+        makeTxn({ id: "t3", merchant: "Whole Foods Express", datetime: "2026-05-20T00:00:00.000Z" }),
+      ],
+    })
+
+    const result = JSON.parse(
+      await handleTransactionBounds(repo, { merchant: "whole foods" }),
+    )
+    expect(result.count).toBe(2)
+    expect(result.minDate).toBe("2024-01-01")
+    expect(result.maxDate).toBe("2026-05-20")
   })
 })

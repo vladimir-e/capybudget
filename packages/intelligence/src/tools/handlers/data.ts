@@ -32,41 +32,67 @@ export async function handleListAccounts(repo: BudgetRepository): Promise<string
   return JSON.stringify(result, null, 2)
 }
 
+type TransactionSort = "newest" | "oldest" | "amount_asc" | "amount_desc"
+
+const SORT_COMPARATORS: Record<
+  TransactionSort,
+  (a: Transaction, b: Transaction) => number
+> = {
+  newest: (a, b) => b.datetime.localeCompare(a.datetime),
+  oldest: (a, b) => a.datetime.localeCompare(b.datetime),
+  // Most-negative first — biggest expenses surface at the top.
+  amount_asc: (a, b) => a.amount - b.amount,
+  // Most-positive first — biggest income at the top.
+  amount_desc: (a, b) => b.amount - a.amount,
+}
+
+/** Apply the shared filter set (accountId / categoryId / merchant / start / end). */
+function applyTransactionFilters(
+  txns: Transaction[],
+  args: Record<string, unknown>,
+): Transaction[] {
+  let out = txns
+  if (args.accountId) {
+    out = out.filter((t) => t.accountId === args.accountId)
+  }
+  if (args.categoryId) {
+    out = out.filter((t) => t.categoryId === args.categoryId)
+  }
+  if (args.merchant) {
+    const q = (args.merchant as string).toLowerCase()
+    out = out.filter((t) => t.merchant.toLowerCase().includes(q))
+  }
+  if (args.startDate) {
+    out = out.filter((t) => t.datetime >= (args.startDate as string))
+  }
+  if (args.endDate) {
+    out = out.filter(
+      (t) => t.datetime <= (args.endDate as string) + "T23:59:59",
+    )
+  }
+  return out
+}
+
 export async function handleListTransactions(
   repo: BudgetRepository,
   args: Record<string, unknown>,
 ): Promise<string> {
-  let txns = await repo.getTransactions()
+  const allTxns = await repo.getTransactions()
   const accounts = await repo.getAccounts()
   const categories = await repo.getCategories()
 
   const accountMap = new Map(accounts.map((a: Account) => [a.id, a.name]))
   const categoryMap = new Map(categories.map((c: Category) => [c.id, c.name]))
 
-  if (args.accountId) {
-    txns = txns.filter((t: Transaction) => t.accountId === args.accountId)
-  }
-  if (args.categoryId) {
-    txns = txns.filter((t: Transaction) => t.categoryId === args.categoryId)
-  }
-  if (args.merchant) {
-    const q = (args.merchant as string).toLowerCase()
-    txns = txns.filter((t: Transaction) => t.merchant.toLowerCase().includes(q))
-  }
-  if (args.startDate) {
-    txns = txns.filter((t: Transaction) => t.datetime >= (args.startDate as string))
-  }
-  if (args.endDate) {
-    txns = txns.filter(
-      (t: Transaction) => t.datetime <= (args.endDate as string) + "T23:59:59",
-    )
-  }
+  let txns = applyTransactionFilters(allTxns, args)
 
-  // Sort newest first
-  txns.sort((a: Transaction, b: Transaction) => b.datetime.localeCompare(a.datetime))
+  const sort = (args.sort as TransactionSort | undefined) ?? "newest"
+  const comparator = SORT_COMPARATORS[sort] ?? SORT_COMPARATORS.newest
+  txns.sort(comparator)
 
   const limit = (args.limit as number) || 50
-  txns = txns.slice(0, limit)
+  const offset = Math.max(0, (args.offset as number) || 0)
+  txns = txns.slice(offset, offset + limit)
 
   const result = txns.map((t: Transaction) => ({
     id: t.id,
@@ -81,6 +107,47 @@ export async function handleListTransactions(
   }))
 
   return JSON.stringify(result, null, 2)
+}
+
+/**
+ * Return the count and date range of transactions matching the same
+ * filters as `list_transactions`. One call replaces the binary-search
+ * probing the model used to do to find the oldest/newest entry.
+ */
+export async function handleTransactionBounds(
+  repo: BudgetRepository,
+  args: Record<string, unknown>,
+): Promise<string> {
+  const allTxns = await repo.getTransactions()
+  const txns = applyTransactionFilters(allTxns, args)
+
+  if (txns.length === 0) {
+    return JSON.stringify(
+      { count: 0, minDate: null, maxDate: null, spanDays: 0 },
+      null,
+      2,
+    )
+  }
+
+  let minDt = txns[0].datetime
+  let maxDt = txns[0].datetime
+  for (const t of txns) {
+    if (t.datetime < minDt) minDt = t.datetime
+    if (t.datetime > maxDt) maxDt = t.datetime
+  }
+
+  const minDate = minDt.slice(0, 10)
+  const maxDate = maxDt.slice(0, 10)
+  const msPerDay = 24 * 60 * 60 * 1000
+  const spanDays = Math.round(
+    (Date.parse(maxDate) - Date.parse(minDate)) / msPerDay,
+  )
+
+  return JSON.stringify(
+    { count: txns.length, minDate, maxDate, spanDays },
+    null,
+    2,
+  )
 }
 
 export async function handleListCategories(repo: BudgetRepository): Promise<string> {
