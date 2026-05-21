@@ -98,10 +98,13 @@ export function useCapySession(opts: UseCapySessionOptions): UseCapySessionRetur
 
         case "done":
           ctx.setIsStreaming(false)
-          // Defense-in-depth: if any mutation tool-activity was seen
-          // but no per-call ack ever landed (adapter bug, tool crashed
-          // before completing, etc.), fire once on `done` so the UI
-          // still catches up.
+          // Catch-up invalidation: if a mutation was requested this turn
+          // but no successful per-call ack ever landed, refetch once on
+          // `done`. Covers adapter bugs, tools that crashed before the
+          // result event reached us, and turns where every mutation
+          // tool-result came back with `ok: false` (the model's state
+          // may still need a refresh even on all-failed turns — refetch
+          // is cheap, missing real changes is not).
           if (hadMutationsRef.current && ackedToolCallsRef.current.size === 0) {
             ctx.optsRef.current.onDataChanged?.()
           }
