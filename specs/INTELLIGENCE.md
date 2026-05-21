@@ -57,6 +57,7 @@ The tool handlers don't know which transport called them.
 | Event | Meaning |
 |---|---|
 | `content` | Full cumulative blocks array for the current user→done cycle (entire agentic loop, across iterations and tool calls). Consumer replaces the trailing assistant message's blocks wholesale on every emit. |
+| `tool-result` | A tool call finished executing. Carries the tool name, the adapter-specific call id, and an `ok` flag. Used by the hook to invalidate caches live, per-call, instead of waiting for `done`. Distinct from the `tool-activity` ContentBlock, which signals the call was *requested*. |
 | `done` | Cycle complete |
 | `error` | Error message |
 
@@ -83,7 +84,7 @@ Adapter accumulation:
 - Anthropic + OpenAI adapters: a `completedBlocks` array lives outside the agentic loop. Each iteration appends a fresh text block (driven by streamed text deltas) and pushes any tool-use blocks (rendered or `tool-activity`). The array survives across tool-result rounds.
 - Claude Code adapter: the CLI emits each model turn's `assistant` event as a per-turn snapshot. The decoder is stateless and forwards `message.id` as the optional `messageId` on `StreamEvent.content`; the session stitches turns into one cumulative array, promoting blocks into a finished-turns buffer when `messageId` changes.
 
-Adapters emit `StreamEvent`s directly (`content` / `done` / `error`) — there's no transport-level event layer above this.
+Adapters emit `StreamEvent`s directly (`content` / `tool-result` / `done` / `error`) — there's no transport-level event layer above this.
 
 ## Adapters
 
@@ -131,7 +132,7 @@ Single source of truth shared between transports:
 - **Definitions** — tool descriptors (name, description, JSON-Schema input). Both transports consume the same list for ListTools / SDK tool config.
 - **Dispatch** — `runTool(name, input, ctx) → string`. The MCP server and the API adapters call this with the same signature. `ToolContext` is `{ repo, fileAdapter, budgetPath }`.
 - **Handlers** — per-tool implementations:
-  - **Data tools** — `list_accounts`, `list_transactions`, `list_categories`, `spending_summary`, `search_merchants`
+  - **Data tools** — `list_accounts`, `list_transactions` (filters + `sort` + `offset`), `list_categories`, `spending_summary`, `search_merchants`, `transaction_bounds` (count + date range, same filters as `list_transactions`)
   - **Mutation tools** — full CRUD for transactions / accounts / categories, plus `assign_categories`, `bulk_update_transactions` (account/date/merchant across many rows), `set_category_budget` (monthly target), `unarchive_account` / `unarchive_category` (reverse archive), `set_net_worth_exclusions` (toggle Net Worth inclusion)
   - **Import tools** — `read_import_file`, `write_import_file`, `append_import_file`, `list_import_files` (over `.capy/import/`)
   - **CSV tools** — `analyze_csv`, `preview_transform`, `transform_csv`, `auto_enrich`, `enrich_stats`, `enrich_sample`, `enrich_update`
@@ -143,7 +144,7 @@ All filesystem access goes through the `FileAdapter` on the context, so the same
 
 ### Mutation cache invalidation
 
-When the app detects mutation tool activity during a turn, it invalidates the repo's in-memory cache and React Query data on turn completion — so the UI reflects Capy's changes. The set of mutation tool names is exposed for matching.
+The app invalidates the repo's in-memory cache and React Query data **the moment each mutation tool call finishes**, not at the end of the turn. Adapters emit a `tool-result` StreamEvent after the handler returns (API adapters) or after the CLI's `tool_result` block lands (Claude CLI). The hook listens for these, filters by `MUTATION_TOOL_NAMES`, debounces by call id, and triggers invalidation immediately — so the UI reflects Capy's changes as it works, not in one batch at the end. A `done`-event fallback covers the edge case where a mutation `tool-activity` was seen but no `tool-result` ever acked it (adapter bug, tool crash). The set of mutation tool names is exposed for matching.
 
 ### Render tools
 
