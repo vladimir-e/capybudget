@@ -101,10 +101,16 @@ describe("ClaudeCliSession", () => {
     const handlers = latestHandlers.current!
     expect(handlers.stdout).toBeTruthy()
 
+    // Real CLI shape: the final assistant turn carries `stop_reason:
+    // "end_turn"` — that's the "done" signal. The `result` line that
+    // follows is bookkeeping and contributes nothing the UI needs.
     handlers.stdout!(
       JSON.stringify({
         type: "assistant",
-        message: { content: [{ type: "text", text: "Hello" }] },
+        message: {
+          content: [{ type: "text", text: "Hello" }],
+          stop_reason: "end_turn",
+        },
       }),
     )
     handlers.stdout!(JSON.stringify({ type: "result" }))
@@ -348,6 +354,7 @@ describe("ClaudeCliSession", () => {
           message: {
             id: "msg_t1",
             content: [{ type: "text", text: "first reply" }],
+            stop_reason: "end_turn",
           },
         }),
       )

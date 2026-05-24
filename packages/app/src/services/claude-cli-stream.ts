@@ -51,7 +51,11 @@ export function parseStreamLine(
   switch (event.type) {
     case "assistant": {
       const message = event.message as
-        | { id?: string; content?: Array<Record<string, unknown>> }
+        | {
+            id?: string
+            content?: Array<Record<string, unknown>>
+            stop_reason?: string
+          }
         | undefined
       const rawBlocks = message?.content ?? []
       const blocks: ContentBlock[] = []
@@ -84,6 +88,16 @@ export function parseStreamLine(
           messageId ? { type: "content", blocks, messageId } : { type: "content", blocks },
         )
       }
+
+      // The CLI emits a terminal `result` line some time after the
+      // final assistant turn — gating the UI on it costs us seconds of
+      // waiting on the subprocess's stream drain. Treat any
+      // non-tool-use `stop_reason` on the assistant turn as the real
+      // "done" signal; the later `result` line stays bookkeeping.
+      const stopReason = message?.stop_reason
+      if (stopReason && stopReason !== "tool_use") {
+        events.push({ type: "done" })
+      }
       break
     }
 
@@ -112,16 +126,17 @@ export function parseStreamLine(
     }
 
     case "result": {
-      // Result lines mark the end of a turn. Most are clean completions
-      // (`{type: "result"}`); error terminations carry `is_error: true`
-      // and an `errors` array — `error_max_turns` is the main one we
-      // care about (the CLI's runaway backstop, enabled via `--max-turns`).
+      // Result lines are the CLI's "subprocess done" bookkeeping —
+      // they arrive after the model's last chunk plus the SSE/stream
+      // drain. The success path's `done` is already fired off the
+      // final assistant turn's `stop_reason`; here we only care about
+      // error terminations (`is_error: true` with an `errors` array —
+      // `error_max_turns` is the main one, from the `--max-turns`
+      // runaway backstop).
       if (event.is_error) {
         const errs = event.errors as string[] | undefined
         const message = errs?.[0] ?? "Session terminated with an error."
         events.push({ type: "error", message })
-      } else {
-        events.push({ type: "done" })
       }
       break
     }

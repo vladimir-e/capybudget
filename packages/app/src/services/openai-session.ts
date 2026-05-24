@@ -137,6 +137,10 @@ export class OpenAiSession implements CapySession {
   /** Flipped by stop(); checked in the agentic loop so we don't push
    *  tool messages that reference an assistant turn we just dropped. */
   private interrupted = false
+  /** Flipped when the loop deliberately aborts an in-flight stream after
+   *  receiving `finish_reason` (to release the socket without consuming
+   *  terminal usage chunks). Distinct from `interrupted` (user-stop). */
+  private earlyDrained = false
   /** Per-session tool-call counter. Compared against
    *  SESSION_TOOL_CALL_BUDGET to halt runaway loops. */
   private toolCallCount = 0
@@ -163,6 +167,7 @@ export class OpenAiSession implements CapySession {
     })
     this.alive = true
 
+    this.earlyDrained = false
     try {
       await this.runAgenticLoop()
       // Suppress `done` if stop()/kill() bailed the loop — the UI has
@@ -179,6 +184,7 @@ export class OpenAiSession implements CapySession {
       this.opts.onEvent({ type: "error", message })
     } finally {
       this.abortController = null
+      this.earlyDrained = false
     }
   }
 
@@ -292,10 +298,15 @@ export class OpenAiSession implements CapySession {
         if (choice.finish_reason) {
           finishReason = choice.finish_reason
           // OpenAI keeps the stream open for terminal usage chunks even
-          // after `finish_reason` arrives; we have all the assistant
-          // content we need, but break only when the loop ends so the
-          // SDK can drain cleanly. (Don't `break` here: the iterator
-          // expects to be consumed to completion.)
+          // after `finish_reason` arrives — but we have all the
+          // assistant content we need now. Break out and abort the
+          // underlying socket; consuming the tail just costs latency
+          // (the only thing in it is a usage chunk Capy doesn't
+          // display). Flag the abort as deliberate-drain-skip so the
+          // catch in send() doesn't surface it as an error.
+          this.earlyDrained = true
+          stream.controller.abort()
+          break
         }
       }
 
@@ -423,6 +434,9 @@ export class OpenAiSession implements CapySession {
 
   private wasAborted(err: unknown): boolean {
     if (this.killed) return true
+    // Deliberate drain-skip after receiving finish_reason — any
+    // post-abort error from the SDK is expected, not user-facing.
+    if (this.earlyDrained) return true
     if (err instanceof Error) {
       if (err.name === "AbortError") return true
       if ((err as { type?: string }).type === "aborted") return true

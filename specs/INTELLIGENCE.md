@@ -95,6 +95,7 @@ Spawns `claude` via Tauri's shell plugin in pipe mode with stream-json I/O on bo
 - `--session-id <uuid>` — conversation context
 - `--mcp-config <path>` — points to MCP server
 - `--allowedTools "mcp__capy__*,Read"` — allowlist MCP tools + file reading
+- `--disallowedTools "TodoWrite,Task,Bash,Edit,Write,Glob,Grep,WebFetch,WebSearch,NotebookEdit,KillBash,BashOutput"` — explicitly block the CLI's stock built-ins. Even when omitted from the allowlist the model still knows they exist and the CLI's baked-in system prompt nudges it to deliberate about them ("should I use TodoWrite for this?") — disallowing silences that meta-narration.
 - `--add-dir <budget-path>` — grant Read access to the budget folder
 - `--setting-sources ""` — skip CLAUDE.md files
 

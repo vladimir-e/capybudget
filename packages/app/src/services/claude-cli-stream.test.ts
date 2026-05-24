@@ -351,9 +351,13 @@ describe("parseStreamLine", () => {
   })
 
   describe("result event", () => {
-    it("emits done on a clean result", () => {
+    it("does NOT emit done on a clean result (assistant stop_reason is the signal)", () => {
+      // Result lines arrive after the SSE/stream drain — gating the UI
+      // on them costs latency. The success-path `done` is emitted off
+      // the final assistant turn's `stop_reason`; the result line stays
+      // bookkeeping.
       const line = JSON.stringify({ type: "result" })
-      expect(parseStreamLine(line)).toEqual([{ type: "done" }])
+      expect(parseStreamLine(line)).toEqual([])
     })
 
     it("emits error when the result carries is_error", () => {
@@ -373,6 +377,58 @@ describe("parseStreamLine", () => {
       const line = JSON.stringify({ type: "result", is_error: true })
       expect(parseStreamLine(line)).toEqual([
         { type: "error", message: "Session terminated with an error." },
+      ])
+    })
+  })
+
+  describe("assistant stop_reason → done", () => {
+    it("emits done after content when the assistant turn has stop_reason: end_turn", () => {
+      const line = JSON.stringify({
+        type: "assistant",
+        message: {
+          content: [{ type: "text", text: "All done." }],
+          stop_reason: "end_turn",
+        },
+      })
+      expect(parseStreamLine(line)).toEqual([
+        { type: "content", blocks: [{ type: "text", content: "All done." }] },
+        { type: "done" },
+      ])
+    })
+
+    it("does not emit done when stop_reason is tool_use (more turns coming)", () => {
+      const line = JSON.stringify({
+        type: "assistant",
+        message: {
+          content: [
+            {
+              type: "tool_use",
+              name: "mcp__capy__list_accounts",
+              input: {},
+            },
+          ],
+          stop_reason: "tool_use",
+        },
+      })
+      expect(parseStreamLine(line)).toEqual([
+        {
+          type: "content",
+          blocks: [{ type: "tool-activity", tool: "list_accounts" }],
+        },
+      ])
+    })
+
+    it("emits done for any terminal stop_reason (e.g. max_tokens)", () => {
+      const line = JSON.stringify({
+        type: "assistant",
+        message: {
+          content: [{ type: "text", text: "Cut off." }],
+          stop_reason: "max_tokens",
+        },
+      })
+      expect(parseStreamLine(line)).toEqual([
+        { type: "content", blocks: [{ type: "text", content: "Cut off." }] },
+        { type: "done" },
       ])
     })
   })

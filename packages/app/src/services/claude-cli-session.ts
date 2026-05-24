@@ -116,6 +116,15 @@ export class ClaudeCliSession implements CapySession {
       this.sessionId,
       "--allowedTools",
       "mcp__capy__*,Read",
+      // Block the CLI's stock built-ins. Even when not in the
+      // allowlist, the model still knows about them and the CLI's
+      // baked-in system prompt nudges it to reason about whether to
+      // use them — surfacing as a second "deliberation" assistant
+      // turn ("no task tracking needed for this..."). Disallowing
+      // them silences that meta-narration. (Read stays in the
+      // allowlist; a follow-up removes it in favor of MCP read_file.)
+      "--disallowedTools",
+      "TodoWrite,Task,Bash,Edit,Write,Glob,Grep,WebFetch,WebSearch,NotebookEdit,KillBash,BashOutput",
       "--add-dir",
       this.budgetPath,
       "--setting-sources",

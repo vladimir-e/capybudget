@@ -94,6 +94,10 @@ export class AnthropicSession implements CapySession {
   /** Flipped by stop(); checked in the agentic loop so we don't push
    *  tool_results that reference an assistant turn we just dropped. */
   private interrupted = false
+  /** Flipped when the loop deliberately aborts an in-flight stream after
+   *  receiving the final message (to release the socket without waiting
+   *  for the SSE tail). Distinct from `interrupted` (user-stop). */
+  private earlyDrained = false
   /** Per-session tool-call counter. Compared against
    *  SESSION_TOOL_CALL_BUDGET to halt runaway loops. */
   private toolCallCount = 0
@@ -114,6 +118,7 @@ export class AnthropicSession implements CapySession {
     if (this.killed) return
 
     this.interrupted = false
+    this.earlyDrained = false
     this.messages.push({
       role: "user",
       content: toAnthropicUserContent(content),
@@ -136,6 +141,7 @@ export class AnthropicSession implements CapySession {
       this.opts.onEvent({ type: "error", message })
     } finally {
       this.abortController = null
+      this.earlyDrained = false
     }
   }
 
@@ -236,7 +242,24 @@ export class AnthropicSession implements CapySession {
         }
       })
 
-      const finalMessage = await stream.finalMessage()
+      // The SDK emits `message` as soon as `message_stop` arrives — we
+      // have the full assistant turn at that point. `stream.finalMessage()`
+      // would also wait for the SSE tail (the network connection to
+      // close), which can take many seconds and contributes nothing
+      // beyond a terminal usage chunk we don't display. Race the
+      // `message` event against `abort` / `error` so a user stop or
+      // SDK failure mid-stream still settles this promise.
+      const finalMessage = await new Promise<Anthropic.Message>((resolve, reject) => {
+        stream.once("message", (msg) => resolve(msg))
+        stream.once("abort", (err) => reject(err))
+        stream.once("error", (err) => reject(err))
+      })
+
+      // Release the socket now that the assistant turn is in hand. Flag
+      // the abort as deliberate-drain-skip so the catch in send()
+      // doesn't surface it (or any subsequent SDK noise) as an error.
+      this.earlyDrained = true
+      stream.controller.abort()
 
       this.messages.push({
         role: "assistant",
@@ -325,6 +348,9 @@ export class AnthropicSession implements CapySession {
 
   private wasAborted(err: unknown): boolean {
     if (this.killed) return true
+    // Deliberate drain-skip after receiving the final message — any
+    // post-abort error from the SDK is expected, not user-facing.
+    if (this.earlyDrained) return true
     if (err instanceof Error) {
       if (err.name === "AbortError") return true
       if ((err as { type?: string }).type === "aborted") return true

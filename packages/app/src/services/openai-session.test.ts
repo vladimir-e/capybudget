@@ -136,10 +136,15 @@ const { mockCreate, queueTurn, lastCreateCall, abortSignals } = vi.hoisted(
         choices: [{ delta: {}, finish_reason: turn.finish_reason, index: 0 }],
       })
 
+      // Match the real OpenAI Stream shape: async-iterable + a public
+      // `controller` (an AbortController the adapter calls `.abort()`
+      // on to release the socket once it has the data it needs).
+      const controller = new AbortController()
       async function* iterate() {
         for (const chunk of chunks) {
-          // Honor abort: if the signal is aborted, throw AbortError.
-          if (sig?.aborted) {
+          // Honor abort from either the outer signal (user-stop) or the
+          // stream's own controller (adapter's early-drain).
+          if (sig?.aborted || controller.signal.aborted) {
             const err = new Error("Aborted")
             err.name = "AbortError"
             throw err
@@ -147,7 +152,10 @@ const { mockCreate, queueTurn, lastCreateCall, abortSignals } = vi.hoisted(
           yield chunk
         }
       }
-      return iterate()
+      return {
+        [Symbol.asyncIterator]: iterate,
+        controller,
+      }
     })
 
     function queueTurn(turn: FakeTurn) {

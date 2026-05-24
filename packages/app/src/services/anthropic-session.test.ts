@@ -47,59 +47,106 @@ const { mockStream, queueTurn, lastStreamCall, abortSignals } = vi.hoisted(() =>
       throw new Error("Test bug: no turn queued for messages.stream()")
     }
 
+    // Mock approximates the real SDK shape: `.on()` registers handlers,
+    // `.once()` registers one-shot handlers, `controller.abort()` is the
+    // public abort knob. Events fire on the next microtask after
+    // construction, mimicking the real stream's async iteration.
     type Handler = (...args: unknown[]) => void
     const handlers: Record<string, Handler[]> = {}
-    const stub = {
-      on(event: string, handler: Handler) {
-        ;(handlers[event] ??= []).push(handler)
-        return stub
-      },
-      async finalMessage() {
-        // If the test queued an error for this turn, surface it before
-        // emitting any deltas — simulates an SDK-level failure.
-        if (turn.error) throw turn.error
+    const controller = new AbortController()
+    let ended = false
 
-        // Stream text deltas, then tool_use content blocks.
+    function emit(event: string, ...args: unknown[]): void {
+      if (ended) return
+      const list = handlers[event]
+      if (!list) return
+      // Match SDK behavior: `once` listeners are stripped after firing.
+      handlers[event] = list.filter((h) => !(h as { once?: boolean }).once)
+      for (const h of list) h(...args)
+    }
+
+    function on(event: string, handler: Handler): typeof stub {
+      ;(handlers[event] ??= []).push(handler)
+      return stub
+    }
+
+    function once(event: string, handler: Handler): typeof stub {
+      const wrapped = ((...args: unknown[]) => handler(...args)) as Handler & {
+        once?: boolean
+      }
+      wrapped.once = true
+      ;(handlers[event] ??= []).push(wrapped)
+      return stub
+    }
+
+    const stub = {
+      on,
+      once,
+      controller,
+    }
+
+    // Drive the synthetic stream on a microtask so listeners registered
+    // by the caller (which happens right after `stream()` returns) are
+    // in place before the first emit.
+    queueMicrotask(async () => {
+      try {
+        if (turn.error) {
+          emit("error", turn.error)
+          ended = true
+          return
+        }
+        const sig = opts?.signal as AbortSignal | undefined
         const completed: FakeBlock[] = []
         let textAccum = ""
         if (turn.textDeltas) {
           for (const delta of turn.textDeltas) {
+            if (sig?.aborted || controller.signal.aborted) {
+              const err = new Error("Aborted")
+              err.name = "AbortError"
+              emit("abort", err)
+              ended = true
+              return
+            }
             textAccum += delta
-            for (const h of handlers.text ?? []) h(delta)
+            emit("text", delta)
           }
           if (textAccum) completed.push({ type: "text", text: textAccum })
         }
         if (turn.toolUses) {
           for (const tu of turn.toolUses) {
+            if (sig?.aborted || controller.signal.aborted) {
+              const err = new Error("Aborted")
+              err.name = "AbortError"
+              emit("abort", err)
+              ended = true
+              return
+            }
             const block: FakeBlock = {
               type: "tool_use",
               id: tu.id,
               name: tu.name,
               input: tu.input,
             }
-            for (const h of handlers.contentBlock ?? []) h(block)
+            emit("contentBlock", block)
             completed.push(block)
           }
         }
-
-        // Honor abort: if the signal is already aborted, throw.
-        const sig = opts?.signal as AbortSignal | undefined
-        if (sig?.aborted) {
-          const err = new Error("Aborted")
-          err.name = "AbortError"
-          throw err
-        }
-
-        return {
+        // `message` fires at message_stop — before the SSE tail drains.
+        emit("message", {
           content: completed.map((b) =>
             b.type === "text"
               ? { type: "text", text: b.text }
               : { type: "tool_use", id: b.id, name: b.name, input: b.input },
           ),
           stop_reason: turn.stop_reason,
-        }
-      },
-    }
+        })
+        ended = true
+      } catch (err) {
+        emit("error", err)
+        ended = true
+      }
+    })
+
     return stub
   })
 
