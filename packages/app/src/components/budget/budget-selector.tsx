@@ -28,8 +28,8 @@ import {
 } from "../../../../../src/services/budget";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { RecentBudgetCard } from "@/components/budget/recent-budget-card";
-import bgDay from "@/assets/capy-bg-day.avif";
-import bgNight from "@/assets/capy-bg-night.avif";
+import bgDay from "@/assets/capy-bg-day.webp";
+import bgNight from "@/assets/capy-bg-night.webp";
 import { useTheme } from "next-themes";
 
 // ── helpers ──────────────────────────────────────────────────────────────────
