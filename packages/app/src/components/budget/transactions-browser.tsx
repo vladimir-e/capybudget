@@ -15,26 +15,80 @@ import {
 // Types
 // ---------------------------------------------------------------------------
 
-/** Locked context the browser displays as non-removable chips. Callers
- *  pre-filter `transactions` themselves; these fields drive the chip row
- *  and the title bar — they are not re-applied to the data here.
+/** Locked context the browser displays as non-removable chips.
+ *
+ *  Mixed-responsibility by design: callers pre-filter `transactions`
+ *  themselves for the analytics drilldowns (where the dataset is already
+ *  trimmed by tab state), AND the browser itself enforces these fields
+ *  on top — necessary for the Capy chat path, where the model emits a
+ *  filter spec and the block component passes the full transaction list
+ *  in. Pre-filtering remains valid; this layer is additive.
+ *
+ *  Precedence: `transactionIds` (explicit selection) wins over every
+ *  other field. When present, only those IDs are shown — date, category,
+ *  merchant, amount, type are ignored.
  *
  *  `dateRange.to` is **exclusive** (first instant *after* the period) to
  *  match the analytics `DateRange.end` convention. The chip renderer
- *  subtracts one day internally so the displayed range is inclusive. */
+ *  subtracts one day internally so the displayed range is inclusive.
+ *  `amountRange` is in cents, inclusive on both ends. */
 export interface LockedFilters {
   categoryId?: string;
   merchant?: string;
   dateRange?: { from: Date; to: Date };
+  /** Explicit transaction selection — wins over the other filter fields. */
+  transactionIds?: Set<string>;
+  /** Inclusive bounds in cents. */
+  amountRange?: { min: number; max: number };
+  type?: "income" | "expense" | "transfer";
 }
 
 interface TransactionsBrowserProps {
-  /** Already pre-filtered by the caller — the browser does not re-filter
-   *  by `lockedFilters`, only displays them. */
+  /** The browser applies `lockedFilters` to this list. Analytics drilldowns
+   *  may still pre-filter at the call site — the filter pass here is
+   *  idempotent on already-filtered data. */
   transactions: Transaction[];
   lockedFilters: LockedFilters;
   title: string;
   subtitle?: string;
+}
+
+/** Apply LockedFilters to a transaction list. `transactionIds`, when
+ *  present, short-circuits the other fields — explicit selection wins. */
+function applyLockedFilters(
+  transactions: Transaction[],
+  locked: LockedFilters,
+): Transaction[] {
+  if (locked.transactionIds) {
+    const ids = locked.transactionIds;
+    return transactions.filter((t) => ids.has(t.id));
+  }
+  let out = transactions;
+  if (locked.categoryId !== undefined) {
+    const id = locked.categoryId;
+    out = out.filter((t) => t.categoryId === id);
+  }
+  if (locked.merchant !== undefined) {
+    const m = locked.merchant.trim().toLowerCase();
+    out = out.filter((t) => t.merchant.trim().toLowerCase() === m);
+  }
+  if (locked.dateRange) {
+    const startMs = locked.dateRange.from.getTime();
+    const endMs = locked.dateRange.to.getTime();
+    out = out.filter((t) => {
+      const ms = new Date(t.datetime).getTime();
+      return ms >= startMs && ms < endMs;
+    });
+  }
+  if (locked.amountRange) {
+    const { min, max } = locked.amountRange;
+    out = out.filter((t) => t.amount >= min && t.amount <= max);
+  }
+  if (locked.type) {
+    const type = locked.type;
+    out = out.filter((t) => t.type === type);
+  }
+  return out;
 }
 
 /** Below this row count, the search field adds clutter without value. */
@@ -95,6 +149,12 @@ function FilterChips({
 }) {
   const chips: string[] = [];
 
+  if (locked.transactionIds) {
+    chips.push(
+      `${locked.transactionIds.size} ${locked.transactionIds.size === 1 ? "selected" : "selected"}`,
+    );
+  }
+
   if (locked.categoryId !== undefined) {
     const cat = categories.find((c) => c.id === locked.categoryId);
     chips.push(cat?.name ?? "Uncategorized");
@@ -114,6 +174,16 @@ function FilterChips({
     chips.push(
       `${formatDateLabel(locked.dateRange.from)} – ${formatDateLabel(inclusiveTo)}`,
     );
+  }
+
+  if (locked.amountRange) {
+    chips.push(
+      `${formatMoney(locked.amountRange.min)} – ${formatMoney(locked.amountRange.max)}`,
+    );
+  }
+
+  if (locked.type) {
+    chips.push(locked.type[0].toUpperCase() + locked.type.slice(1));
   }
 
   if (chips.length === 0) return null;
@@ -148,7 +218,12 @@ export function TransactionsBrowser({
   const [search, setSearch] = useState("");
   const [sort, setSort] = useState<SortConfig>(DEFAULT_SORT);
 
-  const showSearch = transactions.length > SEARCH_THRESHOLD;
+  const filteredByLocked = useMemo(
+    () => applyLockedFilters(transactions, lockedFilters),
+    [transactions, lockedFilters],
+  );
+
+  const showSearch = filteredByLocked.length > SEARCH_THRESHOLD;
 
   const categoryMap = useMemo(() => {
     const m = new Map(categories.map((c) => [c.id, c.name.toLowerCase()]));
@@ -170,9 +245,9 @@ export function TransactionsBrowser({
   const filteredBySearch = useMemo(
     () =>
       showSearch
-        ? searchTransactions(transactions, search, categoryMap, accountMap)
-        : transactions,
-    [showSearch, transactions, search, categoryMap, accountMap],
+        ? searchTransactions(filteredByLocked, search, categoryMap, accountMap)
+        : filteredByLocked,
+    [showSearch, filteredByLocked, search, categoryMap, accountMap],
   );
   const visible = useMemo(
     () => sortTransactions(filteredBySearch, sort, accounts, categories),

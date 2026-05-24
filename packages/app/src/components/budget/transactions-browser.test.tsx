@@ -364,4 +364,55 @@ describe("TransactionsBrowser", () => {
     expect(empty).toBeInTheDocument();
     expect(within(empty).getByText("zzznoresults")).toBeInTheDocument();
   });
+
+  it("locked.transactionIds restricts the list to the selected IDs", () => {
+    const txns = makeTxns(5);
+    renderWithProviders(
+      <TransactionsBrowser
+        transactions={txns}
+        lockedFilters={{ transactionIds: new Set(["t-1", "t-3"]) }}
+        title="Selection"
+      />,
+    );
+
+    expect(screen.getByText("Merchant 1")).toBeInTheDocument();
+    expect(screen.getByText("Merchant 3")).toBeInTheDocument();
+    expect(screen.queryByText("Merchant 0")).not.toBeInTheDocument();
+    expect(screen.queryByText("Merchant 2")).not.toBeInTheDocument();
+    expect(screen.queryByText("Merchant 4")).not.toBeInTheDocument();
+  });
+
+  it("locked.amountRange filters by cents (inclusive bounds)", () => {
+    const txns = [
+      makeTransaction({ id: "small", accountId: account.id, categoryId: groceries.id, merchant: "Small", amount: -500 }),
+      makeTransaction({ id: "mid", accountId: account.id, categoryId: groceries.id, merchant: "Mid", amount: -2500 }),
+      makeTransaction({ id: "big", accountId: account.id, categoryId: groceries.id, merchant: "Big", amount: -15000 }),
+    ];
+    renderWithProviders(
+      <TransactionsBrowser
+        transactions={txns}
+        lockedFilters={{ amountRange: { min: -5000, max: -1000 } }}
+        title="Mid-range"
+      />,
+    );
+    expect(screen.getByText("Mid")).toBeInTheDocument();
+    expect(screen.queryByText("Small")).not.toBeInTheDocument();
+    expect(screen.queryByText("Big")).not.toBeInTheDocument();
+  });
+
+  it("locked.type filters to a single transaction type", () => {
+    const txns = [
+      makeTransaction({ id: "inc", type: "income", accountId: account.id, merchant: "Paycheck", amount: 100000 }),
+      makeTransaction({ id: "exp", type: "expense", accountId: account.id, categoryId: groceries.id, merchant: "Whole Foods", amount: -2500 }),
+    ];
+    renderWithProviders(
+      <TransactionsBrowser
+        transactions={txns}
+        lockedFilters={{ type: "income" }}
+        title="Income"
+      />,
+    );
+    expect(screen.getByText("Paycheck")).toBeInTheDocument();
+    expect(screen.queryByText("Whole Foods")).not.toBeInTheDocument();
+  });
 });

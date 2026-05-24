@@ -3,15 +3,15 @@ import { useNavigate } from "@tanstack/react-router"
 import {
   AlertTriangle,
   Check,
-  CreditCard,
   ExternalLink,
   File as FileIcon,
+  HelpCircle,
   Image,
   Loader2,
   PanelRightClose,
   Paperclip,
-  PieChart,
   Receipt,
+  Repeat,
   RotateCcw,
   Send,
   Settings,
@@ -46,6 +46,9 @@ import {
   type TableBlock,
   type ToolActivityBlock,
 } from "@capybudget/intelligence"
+import { TransactionsCardBlock } from "./blocks/transactions-card-block"
+import { DuplicateGroupsBlockView } from "./blocks/duplicate-groups-block"
+import { RecurringPatternsBlockView } from "./blocks/recurring-patterns-block"
 import { open as shellOpen } from "@tauri-apps/plugin-shell"
 
 // Panel sizing — the desktop default and lower bound. Below `sm:`
@@ -598,14 +601,9 @@ interface SuggestionCard {
 
 const SUGGESTION_CARDS: ReadonlyArray<SuggestionCard> = [
   {
-    icon: TrendingUp,
-    label: "How am I doing this month?",
-    prompt: "How am I doing this month?",
-  },
-  {
-    icon: PieChart,
-    label: "Where did my money go in 2025?",
-    prompt: "Where did my money go in 2025?",
+    icon: Repeat,
+    label: "Find recurring subscriptions",
+    prompt: "Find my recurring subscriptions",
   },
   {
     icon: Receipt,
@@ -613,9 +611,14 @@ const SUGGESTION_CARDS: ReadonlyArray<SuggestionCard> = [
     prompt: "Find duplicate transactions in my budget",
   },
   {
-    icon: CreditCard,
-    label: "Help me set a grocery budget",
-    prompt: "Help me set a grocery budget",
+    icon: TrendingUp,
+    label: "How am I doing this month?",
+    prompt: "How am I doing this month?",
+  },
+  {
+    icon: HelpCircle,
+    label: "What can you help me with?",
+    prompt: "What can you help me with?",
   },
 ]
 
@@ -801,6 +804,12 @@ function BlockRenderer({
       return null
     case "file-attachment":
       return <FileChip name={block.name} size={block.size} mediaType={block.mediaType} />
+    case "transactions":
+      return <TransactionsCardBlock block={block} />
+    case "duplicate-groups":
+      return <DuplicateGroupsBlockView block={block} />
+    case "recurring-patterns":
+      return <RecurringPatternsBlockView block={block} />
     case "followups":
       // Lifted out of the bubble by groupBlocks() and rendered as a
       // separate FollowupChips group.
