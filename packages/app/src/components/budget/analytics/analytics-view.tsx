@@ -24,6 +24,7 @@ import { CashFlowTab } from "./cash-flow-tab";
 import { CompareTab } from "./compare-tab";
 import { MerchantsTab } from "./merchants-tab";
 import { MonthlyBudgetTab } from "./monthly-budget-tab";
+import { PatternsTab } from "./patterns-tab";
 
 // ── Tab definitions ──
 
@@ -42,6 +43,10 @@ const TABS: TabDef[] = [
   { id: "netWorth", label: "Net Worth", allowedPeriods: ["year", "allTime", "custom"] },
   { id: "compare", label: "Compare", allowedPeriods: ["year", "allTime", "custom"] },
   { id: "merchants", label: "Merchants", allowedPeriods: ["month", "quarter", "year", "allTime"] },
+  // Patterns operates over the full transaction window; pattern detection
+  // does its own scoping (lookback for recurring, pairwise for duplicates).
+  // No date range UI applies — empty allowedPeriods, nav hidden below.
+  { id: "patterns", label: "Patterns", allowedPeriods: [] },
 ];
 
 export function AnalyticsView() {
@@ -144,21 +149,25 @@ export function AnalyticsView() {
       </div>
 
       {/* Date range + summary. Monthly Budget renders its own KPI strip and
-       *  doesn't need the global income/expense/net summary. */}
-      <div className="px-6 pt-4 space-y-4">
-        <DateRangeNav
-          periodType={periodType}
-          dateRange={dateRange}
-          allowedPeriods={currentTab.allowedPeriods}
-          onPeriodChange={handlePeriodChange}
-          onBack={navigateBack}
-          onForward={navigateForward}
-          canGoBack={canGoBack}
-          canGoForward={canGoForward}
-          onCustomRange={handleCustomRange}
-        />
-        {activeTab !== "monthlyBudget" && <SummaryStrip summary={summary} />}
-      </div>
+       *  doesn't need the global income/expense/net summary. Patterns
+       *  operates over the full window and hides the date-range UI
+       *  entirely. */}
+      {activeTab !== "patterns" && (
+        <div className="px-6 pt-4 space-y-4">
+          <DateRangeNav
+            periodType={periodType}
+            dateRange={dateRange}
+            allowedPeriods={currentTab.allowedPeriods}
+            onPeriodChange={handlePeriodChange}
+            onBack={navigateBack}
+            onForward={navigateForward}
+            canGoBack={canGoBack}
+            canGoForward={canGoForward}
+            onCustomRange={handleCustomRange}
+          />
+          {activeTab !== "monthlyBudget" && <SummaryStrip summary={summary} />}
+        </div>
+      )}
 
       {/* Active tab content. `pb-4` only — top padding would create a dead
        *  zone above sticky elements (e.g. the Monthly Budget column header). */}
@@ -194,6 +203,7 @@ export function AnalyticsView() {
             dateRange={dateRange}
           />
         )}
+        {activeTab === "patterns" && <PatternsTab transactions={transactions} />}
       </div>
     </div>
   );
