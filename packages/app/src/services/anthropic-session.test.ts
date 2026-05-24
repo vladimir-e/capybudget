@@ -28,12 +28,17 @@ interface FakeTurn {
   stop_reason: "end_turn" | "tool_use"
   /** If set, finalMessage rejects with this error (simulates SDK throwing). */
   error?: Error
+  /** If set, an `error` event fires AFTER `message` has already been
+   *  emitted — exercises the post-abort SDK-noise path that the
+   *  adapter's `earlyDrained` flag is meant to swallow. */
+  postMessageError?: Error
 }
 
-const { mockStream, queueTurn, lastStreamCall, abortSignals } = vi.hoisted(() => {
+const { mockStream, queueTurn, lastStreamCall, abortSignals, streamStubs } = vi.hoisted(() => {
   const queue: FakeTurn[] = []
   const calls: Array<{ messages: unknown; tools: unknown }> = []
   const signals: AbortSignal[] = []
+  const stubs: Array<{ controller: AbortController; abortSpy: ReturnType<typeof vi.fn> }> = []
 
   const stream = vi.fn().mockImplementation((params, opts) => {
     // snapshot messages so later mutations don't pollute the assertion
@@ -54,6 +59,15 @@ const { mockStream, queueTurn, lastStreamCall, abortSignals } = vi.hoisted(() =>
     type Handler = (...args: unknown[]) => void
     const handlers: Record<string, Handler[]> = {}
     const controller = new AbortController()
+    // Wrap controller.abort in a spy so tests can assert the adapter
+    // releases the socket once `message` arrives (vs. waiting for the
+    // SSE tail to drain).
+    const abortSpy = vi.fn()
+    const originalAbort = controller.abort.bind(controller)
+    controller.abort = ((reason?: unknown) => {
+      abortSpy(reason)
+      return originalAbort(reason as Error | undefined)
+    }) as typeof controller.abort
     let ended = false
 
     function emit(event: string, ...args: unknown[]): void {
@@ -84,6 +98,7 @@ const { mockStream, queueTurn, lastStreamCall, abortSignals } = vi.hoisted(() =>
       once,
       controller,
     }
+    stubs.push({ controller, abortSpy })
 
     // Drive the synthetic stream on a microtask so listeners registered
     // by the caller (which happens right after `stream()` returns) are
@@ -140,6 +155,18 @@ const { mockStream, queueTurn, lastStreamCall, abortSignals } = vi.hoisted(() =>
           ),
           stop_reason: turn.stop_reason,
         })
+        // Simulate the SDK emitting a noisy error AFTER message_stop
+        // (e.g. socket teardown noise once the adapter aborted). The
+        // adapter's `earlyDrained` flag is supposed to swallow this.
+        // We bypass `ended` so the post-message emit lands even though
+        // the controlled flow considers the turn complete.
+        if (turn.postMessageError) {
+          const list = handlers["error"]
+          if (list) {
+            handlers["error"] = list.filter((h) => !(h as { once?: boolean }).once)
+            for (const h of list) h(turn.postMessageError)
+          }
+        }
         ended = true
       } catch (err) {
         emit("error", err)
@@ -159,6 +186,7 @@ const { mockStream, queueTurn, lastStreamCall, abortSignals } = vi.hoisted(() =>
     queueTurn,
     lastStreamCall: () => calls[calls.length - 1],
     abortSignals: signals,
+    streamStubs: stubs,
   }
 })
 
@@ -211,6 +239,7 @@ beforeEach(() => {
   mockStream.mockClear()
   mockRunTool.mockReset()
   abortSignals.length = 0
+  streamStubs.length = 0
 })
 
 // ── Tests ──────────────────────────────────────────────────────────
@@ -623,6 +652,67 @@ describe("AnthropicSession", () => {
     expect(toolResults).toEqual([
       { type: "tool-result", tool: "create_transaction", id: "tu_err", ok: false },
     ])
+  })
+
+  // ── deliberate early-abort path ──────────────────────────────────
+
+  it("aborts the stream once per turn right after the message event fires", async () => {
+    // One-turn happy path: `message` arrives, the adapter aborts to
+    // release the socket without waiting for the SSE tail to drain.
+    queueTurn({
+      textDeltas: ["ok"],
+      stop_reason: "end_turn",
+    })
+
+    const { session } = makeSession()
+    await session.send("Hi")
+
+    expect(streamStubs).toHaveLength(1)
+    expect(streamStubs[0].abortSpy).toHaveBeenCalledTimes(1)
+    expect(streamStubs[0].controller.signal.aborted).toBe(true)
+  })
+
+  it("aborts every turn in a multi-turn loop (once per turn, not just the last)", async () => {
+    // Tool-use turn followed by an end_turn — both must release their
+    // stream eagerly. A regression where abort fires only on the final
+    // turn would leak the intermediate socket.
+    queueTurn({
+      toolUses: [{ id: "tu1", name: "list_accounts", input: {} }],
+      stop_reason: "tool_use",
+    })
+    queueTurn({
+      textDeltas: ["Found 2."],
+      stop_reason: "end_turn",
+    })
+    mockRunTool.mockResolvedValueOnce("[]")
+
+    const { session } = makeSession()
+    await session.send("How much?")
+
+    expect(streamStubs).toHaveLength(2)
+    for (const stub of streamStubs) {
+      expect(stub.abortSpy).toHaveBeenCalledTimes(1)
+      expect(stub.controller.signal.aborted).toBe(true)
+    }
+  })
+
+  it("swallows post-message SDK errors (earlyDrained branch suppresses socket-teardown noise)", async () => {
+    // After `message` fires, the SDK may still emit an `error` from
+    // socket teardown. The adapter's `earlyDrained` flag is supposed
+    // to recognize this is post-deliberate-abort noise and not
+    // surface it as a user-facing error.
+    queueTurn({
+      textDeltas: ["all good"],
+      stop_reason: "end_turn",
+      postMessageError: Object.assign(new Error("Connection reset"), { name: "TypeError" }),
+    })
+
+    const { session, events } = makeSession()
+    await session.send("Hi")
+
+    // No error event should surface; `done` still fires as normal.
+    expect(events.some((e) => e.type === "error")).toBe(false)
+    expect(events[events.length - 1]).toEqual({ type: "done" })
   })
 
   it("emits one tool-result per tool when a turn carries multiple tool_use blocks", async () => {

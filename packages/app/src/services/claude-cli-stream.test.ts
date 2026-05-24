@@ -351,26 +351,80 @@ describe("parseStreamLine", () => {
   })
 
   describe("result event", () => {
-    it("does NOT emit done on a clean result (assistant stop_reason is the signal)", () => {
-      // Result lines arrive after the SSE/stream drain — gating the UI
-      // on them costs latency. The success-path `done` is emitted off
-      // the final assistant turn's `stop_reason`; the result line stays
-      // bookkeeping.
+    it("does NOT emit done on a clean result without cycleState (no safety net wired)", () => {
+      // Without per-cycle state, the parser can't tell whether a `done`
+      // has already fired. The session always supplies state in
+      // production — this test pins the no-state shape.
       const line = JSON.stringify({ type: "result" })
       expect(parseStreamLine(line)).toEqual([])
     })
 
-    it("emits error when the result carries is_error", () => {
-      // `--max-turns` produces this shape when the cap trips.
+    it("does NOT emit a duplicate done when the assistant stop_reason already fired one", () => {
+      // Happy path: cycleState.doneEmitted is flipped by the assistant
+      // turn — the trailing result line then becomes pure bookkeeping.
+      const cycleState = { doneEmitted: false }
+      const assistantEvents = parseStreamLine(
+        JSON.stringify({
+          type: "assistant",
+          message: {
+            content: [{ type: "text", text: "All done." }],
+            stop_reason: "end_turn",
+          },
+        }),
+        undefined,
+        cycleState,
+      )
+      expect(assistantEvents).toContainEqual({ type: "done" })
+      expect(cycleState.doneEmitted).toBe(true)
+
+      const resultEvents = parseStreamLine(
+        JSON.stringify({ type: "result" }),
+        undefined,
+        cycleState,
+      )
+      expect(resultEvents).toEqual([])
+    })
+
+    it("emits done off the result line as a safety net when no stop_reason fired", () => {
+      // Unhappy path: assistant turn(s) arrive without a non-tool_use
+      // `stop_reason` (future CLI versions, mid-stream truncation, ...).
+      // The result line falls back to emitting `done` so the UI doesn't
+      // hang waiting for a signal that never comes.
+      const cycleState = { doneEmitted: false }
+      parseStreamLine(
+        JSON.stringify({
+          type: "assistant",
+          message: { content: [{ type: "text", text: "partial" }] },
+        }),
+        undefined,
+        cycleState,
+      )
+      expect(cycleState.doneEmitted).toBe(false)
+
+      const resultEvents = parseStreamLine(
+        JSON.stringify({ type: "result" }),
+        undefined,
+        cycleState,
+      )
+      expect(resultEvents).toEqual([{ type: "done" }])
+      expect(cycleState.doneEmitted).toBe(true)
+    })
+
+    it("emits error when the result carries is_error (no safety-net done)", () => {
+      // `--max-turns` produces this shape when the cap trips. Even
+      // with cycleState present, the error takes precedence and we
+      // never paper over an error termination with a `done`.
+      const cycleState = { doneEmitted: false }
       const line = JSON.stringify({
         type: "result",
         subtype: "error_max_turns",
         is_error: true,
         errors: ["Reached maximum number of turns (100)"],
       })
-      expect(parseStreamLine(line)).toEqual([
+      expect(parseStreamLine(line, undefined, cycleState)).toEqual([
         { type: "error", message: "Reached maximum number of turns (100)" },
       ])
+      expect(cycleState.doneEmitted).toBe(false)
     })
 
     it("falls back to a generic message when is_error has no details", () => {

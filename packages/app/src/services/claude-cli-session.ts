@@ -37,7 +37,7 @@ import {
   type CapySession,
   type ChatMessage,
 } from "@capybudget/intelligence"
-import { parseStreamLine } from "./claude-cli-stream"
+import { parseStreamLine, type CycleState } from "./claude-cli-stream"
 import { serializeConversation } from "./serialize-conversation"
 
 declare const __PROJECT_ROOT__: string
@@ -64,6 +64,11 @@ export class ClaudeCliSession implements CapySession {
   // blocks and read when matching `tool_result`s arrive in a `user`
   // event. Reset per cycle alongside the content accumulator.
   private toolUseRegistry: Map<string, string> = new Map()
+  // Per-cycle parser state. `doneEmitted` flips the first time the
+  // parser fires `done` for the current cycle; the `result` line uses
+  // it as a safety net to emit `done` if the assistant turn never
+  // carried a non-tool_use `stop_reason`. Reset alongside the registry.
+  private cycleState: CycleState = { doneEmitted: false }
 
   constructor(opts: ClaudeCliAdapterOptions) {
     this.budgetPath = opts.budgetPath
@@ -137,7 +142,7 @@ export class ClaudeCliSession implements CapySession {
     ])
 
     command.stdout.on("data", (line: string) => {
-      for (const event of parseStreamLine(line, this.toolUseRegistry)) {
+      for (const event of parseStreamLine(line, this.toolUseRegistry, this.cycleState)) {
         // An error event means the CLI is shutting itself down (e.g.
         // `--max-turns` tripped). Mark the teardown as deliberate so
         // the close handler skips the unexpected-death onExit path.
@@ -181,6 +186,11 @@ export class ClaudeCliSession implements CapySession {
     }
 
     this.resetCycleAccumulator()
+    // The doneEmitted flag is the parser's safety-net guard for the
+    // _whole_ cycle — reset it only when a new cycle begins, not when
+    // a `done` fires within `accumulateCycleEvent` (otherwise the
+    // trailing `result` line would re-emit `done`).
+    this.cycleState.doneEmitted = false
 
     const payload = JSON.stringify({
       type: "user",
@@ -325,5 +335,10 @@ export class ClaudeCliSession implements CapySession {
     this.currentTurnBlocks = []
     this.inProgressTextIndex = null
     this.toolUseRegistry.clear()
+    // Note: cycleState.doneEmitted is intentionally NOT reset here.
+    // This method runs both at send() start (where doneEmitted is
+    // reset explicitly) AND on each done/error inside the cycle —
+    // resetting here would let a trailing `result` line re-emit
+    // `done` after the assistant turn already did.
   }
 }

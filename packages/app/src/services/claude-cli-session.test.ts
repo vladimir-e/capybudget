@@ -171,6 +171,24 @@ describe("ClaudeCliSession", () => {
     expect(args[idx + 1]).toBe(String(SESSION_TOOL_CALL_BUDGET))
   })
 
+  it("passes --disallowedTools listing the CLI's stock built-ins to silence meta-narration", async () => {
+    // The CLI's baked-in system prompt nudges the model to deliberate
+    // about its stock tools ("should I use TodoWrite for this?") even
+    // when they're not in the allowlist. Disallowing them silences
+    // that meta-narration. If this flag goes missing the user sees
+    // the deliberation again — pin it.
+    const { Command } = await import("@tauri-apps/plugin-shell")
+    const { session } = makeSession()
+    await session.send("hi")
+
+    const args = (Command.create as ReturnType<typeof vi.fn>).mock.calls[0][1] as string[]
+    const idx = args.indexOf("--disallowedTools")
+    expect(idx).toBeGreaterThan(-1)
+    expect(args[idx + 1]).toBe(
+      "TodoWrite,Task,Bash,Edit,Write,Glob,Grep,WebFetch,WebSearch,NotebookEdit,KillBash,BashOutput",
+    )
+  })
+
   describe("cross-turn content accumulation", () => {
     it("accumulates blocks from successive turns into one cumulative cycle", async () => {
       const { session, events } = makeSession()

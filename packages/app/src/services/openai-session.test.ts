@@ -31,13 +31,22 @@ interface FakeTurn {
   finish_reason: "stop" | "tool_calls" | "length"
   /** If set, the create() call rejects with this error. */
   error?: Error
+  /** If set, an extra chunk is appended AFTER the finish_reason
+   *  chunk. The adapter is supposed to `break` out of `for await`
+   *  the moment finish_reason arrives, so this chunk should never be
+   *  observed. Used by the early-abort test. */
+  tailChunk?: { content: string }
 }
 
-const { mockCreate, queueTurn, lastCreateCall, abortSignals } = vi.hoisted(
+const { mockCreate, queueTurn, lastCreateCall, abortSignals, streamStubs } = vi.hoisted(
   () => {
     const queue: FakeTurn[] = []
     const calls: Array<{ messages: unknown; tools: unknown }> = []
     const signals: AbortSignal[] = []
+    const stubs: Array<{
+      controller: AbortController
+      abortSpy: ReturnType<typeof vi.fn>
+    }> = []
 
     const create = vi.fn().mockImplementation(async (params, opts) => {
       calls.push({
@@ -135,11 +144,33 @@ const { mockCreate, queueTurn, lastCreateCall, abortSignals } = vi.hoisted(
       chunks.push({
         choices: [{ delta: {}, finish_reason: turn.finish_reason, index: 0 }],
       })
+      // Optional tail chunk — appended AFTER finish_reason. The
+      // adapter must `break` out of the loop on finish_reason; if it
+      // ever yields this chunk we know the early-abort path is broken.
+      if (turn.tailChunk) {
+        chunks.push({
+          choices: [
+            {
+              delta: { content: turn.tailChunk.content },
+              finish_reason: null,
+              index: 0,
+            },
+          ],
+        })
+      }
 
       // Match the real OpenAI Stream shape: async-iterable + a public
       // `controller` (an AbortController the adapter calls `.abort()`
       // on to release the socket once it has the data it needs).
       const controller = new AbortController()
+      const abortSpy = vi.fn()
+      const originalAbort = controller.abort.bind(controller)
+      controller.abort = ((reason?: unknown) => {
+        abortSpy(reason)
+        return originalAbort(reason as Error | undefined)
+      }) as typeof controller.abort
+      stubs.push({ controller, abortSpy })
+
       async function* iterate() {
         for (const chunk of chunks) {
           // Honor abort from either the outer signal (user-stop) or the
@@ -167,6 +198,7 @@ const { mockCreate, queueTurn, lastCreateCall, abortSignals } = vi.hoisted(
       queueTurn,
       lastCreateCall: () => calls[calls.length - 1],
       abortSignals: signals,
+      streamStubs: stubs,
     }
   },
 )
@@ -222,6 +254,7 @@ beforeEach(() => {
   mockCreate.mockClear()
   mockRunTool.mockReset()
   abortSignals.length = 0
+  streamStubs.length = 0
 })
 
 // ── Tests ──────────────────────────────────────────────────────────
@@ -762,6 +795,66 @@ describe("OpenAiSession", () => {
     expect(toolResults).toEqual([
       { type: "tool-result", tool: "create_transaction", id: "call_err", ok: false },
     ])
+  })
+
+  // ── deliberate early-abort path ──────────────────────────────────
+
+  it("breaks out of the chunk loop on finish_reason and aborts the stream controller", async () => {
+    // A chunk AFTER finish_reason must never reach the adapter — the
+    // for-await is supposed to `break` the moment finish_reason
+    // arrives. Verify both that the post-finish chunk's content is
+    // absent from anything the adapter emitted, AND that the stream
+    // controller's abort() was called once to release the socket.
+    queueTurn({
+      textDeltas: ["visible"],
+      finish_reason: "stop",
+      tailChunk: { content: "INVISIBLE" },
+    })
+
+    const { session, events } = makeSession()
+    await session.send("Hi")
+
+    expect(streamStubs).toHaveLength(1)
+    expect(streamStubs[0].abortSpy).toHaveBeenCalledTimes(1)
+    expect(streamStubs[0].controller.signal.aborted).toBe(true)
+
+    // The post-finish chunk's content must not appear in any content
+    // event the consumer received.
+    const allText = events
+      .filter((e) => e.type === "content")
+      .flatMap((e) => (e.type === "content" ? e.blocks : []))
+      .filter((b) => b.type === "text")
+      .map((b) => (b.type === "text" ? b.content : ""))
+      .join("")
+    expect(allText).not.toContain("INVISIBLE")
+    expect(allText).toBe("visible")
+  })
+
+  it("aborts every turn in a multi-turn loop (once per turn, not just the last)", async () => {
+    // Tool-call turn followed by a stop — both must release their
+    // stream eagerly via the controller abort once finish_reason
+    // arrives. A regression where the break-on-finish path only
+    // triggers on the last turn would leak the intermediate socket.
+    queueTurn({
+      toolCallDeltas: [
+        { index: 0, id: "call_a", name: "list_accounts", argFragments: ["{}"] },
+      ],
+      finish_reason: "tool_calls",
+    })
+    queueTurn({
+      textDeltas: ["done"],
+      finish_reason: "stop",
+    })
+    mockRunTool.mockResolvedValueOnce("[]")
+
+    const { session } = makeSession()
+    await session.send("How much?")
+
+    expect(streamStubs).toHaveLength(2)
+    for (const stub of streamStubs) {
+      expect(stub.abortSpy).toHaveBeenCalledTimes(1)
+      expect(stub.controller.signal.aborted).toBe(true)
+    }
   })
 
   it("emits tool-result with ok=false when tool_call arguments are malformed JSON", async () => {

@@ -21,6 +21,17 @@ const RENDER_TOOL_MAP: Record<string, (input: Record<string, unknown>) => Conten
 // ── Parser ───────────────────────────────────────────────────────
 
 /**
+ * Per-cycle parser state owned by the session. Reset on every user→done
+ * cycle. Carries the tool_use registry (id → name lookup for matching
+ * tool_result blocks) and a `doneEmitted` flag so the `result` line can
+ * act as a safety-net `done` emitter only when the happy-path assistant
+ * `stop_reason` failed to fire one.
+ */
+export interface CycleState {
+  doneEmitted: boolean
+}
+
+/**
  * Parse a single stdout JSON line from the Claude CLI.
  *
  * Returns an array of StreamEvents (typically one per line).
@@ -31,10 +42,17 @@ const RENDER_TOOL_MAP: Record<string, (input: Record<string, unknown>) => Conten
  * event it looks the name back up so the emitted `tool-result` event
  * carries the tool name. Callers own the map's lifetime (the session
  * resets it on each user→done cycle).
+ *
+ * The optional `cycleState` flips `doneEmitted = true` the first time a
+ * `done` is emitted in this cycle. The `result` line uses it as a
+ * safety net — if the assistant turn never carried a non-tool_use
+ * `stop_reason` (mid-stream truncation, unforeseen CLI versions), the
+ * result line still emits `done` rather than letting the UI hang.
  */
 export function parseStreamLine(
   line: string,
   toolUseRegistry?: Map<string, string>,
+  cycleState?: CycleState,
 ): StreamEvent[] {
   const trimmed = line.trim()
   if (!trimmed) return []
@@ -93,10 +111,13 @@ export function parseStreamLine(
       // final assistant turn — gating the UI on it costs us seconds of
       // waiting on the subprocess's stream drain. Treat any
       // non-tool-use `stop_reason` on the assistant turn as the real
-      // "done" signal; the later `result` line stays bookkeeping.
+      // "done" signal; the later `result` line stays bookkeeping in
+      // the happy path. (The `result` case acts as a safety net when
+      // no `stop_reason` arrived — see below.)
       const stopReason = message?.stop_reason
       if (stopReason && stopReason !== "tool_use") {
         events.push({ type: "done" })
+        if (cycleState) cycleState.doneEmitted = true
       }
       break
     }
@@ -128,15 +149,25 @@ export function parseStreamLine(
     case "result": {
       // Result lines are the CLI's "subprocess done" bookkeeping —
       // they arrive after the model's last chunk plus the SSE/stream
-      // drain. The success path's `done` is already fired off the
-      // final assistant turn's `stop_reason`; here we only care about
-      // error terminations (`is_error: true` with an `errors` array —
-      // `error_max_turns` is the main one, from the `--max-turns`
-      // runaway backstop).
+      // drain. The success path's `done` is normally fired off the
+      // final assistant turn's `stop_reason` (above) — in that case
+      // the result line is pure bookkeeping. Two exceptions:
+      //
+      // 1. Error terminations (`is_error: true`) surface as an error
+      //    event — `error_max_turns` is the main one, from the
+      //    `--max-turns` runaway backstop.
+      // 2. Safety net: if the cycle never saw a non-tool_use
+      //    `stop_reason` (future CLI versions, mid-stream truncation,
+      //    unforeseen edge cases), the result line emits `done` so
+      //    the UI doesn't hang waiting for a signal that never comes.
+      //    The flag stops a duplicate `done` on the happy path.
       if (event.is_error) {
         const errs = event.errors as string[] | undefined
         const message = errs?.[0] ?? "Session terminated with an error."
         events.push({ type: "error", message })
+      } else if (cycleState && !cycleState.doneEmitted) {
+        events.push({ type: "done" })
+        cycleState.doneEmitted = true
       }
       break
     }
