@@ -360,8 +360,6 @@ export class OpenAiSession implements CapySession {
         }
         const parsed = finalizeToolArgs(acc)
         if (parsed instanceof Error) {
-          // Malformed args never reached the handler — emit a failed
-          // tool-result so the hook accounts for the call.
           this.opts.onEvent({ type: "tool-result", tool: acc.name, id: acc.id, ok: false })
           toolMessages.push({
             role: "tool",
@@ -382,8 +380,6 @@ export class OpenAiSession implements CapySession {
           ok = false
           resultText = `Error: ${err instanceof Error ? err.message : String(err)}`
         }
-        // Signal completion so the hook can invalidate caches per-call
-        // (mutations only — the hook filters).
         this.opts.onEvent({ type: "tool-result", tool: acc.name, id: acc.id, ok })
         toolMessages.push({
           role: "tool",

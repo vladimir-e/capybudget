@@ -144,7 +144,7 @@ All filesystem access goes through the `FileAdapter` on the context, so the same
 
 ### Mutation cache invalidation
 
-The app invalidates the repo's in-memory cache and React Query data **the moment each mutation tool call finishes**, not at the end of the turn. Adapters emit a `tool-result` StreamEvent after the handler returns (API adapters) or after the CLI's `tool_result` block lands (Claude CLI). The hook listens for these, filters by `MUTATION_TOOL_NAMES`, debounces by call id, and triggers invalidation immediately — so the UI reflects Capy's changes as it works, not in one batch at the end. A `done`-event fallback covers the edge case where a mutation `tool-activity` was seen but no `tool-result` ever acked it (adapter bug, tool crash). The set of mutation tool names is exposed for matching.
+The app invalidates caches per mutation tool call (not per turn) so the UI reflects Capy's changes live as it works. `MUTATION_TOOL_NAMES` is exposed for matching.
 
 ### Render tools
 

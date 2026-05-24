@@ -23,20 +23,10 @@
 import type { IntelligenceProvider } from "@capybudget/intelligence";
 import type { DisposableRepository } from "@capybudget/persistence";
 
-/**
- * True iff the active provider mutates through a different repo
- * instance than the UI's. Only then should `invalidateCache()` fire on
- * a mutation completion.
- */
 export function shouldDropRepoCache(provider: IntelligenceProvider): boolean {
   return provider === "claude-cli";
 }
 
-/**
- * Synchronous helper that performs the right invalidation given the
- * active provider. Pulled out for testability; budget-shell wraps this
- * in a `useCallback`.
- */
 export function invalidateAfterCapyMutation(args: {
   provider: IntelligenceProvider;
   repo: DisposableRepository;

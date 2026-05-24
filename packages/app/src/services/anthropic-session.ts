@@ -281,9 +281,6 @@ export class AnthropicSession implements CapySession {
           ok = false
           resultText = `Error: ${err instanceof Error ? err.message : String(err)}`
         }
-        // Signal completion so the hook can invalidate caches per-call
-        // (mutations only — the hook filters). Emitted whether the tool
-        // succeeded or threw, with `ok` distinguishing the two.
         this.opts.onEvent({ type: "tool-result", tool: block.name, id: block.id, ok })
         toolResults.push({
           type: "tool_result",

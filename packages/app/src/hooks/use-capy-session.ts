@@ -48,14 +48,7 @@ interface UseCapySessionReturn {
 
 export function useCapySession(opts: UseCapySessionOptions): UseCapySessionReturn {
   const [messages, setMessages] = useState<ChatMessage[]>([])
-  // True once any mutation tool-activity has been seen this turn. Used
-  // as a safety-net trigger for `onDataChanged` on `done` when no
-  // per-call invalidation fired (e.g. an adapter bug, or a tool that
-  // crashed before a `tool-result` could be emitted).
   const hadMutationsRef = useRef(false)
-  // tool-result IDs already acked this turn. Per-call invalidation
-  // dedups against this set — and the presence of any entry suppresses
-  // the `done` fallback so we never invalidate twice.
   const ackedToolCallsRef = useRef<Set<string>>(new Set())
 
   // Keep a ref to messages for use in sendMessage / stopStreaming without
@@ -82,12 +75,6 @@ export function useCapySession(opts: UseCapySessionOptions): UseCapySessionRetur
         }
 
         case "tool-result": {
-          // Live cache invalidation per mutation tool call. Fires the
-          // moment a mutation finishes (in-process for API adapters, or
-          // when the CLI's tool_result block arrives) — so the UI
-          // reflects each change as Capy works, not at end-of-turn.
-          // Deduped by id so adapters can re-emit safely; the `done`
-          // fallback below only runs when no per-call ack has fired.
           if (!event.ok) break
           if (!MUTATION_TOOL_NAMES.has(event.tool)) break
           if (ackedToolCallsRef.current.has(event.id)) break
@@ -98,13 +85,7 @@ export function useCapySession(opts: UseCapySessionOptions): UseCapySessionRetur
 
         case "done":
           ctx.setIsStreaming(false)
-          // Catch-up invalidation: if a mutation was requested this turn
-          // but no successful per-call ack ever landed, refetch once on
-          // `done`. Covers adapter bugs, tools that crashed before the
-          // result event reached us, and turns where every mutation
-          // tool-result came back with `ok: false` (the model's state
-          // may still need a refresh even on all-failed turns — refetch
-          // is cheap, missing real changes is not).
+          // Fallback: mutation was requested but no per-call ack landed.
           if (hadMutationsRef.current && ackedToolCallsRef.current.size === 0) {
             ctx.optsRef.current.onDataChanged?.()
           }
@@ -309,8 +290,6 @@ export function useCapySession(opts: UseCapySessionOptions): UseCapySessionRetur
       ]
     })
 
-    // Mirror the `done` fallback: only fire if per-call invalidation
-    // hasn't already covered the mutations seen this turn.
     if (hadMutationsRef.current && ackedToolCallsRef.current.size === 0) {
       lifecycle.optsRef.current.onDataChanged?.()
     }
