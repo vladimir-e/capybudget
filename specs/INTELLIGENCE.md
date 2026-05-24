@@ -160,6 +160,8 @@ The app invalidates caches per mutation tool call (not per turn) so the UI refle
 
 No-ops on the dispatch side — they carry structured data from AI to frontend via `tool_use` events.
 
+`render_followups` is a **terminal-signal tool**: when the model calls it, the assistant turn is over. The API adapters dispatch the call (so the UI gets the chips) and push the tool_result to history, then exit the agentic loop without making another request. Skipping the ack round-trip saves a full stream per turn. The Claude CLI runs the loop in-subprocess; the prompt tells the model to stay silent after calling `render_followups`, and the stream parser suppresses any empty/whitespace-only assistant text it still emits.
+
 ## MCP Server (External Agents)
 
 The MCP server is a thin transport: it wires the tool definitions to ListTools and `runTool()` to CallTool. Same surface as the in-process API adapters dispatch — Claude Desktop / Cursor / VS Code Copilot users see identical tool behavior.

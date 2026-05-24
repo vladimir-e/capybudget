@@ -1,6 +1,7 @@
 import OpenAI from "openai"
 import {
   buildRenderToolMap,
+  RENDER_FOLLOWUPS_TOOL_NAME,
   runTool,
   getToolDefinitions,
   SESSION_TOOL_CALL_BUDGET,
@@ -264,8 +265,10 @@ export class OpenAiSession implements CapySession {
 
       const toolMessages: OpenAI.Chat.Completions.ChatCompletionToolMessageParam[] = []
       let budgetExhausted = false
+      let terminalToolSeen = false
       for (const idx of sortedIndices) {
         const acc = toolAccs.get(idx)!
+        if (acc.name === RENDER_FOLLOWUPS_TOOL_NAME) terminalToolSeen = true
         this.toolCallCount++
         if (this.toolCallCount > SESSION_TOOL_CALL_BUDGET) {
           budgetExhausted = true
@@ -319,6 +322,10 @@ export class OpenAiSession implements CapySession {
         })
         return
       }
+      // `render_followups` is a terminal-signal tool — exit without the wasted
+      // ack round-trip. OpenAI tool results are `role: "tool"` (not `user`),
+      // so the next `send()` lands naturally on top.
+      if (terminalToolSeen) return
     }
   }
 

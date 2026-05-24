@@ -1,6 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk"
 import {
   buildRenderToolMap,
+  RENDER_FOLLOWUPS_TOOL_NAME,
   runTool,
   getToolDefinitions,
   SESSION_TOOL_CALL_BUDGET,
@@ -26,6 +27,22 @@ function toolUseToContentBlock(name: string, input: Record<string, unknown>): Co
   const renderFn = RENDER_TOOL_MAP[name]
   if (renderFn) return renderFn(input)
   return { type: "tool-activity", tool: name }
+}
+
+type UserContentBlock = Exclude<Anthropic.MessageParam["content"], string>[number]
+
+/**
+ * Coerce a user `content` value (string or block array) into a uniform array
+ * of blocks. Keeps the merge path in `appendUserContent` simple — strings get
+ * promoted to a single text block before concatenation.
+ */
+function normalizeUserContent(
+  content: Anthropic.MessageParam["content"],
+): UserContentBlock[] {
+  if (typeof content === "string") {
+    return content.length > 0 ? [{ type: "text", text: content }] : []
+  }
+  return content
 }
 
 function toAnthropicUserContent(
@@ -84,10 +101,7 @@ export class AnthropicSession implements CapySession {
     if (this.killed) return
 
     this.interrupted = false
-    this.messages.push({
-      role: "user",
-      content: toAnthropicUserContent(content),
-    })
+    this.appendUserContent(toAnthropicUserContent(content))
     this.alive = true
 
     try {
@@ -209,8 +223,10 @@ export class AnthropicSession implements CapySession {
 
       const toolResults: Anthropic.ToolResultBlockParam[] = []
       let budgetExhausted = false
+      let terminalToolSeen = false
       for (const block of finalMessage.content) {
         if (block.type !== "tool_use") continue
+        if (block.name === RENDER_FOLLOWUPS_TOOL_NAME) terminalToolSeen = true
         this.toolCallCount++
         if (this.toolCallCount > SESSION_TOOL_CALL_BUDGET) {
           budgetExhausted = true
@@ -258,7 +274,28 @@ export class AnthropicSession implements CapySession {
         })
         return
       }
+      // `render_followups` is a terminal-signal tool — the chips are the user's
+      // next action, so there's nothing for the model to say. Exit without
+      // making the wasted ack round-trip that would just return an empty turn.
+      if (terminalToolSeen) return
     }
+  }
+
+  /**
+   * Push a user content blob, but if history already ends with a `user` turn
+   * (e.g. tool_results from a terminal-tool exit), concatenate into it instead.
+   * Anthropic's API enforces strict user/assistant alternation — two consecutive
+   * `user` messages would 400.
+   */
+  private appendUserContent(content: Anthropic.MessageParam["content"]): void {
+    const last = this.messages[this.messages.length - 1]
+    const incomingBlocks = normalizeUserContent(content)
+    if (last && last.role === "user") {
+      const existing = normalizeUserContent(last.content)
+      last.content = [...existing, ...incomingBlocks]
+      return
+    }
+    this.messages.push({ role: "user", content: incomingBlocks })
   }
 
   private dropTrailingUnmatchedToolUse(): void {

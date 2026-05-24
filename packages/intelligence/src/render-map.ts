@@ -21,6 +21,15 @@ import type {
   TableBlock,
 } from "./types"
 
+/**
+ * `render_followups` is a **terminal-signal tool**: when the model emits it,
+ * the assistant turn is over. Adapters dispatch the call (so the UI gets the
+ * chips), push the tool_result to history, and exit the agentic loop without
+ * making another API request. Skipping the wasted ack round-trip saves a full
+ * stream per turn.
+ */
+export const RENDER_FOLLOWUPS_TOOL_NAME = "render_followups"
+
 type RenderBuilder = (input: Record<string, unknown>) => ContentBlock | null
 
 const BUILDERS: Record<string, RenderBuilder> = {
@@ -39,7 +48,7 @@ const BUILDERS: Record<string, RenderBuilder> = {
     return { type: "donut-chart", title: input.title, data: input.data } satisfies DonutChartBlock
   },
 
-  render_followups: (input) => {
+  [RENDER_FOLLOWUPS_TOOL_NAME]: (input) => {
     const chips = sanitizeFollowupChips(input.chips)
     if (chips === null) return null
     return { type: "followups", chips } satisfies FollowupsBlock

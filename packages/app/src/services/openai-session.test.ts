@@ -781,6 +781,31 @@ describe("OpenAiSession", () => {
     }
   })
 
+  it("treats render_followups as terminal — exits the loop without a second stream invocation", async () => {
+    queueTurn({
+      toolCallDeltas: [
+        {
+          index: 0,
+          id: "call_followups",
+          name: "render_followups",
+          argFragments: [
+            '{"chips":[{"label":"More","prompt":"Tell me more"}]}',
+          ],
+        },
+      ],
+      finish_reason: "tool_calls",
+    })
+    // No second turn — if the loop iterated again, the mock would throw.
+    mockRunTool.mockResolvedValueOnce("Rendered.")
+
+    const { session, events } = makeSession()
+    await session.send("Quick answer please")
+
+    expect(mockCreate).toHaveBeenCalledTimes(1)
+    expect(mockRunTool).toHaveBeenCalledTimes(1)
+    expect(events[events.length - 1]).toEqual({ type: "done" })
+  })
+
   it("emits tool-result with ok=false when tool_call arguments are malformed JSON", async () => {
     queueTurn({
       toolCallDeltas: [

@@ -15,6 +15,7 @@ CHANGELOG PHILOSOPHY:
 - **Capy** - Don't drop the in-memory repo cache between in-process mutations — was silently losing all-but-the-last write in multi-tool Anthropic/OpenAI turns.
 - **Capy** - Fix ~30s post-message hang by decoupling loop exit from stream drain across all three adapters (#44).
 - **Capy** - Silence Claude CLI "deliberation" assistant turn via `--disallowedTools` and a voice rule in the chat prompt (#44).
+- **Capy** - Treat `render_followups` as a terminal-signal tool — model's call ends the turn without an ack round-trip (#44).
 - **Transactions Browser** - Read-only pre-filtered transaction popup, drilldowns from Monthly Budget / Spending / Merchants tabs.
 - **Specs** - Drop roadmap from spec set; trim intelligence-layer references.
 - **Chat** - Fix AI output overwrite cascade; tighten render discipline; OpenAI follow-ups.

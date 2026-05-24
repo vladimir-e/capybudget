@@ -645,4 +645,86 @@ describe("AnthropicSession", () => {
       { type: "tool-result", tool: "list_accounts", id: "tu_b", ok: true },
     ])
   })
+
+  it("treats render_followups as terminal — exits the loop without a second API call", async () => {
+    queueTurn({
+      textDeltas: ["Done."],
+      toolUses: [
+        {
+          id: "tu_followups",
+          name: "render_followups",
+          input: {
+            chips: [
+              { label: "Compare to 2023", prompt: "How does that compare to 2023?" },
+              { label: "Monthly breakdown", prompt: "Show me the monthly breakdown." },
+            ],
+          },
+        },
+      ],
+      stop_reason: "tool_use",
+    })
+    // No second turn is queued — if the loop tried to iterate again the mock
+    // would throw "no turn queued".
+    mockRunTool.mockResolvedValueOnce("Rendered.")
+
+    const { session, events } = makeSession()
+    await session.send("How much did I spend?")
+
+    expect(mockStream).toHaveBeenCalledTimes(1)
+    expect(mockRunTool).toHaveBeenCalledTimes(1)
+    expect(events[events.length - 1]).toEqual({ type: "done" })
+
+    // History after the exit should end with the user-role tool_results that
+    // reference the render_followups call — the action is preserved.
+    queueTurn({ textDeltas: ["next"], stop_reason: "end_turn" })
+    await session.send("Next question")
+    const second = lastStreamCall()
+    const messages = second.messages as Array<{ role: string; content: unknown }>
+    const toolResultPresent = messages.some(
+      (m) =>
+        m.role === "user" &&
+        Array.isArray(m.content) &&
+        (m.content as Array<{ type: string; tool_use_id?: string }>).some(
+          (b) => b.type === "tool_result" && b.tool_use_id === "tu_followups",
+        ),
+    )
+    expect(toolResultPresent).toBe(true)
+  })
+
+  it("send() merges a new user message into the trailing user turn after a terminal-tool exit", async () => {
+    queueTurn({
+      toolUses: [
+        {
+          id: "tu_followups",
+          name: "render_followups",
+          input: { chips: [{ label: "More", prompt: "Tell me more" }] },
+        },
+      ],
+      stop_reason: "tool_use",
+    })
+    mockRunTool.mockResolvedValueOnce("Rendered.")
+
+    const { session } = makeSession()
+    await session.send("First question")
+
+    // Queue the next turn for the follow-up send.
+    queueTurn({ textDeltas: ["Reply"], stop_reason: "end_turn" })
+    await session.send("Second question")
+
+    const second = lastStreamCall()
+    const messages = second.messages as Array<{ role: string; content: unknown }>
+
+    // Two consecutive user turns would violate Anthropic's alternation.
+    for (let i = 1; i < messages.length; i++) {
+      expect(messages[i].role).not.toBe(messages[i - 1].role)
+    }
+
+    // The trailing user turn should carry BOTH the tool_result and the new
+    // text block — merged, not stacked.
+    const lastUser = [...messages].reverse().find((m) => m.role === "user")
+    expect(lastUser).toBeDefined()
+    const blocks = lastUser!.content as Array<{ type: string }>
+    expect(blocks.some((b) => b.type === "tool_result")).toBe(true)
+    expect(blocks.some((b) => b.type === "text")).toBe(true)
+  })
 })
