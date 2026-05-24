@@ -111,6 +111,56 @@ export const DATA_TOOL_DEFS = [
     },
   },
   {
+    name: "find_duplicates",
+    description:
+      "Find groups of likely duplicate transactions already in the budget. Returns high-confidence (same date+amount+merchant+account) and possible (same amount+account, dates within ±1 day, fuzzy merchant) groups. Transfers excluded.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        confidence: {
+          type: "string",
+          enum: ["high", "possible", "all"],
+          description: "Filter to a single confidence tier (default: 'all').",
+        },
+        accountId: {
+          type: "string",
+          description: "Restrict detection to one account.",
+        },
+        dateRange: {
+          type: "object",
+          description: "Restrict detection to a date window. Both bounds inclusive (YYYY-MM-DD).",
+          properties: {
+            from: { type: "string" },
+            to: { type: "string" },
+          },
+        },
+      },
+    },
+  },
+  {
+    name: "find_recurring",
+    description:
+      "Find recurring merchants — subscriptions, monthly bills, weekly habits. Returns merchant, detected cadence (weekly/monthly/yearly/irregular), average amount, variance, total spent in window, and next expected date. Transfers and empty-merchant transactions excluded.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        cadence: {
+          type: "string",
+          enum: ["weekly", "monthly", "yearly", "irregular"],
+          description: "Filter to a single cadence (default: all).",
+        },
+        minTransactions: {
+          type: "number",
+          description: "Minimum transactions to qualify as a pattern (default: 3).",
+        },
+        lookbackDays: {
+          type: "number",
+          description: "Lookback window in days, anchored to the latest transaction (default: 540 ≈ 18 months).",
+        },
+      },
+    },
+  },
+  {
     name: "transaction_bounds",
     description:
       "Return the count and date range (min/max) of transactions, with the same optional filters as `list_transactions`. Use this to answer 'when did I start tracking?', 'how long is my history?', or 'what's the date range of my data?' in one call instead of probing. Combine with `startDate`/`endDate` to scope to a window (e.g. 'when did I first shop at Whole Foods in 2025').",
@@ -868,6 +918,110 @@ export const RENDER_TOOL_DEFS = [
         },
       },
       required: ["title", "data"],
+    },
+  },
+  {
+    name: "render_transactions",
+    description:
+      "Render a clickable card representing a transaction selection — opens the app's transaction modal when clicked. Use this for ANY transaction list response (single category, single merchant, a custom filter, or an explicit ID set). Far more usable than a table in the narrow chat panel.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        label: {
+          type: "string",
+          description: "Short card label (e.g. 'Groceries this month', 'Transactions over $500').",
+        },
+        count: {
+          type: "number",
+          description: "Number of transactions in this selection.",
+        },
+        filter: {
+          type: "object",
+          description:
+            "What to show when opened. Provide `transactionIds` for an explicit selection (wins over other fields); otherwise any combination of categoryId, merchant, dateRange, amountRange (cents, inclusive), type.",
+          properties: {
+            transactionIds: { type: "array", items: { type: "string" } },
+            categoryId: { type: "string" },
+            merchant: { type: "string" },
+            dateRange: {
+              type: "object",
+              properties: {
+                from: { type: "string" },
+                to: { type: "string" },
+              },
+            },
+            amountRange: {
+              type: "object",
+              properties: {
+                min: { type: "number" },
+                max: { type: "number" },
+              },
+            },
+            type: { type: "string", enum: ["income", "expense", "transfer"] },
+          },
+        },
+        summary: {
+          type: "string",
+          description: "Optional one-line summary (e.g. total spend) shown under the label.",
+        },
+      },
+      required: ["label", "count", "filter"],
+    },
+  },
+  {
+    name: "render_duplicate_groups",
+    description:
+      "Render the result of find_duplicates as a list of group cards. Each card shows confidence, member count, amount, merchant, and a Review button that opens the modal scoped to that group's transactionIds.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        groups: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              summary: { type: "string" },
+              transactionIds: { type: "array", items: { type: "string" } },
+              confidence: { type: "string", enum: ["high", "possible"] },
+              reason: { type: "string" },
+              amount: { type: "number", description: "Representative amount in cents (negative for expenses)." },
+              merchant: { type: "string" },
+              date: { type: "string", description: "Representative date (YYYY-MM-DD)." },
+            },
+            required: ["transactionIds", "confidence", "reason", "amount", "merchant", "date"],
+          },
+        },
+      },
+      required: ["groups"],
+    },
+  },
+  {
+    name: "render_recurring_patterns",
+    description:
+      "Render the result of find_recurring as a list of subscription cards. Each card shows merchant, cadence, average amount, next expected date, total spent, and a View All button that opens the modal scoped to that pattern's transactionIds.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        patterns: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              merchant: { type: "string" },
+              cadence: { type: "string", enum: ["weekly", "monthly", "yearly", "irregular"] },
+              averageAmount: { type: "number", description: "Mean amount in cents (sign matches the underlying transactions)." },
+              amountVariance: { type: "string", enum: ["stable", "variable"] },
+              transactionIds: { type: "array", items: { type: "string" } },
+              firstSeen: { type: "string" },
+              lastSeen: { type: "string" },
+              nextExpected: { type: "string" },
+              totalSpent: { type: "number", description: "Sum of magnitudes in cents." },
+            },
+            required: ["merchant", "cadence", "averageAmount", "amountVariance", "transactionIds", "firstSeen", "lastSeen", "totalSpent"],
+          },
+        },
+      },
+      required: ["patterns"],
     },
   },
   {

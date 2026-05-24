@@ -9,7 +9,8 @@
  * the corresponding ContentBlock.
  *
  * Tools this dispatch knows about:
- *   - data tools  (list_*, spending_summary, search_merchants)
+ *   - data tools  (list_*, spending_summary, search_merchants,
+ *                  transaction_bounds, find_duplicates, find_recurring)
  *   - mutation tools (create/update/delete/archive/assign_*)
  *   - import tools (read/write/append/list_import_file)
  *   - csv tools (analyze_csv, preview_transform, transform_csv,
@@ -28,6 +29,10 @@ import {
   handleSearchMerchants,
   handleTransactionBounds,
 } from "./handlers/data"
+import {
+  handleFindDuplicates,
+  handleFindRecurring,
+} from "./handlers/patterns"
 import {
   handleCreateTransaction,
   handleUpdateTransaction,
@@ -84,6 +89,8 @@ const HANDLERS: Record<string, ToolHandler> = {
   spending_summary: ({ repo }, args) => handleSpendingSummary(repo, args),
   search_merchants: ({ repo }, args) => handleSearchMerchants(repo, args),
   transaction_bounds: ({ repo }, args) => handleTransactionBounds(repo, args),
+  find_duplicates: ({ repo }, args) => handleFindDuplicates(repo, args),
+  find_recurring: ({ repo }, args) => handleFindRecurring(repo, args),
 
   // Mutations
   create_transaction: ({ repo }, args) => handleCreateTransaction(repo, args),

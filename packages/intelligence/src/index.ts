@@ -14,6 +14,12 @@ export type {
   FileAttachmentBlock,
   FollowupChip,
   FollowupsBlock,
+  TransactionsFilter,
+  TransactionsBlock,
+  DuplicateGroupSummary,
+  DuplicateGroupsBlock,
+  RecurringPatternSummary,
+  RecurringPatternsBlock,
   ErrorBlock,
   ContentBlock,
   ChatMessage,
@@ -48,6 +54,7 @@ export type {
 
 // Prompts (chat / import / enrich)
 export { SYSTEM_PROMPT, buildContext, IMPORT_SYSTEM_PROMPT, ENRICH_SYSTEM_PROMPT } from "./prompts"
+export type { BudgetStatsBlock } from "./prompts"
 
 // Render-tool → ContentBlock map (shared by every adapter)
 export { buildRenderToolMap, RENDER_FOLLOWUPS_TOOL_NAME } from "./render-map"

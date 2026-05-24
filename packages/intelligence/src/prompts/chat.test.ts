@@ -50,6 +50,31 @@ describe("buildContext", () => {
     expect(dateIndex).toBeGreaterThan(contextIndex);
     expect(dateIndex).toBeLessThan(userIndex);
   });
+
+  it("omits the [Budget stats] block when no stats are supplied", () => {
+    const result = buildContext({ budgetName: "Test" });
+    expect(result).not.toContain("[Budget stats]");
+  });
+
+  it("renders the [Budget stats] block between [Context] and [User message]", () => {
+    const result = buildContext({
+      budgetName: "Test",
+      stats: {
+        headline: "1,247 transactions across 8 accounts spanning Jan 2020 – May 2026",
+        netWorth: "Net worth: $123,456",
+        topCategories: "Top YTD expense categories: Groceries ($4,231)",
+      },
+    });
+    expect(result).toContain("[Budget stats]");
+    expect(result).toContain("1,247 transactions across 8 accounts");
+    expect(result).toContain("Net worth: $123,456");
+    expect(result).toContain("Top YTD expense categories: Groceries ($4,231)");
+
+    const statsIdx = result.indexOf("[Budget stats]");
+    const userIdx = result.indexOf("[User message]");
+    expect(statsIdx).toBeGreaterThan(result.indexOf("[Context]"));
+    expect(statsIdx).toBeLessThan(userIdx);
+  });
 });
 
 describe("SYSTEM_PROMPT", () => {

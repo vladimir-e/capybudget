@@ -74,6 +74,65 @@ export interface FollowupsBlock {
   chips: FollowupChip[]
 }
 
+/** Filter payload for the transactions card. Mirrors `LockedFilters`
+ *  in the app's transactions browser — kept in sync so the model's
+ *  `render_transactions` filter applies cleanly when the modal opens.
+ *  `transactionIds`, when present, takes precedence over the other
+ *  fields (explicit selection wins). Dates as YYYY-MM-DD; amounts in
+ *  cents, inclusive on both ends. */
+export interface TransactionsFilter {
+  transactionIds?: string[]
+  categoryId?: string
+  merchant?: string
+  dateRange?: { from: string; to: string }
+  amountRange?: { min: number; max: number }
+  type?: "income" | "expense" | "transfer"
+}
+
+export interface TransactionsBlock {
+  type: "transactions"
+  label: string
+  count: number
+  filter: TransactionsFilter
+  summary?: string
+}
+
+export interface DuplicateGroupSummary {
+  summary?: string
+  transactionIds: string[]
+  confidence: "high" | "possible"
+  reason: string
+  /** Representative amount in cents. */
+  amount: number
+  merchant: string
+  /** Representative date (YYYY-MM-DD). */
+  date: string
+}
+
+export interface DuplicateGroupsBlock {
+  type: "duplicate-groups"
+  groups: DuplicateGroupSummary[]
+}
+
+export interface RecurringPatternSummary {
+  merchant: string
+  cadence: "weekly" | "monthly" | "yearly" | "irregular"
+  /** Mean amount in cents; sign matches the underlying transactions. */
+  averageAmount: number
+  amountVariance: "stable" | "variable"
+  transactionIds: string[]
+  firstSeen: string
+  lastSeen: string
+  nextExpected?: string
+  /** Sum of magnitudes in cents. */
+  totalSpent: number
+}
+
+export interface RecurringPatternsBlock {
+  type: "recurring-patterns"
+  patterns: RecurringPatternSummary[]
+}
+
 /** Rendered when the underlying provider surfaces a fatal error.
  *  Carries enough metadata for the UI to render a billing CTA when
  *  the failure is a quota/credit issue. */
@@ -92,6 +151,9 @@ export type ContentBlock =
   | ToolActivityBlock
   | FileAttachmentBlock
   | FollowupsBlock
+  | TransactionsBlock
+  | DuplicateGroupsBlock
+  | RecurringPatternsBlock
   | ErrorBlock
 
 export interface ChatMessage {

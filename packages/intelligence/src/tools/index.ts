@@ -35,7 +35,12 @@ export {
   handleListCategories,
   handleSpendingSummary,
   handleSearchMerchants,
+  handleTransactionBounds,
 } from "./handlers/data"
+export {
+  handleFindDuplicates,
+  handleFindRecurring,
+} from "./handlers/patterns"
 export {
   handleCreateTransaction,
   handleUpdateTransaction,

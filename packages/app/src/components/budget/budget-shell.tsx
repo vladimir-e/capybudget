@@ -19,7 +19,13 @@ import {
 } from "@/hooks/use-transaction-mutations";
 import { useUndoRedo } from "@/hooks/use-undo-redo";
 import { useReorderAccounts } from "@/hooks/use-account-mutations";
-import { useAccounts, budgetKeys } from "@/hooks/use-budget-data";
+import {
+  useAccounts,
+  useCategories,
+  useTransactions,
+  budgetKeys,
+} from "@/hooks/use-budget-data";
+import { formatBudgetStatsBlock } from "@/lib/format-budget-stats";
 import { useCustomInstructions } from "@/hooks/use-custom-instructions";
 import { useCustomCommands } from "@/hooks/use-custom-commands";
 import { useBudgetRepository } from "@/providers/repository-provider";
@@ -64,7 +70,16 @@ export function BudgetShell({ path, name }: BudgetShellProps) {
   const { undo, redo } = useUndoRedo();
   const reorderAccounts = useReorderAccounts();
   const { data: accounts = [] } = useAccounts();
+  const { data: categories = [] } = useCategories();
+  const { data: transactions = [] } = useTransactions();
   const hasAccounts = accounts.some((a) => !a.archived);
+
+  // Pre-formatted budget stats prepended to every Capy message so the
+  // model has scale and shape without a probing tool call.
+  const statsBlock = useMemo(
+    () => formatBudgetStatsBlock(transactions, accounts, categories),
+    [transactions, accounts, categories],
+  );
 
   // Determine active section from current route
   const matches = useMatches();
@@ -107,6 +122,7 @@ export function BudgetShell({ path, name }: BudgetShellProps) {
     onDataChanged: invalidateBudgetData,
     repo,
     fileAdapter: tauriFileAdapter,
+    stats: statsBlock,
   });
 
   const currentAccount = accounts.find((a) => a.id === currentAccountId);

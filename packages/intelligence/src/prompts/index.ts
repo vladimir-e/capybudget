@@ -10,5 +10,6 @@
  */
 
 export { SYSTEM_PROMPT, buildContext } from "./chat"
+export type { BudgetStatsBlock } from "./chat"
 export { IMPORT_SYSTEM_PROMPT } from "./import"
 export { ENRICH_SYSTEM_PROMPT } from "./enrich"

@@ -47,6 +47,7 @@ Capy is a budget tool that surfaces data. You're operating IN the user's app, no
   - render_table: lists, breakdowns by row, structured operation results
   - render_bar_chart: comparisons across categories or time
   - render_donut_chart: proportions and distributions
+- **Transaction lists**: never use \`render_table\` for showing transactions. Use \`render_transactions\` (single grouped selection — by category, merchant, filter, or explicit ID set), \`render_duplicate_groups\` (after find_duplicates), or \`render_recurring_patterns\` (after find_recurring). These render as clickable cards that open the app's transaction modal — far more usable than tables in the narrow chat panel.
 - Prose belongs only where prose adds something the chart doesn't: a single sentence of context, an answer to a yes/no question, an explanation of an action you just took.
 - When a chart needs framing, lead with one short sentence then the chart. Don't follow the chart with anything unless the user asked a question the chart can't answer.
 
@@ -64,6 +65,8 @@ After calling \`render_followups\`, your turn is over — do not produce any fur
 - list_categories: all categories grouped by type
 - spending_summary: aggregated spending by category for a period
 - search_merchants: find merchants by name or description fragment across the full transaction history. Use this when the user asks about a specific place ("how much did I spend at Trader Joe's?", "did I ever shop at REI?") — it matches both clean merchant names and the raw bank descriptions, so it catches transactions even when the merchant field wasn't filled in.
+- find_duplicates: surface likely duplicate transactions already in the budget. Returns high-confidence and possible groups. Follow with \`render_duplicate_groups\` to display them.
+- find_recurring: surface recurring merchants (subscriptions, monthly bills, weekly habits). Returns cadence, average amount, and next expected date. Follow with \`render_recurring_patterns\` to display them.
 
 ## Checking imports
 The user may also ask about a recent Smart Import — "did my import succeed?", "what's still in the import draft?". You can read the import working directory directly:
@@ -126,11 +129,26 @@ ${PRODUCT}
 ${DATA_MODEL}`
 
 /**
+ * Pre-formatted budget stats lines the chat hook can prepend to every
+ * message. Building them at the call site (where transactions/accounts/
+ * categories already live) keeps this prompt module free of repo deps.
+ */
+export interface BudgetStatsBlock {
+  /** Headline line, e.g. "1,247 transactions across 8 accounts spanning Jan 2020 – May 2026". */
+  headline: string
+  /** Optional net-worth line, e.g. "Net worth: $123,456". Omit when no accounts are present. */
+  netWorth?: string
+  /** Optional top-categories line, e.g. "Top YTD expense categories: Groceries ($4,231), Restaurants ($2,108)". */
+  topCategories?: string
+}
+
+/**
  * Build context header to prepend to the user's message.
  */
 export function buildContext(opts: {
   budgetName: string
   budgetPath?: string
+  stats?: BudgetStatsBlock
 }): string {
   const date = new Date().toLocaleDateString("en-US", {
     year: "numeric",
@@ -146,6 +164,12 @@ export function buildContext(opts: {
 
   if (opts.budgetPath) {
     lines.push(`Budget folder: ${opts.budgetPath}`)
+  }
+
+  if (opts.stats) {
+    lines.push("", "[Budget stats]", opts.stats.headline)
+    if (opts.stats.netWorth) lines.push(opts.stats.netWorth)
+    if (opts.stats.topCategories) lines.push(opts.stats.topCategories)
   }
 
   lines.push("", "[User message]")

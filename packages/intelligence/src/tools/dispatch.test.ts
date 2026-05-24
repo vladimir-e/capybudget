@@ -83,6 +83,11 @@ describe("isDispatchTool", () => {
     expect(isDispatchTool("read_spec")).toBe(true)
   })
 
+  it("recognizes pattern tools", () => {
+    expect(isDispatchTool("find_duplicates")).toBe(true)
+    expect(isDispatchTool("find_recurring")).toBe(true)
+  })
+
   it("rejects unknown tools", () => {
     expect(isDispatchTool("nonsense")).toBe(false)
   })

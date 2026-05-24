@@ -18,6 +18,7 @@ import {
   isImageAttachment,
   SYSTEM_PROMPT,
   MUTATION_TOOL_NAMES,
+  type BudgetStatsBlock,
   type FileAttachment,
   type MessageContent,
   type StreamEvent,
@@ -36,6 +37,11 @@ interface UseCapySessionOptions {
   repo?: BudgetRepository
   /** Required by API adapters (in-process tool dispatch); ignored by Claude CLI. */
   fileAdapter?: FileAdapter
+  /** Pre-formatted budget stats prepended to every user message so the
+   *  model has scale and shape without needing a probing tool call.
+   *  Pre-formatted by the caller (where transactions/accounts/categories
+   *  are already in scope) — keeps this hook free of repo coupling. */
+  stats?: BudgetStatsBlock
 }
 
 interface UseCapySessionReturn {
@@ -193,6 +199,7 @@ export function useCapySession(opts: UseCapySessionOptions): UseCapySessionRetur
       const context = buildContext({
         budgetName: o.budgetName,
         budgetPath: o.budgetPath,
+        stats: o.stats,
       })
 
       const allFiles = files ?? []
