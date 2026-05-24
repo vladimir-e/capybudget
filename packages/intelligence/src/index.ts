@@ -14,10 +14,15 @@ export type {
   FileAttachmentBlock,
   FollowupChip,
   FollowupsBlock,
+  ErrorBlock,
   ContentBlock,
   ChatMessage,
   StreamEvent,
+  SessionProvider,
 } from "./types"
+
+// Error extraction (shared across API adapters)
+export { extractErrorMessage } from "./error-message"
 
 // Session interface
 export type { CapySessionOptions, CapySession } from "./session"

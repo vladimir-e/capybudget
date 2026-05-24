@@ -412,8 +412,42 @@ describe("OpenAiSession", () => {
     await session.send("Hi")
 
     const errorEvent = events.find((e) => e.type === "error")
-    expect(errorEvent).toEqual({ type: "error", message: "rate limited" })
+    expect(errorEvent).toEqual({
+      type: "error",
+      message: "rate limited",
+      status: undefined,
+      provider: "openai",
+    })
     expect(events.some((e) => e.type === "done")).toBe(false)
+  })
+
+  it("extracts the inner message from an OpenAI APIError-shaped throw", async () => {
+    const apiError = new Error("429 You exceeded your current quota") as Error & {
+      status: number
+      error: unknown
+    }
+    apiError.status = 429
+    apiError.error = {
+      type: "insufficient_quota",
+      code: "insufficient_quota",
+      message:
+        "You exceeded your current quota, please check your plan and billing details.",
+      param: null,
+    }
+
+    queueTurn({ finish_reason: "stop", error: apiError })
+
+    const { session, events } = makeSession()
+    await session.send("Hi")
+
+    const errorEvent = events.find((e) => e.type === "error")
+    expect(errorEvent).toEqual({
+      type: "error",
+      message:
+        "You exceeded your current quota, please check your plan and billing details.",
+      status: 429,
+      provider: "openai",
+    })
   })
 
   it("stop() drops a trailing assistant turn with unmatched tool_calls", async () => {

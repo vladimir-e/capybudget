@@ -74,6 +74,16 @@ export interface FollowupsBlock {
   chips: FollowupChip[]
 }
 
+/** Rendered when the underlying provider surfaces a fatal error.
+ *  Carries enough metadata for the UI to render a billing CTA when
+ *  the failure is a quota/credit issue. */
+export interface ErrorBlock {
+  type: "error"
+  message: string
+  status?: number
+  provider?: SessionProvider
+}
+
 export type ContentBlock =
   | TextBlock
   | TableBlock
@@ -82,6 +92,7 @@ export type ContentBlock =
   | ToolActivityBlock
   | FileAttachmentBlock
   | FollowupsBlock
+  | ErrorBlock
 
 export interface ChatMessage {
   id: string
@@ -116,4 +127,14 @@ export type StreamEvent =
       ok: boolean
     }
   | { type: "done" }
-  | { type: "error"; message: string }
+  | {
+      type: "error"
+      message: string
+      status?: number
+      /** Set by the adapter so the UI can route billing CTAs to the
+       *  right provider's console. Omitted on synthetic errors raised
+       *  by the hook layer (e.g. budget exhausted, unconfigured). */
+      provider?: SessionProvider
+    }
+
+export type SessionProvider = "anthropic" | "openai" | "claude-cli"

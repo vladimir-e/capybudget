@@ -141,6 +141,7 @@ describe("ClaudeCliSession", () => {
     expect(events).toContainEqual({
       type: "error",
       message: "spawn failed: ENOENT",
+      provider: "claude-cli",
     })
   })
 
@@ -393,6 +394,7 @@ describe("ClaudeCliSession", () => {
     expect(events).toContainEqual({
       type: "error",
       message: "Reached maximum number of turns (100)",
+      provider: "claude-cli",
     })
 
     handlers.close?.({ code: 0 })

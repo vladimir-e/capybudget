@@ -98,6 +98,12 @@ export function useCapySession(opts: UseCapySessionOptions): UseCapySessionRetur
           hadMutationsRef.current = false
           ackedToolCallsRef.current = new Set()
           setMessages((prev) => {
+            const errorBlock: ContentBlock = {
+              type: "error",
+              message: event.message,
+              status: event.status,
+              provider: event.provider,
+            }
             const updated = [...prev]
             const last = updated[updated.length - 1]
             if (last?.role !== "assistant") {
@@ -106,16 +112,13 @@ export function useCapySession(opts: UseCapySessionOptions): UseCapySessionRetur
                 {
                   id: crypto.randomUUID(),
                   role: "assistant" as const,
-                  blocks: [{ type: "text" as const, content: `Error: ${event.message}` }],
+                  blocks: [errorBlock],
                 },
               ]
             }
             updated[updated.length - 1] = {
               ...last,
-              blocks: [
-                ...last.blocks,
-                { type: "text" as const, content: `Error: ${event.message}` },
-              ],
+              blocks: [...last.blocks, errorBlock],
             }
             return updated
           })

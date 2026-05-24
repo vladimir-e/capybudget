@@ -106,6 +106,12 @@ export class ClaudeCliSession implements CapySession {
           this.onEvent(event)
           continue
         }
+        // CLI emits already-clean error strings via the `result` line;
+        // stamp the provider so the UI can render a consistent bubble.
+        if (event.type === "error") {
+          this.onEvent({ ...event, provider: "claude-cli" })
+          continue
+        }
         this.onEvent(this.accumulateCycleEvent(event))
       }
     })
@@ -122,7 +128,7 @@ export class ClaudeCliSession implements CapySession {
     })
 
     command.on("error", (error) => {
-      this.onEvent({ type: "error", message: error })
+      this.onEvent({ type: "error", message: error, provider: "claude-cli" })
     })
 
     this.child = await command.spawn()

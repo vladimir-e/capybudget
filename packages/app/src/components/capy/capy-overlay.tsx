@@ -1,8 +1,10 @@
 import { useRef, useEffect, useState, useCallback, type KeyboardEvent, type ChangeEvent, type DragEvent, type RefObject } from "react"
 import { useNavigate } from "@tanstack/react-router"
 import {
+  AlertTriangle,
   Check,
   CreditCard,
+  ExternalLink,
   File as FileIcon,
   Image,
   Loader2,
@@ -37,11 +39,14 @@ import {
   type ContentBlock,
   type BarChartBlock,
   type DonutChartBlock,
+  type ErrorBlock,
   type FollowupChip,
   type IntelligenceProvider,
+  type SessionProvider,
   type TableBlock,
   type ToolActivityBlock,
 } from "@capybudget/intelligence"
+import { open as shellOpen } from "@tauri-apps/plugin-shell"
 
 // Panel sizing — the desktop default and lower bound. Below `sm:`
 // the panel goes full-width and the resize handle is hidden, which
@@ -671,6 +676,7 @@ type MessageGroup =
   | { kind: "bubble"; blocks: ContentBlock[] }
   | { kind: "tools"; blocks: ToolActivityBlock[]; trailing: boolean }
   | { kind: "followups"; chips: FollowupChip[] }
+  | { kind: "error"; block: ErrorBlock }
 
 function groupBlocks(blocks: ContentBlock[]): MessageGroup[] {
   const groups: MessageGroup[] = []
@@ -698,6 +704,10 @@ function groupBlocks(blocks: ContentBlock[]): MessageGroup[] {
       flushBubble()
       flushTools(false)
       groups.push({ kind: "followups", chips: block.chips })
+    } else if (block.type === "error") {
+      flushBubble()
+      flushTools(false)
+      groups.push({ kind: "error", block })
     } else {
       flushTools(false)
       bubble.push(block)
@@ -727,6 +737,9 @@ function MessageBubble({
       {groups.map((group, gi) => {
         if (group.kind === "followups") {
           return <FollowupChips key={gi} chips={group.chips} onSend={onSend} disabled={isStreaming} />
+        }
+        if (group.kind === "error") {
+          return <ErrorBubble key={gi} block={group.block} />
         }
 
         return (
@@ -791,6 +804,10 @@ function BlockRenderer({
     case "followups":
       // Lifted out of the bubble by groupBlocks() and rendered as a
       // separate FollowupChips group.
+      return null
+    case "error":
+      // Lifted out of the bubble by groupBlocks() and rendered as a
+      // distinct ErrorBubble.
       return null
   }
 }
@@ -918,6 +935,55 @@ function FollowupChips({
           {chip.label}
         </button>
       ))}
+    </div>
+  )
+}
+
+/* ── Error bubble ─────────────────────────────────────────────── */
+
+const BILLING_CTA_URLS: Partial<Record<SessionProvider, string>> = {
+  anthropic: "https://console.anthropic.com/settings/billing",
+  openai: "https://platform.openai.com/account/billing",
+  // claude-cli — billing flows through the user's own CLI install, nothing
+  // for us to link to here.
+}
+
+const BILLING_MESSAGE_PATTERN = /credit|balance|billing|quota/i
+
+function billingCtaUrl(block: ErrorBlock): string | null {
+  if (!block.provider) return null
+  const url = BILLING_CTA_URLS[block.provider]
+  if (!url) return null
+  const isBillingStatus = block.status === 400 || block.status === 402
+  if (!isBillingStatus) return null
+  if (!BILLING_MESSAGE_PATTERN.test(block.message)) return null
+  return url
+}
+
+function ErrorBubble({ block }: { block: ErrorBlock }) {
+  const ctaUrl = billingCtaUrl(block)
+  return (
+    <div className="flex justify-start">
+      <div className="max-w-[90%] rounded-2xl rounded-bl-sm border border-destructive/30 bg-destructive/10 px-5 py-4 space-y-3 text-destructive">
+        <div className="flex items-start gap-2.5">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+          <p className="text-[15px] leading-relaxed whitespace-pre-wrap">
+            {block.message}
+          </p>
+        </div>
+        {ctaUrl && (
+          <button
+            type="button"
+            onClick={() => {
+              void shellOpen(ctaUrl)
+            }}
+            className="inline-flex items-center gap-1.5 text-xs font-medium text-destructive/90 underline-offset-4 hover:underline"
+          >
+            Open billing page
+            <ExternalLink className="h-3 w-3" />
+          </button>
+        )}
+      </div>
     </div>
   )
 }

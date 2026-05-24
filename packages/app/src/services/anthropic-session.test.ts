@@ -317,8 +317,39 @@ describe("AnthropicSession", () => {
     await session.send("Hi")
 
     const errorEvent = events.find((e) => e.type === "error")
-    expect(errorEvent).toEqual({ type: "error", message: "rate limited" })
+    expect(errorEvent).toEqual({
+      type: "error",
+      message: "rate limited",
+      provider: "anthropic",
+    })
     expect(events.some((e) => e.type === "done")).toBe(false)
+  })
+
+  it("extracts the inner message from an Anthropic APIError-shaped throw", async () => {
+    const apiError = new Error(
+      `400 {"type":"error","error":{"type":"invalid_request_error","message":"Your credit balance is too low to access the Anthropic API."}}`,
+    ) as Error & { status: number; error: unknown }
+    apiError.status = 400
+    apiError.error = {
+      type: "error",
+      error: {
+        type: "invalid_request_error",
+        message: "Your credit balance is too low to access the Anthropic API.",
+      },
+    }
+
+    queueTurn({ stop_reason: "end_turn", error: apiError })
+
+    const { session, events } = makeSession()
+    await session.send("Hi")
+
+    const errorEvent = events.find((e) => e.type === "error")
+    expect(errorEvent).toEqual({
+      type: "error",
+      message: "Your credit balance is too low to access the Anthropic API.",
+      status: 400,
+      provider: "anthropic",
+    })
   })
 
   it("stop() drops a trailing assistant turn with unmatched tool_use", async () => {

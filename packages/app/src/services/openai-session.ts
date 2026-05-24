@@ -1,6 +1,7 @@
 import OpenAI from "openai"
 import {
   buildRenderToolMap,
+  extractErrorMessage,
   RENDER_FOLLOWUPS_TOOL_NAME,
   runTool,
   getToolDefinitions,
@@ -116,8 +117,8 @@ export class OpenAiSession implements CapySession {
       }
     } catch (err) {
       if (this.wasAborted(err)) return
-      const message = err instanceof Error ? err.message : String(err)
-      this.opts.onEvent({ type: "error", message })
+      const { message, status } = extractErrorMessage(err)
+      this.opts.onEvent({ type: "error", message, status, provider: "openai" })
     } finally {
       this.abortController = null
     }
