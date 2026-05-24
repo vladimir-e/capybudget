@@ -59,15 +59,23 @@ function toLockedFilters(filter: TransactionsBlock["filter"]): LockedFilters {
   if (filter.merchant !== undefined) out.merchant = filter.merchant;
   if (filter.dateRange) {
     out.dateRange = {
-      from: new Date(filter.dateRange.from),
+      from: parseYmdLocal(filter.dateRange.from),
       // LockedFilters.to is exclusive; the model passes inclusive dates,
       // so bump end by one day.
-      to: addDays(new Date(filter.dateRange.to), 1),
+      to: addDays(parseYmdLocal(filter.dateRange.to), 1),
     };
   }
   if (filter.amountRange) out.amountRange = filter.amountRange;
   if (filter.type) out.type = filter.type;
   return out;
+}
+
+/** Parse "YYYY-MM-DD" as local midnight (matching how analytics tabs
+ *  construct DateRange.start/end). `new Date("2026-03-01")` would parse
+ *  as UTC midnight and shift by ±a day in non-UTC zones for display. */
+function parseYmdLocal(ymd: string): Date {
+  const [y, m, d] = ymd.split("-").map(Number);
+  return new Date(y, (m ?? 1) - 1, d ?? 1);
 }
 
 function addDays(d: Date, days: number): Date {
