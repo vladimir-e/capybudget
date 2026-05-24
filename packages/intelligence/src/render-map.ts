@@ -21,13 +21,7 @@ import type {
   TableBlock,
 } from "./types"
 
-/**
- * `render_followups` is a **terminal-signal tool**: when the model emits it,
- * the assistant turn is over. Adapters dispatch the call (so the UI gets the
- * chips), push the tool_result to history, and exit the agentic loop without
- * making another API request. Skipping the wasted ack round-trip saves a full
- * stream per turn.
- */
+// Terminal-signal tool contract — see specs/INTELLIGENCE.md.
 export const RENDER_FOLLOWUPS_TOOL_NAME = "render_followups"
 
 type RenderBuilder = (input: Record<string, unknown>) => ContentBlock | null
@@ -55,19 +49,11 @@ const BUILDERS: Record<string, RenderBuilder> = {
   },
 }
 
-/**
- * Build the render-tool map. Returns a fresh copy so adapter modules
- * can't accidentally mutate the shared definition.
- */
+// Fresh copy so adapters can't mutate the shared definition.
 export function buildRenderToolMap(): Record<string, RenderBuilder> {
   return { ...BUILDERS }
 }
 
-/**
- * Validate and normalize the `chips` payload from a `render_followups`
- * tool call. Returns the trimmed chip list, or `null` when the input is
- * malformed or empty (so the UI never renders an empty pill row).
- */
 function sanitizeFollowupChips(raw: unknown): FollowupChip[] | null {
   if (!Array.isArray(raw)) return null
   const chips: FollowupChip[] = []

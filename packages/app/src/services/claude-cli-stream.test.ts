@@ -762,6 +762,27 @@ describe("parseStreamLine", () => {
     })
   })
 
+  describe("empty / whitespace text alongside other blocks", () => {
+    it("drops whitespace-only text but preserves a sibling tool_use", () => {
+      const line = JSON.stringify({
+        type: "assistant",
+        message: {
+          content: [
+            { type: "text", text: "  " },
+            { type: "tool_use", name: "list_accounts", input: {} },
+          ],
+        },
+      })
+
+      expect(parseStreamLine(line)).toEqual([
+        {
+          type: "content",
+          blocks: [{ type: "tool-activity", tool: "list_accounts" }],
+        },
+      ])
+    })
+  })
+
   describe("assistant with empty / missing content", () => {
     it("returns [] when message has no content array", () => {
       const line = JSON.stringify({

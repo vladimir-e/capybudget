@@ -322,9 +322,8 @@ export class OpenAiSession implements CapySession {
         })
         return
       }
-      // `render_followups` is a terminal-signal tool — exit without the wasted
-      // ack round-trip. OpenAI tool results are `role: "tool"` (not `user`),
-      // so the next `send()` lands naturally on top.
+      // Terminal-signal tool — exit. OpenAI tool messages use `role: "tool"`,
+      // so the next user send lands naturally without merge gymnastics.
       if (terminalToolSeen) return
     }
   }

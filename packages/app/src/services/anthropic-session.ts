@@ -31,11 +31,6 @@ function toolUseToContentBlock(name: string, input: Record<string, unknown>): Co
 
 type UserContentBlock = Exclude<Anthropic.MessageParam["content"], string>[number]
 
-/**
- * Coerce a user `content` value (string or block array) into a uniform array
- * of blocks. Keeps the merge path in `appendUserContent` simple — strings get
- * promoted to a single text block before concatenation.
- */
 function normalizeUserContent(
   content: Anthropic.MessageParam["content"],
 ): UserContentBlock[] {
@@ -201,13 +196,9 @@ export class AnthropicSession implements CapySession {
         }
       })
 
-      // `message` fires at message_stop; `finalMessage()` would also await the
-      // SSE tail (seconds of latency for a usage chunk we don't display). We
-      // intentionally do *not* abort the stream afterwards — abort doesn't
-      // propagate cleanly to the WKWebView fetch body and leaves the socket
-      // half-open, which can block the next iteration's request for minutes.
-      // Letting the SDK drain in the background is harmless: we have the data
-      // we need, and HTTP/2 multiplexes the next request on the same connection.
+      // Resolve on `message` (message_stop) instead of `finalMessage()` — and don't
+      // abort afterwards. WKWebView leaves the aborted fetch body half-open, which
+      // can stall the next iteration's request for minutes.
       const finalMessage = await new Promise<Anthropic.Message>((resolve, reject) => {
         stream.once("message", (msg) => resolve(msg))
         stream.once("abort", (err) => reject(err))
@@ -274,19 +265,12 @@ export class AnthropicSession implements CapySession {
         })
         return
       }
-      // `render_followups` is a terminal-signal tool — the chips are the user's
-      // next action, so there's nothing for the model to say. Exit without
-      // making the wasted ack round-trip that would just return an empty turn.
+      // Terminal-signal tool — exit; the next user message merges into this turn.
       if (terminalToolSeen) return
     }
   }
 
-  /**
-   * Push a user content blob, but if history already ends with a `user` turn
-   * (e.g. tool_results from a terminal-tool exit), concatenate into it instead.
-   * Anthropic's API enforces strict user/assistant alternation — two consecutive
-   * `user` messages would 400.
-   */
+  // Merge into a trailing user turn — Anthropic rejects two consecutive user roles.
   private appendUserContent(content: Anthropic.MessageParam["content"]): void {
     const last = this.messages[this.messages.length - 1]
     const incomingBlocks = normalizeUserContent(content)

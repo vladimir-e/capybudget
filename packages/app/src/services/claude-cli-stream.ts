@@ -42,10 +42,7 @@ export function parseStreamLine(
 
       for (const block of rawBlocks) {
         if (block.type === "text") {
-          // Suppress empty / whitespace-only text. The CLI's internal post-tool
-          // ack turn (e.g. after `render_followups`) sometimes surfaces as a
-          // blank assistant message — we don't want it to render as a stray
-          // empty bubble in the UI.
+          // CLI post-tool ack sometimes surfaces as a blank assistant message; skip it.
           const text = block.text as string
           if (text.trim().length === 0) continue
           blocks.push({ type: "text", content: text })

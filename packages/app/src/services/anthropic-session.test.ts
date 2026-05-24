@@ -673,6 +673,7 @@ describe("AnthropicSession", () => {
     expect(mockStream).toHaveBeenCalledTimes(1)
     expect(mockRunTool).toHaveBeenCalledTimes(1)
     expect(events[events.length - 1]).toEqual({ type: "done" })
+    expect(events.filter((e) => e.type === "done")).toHaveLength(1)
 
     // History after the exit should end with the user-role tool_results that
     // reference the render_followups call — the action is preserved.
@@ -689,6 +690,45 @@ describe("AnthropicSession", () => {
         ),
     )
     expect(toolResultPresent).toBe(true)
+  })
+
+  it("runs an action tool bundled with render_followups in the same turn, then exits once", async () => {
+    queueTurn({
+      toolUses: [
+        { id: "tu_action", name: "list_accounts", input: {} },
+        {
+          id: "tu_followups",
+          name: "render_followups",
+          input: { chips: [{ label: "More", prompt: "Tell me more" }] },
+        },
+      ],
+      stop_reason: "tool_use",
+    })
+    // No second turn — terminal-tool exit must short-circuit the loop even
+    // when paired with an action tool.
+    mockRunTool
+      .mockResolvedValueOnce("checking $1.00")
+      .mockResolvedValueOnce("Rendered.")
+
+    const { session, events } = makeSession()
+    await session.send("Show me balances")
+
+    expect(mockStream).toHaveBeenCalledTimes(1)
+    expect(mockRunTool).toHaveBeenCalledTimes(2)
+    expect(mockRunTool).toHaveBeenNthCalledWith(
+      1,
+      "list_accounts",
+      {},
+      expect.objectContaining({ budgetPath: "/budget" }),
+    )
+
+    const toolResultIds = events
+      .filter((e) => e.type === "tool-result")
+      .map((e) => (e.type === "tool-result" ? e.id : ""))
+    expect(toolResultIds).toEqual(["tu_action", "tu_followups"])
+
+    expect(events.filter((e) => e.type === "done")).toHaveLength(1)
+    expect(events[events.length - 1]).toEqual({ type: "done" })
   })
 
   it("send() merges a new user message into the trailing user turn after a terminal-tool exit", async () => {

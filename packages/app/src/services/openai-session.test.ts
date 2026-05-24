@@ -804,6 +804,7 @@ describe("OpenAiSession", () => {
     expect(mockCreate).toHaveBeenCalledTimes(1)
     expect(mockRunTool).toHaveBeenCalledTimes(1)
     expect(events[events.length - 1]).toEqual({ type: "done" })
+    expect(events.filter((e) => e.type === "done")).toHaveLength(1)
   })
 
   it("emits tool-result with ok=false when tool_call arguments are malformed JSON", async () => {
