@@ -15,8 +15,6 @@ interface FakeTurn {
   toolUses?: Array<{ id: string; name: string; input: Record<string, unknown> }>
   stop_reason: "end_turn" | "tool_use"
   error?: Error
-  /** Error event fired AFTER `message` — simulates post-abort SDK noise. */
-  postMessageError?: Error
 }
 
 const { mockStream, queueTurn, lastStreamCall, abortSignals, streamStubs } = vi.hoisted(() => {
@@ -128,15 +126,6 @@ const { mockStream, queueTurn, lastStreamCall, abortSignals, streamStubs } = vi.
           ),
           stop_reason: turn.stop_reason,
         })
-        // Bypass `ended` so post-message error lands even though the turn
-        // is logically complete — exercises the drain-skip swallow path.
-        if (turn.postMessageError) {
-          const list = handlers["error"]
-          if (list) {
-            handlers["error"] = list.filter((h) => !(h as { once?: boolean }).once)
-            for (const h of list) h(turn.postMessageError)
-          }
-        }
         ended = true
       } catch (err) {
         emit("error", err)
@@ -593,21 +582,7 @@ describe("AnthropicSession", () => {
     ])
   })
 
-  it("aborts the stream once per turn right after the message event fires", async () => {
-    queueTurn({
-      textDeltas: ["ok"],
-      stop_reason: "end_turn",
-    })
-
-    const { session } = makeSession()
-    await session.send("Hi")
-
-    expect(streamStubs).toHaveLength(1)
-    expect(streamStubs[0].abortSpy).toHaveBeenCalledTimes(1)
-    expect(streamStubs[0].controller.signal.aborted).toBe(true)
-  })
-
-  it("aborts every turn in a multi-turn loop (once per turn, not just the last)", async () => {
+  it("does not abort the stream — lets the SDK drain in the background", async () => {
     queueTurn({
       toolUses: [{ id: "tu1", name: "list_accounts", input: {} }],
       stop_reason: "tool_use",
@@ -621,24 +596,30 @@ describe("AnthropicSession", () => {
     const { session } = makeSession()
     await session.send("How much?")
 
+    // The previous fix aborted each stream after `message` to short-circuit
+    // drain; the abort didn't propagate through the WKWebView fetch body and
+    // wedged the next iteration. Now we just stop listening and let the SDK
+    // finish on its own — abort must never fire from the loop itself.
     expect(streamStubs).toHaveLength(2)
     for (const stub of streamStubs) {
-      expect(stub.abortSpy).toHaveBeenCalledTimes(1)
-      expect(stub.controller.signal.aborted).toBe(true)
+      expect(stub.abortSpy).not.toHaveBeenCalled()
+      expect(stub.controller.signal.aborted).toBe(false)
     }
   })
 
-  it("swallows post-message SDK errors (drain-skip suppresses socket-teardown noise)", async () => {
+  it("resolves and emits done as soon as `message` fires, without waiting on drain", async () => {
+    // The mock fires `message` and stops — it never emits an `end`/finalMessage
+    // event. If the loop were awaiting drain (or trying to abort and waiting on
+    // the resulting `abort` event), this send() would hang and the test would
+    // time out. Passing proves the loop exits purely on `message`.
     queueTurn({
-      textDeltas: ["all good"],
+      textDeltas: ["instant"],
       stop_reason: "end_turn",
-      postMessageError: Object.assign(new Error("Connection reset"), { name: "TypeError" }),
     })
 
     const { session, events } = makeSession()
     await session.send("Hi")
 
-    expect(events.some((e) => e.type === "error")).toBe(false)
     expect(events[events.length - 1]).toEqual({ type: "done" })
   })
 

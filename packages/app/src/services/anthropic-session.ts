@@ -65,7 +65,6 @@ export class AnthropicSession implements CapySession {
   private alive = false
   private killed = false
   private interrupted = false
-  private drainSkipped = false
   private toolCallCount = 0
 
   constructor(opts: ApiAdapterOptions) {
@@ -85,7 +84,6 @@ export class AnthropicSession implements CapySession {
     if (this.killed) return
 
     this.interrupted = false
-    this.drainSkipped = false
     this.messages.push({
       role: "user",
       content: toAnthropicUserContent(content),
@@ -103,7 +101,6 @@ export class AnthropicSession implements CapySession {
       this.opts.onEvent({ type: "error", message })
     } finally {
       this.abortController = null
-      this.drainSkipped = false
     }
   }
 
@@ -191,15 +188,17 @@ export class AnthropicSession implements CapySession {
       })
 
       // `message` fires at message_stop; `finalMessage()` would also await the
-      // SSE tail (seconds of latency for a usage chunk we don't display).
+      // SSE tail (seconds of latency for a usage chunk we don't display). We
+      // intentionally do *not* abort the stream afterwards — abort doesn't
+      // propagate cleanly to the WKWebView fetch body and leaves the socket
+      // half-open, which can block the next iteration's request for minutes.
+      // Letting the SDK drain in the background is harmless: we have the data
+      // we need, and HTTP/2 multiplexes the next request on the same connection.
       const finalMessage = await new Promise<Anthropic.Message>((resolve, reject) => {
         stream.once("message", (msg) => resolve(msg))
         stream.once("abort", (err) => reject(err))
         stream.once("error", (err) => reject(err))
       })
-
-      this.drainSkipped = true
-      stream.controller.abort()
 
       this.messages.push({
         role: "assistant",
@@ -273,7 +272,6 @@ export class AnthropicSession implements CapySession {
 
   private wasAborted(err: unknown): boolean {
     if (this.killed) return true
-    if (this.drainSkipped) return true
     if (err instanceof Error) {
       if (err.name === "AbortError") return true
       if ((err as { type?: string }).type === "aborted") return true
