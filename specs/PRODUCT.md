@@ -42,6 +42,18 @@ By default transaction category is null, in the UI this surfaces as 'Uncategoriz
 
 Accounts grouped by type: Cash, Checking, Savings, Credit, Investment, Loans, Archived. Each group shows a subtotal; each account shows its live derived balance.
 
+### Analytics
+
+A tabbed dashboard over the full transaction history. Date-range nav (month / quarter / year / custom / all time) sits above each tab; tabs that don't apply to a given period gray those pills out.
+
+- **Monthly Budget** — per-category targets vs actual spend for the active month. Default tab.
+- **Spending** — breakdown by category for the active range, with drill-into-transactions on each row.
+- **Cash Flow** — monthly income vs expenses across the range.
+- **Net Worth** — net-worth-over-time chart with per-account inclusion toggles.
+- **Compare** — category trends across multiple ranges side by side.
+- **Merchants** — top merchants by spend for the active range.
+- **Patterns** — recurring subscriptions and likely duplicate transactions, both detected over the full window (the tab hides the date-range nav). Each card opens the transaction modal scoped to that pattern or group.
+
 ### Intelligence Layer (Capy)
 
 - **Chat panel** — right-edge slide-out with conversation, tool activity, charts, and follow-up suggestions. See `FRONTEND_DESIGN.md` for the interaction model.

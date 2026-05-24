@@ -72,6 +72,9 @@ The tool handlers don't know which transport called them.
 | `tool-activity` | Tool name (persists in chat history) |
 | `file-attachment` | File name, size, mediaType (rendered as chip) |
 | `followups` | Array of `{label, prompt}` follow-up suggestion chips. Click sends `prompt` as next user message. |
+| `transactions` | A transaction selection: `{label, count, filter, summary?}`. Renders as a clickable card that opens the app's TransactionsModal scoped to `filter`. |
+| `duplicate-groups` | Array of duplicate-group summaries (`{confidence, reason, amount, merchant, date, transactionIds, summary?}`). Renders as a list of group cards with "Review" actions. |
+| `recurring-patterns` | Array of recurring-pattern summaries (`{merchant, cadence, averageAmount, amountVariance, transactionIds, firstSeen, lastSeen, nextExpected?, totalSpent}`). Renders as a list of subscription cards. |
 
 A `BlockRenderer` routes each block to its specialized renderer.
 
@@ -135,7 +138,7 @@ Single source of truth shared between transports:
 - **Definitions** — tool descriptors (name, description, JSON-Schema input). Both transports consume the same list for ListTools / SDK tool config.
 - **Dispatch** — `runTool(name, input, ctx) → string`. The MCP server and the API adapters call this with the same signature. `ToolContext` is `{ repo, fileAdapter, budgetPath }`.
 - **Handlers** — per-tool implementations:
-  - **Data tools** — `list_accounts`, `list_transactions` (filters + `sort` + `offset`), `list_categories`, `spending_summary`, `search_merchants`, `transaction_bounds` (count + date range, same filters as `list_transactions`)
+  - **Data tools** — `list_accounts`, `list_transactions` (filters + `sort` + `offset`), `list_categories`, `spending_summary`, `search_merchants`, `transaction_bounds` (count + date range, same filters as `list_transactions`), `find_duplicates` (intra-budget duplicate groups, high + possible confidence), `find_recurring` (recurring merchants with cadence, average amount, next expected)
   - **Mutation tools** — full CRUD for transactions / accounts / categories, plus `assign_categories`, `bulk_update_transactions` (account/date/merchant across many rows), `set_category_budget` (monthly target), `unarchive_account` / `unarchive_category` (reverse archive), `set_net_worth_exclusions` (toggle Net Worth inclusion)
   - **Import tools** — `read_import_file`, `write_import_file`, `append_import_file`, `list_import_files` (over `.capy/import/`)
   - **CSV tools** — `analyze_csv`, `preview_transform`, `transform_csv`, `auto_enrich`, `enrich_stats`, `enrich_sample`, `enrich_update`
@@ -157,6 +160,9 @@ The app invalidates caches per mutation tool call (not per turn) so the UI refle
 | `render_bar_chart` | `{ title, data: [{label, value}] }` | Horizontal bar chart |
 | `render_donut_chart` | `{ title, data: [{label, value}] }` | SVG donut chart with legend |
 | `render_followups` | `{ chips: [{label, prompt}] }` (1–4 items) | Follow-up suggestion chips after an answer. |
+| `render_transactions` | `{ label, count, filter, summary? }` | Clickable card representing a transaction selection. Clicking opens the TransactionsModal scoped to `filter` (transactionIds wins over the other fields). The canonical tool for showing any list of transactions — replaces `render_table` for this use case. |
+| `render_duplicate_groups` | `{ groups: [...] }` | List of duplicate-group cards, each with a "Review" action that opens the modal scoped to that group's transactionIds. |
+| `render_recurring_patterns` | `{ patterns: [...] }` | List of subscription cards with cadence, average amount, next expected, and total spent. Clicking opens the modal scoped to the pattern's transactionIds. |
 
 No-ops on the dispatch side — they carry structured data from AI to frontend via `tool_use` events.
 
@@ -206,9 +212,16 @@ Budget: personal
 Date: March 15, 2026
 Budget folder: /path/to/budget
 
+[Budget stats]
+1,247 transactions across 8 accounts spanning Jan 2020 – May 2026
+Net worth: $123,456
+Top YTD expense categories: Groceries ($4,231), Restaurants ($2,108), Utilities ($1,433)
+
 [User message]
 What did I spend on food this month?
 ```
+
+The `[Budget stats]` block is pre-formatted by the caller (where transactions / accounts / categories are already in scope) and passed to `buildContext`. It gives the model scale and shape without a probing tool call. Omitted on empty budgets.
 
 ## Custom Instructions
 
