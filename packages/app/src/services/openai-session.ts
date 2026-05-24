@@ -84,7 +84,6 @@ export class OpenAiSession implements CapySession {
   private alive = false
   private killed = false
   private interrupted = false
-  private drainSkipped = false
   private toolCallCount = 0
 
   constructor(opts: ApiAdapterOptions) {
@@ -110,7 +109,6 @@ export class OpenAiSession implements CapySession {
     })
     this.alive = true
 
-    this.drainSkipped = false
     try {
       await this.runAgenticLoop()
       if (!this.interrupted && !this.killed) {
@@ -122,7 +120,6 @@ export class OpenAiSession implements CapySession {
       this.opts.onEvent({ type: "error", message })
     } finally {
       this.abortController = null
-      this.drainSkipped = false
     }
   }
 
@@ -222,10 +219,10 @@ export class OpenAiSession implements CapySession {
 
         if (choice.finish_reason) {
           finishReason = choice.finish_reason
-          // OpenAI keeps the stream open for a terminal usage chunk Capy doesn't
-          // display — release the socket now that the assistant content is in hand.
-          this.drainSkipped = true
-          stream.controller.abort()
+          // OpenAI keeps the stream open for a terminal usage chunk Capy
+          // doesn't display. Breaking out of `for await` lets V8 invoke the
+          // iterator's `return()`, which the SDK hooks for cleanup — no
+          // explicit abort needed, and symmetric with the Anthropic adapter.
           break
         }
       }
@@ -338,7 +335,6 @@ export class OpenAiSession implements CapySession {
 
   private wasAborted(err: unknown): boolean {
     if (this.killed) return true
-    if (this.drainSkipped) return true
     if (err instanceof Error) {
       if (err.name === "AbortError") return true
       if ((err as { type?: string }).type === "aborted") return true

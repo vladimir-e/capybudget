@@ -19,15 +19,11 @@ interface FakeTurn {
   tailChunk?: { content: string }
 }
 
-const { mockCreate, queueTurn, lastCreateCall, abortSignals, streamStubs } = vi.hoisted(
+const { mockCreate, queueTurn, lastCreateCall, abortSignals } = vi.hoisted(
   () => {
     const queue: FakeTurn[] = []
     const calls: Array<{ messages: unknown; tools: unknown }> = []
     const signals: AbortSignal[] = []
-    const stubs: Array<{
-      controller: AbortController
-      abortSpy: ReturnType<typeof vi.fn>
-    }> = []
 
     const create = vi.fn().mockImplementation(async (params, opts) => {
       calls.push({
@@ -131,13 +127,6 @@ const { mockCreate, queueTurn, lastCreateCall, abortSignals, streamStubs } = vi.
       }
 
       const controller = new AbortController()
-      const abortSpy = vi.fn()
-      const originalAbort = controller.abort.bind(controller)
-      controller.abort = ((reason?: unknown) => {
-        abortSpy(reason)
-        return originalAbort(reason as Error | undefined)
-      }) as typeof controller.abort
-      stubs.push({ controller, abortSpy })
 
       async function* iterate() {
         for (const chunk of chunks) {
@@ -164,7 +153,6 @@ const { mockCreate, queueTurn, lastCreateCall, abortSignals, streamStubs } = vi.
       queueTurn,
       lastCreateCall: () => calls[calls.length - 1],
       abortSignals: signals,
-      streamStubs: stubs,
     }
   },
 )
@@ -217,7 +205,6 @@ beforeEach(() => {
   mockCreate.mockClear()
   mockRunTool.mockReset()
   abortSignals.length = 0
-  streamStubs.length = 0
 })
 
 describe("OpenAiSession", () => {
@@ -734,7 +721,11 @@ describe("OpenAiSession", () => {
     ])
   })
 
-  it("breaks out of the chunk loop on finish_reason and aborts the stream controller", async () => {
+  it("breaks out of the chunk loop on finish_reason without consuming queued tail chunks", async () => {
+    // Mock emits one more chunk AFTER finish_reason; if the adapter ever
+    // kept iterating we'd see "INVISIBLE" land in a content event. Passing
+    // proves the `break` on finish_reason holds — and that we don't need an
+    // explicit stream.controller.abort() to enforce it.
     queueTurn({
       textDeltas: ["visible"],
       finish_reason: "stop",
@@ -744,41 +735,14 @@ describe("OpenAiSession", () => {
     const { session, events } = makeSession()
     await session.send("Hi")
 
-    expect(streamStubs).toHaveLength(1)
-    expect(streamStubs[0].abortSpy).toHaveBeenCalledTimes(1)
-    expect(streamStubs[0].controller.signal.aborted).toBe(true)
-
     const allText = events
       .filter((e) => e.type === "content")
       .flatMap((e) => (e.type === "content" ? e.blocks : []))
       .filter((b) => b.type === "text")
       .map((b) => (b.type === "text" ? b.content : ""))
       .join("")
-    expect(allText).not.toContain("INVISIBLE")
     expect(allText).toBe("visible")
-  })
-
-  it("aborts every turn in a multi-turn loop (once per turn, not just the last)", async () => {
-    queueTurn({
-      toolCallDeltas: [
-        { index: 0, id: "call_a", name: "list_accounts", argFragments: ["{}"] },
-      ],
-      finish_reason: "tool_calls",
-    })
-    queueTurn({
-      textDeltas: ["done"],
-      finish_reason: "stop",
-    })
-    mockRunTool.mockResolvedValueOnce("[]")
-
-    const { session } = makeSession()
-    await session.send("How much?")
-
-    expect(streamStubs).toHaveLength(2)
-    for (const stub of streamStubs) {
-      expect(stub.abortSpy).toHaveBeenCalledTimes(1)
-      expect(stub.controller.signal.aborted).toBe(true)
-    }
+    expect(allText).not.toContain("INVISIBLE")
   })
 
   it("treats render_followups as terminal — exits the loop without a second stream invocation", async () => {
