@@ -1,16 +1,9 @@
 /**
- * Render-tool → ContentBlock mapping.
+ * Render-tool → ContentBlock mapping. Shared by every adapter (Claude
+ * CLI, Anthropic API, OpenAI API) — single source of truth.
  *
- * Shared by every adapter (Claude CLI, Anthropic API, OpenAI API). The
- * model emits the same `render_*` tool calls regardless of provider, so
- * each adapter routes them through the same builders here. Single source
- * of truth — adding a new render tool means adding it to
- * `RENDER_TOOL_DEFS` + here, nowhere else.
- *
- * Each builder validates the parsed tool input. If the payload is
- * malformed (model misbehavior), the builder returns `null` and the
- * adapter falls back to a `tool-activity` block — the chat keeps moving
- * rather than crashing the renderer.
+ * Builders return `null` on malformed input; the adapter falls back to a
+ * `tool-activity` block so the chat keeps moving.
  */
 import type {
   BarChartBlock,

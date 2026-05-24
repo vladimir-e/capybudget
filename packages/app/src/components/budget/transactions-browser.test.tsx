@@ -415,4 +415,17 @@ describe("TransactionsBrowser", () => {
     expect(screen.getByText("Paycheck")).toBeInTheDocument();
     expect(screen.queryByText("Whole Foods")).not.toBeInTheDocument();
   });
+
+  it("renders an expense-range chip as ascending magnitudes with an Expense prefix", () => {
+    renderWithProviders(
+      <TransactionsBrowser
+        transactions={[]}
+        lockedFilters={{ amountRange: { min: -5000, max: -1000 } }}
+        title="Mid expenses"
+      />,
+    );
+    // Chip reads "Expense $10.00 – $50.00", not "-$50.00 – -$10.00".
+    expect(screen.getByText(/Expense\s+\$10\.00\s+–\s+\$50\.00/)).toBeInTheDocument();
+    expect(screen.queryByText(/-\$50\.00\s+–\s+-\$10\.00/)).not.toBeInTheDocument();
+  });
 });

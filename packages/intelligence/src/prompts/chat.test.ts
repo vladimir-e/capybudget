@@ -75,6 +75,22 @@ describe("buildContext", () => {
     expect(statsIdx).toBeGreaterThan(result.indexOf("[Context]"));
     expect(statsIdx).toBeLessThan(userIdx);
   });
+
+  it("places [Budget stats] after Budget folder and before [User message]", () => {
+    const result = buildContext({
+      budgetName: "Test",
+      budgetPath: "/path/to/budget",
+      stats: {
+        headline: "100 transactions across 2 accounts spanning Jan 2026 – May 2026",
+      },
+    });
+    const folderIdx = result.indexOf("Budget folder:");
+    const statsIdx = result.indexOf("[Budget stats]");
+    const userIdx = result.indexOf("[User message]");
+    expect(folderIdx).toBeGreaterThan(-1);
+    expect(statsIdx).toBeGreaterThan(folderIdx);
+    expect(statsIdx).toBeLessThan(userIdx);
+  });
 });
 
 describe("SYSTEM_PROMPT", () => {

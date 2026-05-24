@@ -58,10 +58,12 @@ function toLockedFilters(filter: TransactionsBlock["filter"]): LockedFilters {
   if (filter.categoryId !== undefined) out.categoryId = filter.categoryId;
   if (filter.merchant !== undefined) out.merchant = filter.merchant;
   if (filter.dateRange) {
+    // Local-midnight parsing + inclusive→exclusive bump is the same
+    // contract analytics drilldowns use (cash-flow-tab, spending-tab,
+    // merchants-tab all pass `DateRange.start`/`end` to LockedFilters).
+    // Don't "fix" this by switching to UTC — it would desync chip labels.
     out.dateRange = {
       from: parseYmdLocal(filter.dateRange.from),
-      // LockedFilters.to is exclusive; the model passes inclusive dates,
-      // so bump end by one day.
       to: addDays(parseYmdLocal(filter.dateRange.to), 1),
     };
   }

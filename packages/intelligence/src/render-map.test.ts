@@ -40,6 +40,21 @@ describe("render_transactions builder", () => {
     expect(map.render_transactions({ label: "x", count: "1", filter: {} })).toBeNull()
     expect(map.render_transactions({ label: "x", count: 1 })).toBeNull()
   })
+
+  it("ignores an empty transactionIds array — falls through to other filter fields", () => {
+    const block = map.render_transactions({
+      label: "Groceries",
+      count: 5,
+      filter: {
+        transactionIds: [],
+        categoryId: "cat-groceries",
+      },
+    })
+    expect(block).not.toBeNull()
+    if (block?.type !== "transactions") throw new Error("expected transactions block")
+    expect(block.filter.transactionIds).toBeUndefined()
+    expect(block.filter.categoryId).toBe("cat-groceries")
+  })
 })
 
 describe("render_duplicate_groups builder", () => {

@@ -74,8 +74,6 @@ export function BudgetShell({ path, name }: BudgetShellProps) {
   const { data: transactions = [] } = useTransactions();
   const hasAccounts = accounts.some((a) => !a.archived);
 
-  // Pre-formatted budget stats prepended to every Capy message so the
-  // model has scale and shape without a probing tool call.
   const statsBlock = useMemo(
     () => formatBudgetStatsBlock(transactions, accounts, categories),
     [transactions, accounts, categories],

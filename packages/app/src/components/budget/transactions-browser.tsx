@@ -15,28 +15,17 @@ import {
 // Types
 // ---------------------------------------------------------------------------
 
-/** Locked context the browser displays as non-removable chips.
- *
- *  Mixed-responsibility by design: callers pre-filter `transactions`
- *  themselves for the analytics drilldowns (where the dataset is already
- *  trimmed by tab state), AND the browser itself enforces these fields
- *  on top — necessary for the Capy chat path, where the model emits a
- *  filter spec and the block component passes the full transaction list
- *  in. Pre-filtering remains valid; this layer is additive.
- *
- *  Precedence: `transactionIds` (explicit selection) wins over every
- *  other field. When present, only those IDs are shown — date, category,
- *  merchant, amount, type are ignored.
- *
- *  `dateRange.to` is **exclusive** (first instant *after* the period) to
- *  match the analytics `DateRange.end` convention. The chip renderer
- *  subtracts one day internally so the displayed range is inclusive.
- *  `amountRange` is in cents, inclusive on both ends. */
+/** Filter state the browser applies AND displays as non-removable chips.
+ *  `to` is exclusive (matches `DateRange.end`). `transactionIds`
+ *  short-circuits other fields. */
 export interface LockedFilters {
+  /** Category id, or `""` for the synthetic Uncategorized bucket. */
   categoryId?: string;
+  /** Merchant name (exact, case-insensitive); `""` matches empty-merchant rows. */
   merchant?: string;
+  /** `to` is exclusive. */
   dateRange?: { from: Date; to: Date };
-  /** Explicit transaction selection — wins over the other filter fields. */
+  /** Explicit selection — short-circuits the other fields. */
   transactionIds?: Set<string>;
   /** Inclusive bounds in cents. */
   amountRange?: { min: number; max: number };
@@ -44,17 +33,12 @@ export interface LockedFilters {
 }
 
 interface TransactionsBrowserProps {
-  /** The browser applies `lockedFilters` to this list. Analytics drilldowns
-   *  may still pre-filter at the call site — the filter pass here is
-   *  idempotent on already-filtered data. */
   transactions: Transaction[];
   lockedFilters: LockedFilters;
   title: string;
   subtitle?: string;
 }
 
-/** Apply LockedFilters to a transaction list. `transactionIds`, when
- *  present, short-circuits the other fields — explicit selection wins. */
 function applyLockedFilters(
   transactions: Transaction[],
   locked: LockedFilters,
@@ -140,6 +124,19 @@ function formatDateLabel(d: Date): string {
   });
 }
 
+/** Expense-only ranges (both bounds negative) render as ascending
+ *  magnitudes with an "Expense" prefix, so users read "Expense $10 – $50"
+ *  instead of a confusing "-$50 – -$10". Income ranges (both positive)
+ *  and mixed ranges render raw. */
+function formatAmountRangeChip(min: number, max: number): string {
+  if (min < 0 && max < 0) {
+    const lo = Math.min(Math.abs(min), Math.abs(max));
+    const hi = Math.max(Math.abs(min), Math.abs(max));
+    return `Expense ${formatMoney(lo)} – ${formatMoney(hi)}`;
+  }
+  return `${formatMoney(min)} – ${formatMoney(max)}`;
+}
+
 function FilterChips({
   locked,
   categories,
@@ -150,9 +147,8 @@ function FilterChips({
   const chips: string[] = [];
 
   if (locked.transactionIds) {
-    chips.push(
-      `${locked.transactionIds.size} ${locked.transactionIds.size === 1 ? "selected" : "selected"}`,
-    );
+    const n = locked.transactionIds.size;
+    chips.push(`${n} ${n === 1 ? "transaction selected" : "transactions selected"}`);
   }
 
   if (locked.categoryId !== undefined) {
@@ -177,9 +173,7 @@ function FilterChips({
   }
 
   if (locked.amountRange) {
-    chips.push(
-      `${formatMoney(locked.amountRange.min)} – ${formatMoney(locked.amountRange.max)}`,
-    );
+    chips.push(formatAmountRangeChip(locked.amountRange.min, locked.amountRange.max));
   }
 
   if (locked.type) {

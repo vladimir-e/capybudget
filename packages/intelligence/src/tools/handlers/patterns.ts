@@ -1,8 +1,4 @@
-/**
- * Pattern intelligence tool handlers — read-only over a BudgetRepository.
- * Thin wrappers around `findDuplicates` / `findRecurring` from @capybudget/core
- * that apply tool-input filters and emit JSON the model can read.
- */
+/** Tool handlers wrapping core pattern detection. */
 
 import type { Transaction } from "@capybudget/core"
 import {

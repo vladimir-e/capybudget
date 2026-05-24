@@ -73,6 +73,19 @@ describe("handleFindDuplicates", () => {
     )
     expect(result.groupCount).toBe(0)
   })
+
+  it("filters by dateRange — pair outside the window is dropped", async () => {
+    const txns = [
+      makeTxn({ id: "t1", datetime: "2026-01-10T10:00:00.000Z" }),
+      makeTxn({ id: "t2", datetime: "2026-01-10T14:00:00.000Z" }),
+    ]
+    const result = JSON.parse(
+      await handleFindDuplicates(makeRepo(txns), {
+        dateRange: { from: "2026-03-01", to: "2026-03-31" },
+      }),
+    )
+    expect(result.groupCount).toBe(0)
+  })
 })
 
 describe("handleFindRecurring", () => {
@@ -109,6 +122,31 @@ describe("handleFindRecurring", () => {
       await handleFindRecurring(makeRepo(txns), { cadence: "weekly" }),
     )
     expect(result.patternCount).toBe(0)
+  })
+
+  it("cadence filter returns only matching patterns on mixed data", async () => {
+    // Monthly subscription + weekly coffee — filter should keep only the
+    // monthly one.
+    const weekly: Transaction[] = []
+    for (let i = 0; i < 10; i++) {
+      const date = new Date("2026-01-05T10:00:00.000Z")
+      date.setUTCDate(date.getUTCDate() + i * 7)
+      weekly.push(
+        makeTxn({
+          id: `coffee-${i}`,
+          merchant: "Blue Bottle",
+          amount: -650,
+          datetime: date.toISOString(),
+        }),
+      )
+    }
+    const mixed = [...monthly("Netflix", 6), ...weekly]
+    const result = JSON.parse(
+      await handleFindRecurring(makeRepo(mixed), { cadence: "monthly" }),
+    ) as { patternCount: number; patterns: Array<{ merchant: string; cadence: string }> }
+    expect(result.patternCount).toBe(1)
+    expect(result.patterns[0].merchant).toBe("Netflix")
+    expect(result.patterns[0].cadence).toBe("monthly")
   })
 
   it("respects minTransactions", async () => {

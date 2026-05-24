@@ -1,18 +1,6 @@
 /**
- * Pattern intelligence over a budget's transactions.
- *
- * Three pure functions consumed identically by the chat intelligence
- * layer (find_duplicates / find_recurring tools) and the Patterns
- * analytics tab. Single source of truth — both consumers feed the same
- * data shapes into their respective renderers.
- *
- *   - findDuplicates: intra-budget duplicate detection. Distinct from
- *     `import-duplicates.ts`, which compares incoming rows against
- *     existing ones. This one finds dupes already living in the budget.
- *   - findRecurring: detects merchants paid on a regular cadence —
- *     subscriptions, monthly bills, weekly habits.
- *   - getBudgetStats: a one-shot summary used by the chat prompt to
- *     bootstrap context for the model.
+ * Pattern intelligence — pure functions shared by the chat tools
+ * (find_duplicates / find_recurring) and the Patterns analytics tab.
  */
 
 import type { Account, Category, Transaction } from "./types";
@@ -55,7 +43,6 @@ export function findDuplicates(transactions: Transaction[]): DuplicateGroup[] {
   const claimed = new Set<string>();
   const groups: DuplicateGroup[] = [];
 
-  // ── High-confidence pass ──
   // Bucket by exact (account|amount|date|merchant) signature; any
   // bucket with ≥2 members is a high group.
   const highBuckets = new Map<string, Transaction[]>();
@@ -72,7 +59,6 @@ export function findDuplicates(transactions: Transaction[]): DuplicateGroup[] {
     groups.push(makeGroup(bucket, "high", "Same date, amount, merchant, account"));
   }
 
-  // ── Possible-confidence pass ──
   // Union-find over unclaimed rows that share (account|amount). Inside
   // each such bucket, two rows merge if their dates are within ±1 day
   // and their merchants fuzzy-match.
