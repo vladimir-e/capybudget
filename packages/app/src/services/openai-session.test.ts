@@ -2,26 +2,11 @@ import { describe, it, expect, vi, beforeEach } from "vitest"
 import type { StreamEvent } from "@capybudget/intelligence"
 import type { BudgetRepository, FileAdapter } from "@capybudget/persistence"
 
-// ── SDK mock ───────────────────────────────────────────────────────
-//
-// `chat.completions.create({ stream: true, ... })` returns an
-// async-iterable `Stream<ChatCompletionChunk>`. The mock below lets
-// each test queue up a sequence of streamed turns: text deltas plus
-// optional tool_call deltas (with arguments JSON sliced across many
-// chunks to exercise the per-index accumulator), terminated with a
-// `finish_reason`. Each call to `chat.completions.create` consumes
-// one turn from the queue.
-//
-// A turn can also be queued with `error: true` to simulate an SDK
-// rejection. `aborts: true` queues an AbortError thrown mid-iteration
-// (used by the stop test).
-
 interface FakeToolCallDelta {
   index: number
   id?: string
   name?: string
-  /** Argument fragment(s) to emit, in order — the test simulates
-   *  arguments JSON arriving sliced across chunks. */
+  /** JSON argument fragments, emitted one per chunk to exercise the accumulator. */
   argFragments?: string[]
 }
 
@@ -29,12 +14,8 @@ interface FakeTurn {
   textDeltas?: string[]
   toolCallDeltas?: FakeToolCallDelta[]
   finish_reason: "stop" | "tool_calls" | "length"
-  /** If set, the create() call rejects with this error. */
   error?: Error
-  /** If set, an extra chunk is appended AFTER the finish_reason
-   *  chunk. The adapter is supposed to `break` out of `for await`
-   *  the moment finish_reason arrives, so this chunk should never be
-   *  observed. Used by the early-abort test. */
+  /** Extra chunk appended AFTER finish_reason — must never be observed. */
   tailChunk?: { content: string }
 }
 
@@ -62,9 +43,6 @@ const { mockCreate, queueTurn, lastCreateCall, abortSignals, streamStubs } = vi.
 
       const sig = opts?.signal as AbortSignal | undefined
 
-      // Build the chunk sequence. Every fragment becomes its own chunk
-      // so the per-index accumulator gets exercised. Final chunk
-      // carries `finish_reason`.
       type Chunk = {
         choices: Array<{
           delta: {
@@ -89,8 +67,7 @@ const { mockCreate, queueTurn, lastCreateCall, abortSignals, streamStubs } = vi.
         }
       }
       if (turn.toolCallDeltas) {
-        // First, a chunk for each tool call announcing id+name with
-        // empty args (matches OpenAI's wire shape).
+        // Match OpenAI's wire shape: id+name announcement, then arg fragments.
         for (const tc of turn.toolCallDeltas) {
           chunks.push({
             choices: [
@@ -111,8 +88,6 @@ const { mockCreate, queueTurn, lastCreateCall, abortSignals, streamStubs } = vi.
             ],
           })
         }
-        // Then, one chunk per argument fragment per tool — the order
-        // matches what OpenAI does in the wild (interleaved).
         const maxFrags = Math.max(
           0,
           ...turn.toolCallDeltas.map((t) => t.argFragments?.length ?? 0),
@@ -140,13 +115,9 @@ const { mockCreate, queueTurn, lastCreateCall, abortSignals, streamStubs } = vi.
           }
         }
       }
-      // Terminal chunk with finish_reason.
       chunks.push({
         choices: [{ delta: {}, finish_reason: turn.finish_reason, index: 0 }],
       })
-      // Optional tail chunk — appended AFTER finish_reason. The
-      // adapter must `break` out of the loop on finish_reason; if it
-      // ever yields this chunk we know the early-abort path is broken.
       if (turn.tailChunk) {
         chunks.push({
           choices: [
@@ -159,9 +130,6 @@ const { mockCreate, queueTurn, lastCreateCall, abortSignals, streamStubs } = vi.
         })
       }
 
-      // Match the real OpenAI Stream shape: async-iterable + a public
-      // `controller` (an AbortController the adapter calls `.abort()`
-      // on to release the socket once it has the data it needs).
       const controller = new AbortController()
       const abortSpy = vi.fn()
       const originalAbort = controller.abort.bind(controller)
@@ -173,8 +141,6 @@ const { mockCreate, queueTurn, lastCreateCall, abortSignals, streamStubs } = vi.
 
       async function* iterate() {
         for (const chunk of chunks) {
-          // Honor abort from either the outer signal (user-stop) or the
-          // stream's own controller (adapter's early-drain).
           if (sig?.aborted || controller.signal.aborted) {
             const err = new Error("Aborted")
             err.name = "AbortError"
@@ -213,7 +179,6 @@ vi.mock("openai", () => {
   }
 })
 
-// Tool dispatch mock — replaces in-process `runTool`.
 const { mockRunTool } = vi.hoisted(() => ({
   mockRunTool: vi.fn<
     (
@@ -233,8 +198,6 @@ vi.mock("@capybudget/intelligence", async (importOriginal) => {
 })
 
 import { OpenAiSession } from "./openai-session"
-
-// ── Helpers ────────────────────────────────────────────────────────
 
 function makeSession() {
   const events: StreamEvent[] = []
@@ -256,8 +219,6 @@ beforeEach(() => {
   abortSignals.length = 0
   streamStubs.length = 0
 })
-
-// ── Tests ──────────────────────────────────────────────────────────
 
 describe("OpenAiSession", () => {
   it("emits cumulative content events and a done event on a one-turn reply", async () => {
@@ -293,8 +254,6 @@ describe("OpenAiSession", () => {
   })
 
   it("dispatches a tool call (arguments arrive across many deltas), threads tool_call_id, and continues the loop", async () => {
-    // Arguments split across many fragments to exercise the
-    // per-index accumulator.
     queueTurn({
       textDeltas: ["Looking up..."],
       toolCallDeltas: [
@@ -324,8 +283,7 @@ describe("OpenAiSession", () => {
       expect.objectContaining({ budgetPath: "/budget" }),
     )
 
-    // Second create() call: messages = system, user, assistant (with
-    // tool_calls), tool (with tool_call_id).
+    // Second call: system, user, assistant (tool_calls), tool (tool_call_id).
     const second = lastCreateCall()
     const messages = second.messages as Array<{
       role: string
@@ -342,7 +300,6 @@ describe("OpenAiSession", () => {
     expect(last.tool_call_id).toBe("call_abc")
     expect(last.content).toBe("5 transactions found")
 
-    // Tool calls surface as tool-activity ContentBlocks.
     const toolActivityFound = events.some(
       (e) =>
         e.type === "content" &&
@@ -394,8 +351,6 @@ describe("OpenAiSession", () => {
   })
 
   it("accumulates tool arguments across multiple deltas before parsing", async () => {
-    // Arguments split into many fragments — the test asserts that the
-    // adapter sees the assembled JSON, not partial chunks.
     queueTurn({
       toolCallDeltas: [
         {
@@ -426,10 +381,6 @@ describe("OpenAiSession", () => {
   })
 
   it("surfaces a parse error in the tool result when arguments are malformed JSON", async () => {
-    // Fragments that concatenate to an unbalanced JSON string so
-    // JSON.parse rejects. The adapter must surface the parse error in
-    // the tool message (not throw, not crash the loop) and keep going
-    // — the model gets to see what went wrong.
     queueTurn({
       toolCallDeltas: [
         {
@@ -449,11 +400,8 @@ describe("OpenAiSession", () => {
     const { session } = makeSession()
     await session.send("Show recent")
 
-    // runTool must NOT be invoked when arguments don't parse.
     expect(mockRunTool).not.toHaveBeenCalled()
 
-    // Second call sees a `tool` message containing the parse error so
-    // the model can self-correct on the next turn.
     const second = lastCreateCall()
     const messages = second.messages as Array<{
       role: string
@@ -464,8 +412,6 @@ describe("OpenAiSession", () => {
     expect(toolMsg).toBeTruthy()
     expect(toolMsg!.tool_call_id).toBe("call_bad")
     expect(toolMsg!.content).toMatch(/invalid JSON arguments/i)
-    // The actual JSON.parse error string is implementation-defined but
-    // contains some hint about the syntax problem.
     expect(toolMsg!.content!.length).toBeGreaterThan("Error: invalid JSON arguments — ".length)
   })
 
@@ -484,11 +430,6 @@ describe("OpenAiSession", () => {
   })
 
   it("stop() drops a trailing assistant turn with unmatched tool_calls", async () => {
-    // First turn: completes with a tool_call → loop pushes the
-    // assistant turn (with tool_calls) into history. We then call
-    // stop() *before* the next create() would happen — simulating an
-    // abort mid-loop. The next send() should not carry the dangling
-    // tool_call.
     queueTurn({
       toolCallDeltas: [
         {
@@ -524,7 +465,6 @@ describe("OpenAiSession", () => {
       role: string
       tool_calls?: Array<unknown>
     }>
-    // No assistant turn carrying tool_calls should survive.
     expect(
       messages.some((m) => m.role === "assistant" && Array.isArray(m.tool_calls) && m.tool_calls.length > 0),
     ).toBe(false)
@@ -631,7 +571,6 @@ describe("OpenAiSession", () => {
       role: string
       content: unknown
     }>
-    // First entry is the system message; second is the user turn.
     expect(messages[0].role).toBe("system")
     const userBlocks = messages[1].content as Array<{ type: string; text?: string; image_url?: unknown }>
     expect(userBlocks.map((b) => b.type)).toEqual(["text", "image_url", "text"])
@@ -747,8 +686,6 @@ describe("OpenAiSession", () => {
     expect(mockRunTool).toHaveBeenCalledTimes(1)
   })
 
-  // ── tool-result emission ─────────────────────────────────────────
-
   it("emits a tool-result event with ok=true after a tool resolves", async () => {
     queueTurn({
       toolCallDeltas: [
@@ -797,14 +734,7 @@ describe("OpenAiSession", () => {
     ])
   })
 
-  // ── deliberate early-abort path ──────────────────────────────────
-
   it("breaks out of the chunk loop on finish_reason and aborts the stream controller", async () => {
-    // A chunk AFTER finish_reason must never reach the adapter — the
-    // for-await is supposed to `break` the moment finish_reason
-    // arrives. Verify both that the post-finish chunk's content is
-    // absent from anything the adapter emitted, AND that the stream
-    // controller's abort() was called once to release the socket.
     queueTurn({
       textDeltas: ["visible"],
       finish_reason: "stop",
@@ -818,8 +748,6 @@ describe("OpenAiSession", () => {
     expect(streamStubs[0].abortSpy).toHaveBeenCalledTimes(1)
     expect(streamStubs[0].controller.signal.aborted).toBe(true)
 
-    // The post-finish chunk's content must not appear in any content
-    // event the consumer received.
     const allText = events
       .filter((e) => e.type === "content")
       .flatMap((e) => (e.type === "content" ? e.blocks : []))
@@ -831,10 +759,6 @@ describe("OpenAiSession", () => {
   })
 
   it("aborts every turn in a multi-turn loop (once per turn, not just the last)", async () => {
-    // Tool-call turn followed by a stop — both must release their
-    // stream eagerly via the controller abort once finish_reason
-    // arrives. A regression where the break-on-finish path only
-    // triggers on the last turn would leak the intermediate socket.
     queueTurn({
       toolCallDeltas: [
         { index: 0, id: "call_a", name: "list_accounts", argFragments: ["{}"] },
@@ -858,16 +782,12 @@ describe("OpenAiSession", () => {
   })
 
   it("emits tool-result with ok=false when tool_call arguments are malformed JSON", async () => {
-    // Args arrive as broken JSON — the handler is never invoked, but the
-    // adapter still emits a failed tool-result so the hook accounts for
-    // the call.
     queueTurn({
       toolCallDeltas: [
         {
           index: 0,
           id: "call_bad_args",
           name: "create_transaction",
-          // No closing brace — JSON.parse will throw.
           argFragments: ['{"amount": 100'],
         },
       ],
@@ -878,7 +798,6 @@ describe("OpenAiSession", () => {
     const { session, events } = makeSession()
     await session.send("Add it.")
 
-    // Handler should NOT have been called — args never parsed.
     expect(mockRunTool).not.toHaveBeenCalled()
 
     const toolResults = events.filter((e) => e.type === "tool-result")

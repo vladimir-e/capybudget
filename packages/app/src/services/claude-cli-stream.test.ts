@@ -352,16 +352,11 @@ describe("parseStreamLine", () => {
 
   describe("result event", () => {
     it("does NOT emit done on a clean result without cycleState (no safety net wired)", () => {
-      // Without per-cycle state, the parser can't tell whether a `done`
-      // has already fired. The session always supplies state in
-      // production — this test pins the no-state shape.
       const line = JSON.stringify({ type: "result" })
       expect(parseStreamLine(line)).toEqual([])
     })
 
     it("does NOT emit a duplicate done when the assistant stop_reason already fired one", () => {
-      // Happy path: cycleState.doneEmitted is flipped by the assistant
-      // turn — the trailing result line then becomes pure bookkeeping.
       const cycleState = { doneEmitted: false }
       const assistantEvents = parseStreamLine(
         JSON.stringify({
@@ -386,10 +381,6 @@ describe("parseStreamLine", () => {
     })
 
     it("emits done off the result line as a safety net when no stop_reason fired", () => {
-      // Unhappy path: assistant turn(s) arrive without a non-tool_use
-      // `stop_reason` (future CLI versions, mid-stream truncation, ...).
-      // The result line falls back to emitting `done` so the UI doesn't
-      // hang waiting for a signal that never comes.
       const cycleState = { doneEmitted: false }
       parseStreamLine(
         JSON.stringify({
@@ -411,9 +402,6 @@ describe("parseStreamLine", () => {
     })
 
     it("emits error when the result carries is_error (no safety-net done)", () => {
-      // `--max-turns` produces this shape when the cap trips. Even
-      // with cycleState present, the error takes precedence and we
-      // never paper over an error termination with a `done`.
       const cycleState = { doneEmitted: false }
       const line = JSON.stringify({
         type: "result",
@@ -674,8 +662,6 @@ describe("parseStreamLine", () => {
   describe("tool_result → tool-result event", () => {
     it("emits a tool-result event from a user message carrying a tool_result block", () => {
       const registry = new Map<string, string>()
-      // First, the assistant turn that requested the call — registers
-      // the id → name mapping.
       parseStreamLine(
         JSON.stringify({
           type: "assistant",
@@ -693,7 +679,6 @@ describe("parseStreamLine", () => {
         registry,
       )
 
-      // Then the user message wrapping the MCP tool result.
       const events = parseStreamLine(
         JSON.stringify({
           type: "user",

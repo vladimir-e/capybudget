@@ -2,18 +2,6 @@ import { describe, it, expect, vi, beforeEach } from "vitest"
 import type { StreamEvent } from "@capybudget/intelligence"
 import type { BudgetRepository, FileAdapter } from "@capybudget/persistence"
 
-// ── SDK mock ───────────────────────────────────────────────────────
-//
-// `messages.stream()` returns an object with:
-//   - `.on(eventName, handler)` for incremental updates ("text",
-//     "contentBlock", ...)
-//   - `.finalMessage()` returning a promise that resolves with the
-//     completed `Message`.
-//
-// The mock below lets each test queue up the sequence of streamed
-// turns (text deltas, tool_use blocks, stop_reason). Each call to
-// `client.messages.stream()` consumes one turn from the queue.
-
 interface FakeBlock {
   type: "text" | "tool_use"
   text?: string
@@ -26,11 +14,8 @@ interface FakeTurn {
   textDeltas?: string[]
   toolUses?: Array<{ id: string; name: string; input: Record<string, unknown> }>
   stop_reason: "end_turn" | "tool_use"
-  /** If set, finalMessage rejects with this error (simulates SDK throwing). */
   error?: Error
-  /** If set, an `error` event fires AFTER `message` has already been
-   *  emitted — exercises the post-abort SDK-noise path that the
-   *  adapter's `earlyDrained` flag is meant to swallow. */
+  /** Error event fired AFTER `message` — simulates post-abort SDK noise. */
   postMessageError?: Error
 }
 
@@ -41,7 +26,6 @@ const { mockStream, queueTurn, lastStreamCall, abortSignals, streamStubs } = vi.
   const stubs: Array<{ controller: AbortController; abortSpy: ReturnType<typeof vi.fn> }> = []
 
   const stream = vi.fn().mockImplementation((params, opts) => {
-    // snapshot messages so later mutations don't pollute the assertion
     calls.push({
       messages: JSON.parse(JSON.stringify(params.messages)),
       tools: params.tools,
@@ -52,16 +36,9 @@ const { mockStream, queueTurn, lastStreamCall, abortSignals, streamStubs } = vi.
       throw new Error("Test bug: no turn queued for messages.stream()")
     }
 
-    // Mock approximates the real SDK shape: `.on()` registers handlers,
-    // `.once()` registers one-shot handlers, `controller.abort()` is the
-    // public abort knob. Events fire on the next microtask after
-    // construction, mimicking the real stream's async iteration.
     type Handler = (...args: unknown[]) => void
     const handlers: Record<string, Handler[]> = {}
     const controller = new AbortController()
-    // Wrap controller.abort in a spy so tests can assert the adapter
-    // releases the socket once `message` arrives (vs. waiting for the
-    // SSE tail to drain).
     const abortSpy = vi.fn()
     const originalAbort = controller.abort.bind(controller)
     controller.abort = ((reason?: unknown) => {
@@ -74,7 +51,6 @@ const { mockStream, queueTurn, lastStreamCall, abortSignals, streamStubs } = vi.
       if (ended) return
       const list = handlers[event]
       if (!list) return
-      // Match SDK behavior: `once` listeners are stripped after firing.
       handlers[event] = list.filter((h) => !(h as { once?: boolean }).once)
       for (const h of list) h(...args)
     }
@@ -100,9 +76,7 @@ const { mockStream, queueTurn, lastStreamCall, abortSignals, streamStubs } = vi.
     }
     stubs.push({ controller, abortSpy })
 
-    // Drive the synthetic stream on a microtask so listeners registered
-    // by the caller (which happens right after `stream()` returns) are
-    // in place before the first emit.
+    // Defer emits so the caller's `.on()` listeners are registered first.
     queueMicrotask(async () => {
       try {
         if (turn.error) {
@@ -146,7 +120,6 @@ const { mockStream, queueTurn, lastStreamCall, abortSignals, streamStubs } = vi.
             completed.push(block)
           }
         }
-        // `message` fires at message_stop — before the SSE tail drains.
         emit("message", {
           content: completed.map((b) =>
             b.type === "text"
@@ -155,11 +128,8 @@ const { mockStream, queueTurn, lastStreamCall, abortSignals, streamStubs } = vi.
           ),
           stop_reason: turn.stop_reason,
         })
-        // Simulate the SDK emitting a noisy error AFTER message_stop
-        // (e.g. socket teardown noise once the adapter aborted). The
-        // adapter's `earlyDrained` flag is supposed to swallow this.
-        // We bypass `ended` so the post-message emit lands even though
-        // the controlled flow considers the turn complete.
+        // Bypass `ended` so post-message error lands even though the turn
+        // is logically complete — exercises the drain-skip swallow path.
         if (turn.postMessageError) {
           const list = handlers["error"]
           if (list) {
@@ -198,7 +168,6 @@ vi.mock("@anthropic-ai/sdk", () => {
   }
 })
 
-// Tool dispatch mock — replaces in-process `runTool`.
 const { mockRunTool } = vi.hoisted(() => ({
   mockRunTool: vi.fn<
     (
@@ -218,8 +187,6 @@ vi.mock("@capybudget/intelligence", async (importOriginal) => {
 })
 
 import { AnthropicSession } from "./anthropic-session"
-
-// ── Helpers ────────────────────────────────────────────────────────
 
 function makeSession() {
   const events: StreamEvent[] = []
@@ -241,8 +208,6 @@ beforeEach(() => {
   abortSignals.length = 0
   streamStubs.length = 0
 })
-
-// ── Tests ──────────────────────────────────────────────────────────
 
 describe("AnthropicSession", () => {
   it("emits cumulative content events and a done event on a one-turn reply", async () => {
@@ -290,7 +255,6 @@ describe("AnthropicSession", () => {
       expect.objectContaining({ budgetPath: "/budget" }),
     )
 
-    // Second stream call's message history must include the tool_result.
     const second = lastStreamCall()
     const messages = second.messages as Array<{ role: string; content: unknown }>
     // user (initial) → assistant (tool_use) → user (tool_result)
@@ -305,8 +269,6 @@ describe("AnthropicSession", () => {
       },
     ])
 
-    // Tool calls surface as tool-activity ContentBlocks alongside the
-    // assistant text.
     const toolActivityFound = events.some(
       (e) =>
         e.type === "content" &&
@@ -349,7 +311,6 @@ describe("AnthropicSession", () => {
       headers: ["Account", "Balance"],
       rows: [["Checking", "$1,000.00"]],
     })
-    // Render tools shouldn't also produce a tool-activity block.
     expect(
       allBlocks.some(
         (b) => b.type === "tool-activity" && b.tool === "render_table",
@@ -368,20 +329,16 @@ describe("AnthropicSession", () => {
 
     const errorEvent = events.find((e) => e.type === "error")
     expect(errorEvent).toEqual({ type: "error", message: "rate limited" })
-    // No `done` on error
     expect(events.some((e) => e.type === "done")).toBe(false)
   })
 
   it("stop() drops a trailing assistant turn with unmatched tool_use", async () => {
-    // First turn: completes normally with a tool_use → loop pushes the
-    // assistant turn (with tool_use) into history. We then call stop()
-    // *before* the next stream call would happen — simulating an abort
-    // mid-loop. The next send() should not carry the dangling tool_use.
     queueTurn({
       toolUses: [{ id: "tu1", name: "list_accounts", input: {} }],
       stop_reason: "tool_use",
     })
-    // mockRunTool resolves slowly, giving us a window to abort.
+    // Slow tool resolution gives us a window to call stop() while the loop
+    // is parked inside runTool, with the unmatched tool_use already in history.
     let resolveRun: ((v: string) => void) | null = null
     mockRunTool.mockImplementation(
       () =>
@@ -392,20 +349,13 @@ describe("AnthropicSession", () => {
 
     const { session } = makeSession()
     const sendPromise = session.send("How much do I have?")
-    // Wait until the agentic loop has finished the first stream turn
-    // and is parked inside runTool — the assistant turn with the
-    // unmatched tool_use is now in history.
     await vi.waitFor(() => {
       if (!resolveRun) throw new Error("not yet")
     })
     await session.stop()
-    // Unblock the runTool promise; the loop checks `interrupted` and
-    // returns *without* pushing tool_results or starting another turn.
     resolveRun!("late")
     await sendPromise
 
-    // Send a fresh message — the new stream call's history must not
-    // contain the dangling assistant tool_use turn.
     queueTurn({ textDeltas: ["ok"], stop_reason: "end_turn" })
     await session.send("Hi again")
     const last = lastStreamCall()
@@ -434,7 +384,6 @@ describe("AnthropicSession", () => {
   })
 
   it("walks an import session through analyze_csv → preview_transform → transform_csv", async () => {
-    // Three turns: each returns the next tool call until end_turn.
     queueTurn({
       toolUses: [
         { id: "tu-analyze", name: "analyze_csv", input: { filename: "2024.csv" } },
@@ -520,8 +469,6 @@ describe("AnthropicSession", () => {
 
   it("terminates with a budget-exhausted error after SESSION_TOOL_CALL_BUDGET tool calls", async () => {
     const { SESSION_TOOL_CALL_BUDGET } = await import("@capybudget/intelligence")
-    // Queue (budget + 1) turns, each firing one tool. The session must
-    // stop processing once the counter ticks past the budget.
     for (let i = 0; i < SESSION_TOOL_CALL_BUDGET + 1; i++) {
       queueTurn({
         toolUses: [{ id: `tu-${i}`, name: "list_accounts", input: {} }],
@@ -533,10 +480,8 @@ describe("AnthropicSession", () => {
     const { session, events } = makeSession()
     await session.send("Loop forever")
 
-    // Real tool dispatch should run exactly SESSION_TOOL_CALL_BUDGET times.
     expect(mockRunTool).toHaveBeenCalledTimes(SESSION_TOOL_CALL_BUDGET)
 
-    // The session emits a budget-exhausted error and stops.
     const errorEvent = events.find((e) => e.type === "error")
     expect(errorEvent?.message).toMatch(/budget exhausted/i)
     expect(events.some((e) => e.type === "done")).toBe(false)
@@ -586,7 +531,6 @@ describe("AnthropicSession", () => {
 
   it("restart() resets the budget counter so the next session starts fresh", async () => {
     const { SESSION_TOOL_CALL_BUDGET } = await import("@capybudget/intelligence")
-    // Burn the entire budget on the first send.
     for (let i = 0; i < SESSION_TOOL_CALL_BUDGET + 1; i++) {
       queueTurn({
         toolUses: [{ id: `tu-${i}`, name: "list_accounts", input: {} }],
@@ -599,8 +543,6 @@ describe("AnthropicSession", () => {
     await session.send("Loop forever")
     expect(mockRunTool).toHaveBeenCalledTimes(SESSION_TOOL_CALL_BUDGET)
 
-    // After restart, the counter should be back at zero — a single
-    // tool call must NOT trip the cap immediately.
     await session.restart()
     mockRunTool.mockClear()
     queueTurn({
@@ -614,11 +556,8 @@ describe("AnthropicSession", () => {
 
     await session.send("After restart")
 
-    // Exactly one fresh tool dispatch, no budget-exhausted error this time.
     expect(mockRunTool).toHaveBeenCalledTimes(1)
   })
-
-  // ── tool-result emission ─────────────────────────────────────────
 
   it("emits a tool-result event with ok=true after a tool resolves", async () => {
     queueTurn({
@@ -654,11 +593,7 @@ describe("AnthropicSession", () => {
     ])
   })
 
-  // ── deliberate early-abort path ──────────────────────────────────
-
   it("aborts the stream once per turn right after the message event fires", async () => {
-    // One-turn happy path: `message` arrives, the adapter aborts to
-    // release the socket without waiting for the SSE tail to drain.
     queueTurn({
       textDeltas: ["ok"],
       stop_reason: "end_turn",
@@ -673,9 +608,6 @@ describe("AnthropicSession", () => {
   })
 
   it("aborts every turn in a multi-turn loop (once per turn, not just the last)", async () => {
-    // Tool-use turn followed by an end_turn — both must release their
-    // stream eagerly. A regression where abort fires only on the final
-    // turn would leak the intermediate socket.
     queueTurn({
       toolUses: [{ id: "tu1", name: "list_accounts", input: {} }],
       stop_reason: "tool_use",
@@ -696,11 +628,7 @@ describe("AnthropicSession", () => {
     }
   })
 
-  it("swallows post-message SDK errors (earlyDrained branch suppresses socket-teardown noise)", async () => {
-    // After `message` fires, the SDK may still emit an `error` from
-    // socket teardown. The adapter's `earlyDrained` flag is supposed
-    // to recognize this is post-deliberate-abort noise and not
-    // surface it as a user-facing error.
+  it("swallows post-message SDK errors (drain-skip suppresses socket-teardown noise)", async () => {
     queueTurn({
       textDeltas: ["all good"],
       stop_reason: "end_turn",
@@ -710,7 +638,6 @@ describe("AnthropicSession", () => {
     const { session, events } = makeSession()
     await session.send("Hi")
 
-    // No error event should surface; `done` still fires as normal.
     expect(events.some((e) => e.type === "error")).toBe(false)
     expect(events[events.length - 1]).toEqual({ type: "done" })
   })
