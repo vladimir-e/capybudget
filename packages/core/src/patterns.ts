@@ -72,6 +72,7 @@ function fuzzyMerchantMatch(a: string, b: string): boolean {
 }
 
 function median(values: number[]): number {
+  if (values.length === 0) return 0;
   const sorted = [...values].sort((a, b) => a - b);
   const mid = Math.floor(sorted.length / 2);
   return sorted.length % 2 === 0
@@ -227,6 +228,8 @@ export function findRecurring(
     for (let i = 1; i < dates.length; i++) {
       intervals.push(daysBetween(dates[i - 1], dates[i]));
     }
+
+    if (intervals.length === 0) continue;
 
     const medianInterval = median(intervals);
     const cadence = classifyCadence(medianInterval);

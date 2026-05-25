@@ -258,6 +258,20 @@ describe("findRecurring", () => {
   it("returns empty for empty input", () => {
     expect(findRecurring([])).toHaveLength(0);
   });
+
+  it("does not crash or include single-transaction merchants with minTransactions: 1", () => {
+    const transactions = [
+      txn({ id: "solo", amount: -999, accountId: "acc-1", merchant: "OneTime Shop", datetime: "2026-03-10T10:00:00.000Z" }),
+      monthlySubscription("n1", 1),
+      monthlySubscription("n2", 2),
+    ];
+
+    const patterns = findRecurring(transactions, { minTransactions: 1 });
+    expect(patterns.every((p) => p.merchant !== "OneTime Shop")).toBe(true);
+    const netflix = patterns.find((p) => p.merchant === "Netflix");
+    expect(netflix).toBeDefined();
+    expect(netflix!.transactionCount).toBe(2);
+  });
 });
 
 // ── getBudgetStats ─────────────────────────────────────────

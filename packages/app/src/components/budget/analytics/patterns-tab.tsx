@@ -129,7 +129,7 @@ function DuplicateCard({
       title: group.merchant || "Unknown",
       subtitle: `${group.confidence} confidence · ${group.transactionIds.length} transactions`,
       transactionIds: new Set(group.transactionIds),
-      lockedFilters: { merchant: group.merchant },
+      lockedFilters: group.merchant ? { merchant: group.merchant } : {},
     });
   }
 

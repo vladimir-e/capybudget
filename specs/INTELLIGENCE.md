@@ -209,8 +209,10 @@ Date: March 15, 2026
 Budget folder: /path/to/budget
 
 [Budget stats]
-1,247 transactions across 5 accounts and 18 categories
-Date range: Jan 3, 2024 – Mar 15, 2026
+Transactions: 1,247
+Active accounts: 5
+Categories: 18
+Date range: 2024-01-03 to 2026-03-15
 Net worth: $42,150.00
 
 [User message]
