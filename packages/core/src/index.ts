@@ -138,6 +138,19 @@ export type {
 export type { TransformResult, TransformError } from "./csv-transform";
 export { transformCsv, serializeImportCsv, parseCurrencyToCents } from "./csv-transform";
 
+// Pattern detection
+export type {
+  DuplicateGroup,
+  RecurringOptions,
+  RecurringPattern,
+  BudgetStats,
+} from "./patterns";
+export {
+  findDuplicates,
+  findRecurring,
+  getBudgetStats,
+} from "./patterns";
+
 // Analytics
 export type {
   DateRange,
