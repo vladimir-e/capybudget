@@ -24,6 +24,7 @@ import { CashFlowTab } from "./cash-flow-tab";
 import { CompareTab } from "./compare-tab";
 import { MerchantsTab } from "./merchants-tab";
 import { MonthlyBudgetTab } from "./monthly-budget-tab";
+import { PatternsTab } from "./patterns-tab";
 
 // ── Tab definitions ──
 
@@ -42,6 +43,7 @@ const TABS: TabDef[] = [
   { id: "netWorth", label: "Net Worth", allowedPeriods: ["year", "allTime", "custom"] },
   { id: "compare", label: "Compare", allowedPeriods: ["year", "allTime", "custom"] },
   { id: "merchants", label: "Merchants", allowedPeriods: ["month", "quarter", "year", "allTime"] },
+  { id: "patterns", label: "Patterns", allowedPeriods: [] },
 ];
 
 export function AnalyticsView() {
@@ -143,22 +145,24 @@ export function AnalyticsView() {
         </div>
       </div>
 
-      {/* Date range + summary. Monthly Budget renders its own KPI strip and
-       *  doesn't need the global income/expense/net summary. */}
-      <div className="px-6 pt-4 space-y-4">
-        <DateRangeNav
-          periodType={periodType}
-          dateRange={dateRange}
-          allowedPeriods={currentTab.allowedPeriods}
-          onPeriodChange={handlePeriodChange}
-          onBack={navigateBack}
-          onForward={navigateForward}
-          canGoBack={canGoBack}
-          canGoForward={canGoForward}
-          onCustomRange={handleCustomRange}
-        />
-        {activeTab !== "monthlyBudget" && <SummaryStrip summary={summary} />}
-      </div>
+      {/* Date range + summary. Hidden for patterns (full history, no
+       *  date nav). Monthly Budget renders its own KPI strip. */}
+      {activeTab !== "patterns" && (
+        <div className="px-6 pt-4 space-y-4">
+          <DateRangeNav
+            periodType={periodType}
+            dateRange={dateRange}
+            allowedPeriods={currentTab.allowedPeriods}
+            onPeriodChange={handlePeriodChange}
+            onBack={navigateBack}
+            onForward={navigateForward}
+            canGoBack={canGoBack}
+            canGoForward={canGoForward}
+            onCustomRange={handleCustomRange}
+          />
+          {activeTab !== "monthlyBudget" && <SummaryStrip summary={summary} />}
+        </div>
+      )}
 
       {/* Active tab content. `pb-4` only — top padding would create a dead
        *  zone above sticky elements (e.g. the Monthly Budget column header). */}
@@ -193,6 +197,9 @@ export function AnalyticsView() {
             categories={categories}
             dateRange={dateRange}
           />
+        )}
+        {activeTab === "patterns" && (
+          <PatternsTab transactions={transactions} />
         )}
       </div>
     </div>
