@@ -3,21 +3,21 @@ import { useNavigate } from "@tanstack/react-router"
 import {
   AlertTriangle,
   Check,
-  CreditCard,
   ExternalLink,
   File as FileIcon,
+  GraduationCap,
+  HelpCircle,
   Image,
   Loader2,
   PanelRightClose,
   Paperclip,
-  PieChart,
   Receipt,
+  RefreshCw,
   RotateCcw,
   Send,
   Settings,
   Settings2,
   Square,
-  TrendingUp,
   X,
 } from "lucide-react"
 import { toast } from "sonner"
@@ -47,6 +47,7 @@ import {
   type ToolActivityBlock,
 } from "@capybudget/intelligence"
 import { open as shellOpen } from "@tauri-apps/plugin-shell"
+import { TransactionsBlockView } from "./transactions-block"
 
 // Panel sizing — the desktop default and lower bound. Below `sm:`
 // the panel goes full-width and the resize handle is hidden, which
@@ -591,31 +592,31 @@ function UnconfiguredEmptyState({
 }
 
 interface SuggestionCard {
-  icon: typeof TrendingUp
+  icon: typeof HelpCircle
   label: string
   prompt: string
 }
 
 const SUGGESTION_CARDS: ReadonlyArray<SuggestionCard> = [
   {
-    icon: TrendingUp,
-    label: "How am I doing this month?",
-    prompt: "How am I doing this month?",
+    icon: HelpCircle,
+    label: "What can you help me with?",
+    prompt: "What can you help me with?",
   },
   {
-    icon: PieChart,
-    label: "Where did my money go in 2025?",
-    prompt: "Where did my money go in 2025?",
+    icon: GraduationCap,
+    label: "Teach me how to budget",
+    prompt: "Teach me how to budget",
+  },
+  {
+    icon: RefreshCw,
+    label: "Find recurring subscriptions",
+    prompt: "Find recurring subscriptions",
   },
   {
     icon: Receipt,
     label: "Find duplicate transactions",
-    prompt: "Find duplicate transactions in my budget",
-  },
-  {
-    icon: CreditCard,
-    label: "Help me set a grocery budget",
-    prompt: "Help me set a grocery budget",
+    prompt: "Find duplicate transactions",
   },
 ]
 
@@ -805,6 +806,8 @@ function BlockRenderer({
       // Lifted out of the bubble by groupBlocks() and rendered as a
       // separate FollowupChips group.
       return null
+    case "transactions":
+      return <TransactionsBlockView block={block} />
     case "error":
       // Lifted out of the bubble by groupBlocks() and rendered as a
       // distinct ErrorBubble.

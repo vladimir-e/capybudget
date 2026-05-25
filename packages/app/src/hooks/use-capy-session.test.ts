@@ -8,8 +8,12 @@
  * switching to Anthropic, or a session pinned to the previous model).
  */
 
+import React from "react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { act, renderHook } from "@testing-library/react"
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
+import { createInMemoryRepository } from "@capybudget/persistence"
+import { RepositoryProvider } from "@/providers/repository-provider"
 import {
   DEFAULT_INTELLIGENCE_CONFIG,
   type CapySession,
@@ -70,6 +74,18 @@ const baseOpts = {
   mcpServerPath: "mcp/server.js",
 }
 
+function wrapper({ children }: { children: React.ReactNode }) {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  })
+  const repo = createInMemoryRepository()
+  return React.createElement(
+    QueryClientProvider,
+    { client: queryClient },
+    React.createElement(RepositoryProvider, { value: repo }, children),
+  )
+}
+
 beforeEach(() => {
   createdSessions.length = 0
   createSessionMock.mockClear()
@@ -87,7 +103,7 @@ describe("useCapySession session teardown", () => {
       config: { ...DEFAULT_INTELLIGENCE_CONFIG, provider: "claude-cli" },
     })
 
-    const { result } = renderHook(() => useCapySession(baseOpts))
+    const { result } = renderHook(() => useCapySession(baseOpts), { wrapper })
 
     // Kick off a message — this spawns a session.
     act(() => {
@@ -121,7 +137,7 @@ describe("useCapySession session teardown", () => {
       },
     })
 
-    const { result } = renderHook(() => useCapySession(baseOpts))
+    const { result } = renderHook(() => useCapySession(baseOpts), { wrapper })
 
     act(() => {
       result.current.sendMessage("hi")
@@ -146,7 +162,7 @@ describe("useCapySession session teardown", () => {
       },
     })
 
-    const { result } = renderHook(() => useCapySession(baseOpts))
+    const { result } = renderHook(() => useCapySession(baseOpts), { wrapper })
 
     act(() => {
       result.current.sendMessage("hi")
@@ -172,7 +188,7 @@ describe("useCapySession session teardown", () => {
       },
     })
 
-    const { result } = renderHook(() => useCapySession(baseOpts))
+    const { result } = renderHook(() => useCapySession(baseOpts), { wrapper })
     act(() => {
       result.current.sendMessage("hi")
     })
@@ -190,7 +206,7 @@ describe("useCapySession session teardown", () => {
       config: { ...DEFAULT_INTELLIGENCE_CONFIG, provider: "claude-cli" },
     })
 
-    const { result } = renderHook(() => useCapySession(baseOpts))
+    const { result } = renderHook(() => useCapySession(baseOpts), { wrapper })
     act(() => {
       result.current.sendMessage("hi")
     })
@@ -216,7 +232,7 @@ describe("useCapySession live cache invalidation", () => {
       },
     })
     const onDataChanged = vi.fn()
-    const { result } = renderHook(() => useCapySession({ ...baseOpts, onDataChanged }))
+    const { result } = renderHook(() => useCapySession({ ...baseOpts, onDataChanged }), { wrapper })
     act(() => {
       result.current.sendMessage("do the thing")
     })

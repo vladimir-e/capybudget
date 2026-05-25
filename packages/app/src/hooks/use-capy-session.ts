@@ -8,10 +8,12 @@
  * - On stop: forwards conversation context to the next session
  */
 
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useSessionLifecycle } from "@/hooks/use-session-lifecycle"
 import { mergeStreamContent } from "@/hooks/merge-stream-content"
 import { useIntelligenceStore } from "@/stores/intelligence-store"
+import { useTransactions, useAccounts, useCategories } from "@/hooks/use-budget-data"
+import { getBudgetStats } from "@capybudget/core"
 import {
   buildContext,
   formatAttachments,
@@ -51,11 +53,25 @@ export function useCapySession(opts: UseCapySessionOptions): UseCapySessionRetur
   const hadMutationsRef = useRef(false)
   const ackedToolCallsRef = useRef<Set<string>>(new Set())
 
-  // Keep a ref to messages for use in sendMessage / stopStreaming without
-  // stale closures.
+  const { data: transactions } = useTransactions()
+  const { data: accounts } = useAccounts()
+  const { data: categories } = useCategories()
+  const stats = useMemo(
+    () => transactions && accounts && categories
+      ? getBudgetStats(transactions, accounts, categories)
+      : undefined,
+    [transactions, accounts, categories],
+  )
+
+  // Keep refs for use in sendMessage / stopStreaming without stale closures.
   const messagesRef = useRef(messages)
   useEffect(() => {
     messagesRef.current = messages
+  })
+
+  const statsRef = useRef(stats)
+  useEffect(() => {
+    statsRef.current = stats
   })
 
   const lifecycle = useSessionLifecycle(
@@ -193,6 +209,7 @@ export function useCapySession(opts: UseCapySessionOptions): UseCapySessionRetur
       const context = buildContext({
         budgetName: o.budgetName,
         budgetPath: o.budgetPath,
+        stats: statsRef.current,
       })
 
       const allFiles = files ?? []
