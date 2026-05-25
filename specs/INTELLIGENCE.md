@@ -72,6 +72,7 @@ The tool handlers don't know which transport called them.
 | `tool-activity` | Tool name (persists in chat history) |
 | `file-attachment` | File name, size, mediaType (rendered as chip) |
 | `followups` | Array of `{label, prompt}` follow-up suggestion chips. Click sends `prompt` as next user message. |
+| `transactions` | Label + filter + optional summary. Frontend resolves filter to transactions and renders ≤5 inline as cards, >5 as a clickable summary card that opens the transaction modal. |
 
 A `BlockRenderer` routes each block to its specialized renderer.
 
@@ -135,7 +136,7 @@ Single source of truth shared between transports:
 - **Definitions** — tool descriptors (name, description, JSON-Schema input). Both transports consume the same list for ListTools / SDK tool config.
 - **Dispatch** — `runTool(name, input, ctx) → string`. The MCP server and the API adapters call this with the same signature. `ToolContext` is `{ repo, fileAdapter, budgetPath }`.
 - **Handlers** — per-tool implementations:
-  - **Data tools** — `list_accounts`, `list_transactions` (filters + `sort` + `offset`), `list_categories`, `spending_summary`, `search_merchants`, `transaction_bounds` (count + date range, same filters as `list_transactions`)
+  - **Data tools** — `list_accounts`, `list_transactions` (filters + `sort` + `offset`), `list_categories`, `spending_summary`, `search_merchants`, `transaction_bounds` (count + date range, same filters as `list_transactions`), `find_duplicates` (potential duplicate transactions with high/possible confidence; optional filters: confidence, accountId, startDate, endDate), `find_recurring` (recurring transaction patterns / subscriptions; classifies cadence as weekly, monthly, yearly, or irregular; optional filters: cadence, minTransactions, lookbackDays)
   - **Mutation tools** — full CRUD for transactions / accounts / categories, plus `assign_categories`, `bulk_update_transactions` (account/date/merchant across many rows), `set_category_budget` (monthly target), `unarchive_account` / `unarchive_category` (reverse archive), `set_net_worth_exclusions` (toggle Net Worth inclusion)
   - **Import tools** — `read_import_file`, `write_import_file`, `append_import_file`, `list_import_files` (over `.capy/import/`)
   - **CSV tools** — `analyze_csv`, `preview_transform`, `transform_csv`, `auto_enrich`, `enrich_stats`, `enrich_sample`, `enrich_update`
@@ -157,6 +158,7 @@ The app invalidates caches per mutation tool call (not per turn) so the UI refle
 | `render_bar_chart` | `{ title, data: [{label, value}] }` | Horizontal bar chart |
 | `render_donut_chart` | `{ title, data: [{label, value}] }` | SVG donut chart with legend |
 | `render_followups` | `{ chips: [{label, prompt}] }` (1–4 items) | Follow-up suggestion chips after an answer. |
+| `render_transactions` | `{ label, filter, summary? }` | Transaction cards (≤5 inline, >5 as clickable summary → modal). Filter: `{ transactionIds?, categoryId?, merchant?, dateRange?, amountRange?, type? }`. |
 
 No-ops on the dispatch side — they carry structured data from AI to frontend via `tool_use` events.
 
@@ -206,9 +208,16 @@ Budget: personal
 Date: March 15, 2026
 Budget folder: /path/to/budget
 
+[Budget stats]
+1,247 transactions across 5 accounts and 18 categories
+Date range: Jan 3, 2024 – Mar 15, 2026
+Net worth: $42,150.00
+
 [User message]
 What did I spend on food this month?
 ```
+
+The `[Budget stats]` section is optional — included when `buildContext()` can derive transaction count, account count, category count, date range, and net worth from the current budget state.
 
 ## Custom Instructions
 

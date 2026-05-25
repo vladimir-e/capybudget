@@ -11,6 +11,11 @@ CHANGELOG PHILOSOPHY:
 
 ## Unreleased
 
+- **Patterns** - Recurring subscription and duplicate transaction detection (`capy-pattern-tools`).
+- **Capy** - `find_duplicates` and `find_recurring` pattern detection tools (`capy-pattern-tools`).
+- **Capy** - `render_transactions` — filter-based transaction rendering in chat; inline cards ≤5, summary card >5 (`capy-pattern-tools`).
+- **Analytics** - Patterns tab with subscription and duplicate sections (`capy-pattern-tools`).
+- **Capy** - Budget stats (transaction count, accounts, categories, date range, net worth) in context enrichment (`capy-pattern-tools`).
 - **Capy** - Live cache invalidation per mutation; `list_transactions` gains `sort` + `offset`; new `transaction_bounds` tool.
 - **Capy** - Don't drop the in-memory repo cache between in-process mutations — was silently losing all-but-the-last write in multi-tool Anthropic/OpenAI turns.
 - **Capy** - Fix ~30s post-message hang by decoupling loop exit from stream drain across all three adapters (#44).

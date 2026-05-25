@@ -42,6 +42,12 @@ By default transaction category is null, in the UI this surfaces as 'Uncategoriz
 
 Accounts grouped by type: Cash, Checking, Savings, Credit, Investment, Loans, Archived. Each group shows a subtotal; each account shows its live derived balance.
 
+### Analytics
+
+Tab-based budget exploration with per-tab date controls. Tabs: Spending, Cash Flow, Net Worth, Compare, Merchants, Monthly Budget, Patterns.
+
+- **Patterns** tab: Surfaces recurring subscriptions and potential duplicate transactions. Subscriptions are detected by grouping transactions by merchant (≥3 occurrences, cadence classification as weekly/monthly/yearly/irregular). Duplicates are found by exact and fuzzy matching on amount, date, merchant, and account. Date range navigation is hidden — patterns analyze the full transaction history. Each card drills into the underlying transactions via the shared transaction modal.
+
 ### Intelligence Layer (Capy)
 
 - **Chat panel** — right-edge slide-out with conversation, tool activity, charts, and follow-up suggestions. See `FRONTEND_DESIGN.md` for the interaction model.
