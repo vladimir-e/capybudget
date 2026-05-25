@@ -4,7 +4,7 @@
  * dispatch) and the in-process API adapters.
  */
 
-import type { Account, Category, Transaction } from "@capybudget/core"
+import type { Account, Category, Transaction, RecurringOptions } from "@capybudget/core"
 import {
   formatMoney,
   getAccountBalance,
@@ -315,10 +315,10 @@ export async function handleFindRecurring(
 ): Promise<string> {
   const transactions = await repo.getTransactions()
 
-  const opts: Record<string, unknown> = {}
-  if (args.cadence) opts.cadence = args.cadence
-  if (args.minTransactions) opts.minTransactions = args.minTransactions
-  if (args.lookbackDays) opts.lookbackDays = args.lookbackDays
+  const opts: RecurringOptions = {}
+  if (args.cadence) opts.cadence = args.cadence as RecurringOptions["cadence"]
+  if (args.minTransactions) opts.minTransactions = args.minTransactions as number
+  if (args.lookbackDays) opts.lookbackDays = args.lookbackDays as number
 
   const patterns = findRecurring(transactions, opts)
 
