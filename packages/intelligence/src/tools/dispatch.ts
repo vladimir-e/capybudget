@@ -27,6 +27,8 @@ import {
   handleSpendingSummary,
   handleSearchMerchants,
   handleTransactionBounds,
+  handleFindDuplicates,
+  handleFindRecurring,
 } from "./handlers/data"
 import {
   handleCreateTransaction,
@@ -84,6 +86,8 @@ const HANDLERS: Record<string, ToolHandler> = {
   spending_summary: ({ repo }, args) => handleSpendingSummary(repo, args),
   search_merchants: ({ repo }, args) => handleSearchMerchants(repo, args),
   transaction_bounds: ({ repo }, args) => handleTransactionBounds(repo, args),
+  find_duplicates: ({ repo }, args) => handleFindDuplicates(repo, args),
+  find_recurring: ({ repo }, args) => handleFindRecurring(repo, args),
 
   // Mutations
   create_transaction: ({ repo }, args) => handleCreateTransaction(repo, args),

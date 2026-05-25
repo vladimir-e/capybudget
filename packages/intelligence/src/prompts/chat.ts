@@ -18,6 +18,7 @@
  * humans editing those files.
  */
 
+import { formatMoney } from "@capybudget/core"
 import { SPECS, SPEC_FILENAMES } from "../specs.generated"
 
 const PRODUCT = SPECS["PRODUCT.md"] ?? ""
@@ -47,6 +48,7 @@ Capy is a budget tool that surfaces data. You're operating IN the user's app, no
   - render_table: lists, breakdowns by row, structured operation results
   - render_bar_chart: comparisons across categories or time
   - render_donut_chart: proportions and distributions
+  - render_transactions: transaction lists — use this to show transactions in chat. Pass a filter (transactionIds, merchant, categoryId, dateRange, etc.) and the frontend renders them as cards. NEVER use render_table for transaction lists.
 - Prose belongs only where prose adds something the chart doesn't: a single sentence of context, an answer to a yes/no question, an explanation of an action you just took.
 - When a chart needs framing, lead with one short sentence then the chart. Don't follow the chart with anything unless the user asked a question the chart can't answer.
 
@@ -64,6 +66,8 @@ After calling \`render_followups\`, your turn is over — do not produce any fur
 - list_categories: all categories grouped by type
 - spending_summary: aggregated spending by category for a period
 - search_merchants: find merchants by name or description fragment across the full transaction history. Use this when the user asks about a specific place ("how much did I spend at Trader Joe's?", "did I ever shop at REI?") — it matches both clean merchant names and the raw bank descriptions, so it catches transactions even when the merchant field wasn't filled in.
+- find_duplicates: find potential duplicate transactions (exact or fuzzy matches). Call this when the user asks about duplicates. Reason about the results conversationally — explain which groups look like real duplicates vs. legitimate repeated charges. Use render_transactions to show specific groups when the user wants to see them.
+- find_recurring: find recurring transaction patterns (subscriptions, regular bills). Call this when the user asks about subscriptions or repeating charges. Summarize the patterns conversationally — highlight the biggest ones, flag any that seem unusual. Use render_transactions to show the underlying transactions for a specific pattern.
 
 ## Checking imports
 The user may also ask about a recent Smart Import — "did my import succeed?", "what's still in the import draft?". You can read the import working directory directly:
@@ -131,6 +135,13 @@ ${DATA_MODEL}`
 export function buildContext(opts: {
   budgetName: string
   budgetPath?: string
+  stats?: {
+    transactionCount: number
+    activeAccountCount: number
+    categoryCount: number
+    dateRange: { from: string; to: string } | null
+    netWorth: number
+  }
 }): string {
   const date = new Date().toLocaleDateString("en-US", {
     year: "numeric",
@@ -146,6 +157,19 @@ export function buildContext(opts: {
 
   if (opts.budgetPath) {
     lines.push(`Budget folder: ${opts.budgetPath}`)
+  }
+
+  if (opts.stats) {
+    const s = opts.stats
+    lines.push("")
+    lines.push("[Budget stats]")
+    lines.push(`Transactions: ${s.transactionCount.toLocaleString()}`)
+    lines.push(`Active accounts: ${s.activeAccountCount}`)
+    lines.push(`Categories: ${s.categoryCount}`)
+    if (s.dateRange) {
+      lines.push(`Date range: ${s.dateRange.from} to ${s.dateRange.to}`)
+    }
+    lines.push(`Net worth: ${formatMoney(s.netWorth)}`)
   }
 
   lines.push("", "[User message]")

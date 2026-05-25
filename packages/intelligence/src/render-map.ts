@@ -19,6 +19,8 @@ import type {
   FollowupChip,
   FollowupsBlock,
   TableBlock,
+  TransactionsBlock,
+  TransactionsFilter,
 } from "./types"
 
 // Terminal-signal tool contract — see specs/INTELLIGENCE.md.
@@ -40,6 +42,16 @@ const BUILDERS: Record<string, RenderBuilder> = {
   render_donut_chart: (input) => {
     if (typeof input.title !== "string" || !Array.isArray(input.data)) return null
     return { type: "donut-chart", title: input.title, data: input.data } satisfies DonutChartBlock
+  },
+
+  render_transactions: (input) => {
+    if (typeof input.label !== "string" || !input.filter || typeof input.filter !== "object") return null
+    return {
+      type: "transactions",
+      label: input.label,
+      filter: input.filter as TransactionsFilter,
+      ...(typeof input.summary === "string" ? { summary: input.summary } : {}),
+    } satisfies TransactionsBlock
   },
 
   [RENDER_FOLLOWUPS_TOOL_NAME]: (input) => {

@@ -10,6 +10,8 @@ import {
   getAccountBalance,
   getUniqueMerchants,
   findCategoryForMerchant,
+  findDuplicates,
+  findRecurring,
 } from "@capybudget/core"
 import type { BudgetRepository } from "@capybudget/persistence"
 
@@ -279,4 +281,54 @@ export async function handleSearchMerchants(
   })
 
   return JSON.stringify(result, null, 2)
+}
+
+export async function handleFindDuplicates(
+  repo: BudgetRepository,
+  args: Record<string, unknown>,
+): Promise<string> {
+  const transactions = await repo.getTransactions()
+
+  let filtered = transactions
+  if (args.accountId) filtered = filtered.filter(t => t.accountId === args.accountId)
+  if (args.startDate) filtered = filtered.filter(t => t.datetime >= (args.startDate as string))
+  if (args.endDate) filtered = filtered.filter(t => t.datetime <= (args.endDate as string) + "T23:59:59")
+
+  let groups = findDuplicates(filtered)
+
+  if (args.confidence) {
+    groups = groups.filter(g => g.confidence === args.confidence)
+  }
+
+  const result = groups.map(g => ({
+    ...g,
+    amount: formatMoney(g.amount),
+    amountCents: g.amount,
+  }))
+
+  return JSON.stringify({ count: result.length, groups: result }, null, 2)
+}
+
+export async function handleFindRecurring(
+  repo: BudgetRepository,
+  args: Record<string, unknown>,
+): Promise<string> {
+  const transactions = await repo.getTransactions()
+
+  const opts: Record<string, unknown> = {}
+  if (args.cadence) opts.cadence = args.cadence
+  if (args.minTransactions) opts.minTransactions = args.minTransactions
+  if (args.lookbackDays) opts.lookbackDays = args.lookbackDays
+
+  const patterns = findRecurring(transactions, opts)
+
+  const result = patterns.map(p => ({
+    ...p,
+    avgAmount: formatMoney(p.avgAmount),
+    avgAmountCents: p.avgAmount,
+    totalSpent: formatMoney(p.totalSpent),
+    totalSpentCents: p.totalSpent,
+  }))
+
+  return JSON.stringify({ count: result.length, patterns: result }, null, 2)
 }

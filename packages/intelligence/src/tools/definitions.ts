@@ -140,6 +140,56 @@ export const DATA_TOOL_DEFS = [
       },
     },
   },
+  {
+    name: "find_duplicates",
+    description:
+      "Find potential duplicate transactions in the budget. Returns groups of transactions that may be duplicates, with confidence levels (high = exact match, possible = fuzzy match). Excludes transfers.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        confidence: {
+          type: "string",
+          enum: ["high", "possible"],
+          description: "Filter by confidence level. Omit to return both.",
+        },
+        accountId: {
+          type: "string",
+          description: "Filter to duplicates within a specific account",
+        },
+        startDate: {
+          type: "string",
+          description: "Only consider transactions on or after this date (YYYY-MM-DD)",
+        },
+        endDate: {
+          type: "string",
+          description: "Only consider transactions on or before this date (YYYY-MM-DD)",
+        },
+      },
+    },
+  },
+  {
+    name: "find_recurring",
+    description:
+      "Find recurring transaction patterns (subscriptions, regular bills). Groups transactions by merchant and classifies cadence (weekly, monthly, yearly, irregular). Requires ≥3 transactions per merchant in the lookback window.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        cadence: {
+          type: "string",
+          enum: ["weekly", "monthly", "yearly", "irregular"],
+          description: "Filter to a specific cadence. Omit to return all.",
+        },
+        minTransactions: {
+          type: "number",
+          description: "Minimum transactions to qualify as recurring (default: 3)",
+        },
+        lookbackDays: {
+          type: "number",
+          description: "How far back to look in days (default: 548 = ~18 months)",
+        },
+      },
+    },
+  },
 ] as const
 
 // ── Mutation tool schemas ────────────────────────────────────────
@@ -868,6 +918,63 @@ export const RENDER_TOOL_DEFS = [
         },
       },
       required: ["title", "data"],
+    },
+  },
+  {
+    name: "render_transactions",
+    description:
+      "Display a set of transactions in the chat as interactive cards. For small sets (≤5), transactions render inline. For larger sets, a clickable summary card opens the full list. Use this for transaction lists — NEVER use render_table for transactions. Pass a filter to select which transactions to show; the frontend resolves the actual data.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        label: {
+          type: "string",
+          description: "Title for the transaction group (e.g. 'Potential duplicates', 'Netflix subscriptions')",
+        },
+        filter: {
+          type: "object",
+          description: "Filter criteria to select transactions. The frontend applies this to the full transaction list.",
+          properties: {
+            transactionIds: {
+              type: "array",
+              items: { type: "string" },
+              description: "Specific transaction IDs to show",
+            },
+            categoryId: {
+              type: "string",
+              description: "Filter by category ID",
+            },
+            merchant: {
+              type: "string",
+              description: "Filter by merchant name (exact match)",
+            },
+            dateRange: {
+              type: "object",
+              properties: {
+                from: { type: "string", description: "Start date YYYY-MM-DD" },
+                to: { type: "string", description: "End date YYYY-MM-DD" },
+              },
+            },
+            amountRange: {
+              type: "object",
+              properties: {
+                min: { type: "number", description: "Min amount in cents" },
+                max: { type: "number", description: "Max amount in cents" },
+              },
+            },
+            type: {
+              type: "string",
+              enum: ["income", "expense", "transfer"],
+              description: "Filter by transaction type",
+            },
+          },
+        },
+        summary: {
+          type: "string",
+          description: "Optional summary text shown on the card (e.g. 'Total: $450.00 across 12 transactions')",
+        },
+      },
+      required: ["label", "filter"],
     },
   },
   {

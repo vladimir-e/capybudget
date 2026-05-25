@@ -84,6 +84,22 @@ export interface ErrorBlock {
   provider?: SessionProvider
 }
 
+export interface TransactionsFilter {
+  transactionIds?: string[]
+  categoryId?: string
+  merchant?: string
+  dateRange?: { from: string; to: string }
+  amountRange?: { min?: number; max?: number }
+  type?: 'income' | 'expense' | 'transfer'
+}
+
+export interface TransactionsBlock {
+  type: "transactions"
+  label: string
+  filter: TransactionsFilter
+  summary?: string
+}
+
 export type ContentBlock =
   | TextBlock
   | TableBlock
@@ -93,6 +109,7 @@ export type ContentBlock =
   | FileAttachmentBlock
   | FollowupsBlock
   | ErrorBlock
+  | TransactionsBlock
 
 export interface ChatMessage {
   id: string
