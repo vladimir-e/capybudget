@@ -5,8 +5,8 @@ import { open as openExternal } from "@tauri-apps/plugin-shell";
 
 import { ThemeToggle } from "@/components/theme-toggle";
 import { BudgetTile } from "@/components/budget/budget-tile";
-import bgDay from "@/assets/capy-bg-day.avif";
-import bgNight from "@/assets/capy-bg-night.avif";
+import bgDay from "@/assets/capy-bg-day.webp";
+import bgNight from "@/assets/capy-bg-night.webp";
 
 import { PRESET_LIST } from "../data/presets";
 import type { DemoPreset } from "../data/presets";
