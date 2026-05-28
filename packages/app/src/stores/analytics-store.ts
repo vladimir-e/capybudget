@@ -137,7 +137,7 @@ const DEFAULT_TABS: Record<TabId, TabState> = {
   netWorth: { periodType: "allTime", dateRange: getCurrentYearRange() }, // placeholder until data loads
   cashFlow: { periodType: "year", dateRange: getCurrentYearRange() },
   compare: { periodType: "allTime", dateRange: getCurrentYearRange() },
-  merchants: { periodType: "month", dateRange: getCurrentMonthRange() },
+  merchants: { periodType: "allTime", dateRange: getCurrentYearRange() },
   monthlyBudget: { periodType: "month", dateRange: getCurrentMonthRange() },
 };
 
