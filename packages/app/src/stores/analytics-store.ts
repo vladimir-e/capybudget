@@ -142,7 +142,7 @@ const DEFAULT_TABS: Record<TabId, TabState> = {
 };
 
 export const useAnalyticsStore = create<AnalyticsState>((set, get) => ({
-  activeTab: "monthlyBudget",
+  activeTab: "spending",
   tabs: { ...DEFAULT_TABS },
   dataBounds: null,
 
