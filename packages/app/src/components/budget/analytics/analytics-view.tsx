@@ -33,15 +33,15 @@ interface TabDef {
   allowedPeriods: PeriodType[];
 }
 
-// Monthly Budget leads — it's the daily-driver view. The fallback
-// `?? TABS[0]` below also makes it the default tab on first load.
+// The store's activeTab default controls which tab opens first.
+// The `?? TABS[0]` fallback below is just a safety net.
 const TABS: TabDef[] = [
-  { id: "monthlyBudget", label: "Monthly Budget", allowedPeriods: ["month"] },
   { id: "spending", label: "Spending", allowedPeriods: ["month", "quarter", "year", "allTime", "custom"] },
   { id: "cashFlow", label: "Cash Flow", allowedPeriods: ["year", "allTime", "custom"] },
   { id: "netWorth", label: "Net Worth", allowedPeriods: ["year", "allTime", "custom"] },
   { id: "compare", label: "Compare", allowedPeriods: ["year", "allTime", "custom"] },
   { id: "merchants", label: "Merchants", allowedPeriods: ["month", "quarter", "year", "allTime"] },
+  { id: "monthlyBudget", label: "Monthly Budget", allowedPeriods: ["month"] },
 ];
 
 export function AnalyticsView() {
@@ -59,6 +59,7 @@ export function AnalyticsView() {
   const navigateBack = useAnalyticsStore((s) => s.navigateBack);
   const setAllTimeRange = useAnalyticsStore((s) => s.setAllTimeRange);
   const updateDataBounds = useAnalyticsStore((s) => s.updateDataBounds);
+  const dataBounds = useAnalyticsStore((s) => s.dataBounds);
   const canGoBack = useAnalyticsStore((s) => s.canNavigateBack());
   const canGoForward = useAnalyticsStore((s) => s.canNavigateForward());
 
@@ -156,6 +157,7 @@ export function AnalyticsView() {
           canGoBack={canGoBack}
           canGoForward={canGoForward}
           onCustomRange={handleCustomRange}
+          dataBounds={dataBounds}
         />
         {activeTab !== "monthlyBudget" && <SummaryStrip summary={summary} />}
       </div>
