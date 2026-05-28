@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   LineChart,
   Line,
@@ -21,9 +21,6 @@ import { ChartSwitcher } from "./chart-switcher";
 
 // ── Constants ──
 
-/** Number of categories pre-selected when the tab loads or viewMode flips. */
-const DEFAULT_TOP_N = 5;
-
 /** Color palette for the line chart. Slot assignment is by selected-order index,
  *  persisted across toggles within a session (see PickState.colorMap below). */
 const CHART_LINE_COLORS = [
@@ -38,6 +35,8 @@ const CHART_LINE_COLORS = [
 ];
 
 const UNCATEGORIZED_KEY = "__uncategorized__";
+
+const STORAGE_KEY_PREFIX = "capybudget:compare-selected-";
 
 // ── Types ──
 
@@ -167,16 +166,6 @@ function groupRows(rows: CategoryRow[]): Array<{ group: string; rows: CategoryRo
   }));
 }
 
-/** Top-N keys for current rows, in descending-total order. Skips zero-spend rows
- *  so we never seed with flat-zero lines. */
-function topByTotalKeys(rows: CategoryRow[], n: number): string[] {
-  return [...rows]
-    .filter((r) => r.total > 0)
-    .sort((a, b) => b.total - a.total)
-    .slice(0, n)
-    .map((r) => toSelectionKey(r.id));
-}
-
 // ── State ──
 
 /** Combined selection + sticky color-slot state. Kept as a single object so
@@ -206,12 +195,6 @@ function withSlotsFor(state: PickState, keys: Iterable<string>): PickState {
   }
   if (!colorMap) return state;
   return { ...state, colorMap, nextSlot };
-}
-
-/** Build a fresh PickState seeded with top-N selection in display order. */
-function seedPickState(rows: CategoryRow[]): PickState {
-  const ordered = topByTotalKeys(rows, DEFAULT_TOP_N);
-  return withSlotsFor({ ...EMPTY_PICK, selected: new Set(ordered) }, ordered);
 }
 
 // ── Main ──
@@ -245,13 +228,30 @@ function CompareTabBody({ transactions, categories, dateRange, viewMode }: Compa
     [transactions, categories, dateRange, viewMode],
   );
 
-  // Lazy initializer: seed from the rows visible at first mount of this body.
-  // The `key={viewMode}` on the parent guarantees a fresh mount per view, so
-  // this initializer fires exactly once per Expenses↔Income flip and never
-  // re-runs on period navigation.
-  const [pick, setPick] = useState<PickState>(() =>
-    rows.length > 0 ? seedPickState(rows) : EMPTY_PICK,
-  );
+  const [pick, setPick] = useState<PickState>(() => {
+    const storageKey = STORAGE_KEY_PREFIX + viewMode;
+    try {
+      const raw = localStorage.getItem(storageKey);
+      if (raw) {
+        const ids: unknown = JSON.parse(raw);
+        if (Array.isArray(ids)) {
+          const validKeys = new Set(rows.map((r) => toSelectionKey(r.id)));
+          const restored = ids.filter((id): id is string => typeof id === "string" && validKeys.has(id));
+          if (restored.length > 0) {
+            const selected = new Set(restored);
+            return withSlotsFor({ ...EMPTY_PICK, selected }, restored);
+          }
+        }
+      }
+    } catch { /* malformed storage — fall through */ }
+    return EMPTY_PICK;
+  });
+
+  useEffect(() => {
+    const storageKey = STORAGE_KEY_PREFIX + viewMode;
+    const ids = [...pick.selected];
+    localStorage.setItem(storageKey, JSON.stringify(ids));
+  }, [pick.selected, viewMode]);
 
   // Toggle a single category. Color slots are sticky: once assigned, the slot persists
   // even if the user deselects then reselects within the session.

@@ -136,7 +136,7 @@ const DEFAULT_TABS: Record<TabId, TabState> = {
   spending: { periodType: "month", dateRange: getCurrentMonthRange() },
   netWorth: { periodType: "allTime", dateRange: getCurrentYearRange() }, // placeholder until data loads
   cashFlow: { periodType: "year", dateRange: getCurrentYearRange() },
-  compare: { periodType: "year", dateRange: getCurrentYearRange() },
+  compare: { periodType: "allTime", dateRange: getCurrentYearRange() },
   merchants: { periodType: "month", dateRange: getCurrentMonthRange() },
   monthlyBudget: { periodType: "month", dateRange: getCurrentMonthRange() },
 };
@@ -189,7 +189,7 @@ export const useAnalyticsStore = create<AnalyticsState>((set, get) => ({
     if (tab.periodType === "allTime" || !dataBounds) return false;
     if (activeTab === "monthlyBudget") {
       const now = new Date();
-      return tab.dateRange.start.getTime() < new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+      return tab.dateRange.start.getTime() < new Date(now.getFullYear(), now.getMonth() + 1, 1).getTime();
     }
     return tab.dateRange.end.getTime() < dataBounds.end.getTime();
   },
