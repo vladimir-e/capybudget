@@ -187,6 +187,10 @@ export const useAnalyticsStore = create<AnalyticsState>((set, get) => ({
     const { activeTab, tabs, dataBounds } = get();
     const tab = tabs[activeTab];
     if (tab.periodType === "allTime" || !dataBounds) return false;
+    if (activeTab === "monthlyBudget") {
+      const now = new Date();
+      return tab.dateRange.start.getTime() < new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+    }
     return tab.dateRange.end.getTime() < dataBounds.end.getTime();
   },
 
