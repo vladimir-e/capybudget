@@ -308,15 +308,15 @@ export function getTopMerchants(
 // ── Category Trends ─────
 
 export interface TrendPoint {
-  date: string;    // ISO date string (first of month)
-  month: string;   // display label, e.g. "Apr 2026"
+  date: string;    // ISO date string (period start: first of month or Monday of week)
+  month: string;   // display label, e.g. "Apr 2026" or "Jan 6"
   byCategory: Record<string, number>;  // categoryId → absolute cents
 }
 
 export interface TrendSeries {
   categoryId: string;
   categoryName: string;
-  total: number;  // total across all months (for ranking)
+  total: number;  // total across all periods (for ranking)
 }
 
 export interface CategoryTrendsResult {
@@ -433,6 +433,7 @@ export function getCategoryTrends(
 
   if (granularity === "week") {
     const cursor = getWeekStart(range.start);
+    if (cursor < range.start) cursor.setDate(cursor.getDate() + 7);
     while (cursor < range.end) {
       const key = `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, "0")}-${String(cursor.getDate()).padStart(2, "0")}`;
       const catBuckets = buckets.get(key);

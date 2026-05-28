@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+  ensureMinMonths,
   filterTransactionsByDateRange,
   getSpendingByCategory,
   getIncomeByCategory,
@@ -61,6 +62,28 @@ const TRANSACTIONS: Transaction[] = [
   // Transaction on archived account (for net worth test)
   txn({ id: "t12", type: "income", amount: 99999, accountId: "acc-archived", categoryId: "cat-salary", datetime: "2026-01-01T10:00:00.000Z" }),
 ];
+
+// ── ensureMinMonths ─────
+
+describe("ensureMinMonths", () => {
+  it("returns the original range when already >= minMonths", () => {
+    const range = { start: new Date(2026, 0, 1), end: new Date(2027, 0, 1) };
+    expect(ensureMinMonths(range, 12)).toBe(range);
+  });
+
+  it("extends a short range to minMonths", () => {
+    const range = { start: new Date(2026, 0, 1), end: new Date(2026, 3, 1) };
+    const result = ensureMinMonths(range, 12);
+    expect(result.start).toEqual(new Date(2026, 0, 1));
+    expect(result.end).toEqual(new Date(2027, 0, 1));
+  });
+
+  it("handles year boundaries", () => {
+    const range = { start: new Date(2025, 9, 1), end: new Date(2025, 11, 1) };
+    const result = ensureMinMonths(range, 12);
+    expect(result.end).toEqual(new Date(2026, 9, 1));
+  });
+});
 
 // ── filterTransactionsByDateRange ─────
 
