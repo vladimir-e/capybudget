@@ -299,13 +299,20 @@ function CompareTabBody({ transactions, categories, dateRange, viewMode }: Compa
     [selected],
   );
 
+  const granularity = useMemo(() => {
+    const months = (dateRange.end.getFullYear() - dateRange.start.getFullYear()) * 12
+      + (dateRange.end.getMonth() - dateRange.start.getMonth());
+    return months < 12 ? "week" as const : "month" as const;
+  }, [dateRange]);
+
   const seriesData = useMemo(
     () =>
       getCategoryTrends(transactions, categories, dateRange, {
         type: viewMode,
         categoryIds: selectedIdsForCore,
+        granularity,
       }),
-    [transactions, categories, dateRange, viewMode, selectedIdsForCore],
+    [transactions, categories, dateRange, viewMode, selectedIdsForCore, granularity],
   );
 
   const periodHasData = rows.length > 0;

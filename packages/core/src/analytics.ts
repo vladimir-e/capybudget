@@ -320,15 +320,21 @@ export interface TrendSeries {
 }
 
 export interface CategoryTrendsResult {
-  /** Chronologically sorted monthly buckets. Underlying granularity is monthly — the
-   *  range is partitioned into calendar months regardless of the caller's period type. */
+  /** Chronologically sorted buckets (monthly or weekly depending on granularity). */
   points: TrendPoint[];
   /** In `categoryIds` mode: the requested categories, deduped, in caller order
    *  (unknown ids silently dropped). In `limit` mode: top-N categories sorted by total desc. */
   series: TrendSeries[];
 }
 
-/** Monthly spending per category over a date range. Excludes transfers.
+function getWeekStart(date: Date): Date {
+  const d = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  const day = d.getDay(); // 0=Sun
+  d.setDate(d.getDate() - (day === 0 ? 6 : day - 1));
+  return d;
+}
+
+/** Spending per category over a date range, bucketed monthly or weekly. Excludes transfers.
  *
  * Two selection modes:
  *  - `categoryIds` (explicit): include exactly these categories, in the order given,
@@ -344,11 +350,12 @@ export function getCategoryTrends(
   transactions: Transaction[],
   categories: Category[],
   range: DateRange,
-  options?: { type?: "expense" | "income"; limit?: number; categoryIds?: string[] },
+  options?: { type?: "expense" | "income"; limit?: number; categoryIds?: string[]; granularity?: "month" | "week" },
 ): CategoryTrendsResult {
   const type = options?.type ?? "expense";
   const limit = options?.limit ?? 8;
   const explicitIds = options?.categoryIds;
+  const granularity = options?.granularity ?? "month";
 
   // Empty explicit list = no series requested. Nothing to compute.
   if (explicitIds && explicitIds.length === 0) {
@@ -360,9 +367,9 @@ export function getCategoryTrends(
   const startMs = range.start.getTime();
   const endMs = range.end.getTime();
 
-  // monthKey → categoryId → absolute cents
+  // bucketKey → categoryId → absolute cents
   const buckets = new Map<string, Map<string, number>>();
-  // categoryId → total across all months
+  // categoryId → total across all periods
   const categoryTotals = new Map<string, number>();
 
   for (const t of transactions) {
@@ -371,13 +378,19 @@ export function getCategoryTrends(
     if (ms < startMs || ms >= endMs) continue;
 
     const d = new Date(t.datetime);
-    const monthKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+    let bucketKey: string;
+    if (granularity === "week") {
+      const ws = getWeekStart(d);
+      bucketKey = `${ws.getFullYear()}-${String(ws.getMonth() + 1).padStart(2, "0")}-${String(ws.getDate()).padStart(2, "0")}`;
+    } else {
+      bucketKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+    }
     const catId = t.categoryId || "__uncategorized__";
     const amt = Math.abs(t.amount);
 
-    if (!buckets.has(monthKey)) buckets.set(monthKey, new Map());
-    const monthBucket = buckets.get(monthKey)!;
-    monthBucket.set(catId, (monthBucket.get(catId) ?? 0) + amt);
+    if (!buckets.has(bucketKey)) buckets.set(bucketKey, new Map());
+    const bucket = buckets.get(bucketKey)!;
+    bucket.set(catId, (bucket.get(catId) ?? 0) + amt);
 
     categoryTotals.set(catId, (categoryTotals.get(catId) ?? 0) + amt);
   }
@@ -402,7 +415,9 @@ export function getCategoryTrends(
       .map(([id]) => id);
   }
 
-  const selectedSet = new Set(selectedIds);
+  if (selectedIds.length === 0) {
+    return { points: [], series: [] };
+  }
 
   const series: TrendSeries[] = selectedIds.map((id) => {
     const cat = id === "__uncategorized__" ? undefined : catMap.get(id);
@@ -413,30 +428,47 @@ export function getCategoryTrends(
     };
   });
 
-  // Build chronologically sorted points
+  // Build chronologically sorted points covering every period in the range
   const points: TrendPoint[] = [];
-  for (const [monthKey, catBuckets] of buckets) {
-    const [yearStr, monthStr] = monthKey.split("-");
-    const year = Number(yearStr);
-    const month = Number(monthStr) - 1; // 0-indexed
-    const firstOfMonth = new Date(year, month, 1);
 
-    const byCategory: Record<string, number> = {};
-    for (const [catId, amt] of catBuckets) {
-      if (selectedSet.has(catId)) {
-        const key = catId === "__uncategorized__" ? "" : catId;
-        byCategory[key] = amt;
+  if (granularity === "week") {
+    const cursor = getWeekStart(range.start);
+    while (cursor < range.end) {
+      const key = `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, "0")}-${String(cursor.getDate()).padStart(2, "0")}`;
+      const catBuckets = buckets.get(key);
+      const byCategory: Record<string, number> = {};
+      for (const id of selectedIds) {
+        const extKey = id === "__uncategorized__" ? "" : id;
+        byCategory[extKey] = catBuckets?.get(id) ?? 0;
       }
+      points.push({
+        date: new Date(cursor).toISOString(),
+        month: `${MONTH_LABELS[cursor.getMonth()]} ${cursor.getDate()}`,
+        byCategory,
+      });
+      cursor.setDate(cursor.getDate() + 7);
     }
-
-    points.push({
-      date: firstOfMonth.toISOString(),
-      month: `${MONTH_LABELS[month]} ${year}`,
-      byCategory,
-    });
+  } else {
+    const cursor = new Date(range.start.getFullYear(), range.start.getMonth(), 1);
+    while (cursor < range.end) {
+      const year = cursor.getFullYear();
+      const month = cursor.getMonth();
+      const key = `${year}-${String(month + 1).padStart(2, "0")}`;
+      const catBuckets = buckets.get(key);
+      const byCategory: Record<string, number> = {};
+      for (const id of selectedIds) {
+        const extKey = id === "__uncategorized__" ? "" : id;
+        byCategory[extKey] = catBuckets?.get(id) ?? 0;
+      }
+      points.push({
+        date: new Date(year, month, 1).toISOString(),
+        month: `${MONTH_LABELS[month]} ${year}`,
+        byCategory,
+      });
+      cursor.setMonth(cursor.getMonth() + 1);
+    }
   }
 
-  points.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
   return { points, series };
 }
 
