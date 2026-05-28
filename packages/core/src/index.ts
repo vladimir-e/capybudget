@@ -152,6 +152,7 @@ export type {
   MonthlyBudgetSummary,
 } from "./analytics";
 export {
+  ensureMinMonths,
   filterTransactionsByDateRange,
   getSpendingByCategory,
   getIncomeByCategory,

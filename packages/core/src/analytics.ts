@@ -20,6 +20,17 @@ export interface NetWorthPoint {
   byAccount: Record<string, number>; // accountId → balance at that point
 }
 
+/** Extend the range's end so it spans at least `minMonths` calendar months. */
+export function ensureMinMonths(range: DateRange, minMonths: number): DateRange {
+  const months = (range.end.getFullYear() - range.start.getFullYear()) * 12
+    + (range.end.getMonth() - range.start.getMonth());
+  if (months >= minMonths) return range;
+  return {
+    start: range.start,
+    end: new Date(range.start.getFullYear(), range.start.getMonth() + minMonths, 1),
+  };
+}
+
 /** Filter transactions whose datetime falls within [start, end). */
 export function filterTransactionsByDateRange(
   transactions: Transaction[],

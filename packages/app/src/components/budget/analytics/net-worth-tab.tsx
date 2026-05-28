@@ -12,6 +12,7 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import {
+  ensureMinMonths,
   formatMoney,
   formatMoneyCompact,
   getNetWorthOverTime,
@@ -69,7 +70,7 @@ export function NetWorthTab({ accounts, transactions, dateRange }: NetWorthTabPr
   const isStale = deferredTransactions !== transactions || deferredRange !== dateRange;
 
   const netWorthData = useMemo(
-    () => getNetWorthOverTime(accounts, deferredTransactions, deferredRange),
+    () => getNetWorthOverTime(accounts, deferredTransactions, ensureMinMonths(deferredRange, 12)),
     [accounts, deferredTransactions, deferredRange],
   );
 

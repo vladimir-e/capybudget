@@ -11,6 +11,7 @@ import {
   Legend,
 } from "recharts";
 import {
+  ensureMinMonths,
   formatMoney,
   formatMoneyCompact,
   getCashFlow,
@@ -59,7 +60,7 @@ interface CashFlowTabProps {
 
 export function CashFlowTab({ transactions, dateRange }: CashFlowTabProps) {
   const cashFlowData = useMemo(
-    () => getCashFlow(transactions, dateRange),
+    () => getCashFlow(transactions, ensureMinMonths(dateRange, 12)),
     [transactions, dateRange],
   );
 
