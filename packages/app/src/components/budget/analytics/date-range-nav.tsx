@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { subMonths } from "date-fns";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -48,13 +48,14 @@ export function DateRangeNav({
 }: DateRangeNavProps) {
   const label = formatRangeLabel(dateRange, periodType);
 
-  const calendarDisabled = dataBounds ? (() => {
+  const calendarDisabled = useMemo(() => {
+    if (!dataBounds) return undefined;
     const lastDataDay = new Date(dataBounds.end);
     lastDataDay.setDate(lastDataDay.getDate() - 1);
     const today = new Date();
     const maxDate = lastDataDay > today ? lastDataDay : today;
     return [{ before: dataBounds.start }, { after: maxDate }];
-  })() : undefined;
+  }, [dataBounds]);
   const showArrows = periodType !== "allTime";
   const [calendarOpen, setCalendarOpen] = useState(false);
   // Always reflect the actual store state (already snapped to month boundaries)

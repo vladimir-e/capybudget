@@ -33,8 +33,6 @@ interface TabDef {
   allowedPeriods: PeriodType[];
 }
 
-// The store's activeTab default controls which tab opens first.
-// The `?? TABS[0]` fallback below is just a safety net.
 const TABS: TabDef[] = [
   { id: "spending", label: "Spending", allowedPeriods: ["month", "quarter", "year", "allTime", "custom"] },
   { id: "cashFlow", label: "Cash Flow", allowedPeriods: ["year", "allTime", "custom"] },

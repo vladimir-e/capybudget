@@ -40,22 +40,8 @@ function getCurrentYearRange(): DateRange {
   };
 }
 
-function getCurrentQuarterRange(): DateRange {
-  const now = new Date();
-  const q = Math.floor(now.getMonth() / 3) * 3;
-  return {
-    start: new Date(now.getFullYear(), q, 1),
-    end: new Date(now.getFullYear(), q + 3, 1),
-  };
-}
-
 function defaultRangeForPeriod(type: PeriodType): DateRange {
-  switch (type) {
-    case "month": return getCurrentMonthRange();
-    case "quarter": return getCurrentQuarterRange();
-    case "year": return getCurrentYearRange();
-    default: return getCurrentMonthRange();
-  }
+  return rangeForPeriodContaining(new Date(), type);
 }
 
 function rangeForPeriodContaining(date: Date, periodType: PeriodType): DateRange {

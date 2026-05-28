@@ -331,8 +331,8 @@ describe("getPeriodSummary", () => {
 describe("getCashFlow", () => {
   it("groups income and expenses by month", () => {
     const result = getCashFlow(TRANSACTIONS, {
-      start: new Date("2026-01-01T00:00:00.000Z"),
-      end: new Date("2026-04-01T00:00:00.000Z"),
+      start: new Date(2026, 0, 1),
+      end: new Date(2026, 3, 1),
     });
     // Should have Jan, Feb, Mar
     expect(result.length).toBe(3);
@@ -361,8 +361,8 @@ describe("getCashFlow", () => {
 
   it("returns results sorted chronologically", () => {
     const result = getCashFlow(TRANSACTIONS, {
-      start: new Date("2026-01-01T00:00:00.000Z"),
-      end: new Date("2026-04-01T00:00:00.000Z"),
+      start: new Date(2026, 0, 1),
+      end: new Date(2026, 3, 1),
     });
     for (let i = 1; i < result.length; i++) {
       expect(new Date(result[i - 1].date).getTime()).toBeLessThan(
@@ -373,8 +373,8 @@ describe("getCashFlow", () => {
 
   it("returns single month when range covers one month", () => {
     const result = getCashFlow(TRANSACTIONS, {
-      start: new Date("2026-01-01T00:00:00.000Z"),
-      end: new Date("2026-02-01T00:00:00.000Z"),
+      start: new Date(2026, 0, 1),
+      end: new Date(2026, 1, 1),
     });
     expect(result.length).toBe(1);
     expect(result[0].month).toBe("Jan 2026");
@@ -382,8 +382,8 @@ describe("getCashFlow", () => {
 
   it("emits zero-valued points for empty transactions", () => {
     const result = getCashFlow([], {
-      start: new Date("2026-01-01T00:00:00.000Z"),
-      end: new Date("2027-01-01T00:00:00.000Z"),
+      start: new Date(2026, 0, 1),
+      end: new Date(2027, 0, 1),
     });
     expect(result.length).toBe(12);
     for (const point of result) {
@@ -396,8 +396,8 @@ describe("getCashFlow", () => {
   it("excludes transfers", () => {
     // Use only Feb range which contains transfers t9/t10
     const result = getCashFlow(TRANSACTIONS, {
-      start: new Date("2026-02-01T00:00:00.000Z"),
-      end: new Date("2026-03-01T00:00:00.000Z"),
+      start: new Date(2026, 1, 1),
+      end: new Date(2026, 2, 1),
     });
     expect(result.length).toBe(1);
     const feb = result[0];
@@ -409,8 +409,8 @@ describe("getCashFlow", () => {
 
   it("only includes months within range", () => {
     const result = getCashFlow(TRANSACTIONS, {
-      start: new Date("2026-02-01T00:00:00.000Z"),
-      end: new Date("2026-03-01T00:00:00.000Z"),
+      start: new Date(2026, 1, 1),
+      end: new Date(2026, 2, 1),
     });
     // Should only have February, even though transactions exist in Jan and Mar
     expect(result.length).toBe(1);
