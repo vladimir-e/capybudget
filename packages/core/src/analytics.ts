@@ -217,22 +217,24 @@ export function getCashFlow(
   }
 
   const points: CashFlowPoint[] = [];
-  for (const [key, { income, expenses }] of buckets) {
-    const [yearStr, monthStr] = key.split("-");
-    const year = Number(yearStr);
-    const month = Number(monthStr) - 1; // 0-indexed
-    const firstOfMonth = new Date(year, month, 1);
+  const cursor = new Date(range.start.getFullYear(), range.start.getMonth(), 1);
+  while (cursor < range.end) {
+    const year = cursor.getFullYear();
+    const month = cursor.getMonth();
+    const key = `${year}-${String(month + 1).padStart(2, "0")}`;
+    const bucket = buckets.get(key) ?? { income: 0, expenses: 0 };
 
     points.push({
-      date: firstOfMonth.toISOString(),
+      date: new Date(year, month, 1).toISOString(),
       month: `${MONTH_LABELS[month]} ${year}`,
-      income,
-      expenses,
-      net: income - expenses,
+      income: bucket.income,
+      expenses: bucket.expenses,
+      net: bucket.income - bucket.expenses,
     });
+
+    cursor.setMonth(month + 1);
   }
 
-  points.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
   return points;
 }
 

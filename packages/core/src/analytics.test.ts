@@ -380,12 +380,17 @@ describe("getCashFlow", () => {
     expect(result[0].month).toBe("Jan 2026");
   });
 
-  it("returns empty for empty transactions", () => {
+  it("emits zero-valued points for empty transactions", () => {
     const result = getCashFlow([], {
       start: new Date("2026-01-01T00:00:00.000Z"),
-      end: new Date("2026-12-31T00:00:00.000Z"),
+      end: new Date("2027-01-01T00:00:00.000Z"),
     });
-    expect(result).toEqual([]);
+    expect(result.length).toBe(12);
+    for (const point of result) {
+      expect(point.income).toBe(0);
+      expect(point.expenses).toBe(0);
+      expect(point.net).toBe(0);
+    }
   });
 
   it("excludes transfers", () => {
