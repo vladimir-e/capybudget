@@ -1,38 +1,57 @@
 import { describe, expect, it } from "vitest";
-import { progressState } from "./monthly-budget-progress";
+import { effectiveTarget, progressState } from "./monthly-budget-progress";
+
+describe("effectiveTarget", () => {
+  it("prefers an explicit assigned over the implicit target", () => {
+    expect(effectiveTarget(5000, 9000)).toBe(5000);
+  });
+
+  it("honors an explicit zero over the implicit target", () => {
+    expect(effectiveTarget(0, 9000)).toBe(0);
+  });
+
+  it("falls back to the implicit target when assigned is null", () => {
+    expect(effectiveTarget(null, 9000)).toBe(9000);
+  });
+
+  it("is null when neither target exists", () => {
+    expect(effectiveTarget(null, null)).toBeNull();
+  });
+});
 
 describe("progressState", () => {
-  it("returns null for untracked categories", () => {
-    expect(progressState(0, null)).toBe(null);
-    expect(progressState(5000, null)).toBe(null);
+  it("is 'ok' under the effective target", () => {
+    expect(progressState(7900, 10000, null)).toBe("ok");
   });
 
-  it("returns 'ok' for tracked-zero with no spend", () => {
-    expect(progressState(0, 0)).toBe("ok");
+  it("is 'ok' at exactly 100% of the target (the boundary is green)", () => {
+    expect(progressState(10000, 10000, null)).toBe("ok");
   });
 
-  it("returns 'over' for tracked-zero with any spend", () => {
-    expect(progressState(1, 0)).toBe("over");
-    expect(progressState(10000, 0)).toBe("over");
+  it("is 'over' above 100% of the target", () => {
+    expect(progressState(10001, 10000, null)).toBe("over");
   });
 
-  it("returns 'ok' when ratio is below 0.8", () => {
-    // 79 / 100 = 0.79 → ok
-    expect(progressState(79, 100)).toBe("ok");
+  it("treats explicit zero as a strict target — any spend is over", () => {
+    expect(progressState(0, 0, null)).toBe("ok");
+    expect(progressState(1, 0, null)).toBe("over");
+    expect(progressState(10000, 0, null)).toBe("over");
   });
 
-  it("returns 'warn' at the 0.8 boundary", () => {
-    // 80 / 100 = 0.8 → warn
-    expect(progressState(80, 100)).toBe("warn");
+  it("falls back to the implicit target when assigned is null", () => {
+    // No explicit budget; implicit target 10000 governs.
+    expect(progressState(9000, null, 10000)).toBe("ok");
+    expect(progressState(10000, null, 10000)).toBe("ok"); // exactly 100%
+    expect(progressState(12000, null, 10000)).toBe("over");
   });
 
-  it("returns 'warn' at the 1.0 boundary (not over)", () => {
-    // 100 / 100 = 1.0 → still warn, not over
-    expect(progressState(100, 100)).toBe("warn");
+  it("lets an explicit budget override the implicit target", () => {
+    // Spend is under the implicit target but over the explicit one.
+    expect(progressState(6000, 5000, 10000)).toBe("over");
   });
 
-  it("returns 'over' when ratio exceeds 1", () => {
-    // 101 / 100 = 1.01 → over
-    expect(progressState(101, 100)).toBe("over");
+  it("is 'untargeted' when there is no effective target", () => {
+    expect(progressState(0, null, null)).toBe("untargeted");
+    expect(progressState(50000, null, null)).toBe("untargeted");
   });
 });

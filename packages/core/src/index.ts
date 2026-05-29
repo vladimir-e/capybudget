@@ -150,6 +150,8 @@ export type {
   CategoryTrendsResult,
   CategoryMonthSummary,
   MonthlyBudgetSummary,
+  CategoryHistoricalStats,
+  CategoryHistoricalStatsResult,
 } from "./analytics";
 export {
   ensureMinMonths,
@@ -162,4 +164,5 @@ export {
   getTopMerchants,
   getCategoryTrends,
   getMonthlyBudgetSummary,
+  getCategoryHistoricalStats,
 } from "./analytics";

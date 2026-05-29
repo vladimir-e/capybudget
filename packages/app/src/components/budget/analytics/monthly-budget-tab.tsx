@@ -26,16 +26,15 @@ import {
   type MonthlyBudgetDrilldown,
 } from "./monthly-budget-drilldown";
 
-// ── Color palette (matches spec: well-under / close / over) ────
+// ── Color palette ────
 //
-// Tailwind has bg-amount-income (green) and bg-amount-expense (red) wired
-// to theme tokens. There's no "gold/warning" token, so we use an oklch
-// literal in the gold band — visually consistent across themes because OKLCh
-// keeps lightness/chroma stable.
+// Binary against the effective target: under/at target is income-green, over
+// is expense-red. Untargeted rows (no budget, no history) render neutral —
+// the muted track stands in, so there's no fill color for that state.
 const PROGRESS_COLOR = {
   ok: "var(--amount-income)",
-  warn: "oklch(0.70 0.14 80)",
   over: "var(--amount-expense)",
+  untargeted: "var(--muted-foreground)",
 } as const;
 
 // ── KPI strip ────
@@ -87,7 +86,7 @@ function KpiStrip({ cards }: { cards: KPICard[] }) {
 // ── Progress bar ────
 
 function ProgressBar({ spent, assigned }: { spent: number; assigned: number }) {
-  const state = progressState(spent, assigned)!;
+  const state = progressState(spent, assigned, null);
   const ratio = assigned === 0 ? (spent > 0 ? 1 : 0) : spent / assigned;
 
   // Cap the filled bar at 100%; overshoot gets a separate tail beyond it.
@@ -261,7 +260,7 @@ interface CategoryRowProps {
 function CategoryRow({ category, spent, onDrilldown }: CategoryRowProps) {
   const tracked = category.assigned !== null;
   const remaining = tracked ? category.assigned! - spent : null;
-  const state = progressState(spent, category.assigned);
+  const state = progressState(spent, category.assigned, null);
   const hasSpent = spent > 0;
 
   return (

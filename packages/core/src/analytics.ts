@@ -334,6 +334,13 @@ function getWeekStart(date: Date): Date {
   return d;
 }
 
+/** Calendar-month bucket key (`YYYY-MM`) for a date. The canonical month
+ *  bucketing used across analytics — keep producers (trends, historical
+ *  stats) on this single helper so their buckets line up. */
+function monthKey(date: Date): string {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+}
+
 /** Spending per category over a date range, bucketed monthly or weekly. Excludes transfers.
  *
  * Two selection modes:
@@ -383,7 +390,7 @@ export function getCategoryTrends(
       const ws = getWeekStart(d);
       bucketKey = `${ws.getFullYear()}-${String(ws.getMonth() + 1).padStart(2, "0")}-${String(ws.getDate()).padStart(2, "0")}`;
     } else {
-      bucketKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+      bucketKey = monthKey(d);
     }
     const catId = t.categoryId || "__uncategorized__";
     const amt = Math.abs(t.amount);
@@ -454,8 +461,7 @@ export function getCategoryTrends(
     while (cursor < range.end) {
       const year = cursor.getFullYear();
       const month = cursor.getMonth();
-      const key = `${year}-${String(month + 1).padStart(2, "0")}`;
-      const catBuckets = buckets.get(key);
+      const catBuckets = buckets.get(monthKey(cursor));
       const byCategory: Record<string, number> = {};
       for (const id of selectedIds) {
         const extKey = id === "__uncategorized__" ? "" : id;
@@ -471,6 +477,102 @@ export function getCategoryTrends(
   }
 
   return { points, series };
+}
+
+// ── Category Historical Stats ─────
+
+export interface CategoryHistoricalStats {
+  categoryId: string;
+  /** Expense spend (abs cents) in the full calendar month immediately
+   *  before the viewed month. `0` if that month had no spend. */
+  lastMonth: number;
+  /** Mean monthly expense spend (abs cents) over the 3 full calendar
+   *  months immediately before the viewed month. A month with no spend
+   *  counts as 0; the divisor is always 3. */
+  avg3Month: number;
+  /** Implicit monthly target: `max(lastMonth, avg3Month)`. `null` when
+   *  there is no usable history at all (`monthsOfData === 0`) — the UI
+   *  treats a null target as neutral, never over. */
+  implicitTarget: number | null;
+}
+
+export interface CategoryHistoricalStatsResult {
+  /** One entry per eligible (non-archived, non-Income) category. */
+  byCategory: Map<string, CategoryHistoricalStats>;
+  /** Count of distinct calendar months *before* the viewed month that
+   *  contain any eligible expense spend. Dataset-wide, not per category:
+   *  it answers "is there history to judge against?" so the UI can tell
+   *  a genuine $0 month apart from no data. `0` ⟺ every category's
+   *  `implicitTarget` is `null`. */
+  monthsOfData: number;
+}
+
+/** Per-category historical spend stats, computed relative to a viewed month.
+ *
+ *  The viewed month is `range.start` (a first-of-month boundary, exactly as
+ *  `getMonthlyBudgetSummary` receives it); history is the full calendar
+ *  months strictly *before* it. Viewing a past month therefore looks back
+ *  from that month, never from today.
+ *
+ *  Same filtering as `getMonthlyBudgetSummary`: `expense` type only, Income
+ *  group and archived categories excluded, `Math.abs(amount)`, uncategorized
+ *  skipped. Money is integer cents throughout. */
+export function getCategoryHistoricalStats(
+  transactions: Transaction[],
+  categories: Category[],
+  range: DateRange,
+): CategoryHistoricalStatsResult {
+  const eligible = categories.filter((c) => !c.archived && c.group !== "Income");
+  const eligibleIds = new Set(eligible.map((c) => c.id));
+
+  const viewed = new Date(range.start.getFullYear(), range.start.getMonth(), 1);
+  // Month keys for the 1 and 3 months immediately preceding the viewed month.
+  const prevMonthKeys: string[] = [];
+  for (let i = 1; i <= 3; i++) {
+    prevMonthKeys.push(
+      monthKey(new Date(viewed.getFullYear(), viewed.getMonth() - i, 1)),
+    );
+  }
+  const [lastKey] = prevMonthKeys;
+  const viewedMs = viewed.getTime();
+
+  // categoryId → monthKey → abs cents, for eligible categorized expenses
+  // strictly before the viewed month. `monthsWithData` tracks the distinct
+  // pre-viewed months that hold any such spend.
+  const byCatMonth = new Map<string, Map<string, number>>();
+  const monthsWithData = new Set<string>();
+  for (const t of transactions) {
+    if (t.type !== "expense") continue;
+    if (!t.categoryId || !eligibleIds.has(t.categoryId)) continue;
+    const d = new Date(t.datetime);
+    if (d.getTime() >= viewedMs) continue; // exclude the viewed month and everything after
+    const key = monthKey(d);
+    monthsWithData.add(key);
+    let months = byCatMonth.get(t.categoryId);
+    if (!months) {
+      months = new Map();
+      byCatMonth.set(t.categoryId, months);
+    }
+    months.set(key, (months.get(key) ?? 0) + Math.abs(t.amount));
+  }
+
+  const hasHistory = monthsWithData.size > 0;
+
+  const byCategory = new Map<string, CategoryHistoricalStats>();
+  for (const c of eligible) {
+    const months = byCatMonth.get(c.id);
+    const lastMonth = months?.get(lastKey) ?? 0;
+    const sum3 = prevMonthKeys.reduce((s, k) => s + (months?.get(k) ?? 0), 0);
+    const avg3Month = Math.round(sum3 / 3);
+    byCategory.set(c.id, {
+      categoryId: c.id,
+      lastMonth,
+      avg3Month,
+      implicitTarget: hasHistory ? Math.max(lastMonth, avg3Month) : null,
+    });
+  }
+
+  return { byCategory, monthsOfData: monthsWithData.size };
 }
 
 // ── Monthly Budget ─────
