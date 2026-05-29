@@ -14,10 +14,9 @@ import type {
 } from "@capybudget/core";
 import { useSetCategoryAssigned } from "@/hooks/use-category-mutations";
 import { toast } from "sonner";
-import { useDismissed } from "@/hooks/use-dismissed";
 import { buildBudgetView, type BudgetRow } from "./monthly-budget-rows";
 import { BudgetBar, BudgetBarLegend } from "./budget-bar";
-import { BudgetExplainer, BudgetNoHistoryNote } from "./budget-explainer";
+import { BudgetNoHistoryNote } from "./budget-no-history-note";
 import { TransactionsModal } from "@/components/budget/transactions-modal";
 import { TransactionsDrilldownLink } from "@/components/budget/transactions-drilldown-link";
 import { formatRangeLabel } from "./format-range";
@@ -112,13 +111,15 @@ function AssignedInput({ category, row }: AssignedInputProps) {
     display = <span className="tabular-nums">{formatMoney(row.assigned)}</span>;
     ariaLabel = `Edit budget for ${category.name}`;
   } else if (row.isImplicit) {
+    // AUTO is a prefix label pinned left while the amount stays pegged to the
+    // column's right edge, so auto targets line up with explicit-budget rows.
     display = (
-      <span className="inline-flex items-center justify-end gap-1.5">
-        <span className="tabular-nums text-muted-foreground">
-          {formatMoney(row.implicitTarget!)}
-        </span>
+      <span className="flex w-full items-center justify-between gap-1.5">
         <span className="rounded-sm bg-muted px-1 py-px text-[10px] font-medium uppercase tracking-wide text-muted-foreground/80">
           auto
+        </span>
+        <span className="tabular-nums text-muted-foreground">
+          {formatMoney(row.implicitTarget!)}
         </span>
       </span>
     );
@@ -230,7 +231,8 @@ function CategoryRow({ category, row, onDrilldown }: CategoryRowProps) {
   const targeted = effectiveTarget !== null;
   const hasSpent = spent > 0;
   // Remaining only exists when there's a target to count down from. Over-spend
-  // is shown textually ("$X over"), so "over" reads without relying on color.
+  // renders as a signed negative ("-$X") in the expense token — the minus sign
+  // carries the meaning, so it reads without relying on color alone.
   const remaining = targeted ? effectiveTarget - spent : null;
   const over = remaining !== null && remaining < 0;
 
@@ -281,7 +283,7 @@ function CategoryRow({ category, row, onDrilldown }: CategoryRowProps) {
         <BudgetBar row={row} />
       </div>
 
-      {/* Remaining — "$X over" in the expense token when negative. */}
+      {/* Remaining — signed, so an overspend reads "-$X" in the expense token. */}
       <span
         className={`text-right text-sm tabular-nums ${
           over ? "text-amount-expense" : "text-foreground"
@@ -289,8 +291,6 @@ function CategoryRow({ category, row, onDrilldown }: CategoryRowProps) {
       >
         {remaining === null ? (
           <span className="text-muted-foreground/50">—</span>
-        ) : over ? (
-          `${formatMoney(-remaining)} over`
         ) : (
           formatMoney(remaining)
         )}
@@ -361,7 +361,7 @@ function GroupSection({
           {group}
           {targetedCount < totalCount && (
             <span className="ml-2 text-xs font-normal normal-case tracking-normal text-muted-foreground/60">
-              {targetedCount}/{totalCount} targeted
+              {targetedCount}/{totalCount} tracked
             </span>
           )}
         </h3>
@@ -398,7 +398,6 @@ export function MonthlyBudgetTab({
 }: MonthlyBudgetTabProps) {
   const [hideUntargeted, setHideUntargeted] = useState(false);
   const [drilldown, setDrilldown] = useState<MonthlyBudgetDrilldown | null>(null);
-  const [explainerDismissed, dismissExplainer] = useDismissed("budget-explainer");
 
   const view = useMemo(
     () => buildBudgetView(transactions, categories, dateRange),
@@ -506,12 +505,6 @@ export function MonthlyBudgetTab({
         ]}
       />
 
-      {/* First-open framing — dismissed forever once the user gets it. Skipped
-       *  when there's nothing to budget yet. */}
-      {hasCategories && !explainerDismissed && (
-        <BudgetExplainer monthsOfData={view.monthsOfData} onDismiss={dismissExplainer} />
-      )}
-
       {/* The filter only makes sense once some rows are targeted and others
        *  aren't — otherwise hiding the untargeted ones empties the table or
        *  does nothing. */}
@@ -522,10 +515,10 @@ export function MonthlyBudgetTab({
               checked={hideUntargeted}
               onCheckedChange={(v) => setHideUntargeted(v === true)}
             />
-            <span>Hide untargeted categories</span>
+            <span>Show only tracked</span>
           </label>
           <span className="text-xs text-muted-foreground tabular-nums">
-            {targetedCount} of {view.rows.length} targeted
+            {targetedCount} of {view.rows.length} tracked
           </span>
         </div>
       )}
@@ -539,10 +532,9 @@ export function MonthlyBudgetTab({
         <div className="space-y-3">
           {noHistory && <BudgetNoHistoryNote />}
 
-          {/* Legend decodes the zoned bar — show it once at least one row
-           *  draws a real bar (zones, pins, divider). With nothing targeted
-           *  yet the bars are dashed placeholders, so it would explain
-           *  nothing. */}
+          {/* Legend keys the history pins — show it once at least one row
+           *  draws a real bar. With nothing targeted yet the bars are dashed
+           *  placeholders with no pins, so it would explain nothing. */}
           {hasTargetedRows && (
             <div className="px-3">
               <BudgetBarLegend />

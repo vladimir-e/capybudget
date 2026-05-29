@@ -211,41 +211,16 @@ function LegendItem({ glyph, label }: { glyph: React.ReactNode; label: string })
   );
 }
 
-/** A compact, one-row key that decodes the zoned bar's vocabulary: the
- *  green/red zones, the two diamond pins, and the dashed-vs-solid divider.
- *  Each swatch is paired with text, so meaning never rests on color alone.
- *  Renders the same `PinGlyph`/`DividerGlyph` as the bars themselves. */
+/** A compact key for the two history pins that float above each bar — a filled
+ *  diamond for last month, a hollow one for the 3-mo average. The zones,
+ *  divider, and fill are visually self-evident and don't earn a legend row.
+ *  Right-aligned so it sits near where the pins actually render. Renders the
+ *  same `PinGlyph` as the bars themselves, so the two can't drift apart. */
 export function BudgetBarLegend() {
   return (
-    <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-muted-foreground">
-      <LegendItem
-        glyph={
-          // Green/red split echoes the bar's fixed ~70/30 divider.
-          <span className="flex h-2 w-5 overflow-hidden rounded-full">
-            <span className="h-full" style={{ flex: 7, backgroundColor: ZONE_GREEN }} />
-            <span className="h-full" style={{ flex: 3, backgroundColor: ZONE_RED }} />
-          </span>
-        }
-        label="within target / over"
-      />
+    <div className="flex flex-wrap items-center justify-end gap-x-4 gap-y-1.5 text-xs text-muted-foreground">
       <LegendItem glyph={<PinGlyph kind="lastMonth" />} label="last month" />
       <LegendItem glyph={<PinGlyph kind="avg3Month" />} label="3-mo avg" />
-      <LegendItem
-        glyph={
-          <span className="block h-3">
-            <DividerGlyph isImplicit />
-          </span>
-        }
-        label="auto target"
-      />
-      <LegendItem
-        glyph={
-          <span className="block h-3">
-            <DividerGlyph isImplicit={false} />
-          </span>
-        }
-        label="your budget"
-      />
     </div>
   );
 }
