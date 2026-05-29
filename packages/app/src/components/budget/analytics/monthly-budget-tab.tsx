@@ -14,8 +14,10 @@ import type {
 } from "@capybudget/core";
 import { useSetCategoryAssigned } from "@/hooks/use-category-mutations";
 import { toast } from "sonner";
+import { useDismissed } from "@/hooks/use-dismissed";
 import { buildBudgetView, type BudgetRow } from "./monthly-budget-rows";
-import { BudgetBar } from "./budget-bar";
+import { BudgetBar, BudgetBarLegend } from "./budget-bar";
+import { BudgetExplainer, BudgetNoHistoryNote } from "./budget-explainer";
 import { TransactionsModal } from "@/components/budget/transactions-modal";
 import { TransactionsDrilldownLink } from "@/components/budget/transactions-drilldown-link";
 import { formatRangeLabel } from "./format-range";
@@ -396,6 +398,7 @@ export function MonthlyBudgetTab({
 }: MonthlyBudgetTabProps) {
   const [hideUntargeted, setHideUntargeted] = useState(false);
   const [drilldown, setDrilldown] = useState<MonthlyBudgetDrilldown | null>(null);
+  const [explainerDismissed, dismissExplainer] = useDismissed("budget-explainer");
 
   const view = useMemo(
     () => buildBudgetView(transactions, categories, dateRange),
@@ -412,6 +415,13 @@ export function MonthlyBudgetTab({
     (n, r) => n + (r.effectiveTarget !== null ? 1 : 0),
     0,
   );
+  // Whether any row draws a real zoned bar (vs a dashed placeholder). Gates
+  // the legend and the hide-untargeted filter.
+  const hasTargetedRows = targetedCount > 0;
+
+  // No prior-month spend anywhere → every implicit target is null. The tab
+  // frames this as "targets are forming" rather than a wall of empty bars.
+  const noHistory = view.monthsOfData === 0;
 
   // Categories grouped by group, in canonical order, excluding Income and archived.
   const grouped = useMemo(() => {
@@ -445,6 +455,8 @@ export function MonthlyBudgetTab({
     }
     return result;
   }, [grouped]);
+
+  const hasCategories = orderedGroups.length > 0;
 
   // Eligible category ids, so the "Spent this month" drilldown lists exactly
   // the transactions behind `totalSpent`.
@@ -494,46 +506,69 @@ export function MonthlyBudgetTab({
         ]}
       />
 
-      {/* Filter toggle — most categories now carry an implicit target, so the
-       *  noise to hide is the untargeted rest, not the "untracked". */}
-      <div className="flex items-center justify-between">
-        <label className="flex items-center gap-2 text-sm cursor-pointer select-none">
-          <Checkbox
-            checked={hideUntargeted}
-            onCheckedChange={(v) => setHideUntargeted(v === true)}
-          />
-          <span>Hide untargeted categories</span>
-        </label>
-        <span className="text-xs text-muted-foreground tabular-nums">
-          {targetedCount} of {view.rows.length} targeted
-        </span>
-      </div>
+      {/* First-open framing — dismissed forever once the user gets it. Skipped
+       *  when there's nothing to budget yet. */}
+      {hasCategories && !explainerDismissed && (
+        <BudgetExplainer monthsOfData={view.monthsOfData} onDismiss={dismissExplainer} />
+      )}
+
+      {/* The filter only makes sense once some rows are targeted and others
+       *  aren't — otherwise hiding the untargeted ones empties the table or
+       *  does nothing. */}
+      {hasTargetedRows && targetedCount < view.rows.length && (
+        <div className="flex items-center justify-between">
+          <label className="flex items-center gap-2 text-sm cursor-pointer select-none">
+            <Checkbox
+              checked={hideUntargeted}
+              onCheckedChange={(v) => setHideUntargeted(v === true)}
+            />
+            <span>Hide untargeted categories</span>
+          </label>
+          <span className="text-xs text-muted-foreground tabular-nums">
+            {targetedCount} of {view.rows.length} targeted
+          </span>
+        </div>
+      )}
 
       {/* Empty state */}
-      {orderedGroups.length === 0 ? (
+      {!hasCategories ? (
         <p className="text-sm text-muted-foreground py-12 text-center">
           No categories to budget. Add categories to start tracking.
         </p>
       ) : (
-        <div>
-          {/* Column-header row — sticks to the top of the scroll viewport so
-           *  the labels stay visible while the user scrolls through groups. */}
-          <ColumnHeader />
+        <div className="space-y-3">
+          {noHistory && <BudgetNoHistoryNote />}
 
-          <div className="space-y-4 pt-2">
-            {orderedGroups.map((g) => {
-              const cats = grouped.get(g) ?? [];
-              return (
-                <GroupSection
-                  key={g}
-                  group={g}
-                  categories={cats}
-                  rowByCategory={rowByCategory}
-                  hideUntargeted={hideUntargeted}
-                  onDrilldown={(category) => setDrilldown({ kind: "category", category })}
-                />
-              );
-            })}
+          {/* Legend decodes the zoned bar — show it once at least one row
+           *  draws a real bar (zones, pins, divider). With nothing targeted
+           *  yet the bars are dashed placeholders, so it would explain
+           *  nothing. */}
+          {hasTargetedRows && (
+            <div className="px-3">
+              <BudgetBarLegend />
+            </div>
+          )}
+
+          <div>
+            {/* Column-header row — sticks to the top of the scroll viewport so
+             *  the labels stay visible while the user scrolls through groups. */}
+            <ColumnHeader />
+
+            <div className="space-y-4 pt-2">
+              {orderedGroups.map((g) => {
+                const cats = grouped.get(g) ?? [];
+                return (
+                  <GroupSection
+                    key={g}
+                    group={g}
+                    categories={cats}
+                    rowByCategory={rowByCategory}
+                    hideUntargeted={hideUntargeted}
+                    onDrilldown={(category) => setDrilldown({ kind: "category", category })}
+                  />
+                );
+              })}
+            </div>
           </div>
         </div>
       )}

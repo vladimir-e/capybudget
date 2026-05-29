@@ -82,15 +82,15 @@ describe("BudgetBar — rendering by state", () => {
     expect(screen.getByRole("button", { name: /3-mo avg: \$110\.00/ })).toBeInTheDocument();
   });
 
-  it("untargeted: a muted bar, no divider, no pins", () => {
+  it("untargeted: a calm dashed track, no fill, no divider, no pins", () => {
     render(<BudgetBar row={row({ spent: 4000 })} />);
     const track = screen.getByRole("img", { name: /No target/ });
-    // No target divider or historical pins exist.
+    // No divider or historical pins exist.
     expect(within(track).queryByRole("button")).toBeNull();
     expect(screen.queryByRole("button", { name: /target/i })).toBeNull();
-    // Muted fill present.
-    const fill = track.querySelector('div[style*="--muted-foreground"]') as HTMLElement;
-    expect(fill).toBeTruthy();
+    // A dashed placeholder track, not a filled bar (no level to imply).
+    expect(track.className).toMatch(/border-dashed/);
+    expect(track.querySelector("div")).toBeNull();
   });
 
   it("explicit-zero target: no divider line and no pins, fill into the red zone", () => {

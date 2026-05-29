@@ -24,13 +24,41 @@ function pct(fraction: number): string {
   return `${Math.round(fraction * 10000) / 100}%`;
 }
 
-/** A reference marker sitting above the bar, rendered as a small rotated
- *  square (diamond). `lastMonth` is filled solid, `avg3Month` is hollow
- *  (outlined, page-colored center) — so the two read apart by shape-fill, not
- *  color or position alone. Keyboard-focusable with a descriptive label;
- *  hover/focus reveals the exact value. */
+/** The pin diamond on its own — a rotated square, filled for `lastMonth`,
+ *  hollow (page-colored center) for `avg3Month`. Shared by the bar's pins and
+ *  the legend so the two can never drift apart. */
+function PinGlyph({ kind }: { kind: BarPin["kind"] }) {
+  const solid = kind === "lastMonth";
+  return (
+    <span
+      className="block h-1.5 w-1.5 rotate-45 border"
+      style={{
+        borderColor: "var(--muted-foreground)",
+        backgroundColor: solid ? "var(--muted-foreground)" : "var(--background)",
+      }}
+    />
+  );
+}
+
+/** The divider line on its own — dashed/ghosted when auto-derived, solid and
+ *  strong when user-set. Shared by the bar's divider and the legend. */
+function DividerGlyph({ isImplicit }: { isImplicit: boolean }) {
+  return (
+    <span
+      className="block h-full mx-auto"
+      style={{
+        borderLeftWidth: isImplicit ? "1.5px" : "2px",
+        borderLeftStyle: isImplicit ? "dashed" : "solid",
+        borderLeftColor: isImplicit ? "var(--muted-foreground)" : "var(--foreground)",
+        opacity: isImplicit ? 0.7 : 0.9,
+      }}
+    />
+  );
+}
+
+/** A reference marker sitting above the bar. Keyboard-focusable with a
+ *  descriptive label; hover/focus reveals the exact value. */
 function Pin({ pin }: { pin: BarPin }) {
-  const solid = pin.kind === "lastMonth";
   return (
     <Tooltip>
       <TooltipTrigger
@@ -43,13 +71,7 @@ function Pin({ pin }: { pin: BarPin }) {
           />
         }
       >
-        <span
-          className="block h-1.5 w-1.5 rotate-45 border"
-          style={{
-            borderColor: "var(--muted-foreground)",
-            backgroundColor: solid ? "var(--muted-foreground)" : "var(--background)",
-          }}
-        />
+        <PinGlyph kind={pin.kind} />
       </TooltipTrigger>
       <TooltipContent>
         {PIN_LABEL[pin.kind]}: {formatMoney(pin.value)}
@@ -85,17 +107,7 @@ function Divider({
           />
         }
       >
-        <span
-          className="block h-full mx-auto"
-          style={{
-            borderLeftWidth: isImplicit ? "1.5px" : "2px",
-            borderLeftStyle: isImplicit ? "dashed" : "solid",
-            borderLeftColor: isImplicit
-              ? "var(--muted-foreground)"
-              : "var(--foreground)",
-            opacity: isImplicit ? 0.7 : 0.9,
-          }}
-        />
+        <DividerGlyph isImplicit={isImplicit} />
       </TooltipTrigger>
       <TooltipContent>{label}</TooltipContent>
     </Tooltip>
@@ -113,25 +125,18 @@ export function BudgetBar({ row }: { row: BudgetRow }) {
   const geo = barGeometry(row);
   const overLabel = geo.state === "over" ? " (over target)" : "";
 
-  // Untargeted: no zones, divider, or pins — a calm muted bar that only
-  // conveys that money was (or wasn't) spent, since there's nothing to be
-  // measured against.
+  // Untargeted: no scale to draw against, so don't fake a fill (a full-width
+  // bar for every untargeted row reads as a "wall of bars" and implies a level
+  // that doesn't exist). Render a faint dashed track instead — calm, clearly
+  // "awaiting a target", and quiet in bulk. The spend itself lives in the
+  // Spent column; the bar only signals state here.
   if (geo.state === "untargeted") {
     return (
       <div
-        className="relative h-2.5 rounded-full bg-muted overflow-hidden"
+        className="h-2.5 rounded-full border border-dashed border-muted-foreground/25"
         role="img"
-        aria-label="No target — spending shown without a budget to measure against"
-      >
-        <div
-          className="absolute inset-y-0 left-0 rounded-full"
-          style={{
-            width: pct(geo.fillFraction),
-            backgroundColor: "var(--muted-foreground)",
-            opacity: 0.45,
-          }}
-        />
-      </div>
+        aria-label="No target yet — Capy needs spending history to set one"
+      />
     );
   }
 
@@ -193,6 +198,54 @@ export function BudgetBar({ row }: { row: BudgetRow }) {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function LegendItem({ glyph, label }: { glyph: React.ReactNode; label: string }) {
+  return (
+    <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
+      <span className="inline-flex h-3 w-4 items-center justify-center">{glyph}</span>
+      <span>{label}</span>
+    </span>
+  );
+}
+
+/** A compact, one-row key that decodes the zoned bar's vocabulary: the
+ *  green/red zones, the two diamond pins, and the dashed-vs-solid divider.
+ *  Each swatch is paired with text, so meaning never rests on color alone.
+ *  Renders the same `PinGlyph`/`DividerGlyph` as the bars themselves. */
+export function BudgetBarLegend() {
+  return (
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-muted-foreground">
+      <LegendItem
+        glyph={
+          // Green/red split echoes the bar's fixed ~70/30 divider.
+          <span className="flex h-2 w-5 overflow-hidden rounded-full">
+            <span className="h-full" style={{ flex: 7, backgroundColor: ZONE_GREEN }} />
+            <span className="h-full" style={{ flex: 3, backgroundColor: ZONE_RED }} />
+          </span>
+        }
+        label="within target / over"
+      />
+      <LegendItem glyph={<PinGlyph kind="lastMonth" />} label="last month" />
+      <LegendItem glyph={<PinGlyph kind="avg3Month" />} label="3-mo avg" />
+      <LegendItem
+        glyph={
+          <span className="block h-3">
+            <DividerGlyph isImplicit />
+          </span>
+        }
+        label="auto target"
+      />
+      <LegendItem
+        glyph={
+          <span className="block h-3">
+            <DividerGlyph isImplicit={false} />
+          </span>
+        }
+        label="your budget"
+      />
     </div>
   );
 }

@@ -76,6 +76,7 @@ const txns: Transaction[] = [
 const dateRange = { start: new Date(2026, 4, 1), end: new Date(2026, 5, 1) };
 
 beforeEach(() => {
+  localStorage.clear();
   mockAccounts = [acc];
   mockCategories = [groceries, rent, subs];
   mockAllTransactions = txns;
@@ -135,5 +136,81 @@ describe("MonthlyBudgetTab — row states", () => {
     // set a budget rather than showing a number.
     const setBudget = screen.getByRole("button", { name: /set a budget for subscriptions/i });
     expect(setBudget).toBeInTheDocument();
+  });
+});
+
+describe("MonthlyBudgetTab — first-open framing", () => {
+  it("shows the dismissable 'Capy budgets itself' explainer, and dismissal persists", async () => {
+    const user = userEvent.setup();
+    const { unmount } = renderWithProviders(
+      <MonthlyBudgetTab transactions={txns} categories={mockCategories} dateRange={dateRange} />,
+    );
+
+    expect(screen.getByText(/Capy budgets itself/i)).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /dismiss/i }));
+    expect(screen.queryByText(/Capy budgets itself/i)).not.toBeInTheDocument();
+
+    // Re-mounting reads the persisted flag — the explainer stays gone.
+    unmount();
+    renderWithProviders(
+      <MonthlyBudgetTab transactions={txns} categories={mockCategories} dateRange={dateRange} />,
+    );
+    expect(screen.queryByText(/Capy budgets itself/i)).not.toBeInTheDocument();
+  });
+
+  it("renders the bar legend in the normal (with-history) table", () => {
+    renderWithProviders(
+      <MonthlyBudgetTab transactions={txns} categories={mockCategories} dateRange={dateRange} />,
+    );
+    // Legend decoders.
+    expect(screen.getByText(/within target \/ over/i)).toBeInTheDocument();
+    expect(screen.getByText(/3-mo avg/i)).toBeInTheDocument();
+    expect(screen.getByText(/auto target/i)).toBeInTheDocument();
+    expect(screen.getByText(/your budget/i)).toBeInTheDocument();
+  });
+});
+
+describe("MonthlyBudgetTab — no-history first month", () => {
+  // All categories unbudgeted + only in-month spend → no prior month has
+  // data → monthsOfData === 0 and every row is untargeted.
+  const freshCats: Category[] = [
+    makeCategory({ id: "fc-1", name: "Groceries", group: "Daily Living", assigned: null }),
+    makeCategory({ id: "fc-2", name: "Dining", group: "Daily Living", assigned: null }),
+  ];
+  const monthOneTxns: Transaction[] = [
+    makeTransaction({ id: "m1", accountId: acc.id, categoryId: "fc-1", type: "expense", amount: -1500, datetime: may(7), merchant: "Trader Joe's" }),
+  ];
+
+  it("frames the empty-target month and hides the legend + filter", () => {
+    renderWithProviders(
+      <MonthlyBudgetTab transactions={monthOneTxns} categories={freshCats} dateRange={dateRange} />,
+    );
+    // Friendly forming-targets note instead of a wall of bars.
+    expect(screen.getByText(/No targets yet\./i)).toBeInTheDocument();
+    // The bar legend and the hide-untargeted filter are suppressed (nothing to
+    // decode or filter when every row is untargeted).
+    expect(screen.queryByText(/within target \/ over/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Hide untargeted categories/i)).not.toBeInTheDocument();
+    // The month's spend is still surfaced via the KPI.
+    expect(screen.getByText("Spent this month")).toBeInTheDocument();
+  });
+
+  it("tailors the explainer copy for the no-history case", () => {
+    renderWithProviders(
+      <MonthlyBudgetTab transactions={monthOneTxns} categories={freshCats} dateRange={dateRange} />,
+    );
+    // The explainer's zero-history variant.
+    expect(screen.getByText(/no history yet/i)).toBeInTheDocument();
+  });
+});
+
+describe("MonthlyBudgetTab — genuinely empty", () => {
+  it("prompts to add categories and shows no framing chrome", () => {
+    renderWithProviders(
+      <MonthlyBudgetTab transactions={[]} categories={[]} dateRange={dateRange} />,
+    );
+    expect(screen.getByText(/No categories to budget/i)).toBeInTheDocument();
+    expect(screen.queryByText(/Capy budgets itself/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/No targets yet\./i)).not.toBeInTheDocument();
   });
 });
