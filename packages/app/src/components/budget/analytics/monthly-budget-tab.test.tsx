@@ -39,20 +39,21 @@ function renderWithProviders(ui: React.ReactElement) {
 
 const acc = makeAccount({ id: "acc", name: "Checking" });
 
-// Tracked = assigned !== null
+// Explicit budget, under target this month.
 const groceries = makeCategory({
   id: "cat-g",
   name: "Groceries",
   group: "Daily Living",
   assigned: 50000,
 });
+// Explicit budget, over target this month (spends 2000 against a 1000 budget).
 const rent = makeCategory({
   id: "cat-r",
   name: "Rent",
   group: "Fixed",
-  assigned: 200000,
+  assigned: 100000,
 });
-// Untracked = assigned === null
+// No explicit budget, no history → untargeted.
 const subs = makeCategory({
   id: "cat-s",
   name: "Subscriptions",
@@ -64,12 +65,11 @@ const may = (d: number) => new Date(2026, 4, d, 12, 0).toISOString();
 const apr = (d: number) => new Date(2026, 3, d, 12, 0).toISOString();
 
 const txns: Transaction[] = [
-  // Tracked-category expenses in May
   makeTransaction({ id: "g1", accountId: acc.id, categoryId: groceries.id, type: "expense", amount: -1500, datetime: may(5), merchant: "Trader Joe's" }),
   makeTransaction({ id: "r1", accountId: acc.id, categoryId: rent.id, type: "expense", amount: -200000, datetime: may(1), merchant: "Landlord" }),
-  // Untracked-category expense in May
+  // Untargeted-category expense in May.
   makeTransaction({ id: "s1", accountId: acc.id, categoryId: subs.id, type: "expense", amount: -1500, datetime: may(7), merchant: "Netflix" }),
-  // Out-of-range tracked expense (April) — must not appear
+  // Out-of-range expense (April) — must not appear in the month drilldown.
   makeTransaction({ id: "old", accountId: acc.id, categoryId: groceries.id, type: "expense", amount: -700, datetime: apr(28), merchant: "Old Store" }),
 ];
 
@@ -85,64 +85,55 @@ afterEach(() => {
   cleanup();
 });
 
-describe("MonthlyBudgetTab — KPI strip drilldowns", () => {
-  it("clicking 'Spent (tracked)' opens the modal scoped to tracked-category expenses in the month", async () => {
+describe("MonthlyBudgetTab — KPI strip", () => {
+  it("'Spent this month' drills into every categorized expense in the month", async () => {
     const user = userEvent.setup();
     renderWithProviders(
-      <MonthlyBudgetTab
-        transactions={txns}
-        categories={mockCategories}
-        dateRange={dateRange}
-      />,
+      <MonthlyBudgetTab transactions={txns} categories={mockCategories} dateRange={dateRange} />,
     );
 
-    // The KPI value is rendered as a drilldown link with the accessible
-    // label `View Spent (tracked) transactions`.
-    const link = screen.getByRole("button", { name: /view spent \(tracked\) transactions/i });
+    const link = screen.getByRole("button", { name: /view spent this month transactions/i });
     await user.click(link);
 
-    const dialog = await screen.findByRole("dialog", { name: /Spent \(tracked\)/i });
-    // Both tracked expenses present (Groceries + Rent), Netflix (untracked)
-    // and the out-of-range April expense absent.
+    const dialog = await screen.findByRole("dialog", { name: /Spent this month/i });
+    // Every in-month categorized expense is present, regardless of whether the
+    // category is budgeted; the out-of-range April expense is absent.
     expect(within(dialog).getByText("Trader Joe's")).toBeInTheDocument();
     expect(within(dialog).getByText("Landlord")).toBeInTheDocument();
-    expect(within(dialog).queryByText("Netflix")).not.toBeInTheDocument();
+    expect(within(dialog).getByText("Netflix")).toBeInTheDocument();
     expect(within(dialog).queryByText("Old Store")).not.toBeInTheDocument();
   });
 
-  it("clicking 'Other Spending' opens the modal scoped to untracked-category expenses in the month", async () => {
-    const user = userEvent.setup();
+  it("'Tracking toward' and 'Over budget' cards are display-only (no drilldown link)", () => {
     renderWithProviders(
-      <MonthlyBudgetTab
-        transactions={txns}
-        categories={mockCategories}
-        dateRange={dateRange}
-      />,
+      <MonthlyBudgetTab transactions={txns} categories={mockCategories} dateRange={dateRange} />,
     );
 
-    const link = screen.getByRole("button", { name: /view other spending transactions/i });
-    await user.click(link);
+    expect(
+      screen.queryByRole("button", { name: /view tracking toward transactions/i }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /view over budget transactions/i }),
+    ).not.toBeInTheDocument();
+  });
+});
 
-    const dialog = await screen.findByRole("dialog", { name: /Other Spending/i });
-    expect(within(dialog).getByText("Netflix")).toBeInTheDocument();
-    expect(within(dialog).queryByText("Trader Joe's")).not.toBeInTheDocument();
-    expect(within(dialog).queryByText("Landlord")).not.toBeInTheDocument();
+describe("MonthlyBudgetTab — row states", () => {
+  it("shows overspend textually as '$X over' so it doesn't depend on color", () => {
+    renderWithProviders(
+      <MonthlyBudgetTab transactions={txns} categories={mockCategories} dateRange={dateRange} />,
+    );
+    // Rent: $2,000 spent against a $1,000 budget → $1,000.00 over.
+    expect(screen.getByText("$1,000.00 over")).toBeInTheDocument();
   });
 
-  it("'Assigned' and 'Remaining' cards are display-only (no drilldown link)", () => {
+  it("tags an untargeted category's target cell with a 'set' affordance and a dash for remaining", () => {
     renderWithProviders(
-      <MonthlyBudgetTab
-        transactions={txns}
-        categories={mockCategories}
-        dateRange={dateRange}
-      />,
+      <MonthlyBudgetTab transactions={txns} categories={mockCategories} dateRange={dateRange} />,
     );
-
-    expect(
-      screen.queryByRole("button", { name: /view assigned transactions/i }),
-    ).not.toBeInTheDocument();
-    expect(
-      screen.queryByRole("button", { name: /view remaining transactions/i }),
-    ).not.toBeInTheDocument();
+    // Subscriptions has no budget and no history → its target cell offers to
+    // set a budget rather than showing a number.
+    const setBudget = screen.getByRole("button", { name: /set a budget for subscriptions/i });
+    expect(setBudget).toBeInTheDocument();
   });
 });

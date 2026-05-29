@@ -2,13 +2,13 @@ import { describe, it, expect } from "vitest";
 import type { Category, DateRange, Transaction } from "@capybudget/core";
 import {
   budgetDrilldownTitle,
+  eligibleBudgetCategoryIds,
   filterForBudgetDrilldown,
-  partitionCategoriesForBudget,
 } from "./monthly-budget-drilldown";
 import { makeAccount, makeCategory, makeTransaction } from "@/test/factories";
 
-// Build a stable category set covering every partition we care about:
-// tracked (assigned !== null), untracked (assigned === null), archived
+// Build a stable category set covering every case the drilldown filter cares
+// about: ordinary budgeted/unbudgeted categories (both eligible), archived
 // (dropped), and Income (dropped). Each gets one or more expenses inside
 // May 2026 plus noise outside it.
 const acc = makeAccount({ id: "acc", name: "Checking" });
@@ -156,32 +156,27 @@ const txns: Transaction[] = [
   }),
 ];
 
-describe("partitionCategoriesForBudget", () => {
-  const partition = partitionCategoriesForBudget(categories);
+describe("eligibleBudgetCategoryIds", () => {
+  const ids = eligibleBudgetCategoryIds(categories);
 
-  it("puts non-archived non-Income categories with assigned !== null into trackedIds", () => {
-    expect(partition.trackedIds.has(trackedGroceries.id)).toBe(true);
-    expect(partition.trackedIds.has(trackedRent.id)).toBe(true);
+  it("includes every non-archived non-Income category regardless of budget", () => {
+    expect(ids.has(trackedGroceries.id)).toBe(true);
+    expect(ids.has(trackedRent.id)).toBe(true);
+    expect(ids.has(untrackedSubs.id)).toBe(true);
+    expect(ids.has(untrackedGifts.id)).toBe(true);
   });
 
-  it("puts non-archived non-Income categories with assigned === null into untrackedIds", () => {
-    expect(partition.untrackedIds.has(untrackedSubs.id)).toBe(true);
-    expect(partition.untrackedIds.has(untrackedGifts.id)).toBe(true);
+  it("excludes archived categories", () => {
+    expect(ids.has(archivedOld.id)).toBe(false);
   });
 
-  it("excludes archived categories from both sets", () => {
-    expect(partition.trackedIds.has(archivedOld.id)).toBe(false);
-    expect(partition.untrackedIds.has(archivedOld.id)).toBe(false);
-  });
-
-  it("excludes Income-group categories from both sets", () => {
-    expect(partition.trackedIds.has(incomeSalary.id)).toBe(false);
-    expect(partition.untrackedIds.has(incomeSalary.id)).toBe(false);
+  it("excludes Income-group categories", () => {
+    expect(ids.has(incomeSalary.id)).toBe(false);
   });
 });
 
 describe("filterForBudgetDrilldown", () => {
-  const partition = partitionCategoriesForBudget(categories);
+  const eligible = eligibleBudgetCategoryIds(categories);
 
   describe("kind: category", () => {
     it("returns only expenses for the chosen category in range", () => {
@@ -189,43 +184,18 @@ describe("filterForBudgetDrilldown", () => {
         txns,
         may2026,
         { kind: "category", category: trackedGroceries },
-        partition,
+        eligible,
       );
       expect(out.map((t) => t.id).sort()).toEqual(["g1", "g2"]);
       expect(out.find((t) => t.id === "apr")).toBeUndefined(); // out of range
     });
   });
 
-  describe("kind: tracked", () => {
-    const out = filterForBudgetDrilldown(txns, may2026, { kind: "tracked" }, partition);
+  describe("kind: all", () => {
+    const out = filterForBudgetDrilldown(txns, may2026, { kind: "all" }, eligible);
 
-    it("returns expenses across every tracked category", () => {
-      expect(out.map((t) => t.id).sort()).toEqual(["g1", "g2", "r1"]);
-    });
-
-    it("excludes untracked-category expenses", () => {
-      expect(out.find((t) => t.id === "s1")).toBeUndefined();
-      expect(out.find((t) => t.id === "gf1")).toBeUndefined();
-    });
-
-    it("excludes income, uncategorized, archived, and out-of-range entries", () => {
-      expect(out.find((t) => t.id === "sal")).toBeUndefined();
-      expect(out.find((t) => t.id === "uncat")).toBeUndefined();
-      expect(out.find((t) => t.id === "old")).toBeUndefined();
-      expect(out.find((t) => t.id === "apr")).toBeUndefined();
-    });
-  });
-
-  describe("kind: other", () => {
-    const out = filterForBudgetDrilldown(txns, may2026, { kind: "other" }, partition);
-
-    it("returns expenses across every untracked category", () => {
-      expect(out.map((t) => t.id).sort()).toEqual(["gf1", "s1"]);
-    });
-
-    it("excludes tracked-category expenses", () => {
-      expect(out.find((t) => t.id === "g1")).toBeUndefined();
-      expect(out.find((t) => t.id === "r1")).toBeUndefined();
+    it("returns expenses across every eligible category, budgeted or not", () => {
+      expect(out.map((t) => t.id).sort()).toEqual(["g1", "g2", "gf1", "r1", "s1"]);
     });
 
     it("excludes income, uncategorized, archived, and out-of-range entries", () => {
@@ -244,8 +214,7 @@ describe("budgetDrilldownTitle", () => {
     ).toBe("Groceries");
   });
 
-  it("uses the KPI labels for the bucket drilldowns", () => {
-    expect(budgetDrilldownTitle({ kind: "tracked" })).toBe("Spent (tracked)");
-    expect(budgetDrilldownTitle({ kind: "other" })).toBe("Other Spending");
+  it("labels the all-spend drilldown", () => {
+    expect(budgetDrilldownTitle({ kind: "all" })).toBe("Spent this month");
   });
 });
