@@ -59,7 +59,7 @@ Fully user-manageable. Sensible defaults prepopulated on first launch.
 | `sortOrder` | integer          | Display ordering within group                                     |
 | `assigned`  | integer \| null  | Explicit monthly budget in cents. `null` = no explicit budget. `0` = tracked at zero. Single piece of mutable current state — applies to every month. The only stored budget input. |
 
-**Budget target.** The figure a category's spend is tracked against is `assigned ?? implicitTarget`. `assigned` is the explicit budget above; `implicitTarget` is derived from the category's spending history (the heavier of last month and the trailing 3-month average, `null` when there is no recent basis). Implicit targets are **computed at render and never stored** — there is no derived-target column and no migration. `assigned` is the only budget field that touches CSV.
+**Budget target.** The figure a category's spend is tracked against is `assigned ?? implicitTarget`. `assigned` is the explicit budget above; `implicitTarget` is derived from the category's spending history — the heavier of last month and the average of the active months in the trailing three (the divisor is the count of those months with non-zero spend, so a dormant month doesn't dilute the figure), `null` when none of the three had spend. Implicit targets are **computed at render and never stored** — there is no derived-target column and no migration. `assigned` is the only budget field that touches CSV.
 
 ### Default Category Groups
 

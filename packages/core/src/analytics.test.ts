@@ -940,7 +940,7 @@ describe("getCategoryHistoricalStats", () => {
     expense({ id: "a", amount: -10000, categoryId: "food", datetime: iso(2026, 0, 15) }),
     expense({ id: "b", amount: -20000, categoryId: "food", datetime: iso(2026, 1, 15) }),
     expense({ id: "c", amount: -30000, categoryId: "food", datetime: iso(2026, 2, 15) }),
-    // rent: only Jan 120000 → last(Mar)=0, avg3=120000/3=40000 → implicit=max(0,40000)=40000
+    // rent: only Jan 120000 → last(Mar)=0, avg3=120000/1 active=120000 → implicit=max(0,120000)=120000
     expense({ id: "d", amount: -120000, categoryId: "rent", datetime: iso(2026, 0, 1) }),
     // fun: only the viewed month (April) — must be excluded from history
     expense({ id: "e", amount: -50000, categoryId: "fun", datetime: iso(2026, 3, 5) }),
@@ -957,16 +957,16 @@ describe("getCategoryHistoricalStats", () => {
     expect(byCategory.get("rent")!.lastMonth).toBe(0); // no March spend
   });
 
-  it("computes avg3Month as the sum of the prior 3 months over 3", () => {
+  it("averages avg3Month over the active (non-zero) months only", () => {
     const { byCategory } = getCategoryHistoricalStats(txns, cats, APRIL);
-    expect(byCategory.get("food")!.avg3Month).toBe(20000); // (10000+20000+30000)/3
-    expect(byCategory.get("rent")!.avg3Month).toBe(40000); // (120000+0+0)/3
+    expect(byCategory.get("food")!.avg3Month).toBe(20000); // (10000+20000+30000)/3 active
+    expect(byCategory.get("rent")!.avg3Month).toBe(120000); // 120000/1 active month
   });
 
   it("sets implicitTarget to max(lastMonth, avg3Month)", () => {
     const { byCategory } = getCategoryHistoricalStats(txns, cats, APRIL);
     expect(byCategory.get("food")!.implicitTarget).toBe(30000); // max(30000, 20000)
-    expect(byCategory.get("rent")!.implicitTarget).toBe(40000); // max(0, 40000)
+    expect(byCategory.get("rent")!.implicitTarget).toBe(120000); // max(0, 120000)
   });
 
   it("excludes the viewed month and later from history", () => {
@@ -989,18 +989,51 @@ describe("getCategoryHistoricalStats", () => {
     expect(fun.implicitTarget).toBeNull();
   });
 
-  it("treats a zero-spend prior month as 0 in the average", () => {
-    // rent spent only in January; Feb and Mar contribute 0 to the 3-mo sum.
+  it("excludes a zero-spend prior month from the average divisor", () => {
+    // rent spent only in January; Feb and Mar are inactive, so the average is
+    // over the one active month (120000/1), not the whole window (120000/3).
     const { byCategory } = getCategoryHistoricalStats(txns, cats, APRIL);
-    expect(byCategory.get("rent")!.avg3Month).toBe(40000);
+    expect(byCategory.get("rent")!.avg3Month).toBe(120000);
+  });
+
+  it("averages Vlad's worked examples over active months", () => {
+    // Single category viewed in April; vary spend across Jan/Feb/Mar.
+    const c: Category[] = [
+      { id: "x", name: "X", group: "Fixed", archived: false, sortOrder: 0, assigned: null },
+    ];
+    const mar = (n: number) => expense({ id: "m", amount: -n, categoryId: "x", datetime: iso(2026, 2, 12) });
+    const feb = (n: number) => expense({ id: "f", amount: -n, categoryId: "x", datetime: iso(2026, 1, 12) });
+    const jan = (n: number) => expense({ id: "j", amount: -n, categoryId: "x", datetime: iso(2026, 0, 12) });
+
+    // $400, 0, 0 → one active month → $400.
+    expect(
+      getCategoryHistoricalStats([mar(40000)], c, APRIL).byCategory.get("x")!.avg3Month,
+    ).toBe(40000);
+    // $200, $400, 0 → two active months → $600 / 2 = $300.
+    expect(
+      getCategoryHistoricalStats([feb(20000), mar(40000)], c, APRIL).byCategory.get("x")!.avg3Month,
+    ).toBe(30000);
+    // All three $0 (no spend at all) → 0 → null target, untargeted.
+    const empty = getCategoryHistoricalStats([], c, APRIL).byCategory.get("x")!;
+    expect(empty.avg3Month).toBe(0);
+    expect(empty.implicitTarget).toBeNull();
+    // Guard the divisor isn't a fixed 3: $200 + $400 over two active months
+    // would be $200 under /3, but is $300 under /activeCount.
+    expect(
+      getCategoryHistoricalStats([jan(20000), feb(40000)], c, APRIL).byCategory.get("x")!.avg3Month,
+    ).not.toBe(20000);
   });
 
   it("rounds avg3Month to integer cents", () => {
-    // Single category, 10000 cents in one of the prior 3 months → 10000/3.
+    // Three active months summing to 30001 → 30001/3 = 10000.33.
     const c: Category[] = [{ id: "x", name: "X", group: "Fixed", archived: false, sortOrder: 0, assigned: null }];
-    const t = [expense({ id: "x1", amount: -10000, categoryId: "x", datetime: iso(2026, 2, 10) })];
+    const t = [
+      expense({ id: "x1", amount: -10000, categoryId: "x", datetime: iso(2026, 0, 10) }),
+      expense({ id: "x2", amount: -10000, categoryId: "x", datetime: iso(2026, 1, 10) }),
+      expense({ id: "x3", amount: -10001, categoryId: "x", datetime: iso(2026, 2, 10) }),
+    ];
     const { byCategory } = getCategoryHistoricalStats(t, c, APRIL);
-    expect(byCategory.get("x")!.avg3Month).toBe(3333); // round(3333.33)
+    expect(byCategory.get("x")!.avg3Month).toBe(10000); // round(10000.33)
     expect(Number.isInteger(byCategory.get("x")!.avg3Month)).toBe(true);
   });
 
@@ -1016,7 +1049,7 @@ describe("getCategoryHistoricalStats", () => {
     // If any of those leaked, food/rent numbers would be unchanged but
     // monthsOfData and targets would not — assert the clean values hold.
     expect(byCategory.get("food")!.implicitTarget).toBe(30000);
-    expect(byCategory.get("rent")!.implicitTarget).toBe(40000);
+    expect(byCategory.get("rent")!.implicitTarget).toBe(120000);
   });
 
   it("reports monthsOfData = distinct prior months with eligible spend", () => {
@@ -1057,7 +1090,7 @@ describe("getCategoryHistoricalStats", () => {
     expect(monthsOfData).toBe(1); // only January has eligible pre-Feb spend
     const food = byCategory.get("food")!;
     expect(food.lastMonth).toBe(10000); // January, not March
-    expect(food.avg3Month).toBe(3333); // (10000 + 0 + 0)/3, Mar excluded
-    expect(food.implicitTarget).toBe(10000); // max(10000, 3333)
+    expect(food.avg3Month).toBe(10000); // 10000/1 active month (Mar excluded as post-Feb)
+    expect(food.implicitTarget).toBe(10000); // max(10000, 10000)
   });
 });

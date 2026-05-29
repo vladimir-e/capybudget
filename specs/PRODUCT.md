@@ -41,7 +41,7 @@ By default transaction category is null, in the UI this surfaces as 'Uncategoriz
 
 ### Monthly Budget
 
-Every category budgets itself. The Monthly Budget tab tracks this month's spend per category against a target — and that target is set for you, derived from the category's own history (the heavier of last month and the trailing 3-month average). Spending alone produces a useful budget: open the tab and every category already has a target and a live progress bar, with no number to assign.
+Every category budgets itself. The Monthly Budget tab tracks this month's spend per category against a target — and that target is set for you, derived from the category's own history (the heavier of last month and the average of its active months over the trailing three). Spending alone produces a useful budget: open the tab and every category already has a target and a live progress bar, with no number to assign.
 
 An explicit budget is an optional override, not a prerequisite. Set one on any category to track against your own figure instead of the inferred one; the rest keep budgeting themselves. A category with no recent spending stays calm and untargeted rather than guessing. Budgets self-tune as spending shifts, so the tab keeps reflecting how money actually moves without periodic upkeep.
 

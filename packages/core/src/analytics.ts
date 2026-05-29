@@ -486,9 +486,10 @@ export interface CategoryHistoricalStats {
   /** Expense spend (abs cents) in the full calendar month immediately
    *  before the viewed month. `0` if that month had no spend. */
   lastMonth: number;
-  /** Mean monthly expense spend (abs cents) over the 3 full calendar
-   *  months immediately before the viewed month. A month with no spend
-   *  counts as 0; the divisor is always 3. */
+  /** Mean monthly expense spend (abs cents) over the active months within
+   *  the 3 full calendar months immediately before the viewed month — the
+   *  divisor is the count of those months with non-zero spend, so an inactive
+   *  month doesn't drag the average down. `0` when none of the three had spend. */
   avg3Month: number;
   /** Implicit monthly target: `max(lastMonth, avg3Month)`, or `null` when
    *  that max is 0 — a category with no spend in the trailing window has no
@@ -561,8 +562,16 @@ export function getCategoryHistoricalStats(
   for (const c of eligible) {
     const months = byCatMonth.get(c.id);
     const lastMonth = months?.get(lastKey) ?? 0;
-    const sum3 = prevMonthKeys.reduce((s, k) => s + (months?.get(k) ?? 0), 0);
-    const avg3Month = Math.round(sum3 / 3);
+    // Average only over the trailing months that actually had spend, so an
+    // inactive ($0) month neither adds to the sum nor dilutes the divisor.
+    // No active months → 0 (and so a null `implicitTarget` below).
+    const spends3 = prevMonthKeys
+      .map((k) => months?.get(k) ?? 0)
+      .filter((v) => v > 0);
+    const avg3Month =
+      spends3.length === 0
+        ? 0
+        : Math.round(spends3.reduce((s, v) => s + v, 0) / spends3.length);
     // A category with no spend in the trailing window has no basis for a
     // target — `max` is 0, so `implicitTarget` is null. This folds the
     // dormant, brand-new, and no-history-at-all cases into one neutral

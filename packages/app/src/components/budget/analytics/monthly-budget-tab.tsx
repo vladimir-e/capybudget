@@ -509,18 +509,18 @@ export function MonthlyBudgetTab({
        *  aren't — otherwise hiding the untargeted ones empties the table or
        *  does nothing. */}
       {hasTargetedRows && targetedCount < view.rows.length && (
-        <div className="flex items-center justify-between">
-          <label className="flex items-center gap-2 text-sm cursor-pointer select-none">
-            <Checkbox
-              checked={hideUntargeted}
-              onCheckedChange={(v) => setHideUntargeted(v === true)}
-            />
-            <span>Show only tracked</span>
-          </label>
-          <span className="text-xs text-muted-foreground tabular-nums">
-            {targetedCount} of {view.rows.length} tracked
+        <label className="flex w-fit items-center gap-2 text-sm cursor-pointer select-none">
+          <Checkbox
+            checked={hideUntargeted}
+            onCheckedChange={(v) => setHideUntargeted(v === true)}
+          />
+          <span>
+            Show only tracked{" "}
+            <span className="text-muted-foreground tabular-nums">
+              ({targetedCount} of {view.rows.length})
+            </span>
           </span>
-        </div>
+        </label>
       )}
 
       {/* Empty state */}
