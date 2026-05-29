@@ -112,11 +112,13 @@ Every expense-side category (Income excluded) shows a live progress bar tracking
 - **Untargeted rows** (no budget, no usable history) render a calm faint dashed track with no zones, fill, pins, or divider — never red. They sit at reduced opacity and carry a muted dot rather than the brand dot. The bar only signals state; the spend itself lives in the Spent column.
 - **Explicit zero target** ("don't spend here") collapses the green zone to nothing: the divider sits at the left edge and any spend reads as a full red bar.
 
-**Legend.** A compact one-row key decodes the bar's vocabulary — the green/red zones, the two diamond pins, and the dashed-vs-solid divider — pairing every swatch with text so meaning never rests on color alone. Shown once at least one row draws a real bar.
+**Remaining column.** A tracked row shows target-minus-spend; an overspend reads as a signed negative ("-$88.30") in the expense token, so the minus sign carries the "over" meaning without relying on color. An untargeted row shows an em-dash.
 
-**Onboarding.** A dismissable "Capy budgets itself" explainer frames the tab as "Capy already budgets for you" rather than a wall of bars to configure; its copy adapts to how much history backs the targets. On a first month with no history at all, an inline note frames the empty bars as "forming" rather than broken. A "Hide untargeted categories" toggle collapses the view to the rows Capy is actively tracking, and each group header shows an `N/M targeted` count.
+**Legend.** A compact, right-aligned key for the two history pins — a filled diamond for last month, a hollow one for the 3-month average — pairing each glyph with text so the markers never rest on color alone. It sits near where the pins render and appears once at least one row draws a real bar. The zones, fill, and divider are visually self-evident and carry no legend row.
 
-**Editing a target.** The Target cell is click-to-edit: an explicit budget shows its amount, an implicit one shows the auto-derived number with an "auto" tag (so the user sees Capy's inferred figure and can override it), and an untargeted row shows a quiet "set" affordance. Clearing the input reverts to auto/untargeted; `0` commits as an explicit zero target.
+**First month & filtering.** On a first month with no spending history, every implicit target is null; an inline note frames the empty bars as "forming" rather than broken and points at this month's spend. A "Show only tracked" toggle collapses the view to the rows Capy is actively tracking (explicit or implicit target), a counter reads `N of M tracked`, and each group header shows an `N/M tracked` count. The toggle and counter appear only once some rows are tracked and others aren't.
+
+**Editing a target.** The Target cell is click-to-edit, with the amount pegged to the column's right edge so every row's figure aligns. An explicit budget shows its amount; an implicit one shows an "auto" tag to the left of the auto-derived number (so the user sees Capy's inferred figure and can override it); an untargeted row shows a quiet "set" affordance. Clearing the input reverts to auto/untargeted; `0` commits as an explicit zero target.
 
 ### Confirmation Dialogs
 

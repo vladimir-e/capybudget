@@ -200,19 +200,19 @@ const demoUrl = "https://demo.capybudget.app";
                   <p class="budget-name">Housing</p>
                   <p class="budget-amount">$2,941</p>
                   <div class="budget-bar"><div class="budget-fill green" style="width: 64%"></div><span class="budget-div" style="left: 70%"></span></div>
-                  <p class="budget-pct">auto target $3,200</p>
+                  <p class="budget-pct"><span class="auto-tag">auto</span> $3,200</p>
                 </div>
                 <div class="budget-card">
                   <p class="budget-name">Food</p>
                   <p class="budget-amount">$487</p>
                   <div class="budget-bar"><div class="budget-fill green" style="width: 58%"></div><span class="budget-div" style="left: 70%"></span></div>
-                  <p class="budget-pct">auto target $590</p>
+                  <p class="budget-pct"><span class="auto-tag">auto</span> $590</p>
                 </div>
                 <div class="budget-card">
                   <p class="budget-name">Transport</p>
                   <p class="budget-amount">$215</p>
                   <div class="budget-bar"><div class="budget-fill red" style="width: 82%"></div><span class="budget-div" style="left: 70%"></span></div>
-                  <p class="budget-pct">$15 over</p>
+                  <p class="budget-pct neg">-$15</p>
                 </div>
               </div>
 
@@ -887,17 +887,14 @@ const demoUrl = "https://demo.capybudget.app";
                   </div>
                 </div>
 
-                <div class="budget-note">
-                  <span class="budget-note-icon">✦</span>
-                  <span><strong>Capy budgets itself.</strong> Targets come from how you usually spend — nothing to assign. Set your own on any category to track that instead.</span>
+                <div class="budget-controls">
+                  <label class="budget-filter"><span class="budget-check"></span> Show only tracked</label>
+                  <span class="budget-count">4 of 6 tracked</span>
                 </div>
 
                 <div class="budget-legend">
-                  <span class="bl-item"><span class="bl-zones"></span> within target / over</span>
                   <span class="bl-item"><span class="bl-pin solid"></span> last month</span>
                   <span class="bl-item"><span class="bl-pin hollow"></span> 3-mo avg</span>
-                  <span class="bl-item"><span class="bl-div auto"></span> auto target</span>
-                  <span class="bl-item"><span class="bl-div user"></span> your budget</span>
                 </div>
 
                 <div class="budget-cat-group">
@@ -919,7 +916,7 @@ const demoUrl = "https://demo.capybudget.app";
                   </div>
                   <div class="budget-cat-row">
                     <span class="bcr-name">• Utilities</span>
-                    <span class="bcr-assigned auto">$185.00 <span class="auto-tag">auto</span></span>
+                    <span class="bcr-assigned auto"><span class="auto-tag">auto</span> $185.00</span>
                     <span class="bcr-spent">$162.40</span>
                     <div class="zbar">
                       <span class="zbar-pin solid" style="left: 70%"></span>
@@ -938,7 +935,7 @@ const demoUrl = "https://demo.capybudget.app";
                   </div>
                   <div class="budget-cat-row">
                     <span class="bcr-name">• Groceries</span>
-                    <span class="bcr-assigned auto">$740.00 <span class="auto-tag">auto</span></span>
+                    <span class="bcr-assigned auto"><span class="auto-tag">auto</span> $740.00</span>
                     <span class="bcr-spent">$648.95</span>
                     <div class="zbar">
                       <span class="zbar-pin solid" style="left: 64%"></span>
@@ -951,7 +948,7 @@ const demoUrl = "https://demo.capybudget.app";
                   </div>
                   <div class="budget-cat-row">
                     <span class="bcr-name">• Dining Out</span>
-                    <span class="bcr-assigned auto">$320.00 <span class="auto-tag">auto</span></span>
+                    <span class="bcr-assigned auto"><span class="auto-tag">auto</span> $320.00</span>
                     <span class="bcr-spent neg">$408.30</span>
                     <div class="zbar">
                       <span class="zbar-pin solid" style="left: 66%"></span>
@@ -960,7 +957,7 @@ const demoUrl = "https://demo.capybudget.app";
                         <span class="zbar-fill red" style="width: 84%"></span></div>
                       <span class="zbar-div auto" style="left: 70%"></span>
                     </div>
-                    <span class="bcr-remaining neg">$88.30 over</span>
+                    <span class="bcr-remaining neg">-$88.30</span>
                   </div>
                 </div>
               </div>
@@ -1920,6 +1917,7 @@ const demoUrl = "https://demo.capybudget.app";
     margin-top: 0.3rem;
     letter-spacing: 0.02em;
   }
+  .budget-pct.neg { color: oklch(0.72 0.16 30); }
 
   .txn-table {
     border-top: 1px solid rgba(255, 255, 255, 0.05);
@@ -2741,29 +2739,35 @@ const demoUrl = "https://demo.capybudget.app";
   }
 
   /* Monthly Budget panel */
-  .budget-note {
+  .budget-controls {
     display: flex;
-    align-items: flex-start;
-    gap: 0.5rem;
-    padding: 0.55rem 0.7rem;
-    background: oklch(0.62 0.16 38 / 0.1);
-    border-radius: 0.5rem;
-    font-size: 11.5px;
-    line-height: 1.45;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.1rem 0.1rem;
+    font-size: 11px;
     color: rgba(254, 243, 199, 0.7);
   }
-  .budget-note strong {
-    color: #fef3c7;
-    font-weight: 600;
+  .budget-filter {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
   }
-  .budget-note-icon {
-    color: oklch(0.72 0.16 40);
-    font-size: 11px;
-    line-height: 1.5;
+  .budget-check {
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    border-radius: 3px;
+    border: 1.5px solid rgba(254, 243, 199, 0.4);
+  }
+  .budget-count {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: rgba(254, 243, 199, 0.5);
   }
   .budget-legend {
     display: flex;
     flex-wrap: wrap;
+    justify-content: flex-end;
     gap: 0.25rem 0.9rem;
     padding: 0.15rem 0.1rem;
     font-size: 10px;
@@ -2774,17 +2778,6 @@ const demoUrl = "https://demo.capybudget.app";
     align-items: center;
     gap: 0.35rem;
   }
-  .bl-zones {
-    display: inline-block;
-    width: 20px;
-    height: 6px;
-    border-radius: 9999px;
-    background: linear-gradient(
-      to right,
-      oklch(0.74 0.16 145 / 0.5) 0 70%,
-      oklch(0.7 0.15 30 / 0.5) 70% 100%
-    );
-  }
   .bl-pin {
     display: inline-block;
     width: 6px;
@@ -2794,13 +2787,6 @@ const demoUrl = "https://demo.capybudget.app";
   }
   .bl-pin.solid { background: rgba(254, 243, 199, 0.6); }
   .bl-pin.hollow { background: #0c0a09; }
-  .bl-div {
-    display: inline-block;
-    width: 0;
-    height: 9px;
-  }
-  .bl-div.auto { border-left: 1.5px dashed rgba(254, 243, 199, 0.55); }
-  .bl-div.user { border-left: 2px solid rgba(254, 243, 199, 0.85); }
 
   .budget-cat-group {
     border-top: 1px solid rgba(255, 255, 255, 0.05);
@@ -2836,7 +2822,16 @@ const demoUrl = "https://demo.capybudget.app";
     font-size: 11px;
     color: rgba(254, 243, 199, 0.7);
   }
-  .bcr-assigned.auto { color: rgba(254, 243, 199, 0.5); }
+  .bcr-assigned { text-align: right; }
+  /* AUTO is a prefix label pinned left while the amount stays pegged to the
+     column's right edge, so auto targets line up with explicit-budget rows. */
+  .bcr-assigned.auto {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.35rem;
+    color: rgba(254, 243, 199, 0.5);
+  }
   .auto-tag {
     font-family: var(--font-sans, inherit);
     font-size: 8px;
