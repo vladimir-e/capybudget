@@ -505,24 +505,6 @@ export function MonthlyBudgetTab({
         ]}
       />
 
-      {/* The filter only makes sense once some rows are targeted and others
-       *  aren't — otherwise hiding the untargeted ones empties the table or
-       *  does nothing. */}
-      {hasTargetedRows && targetedCount < view.rows.length && (
-        <label className="flex w-fit items-center gap-2 text-sm cursor-pointer select-none">
-          <Checkbox
-            checked={hideUntargeted}
-            onCheckedChange={(v) => setHideUntargeted(v === true)}
-          />
-          <span>
-            Show only tracked{" "}
-            <span className="text-muted-foreground tabular-nums">
-              ({targetedCount} of {view.rows.length})
-            </span>
-          </span>
-        </label>
-      )}
-
       {/* Empty state */}
       {!hasCategories ? (
         <p className="text-sm text-muted-foreground py-12 text-center">
@@ -532,11 +514,30 @@ export function MonthlyBudgetTab({
         <div className="space-y-3">
           {noHistory && <BudgetNoHistoryNote />}
 
-          {/* Legend keys the history pins — show it once at least one row
-           *  draws a real bar. With nothing targeted yet the bars are dashed
-           *  placeholders with no pins, so it would explain nothing. */}
+          {/* Filter + legend share one row: the "show only tracked" toggle
+           *  sits under the Category column on the left, the history-pin legend
+           *  stays out near the bars on the right. The toggle only appears when
+           *  some rows are tracked and others aren't — otherwise an empty slot
+           *  keeps the legend pinned right. The whole row needs at least one
+           *  real bar drawn, or the pins it keys don't exist. */}
           {hasTargetedRows && (
-            <div className="px-3">
+            <div className="flex items-center justify-between gap-3 px-3">
+              {targetedCount < view.rows.length ? (
+                <label className="flex items-center gap-2 text-sm cursor-pointer select-none">
+                  <Checkbox
+                    checked={hideUntargeted}
+                    onCheckedChange={(v) => setHideUntargeted(v === true)}
+                  />
+                  <span>
+                    Show only tracked{" "}
+                    <span className="text-muted-foreground tabular-nums">
+                      ({targetedCount} of {view.rows.length})
+                    </span>
+                  </span>
+                </label>
+              ) : (
+                <div />
+              )}
               <BudgetBarLegend />
             </div>
           )}
