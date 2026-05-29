@@ -18,7 +18,7 @@ import { toast } from "sonner";
 import { progressState } from "./monthly-budget-progress";
 import { TransactionsModal } from "@/components/budget/transactions-modal";
 import { TransactionsDrilldownLink } from "@/components/budget/transactions-drilldown-link";
-import { formatRangeLabel } from "./format-range";
+import { formatDrilldownSubtitle } from "./format-range";
 import {
   budgetDrilldownTitle,
   filterForBudgetDrilldown,
@@ -581,13 +581,7 @@ export function MonthlyBudgetTab({
             : {}
         }
         title={drilldown ? budgetDrilldownTitle(drilldown) : ""}
-        subtitle={
-          drilldown
-            ? `${formatRangeLabel(dateRange, "month")} · ${drilldownTransactions.length} transaction${
-                drilldownTransactions.length === 1 ? "" : "s"
-              }`
-            : undefined
-        }
+        subtitle={drilldown ? formatDrilldownSubtitle(dateRange, "month", drilldownTransactions) : undefined}
       />
     </div>
   );

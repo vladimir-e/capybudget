@@ -18,7 +18,7 @@ import { useThemeColors } from "./use-theme-colors";
 import { TransactionsModal } from "@/components/budget/transactions-modal";
 import { TransactionsDrilldownLink } from "@/components/budget/transactions-drilldown-link";
 import type { PeriodType } from "@/stores/analytics-store";
-import { formatRangeLabel } from "./format-range";
+import { formatDrilldownSubtitle } from "./format-range";
 import { getRechartsPayload } from "./recharts-payload";
 import {
   matchesTarget,
@@ -187,13 +187,7 @@ export function MerchantsTab({
             : {}
         }
         title={drilldown?.kind === "unknown" ? "Unknown" : (drilldown?.value ?? "")}
-        subtitle={
-          drilldown
-            ? `${formatRangeLabel(dateRange, periodType)} · ${drilldownTransactions.length} transaction${
-                drilldownTransactions.length === 1 ? "" : "s"
-              }`
-            : undefined
-        }
+        subtitle={drilldown ? formatDrilldownSubtitle(dateRange, periodType, drilldownTransactions) : undefined}
       />
     </div>
   );

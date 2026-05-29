@@ -3,6 +3,7 @@ import { useThemeColors } from "./use-theme-colors";
 import {
   BarChart,
   Bar,
+  Cell,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -101,7 +102,11 @@ export function CashFlowTab({ transactions, dateRange }: CashFlowTabProps) {
           name="Income"
           fill={incomeColor}
           radius={[4, 4, 0, 0]}
-        />
+        >
+          {cashFlowData.map((d, i) => (
+            <Cell key={i} fill={d.income >= 0 ? incomeColor : expenseColor} />
+          ))}
+        </Bar>
         <Bar
           dataKey="expenses"
           name="Expenses"

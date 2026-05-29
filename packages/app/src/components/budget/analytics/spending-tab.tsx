@@ -16,7 +16,7 @@ import { ChartSwitcher } from "./chart-switcher";
 import { TransactionsModal } from "@/components/budget/transactions-modal";
 import { TransactionsDrilldownLink } from "@/components/budget/transactions-drilldown-link";
 import type { PeriodType } from "@/stores/analytics-store";
-import { formatRangeLabel } from "./format-range";
+import { formatDrilldownSubtitle } from "./format-range";
 import { getRechartsPayload } from "./recharts-payload";
 import {
   buildSliceDrilldown,
@@ -226,13 +226,7 @@ export function SpendingTab({
             : {}
         }
         title={drilldown?.categoryName ?? ""}
-        subtitle={
-          drilldown
-            ? `${formatRangeLabel(dateRange, periodType)} · ${drilldownTransactions.length} transaction${
-                drilldownTransactions.length === 1 ? "" : "s"
-              }`
-            : undefined
-        }
+        subtitle={drilldown ? formatDrilldownSubtitle(dateRange, periodType, drilldownTransactions) : undefined}
       />
     </div>
   );

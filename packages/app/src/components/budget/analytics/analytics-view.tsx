@@ -160,9 +160,11 @@ export function AnalyticsView() {
         {activeTab !== "monthlyBudget" && <SummaryStrip summary={summary} />}
       </div>
 
-      {/* Active tab content. `pb-4` only — top padding would create a dead
-       *  zone above sticky elements (e.g. the Monthly Budget column header). */}
-      <div className="flex-1 overflow-y-auto px-6 pb-4">
+      {/* Active tab content. Standard `pt-4` gives every tab breathing room
+       *  below the summary strip; Monthly Budget opts out and supplies its
+       *  own `pt-4` internally so its `sticky top-0` ColumnHeader still pins
+       *  flush to the scroll-container top. */}
+      <div className={`flex-1 overflow-y-auto px-6 pb-4 ${activeTab === "monthlyBudget" ? "" : "pt-4"}`}>
         {activeTab === "spending" && (
           <SpendingTab
             transactions={filtered}
