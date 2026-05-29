@@ -199,20 +199,20 @@ const demoUrl = "https://demo.capybudget.app";
                 <div class="budget-card">
                   <p class="budget-name">Housing</p>
                   <p class="budget-amount">$2,941</p>
-                  <div class="budget-bar"><div class="budget-fill terra" style="width: 81%"></div></div>
-                  <p class="budget-pct">81% of budget</p>
+                  <div class="budget-bar"><div class="budget-fill green" style="width: 64%"></div><span class="budget-div" style="left: 70%"></span></div>
+                  <p class="budget-pct">auto target $3,200</p>
                 </div>
                 <div class="budget-card">
                   <p class="budget-name">Food</p>
                   <p class="budget-amount">$487</p>
-                  <div class="budget-bar"><div class="budget-fill green" style="width: 62%"></div></div>
-                  <p class="budget-pct">62% of budget</p>
+                  <div class="budget-bar"><div class="budget-fill green" style="width: 58%"></div><span class="budget-div" style="left: 70%"></span></div>
+                  <p class="budget-pct">auto target $590</p>
                 </div>
                 <div class="budget-card">
                   <p class="budget-name">Transport</p>
                   <p class="budget-amount">$215</p>
-                  <div class="budget-bar"><div class="budget-fill terra" style="width: 34%"></div></div>
-                  <p class="budget-pct">34% of budget</p>
+                  <div class="budget-bar"><div class="budget-fill red" style="width: 82%"></div><span class="budget-div" style="left: 70%"></span></div>
+                  <p class="budget-pct">$15 over</p>
                 </div>
               </div>
 
@@ -872,65 +872,95 @@ const demoUrl = "https://demo.capybudget.app";
                   </div>
                 </div>
 
-                <div class="stat-row stat-row-4">
+                <div class="stat-row">
                   <div class="stat-card">
-                    <p class="stat-label">ASSIGNED</p>
-                    <p class="stat-value">$5,500.00</p>
+                    <p class="stat-label">SPENT THIS MONTH</p>
+                    <p class="stat-value neg">$4,612.18</p>
                   </div>
                   <div class="stat-card">
-                    <p class="stat-label">SPENT (TRACKED)</p>
-                    <p class="stat-value neg">$5,243.12</p>
+                    <p class="stat-label">TRACKING TOWARD</p>
+                    <p class="stat-value">$4,980.00</p>
                   </div>
                   <div class="stat-card">
-                    <p class="stat-label">REMAINING</p>
-                    <p class="stat-value pos">$256.88</p>
-                  </div>
-                  <div class="stat-card">
-                    <p class="stat-label">OTHER SPENDING</p>
-                    <p class="stat-value">$120.45</p>
+                    <p class="stat-label">OVER BUDGET</p>
+                    <p class="stat-value">1</p>
                   </div>
                 </div>
 
-                <div class="checkbox-row">
-                  <span class="cb-wrap">
-                    <span class="cb">✓</span>
-                    <span>Display only tracked categories</span>
-                  </span>
-                  <span class="cb-meta">3 of 17 tracked</span>
+                <div class="budget-note">
+                  <span class="budget-note-icon">✦</span>
+                  <span><strong>Capy budgets itself.</strong> Targets come from how you usually spend — nothing to assign. Set your own on any category to track that instead.</span>
+                </div>
+
+                <div class="budget-legend">
+                  <span class="bl-item"><span class="bl-zones"></span> within target / over</span>
+                  <span class="bl-item"><span class="bl-pin solid"></span> last month</span>
+                  <span class="bl-item"><span class="bl-pin hollow"></span> 3-mo avg</span>
+                  <span class="bl-item"><span class="bl-div auto"></span> auto target</span>
+                  <span class="bl-item"><span class="bl-div user"></span> your budget</span>
                 </div>
 
                 <div class="budget-cat-group">
                   <div class="budget-cat-header">
                     <span class="bcg-name">FIXED</span>
-                    <span class="bcg-meta">1/3 tracked</span>
                   </div>
                   <div class="budget-cat-row">
-                    <span class="bcr-name">• Housing</span>
-                    <span class="bcr-assigned">$2,200.00</span>
-                    <span class="bcr-spent">$2,200.00</span>
-                    <div class="bcr-bar"><div class="bcr-fill terra" style="width: 100%"></div></div>
+                    <span class="bcr-name">• Rent</span>
+                    <span class="bcr-assigned">$2,100.00</span>
+                    <span class="bcr-spent">$2,100.00</span>
+                    <div class="zbar">
+                      <span class="zbar-pin solid" style="left: 70%"></span>
+                      <span class="zbar-pin hollow" style="left: 68%"></span>
+                      <div class="zbar-track">
+                        <span class="zbar-fill green" style="width: 70%"></span></div>
+                      <span class="zbar-div user" style="left: 70%"></span>
+                    </div>
                     <span class="bcr-remaining">$0.00</span>
+                  </div>
+                  <div class="budget-cat-row">
+                    <span class="bcr-name">• Utilities</span>
+                    <span class="bcr-assigned auto">$185.00 <span class="auto-tag">auto</span></span>
+                    <span class="bcr-spent">$162.40</span>
+                    <div class="zbar">
+                      <span class="zbar-pin solid" style="left: 70%"></span>
+                      <span class="zbar-pin hollow" style="left: 60%"></span>
+                      <div class="zbar-track">
+                        <span class="zbar-fill green" style="width: 61%"></span></div>
+                      <span class="zbar-div auto" style="left: 70%"></span>
+                    </div>
+                    <span class="bcr-remaining pos">$22.60</span>
                   </div>
                 </div>
 
                 <div class="budget-cat-group">
                   <div class="budget-cat-header">
                     <span class="bcg-name">DAILY LIVING</span>
-                    <span class="bcg-meta">2/3 tracked</span>
                   </div>
                   <div class="budget-cat-row">
                     <span class="bcr-name">• Groceries</span>
-                    <span class="bcr-assigned">$700.00</span>
-                    <span class="bcr-spent">$620.45</span>
-                    <div class="bcr-bar"><div class="bcr-fill green" style="width: 89%"></div></div>
-                    <span class="bcr-remaining pos">$79.55</span>
+                    <span class="bcr-assigned auto">$740.00 <span class="auto-tag">auto</span></span>
+                    <span class="bcr-spent">$648.95</span>
+                    <div class="zbar">
+                      <span class="zbar-pin solid" style="left: 64%"></span>
+                      <span class="zbar-pin hollow" style="left: 70%"></span>
+                      <div class="zbar-track">
+                        <span class="zbar-fill green" style="width: 61%"></span></div>
+                      <span class="zbar-div auto" style="left: 70%"></span>
+                    </div>
+                    <span class="bcr-remaining pos">$91.05</span>
                   </div>
                   <div class="budget-cat-row">
-                    <span class="bcr-name">• Transportation</span>
-                    <span class="bcr-assigned">$400.00</span>
-                    <span class="bcr-spent">$480.20</span>
-                    <div class="bcr-bar"><div class="bcr-fill red" style="width: 100%"></div></div>
-                    <span class="bcr-remaining neg">-$80.20</span>
+                    <span class="bcr-name">• Dining Out</span>
+                    <span class="bcr-assigned auto">$320.00 <span class="auto-tag">auto</span></span>
+                    <span class="bcr-spent neg">$408.30</span>
+                    <div class="zbar">
+                      <span class="zbar-pin solid" style="left: 66%"></span>
+                      <span class="zbar-pin hollow" style="left: 70%"></span>
+                      <div class="zbar-track">
+                        <span class="zbar-fill red" style="width: 84%"></span></div>
+                      <span class="zbar-div auto" style="left: 70%"></span>
+                    </div>
+                    <span class="bcr-remaining neg">$88.30 over</span>
                   </div>
                 </div>
               </div>
@@ -1855,18 +1885,34 @@ const demoUrl = "https://demo.capybudget.app";
     letter-spacing: -0.01em;
   }
   .budget-bar {
+    position: relative;
     width: 100%;
-    height: 4px;
-    background: rgba(255, 255, 255, 0.06);
+    height: 5px;
+    /* Green within-zone, red over-zone split at the fixed 70% divider. */
+    background: linear-gradient(
+      to right,
+      oklch(0.74 0.16 145 / 0.16) 0 70%,
+      oklch(0.7 0.15 30 / 0.16) 70% 100%
+    );
     border-radius: 9999px;
     overflow: hidden;
   }
   .budget-fill {
+    position: absolute;
+    inset: 0 auto 0 0;
     height: 100%;
     border-radius: 9999px;
   }
-  .budget-fill.terra { background: oklch(0.7 0.16 40); }
   .budget-fill.green { background: oklch(0.74 0.16 145); }
+  .budget-fill.red { background: oklch(0.7 0.15 30); }
+  .budget-div {
+    position: absolute;
+    top: -1px;
+    bottom: -1px;
+    width: 0;
+    border-left: 1px solid rgba(254, 243, 199, 0.55);
+    transform: translateX(-0.5px);
+  }
   .budget-pct {
     font-family: var(--font-mono);
     font-size: 9.5px;
@@ -2578,9 +2624,6 @@ const demoUrl = "https://demo.capybudget.app";
     grid-template-columns: repeat(3, 1fr);
     gap: 0.6rem;
   }
-  .stat-row-4 {
-    grid-template-columns: repeat(4, 1fr);
-  }
   .stat-card {
     padding: 0.7rem 0.85rem;
     background: rgba(255, 255, 255, 0.025);
@@ -2698,36 +2741,66 @@ const demoUrl = "https://demo.capybudget.app";
   }
 
   /* Monthly Budget panel */
-  .checkbox-row {
+  .budget-note {
     display: flex;
-    justify-content: space-between;
-    align-items: center;
-    font-size: 11.5px;
-    color: rgba(254, 243, 199, 0.7);
-    padding: 0.3rem 0;
-  }
-  .cb-wrap {
-    display: inline-flex;
-    align-items: center;
+    align-items: flex-start;
     gap: 0.5rem;
+    padding: 0.55rem 0.7rem;
+    background: oklch(0.62 0.16 38 / 0.1);
+    border-radius: 0.5rem;
+    font-size: 11.5px;
+    line-height: 1.45;
+    color: rgba(254, 243, 199, 0.7);
   }
-  .cb {
+  .budget-note strong {
+    color: #fef3c7;
+    font-weight: 600;
+  }
+  .budget-note-icon {
+    color: oklch(0.72 0.16 40);
+    font-size: 11px;
+    line-height: 1.5;
+  }
+  .budget-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem 0.9rem;
+    padding: 0.15rem 0.1rem;
+    font-size: 10px;
+    color: rgba(254, 243, 199, 0.5);
+  }
+  .bl-item {
     display: inline-flex;
     align-items: center;
-    justify-content: center;
-    width: 14px;
-    height: 14px;
-    border-radius: 3px;
-    background: oklch(0.62 0.16 38);
-    color: #fff;
-    font-size: 9px;
-    line-height: 1;
+    gap: 0.35rem;
   }
-  .cb-meta {
-    font-family: var(--font-mono);
-    font-size: 10.5px;
-    color: rgba(254, 243, 199, 0.45);
+  .bl-zones {
+    display: inline-block;
+    width: 20px;
+    height: 6px;
+    border-radius: 9999px;
+    background: linear-gradient(
+      to right,
+      oklch(0.74 0.16 145 / 0.5) 0 70%,
+      oklch(0.7 0.15 30 / 0.5) 70% 100%
+    );
   }
+  .bl-pin {
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    transform: rotate(45deg);
+    border: 1px solid rgba(254, 243, 199, 0.6);
+  }
+  .bl-pin.solid { background: rgba(254, 243, 199, 0.6); }
+  .bl-pin.hollow { background: #0c0a09; }
+  .bl-div {
+    display: inline-block;
+    width: 0;
+    height: 9px;
+  }
+  .bl-div.auto { border-left: 1.5px dashed rgba(254, 243, 199, 0.55); }
+  .bl-div.user { border-left: 2px solid rgba(254, 243, 199, 0.85); }
 
   .budget-cat-group {
     border-top: 1px solid rgba(255, 255, 255, 0.05);
@@ -2763,19 +2836,65 @@ const demoUrl = "https://demo.capybudget.app";
     font-size: 11px;
     color: rgba(254, 243, 199, 0.7);
   }
-  .bcr-bar {
-    height: 5px;
-    background: rgba(255, 255, 255, 0.06);
+  .bcr-assigned.auto { color: rgba(254, 243, 199, 0.5); }
+  .auto-tag {
+    font-family: var(--font-sans, inherit);
+    font-size: 8px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding: 1px 3px;
+    border-radius: 3px;
+    background: rgba(255, 255, 255, 0.08);
+    color: rgba(254, 243, 199, 0.6);
+  }
+
+  /* Zoned budget bar: green within-zone + red over-zone split at a fixed
+     70% divider, a solid fill that turns red past the divider, history pins
+     above the track, and a divider styled by auto (dashed) vs user (solid). */
+  .zbar {
+    position: relative;
+    padding-top: 6px;
+  }
+  .zbar-track {
+    position: relative;
+    height: 6px;
     border-radius: 9999px;
     overflow: hidden;
+    background: linear-gradient(
+      to right,
+      oklch(0.74 0.16 145 / 0.16) 0 70%,
+      oklch(0.7 0.15 30 / 0.16) 70% 100%
+    );
   }
-  .bcr-fill {
+  .zbar-fill {
+    position: absolute;
+    inset: 0 auto 0 0;
     height: 100%;
     border-radius: 9999px;
   }
-  .bcr-fill.terra { background: oklch(0.7 0.16 40); }
-  .bcr-fill.green { background: oklch(0.74 0.16 145); }
-  .bcr-fill.red { background: oklch(0.7 0.15 30); }
+  .zbar-fill.green { background: oklch(0.74 0.16 145); }
+  .zbar-fill.red { background: oklch(0.7 0.15 30); }
+  /* Divider overlays the track (sibling, so it isn't clipped by the track's
+     overflow). Track sits below .zbar's 6px top padding. */
+  .zbar-div {
+    position: absolute;
+    top: 5px;
+    bottom: -1px;
+    width: 0;
+    transform: translateX(-50%);
+  }
+  .zbar-div.auto { border-left: 1.5px dashed rgba(254, 243, 199, 0.5); }
+  .zbar-div.user { border-left: 2px solid rgba(254, 243, 199, 0.85); }
+  .zbar-pin {
+    position: absolute;
+    top: 0;
+    width: 5px;
+    height: 5px;
+    transform: translateX(-50%) rotate(45deg);
+    border: 1px solid rgba(254, 243, 199, 0.6);
+  }
+  .zbar-pin.solid { background: rgba(254, 243, 199, 0.6); }
+  .zbar-pin.hollow { background: #0c0a09; }
   .bcr-remaining {
     font-family: var(--font-mono);
     font-size: 11px;

@@ -6,6 +6,7 @@
 
 - **No cloud, no subscription.** Your data lives in plain CSV files in a folder you choose.
 - **No opinionated methodology.** The app tracks what happened — you decide how to budget.
+- **Budgets handle themselves.** Targets derive from your own spending history, so a budget exists from day one with nothing to assign. Setting an explicit number is a quality-of-life override, not a mandatory grind.
 - **Sync for free.** Point the data folder at iCloud or Dropbox and get cross-device sync without a backend.
 - **Self-describing data.** Metadata lives alongside data files. Copy a folder to another machine and it just works.
 - **Intelligence is optional.** An optional layer (Capy) adds smart import, auto-categorization, and natural language insights — pluggable across Claude Code CLI, Anthropic API, and OpenAI API. The app is fully functional without it.
@@ -37,6 +38,12 @@ Three types: expense, income, and transfer. Amounts are signed (negative = outfl
 Fully user-manageable with sensible defaults. Organized into groups that provide financial reasoning: Fixed (hard to change), Daily Living & Personal (where to cut first), Irregular (easy to forget). Users can create, rename, and reorder both categories and groups.
 
 By default transaction category is null, in the UI this surfaces as 'Uncategorized' and I should be able to reset category value back to null, choosing 'Uncategorized'.
+
+### Monthly Budget
+
+Every category budgets itself. The Monthly Budget tab tracks this month's spend per category against a target — and that target is set for you, derived from the category's own history (the heavier of last month and the trailing 3-month average). Spending alone produces a useful budget: open the tab and every category already has a target and a live progress bar, with no number to assign.
+
+An explicit budget is an optional override, not a prerequisite. Set one on any category to track against your own figure instead of the inferred one; the rest keep budgeting themselves. A category with no recent spending stays calm and untargeted rather than guessing. Budgets self-tune as spending shifts, so the tab keeps reflecting how money actually moves without periodic upkeep.
 
 ### Sidebar
 

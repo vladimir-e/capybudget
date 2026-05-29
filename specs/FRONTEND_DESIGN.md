@@ -97,6 +97,27 @@ Drilldown points wired this pass:
 
 The same component is shaped to render later as a Capy-chat block (no modal chrome) and behind a `/transactions` deeplink route. Modal-only this pass.
 
+### Monthly Budget
+
+Every expense-side category (Income excluded) shows a live progress bar tracking this month's spend against a target — without anyone assigning a number first. The target is `assigned ?? implicitTarget`: an explicit budget when the user sets one, otherwise a target derived from the category's own spending history. See `PRODUCT.md` for the model and `DATA_MODEL.md` for where the number comes from.
+
+**KPI strip** (three cards): **Spent this month** (all categorized expense, drills into the transactions), **Tracking toward** (sum of effective targets across all rows), **Over budget** (count of rows whose spend exceeds their target).
+
+**The zoned bar.** Each row's bar is a small infographic, not a percent meter:
+
+- **Two zones.** A green "within" zone (0 → target) and a red "over" zone (target → off the end), split by a target divider sitting at a fixed fraction of the track width — the same fraction on every row. Because the divider is positionally fixed, the over/under line scans straight down the column: a row is over budget exactly when its fill crosses the divider, regardless of dollar size.
+- **The fill** grows with spend and is **binary green up to and including the target, red only past it**. Reaching 100% of a target is on-budget, not a warning — rent at exactly its target reads green. Overshoot beyond the target is log-compressed into the over-zone so an extreme overspend can't blow out the layout.
+- **History pins.** Up to two diamond markers float above the track on the bar's scale: a **filled** diamond for last month's spend, a **hollow** one for the 3-month average. Hover or keyboard focus reveals the exact figure.
+- **The divider** is **dashed and ghosted when the target is auto-derived**, **solid and strong when the user set it** — so you can tell at a glance which targets you own and which Capy inferred.
+- **Untargeted rows** (no budget, no usable history) render a calm faint dashed track with no zones, fill, pins, or divider — never red. They sit at reduced opacity and carry a muted dot rather than the brand dot. The bar only signals state; the spend itself lives in the Spent column.
+- **Explicit zero target** ("don't spend here") collapses the green zone to nothing: the divider sits at the left edge and any spend reads as a full red bar.
+
+**Legend.** A compact one-row key decodes the bar's vocabulary — the green/red zones, the two diamond pins, and the dashed-vs-solid divider — pairing every swatch with text so meaning never rests on color alone. Shown once at least one row draws a real bar.
+
+**Onboarding.** A dismissable "Capy budgets itself" explainer frames the tab as "Capy already budgets for you" rather than a wall of bars to configure; its copy adapts to how much history backs the targets. On a first month with no history at all, an inline note frames the empty bars as "forming" rather than broken. A "Hide untargeted categories" toggle collapses the view to the rows Capy is actively tracking, and each group header shows an `N/M targeted` count.
+
+**Editing a target.** The Target cell is click-to-edit: an explicit budget shows its amount, an implicit one shows the auto-derived number with an "auto" tag (so the user sees Capy's inferred figure and can override it), and an untargeted row shows a quiet "set" affordance. Clearing the input reverts to auto/untargeted; `0` commits as an explicit zero target.
+
 ### Confirmation Dialogs
 
 Be explicit about consequences. Warn when deleting a transfer (both legs go), deleting a category (N transactions affected), or explain why an archive is blocked.
