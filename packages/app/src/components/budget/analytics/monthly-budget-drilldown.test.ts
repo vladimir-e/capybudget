@@ -13,29 +13,29 @@ import { makeAccount, makeCategory, makeTransaction } from "@/test/factories";
 // May 2026 plus noise outside it.
 const acc = makeAccount({ id: "acc", name: "Checking" });
 
-const trackedGroceries = makeCategory({
+const budgetedGroceries = makeCategory({
   id: "cat-groceries",
   name: "Groceries",
   group: "Daily Living",
-  assigned: 50000, // tracked
+  assigned: 50000, // explicit budget
 });
-const trackedRent = makeCategory({
+const budgetedRent = makeCategory({
   id: "cat-rent",
   name: "Rent",
   group: "Fixed",
-  assigned: 200000, // tracked
+  assigned: 200000, // explicit budget
 });
-const untrackedSubs = makeCategory({
+const unbudgetedSubs = makeCategory({
   id: "cat-subs",
   name: "Subscriptions",
   group: "Personal",
-  assigned: null, // untracked
+  assigned: null, // no explicit budget
 });
-const untrackedGifts = makeCategory({
+const unbudgetedGifts = makeCategory({
   id: "cat-gifts",
   name: "Gifts",
   group: "Personal",
-  assigned: null, // untracked
+  assigned: null, // no explicit budget
 });
 const archivedOld = makeCategory({
   id: "cat-archived",
@@ -52,10 +52,10 @@ const incomeSalary = makeCategory({
 });
 
 const categories: Category[] = [
-  trackedGroceries,
-  trackedRent,
-  untrackedSubs,
-  untrackedGifts,
+  budgetedGroceries,
+  budgetedRent,
+  unbudgetedSubs,
+  unbudgetedGifts,
   archivedOld,
   incomeSalary,
 ];
@@ -72,11 +72,11 @@ const inApril = (day: number) =>
   new Date(2026, 3, day, 12, 0, 0).toISOString();
 
 const txns: Transaction[] = [
-  // Tracked expenses in range
+  // Budgeted-category expenses in range
   makeTransaction({
     id: "g1",
     accountId: acc.id,
-    categoryId: trackedGroceries.id,
+    categoryId: budgetedGroceries.id,
     type: "expense",
     amount: -1500,
     datetime: inMay(5),
@@ -84,7 +84,7 @@ const txns: Transaction[] = [
   makeTransaction({
     id: "g2",
     accountId: acc.id,
-    categoryId: trackedGroceries.id,
+    categoryId: budgetedGroceries.id,
     type: "expense",
     amount: -800,
     datetime: inMay(12),
@@ -92,16 +92,16 @@ const txns: Transaction[] = [
   makeTransaction({
     id: "r1",
     accountId: acc.id,
-    categoryId: trackedRent.id,
+    categoryId: budgetedRent.id,
     type: "expense",
     amount: -200000,
     datetime: inMay(1),
   }),
-  // Untracked expenses in range
+  // Unbudgeted-category expenses in range
   makeTransaction({
     id: "s1",
     accountId: acc.id,
-    categoryId: untrackedSubs.id,
+    categoryId: unbudgetedSubs.id,
     type: "expense",
     amount: -1000,
     datetime: inMay(10),
@@ -109,7 +109,7 @@ const txns: Transaction[] = [
   makeTransaction({
     id: "gf1",
     accountId: acc.id,
-    categoryId: untrackedGifts.id,
+    categoryId: unbudgetedGifts.id,
     type: "expense",
     amount: -2500,
     datetime: inMay(20),
@@ -127,7 +127,7 @@ const txns: Transaction[] = [
   makeTransaction({
     id: "apr",
     accountId: acc.id,
-    categoryId: trackedGroceries.id,
+    categoryId: budgetedGroceries.id,
     type: "expense",
     amount: -700,
     datetime: inApril(28),
@@ -136,7 +136,7 @@ const txns: Transaction[] = [
   // (archived categories drop from the budget rows but their txns still
   // exist; `getMonthlyBudgetSummary` skips them via the `eligible` filter).
   // The drilldown must do the same: an archived expense should NOT appear
-  // in tracked / other buckets.
+  // in any drilldown.
   makeTransaction({
     id: "old",
     accountId: acc.id,
@@ -160,10 +160,10 @@ describe("eligibleBudgetCategoryIds", () => {
   const ids = eligibleBudgetCategoryIds(categories);
 
   it("includes every non-archived non-Income category regardless of budget", () => {
-    expect(ids.has(trackedGroceries.id)).toBe(true);
-    expect(ids.has(trackedRent.id)).toBe(true);
-    expect(ids.has(untrackedSubs.id)).toBe(true);
-    expect(ids.has(untrackedGifts.id)).toBe(true);
+    expect(ids.has(budgetedGroceries.id)).toBe(true);
+    expect(ids.has(budgetedRent.id)).toBe(true);
+    expect(ids.has(unbudgetedSubs.id)).toBe(true);
+    expect(ids.has(unbudgetedGifts.id)).toBe(true);
   });
 
   it("excludes archived categories", () => {
@@ -183,7 +183,7 @@ describe("filterForBudgetDrilldown", () => {
       const out = filterForBudgetDrilldown(
         txns,
         may2026,
-        { kind: "category", category: trackedGroceries },
+        { kind: "category", category: budgetedGroceries },
         eligible,
       );
       expect(out.map((t) => t.id).sort()).toEqual(["g1", "g2"]);
@@ -210,7 +210,7 @@ describe("filterForBudgetDrilldown", () => {
 describe("budgetDrilldownTitle", () => {
   it("uses the category name for kind: category", () => {
     expect(
-      budgetDrilldownTitle({ kind: "category", category: trackedGroceries }),
+      budgetDrilldownTitle({ kind: "category", category: budgetedGroceries }),
     ).toBe("Groceries");
   });
 

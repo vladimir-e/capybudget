@@ -25,11 +25,6 @@ describe("mergeBudgetView", () => {
       { categoryId: "untargeted", assigned: null, spent: 4000 }, // no target
       { categoryId: "explicit-zero", assigned: 0, spent: 500 }, // strict over
     ],
-    totalAssigned: 10000,
-    totalSpentTracked: 8500,
-    totalOtherSpending: 16000,
-    trackedCount: 2,
-    totalCount: 4,
   };
 
   const histStats = stats(

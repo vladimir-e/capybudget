@@ -867,49 +867,30 @@ describe("getMonthlyBudgetSummary", () => {
     expect(byId.get("daily-coffee")).toBeNull(); // untracked
   });
 
-  it("computes top KPI totals — assigned, tracked spent, other spending", () => {
-    const result = getMonthlyBudgetSummary(txns, cats, FEB);
-
-    // Tracked categories: rent (200000) + utils (15000) + food (60000) + fun (0)
-    expect(result.totalAssigned).toBe(275000);
-    // Tracked spent: rent (200000) + food (70000) + fun (5000)
-    expect(result.totalSpentTracked).toBe(275000);
-    // Other spending = untracked, non-Income spend: coffee (3500) + clothing (8000)
-    expect(result.totalOtherSpending).toBe(11500);
-    expect(result.trackedCount).toBe(4);
-    expect(result.totalCount).toBe(6);
-  });
-
   it("ignores income transactions, transfers, and out-of-range entries", () => {
     const result = getMonthlyBudgetSummary(txns, cats, FEB);
-    // If income (f7), transfers (f8/f9), or January expense (j1) leaked through,
-    // these numbers would shift — they don't.
-    expect(result.totalSpentTracked).toBe(275000);
-    expect(result.totalOtherSpending).toBe(11500);
+    const byId = new Map(result.rows.map((r) => [r.categoryId, r.spent]));
+    // If income (f7), transfers (f8/f9), or the January expense (j1) leaked
+    // through, these per-category sums would shift — they don't.
+    expect(byId.get("fixed-rent")).toBe(200000); // j1's January -999999 excluded
+    expect(byId.get("daily-coffee")).toBe(3500);
+    expect(byId.get("personal-clothing")).toBe(8000);
   });
 
   it("ignores uncategorized expenses (no categoryId)", () => {
-    // The uncategorized $12.34 in February must NOT appear under "Other Spending"
-    // — Other Spending is for *known* untracked categories, not uncategorized rows.
+    // The uncategorized $12.34 in February must not surface anywhere — there is
+    // no row for it, and it must not be folded into any categorized row's spend.
     const result = getMonthlyBudgetSummary(txns, cats, FEB);
-    expect(result.totalOtherSpending).toBe(11500); // would be 12734 if it leaked
+    expect(result.rows.find((r) => r.categoryId === "")).toBeUndefined();
+    const totalSpent = result.rows.reduce((s, r) => s + r.spent, 0);
+    expect(totalSpent).toBe(286500); // 200000 + 70000 + 5000 + 3500 + 8000, no 1234
   });
 
-  it("returns zero totals when no transactions in range", () => {
+  it("returns zero spend for every row when no transactions in range", () => {
     const result = getMonthlyBudgetSummary([], cats, FEB);
-    expect(result.totalAssigned).toBe(275000); // assigned is independent of txns
-    expect(result.totalSpentTracked).toBe(0);
-    expect(result.totalOtherSpending).toBe(0);
     for (const r of result.rows) {
       expect(r.spent).toBe(0);
     }
-  });
-
-  it("counts categories the toggle label depends on", () => {
-    const result = getMonthlyBudgetSummary(txns, cats, FEB);
-    // 4 of 6 — matches the "X of N tracked" label
-    expect(result.trackedCount).toBe(4);
-    expect(result.totalCount).toBe(6);
   });
 });
 

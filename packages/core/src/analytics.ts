@@ -594,17 +594,6 @@ export interface MonthlyBudgetSummary {
   /** Per-category aggregate for the month. One entry per non-archived
    *  expense-side category (Income excluded). */
   rows: CategoryMonthSummary[];
-  /** Sum of `assigned` across all tracked rows. */
-  totalAssigned: number;
-  /** Sum of `spent` across tracked rows. */
-  totalSpentTracked: number;
-  /** Sum of expense `spent` across untracked, non-Income categories.
-   *  The "what you might be missing" number. */
-  totalOtherSpending: number;
-  /** Count of tracked categories included in `rows`. */
-  trackedCount: number;
-  /** Count of all categories included in `rows`. */
-  totalCount: number;
 }
 
 /** Aggregate transactions for the Monthly Budget tab.
@@ -647,27 +636,5 @@ export function getMonthlyBudgetSummary(
     spent: spentByCategory.get(c.id) ?? 0,
   }));
 
-  let totalAssigned = 0;
-  let totalSpentTracked = 0;
-  let totalOtherSpending = 0;
-  let trackedCount = 0;
-  for (const c of eligible) {
-    const spent = spentByCategory.get(c.id) ?? 0;
-    if (c.assigned !== null) {
-      totalAssigned += c.assigned;
-      totalSpentTracked += spent;
-      trackedCount += 1;
-    } else {
-      totalOtherSpending += spent;
-    }
-  }
-
-  return {
-    rows,
-    totalAssigned,
-    totalSpentTracked,
-    totalOtherSpending,
-    trackedCount,
-    totalCount: eligible.length,
-  };
+  return { rows };
 }
