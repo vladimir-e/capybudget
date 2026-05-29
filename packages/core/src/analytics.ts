@@ -490,9 +490,10 @@ export interface CategoryHistoricalStats {
    *  months immediately before the viewed month. A month with no spend
    *  counts as 0; the divisor is always 3. */
   avg3Month: number;
-  /** Implicit monthly target: `max(lastMonth, avg3Month)`. `null` when
-   *  there is no usable history at all (`monthsOfData === 0`) — the UI
-   *  treats a null target as neutral, never over. */
+  /** Implicit monthly target: `max(lastMonth, avg3Month)`, or `null` when
+   *  that max is 0 — a category with no spend in the trailing window has no
+   *  basis for a target. The UI treats a null target as neutral, never over,
+   *  which keeps dormant and brand-new categories calm on first open. */
   implicitTarget: number | null;
 }
 
@@ -500,10 +501,10 @@ export interface CategoryHistoricalStatsResult {
   /** One entry per eligible (non-archived, non-Income) category. */
   byCategory: Map<string, CategoryHistoricalStats>;
   /** Count of distinct calendar months *before* the viewed month that
-   *  contain any eligible expense spend. Dataset-wide, not per category:
-   *  it answers "is there history to judge against?" so the UI can tell
-   *  a genuine $0 month apart from no data. `0` ⟺ every category's
-   *  `implicitTarget` is `null`. */
+   *  contain any eligible expense spend. Dataset-wide, not per category —
+   *  a "how much history exists" signal for the UI's explainer. Note this
+   *  does *not* gate per-category targets: a category can be untargeted
+   *  (null) for lack of recent spend even when `monthsOfData` is large. */
   monthsOfData: number;
 }
 
@@ -556,19 +557,23 @@ export function getCategoryHistoricalStats(
     months.set(key, (months.get(key) ?? 0) + Math.abs(t.amount));
   }
 
-  const hasHistory = monthsWithData.size > 0;
-
   const byCategory = new Map<string, CategoryHistoricalStats>();
   for (const c of eligible) {
     const months = byCatMonth.get(c.id);
     const lastMonth = months?.get(lastKey) ?? 0;
     const sum3 = prevMonthKeys.reduce((s, k) => s + (months?.get(k) ?? 0), 0);
     const avg3Month = Math.round(sum3 / 3);
+    // A category with no spend in the trailing window has no basis for a
+    // target — `max` is 0, so `implicitTarget` is null. This folds the
+    // dormant, brand-new, and no-history-at-all cases into one neutral
+    // "untargeted" state rather than a $0 target that turns red on the
+    // first dollar spent.
+    const target = Math.max(lastMonth, avg3Month);
     byCategory.set(c.id, {
       categoryId: c.id,
       lastMonth,
       avg3Month,
-      implicitTarget: hasHistory ? Math.max(lastMonth, avg3Month) : null,
+      implicitTarget: target === 0 ? null : target,
     });
   }
 

@@ -995,9 +995,17 @@ describe("getCategoryHistoricalStats", () => {
     const fun = byCategory.get("fun")!;
     expect(fun.lastMonth).toBe(0);
     expect(fun.avg3Month).toBe(0);
-    // Other categories DO have history, so the dataset has data → target is a
-    // real number (0), not null.
-    expect(fun.implicitTarget).toBe(0);
+  });
+
+  it("gives a dormant category (no trailing-window spend) a null target even when the dataset has history", () => {
+    // `fun` only spent in the viewed month; food & rent give the dataset
+    // plenty of prior history. `fun` still has no basis for a target → null,
+    // so its bar stays neutral rather than going red on the first dollar.
+    const { byCategory } = getCategoryHistoricalStats(txns, cats, APRIL);
+    const fun = byCategory.get("fun")!;
+    expect(fun.lastMonth).toBe(0);
+    expect(fun.avg3Month).toBe(0);
+    expect(fun.implicitTarget).toBeNull();
   });
 
   it("treats a zero-spend prior month as 0 in the average", () => {
@@ -1036,7 +1044,8 @@ describe("getCategoryHistoricalStats", () => {
   });
 
   it("returns null implicitTarget for every row when there is no history", () => {
-    // Only the viewed month has spend → monthsOfData 0 → all targets null.
+    // Only the viewed month has spend → no trailing-window basis for any
+    // category, so every target is null. monthsOfData is 0 here too.
     const onlyViewed = [
       expense({ id: "v1", amount: -50000, categoryId: "food", datetime: iso(2026, 3, 10) }),
     ];
