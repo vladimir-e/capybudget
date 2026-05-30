@@ -1,6 +1,5 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useState } from "react";
 import { BUDGET_BASES, type BudgetBasis } from "@capybudget/core";
-import { BudgetBasisContext } from "@/contexts/budget-basis-context";
 
 const BUDGET_BASIS_STORAGE_KEY = "budget-basis";
 const DEFAULT_BUDGET_BASIS: BudgetBasis = "trailing3";
@@ -17,7 +16,10 @@ function getStoredBasis(): BudgetBasis {
   return DEFAULT_BUDGET_BASIS;
 }
 
-export function BudgetBasisProvider({ children }: { children: React.ReactNode }) {
+/** The Monthly Budget comparison basis — a screen-local display preference,
+ *  remembered per device in localStorage like the color theme. Not synced and
+ *  not part of the budget file. Read on mount, persisted on every change. */
+export function useBudgetBasis(): [BudgetBasis, (basis: BudgetBasis) => void] {
   const [basis, setBasisState] = useState<BudgetBasis>(getStoredBasis);
 
   const setBasis = useCallback((next: BudgetBasis) => {
@@ -25,14 +27,5 @@ export function BudgetBasisProvider({ children }: { children: React.ReactNode })
     localStorage.setItem(BUDGET_BASIS_STORAGE_KEY, next);
   }, []);
 
-  const value = useMemo<[BudgetBasis, (b: BudgetBasis) => void]>(
-    () => [basis, setBasis],
-    [basis, setBasis],
-  );
-
-  return (
-    <BudgetBasisContext.Provider value={value}>
-      {children}
-    </BudgetBasisContext.Provider>
-  );
+  return [basis, setBasis];
 }

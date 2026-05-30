@@ -14,7 +14,7 @@ import type {
   Transaction,
 } from "@capybudget/core";
 import { useSetCategoryAssigned } from "@/hooks/use-category-mutations";
-import { useBudgetBasis } from "@/contexts/budget-basis-context";
+import { useBudgetBasis } from "./use-budget-basis";
 import { toast } from "sonner";
 import { buildBudgetView, type BudgetRow } from "./monthly-budget-rows";
 import { BudgetBar, BudgetBarLegend } from "./budget-bar";

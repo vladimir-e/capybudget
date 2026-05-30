@@ -26,7 +26,7 @@ vi.mock("@/hooks/use-budget-data", () => ({
 // tests can drive the active basis and assert the setter is called on select.
 let mockBasis: BudgetBasis = "trailing3";
 const setBasis = vi.fn();
-vi.mock("@/contexts/budget-basis-context", () => ({
+vi.mock("./use-budget-basis", () => ({
   useBudgetBasis: () => [mockBasis, setBasis] as const,
 }));
 
