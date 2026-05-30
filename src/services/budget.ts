@@ -87,6 +87,7 @@ export async function bootstrapBudget(folderPath: string, name: string): Promise
     currency: "USD",
     createdAt: now,
     lastModified: now,
+    basis: "trailing3",
   };
 
   // Write budget.json

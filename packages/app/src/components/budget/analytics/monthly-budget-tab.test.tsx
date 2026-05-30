@@ -37,7 +37,7 @@ vi.mock("@/hooks/use-category-mutations", () => ({
 }));
 
 const makeMeta = (basis?: BudgetBasis): BudgetMeta => ({
-  schemaVersion: 1,
+  schemaVersion: 3,
   name: "Test",
   currency: "USD",
   createdAt: "2026-01-01T00:00:00.000Z",

@@ -237,6 +237,7 @@ describe("bootstrapBudget", () => {
     const written = JSON.parse(budgetJsonCall![1]);
     expect(written.name).toBe("Test");
     expect(written.schemaVersion).toBe(3);
+    expect(written.basis).toBe("trailing3");
   });
 
   it("writes categories.csv with default categories", async () => {
