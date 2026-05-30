@@ -80,7 +80,6 @@ describe("isDispatchTool", () => {
   it("recognizes mutation tools", () => {
     expect(isDispatchTool("create_transaction")).toBe(true)
     expect(isDispatchTool("delete_account")).toBe(true)
-    expect(isDispatchTool("set_budget_basis")).toBe(true)
   })
 
   it("recognizes render tools by prefix", () => {
@@ -150,21 +149,6 @@ describe("runTool", () => {
     const parsed = JSON.parse(result)
     expect(parsed.success).toBe(true)
     expect(repo.saveTransactions).toHaveBeenCalled()
-  })
-
-  it("routes set_budget_basis through to saveBudgetMeta", async () => {
-    const repo = makeRepo({})
-    const result = await runTool(
-      "set_budget_basis",
-      { basis: "trailing12" },
-      makeCtx(repo),
-    )
-
-    const parsed = JSON.parse(result)
-    expect(parsed.success).toBe(true)
-    expect(parsed.basis).toBe("trailing12")
-    const saved = (repo.saveBudgetMeta as ReturnType<typeof vi.fn>).mock.calls[0][0]
-    expect(saved.basis).toBe("trailing12")
   })
 
   it("throws on unknown tool", async () => {

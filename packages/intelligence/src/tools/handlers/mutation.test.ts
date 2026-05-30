@@ -11,7 +11,6 @@ import {
   handleArchiveAccount,
   handleUnarchiveAccount,
   handleSetNetWorthExclusions,
-  handleSetBudgetBasis,
   handleCreateCategory,
   handleUpdateCategory,
   handleDeleteCategory,
@@ -565,43 +564,6 @@ describe("handleSetNetWorthExclusions", () => {
       }),
     )
     expect(result.error).toMatch(/non-empty array/)
-  })
-})
-
-// ── set_budget_basis ────────────────────────────────────────────
-
-describe("handleSetBudgetBasis", () => {
-  it("persists a valid basis, preserving other meta fields", async () => {
-    const repo = createMockRepo({
-      meta: makeMeta({ name: "My Budget", basis: "trailing3" }),
-    })
-    const result = JSON.parse(
-      await handleSetBudgetBasis(repo, { basis: "sameMonthLastYear" }),
-    )
-    expect(result.success).toBe(true)
-    expect(result.basis).toBe("sameMonthLastYear")
-    const saved = (repo.saveBudgetMeta as ReturnType<typeof vi.fn>).mock.calls[0][0]
-    expect(saved.basis).toBe("sameMonthLastYear")
-    // Other fields survive the round-trip.
-    expect(saved.name).toBe("My Budget")
-    expect(saved.schemaVersion).toBe(3)
-    expect(saved.currency).toBe("USD")
-  })
-
-  it("rejects an unknown basis without saving", async () => {
-    const repo = createMockRepo({})
-    const result = JSON.parse(
-      await handleSetBudgetBasis(repo, { basis: "trailing9" }),
-    )
-    expect(result.error).toMatch(/basis must be one of/)
-    expect(repo.saveBudgetMeta).not.toHaveBeenCalled()
-  })
-
-  it("rejects a missing basis", async () => {
-    const repo = createMockRepo({})
-    const result = JSON.parse(await handleSetBudgetBasis(repo, {}))
-    expect(result.error).toMatch(/basis must be one of/)
-    expect(repo.saveBudgetMeta).not.toHaveBeenCalled()
   })
 })
 

@@ -12,8 +12,6 @@ import {
   archiveAccount,
   unarchiveAccount,
   setNetWorthExclusions,
-  BUDGET_BASES,
-  type BudgetBasis,
   createCategory,
   updateCategory,
   deleteCategory,
@@ -257,22 +255,6 @@ export async function handleSetNetWorthExclusions(
     updated: accountIds.length,
     exclude,
   })
-}
-
-export async function handleSetBudgetBasis(
-  repo: BudgetRepository,
-  args: Record<string, unknown>,
-): Promise<string> {
-  const basis = args.basis as BudgetBasis | undefined
-  if (!basis || !BUDGET_BASES.includes(basis)) {
-    return JSON.stringify({
-      error: `basis must be one of ${JSON.stringify(BUDGET_BASES)}`,
-    })
-  }
-
-  const meta = await repo.getBudgetMeta()
-  await repo.saveBudgetMeta({ ...meta, basis })
-  return JSON.stringify({ success: true, basis })
 }
 
 export async function handleCreateCategory(
