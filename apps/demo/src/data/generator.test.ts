@@ -129,10 +129,7 @@ describe("generateScenarioData", () => {
     });
   });
 
-  it("produces a detectable monthly recurring series for fixed bills", () => {
-    // Mirrors the detector's pass-1 contract (account + exact amount, monthly
-    // cadence): a fixed bill must surface as a same-merchant, same-cents series
-    // with a ~30-day median interval and at least two occurrences.
+  it("fixed bills recur monthly at a stable amount", () => {
     const { transactions } = gen(noStress, 1, 11);
     const netflix = transactions
       .filter((t) => t.merchant === "Netflix Premium")
@@ -140,7 +137,7 @@ describe("generateScenarioData", () => {
 
     expect(netflix.length).toBeGreaterThanOrEqual(2);
     const amounts = new Set(netflix.map((t) => t.amount));
-    expect(amounts.size).toBe(1); // identical cents → pass-1 high confidence
+    expect(amounts.size).toBe(1); // identical cents every month
     const accounts = new Set(netflix.map((t) => t.accountId));
     expect(accounts.size).toBe(1);
 
@@ -154,9 +151,7 @@ describe("generateScenarioData", () => {
     expect(Math.abs(median - 30)).toBeLessThanOrEqual(3); // monthly tolerance
   });
 
-  it("produces a detectable monthly series for variable utility bills", () => {
-    // The detector's pass-2 contract (account + category, monthly, low count):
-    // utilities recur monthly with small amount drift, staying near one per month.
+  it("variable utility bills recur monthly within a tight band", () => {
     const { transactions, categories } = gen(noStress, 2, 13);
     const billsCat = categories.find((c) => c.name === "Bills & Utilities")!;
     const pge = transactions

@@ -6,9 +6,9 @@ import { noStress } from "./no-stress";
 export type {
   Cadence,
   DemoProfile,
+  FixedBill,
   IncomeStream,
   OccasionalExpense,
-  RecurringBill,
   TransferStream,
   VariableBill,
   VariableExpense,

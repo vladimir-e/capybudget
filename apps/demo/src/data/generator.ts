@@ -3,9 +3,9 @@ import { Rng } from "./rng";
 import type {
   Cadence,
   DemoProfile,
+  FixedBill,
   IncomeStream,
   OccasionalExpense,
-  RecurringBill,
   TransferStream,
   VariableBill,
   VariableExpense,
@@ -38,7 +38,7 @@ function dateString(d: Date): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
-/** Matches the format the detector and analytics slice on (`datetime.slice(0, 10)`). */
+/** Matches the format analytics slice on (`datetime.slice(0, 10)`). */
 function datetimeString(d: Date, time: string): string {
   return `${dateString(d)}T${time}`;
 }
@@ -101,7 +101,7 @@ function monthsInWindow(start: Date, now: Date): Date[] {
 /** Every date a cadence lands on across the whole window. Monthly and
  *  semimonthly key off the configured day-of-month; weekly and biweekly walk
  *  continuously from the window start so their intervals stay an exact 7 or 14
- *  days — which is what the recurring detector's median-interval match reads. */
+ *  days. */
 function occurrences(
   engine: Engine,
   cadence: Cadence,
@@ -151,7 +151,7 @@ function emitIncome(engine: Engine, stream: IncomeStream): void {
   }
 }
 
-function emitRecurringBill(engine: Engine, bill: RecurringBill): void {
+function emitFixedBill(engine: Engine, bill: FixedBill): void {
   const dom = bill.dayOfMonth ?? 1;
   for (const day of occurrences(engine, bill.cadence, dom)) {
     emit(engine, {
@@ -314,7 +314,7 @@ export function generateScenarioData(
   }
 
   for (const stream of profile.incomeStreams) emitIncome(engine, stream);
-  for (const bill of profile.recurringBills) emitRecurringBill(engine, bill);
+  for (const bill of profile.fixedBills) emitFixedBill(engine, bill);
   for (const bill of profile.variableBills) emitVariableBill(engine, bill);
   for (const spend of profile.variableExpenses)
     emitVariableExpense(engine, spend);

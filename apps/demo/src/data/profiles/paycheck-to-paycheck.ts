@@ -46,7 +46,7 @@ export const paycheckToPaycheck: DemoProfile = {
     },
   ],
 
-  recurringBills: [
+  fixedBills: [
     {
       merchant: "Lakewood Apartments",
       category: "Housing",

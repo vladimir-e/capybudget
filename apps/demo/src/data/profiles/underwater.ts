@@ -49,7 +49,7 @@ export const underwater: DemoProfile = {
     },
   ],
 
-  recurringBills: [
+  fixedBills: [
     {
       merchant: "Oak Park Apartments",
       category: "Housing",

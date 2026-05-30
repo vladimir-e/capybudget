@@ -20,11 +20,9 @@ export interface IncomeStream {
   dayOfMonth?: number;
 }
 
-/** A fixed-amount recurring bill: subscriptions, rent, loan servicing. Same
- *  merchant, same account, same exact cents every month → detected as a
- *  high-confidence recurring pattern (detector pass 1 keys on account+amount).
- *  Keep `jitterPct` unset so the amount stays identical across occurrences. */
-export interface RecurringBill {
+/** A fixed-amount monthly bill: subscriptions, rent, loan servicing — same
+ *  merchant, account, and exact cents each month. */
+export interface FixedBill {
   merchant: string;
   category: string;
   accountId: string;
@@ -34,9 +32,8 @@ export interface RecurringBill {
   note?: string;
 }
 
-/** A monthly bill whose amount drifts a little (utilities, phone). Detected via
- *  the category pass: same account+category, roughly monthly, small count. Give
- *  it a small `jitterPct` so it reads real without breaking detection. */
+/** A monthly bill whose amount drifts a little (utilities, phone). A small
+ *  `jitterPct` keeps the amount varying so it reads real. */
 export interface VariableBill {
   merchant: string;
   category: string;
@@ -47,8 +44,7 @@ export interface VariableBill {
 }
 
 /** Everyday spend that fires several times a month with varied merchants and
- *  amounts (groceries, dining, gas). High occurrence count keeps it out of the
- *  recurring detector by design. */
+ *  amounts (groceries, dining, gas). */
 export interface VariableExpense {
   category: string;
   accountId: string;
@@ -70,7 +66,7 @@ export interface OccasionalExpense {
   probabilityPerMonth: number;
 }
 
-/** A recurring internal money movement emitted as a linked pair (debit from
+/** A periodic internal money movement emitted as a linked pair (debit from
  *  `fromAccountId`, credit to `toAccountId`). Credit-card payments, savings
  *  sweeps, brokerage contributions. */
 export interface TransferStream {
@@ -99,7 +95,7 @@ export interface DemoProfile {
   /** Opening balance per account id, in cents (may be negative for debt). */
   openingBalances: Record<string, number>;
   incomeStreams: IncomeStream[];
-  recurringBills: RecurringBill[];
+  fixedBills: FixedBill[];
   variableBills: VariableBill[];
   variableExpenses: VariableExpense[];
   occasionalExpenses: OccasionalExpense[];

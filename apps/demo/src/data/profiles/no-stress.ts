@@ -52,7 +52,7 @@ export const noStress: DemoProfile = {
     },
   ],
 
-  recurringBills: [
+  fixedBills: [
     {
       merchant: "Wells Fargo Mortgage",
       category: "Housing",
