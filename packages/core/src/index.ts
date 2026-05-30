@@ -10,7 +10,7 @@ export type {
   TransactionType,
   Transaction,
 } from "./types";
-export { BUDGET_BASES } from "./types";
+export { BUDGET_BASES, BASIS_OPTION_LABELS } from "./types";
 
 // Money utilities
 export {

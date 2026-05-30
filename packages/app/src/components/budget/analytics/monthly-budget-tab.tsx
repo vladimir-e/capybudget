@@ -4,15 +4,19 @@ import {
   formatMoney,
   parseMoney,
   centsToEditString,
+  basisLabel,
   CATEGORY_GROUP_ORDER,
 } from "@capybudget/core";
 import type {
+  BudgetBasis,
   Category,
   CategoryGroup,
   DateRange,
   Transaction,
 } from "@capybudget/core";
 import { useSetCategoryAssigned } from "@/hooks/use-category-mutations";
+import { useBudgetMeta } from "@/hooks/use-budget-data";
+import { useSetBudgetBasis } from "@/hooks/use-budget-meta-mutations";
 import { toast } from "sonner";
 import { buildBudgetView, type BudgetRow } from "./monthly-budget-rows";
 import { BudgetBar, BudgetBarLegend } from "./budget-bar";
@@ -223,10 +227,11 @@ function Editor({ category, onDone }: { category: Category; onDone: () => void }
 interface CategoryRowProps {
   category: Category;
   row: BudgetRow;
+  referenceLabel: string;
   onDrilldown: (category: Category) => void;
 }
 
-function CategoryRow({ category, row, onDrilldown }: CategoryRowProps) {
+function CategoryRow({ category, row, referenceLabel, onDrilldown }: CategoryRowProps) {
   const { spent, effectiveTarget } = row;
   const targeted = effectiveTarget !== null;
   const hasSpent = spent > 0;
@@ -280,7 +285,7 @@ function CategoryRow({ category, row, onDrilldown }: CategoryRowProps) {
 
       {/* Zoned bar */}
       <div>
-        <BudgetBar row={row} />
+        <BudgetBar row={row} referenceLabel={referenceLabel} />
       </div>
 
       {/* Remaining — signed, so an overspend reads "-$X" in the expense token. */}
@@ -322,6 +327,7 @@ interface GroupSectionProps {
   categories: Category[];
   rowByCategory: Map<string, BudgetRow>;
   hideUntargeted: boolean;
+  referenceLabel: string;
   onDrilldown: (category: Category) => void;
 }
 
@@ -330,6 +336,7 @@ function GroupSection({
   categories,
   rowByCategory,
   hideUntargeted,
+  referenceLabel,
   onDrilldown,
 }: GroupSectionProps) {
   const entries = categories.map((c) => ({
@@ -375,6 +382,7 @@ function GroupSection({
               key={e.category.id}
               category={e.category}
               row={e.row}
+              referenceLabel={referenceLabel}
               onDrilldown={onDrilldown}
             />
           ),
@@ -399,9 +407,20 @@ export function MonthlyBudgetTab({
   const [hideUntargeted, setHideUntargeted] = useState(false);
   const [drilldown, setDrilldown] = useState<MonthlyBudgetDrilldown | null>(null);
 
+  const meta = useBudgetMeta();
+  const setBasis = useSetBudgetBasis();
+  const basis: BudgetBasis = meta.data?.basis ?? "trailing3";
+  // Resolved label for the active basis, computed once and threaded to the
+  // legend trigger and every bar's reference pin so the wording can't diverge.
+  // The viewed month is the range's start (a first-of-month boundary).
+  const referenceLabel = useMemo(
+    () => basisLabel(basis, dateRange.start),
+    [basis, dateRange.start],
+  );
+
   const view = useMemo(
-    () => buildBudgetView(transactions, categories, dateRange),
-    [transactions, categories, dateRange],
+    () => buildBudgetView(transactions, categories, dateRange, basis),
+    [transactions, categories, dateRange, basis],
   );
 
   // Per-category lookup so each row gets its enriched data without scanning.
@@ -538,7 +557,11 @@ export function MonthlyBudgetTab({
               ) : (
                 <div />
               )}
-              <BudgetBarLegend />
+              <BudgetBarLegend
+                basis={basis}
+                referenceLabel={referenceLabel}
+                onBasisChange={(b) => setBasis.mutate(b)}
+              />
             </div>
           )}
 
@@ -557,6 +580,7 @@ export function MonthlyBudgetTab({
                     categories={cats}
                     rowByCategory={rowByCategory}
                     hideUntargeted={hideUntargeted}
+                    referenceLabel={referenceLabel}
                     onDrilldown={(category) => setDrilldown({ kind: "category", category })}
                   />
                 );

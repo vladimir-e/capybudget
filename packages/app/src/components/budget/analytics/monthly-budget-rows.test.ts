@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 import type {
+  Category,
   CategoryHistoricalStatsResult,
   MonthlyBudgetSummary,
+  Transaction,
 } from "@capybudget/core";
-import { mergeBudgetView } from "./monthly-budget-rows";
+import { buildBudgetView, mergeBudgetView } from "./monthly-budget-rows";
 
 function stats(
   entries: Array<[string, { lastMonth: number; reference: number; implicitTarget: number | null }]>,
@@ -101,5 +103,52 @@ describe("mergeBudgetView", () => {
     expect(implicit.implicitTarget).toBeNull();
     expect(implicit.effectiveTarget).toBeNull();
     expect(implicit.isImplicit).toBe(false);
+  });
+});
+
+describe("buildBudgetView — basis forwarding", () => {
+  // Viewed May 2026, one category. Spend differs between the trailing window
+  // and the same-month-last-year window so the chosen basis is observable in
+  // the resulting `reference`.
+  const cats: Category[] = [
+    { id: "x", name: "X", group: "Fixed", archived: false, sortOrder: 0, assigned: null },
+  ];
+  const exp = (amount: number, datetime: string): Transaction => ({
+    id: datetime,
+    type: "expense",
+    accountId: "a",
+    categoryId: "x",
+    transferPairId: "",
+    merchant: "",
+    note: "",
+    createdAt: "",
+    amount,
+    datetime,
+  });
+  const at = (y: number, m: number) => new Date(y, m, 15, 12, 0).toISOString();
+  const range = { start: new Date(2026, 4, 1), end: new Date(2026, 5, 1) };
+  const txns: Transaction[] = [
+    exp(-30000, at(2026, 3)), // Apr 2026 — in the trailing-3 window
+    exp(-20000, at(2026, 2)), // Mar 2026 — in the trailing-3 window
+    exp(-10000, at(2026, 1)), // Feb 2026 — in the trailing-3 window
+    exp(-90000, at(2025, 4)), // May 2025 — the same-month-last-year reference
+  ];
+
+  it("defaults to trailing3 when no basis is given", () => {
+    const { rows } = buildBudgetView(txns, cats, range);
+    // (30000 + 20000 + 10000) / 3 active = 20000.
+    expect(rows.find((r) => r.categoryId === "x")!.reference).toBe(20000);
+  });
+
+  it("forwards the basis through to getCategoryHistoricalStats", () => {
+    const trailing6 = buildBudgetView(txns, cats, range, "trailing6").rows.find((r) => r.categoryId === "x")!;
+    // Trailing-6 window (Nov 2025–Apr 2026) only has the three 2026 active
+    // months → same active-month average as trailing3 here (20000), and
+    // crucially NOT the May-2025 seasonal value.
+    expect(trailing6.reference).toBe(20000);
+
+    const seasonal = buildBudgetView(txns, cats, range, "sameMonthLastYear").rows.find((r) => r.categoryId === "x")!;
+    // Same-month-last-year = May 2025 alone = 90000.
+    expect(seasonal.reference).toBe(90000);
   });
 });

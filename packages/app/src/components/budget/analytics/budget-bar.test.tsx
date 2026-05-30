@@ -72,7 +72,7 @@ describe("BudgetBar — rendering by state", () => {
     expect(screen.getByRole("button", { name: /Auto target: \$80\.00/ })).toBeInTheDocument();
   });
 
-  it("renders both historical pins with value labels", () => {
+  it("renders both historical pins with value labels (reference defaults to 3-mo avg)", () => {
     render(
       <BudgetBar
         row={row({ implicitTarget: 11000, lastMonth: 9000, reference: 11000, spent: 6000 })}
@@ -80,6 +80,19 @@ describe("BudgetBar — rendering by state", () => {
     );
     expect(screen.getByRole("button", { name: /Last month: \$90\.00/ })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /3-mo avg: \$110\.00/ })).toBeInTheDocument();
+  });
+
+  it("reflects the active basis in the reference pin's label", () => {
+    render(
+      <BudgetBar
+        row={row({ implicitTarget: 11000, lastMonth: 9000, reference: 11000, spent: 6000 })}
+        referenceLabel="Dec 2024"
+      />,
+    );
+    // Last-month pin stays fixed; the reference pin takes the threaded label.
+    expect(screen.getByRole("button", { name: /Last month: \$90\.00/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Dec 2024: \$110\.00/ })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /3-mo avg/ })).toBeNull();
   });
 
   it("untargeted: a calm dashed track, no fill, no divider, no pins", () => {

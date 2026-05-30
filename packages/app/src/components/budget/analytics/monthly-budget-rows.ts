@@ -1,4 +1,5 @@
 import type {
+  BudgetBasis,
   Category,
   CategoryHistoricalStatsResult,
   DateRange,
@@ -62,9 +63,10 @@ export function buildBudgetView(
   transactions: Transaction[],
   categories: Category[],
   range: DateRange,
+  basis: BudgetBasis = "trailing3",
 ): BudgetView {
   const summary = getMonthlyBudgetSummary(transactions, categories, range);
-  const stats = getCategoryHistoricalStats(transactions, categories, range);
+  const stats = getCategoryHistoricalStats(transactions, categories, range, basis);
   return mergeBudgetView(summary, stats);
 }
 
