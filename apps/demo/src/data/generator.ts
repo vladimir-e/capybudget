@@ -38,8 +38,7 @@ function dateString(d: Date): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
-/** Local datetime string with no timezone suffix, matching the format the
- *  detector and analytics slice on (`datetime.slice(0, 10)`). */
+/** Matches the format the detector and analytics slice on (`datetime.slice(0, 10)`). */
 function datetimeString(d: Date, time: string): string {
   return `${dateString(d)}T${time}`;
 }
@@ -170,16 +169,13 @@ function emitRecurringBill(engine: Engine, bill: RecurringBill): void {
 function emitVariableBill(engine: Engine, bill: VariableBill): void {
   const dom = bill.dayOfMonth ?? 5;
   for (const day of occurrences(engine, "monthly", dom)) {
-    const merchant = bill.merchants
-      ? engine.rng.pick(bill.merchants)
-      : bill.merchant;
     emit(engine, {
       datetime: datetimeString(day, HMS(10, 0, 0)),
       type: "expense",
       amount: -engine.rng.jitter(bill.amount, bill.jitterPct),
       accountId: bill.accountId,
       categoryId: engine.catId(bill.category),
-      merchant,
+      merchant: bill.merchant,
     });
   }
 }
@@ -305,8 +301,6 @@ export function generateScenarioData(
     counter: 0,
   };
 
-  // Opening balances land at the window start as plain income/expense rows so
-  // every account begins the window with a real position.
   for (const account of profile.accounts) {
     const balance = profile.openingBalances[account.id] ?? 0;
     if (balance === 0) continue;

@@ -11,6 +11,7 @@ CHANGELOG PHILOSOPHY:
 
 ## Unreleased
 
+- **Demo** - Scenarios seed ~3 years of data anchored to today, so analytics render live; brief seeding screen on entry.
 - **Monthly Budget** - Every category budgets itself from spending history; zoned progress bar with green/red zones, history pins, and auto-vs-explicit targets (#49).
 - **Monthly Budget** - Configurable comparison basis (3/6/12-month or same month last year), chosen on the legend and remembered per device (#49).
 - **Capy** - Live cache invalidation per mutation; `list_transactions` gains `sort` + `offset`; new `transaction_bounds` tool.

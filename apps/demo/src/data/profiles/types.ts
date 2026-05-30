@@ -11,7 +11,6 @@ export interface IncomeStream {
   category: string;
   accountId: string;
   cadence: Cadence;
-  /** Base amount in positive cents. */
   amount: number;
   /** Fractional amount jitter, e.g. 0.03 → ±3%. Omit for an exact amount. */
   jitterPct?: number;
@@ -45,10 +44,6 @@ export interface VariableBill {
   amount: number;
   jitterPct: number;
   dayOfMonth?: number;
-  /** Merchant pool to rotate through; when set, `merchant` is the label and a
-   *  name is picked per occurrence. Utilities usually keep one merchant, so
-   *  this is optional. */
-  merchants?: readonly string[];
 }
 
 /** Everyday spend that fires several times a month with varied merchants and
@@ -57,11 +52,9 @@ export interface VariableBill {
 export interface VariableExpense {
   category: string;
   accountId: string;
-  /** Merchants rotated through, picked per occurrence. */
   merchants: readonly string[];
   /** Times per month, randomized within the range. */
   perMonth: [number, number];
-  /** Per-occurrence amount range in positive cents. */
   amountRange: [number, number];
 }
 

@@ -116,6 +116,17 @@ describe("generateScenarioData", () => {
         if (t.categoryId) expect(categoryIds.has(t.categoryId)).toBe(true);
       }
     });
+
+    it("emits integer-cent amounts", () => {
+      const { transactions } = generateScenarioData(profile, {
+        now: NOW,
+        yearsBack: 1,
+        seed: 5,
+      });
+      for (const t of transactions) {
+        expect(Number.isInteger(t.amount)).toBe(true);
+      }
+    });
   });
 
   it("produces a detectable monthly recurring series for fixed bills", () => {

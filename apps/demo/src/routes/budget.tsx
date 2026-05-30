@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { createFileRoute, Navigate } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { BudgetShell } from "@/components/budget/budget-shell";
@@ -53,6 +53,16 @@ function DemoBudgetLayout() {
   }, [profile]);
 
   const [seeded, setSeeded] = useState(false);
+  const markSeeded = useCallback(() => setSeeded(true), []);
+
+  // Replay the seeding beat whenever the scenario changes, even if the layout
+  // re-renders without remounting (e.g. /budget?path=X → ?path=Y). Reset during
+  // render rather than in an effect to avoid a flash of the previous shell.
+  const [seededFor, setSeededFor] = useState(profileId);
+  if (seededFor !== profileId) {
+    setSeededFor(profileId);
+    setSeeded(false);
+  }
 
   useEffect(() => {
     return () => {
@@ -66,7 +76,7 @@ function DemoBudgetLayout() {
   }
 
   if (!seeded) {
-    return <DemoSeedingScreen name={name} onDone={() => setSeeded(true)} />;
+    return <DemoSeedingScreen name={name} onDone={markSeeded} />;
   }
 
   return (

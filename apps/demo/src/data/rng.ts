@@ -1,7 +1,5 @@
-/** Seeded PRNG for deterministic demo-data generation. mulberry32 — small,
- *  fast, no dependencies, good enough distribution for flavor data. Given the
- *  same seed it always produces the same sequence, which is what keeps the
- *  generator (and its tests) deterministic. */
+/** Seeded PRNG (mulberry32): same seed → same sequence, which is what keeps the
+ *  generator deterministic. */
 export class Rng {
   private state: number;
 
