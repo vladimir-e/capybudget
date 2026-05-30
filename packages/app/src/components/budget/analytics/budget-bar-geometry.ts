@@ -23,7 +23,7 @@ export interface BarPin {
   value: number;
   /** Position along the track, 0..1, on the same scale as the fill. */
   fraction: number;
-  kind: "lastMonth" | "avg3Month";
+  kind: "lastMonth" | "reference";
 }
 
 export interface BarGeometry {
@@ -91,8 +91,8 @@ export function barGeometry(row: BudgetRow): BarGeometry {
   if (row.lastMonth > 0) {
     pins.push({ value: row.lastMonth, fraction: project(row.lastMonth, target), kind: "lastMonth" });
   }
-  if (row.avg3Month > 0) {
-    pins.push({ value: row.avg3Month, fraction: project(row.avg3Month, target), kind: "avg3Month" });
+  if (row.reference > 0) {
+    pins.push({ value: row.reference, fraction: project(row.reference, target), kind: "reference" });
   }
   pins.sort((a, b) => a.fraction - b.fraction);
 

@@ -152,6 +152,7 @@ export type {
   MonthlyBudgetSummary,
   CategoryHistoricalStats,
   CategoryHistoricalStatsResult,
+  BudgetBasis,
 } from "./analytics";
 export {
   ensureMinMonths,
@@ -165,4 +166,6 @@ export {
   getCategoryTrends,
   getMonthlyBudgetSummary,
   getCategoryHistoricalStats,
+  basisMonths,
+  basisLabel,
 } from "./analytics";

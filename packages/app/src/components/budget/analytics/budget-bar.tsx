@@ -16,7 +16,7 @@ const FILL_RED = "var(--amount-expense)";
 
 const PIN_LABEL: Record<BarPin["kind"], string> = {
   lastMonth: "Last month",
-  avg3Month: "3-mo avg",
+  reference: "3-mo avg",
 };
 
 function pct(fraction: number): string {
@@ -25,7 +25,7 @@ function pct(fraction: number): string {
 }
 
 /** The pin diamond on its own — a rotated square, filled for `lastMonth`,
- *  hollow (page-colored center) for `avg3Month`. Shared by the bar's pins and
+ *  hollow (page-colored center) for `reference`. Shared by the bar's pins and
  *  the legend so the two can never drift apart. */
 function PinGlyph({ kind }: { kind: BarPin["kind"] }) {
   const solid = kind === "lastMonth";
@@ -220,7 +220,7 @@ export function BudgetBarLegend() {
   return (
     <div className="flex flex-wrap items-center justify-end gap-x-4 gap-y-1.5 text-xs text-muted-foreground">
       <LegendItem glyph={<PinGlyph kind="lastMonth" />} label="last month" />
-      <LegendItem glyph={<PinGlyph kind="avg3Month" />} label="3-mo avg" />
+      <LegendItem glyph={<PinGlyph kind="reference" />} label="3-mo avg" />
     </div>
   );
 }

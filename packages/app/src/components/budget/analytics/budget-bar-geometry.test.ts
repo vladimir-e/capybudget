@@ -17,7 +17,7 @@ function row(p: Partial<BudgetRow>): BudgetRow {
     assigned,
     spent: p.spent ?? 0,
     lastMonth: p.lastMonth ?? 0,
-    avg3Month: p.avg3Month ?? 0,
+    reference: p.reference ?? 0,
     implicitTarget,
     effectiveTarget: assigned ?? implicitTarget,
     isImplicit: assigned === null && implicitTarget !== null,
@@ -83,13 +83,13 @@ describe("barGeometry — overshoot compression", () => {
 
 describe("barGeometry — pins", () => {
   it("places the higher historical pin on the divider when the target is implicit", () => {
-    // implicitTarget = max(lastMonth, avg3Month) = 11000, so the avg pin *is*
+    // implicitTarget = max(lastMonth, reference) = 11000, so the avg pin *is*
     // the target and must coincide with the divider; the lower pin sits inside
     // the green zone.
     const g = barGeometry(
-      row({ implicitTarget: 11000, lastMonth: 9000, avg3Month: 11000, spent: 6000 }),
+      row({ implicitTarget: 11000, lastMonth: 9000, reference: 11000, spent: 6000 }),
     );
-    const avg = g.pins.find((p) => p.kind === "avg3Month")!;
+    const avg = g.pins.find((p) => p.kind === "reference")!;
     const last = g.pins.find((p) => p.kind === "lastMonth")!;
     expect(avg.fraction).toBeCloseTo(TARGET_FRACTION, 10);
     expect(last.fraction).toBeLessThan(TARGET_FRACTION);
@@ -100,22 +100,22 @@ describe("barGeometry — pins", () => {
     // User budgeted 5000 but historically spends ~9–10k — the pins land in the
     // red zone, which is the intended "your budget is below reality" insight.
     const g = barGeometry(
-      row({ assigned: 5000, lastMonth: 9000, avg3Month: 10000, spent: 4000 }),
+      row({ assigned: 5000, lastMonth: 9000, reference: 10000, spent: 4000 }),
     );
     for (const p of g.pins) expect(p.fraction).toBeGreaterThan(TARGET_FRACTION);
-    expect(g.pins.map((p) => p.kind).sort()).toEqual(["avg3Month", "lastMonth"]);
+    expect(g.pins.map((p) => p.kind).sort()).toEqual(["lastMonth", "reference"]);
   });
 
   it("orders pins low→high by position", () => {
     const g = barGeometry(
-      row({ implicitTarget: 9000, lastMonth: 9000, avg3Month: 4000, spent: 1000 }),
+      row({ implicitTarget: 9000, lastMonth: 9000, reference: 4000, spent: 1000 }),
     );
     expect(g.pins[0].fraction).toBeLessThanOrEqual(g.pins[1].fraction);
   });
 
   it("omits a historical pin whose value is zero", () => {
     const g = barGeometry(
-      row({ implicitTarget: 9000, lastMonth: 9000, avg3Month: 0, spent: 1000 }),
+      row({ implicitTarget: 9000, lastMonth: 9000, reference: 0, spent: 1000 }),
     );
     expect(g.pins).toHaveLength(1);
     expect(g.pins[0].kind).toBe("lastMonth");

@@ -6,7 +6,7 @@ import type {
 import { mergeBudgetView } from "./monthly-budget-rows";
 
 function stats(
-  entries: Array<[string, { lastMonth: number; avg3Month: number; implicitTarget: number | null }]>,
+  entries: Array<[string, { lastMonth: number; reference: number; implicitTarget: number | null }]>,
   monthsOfData: number,
 ): CategoryHistoricalStatsResult {
   return {
@@ -29,10 +29,10 @@ describe("mergeBudgetView", () => {
 
   const histStats = stats(
     [
-      ["explicit", { lastMonth: 9000, avg3Month: 9500, implicitTarget: 9500 }],
-      ["implicit", { lastMonth: 10000, avg3Month: 11000, implicitTarget: 11000 }],
-      ["untargeted", { lastMonth: 0, avg3Month: 0, implicitTarget: null }],
-      ["explicit-zero", { lastMonth: 0, avg3Month: 0, implicitTarget: null }],
+      ["explicit", { lastMonth: 9000, reference: 9500, implicitTarget: 9500 }],
+      ["implicit", { lastMonth: 10000, reference: 11000, implicitTarget: 11000 }],
+      ["untargeted", { lastMonth: 0, reference: 0, implicitTarget: null }],
+      ["explicit-zero", { lastMonth: 0, reference: 0, implicitTarget: null }],
     ],
     3,
   );
@@ -43,7 +43,7 @@ describe("mergeBudgetView", () => {
 
     const implicit = byId.get("implicit")!;
     expect(implicit.lastMonth).toBe(10000);
-    expect(implicit.avg3Month).toBe(11000);
+    expect(implicit.reference).toBe(11000);
     expect(implicit.implicitTarget).toBe(11000);
     expect(implicit.effectiveTarget).toBe(11000);
     expect(implicit.isImplicit).toBe(true);
@@ -97,7 +97,7 @@ describe("mergeBudgetView", () => {
     const { rows } = mergeBudgetView(summary, stats([], 0));
     const implicit = rows.find((r) => r.categoryId === "implicit")!;
     expect(implicit.lastMonth).toBe(0);
-    expect(implicit.avg3Month).toBe(0);
+    expect(implicit.reference).toBe(0);
     expect(implicit.implicitTarget).toBeNull();
     expect(implicit.effectiveTarget).toBeNull();
     expect(implicit.isImplicit).toBe(false);

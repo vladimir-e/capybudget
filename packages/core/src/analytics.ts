@@ -481,17 +481,72 @@ export function getCategoryTrends(
 
 // ── Category Historical Stats ─────
 
+/** Which month-set the historical reference averages over. Serializes to JSON
+ *  (the budget.json setting) and supports exhaustiveness checks. */
+export type BudgetBasis =
+  | "trailing3"
+  | "trailing6"
+  | "trailing12"
+  | "sameMonthLastYear";
+
+/** The calendar months a basis selects, relative to a viewed month
+ *  (first-of-month boundary). Returned newest-first as `YYYY-MM` keys.
+ *
+ *  - `trailing{3,6,12}` → the N full calendar months immediately before
+ *    `viewedMonth`.
+ *  - `sameMonthLastYear` → the single month exactly 12 months before
+ *    `viewedMonth` (a one-element set). */
+export function basisMonths(basis: BudgetBasis, viewedMonth: Date): string[] {
+  const y = viewedMonth.getFullYear();
+  const m = viewedMonth.getMonth();
+  if (basis === "sameMonthLastYear") {
+    return [monthKey(new Date(y, m - 12, 1))];
+  }
+  const n = basis === "trailing6" ? 6 : basis === "trailing12" ? 12 : 3;
+  const keys: string[] = [];
+  for (let i = 1; i <= n; i++) keys.push(monthKey(new Date(y, m - i, 1)));
+  return keys;
+}
+
+/** Human label for a basis, resolved against the viewed month. The trailing
+ *  bases are fixed strings; `sameMonthLastYear` resolves to the actual month
+ *  it points at (e.g. "Dec 2024" when viewing Dec 2025). */
+export function basisLabel(basis: BudgetBasis, viewedMonth: Date): string {
+  switch (basis) {
+    case "trailing3":
+      return "3-mo avg";
+    case "trailing6":
+      return "6-mo avg";
+    case "trailing12":
+      return "12-mo avg";
+    case "sameMonthLastYear": {
+      const d = new Date(viewedMonth.getFullYear() - 1, viewedMonth.getMonth(), 1);
+      return `${MONTH_LABELS[d.getMonth()]} ${d.getFullYear()}`;
+    }
+  }
+}
+
+/** Mean over the active (non-zero) months only — the divisor is the count of
+ *  months that actually had spend, so an inactive ($0) month neither adds to
+ *  the sum nor dilutes the average. `0` when no month was active. Rounded to
+ *  integer cents. */
+function averageActiveMonths(spends: number[]): number {
+  const active = spends.filter((v) => v > 0);
+  if (active.length === 0) return 0;
+  return Math.round(active.reduce((s, v) => s + v, 0) / active.length);
+}
+
 export interface CategoryHistoricalStats {
   categoryId: string;
   /** Expense spend (abs cents) in the full calendar month immediately
    *  before the viewed month. `0` if that month had no spend. */
   lastMonth: number;
-  /** Mean monthly expense spend (abs cents) over the active months within
-   *  the 3 full calendar months immediately before the viewed month — the
-   *  divisor is the count of those months with non-zero spend, so an inactive
-   *  month doesn't drag the average down. `0` when none of the three had spend. */
-  avg3Month: number;
-  /** Implicit monthly target: `max(lastMonth, avg3Month)`, or `null` when
+  /** Average active-month expense spend (abs cents) over the month-set the
+   *  configured `BudgetBasis` selects — the divisor is the count of those
+   *  months with non-zero spend, so an inactive month doesn't drag the
+   *  average down. `0` when none of the basis's months had spend. */
+  reference: number;
+  /** Implicit monthly target: `max(lastMonth, reference)`, or `null` when
    *  that max is 0 — a category with no spend in the trailing window has no
    *  basis for a target. The UI treats a null target as neutral, never over,
    *  which keeps dormant and brand-new categories calm on first open. */
@@ -516,6 +571,11 @@ export interface CategoryHistoricalStatsResult {
  *  months strictly *before* it. Viewing a past month therefore looks back
  *  from that month, never from today.
  *
+ *  `basis` selects which months feed the `reference` average — see
+ *  `basisMonths`. `lastMonth` is always the single month immediately before
+ *  the viewed one, independent of `basis`. Defaults to `"trailing3"`, which
+ *  reproduces the original 3-month behaviour exactly.
+ *
  *  Same filtering as `getMonthlyBudgetSummary`: `expense` type only, Income
  *  group and archived categories excluded, `Math.abs(amount)`, uncategorized
  *  skipped. Money is integer cents throughout. */
@@ -523,19 +583,15 @@ export function getCategoryHistoricalStats(
   transactions: Transaction[],
   categories: Category[],
   range: DateRange,
+  basis: BudgetBasis = "trailing3",
 ): CategoryHistoricalStatsResult {
   const eligible = categories.filter((c) => !c.archived && c.group !== "Income");
   const eligibleIds = new Set(eligible.map((c) => c.id));
 
   const viewed = new Date(range.start.getFullYear(), range.start.getMonth(), 1);
-  // Month keys for the 1 and 3 months immediately preceding the viewed month.
-  const prevMonthKeys: string[] = [];
-  for (let i = 1; i <= 3; i++) {
-    prevMonthKeys.push(
-      monthKey(new Date(viewed.getFullYear(), viewed.getMonth() - i, 1)),
-    );
-  }
-  const [lastKey] = prevMonthKeys;
+  const referenceKeys = basisMonths(basis, viewed);
+  // `lastMonth` is basis-independent: always the month right before viewed.
+  const lastKey = monthKey(new Date(viewed.getFullYear(), viewed.getMonth() - 1, 1));
   const viewedMs = viewed.getTime();
 
   // categoryId → monthKey → abs cents, for eligible categorized expenses
@@ -562,26 +618,17 @@ export function getCategoryHistoricalStats(
   for (const c of eligible) {
     const months = byCatMonth.get(c.id);
     const lastMonth = months?.get(lastKey) ?? 0;
-    // Average only over the trailing months that actually had spend, so an
-    // inactive ($0) month neither adds to the sum nor dilutes the divisor.
-    // No active months → 0 (and so a null `implicitTarget` below).
-    const spends3 = prevMonthKeys
-      .map((k) => months?.get(k) ?? 0)
-      .filter((v) => v > 0);
-    const avg3Month =
-      spends3.length === 0
-        ? 0
-        : Math.round(spends3.reduce((s, v) => s + v, 0) / spends3.length);
+    const reference = averageActiveMonths(referenceKeys.map((k) => months?.get(k) ?? 0));
     // A category with no spend in the trailing window has no basis for a
     // target — `max` is 0, so `implicitTarget` is null. This folds the
     // dormant, brand-new, and no-history-at-all cases into one neutral
     // "untargeted" state rather than a $0 target that turns red on the
     // first dollar spent.
-    const target = Math.max(lastMonth, avg3Month);
+    const target = Math.max(lastMonth, reference);
     byCategory.set(c.id, {
       categoryId: c.id,
       lastMonth,
-      avg3Month,
+      reference,
       implicitTarget: target === 0 ? null : target,
     });
   }

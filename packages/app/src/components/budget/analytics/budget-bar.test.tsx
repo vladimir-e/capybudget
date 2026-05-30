@@ -12,7 +12,7 @@ function row(p: Partial<BudgetRow>): BudgetRow {
     assigned,
     spent: p.spent ?? 0,
     lastMonth: p.lastMonth ?? 0,
-    avg3Month: p.avg3Month ?? 0,
+    reference: p.reference ?? 0,
     implicitTarget,
     effectiveTarget: assigned ?? implicitTarget,
     isImplicit: assigned === null && implicitTarget !== null,
@@ -75,7 +75,7 @@ describe("BudgetBar — rendering by state", () => {
   it("renders both historical pins with value labels", () => {
     render(
       <BudgetBar
-        row={row({ implicitTarget: 11000, lastMonth: 9000, avg3Month: 11000, spent: 6000 })}
+        row={row({ implicitTarget: 11000, lastMonth: 9000, reference: 11000, spent: 6000 })}
       />,
     );
     expect(screen.getByRole("button", { name: /Last month: \$90\.00/ })).toBeInTheDocument();

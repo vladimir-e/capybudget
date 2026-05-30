@@ -23,9 +23,9 @@ export interface BudgetRow {
   spent: number;
   /** Abs cents spent in the calendar month before the viewed month. */
   lastMonth: number;
-  /** Mean monthly spend over the 3 months before the viewed month. */
-  avg3Month: number;
-  /** Derived target from history: `max(lastMonth, avg3Month)`, or `null`
+  /** Average active-month spend over the month-set the budget basis selects. */
+  reference: number;
+  /** Derived target from history: `max(lastMonth, reference)`, or `null`
    *  when there is no usable history. */
   implicitTarget: number | null;
   /** What spend is measured against: `assigned ?? implicitTarget`. `null`
@@ -82,7 +82,7 @@ export function mergeBudgetView(
   const rows: BudgetRow[] = summary.rows.map((r) => {
     const s = stats.byCategory.get(r.categoryId);
     const lastMonth = s?.lastMonth ?? 0;
-    const avg3Month = s?.avg3Month ?? 0;
+    const reference = s?.reference ?? 0;
     const implicitTarget = s?.implicitTarget ?? null;
     const target = effectiveTarget(r.assigned, implicitTarget);
 
@@ -98,7 +98,7 @@ export function mergeBudgetView(
       assigned: r.assigned,
       spent: r.spent,
       lastMonth,
-      avg3Month,
+      reference,
       implicitTarget,
       effectiveTarget: target,
       isImplicit: r.assigned === null && implicitTarget !== null,
