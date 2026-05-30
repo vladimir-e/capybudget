@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import type { Account, BudgetMeta, Category, Transaction } from "@capybudget/core";
+import type { Account, Category, Transaction } from "@capybudget/core";
 import type { FileAdapter } from "./file-adapter";
 import { createCsvRepository } from "./csv-repository";
 
@@ -553,101 +553,6 @@ describe("createCsvRepository", () => {
       for (const id of ["t1", "t2", "t3", "t4"]) {
         expect(written).toContain(id);
       }
-    });
-  });
-
-  describe("getBudgetMeta / saveBudgetMeta", () => {
-    const FULL_META: BudgetMeta = {
-      schemaVersion: 3,
-      name: "My Budget",
-      currency: "USD",
-      createdAt: "2026-03-07T12:00:00.000Z",
-      lastModified: "2026-03-07T12:00:00.000Z",
-      basis: "trailing6",
-    };
-
-    /** Stub budget.json with the given object (or raw string). */
-    function stubMetaRead(meta: unknown) {
-      mockAdapter.mockReadFile.mockImplementation(async (path) => {
-        if (String(path).endsWith("budget.json")) {
-          return typeof meta === "string" ? meta : JSON.stringify(meta);
-        }
-        throw new Error(`Unexpected file path: ${path}`);
-      });
-    }
-
-    it("reads budget.json and returns the parsed meta", async () => {
-      stubMetaRead(FULL_META);
-      const repo = createCsvRepository("/budgets/test", mockAdapter.adapter);
-      expect(await repo.getBudgetMeta()).toEqual(FULL_META);
-    });
-
-    it("defaults basis to trailing3 when the field is absent", async () => {
-      // A pre-basis budget.json: every field except `basis`.
-      stubMetaRead({
-        schemaVersion: FULL_META.schemaVersion,
-        name: FULL_META.name,
-        currency: FULL_META.currency,
-        createdAt: FULL_META.createdAt,
-        lastModified: FULL_META.lastModified,
-      });
-      const repo = createCsvRepository("/budgets/test", mockAdapter.adapter);
-
-      const meta = await repo.getBudgetMeta();
-      expect(meta.basis).toBe("trailing3");
-      // The rest of the file survives the defaulting.
-      expect(meta.schemaVersion).toBe(3);
-      expect(meta.name).toBe("My Budget");
-      expect(meta.currency).toBe("USD");
-    });
-
-    it("caches after first read — no second readFile", async () => {
-      stubMetaRead(FULL_META);
-      const repo = createCsvRepository("/budgets/test", mockAdapter.adapter);
-
-      await repo.getBudgetMeta();
-      await repo.getBudgetMeta();
-      expect(mockAdapter.mockReadFile).toHaveBeenCalledTimes(1);
-    });
-
-    it("saveBudgetMeta writes atomically (tmp then rename) preserving all fields", async () => {
-      stubMetaRead(FULL_META);
-      const repo = createCsvRepository("/budgets/test", mockAdapter.adapter, {
-        immediate: true,
-      });
-
-      const next: BudgetMeta = { ...FULL_META, basis: "sameMonthLastYear" };
-      await repo.saveBudgetMeta(next);
-
-      // Wrote to a .tmp path, then renamed onto budget.json.
-      const writeCall = mockAdapter.mockWriteFile.mock.calls[0];
-      expect(String(writeCall[0])).toBe("/budgets/test/budget.json.tmp");
-      expect(mockAdapter.mockRename).toHaveBeenCalledWith(
-        "/budgets/test/budget.json.tmp",
-        "/budgets/test/budget.json",
-      );
-
-      // Serialized JSON is the full object — 2-space indented to match the
-      // bootstrap writer — and round-trips back to `next`.
-      const written = String(writeCall[1]);
-      expect(written).toBe(JSON.stringify(next, null, 2));
-      expect(JSON.parse(written)).toEqual(next);
-    });
-
-    it("saveBudgetMeta updates the cache so the next get returns saved data", async () => {
-      stubMetaRead(FULL_META);
-      const repo = createCsvRepository("/budgets/test", mockAdapter.adapter, {
-        immediate: true,
-      });
-
-      await repo.getBudgetMeta(); // populate cache
-      const next: BudgetMeta = { ...FULL_META, basis: "trailing12" };
-      await repo.saveBudgetMeta(next);
-
-      const result = await repo.getBudgetMeta();
-      expect(result).toEqual(next);
-      // No re-read — served from the in-memory cache.
-      expect(mockAdapter.mockReadFile).toHaveBeenCalledTimes(1);
     });
   });
 });

@@ -9,7 +9,7 @@ export const BUDGET_BASES = [
 ] as const;
 
 /** Which month-set the Monthly Budget tab's implicit targets average over.
- *  Serializes to JSON (the budget.json `basis` field) and supports
+ *  Drives the view computation and `getCategoryHistoricalStats`; supports
  *  exhaustiveness checks. */
 export type BudgetBasis = (typeof BUDGET_BASES)[number];
 
@@ -31,10 +31,6 @@ export interface BudgetMeta {
   currency: string;
   createdAt: string;
   lastModified: string;
-  /** Comparison basis for the Monthly Budget tab's implicit targets.
-   *  Absent in budgets written before this field existed — readers default
-   *  to `"trailing3"`. */
-  basis?: BudgetBasis;
 }
 
 export interface RecentBudget {

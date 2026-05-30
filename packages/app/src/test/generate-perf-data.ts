@@ -32,7 +32,7 @@ const categoryDefs: { name: string; group: CategoryGroup }[] = [
   { name: "Travel", group: "Irregular" },
 ];
 
-export function generatePerfData(txnCount: number): MemoryRepositoryData {
+export function generatePerfData(txnCount: number): Required<MemoryRepositoryData> {
   faker.seed(42); // deterministic output
 
   const accounts: Account[] = accountDefs.map((def, i) =>

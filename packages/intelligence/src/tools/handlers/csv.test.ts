@@ -26,18 +26,9 @@ function makeRepo(data: { accounts?: Account[]; categories?: Category[] } = {}):
     getAccounts: async () => data.accounts ?? [],
     getCategories: async () => data.categories ?? [],
     getTransactions: async () => [],
-    getBudgetMeta: async () => ({
-      schemaVersion: 3,
-      name: "Test Budget",
-      currency: "USD",
-      createdAt: "2026-01-01T00:00:00.000Z",
-      lastModified: "2026-01-01T00:00:00.000Z",
-      basis: "trailing3",
-    }),
     saveAccounts: async () => {},
     saveCategories: async () => {},
     saveTransactions: async () => {},
-    saveBudgetMeta: async () => {},
   }
 }
 

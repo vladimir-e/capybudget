@@ -2,14 +2,13 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, cleanup, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import type { Account, BudgetBasis, BudgetMeta, Category, Transaction } from "@capybudget/core";
+import type { Account, BudgetBasis, Category, Transaction } from "@capybudget/core";
 import { MonthlyBudgetTab } from "./monthly-budget-tab";
 import { makeAccount, makeCategory, makeTransaction } from "@/test/factories";
 
 let mockAccounts: Account[] = [];
 let mockCategories: Category[] = [];
 let mockAllTransactions: Transaction[] = [];
-let mockMeta: BudgetMeta | undefined;
 
 vi.mock("@/hooks/use-budget-data", () => ({
   budgetKeys: {
@@ -17,17 +16,18 @@ vi.mock("@/hooks/use-budget-data", () => ({
     accounts: () => ["budget", "accounts"],
     categories: () => ["budget", "categories"],
     transactions: () => ["budget", "transactions"],
-    meta: () => ["budget", "meta"],
   },
   useAccounts: () => ({ data: mockAccounts }),
   useCategories: () => ({ data: mockCategories }),
   useTransactions: () => ({ data: mockAllTransactions }),
-  useBudgetMeta: () => ({ data: mockMeta }),
 }));
 
-const setBasisMutate = vi.fn();
-vi.mock("@/hooks/use-budget-meta-mutations", () => ({
-  useSetBudgetBasis: () => ({ mutate: setBasisMutate }),
+// The comparison basis is a localStorage-backed preference; mock the hook so
+// tests can drive the active basis and assert the setter is called on select.
+let mockBasis: BudgetBasis = "trailing3";
+const setBasis = vi.fn();
+vi.mock("@/contexts/budget-basis-context", () => ({
+  useBudgetBasis: () => [mockBasis, setBasis] as const,
 }));
 
 // Category mutations module is brought in by `AssignedInput` editor;
@@ -35,15 +35,6 @@ vi.mock("@/hooks/use-budget-meta-mutations", () => ({
 vi.mock("@/hooks/use-category-mutations", () => ({
   useSetCategoryAssigned: () => ({ mutate: vi.fn() }),
 }));
-
-const makeMeta = (basis?: BudgetBasis): BudgetMeta => ({
-  schemaVersion: 3,
-  name: "Test",
-  currency: "USD",
-  createdAt: "2026-01-01T00:00:00.000Z",
-  lastModified: "2026-01-01T00:00:00.000Z",
-  ...(basis ? { basis } : {}),
-});
 
 function renderWithProviders(ui: React.ReactElement) {
   const client = new QueryClient({
@@ -96,8 +87,8 @@ beforeEach(() => {
   mockAccounts = [acc];
   mockCategories = [groceries, rent, subs];
   mockAllTransactions = txns;
-  mockMeta = makeMeta(); // defaults to trailing3 (basis absent)
-  setBasisMutate.mockClear();
+  mockBasis = "trailing3";
+  setBasis.mockClear();
 });
 
 afterEach(() => {
@@ -176,7 +167,7 @@ describe("MonthlyBudgetTab — with-history table", () => {
   });
 
   it("labels the reference picker with the resolved basis (trailing6 → '6-mo avg')", () => {
-    mockMeta = makeMeta("trailing6");
+    mockBasis = "trailing6";
     renderWithProviders(
       <MonthlyBudgetTab transactions={txns} categories={mockCategories} dateRange={dateRange} />,
     );
@@ -184,7 +175,7 @@ describe("MonthlyBudgetTab — with-history table", () => {
   });
 
   it("resolves sameMonthLastYear to the actual month on the trigger (May 2026 → 'May 2025')", () => {
-    mockMeta = makeMeta("sameMonthLastYear");
+    mockBasis = "sameMonthLastYear";
     renderWithProviders(
       <MonthlyBudgetTab transactions={txns} categories={mockCategories} dateRange={dateRange} />,
     );
@@ -200,7 +191,7 @@ describe("MonthlyBudgetTab — with-history table", () => {
     await user.click(screen.getByRole("button", { name: /comparison basis: 3-mo avg/i }));
     // The menu lists the descriptive option labels; pick "12 months".
     await user.click(await screen.findByRole("menuitemradio", { name: /12 months/i }));
-    expect(setBasisMutate).toHaveBeenCalledWith("trailing12");
+    expect(setBasis).toHaveBeenCalledWith("trailing12");
   });
 });
 

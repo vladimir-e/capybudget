@@ -8,15 +8,13 @@ import {
   CATEGORY_GROUP_ORDER,
 } from "@capybudget/core";
 import type {
-  BudgetBasis,
   Category,
   CategoryGroup,
   DateRange,
   Transaction,
 } from "@capybudget/core";
 import { useSetCategoryAssigned } from "@/hooks/use-category-mutations";
-import { useBudgetMeta } from "@/hooks/use-budget-data";
-import { useSetBudgetBasis } from "@/hooks/use-budget-meta-mutations";
+import { useBudgetBasis } from "@/contexts/budget-basis-context";
 import { toast } from "sonner";
 import { buildBudgetView, type BudgetRow } from "./monthly-budget-rows";
 import { BudgetBar, BudgetBarLegend } from "./budget-bar";
@@ -406,9 +404,7 @@ export function MonthlyBudgetTab({
   const [hideUntargeted, setHideUntargeted] = useState(false);
   const [drilldown, setDrilldown] = useState<MonthlyBudgetDrilldown | null>(null);
 
-  const meta = useBudgetMeta();
-  const setBasis = useSetBudgetBasis();
-  const basis: BudgetBasis = meta.data?.basis ?? "trailing3";
+  const [basis, setBasis] = useBudgetBasis();
   // Resolved label for the active basis, computed once and threaded to the
   // legend trigger and every bar's reference pin so the wording can't diverge.
   // The viewed month is the range's start (a first-of-month boundary).
@@ -553,7 +549,7 @@ export function MonthlyBudgetTab({
               <BudgetBarLegend
                 basis={basis}
                 referenceLabel={referenceLabel}
-                onBasisChange={(b) => setBasis.mutate(b)}
+                onBasisChange={setBasis}
               />
             </div>
           )}

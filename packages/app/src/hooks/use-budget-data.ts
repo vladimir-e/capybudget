@@ -6,7 +6,6 @@ export const budgetKeys = {
   accounts: () => [...budgetKeys.all, "accounts"] as const,
   categories: () => [...budgetKeys.all, "categories"] as const,
   transactions: () => [...budgetKeys.all, "transactions"] as const,
-  meta: () => [...budgetKeys.all, "meta"] as const,
 };
 
 export function useAccounts() {
@@ -32,15 +31,6 @@ export function useTransactions() {
   return useQuery({
     queryKey: budgetKeys.transactions(),
     queryFn: () => repo.getTransactions(),
-    staleTime: Infinity,
-  });
-}
-
-export function useBudgetMeta() {
-  const repo = useBudgetRepository();
-  return useQuery({
-    queryKey: budgetKeys.meta(),
-    queryFn: () => repo.getBudgetMeta(),
     staleTime: Infinity,
   });
 }
