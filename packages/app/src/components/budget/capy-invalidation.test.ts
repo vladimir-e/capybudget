@@ -28,9 +28,18 @@ function makeRepo(): DisposableRepository {
     getAccounts: vi.fn().mockResolvedValue([]),
     getCategories: vi.fn().mockResolvedValue([]),
     getTransactions: vi.fn().mockResolvedValue([]),
+    getBudgetMeta: vi.fn().mockResolvedValue({
+      schemaVersion: 3,
+      name: "Test Budget",
+      currency: "USD",
+      createdAt: "2026-01-01T00:00:00.000Z",
+      lastModified: "2026-01-01T00:00:00.000Z",
+      basis: "trailing3",
+    }),
     saveAccounts: vi.fn().mockResolvedValue(undefined),
     saveCategories: vi.fn().mockResolvedValue(undefined),
     saveTransactions: vi.fn().mockResolvedValue(undefined),
+    saveBudgetMeta: vi.fn().mockResolvedValue(undefined),
     invalidateCache: vi.fn<() => void>(),
     dispose: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
   };

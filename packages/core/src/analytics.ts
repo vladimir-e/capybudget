@@ -1,4 +1,4 @@
-import type { Transaction, Category, Account } from "./types";
+import type { Transaction, Category, Account, BudgetBasis } from "./types";
 
 export interface DateRange {
   start: Date;
@@ -480,14 +480,6 @@ export function getCategoryTrends(
 }
 
 // ── Category Historical Stats ─────
-
-/** Which month-set the historical reference averages over. Serializes to JSON
- *  (the budget.json setting) and supports exhaustiveness checks. */
-export type BudgetBasis =
-  | "trailing3"
-  | "trailing6"
-  | "trailing12"
-  | "sameMonthLastYear";
 
 /** The calendar months a basis selects, relative to a viewed month
  *  (first-of-month boundary). Returned newest-first as `YYYY-MM` keys.

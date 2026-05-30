@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest"
-import type { Account, Category, Transaction } from "@capybudget/core"
+import type { Account, BudgetMeta, Category, Transaction } from "@capybudget/core"
 import type { BudgetRepository } from "@capybudget/persistence"
 import {
   handleCreateTransaction,
@@ -11,6 +11,7 @@ import {
   handleArchiveAccount,
   handleUnarchiveAccount,
   handleSetNetWorthExclusions,
+  handleSetBudgetBasis,
   handleCreateCategory,
   handleUpdateCategory,
   handleDeleteCategory,
@@ -64,18 +65,33 @@ function makeTxn(overrides: Partial<Transaction> = {}): Transaction {
   }
 }
 
+function makeMeta(overrides: Partial<BudgetMeta> = {}): BudgetMeta {
+  return {
+    schemaVersion: 3,
+    name: "Test Budget",
+    currency: "USD",
+    createdAt: "2026-01-01T00:00:00.000Z",
+    lastModified: "2026-01-01T00:00:00.000Z",
+    basis: "trailing3",
+    ...overrides,
+  }
+}
+
 function createMockRepo(data: {
   accounts?: Account[]
   categories?: Category[]
   transactions?: Transaction[]
+  meta?: BudgetMeta
 }): BudgetRepository {
   return {
     getAccounts: vi.fn().mockResolvedValue(data.accounts ?? []),
     getCategories: vi.fn().mockResolvedValue(data.categories ?? []),
     getTransactions: vi.fn().mockResolvedValue(data.transactions ?? []),
+    getBudgetMeta: vi.fn().mockResolvedValue(data.meta ?? makeMeta()),
     saveAccounts: vi.fn().mockResolvedValue(undefined),
     saveCategories: vi.fn().mockResolvedValue(undefined),
     saveTransactions: vi.fn().mockResolvedValue(undefined),
+    saveBudgetMeta: vi.fn().mockResolvedValue(undefined),
   }
 }
 
@@ -549,6 +565,43 @@ describe("handleSetNetWorthExclusions", () => {
       }),
     )
     expect(result.error).toMatch(/non-empty array/)
+  })
+})
+
+// ── set_budget_basis ────────────────────────────────────────────
+
+describe("handleSetBudgetBasis", () => {
+  it("persists a valid basis, preserving other meta fields", async () => {
+    const repo = createMockRepo({
+      meta: makeMeta({ name: "My Budget", basis: "trailing3" }),
+    })
+    const result = JSON.parse(
+      await handleSetBudgetBasis(repo, { basis: "sameMonthLastYear" }),
+    )
+    expect(result.success).toBe(true)
+    expect(result.basis).toBe("sameMonthLastYear")
+    const saved = (repo.saveBudgetMeta as ReturnType<typeof vi.fn>).mock.calls[0][0]
+    expect(saved.basis).toBe("sameMonthLastYear")
+    // Other fields survive the round-trip.
+    expect(saved.name).toBe("My Budget")
+    expect(saved.schemaVersion).toBe(3)
+    expect(saved.currency).toBe("USD")
+  })
+
+  it("rejects an unknown basis without saving", async () => {
+    const repo = createMockRepo({})
+    const result = JSON.parse(
+      await handleSetBudgetBasis(repo, { basis: "trailing9" }),
+    )
+    expect(result.error).toMatch(/basis must be one of/)
+    expect(repo.saveBudgetMeta).not.toHaveBeenCalled()
+  })
+
+  it("rejects a missing basis", async () => {
+    const repo = createMockRepo({})
+    const result = JSON.parse(await handleSetBudgetBasis(repo, {}))
+    expect(result.error).toMatch(/basis must be one of/)
+    expect(repo.saveBudgetMeta).not.toHaveBeenCalled()
   })
 })
 

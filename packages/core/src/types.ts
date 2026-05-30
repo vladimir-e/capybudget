@@ -1,9 +1,28 @@
+/** The comparison bases the Monthly Budget tab can average implicit targets
+ *  over. Source of truth for both the `BudgetBasis` type and any runtime
+ *  validation/enumeration (e.g. the MCP tool's enum). */
+export const BUDGET_BASES = [
+  "trailing3",
+  "trailing6",
+  "trailing12",
+  "sameMonthLastYear",
+] as const;
+
+/** Which month-set the Monthly Budget tab's implicit targets average over.
+ *  Serializes to JSON (the budget.json `basis` field) and supports
+ *  exhaustiveness checks. */
+export type BudgetBasis = (typeof BUDGET_BASES)[number];
+
 export interface BudgetMeta {
   schemaVersion: number;
   name: string;
   currency: string;
   createdAt: string;
   lastModified: string;
+  /** Comparison basis for the Monthly Budget tab's implicit targets.
+   *  Absent in budgets written before this field existed — readers default
+   *  to `"trailing3"`. */
+  basis?: BudgetBasis;
 }
 
 export interface RecentBudget {

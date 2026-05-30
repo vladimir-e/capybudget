@@ -1,4 +1,4 @@
-import type { Account, Category, Transaction } from "@capybudget/core";
+import type { Account, BudgetMeta, Category, Transaction } from "@capybudget/core";
 import type { FileAdapter } from "./file-adapter";
 import type { BudgetRepository } from "./repository";
 import {
@@ -16,16 +16,24 @@ export interface DisposableRepository extends BudgetRepository {
   dispose(): Promise<void>;
 }
 
-/** Write data to a CSV file atomically (write .tmp then rename). */
+/** Write a string to a file atomically (write .tmp then rename). */
+async function writeFileAtomic(
+  filePath: string,
+  content: string,
+  fileAdapter: FileAdapter,
+): Promise<void> {
+  const tmpPath = `${filePath}.tmp`;
+  await fileAdapter.writeFile(tmpPath, content);
+  await fileAdapter.rename(tmpPath, filePath);
+}
+
+/** Write tabular data to a CSV file atomically. */
 async function writeCsvAtomic(
   filePath: string,
   data: unknown[],
   fileAdapter: FileAdapter,
 ): Promise<void> {
-  const csv = unparseCsv(data);
-  const tmpPath = `${filePath}.tmp`;
-  await fileAdapter.writeFile(tmpPath, csv);
-  await fileAdapter.rename(tmpPath, filePath);
+  await writeFileAtomic(filePath, unparseCsv(data), fileAdapter);
 }
 
 export function createCsvRepository(
@@ -36,12 +44,14 @@ export function createCsvRepository(
   let accounts: Account[] | null = null;
   let categories: Category[] | null = null;
   let transactions: Transaction[] | null = null;
+  let meta: BudgetMeta | null = null;
 
   // Lazy-resolved file paths
   const paths = {
     accounts: null as string | null,
     categories: null as string | null,
     transactions: null as string | null,
+    meta: null as string | null,
   };
 
   async function getPath(file: "accounts" | "categories" | "transactions") {
@@ -49,6 +59,13 @@ export function createCsvRepository(
       paths[file] = await fileAdapter.join(folderPath, `${file}.csv`);
     }
     return paths[file];
+  }
+
+  async function getMetaPath() {
+    if (!paths.meta) {
+      paths.meta = await fileAdapter.join(folderPath, "budget.json");
+    }
+    return paths.meta;
   }
 
   // Debounced writers — created lazily after first save
@@ -61,6 +78,9 @@ export function createCsvRepository(
     }),
     transactions: createDebouncedWriter(async () => {
       if (transactions) await writeCsvAtomic(await getPath("transactions"), transactions, fileAdapter);
+    }),
+    meta: createDebouncedWriter(async () => {
+      if (meta) await writeFileAtomic(await getMetaPath(), JSON.stringify(meta, null, 2), fileAdapter);
     }),
   };
 
@@ -89,6 +109,15 @@ export function createCsvRepository(
       return transactions;
     },
 
+    async getBudgetMeta() {
+      if (!meta) {
+        const content = await fileAdapter.readFile(await getMetaPath());
+        const parsed = JSON.parse(content) as BudgetMeta;
+        meta = { ...parsed, basis: parsed.basis ?? "trailing3" };
+      }
+      return meta;
+    },
+
     async saveAccounts(data: Account[]) {
       accounts = data;
       if (options?.immediate) await writers.accounts.flush();
@@ -107,10 +136,17 @@ export function createCsvRepository(
       else writers.transactions.schedule();
     },
 
+    async saveBudgetMeta(data: BudgetMeta) {
+      meta = data;
+      if (options?.immediate) await writers.meta.flush();
+      else writers.meta.schedule();
+    },
+
     invalidateCache() {
       accounts = null;
       categories = null;
       transactions = null;
+      meta = null;
     },
 
     async dispose() {
@@ -118,6 +154,7 @@ export function createCsvRepository(
         writers.accounts.flush(),
         writers.categories.flush(),
         writers.transactions.flush(),
+        writers.meta.flush(),
       ]);
     },
   };

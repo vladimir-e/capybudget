@@ -5,6 +5,7 @@
  * consume these.
  */
 
+import { BUDGET_BASES } from "@capybudget/core"
 import { SPEC_FILENAMES } from "../specs.generated"
 
 // ── Data tool schemas ────────────────────────────────────────────
@@ -370,6 +371,22 @@ export const MUTATION_TOOL_DEFS = [
         },
       },
       required: ["accountIds", "exclude"],
+    },
+  },
+  {
+    name: "set_budget_basis",
+    description:
+      "Set the budget-wide comparison basis for the Monthly Budget tab — the window its implicit targets average spending over. `trailing3`/`trailing6`/`trailing12` average the last N months; `sameMonthLastYear` compares against the same month a year ago.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        basis: {
+          type: "string",
+          enum: [...BUDGET_BASES],
+          description: "The comparison basis to use across the whole budget.",
+        },
+      },
+      required: ["basis"],
     },
   },
 
