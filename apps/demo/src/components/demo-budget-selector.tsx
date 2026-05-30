@@ -8,10 +8,10 @@ import { BudgetTile } from "@/components/budget/budget-tile";
 import bgDay from "@/assets/capy-bg-day.webp";
 import bgNight from "@/assets/capy-bg-night.webp";
 
-import { PRESET_LIST } from "../data/presets";
-import type { DemoPreset } from "../data/presets";
+import { PROFILE_LIST } from "../data/profiles";
+import type { DemoProfile } from "../data/profiles";
 
-const PRESET_STICKERS: Record<string, string> = {
+const PROFILE_STICKERS: Record<string, string> = {
   underwater: "/capy-tired.webp",
   "paycheck-to-paycheck": "/capy-saving.webp",
   "no-stress": "/capy-chilling.webp",
@@ -24,10 +24,10 @@ export function DemoBudgetSelector() {
   const isDark = (resolvedTheme ?? theme) === "dark";
   const bgUrl = isDark ? bgNight : bgDay;
 
-  function handleSelect(preset: DemoPreset) {
+  function handleSelect(profile: DemoProfile) {
     void navigate({
       to: "/budget",
-      search: { path: preset.id, name: preset.name },
+      search: { path: profile.id, name: profile.name },
     });
   }
 
@@ -59,21 +59,21 @@ export function DemoBudgetSelector() {
             </p>
           </div>
 
-          {/* Preset tiles */}
+          {/* Scenario tiles */}
           <div className="space-y-2">
-            {PRESET_LIST.map((preset) => (
+            {PROFILE_LIST.map((profile) => (
               <BudgetTile
-                key={preset.id}
-                title={preset.name}
-                subtitle={preset.description}
+                key={profile.id}
+                title={profile.name}
+                subtitle={profile.description}
                 icon={
                   <img
-                    src={PRESET_STICKERS[preset.id]}
+                    src={PROFILE_STICKERS[profile.id]}
                     alt=""
                     className="h-8 w-8 shrink-0 object-contain"
                   />
                 }
-                onClick={() => handleSelect(preset)}
+                onClick={() => handleSelect(profile)}
               />
             ))}
           </div>
