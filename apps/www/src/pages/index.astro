@@ -894,7 +894,7 @@ const demoUrl = "https://demo.capybudget.app";
 
                 <div class="budget-legend">
                   <span class="bl-item"><span class="bl-pin solid"></span> last month</span>
-                  <span class="bl-item"><span class="bl-pin hollow"></span> 3-mo avg</span>
+                  <span class="bl-item bl-basis"><span class="bl-pin hollow"></span> 3-mo avg <span class="bl-chevron">⌄</span></span>
                 </div>
 
                 <div class="budget-cat-group">
@@ -2787,6 +2787,19 @@ const demoUrl = "https://demo.capybudget.app";
   }
   .bl-pin.solid { background: rgba(254, 243, 199, 0.6); }
   .bl-pin.hollow { background: #0c0a09; }
+  /* The reference-pin legend item doubles as the comparison-basis dropdown:
+     resolved label + chevron in a quiet pill. Editorial — not a live menu. */
+  .bl-basis {
+    gap: 0.3rem;
+    padding: 0.1rem 0.35rem;
+    border-radius: 4px;
+    background: rgba(254, 243, 199, 0.06);
+  }
+  .bl-chevron {
+    font-size: 11px;
+    line-height: 1;
+    opacity: 0.6;
+  }
 
   .budget-cat-group {
     border-top: 1px solid rgba(255, 255, 255, 0.05);

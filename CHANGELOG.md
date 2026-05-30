@@ -12,6 +12,7 @@ CHANGELOG PHILOSOPHY:
 ## Unreleased
 
 - **Monthly Budget** - Every category budgets itself from spending history; zoned progress bar with green/red zones, history pins, and auto-vs-explicit targets (#49).
+- **Monthly Budget** - Configurable comparison basis (3/6/12-month or same month last year), chosen on the legend and saved with the budget (#49).
 - **Capy** - Live cache invalidation per mutation; `list_transactions` gains `sort` + `offset`; new `transaction_bounds` tool.
 - **Capy** - Don't drop the in-memory repo cache between in-process mutations — was silently losing all-but-the-last write in multi-tool Anthropic/OpenAI turns.
 - **Capy** - Fix ~30s post-message hang by decoupling loop exit from stream drain across all three adapters (#44).

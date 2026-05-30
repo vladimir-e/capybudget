@@ -20,13 +20,16 @@ All data lives in a user-chosen folder as plain CSV files. A `budget.json` metad
   "name": "My Budget",
   "currency": "USD",
   "createdAt": "2026-03-07T12:00:00.000Z",
-  "lastModified": "2026-03-07T12:00:00.000Z"
+  "lastModified": "2026-03-07T12:00:00.000Z",
+  "basis": "trailing3"
 }
 ```
 
 The schema version enables future migrations. On load, the app checks the version and runs any necessary transformations before proceeding.
 
 The `currency` field determines minor-unit precision for display (2 for USD/EUR, 0 for JPY, etc.). All amounts are integers in the minor unit.
+
+The `basis` field is the budget-wide comparison basis for the Monthly Budget tab — the window each category's implicit target averages spending over. One of `trailing3` · `trailing6` · `trailing12` · `sameMonthLastYear`. The trailing bases average the active months in the last N; `sameMonthLastYear` uses the single month a year before the viewed one. A budget written without the field reads back as `trailing3` (the default), so it carries no `schemaVersion` bump and no migration — older folders simply behave as 3-month until the setting is changed.
 
 ## Accounts
 
@@ -59,7 +62,7 @@ Fully user-manageable. Sensible defaults prepopulated on first launch.
 | `sortOrder` | integer          | Display ordering within group                                     |
 | `assigned`  | integer \| null  | Explicit monthly budget in cents. `null` = no explicit budget. `0` = tracked at zero. Single piece of mutable current state — applies to every month. The only stored budget input. |
 
-**Budget target.** The figure a category's spend is tracked against is `assigned ?? implicitTarget`. `assigned` is the explicit budget above; `implicitTarget` is derived from the category's spending history — the heavier of last month and the average of the active months in the trailing three (the divisor is the count of those months with non-zero spend, so a dormant month doesn't dilute the figure), `null` when none of the three had spend. Implicit targets are **computed at render and never stored** — there is no derived-target column and no migration. `assigned` is the only budget field that touches CSV.
+**Budget target.** The figure a category's spend is tracked against is `assigned ?? implicitTarget`. `assigned` is the explicit budget above; `implicitTarget` is derived from the category's spending history — the heavier of last month and a reference average over the months the budget-wide `basis` selects (the divisor is the count of those months with non-zero spend, so a dormant month doesn't dilute the figure), `null` when none of the reference months had spend. Last month is always the single month before the viewed one, independent of `basis`. Implicit targets are **computed at render and never stored** — there is no derived-target column and no migration. `assigned` is the only budget field that touches CSV.
 
 ### Default Category Groups
 
