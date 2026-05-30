@@ -1156,8 +1156,8 @@ describe("getCategoryHistoricalStats", () => {
     });
 
     it("sameMonthLastYear yields 0 when that one month had no spend", () => {
-      // Trailing year has no Feb-2025… wait, it does. Use a dataset whose only
-      // spend is adjacent to the target month, so the target month itself is $0.
+      // Use a dataset whose only spend is adjacent to the target month, so the
+      // target month itself is $0.
       const t = [
         expense({ id: "near", amount: -9000, categoryId: "x", datetime: iso(2025, 1, 10) }), // Feb 2025
       ];

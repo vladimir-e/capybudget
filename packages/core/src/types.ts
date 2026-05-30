@@ -1,6 +1,6 @@
 /** The comparison bases the Monthly Budget tab can average implicit targets
- *  over. Source of truth for both the `BudgetBasis` type and any runtime
- *  validation/enumeration (e.g. the MCP tool's enum). */
+ *  over. Source of truth for both the `BudgetBasis` type and the runtime
+ *  list the basis picker enumerates. */
 export const BUDGET_BASES = [
   "trailing3",
   "trailing6",

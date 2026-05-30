@@ -130,8 +130,8 @@ function Divider({
 
 /** The zoned budget bar: a green zone (0 → target) and a red over-zone
  *  (target → over-max) with a fixed divider fraction across every row, a
- *  solid spend fill that turns red once it crosses the divider, reference
- *  pins for last-month / 3-mo-avg above the track, and a divider styled by
+ *  solid spend fill that turns red once it crosses the divider, a last-month
+ *  pin and a basis-driven reference pin above the track, and a divider styled by
  *  whether the target is user-set or auto-derived.
  *
  *  All geometry comes from `barGeometry`; this component only paints it. The
