@@ -16,19 +16,19 @@
 Colocated with source files as `*.test.ts`. Test pure functions, services, stores, and repositories in isolation.
 
 ```
-src/services/accounts.test.ts
-src/stores/undo-store.test.ts
-src/lib/money.test.ts
+packages/core/src/money.test.ts
+packages/app/src/stores/undo-store.test.ts
+packages/persistence/src/csv-repository.test.ts
 ```
 
 ### User Journey Tests
 
-Full-app integration tests in `src/test/journeys/`. Mount the entire component tree with a memory router and in-memory repository — no file I/O, no Tauri APIs.
+Full-app integration tests in `packages/app/src/test/journeys/`. Mount the entire component tree with a memory router and in-memory repository — no file I/O, no Tauri APIs.
 
 ```
-src/test/journeys/transaction-lifecycle.test.tsx
-src/test/journeys/fresh-start.test.tsx
-src/test/journeys/account-lifecycle.test.tsx
+packages/app/src/test/journeys/transaction-lifecycle.test.tsx
+packages/app/src/test/journeys/fresh-start.test.tsx
+packages/app/src/test/journeys/account-lifecycle.test.tsx
 ```
 
 Journey tests exercise real user interactions (open form, type, click, submit) against the complete component tree including routing, TanStack Query, mutations, and undo/redo. They run in ~3s.
@@ -37,11 +37,14 @@ Journey tests exercise real user interactions (open form, type, click, submit) a
 
 | File | Purpose |
 |------|---------|
-| `src/test/setup.ts` | Global setup: jest-dom matchers, browser API polyfills, Tauri API mocks |
-| `src/test/factories.ts` | `makeAccount()`, `makeCategory()`, `makeTransaction()` — test data builders |
+| `packages/app/src/test/setup.ts` | Global setup: jest-dom matchers, browser API polyfills, Tauri API mocks |
+| `packages/app/src/test/factories.ts` | `makeAccount()`, `makeCategory()`, `makeTransaction()` — test data builders for app-level tests |
 | `@capybudget/persistence` (`createInMemoryRepository`) | `DisposableRepository` backed by plain arrays (no persistence) |
-| `src/test/render-app.tsx` | `renderApp()` — mounts full app with memory router, fresh QueryClient, cleanup |
-| `src/test/journeys/setup.ts` | Mocks `createCsvRepository` → memory repo (import in journey tests only) |
+| `packages/app/src/test/render-app.tsx` | `renderApp()` — mounts full app with memory router, fresh QueryClient, cleanup |
+| `packages/app/src/test/journeys/setup.ts` | Mocks `createCsvRepository` → memory repo (import in journey tests only) |
+
+For shared test builders across packages (so `core`, `persistence`, and
+`intelligence` tests don't each redefine their own), see `STRUCTURE.md` § Tests.
 
 ### Writing a Journey Test
 

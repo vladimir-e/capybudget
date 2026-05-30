@@ -119,9 +119,10 @@ kebab-case for all files (e.g. `budget-shell.tsx`, `csv-repository.ts`).
 ### Components
 
 - Functional components only
-- Co-locate component logic in the same file
-- Extract when reused or > ~150 lines
-- shadcn components in `components/ui/`, customized freely
+- shadcn primitives in `components/ui/`, customized freely
+
+See `STRUCTURE.md` for component decomposition, file placement, and package
+internal layout.
 
 ## Target Platforms
 
