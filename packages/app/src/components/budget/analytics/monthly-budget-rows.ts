@@ -51,9 +51,6 @@ export interface BudgetView {
   /** Count of rows whose spend is strictly over their effective target.
    *  Untargeted rows never count. */
   overCount: number;
-  /** Months of dataset history before the viewed month. `0` ⟺ every row is
-   *  untargeted. */
-  monthsOfData: number;
 }
 
 /** Compose the per-category month summary with historical stats into the
@@ -113,6 +110,5 @@ export function mergeBudgetView(
     totalAssigned,
     totalSpent,
     overCount,
-    monthsOfData: stats.monthsOfData,
   };
 }

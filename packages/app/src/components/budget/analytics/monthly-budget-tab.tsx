@@ -20,7 +20,6 @@ import { useSetBudgetBasis } from "@/hooks/use-budget-meta-mutations";
 import { toast } from "sonner";
 import { buildBudgetView, type BudgetRow } from "./monthly-budget-rows";
 import { BudgetBar, BudgetBarLegend } from "./budget-bar";
-import { BudgetNoHistoryNote } from "./budget-no-history-note";
 import { TransactionsModal } from "@/components/budget/transactions-modal";
 import { TransactionsDrilldownLink } from "@/components/budget/transactions-drilldown-link";
 import { formatRangeLabel } from "./format-range";
@@ -437,10 +436,6 @@ export function MonthlyBudgetTab({
   // the legend and the hide-untargeted filter.
   const hasTargetedRows = targetedCount > 0;
 
-  // No prior-month spend anywhere → every implicit target is null. The tab
-  // frames this as "targets are forming" rather than a wall of empty bars.
-  const noHistory = view.monthsOfData === 0;
-
   // Categories grouped by group, in canonical order, excluding Income and archived.
   const grouped = useMemo(() => {
     const map = new Map<CategoryGroup, Category[]>();
@@ -531,8 +526,6 @@ export function MonthlyBudgetTab({
         </p>
       ) : (
         <div className="space-y-3">
-          {noHistory && <BudgetNoHistoryNote />}
-
           {/* Filter + legend share one row: the "show only tracked" toggle
            *  sits under the Category column on the left, the history-pin legend
            *  stays out near the bars on the right. The toggle only appears when

@@ -1048,25 +1048,19 @@ describe("getCategoryHistoricalStats", () => {
 
   it("ignores income, archived-category, and uncategorized spend in history", () => {
     const { byCategory } = getCategoryHistoricalStats(txns, cats, APRIL);
-    // If any of those leaked, food/rent numbers would be unchanged but
-    // monthsOfData and targets would not — assert the clean values hold.
+    // If any of those leaked, food/rent targets would shift — assert the
+    // clean values hold.
     expect(byCategory.get("food")!.implicitTarget).toBe(30000);
     expect(byCategory.get("rent")!.implicitTarget).toBe(120000);
   });
 
-  it("reports monthsOfData = distinct prior months with eligible spend", () => {
-    const { monthsOfData } = getCategoryHistoricalStats(txns, cats, APRIL);
-    expect(monthsOfData).toBe(3); // Jan, Feb, Mar
-  });
-
   it("returns null implicitTarget for every row when there is no history", () => {
     // Only the viewed month has spend → no trailing-window basis for any
-    // category, so every target is null. monthsOfData is 0 here too.
+    // category, so every target is null.
     const onlyViewed = [
       expense({ id: "v1", amount: -50000, categoryId: "food", datetime: iso(2026, 3, 10) }),
     ];
-    const { byCategory, monthsOfData } = getCategoryHistoricalStats(onlyViewed, cats, APRIL);
-    expect(monthsOfData).toBe(0);
+    const { byCategory } = getCategoryHistoricalStats(onlyViewed, cats, APRIL);
     for (const stat of byCategory.values()) {
       expect(stat.lastMonth).toBe(0);
       expect(stat.reference).toBe(0);
@@ -1075,8 +1069,7 @@ describe("getCategoryHistoricalStats", () => {
   });
 
   it("returns null targets when there are no transactions at all", () => {
-    const { byCategory, monthsOfData } = getCategoryHistoricalStats([], cats, APRIL);
-    expect(monthsOfData).toBe(0);
+    const { byCategory } = getCategoryHistoricalStats([], cats, APRIL);
     expect(byCategory.get("food")!.implicitTarget).toBeNull();
   });
 
@@ -1088,8 +1081,7 @@ describe("getCategoryHistoricalStats", () => {
       start: new Date(2026, 1, 1),
       end: new Date(2026, 2, 1),
     };
-    const { byCategory, monthsOfData } = getCategoryHistoricalStats(txns, cats, FEB);
-    expect(monthsOfData).toBe(1); // only January has eligible pre-Feb spend
+    const { byCategory } = getCategoryHistoricalStats(txns, cats, FEB);
     const food = byCategory.get("food")!;
     expect(food.lastMonth).toBe(10000); // January, not March
     expect(food.reference).toBe(10000); // 10000/1 active month (Mar excluded as post-Feb)

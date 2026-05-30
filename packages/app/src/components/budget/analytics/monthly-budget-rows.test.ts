@@ -9,13 +9,11 @@ import { buildBudgetView, mergeBudgetView } from "./monthly-budget-rows";
 
 function stats(
   entries: Array<[string, { lastMonth: number; reference: number; implicitTarget: number | null }]>,
-  monthsOfData: number,
 ): CategoryHistoricalStatsResult {
   return {
     byCategory: new Map(
       entries.map(([id, s]) => [id, { categoryId: id, ...s }]),
     ),
-    monthsOfData,
   };
 }
 
@@ -36,7 +34,6 @@ describe("mergeBudgetView", () => {
       ["untargeted", { lastMonth: 0, reference: 0, implicitTarget: null }],
       ["explicit-zero", { lastMonth: 0, reference: 0, implicitTarget: null }],
     ],
-    3,
   );
 
   it("carries history and target fields onto every row", () => {
@@ -91,12 +88,8 @@ describe("mergeBudgetView", () => {
     expect(overCount).toBe(2);
   });
 
-  it("passes monthsOfData through", () => {
-    expect(mergeBudgetView(summary, histStats).monthsOfData).toBe(3);
-  });
-
   it("defaults missing stats to zero/neutral", () => {
-    const { rows } = mergeBudgetView(summary, stats([], 0));
+    const { rows } = mergeBudgetView(summary, stats([]));
     const implicit = rows.find((r) => r.categoryId === "implicit")!;
     expect(implicit.lastMonth).toBe(0);
     expect(implicit.reference).toBe(0);

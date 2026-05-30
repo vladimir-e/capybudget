@@ -548,12 +548,6 @@ export interface CategoryHistoricalStats {
 export interface CategoryHistoricalStatsResult {
   /** One entry per eligible (non-archived, non-Income) category. */
   byCategory: Map<string, CategoryHistoricalStats>;
-  /** Count of distinct calendar months *before* the viewed month that
-   *  contain any eligible expense spend. Dataset-wide, not per category —
-   *  a "how much history exists" signal for the UI's explainer. Note this
-   *  does *not* gate per-category targets: a category can be untargeted
-   *  (null) for lack of recent spend even when `monthsOfData` is large. */
-  monthsOfData: number;
 }
 
 /** Per-category historical spend stats, computed relative to a viewed month.
@@ -587,17 +581,14 @@ export function getCategoryHistoricalStats(
   const viewedMs = viewed.getTime();
 
   // categoryId → monthKey → abs cents, for eligible categorized expenses
-  // strictly before the viewed month. `monthsWithData` tracks the distinct
-  // pre-viewed months that hold any such spend.
+  // strictly before the viewed month.
   const byCatMonth = new Map<string, Map<string, number>>();
-  const monthsWithData = new Set<string>();
   for (const t of transactions) {
     if (t.type !== "expense") continue;
     if (!t.categoryId || !eligibleIds.has(t.categoryId)) continue;
     const d = new Date(t.datetime);
     if (d.getTime() >= viewedMs) continue; // exclude the viewed month and everything after
     const key = monthKey(d);
-    monthsWithData.add(key);
     let months = byCatMonth.get(t.categoryId);
     if (!months) {
       months = new Map();
@@ -625,7 +616,7 @@ export function getCategoryHistoricalStats(
     });
   }
 
-  return { byCategory, monthsOfData: monthsWithData.size };
+  return { byCategory };
 }
 
 // ── Monthly Budget ─────

@@ -206,7 +206,7 @@ describe("MonthlyBudgetTab — with-history table", () => {
 
 describe("MonthlyBudgetTab — no-history first month", () => {
   // All categories unbudgeted + only in-month spend → no prior month has
-  // data → monthsOfData === 0 and every row is untargeted.
+  // data → every row is untargeted.
   const freshCats: Category[] = [
     makeCategory({ id: "fc-1", name: "Groceries", group: "Daily Living", assigned: null }),
     makeCategory({ id: "fc-2", name: "Dining", group: "Daily Living", assigned: null }),
@@ -215,12 +215,13 @@ describe("MonthlyBudgetTab — no-history first month", () => {
     makeTransaction({ id: "m1", accountId: acc.id, categoryId: "fc-1", type: "expense", amount: -1500, datetime: may(7), merchant: "Trader Joe's" }),
   ];
 
-  it("frames the empty-target month and hides the legend + filter", () => {
+  it("renders untargeted rows with the KPI strip and hides the legend + filter", () => {
     renderWithProviders(
       <MonthlyBudgetTab transactions={monthOneTxns} categories={freshCats} dateRange={dateRange} />,
     );
-    // Friendly forming-targets note instead of a wall of bars.
-    expect(screen.getByText(/No targets yet\./i)).toBeInTheDocument();
+    // The categories render as untargeted rows — no explanatory notice.
+    expect(screen.getByText("Groceries")).toBeInTheDocument();
+    expect(screen.getByText("Dining")).toBeInTheDocument();
     // The bar legend and the tracked-only filter are suppressed (no pins to
     // key and nothing to filter when every row is untracked).
     expect(screen.queryByText(/3-mo avg/i)).not.toBeInTheDocument();
@@ -236,6 +237,5 @@ describe("MonthlyBudgetTab — genuinely empty", () => {
       <MonthlyBudgetTab transactions={[]} categories={[]} dateRange={dateRange} />,
     );
     expect(screen.getByText(/No categories to budget/i)).toBeInTheDocument();
-    expect(screen.queryByText(/No targets yet\./i)).not.toBeInTheDocument();
   });
 });
