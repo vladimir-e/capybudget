@@ -16,9 +16,7 @@ function getStoredBasis(): BudgetBasis {
   return DEFAULT_BUDGET_BASIS;
 }
 
-/** The Monthly Budget comparison basis — a screen-local display preference,
- *  remembered per device in localStorage like the color theme. Not synced and
- *  not part of the budget file. Read on mount, persisted on every change. */
+/** The historical comparison basis for the Monthly Budget bar. */
 export function useBudgetBasis(): [BudgetBasis, (basis: BudgetBasis) => void] {
   const [basis, setBasisState] = useState<BudgetBasis>(getStoredBasis);
 
