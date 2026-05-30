@@ -2,7 +2,7 @@ import { useEffect, useMemo } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { BudgetShell } from "@/components/budget/budget-shell";
-import { RepositoryProvider } from "@/providers/repository-provider";
+import { RepositoryProvider } from "@/contexts/repository-context";
 import { createCsvRepository } from "@capybudget/persistence";
 import { tauriFileAdapter } from "../../../../src/adapters/tauri-file-adapter";
 import { budgetKeys } from "@/hooks/use-budget-data";

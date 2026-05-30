@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { useBudgetRepository } from "@/providers/repository-provider";
+import { useBudgetRepository } from "@/contexts/repository-context";
 
 export const budgetKeys = {
   all: ["budget"] as const,

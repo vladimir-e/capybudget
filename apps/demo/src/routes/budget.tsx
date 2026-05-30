@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { createFileRoute, Navigate } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { BudgetShell } from "@/components/budget/budget-shell";
-import { RepositoryProvider } from "@/providers/repository-provider";
+import { RepositoryProvider } from "@/contexts/repository-context";
 import { budgetKeys } from "@/hooks/use-budget-data";
 import { createInMemoryRepository } from "@capybudget/persistence";
 import { PROFILES } from "../data/profiles";

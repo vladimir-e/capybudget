@@ -14,7 +14,7 @@ import { useImportInstructions } from "@/hooks/use-custom-instructions";
 import { useImportMerge } from "@/hooks/use-import-merge";
 import { useImportData } from "@/hooks/use-import-data";
 import { useImportStore } from "@/stores/import-store";
-import { useBudgetRepository } from "@/providers/repository-provider";
+import { useBudgetRepository } from "@/contexts/repository-context";
 import { tauriFileAdapter } from "../../../../../src/adapters/tauri-file-adapter";
 import { ENRICH_SYSTEM_PROMPT } from "@capybudget/intelligence";
 import { formatMoney } from "@capybudget/core";

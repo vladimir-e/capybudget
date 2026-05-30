@@ -1,6 +1,6 @@
 import { useCallback } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { useBudgetRepository } from "@/providers/repository-provider";
+import { useBudgetRepository } from "@/contexts/repository-context";
 import { useUndoRedo } from "@/hooks/use-undo-redo";
 import { budgetKeys } from "@/hooks/use-budget-data";
 import { useImportRepository } from "@/hooks/use-import-repository";

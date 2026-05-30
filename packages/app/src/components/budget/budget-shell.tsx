@@ -22,7 +22,7 @@ import { useReorderAccounts } from "@/hooks/use-account-mutations";
 import { useAccounts, budgetKeys } from "@/hooks/use-budget-data";
 import { useCustomInstructions } from "@/hooks/use-custom-instructions";
 import { useCustomCommands } from "@/hooks/use-custom-commands";
-import { useBudgetRepository } from "@/providers/repository-provider";
+import { useBudgetRepository } from "@/contexts/repository-context";
 import { useImportStore } from "@/stores/import-store";
 import { useIntelligenceStore } from "@/stores/intelligence-store";
 import { invalidateAfterCapyMutation } from "@/components/budget/capy-invalidation";

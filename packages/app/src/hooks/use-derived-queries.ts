@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { useBudgetRepository } from "@/providers/repository-provider";
+import { useBudgetRepository } from "@/contexts/repository-context";
 import { useAccounts } from "@/hooks/use-budget-data";
 import { budgetKeys } from "@/hooks/use-budget-data";
 import { getAccountBalance, getNetWorth } from "@capybudget/core";
