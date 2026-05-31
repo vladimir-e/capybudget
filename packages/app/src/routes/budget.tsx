@@ -70,7 +70,7 @@ function BudgetLayout() {
 
   return (
     <RepositoryProvider value={repo}>
-      <CapySessionProvider options={sessionOptions}>
+      <CapySessionProvider key={path} options={sessionOptions}>
         <Outlet />
       </CapySessionProvider>
     </RepositoryProvider>

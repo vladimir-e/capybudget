@@ -99,7 +99,7 @@ function DemoBudgetLayout() {
 
   return (
     <RepositoryProvider key={profileId} value={repo}>
-      <CapySessionProvider options={sessionOptions}>
+      <CapySessionProvider key={profileId} options={sessionOptions}>
         <Outlet />
       </CapySessionProvider>
     </RepositoryProvider>
