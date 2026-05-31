@@ -1,7 +1,6 @@
 import { useEffect, useMemo } from "react";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Outlet } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
-import { BudgetShell } from "@/components/budget/budget-shell";
 import { RepositoryProvider } from "@/contexts/repository-context";
 import { createCsvRepository } from "@capybudget/persistence";
 import { tauriFileAdapter } from "../../../../src/adapters/tauri-file-adapter";
@@ -20,8 +19,18 @@ export const Route = createFileRoute("/budget")({
   component: BudgetLayout,
 });
 
+/**
+ * Repo-owning layout for the whole budget subtree. The repository is created
+ * once per budget path and disposed only when this layout unmounts — i.e. when
+ * leaving the budget entirely. Navigating between the chrome tabs (`_shell`) and
+ * full-screen settings keeps this layout mounted, so the repo (and its TanStack
+ * Query cache) survives the round-trip.
+ *
+ * Seam for Unit 3: the persistent Capy session provider slots in here, wrapping
+ * the Outlet so the chat outlives a visit to settings the same way the repo does.
+ */
 function BudgetLayout() {
-  const { path, name } = Route.useSearch();
+  const { path } = Route.useSearch();
   const queryClient = useQueryClient();
   const repo = useMemo(() => createCsvRepository(path, tauriFileAdapter), [path]);
 
@@ -34,7 +43,7 @@ function BudgetLayout() {
 
   return (
     <RepositoryProvider value={repo}>
-      <BudgetShell path={path} name={name} />
+      <Outlet />
     </RepositoryProvider>
   );
 }

@@ -1,5 +1,5 @@
 import { useRef, useEffect, useState, useCallback, type KeyboardEvent, type ChangeEvent, type DragEvent } from "react"
-import { useNavigate } from "@tanstack/react-router"
+import { useNavigate, useSearch } from "@tanstack/react-router"
 import {
   PanelRightClose,
   Paperclip,
@@ -90,6 +90,7 @@ export function CapyOverlay({
   // entirely until a provider + key are configured. `null` is the
   // explicit opt-out and behaves like an unconfigured provider.
   const navigate = useNavigate()
+  const { path, name } = useSearch({ from: "/budget" })
   const config = useIntelligenceStore((s) => s.config)
   const setProvider = useIntelligenceStore((s) => s.setProvider)
   const isConfigured =
@@ -118,7 +119,7 @@ export function CapyOverlay({
   function openSettings(provider?: IntelligenceProvider) {
     if (provider) setProvider(provider)
     onClose()
-    navigate({ to: "/settings" })
+    navigate({ to: "/budget/settings", search: { path, name } })
   }
 
   useEffect(() => {

@@ -1,4 +1,4 @@
-import { createFileRoute, useRouter } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { ArrowLeft, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -9,27 +9,22 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 
-export const Route = createFileRoute("/settings")({
+export const Route = createFileRoute("/budget/settings")({
   component: DemoSettingsStub,
 });
 
 /**
- * Stub settings page for the web demo. The desktop shell renders a gear
- * icon at the bottom of the left navigation rail that links here;
- * without a route the demo would show TanStack Router's not-found
- * page. The demo can't persist provider config (no Tauri plugin-store),
- * so the message is the entire UX — keeps demo and desktop entry
- * points symmetric.
+ * Stub settings page for the web demo. The desktop shell renders a gear icon at
+ * the bottom of the left navigation rail that links here; the demo can't persist
+ * provider config (no Tauri plugin-store), so the message is the entire UX.
+ * Unit 4 swaps this for the real settings screen with an AI-disabled notice.
  */
 function DemoSettingsStub() {
-  const router = useRouter();
+  const navigate = useNavigate();
+  const { path, name } = Route.useSearch();
 
   function handleBack() {
-    if (router.history.length > 1) {
-      router.history.back();
-    } else {
-      router.navigate({ to: "/" });
-    }
+    navigate({ to: "/budget", search: { path, name } });
   }
 
   return (

@@ -41,12 +41,11 @@ export function NavigationRail({
   const isBudget = activeSection === "budget";
   const isImport = activeSection === "import";
 
-  // Settings is rendered as a sibling of the budget routes, not part
-  // of `activeSection` (which is scoped to budget tabs). The router
-  // gives us the active path so the gear icon highlights when on
-  // /settings — the canonical location post-Phase-10.5b.
+  // Settings is a sibling of the budget tabs (not part of `activeSection`,
+  // which is scoped to the tabs). The router path tells us when the gear
+  // should highlight.
   const currentPath = useRouterState({ select: (s) => s.location.pathname });
-  const isSettings = currentPath === "/settings";
+  const isSettings = currentPath === "/budget/settings";
 
   return (
     <>
@@ -59,7 +58,7 @@ export function NavigationRail({
         {/* Bottom utility cluster — separated from primary nav.
             Sidebar collapse lives on the sidebar itself, not the rail. */}
         <div className="mt-auto flex flex-col items-center gap-1 pb-3 pt-2 border-t border-sidebar-border/40 w-full">
-          <NavItem variant="rail" to="/settings" active={isSettings} icon={Settings} label="Settings" />
+          <NavItem variant="rail" to="/budget/settings" search={search} active={isSettings} icon={Settings} label="Settings" />
         </div>
       </nav>
 
@@ -105,8 +104,6 @@ function NavItem({
 }: {
   variant: "rail" | "tab";
   to: string;
-  /** Budget routes carry path/name search params; non-budget routes
-   *  (e.g. /settings) omit this and link without search. */
   search?: Record<string, string>;
   active: boolean;
   icon: React.ComponentType<{ className?: string }>;

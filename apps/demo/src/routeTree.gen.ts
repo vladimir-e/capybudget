@@ -9,19 +9,15 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as BudgetRouteImport } from './routes/budget'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as BudgetIndexRouteImport } from './routes/budget/index'
-import { Route as BudgetImportRouteImport } from './routes/budget/import'
-import { Route as BudgetCategoriesRouteImport } from './routes/budget/categories'
-import { Route as BudgetAccountAccountIdRouteImport } from './routes/budget/account.$accountId'
+import { Route as BudgetSettingsRouteImport } from './routes/budget/settings'
+import { Route as BudgetShellRouteImport } from './routes/budget/_shell'
+import { Route as BudgetShellIndexRouteImport } from './routes/budget/_shell/index'
+import { Route as BudgetShellImportRouteImport } from './routes/budget/_shell/import'
+import { Route as BudgetShellCategoriesRouteImport } from './routes/budget/_shell/categories'
+import { Route as BudgetShellAccountAccountIdRouteImport } from './routes/budget/_shell/account.$accountId'
 
-const SettingsRoute = SettingsRouteImport.update({
-  id: '/settings',
-  path: '/settings',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const BudgetRoute = BudgetRouteImport.update({
   id: '/budget',
   path: '/budget',
@@ -32,60 +28,71 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const BudgetIndexRoute = BudgetIndexRouteImport.update({
+const BudgetSettingsRoute = BudgetSettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => BudgetRoute,
+} as any)
+const BudgetShellRoute = BudgetShellRouteImport.update({
+  id: '/_shell',
+  getParentRoute: () => BudgetRoute,
+} as any)
+const BudgetShellIndexRoute = BudgetShellIndexRouteImport.update({
   id: '/',
   path: '/',
-  getParentRoute: () => BudgetRoute,
+  getParentRoute: () => BudgetShellRoute,
 } as any)
-const BudgetImportRoute = BudgetImportRouteImport.update({
+const BudgetShellImportRoute = BudgetShellImportRouteImport.update({
   id: '/import',
   path: '/import',
-  getParentRoute: () => BudgetRoute,
+  getParentRoute: () => BudgetShellRoute,
 } as any)
-const BudgetCategoriesRoute = BudgetCategoriesRouteImport.update({
+const BudgetShellCategoriesRoute = BudgetShellCategoriesRouteImport.update({
   id: '/categories',
   path: '/categories',
-  getParentRoute: () => BudgetRoute,
+  getParentRoute: () => BudgetShellRoute,
 } as any)
-const BudgetAccountAccountIdRoute = BudgetAccountAccountIdRouteImport.update({
-  id: '/account/$accountId',
-  path: '/account/$accountId',
-  getParentRoute: () => BudgetRoute,
-} as any)
+const BudgetShellAccountAccountIdRoute =
+  BudgetShellAccountAccountIdRouteImport.update({
+    id: '/account/$accountId',
+    path: '/account/$accountId',
+    getParentRoute: () => BudgetShellRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/budget': typeof BudgetRouteWithChildren
-  '/settings': typeof SettingsRoute
-  '/budget/categories': typeof BudgetCategoriesRoute
-  '/budget/import': typeof BudgetImportRoute
-  '/budget/': typeof BudgetIndexRoute
-  '/budget/account/$accountId': typeof BudgetAccountAccountIdRoute
+  '/budget': typeof BudgetShellRouteWithChildren
+  '/budget/settings': typeof BudgetSettingsRoute
+  '/budget/categories': typeof BudgetShellCategoriesRoute
+  '/budget/import': typeof BudgetShellImportRoute
+  '/budget/': typeof BudgetShellIndexRoute
+  '/budget/account/$accountId': typeof BudgetShellAccountAccountIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/settings': typeof SettingsRoute
-  '/budget/categories': typeof BudgetCategoriesRoute
-  '/budget/import': typeof BudgetImportRoute
-  '/budget': typeof BudgetIndexRoute
-  '/budget/account/$accountId': typeof BudgetAccountAccountIdRoute
+  '/budget': typeof BudgetShellIndexRoute
+  '/budget/settings': typeof BudgetSettingsRoute
+  '/budget/categories': typeof BudgetShellCategoriesRoute
+  '/budget/import': typeof BudgetShellImportRoute
+  '/budget/account/$accountId': typeof BudgetShellAccountAccountIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/budget': typeof BudgetRouteWithChildren
-  '/settings': typeof SettingsRoute
-  '/budget/categories': typeof BudgetCategoriesRoute
-  '/budget/import': typeof BudgetImportRoute
-  '/budget/': typeof BudgetIndexRoute
-  '/budget/account/$accountId': typeof BudgetAccountAccountIdRoute
+  '/budget/_shell': typeof BudgetShellRouteWithChildren
+  '/budget/settings': typeof BudgetSettingsRoute
+  '/budget/_shell/categories': typeof BudgetShellCategoriesRoute
+  '/budget/_shell/import': typeof BudgetShellImportRoute
+  '/budget/_shell/': typeof BudgetShellIndexRoute
+  '/budget/_shell/account/$accountId': typeof BudgetShellAccountAccountIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
     | '/budget'
-    | '/settings'
+    | '/budget/settings'
     | '/budget/categories'
     | '/budget/import'
     | '/budget/'
@@ -93,37 +100,30 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
-    | '/settings'
+    | '/budget'
+    | '/budget/settings'
     | '/budget/categories'
     | '/budget/import'
-    | '/budget'
     | '/budget/account/$accountId'
   id:
     | '__root__'
     | '/'
     | '/budget'
-    | '/settings'
-    | '/budget/categories'
-    | '/budget/import'
-    | '/budget/'
-    | '/budget/account/$accountId'
+    | '/budget/_shell'
+    | '/budget/settings'
+    | '/budget/_shell/categories'
+    | '/budget/_shell/import'
+    | '/budget/_shell/'
+    | '/budget/_shell/account/$accountId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   BudgetRoute: typeof BudgetRouteWithChildren
-  SettingsRoute: typeof SettingsRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/settings': {
-      id: '/settings'
-      path: '/settings'
-      fullPath: '/settings'
-      preLoaderRoute: typeof SettingsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/budget': {
       id: '/budget'
       path: '/budget'
@@ -138,49 +138,77 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/budget/': {
-      id: '/budget/'
+    '/budget/settings': {
+      id: '/budget/settings'
+      path: '/settings'
+      fullPath: '/budget/settings'
+      preLoaderRoute: typeof BudgetSettingsRouteImport
+      parentRoute: typeof BudgetRoute
+    }
+    '/budget/_shell': {
+      id: '/budget/_shell'
+      path: ''
+      fullPath: '/budget'
+      preLoaderRoute: typeof BudgetShellRouteImport
+      parentRoute: typeof BudgetRoute
+    }
+    '/budget/_shell/': {
+      id: '/budget/_shell/'
       path: '/'
       fullPath: '/budget/'
-      preLoaderRoute: typeof BudgetIndexRouteImport
-      parentRoute: typeof BudgetRoute
+      preLoaderRoute: typeof BudgetShellIndexRouteImport
+      parentRoute: typeof BudgetShellRoute
     }
-    '/budget/import': {
-      id: '/budget/import'
+    '/budget/_shell/import': {
+      id: '/budget/_shell/import'
       path: '/import'
       fullPath: '/budget/import'
-      preLoaderRoute: typeof BudgetImportRouteImport
-      parentRoute: typeof BudgetRoute
+      preLoaderRoute: typeof BudgetShellImportRouteImport
+      parentRoute: typeof BudgetShellRoute
     }
-    '/budget/categories': {
-      id: '/budget/categories'
+    '/budget/_shell/categories': {
+      id: '/budget/_shell/categories'
       path: '/categories'
       fullPath: '/budget/categories'
-      preLoaderRoute: typeof BudgetCategoriesRouteImport
-      parentRoute: typeof BudgetRoute
+      preLoaderRoute: typeof BudgetShellCategoriesRouteImport
+      parentRoute: typeof BudgetShellRoute
     }
-    '/budget/account/$accountId': {
-      id: '/budget/account/$accountId'
+    '/budget/_shell/account/$accountId': {
+      id: '/budget/_shell/account/$accountId'
       path: '/account/$accountId'
       fullPath: '/budget/account/$accountId'
-      preLoaderRoute: typeof BudgetAccountAccountIdRouteImport
-      parentRoute: typeof BudgetRoute
+      preLoaderRoute: typeof BudgetShellAccountAccountIdRouteImport
+      parentRoute: typeof BudgetShellRoute
     }
   }
 }
 
+interface BudgetShellRouteChildren {
+  BudgetShellCategoriesRoute: typeof BudgetShellCategoriesRoute
+  BudgetShellImportRoute: typeof BudgetShellImportRoute
+  BudgetShellIndexRoute: typeof BudgetShellIndexRoute
+  BudgetShellAccountAccountIdRoute: typeof BudgetShellAccountAccountIdRoute
+}
+
+const BudgetShellRouteChildren: BudgetShellRouteChildren = {
+  BudgetShellCategoriesRoute: BudgetShellCategoriesRoute,
+  BudgetShellImportRoute: BudgetShellImportRoute,
+  BudgetShellIndexRoute: BudgetShellIndexRoute,
+  BudgetShellAccountAccountIdRoute: BudgetShellAccountAccountIdRoute,
+}
+
+const BudgetShellRouteWithChildren = BudgetShellRoute._addFileChildren(
+  BudgetShellRouteChildren,
+)
+
 interface BudgetRouteChildren {
-  BudgetCategoriesRoute: typeof BudgetCategoriesRoute
-  BudgetImportRoute: typeof BudgetImportRoute
-  BudgetIndexRoute: typeof BudgetIndexRoute
-  BudgetAccountAccountIdRoute: typeof BudgetAccountAccountIdRoute
+  BudgetShellRoute: typeof BudgetShellRouteWithChildren
+  BudgetSettingsRoute: typeof BudgetSettingsRoute
 }
 
 const BudgetRouteChildren: BudgetRouteChildren = {
-  BudgetCategoriesRoute: BudgetCategoriesRoute,
-  BudgetImportRoute: BudgetImportRoute,
-  BudgetIndexRoute: BudgetIndexRoute,
-  BudgetAccountAccountIdRoute: BudgetAccountAccountIdRoute,
+  BudgetShellRoute: BudgetShellRouteWithChildren,
+  BudgetSettingsRoute: BudgetSettingsRoute,
 }
 
 const BudgetRouteWithChildren =
@@ -189,7 +217,6 @@ const BudgetRouteWithChildren =
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   BudgetRoute: BudgetRouteWithChildren,
-  SettingsRoute: SettingsRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

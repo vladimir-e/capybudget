@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { TransactionView } from "@/components/budget/transaction-view";
 import { useTransactions } from "@/hooks/use-budget-data";
 
-export const Route = createFileRoute("/budget/")({
+export const Route = createFileRoute("/budget/_shell/")({
   component: AllAccountsView,
 });
 

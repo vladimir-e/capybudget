@@ -26,7 +26,7 @@ beforeEach(() => {
 const TIMEOUT = 15_000;
 
 describe("Settings navigation", () => {
-  it("clicking the gear icon at the bottom of the navigation rail navigates to /settings", async () => {
+  it("clicking the gear icon at the bottom of the navigation rail navigates to /budget/settings", async () => {
     const { user } = await renderApp({
       seed: { accounts: [], categories: [], transactions: [] },
     });

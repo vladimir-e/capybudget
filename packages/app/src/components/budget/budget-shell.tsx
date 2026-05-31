@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Outlet, useMatches, useNavigate } from "@tanstack/react-router";
+import { Outlet, useMatches, useNavigate, useSearch } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { NavigationRail, type Section } from "@/components/budget/navigation-rail";
@@ -42,11 +42,6 @@ import { toast } from "sonner";
 
 declare const __IS_DEMO__: boolean;
 
-interface BudgetShellProps {
-  path: string;
-  name: string;
-}
-
 function shortenPath(path: string, maxLen: number): string {
   const shortened = path.replace(/^\/(?:Users|home)\/[^/]+/, "~");
   if (shortened.length <= maxLen) return shortened;
@@ -56,7 +51,8 @@ function shortenPath(path: string, maxLen: number): string {
   return shortened.slice(0, head) + "…" + shortened.slice(-tail);
 }
 
-export function BudgetShell({ path, name }: BudgetShellProps) {
+export function BudgetShell() {
+  const { path, name } = useSearch({ from: "/budget" });
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const createTxn = useCreateTransaction();
@@ -148,6 +144,10 @@ export function BudgetShell({ path, name }: BudgetShellProps) {
         e.preventDefault();
         setCapyOpen((prev) => !prev);
       }
+      if (mod && e.key === ",") {
+        e.preventDefault();
+        navigate({ to: "/budget/settings", search: { path, name } });
+      }
       if (e.key === "Escape" && capyOpen) {
         e.preventDefault();
         setCapyOpen(false);
@@ -168,7 +168,7 @@ export function BudgetShell({ path, name }: BudgetShellProps) {
     }
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [toggleForm, undo, redo, effectiveFormOpen, handleDismissForm, capyOpen]);
+  }, [toggleForm, undo, redo, effectiveFormOpen, handleDismissForm, capyOpen, navigate, path, name]);
 
   useEffect(() => {
     if (effectiveFormOpen) {

@@ -78,11 +78,12 @@ describe("NavigationRail", () => {
 
     const settingsLink = screen.getByRole("link", { name: "Settings" });
     expect(settingsLink).toBeInTheDocument();
-    expect(settingsLink.getAttribute("href")).toBe("/settings");
+    // Settings lives under /budget and carries the budget's path/name search.
+    expect(settingsLink.getAttribute("href")).toMatch(/^\/budget\/settings\?/);
   });
 
-  it("marks settings as active when on /settings", async () => {
-    await renderRail({ activeSection: "accounts", initialPath: "/settings" });
+  it("marks settings as active when on /budget/settings", async () => {
+    await renderRail({ activeSection: "accounts", initialPath: "/budget/settings" });
 
     const settingsLink = screen.getByRole("link", { name: "Settings" });
     expect(settingsLink.getAttribute("aria-current")).toBe("page");

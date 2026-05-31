@@ -1,7 +1,7 @@
 import { createFileRoute, useSearch } from "@tanstack/react-router";
 import { ImportScreen } from "@/components/import/import-screen";
 
-export const Route = createFileRoute("/budget/import")({
+export const Route = createFileRoute("/budget/_shell/import")({
   component: ImportView,
 });
 

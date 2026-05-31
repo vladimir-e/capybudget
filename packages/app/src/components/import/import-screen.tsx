@@ -400,7 +400,7 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
           {showDropZone && (
             <ImportDropZone
               importSupported={importSupported}
-              onOpenSettings={() => navigate({ to: "/settings" })}
+              onOpenSettings={() => navigate({ to: "/budget/settings", search: { path: budgetPath, name: budgetName } })}
               fileInputRef={fileInputRef}
               onFileSelect={handleFileSelect}
               isDragging={isDragging}

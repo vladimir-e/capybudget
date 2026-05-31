@@ -6,7 +6,7 @@ import { useBudgetUI } from "@/contexts/budget-context";
 import { useAccounts, useTransactions } from "@/hooks/use-budget-data";
 import { getTransactionsForAccount, getAccountBalance } from "@capybudget/core";
 
-export const Route = createFileRoute("/budget/account/$accountId")({
+export const Route = createFileRoute("/budget/_shell/account/$accountId")({
   component: AccountView,
 });
 

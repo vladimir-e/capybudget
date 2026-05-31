@@ -6,6 +6,7 @@ import {
   createRootRoute,
   createRoute,
   createRouter,
+  Outlet,
   RouterProvider,
 } from "@tanstack/react-router"
 import { DEFAULT_INTELLIGENCE_CONFIG } from "@capybudget/intelligence"
@@ -39,19 +40,29 @@ import {
 
 // ── Test rendering helper ───────────────────────────────
 
-async function renderSettings(initialPath: string = "/settings") {
+async function renderSettings(
+  initialPath: string = "/budget/settings?path=/test&name=Test",
+) {
   const rootRoute = createRootRoute()
-  const settingsRoute = createRoute({
+  // Settings reads path/name from the /budget search context and routes back to
+  // the budget, so mount it under a matching parent route.
+  const budgetRoute = createRoute({
     getParentRoute: () => rootRoute,
+    path: "/budget",
+    validateSearch: (search: Record<string, unknown>) => ({
+      path: (search.path as string) ?? "",
+      name: (search.name as string) ?? "Budget",
+    }),
+    component: () => <Outlet />,
+  })
+  const settingsRoute = createRoute({
+    getParentRoute: () => budgetRoute,
     path: "/settings",
     component: SettingsScreen,
   })
-  const indexRoute = createRoute({
-    getParentRoute: () => rootRoute,
-    path: "/",
-    component: () => <div>Home</div>,
-  })
-  const routeTree = rootRoute.addChildren([indexRoute, settingsRoute])
+  const routeTree = rootRoute.addChildren([
+    budgetRoute.addChildren([settingsRoute]),
+  ])
 
   const router = createRouter({
     routeTree,

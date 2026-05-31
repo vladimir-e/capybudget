@@ -1,13 +1,11 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { createFileRoute, Navigate } from "@tanstack/react-router";
+import { useEffect, useMemo } from "react";
+import { createFileRoute, Navigate, Outlet } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
-import { BudgetShell } from "@/components/budget/budget-shell";
 import { RepositoryProvider } from "@/contexts/repository-context";
 import { budgetKeys } from "@/hooks/use-budget-data";
 import { createInMemoryRepository } from "@capybudget/persistence";
 import { PROFILES } from "../data/profiles";
 import { generateScenarioData } from "../data/generator";
-import { DemoSeedingScreen } from "../components/demo-seeding-screen";
 
 interface BudgetSearch {
   path: string;
@@ -34,8 +32,16 @@ export const Route = createFileRoute("/budget")({
   component: DemoBudgetLayout,
 });
 
+/**
+ * Repo-owning layout for the demo budget subtree. The in-memory repo is created
+ * once per scenario and disposed only when leaving the budget — navigating
+ * between the chrome (`_shell`) and settings keeps it (and its edits) alive.
+ *
+ * Seam for Unit 3: a persistent Capy session provider slots in here around the
+ * Outlet, mirroring the desktop layout.
+ */
 function DemoBudgetLayout() {
-  const { path: profileId, name } = Route.useSearch();
+  const { path: profileId } = Route.useSearch();
   const profile = PROFILES[profileId];
   const queryClient = useQueryClient();
 
@@ -52,18 +58,6 @@ function DemoBudgetLayout() {
     return createInMemoryRepository(data);
   }, [profile]);
 
-  const [seeded, setSeeded] = useState(false);
-  const markSeeded = useCallback(() => setSeeded(true), []);
-
-  // Replay the seeding beat whenever the scenario changes, even if the layout
-  // re-renders without remounting (e.g. /budget?path=X → ?path=Y). Reset during
-  // render rather than in an effect to avoid a flash of the previous shell.
-  const [seededFor, setSeededFor] = useState(profileId);
-  if (seededFor !== profileId) {
-    setSeededFor(profileId);
-    setSeeded(false);
-  }
-
   useEffect(() => {
     return () => {
       void repo?.dispose();
@@ -75,13 +69,9 @@ function DemoBudgetLayout() {
     return <Navigate to="/" />;
   }
 
-  if (!seeded) {
-    return <DemoSeedingScreen name={name} onDone={markSeeded} />;
-  }
-
   return (
     <RepositoryProvider key={profileId} value={repo}>
-      <BudgetShell path={profileId} name={name} />
+      <Outlet />
     </RepositoryProvider>
   );
 }
