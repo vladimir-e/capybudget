@@ -1,16 +1,10 @@
 import Anthropic from "@anthropic-ai/sdk"
-import {
-  buildRenderToolMap,
-  extractErrorMessage,
-  RENDER_FOLLOWUPS_TOOL_NAME,
-  runTool,
-  getToolDefinitions,
-  SESSION_TOOL_CALL_BUDGET,
-  type ApiAdapterOptions,
-  type CapySession,
-  type ContentBlock,
-  type MessageContent,
-} from "@capybudget/intelligence"
+import { buildRenderToolMap, RENDER_FOLLOWUPS_TOOL_NAME } from "../render-map"
+import { extractErrorMessage } from "../error-message"
+import { runTool, getToolDefinitions, SESSION_TOOL_CALL_BUDGET } from "../tools"
+import type { ApiAdapterOptions } from "../factory"
+import type { CapySession } from "../session"
+import type { ContentBlock, MessageContent } from "../types"
 
 const MAX_TOKENS = 8192
 

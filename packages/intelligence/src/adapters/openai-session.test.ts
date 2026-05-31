@@ -177,7 +177,7 @@ const { mockRunTool } = vi.hoisted(() => ({
   >(),
 }))
 
-vi.mock("@capybudget/intelligence", async (importOriginal) => {
+vi.mock("../tools", async (importOriginal) => {
   const original = (await importOriginal()) as Record<string, unknown>
   return {
     ...original,

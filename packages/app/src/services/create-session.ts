@@ -13,9 +13,8 @@ import {
   type SessionOptions,
   type CapySession,
 } from "@capybudget/intelligence"
+import { AnthropicSession, OpenAiSession } from "@capybudget/intelligence/adapters"
 import { ClaudeCliSession } from "@/services/claude-cli-session"
-import { AnthropicSession } from "@/services/anthropic-session"
-import { OpenAiSession } from "@/services/openai-session"
 import { useIntelligenceStore } from "@/stores/intelligence-store"
 
 export function createSession(opts: SessionOptions): CapySession | null {
