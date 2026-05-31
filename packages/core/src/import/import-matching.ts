@@ -1,4 +1,4 @@
-import type { Account } from "./types";
+import type { Account } from "../entities/types";
 
 const EMOJI_RE = /[\p{Emoji_Presentation}\p{Extended_Pictographic}]/gu;
 

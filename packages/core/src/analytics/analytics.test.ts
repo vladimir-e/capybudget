@@ -14,7 +14,7 @@ import {
   basisMonths,
   basisLabel,
 } from "./analytics";
-import type { Transaction, Category, Account, BudgetBasis } from "./types";
+import type { Transaction, Category, Account, BudgetBasis } from "../entities/types";
 import type { DateRange } from "./analytics";
 
 // ── Test fixtures ─────

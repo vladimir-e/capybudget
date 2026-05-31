@@ -4,7 +4,7 @@ import {
   getUniqueMerchants,
   matchMerchants,
 } from "./merchant";
-import type { Transaction } from "./types";
+import type { Transaction } from "../entities/types";
 
 function txn(
   overrides: Partial<Transaction> & Pick<Transaction, "merchant">,

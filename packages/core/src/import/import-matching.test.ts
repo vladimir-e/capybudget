@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { matchAccountsByName } from "./import-matching";
-import type { Account } from "./types";
+import type { Account } from "../entities/types";
 
 function acct(id: string, name: string): Account {
   return { id, name, type: "checking", archived: false, excludeFromNetWorth: false, sortOrder: 1, createdAt: "" };

@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { prepareMerge } from "./import-merge";
 import type { ImportTransaction } from "./import-types";
-import type { Account, Transaction } from "./types";
+import type { Account, Transaction } from "../entities/types";
 
 function makeImportTxn(overrides: Partial<ImportTransaction> = {}): ImportTransaction {
   return {

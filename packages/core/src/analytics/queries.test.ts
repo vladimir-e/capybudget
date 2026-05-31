@@ -6,7 +6,7 @@ import {
   getNetWorth,
   resolveTransferPair,
 } from "./queries";
-import type { Account, Transaction } from "./types";
+import type { Account, Transaction } from "../entities/types";
 
 // ── Test fixtures (self-contained, no external deps) ─────
 

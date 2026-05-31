@@ -1,4 +1,4 @@
-import type { Transaction } from "./types";
+import type { Transaction } from "../entities/types";
 import type { ImportTransaction } from "./import-types";
 
 export type DuplicateConfidence = "high" | "low";

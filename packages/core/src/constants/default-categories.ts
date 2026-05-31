@@ -1,4 +1,4 @@
-import type { Category } from "./types";
+import type { Category } from "../entities/types";
 
 export const DEFAULT_CATEGORIES: Omit<Category, "id">[] = [
   { name: "Paycheck", group: "Income", archived: false, sortOrder: 0, assigned: null },

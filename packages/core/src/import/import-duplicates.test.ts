@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { detectDuplicates } from "./import-duplicates";
 import type { ImportTransaction } from "./import-types";
-import type { Transaction } from "./types";
+import type { Transaction } from "../entities/types";
 
 function makeImport(overrides: Partial<ImportTransaction> = {}): ImportTransaction {
   return {

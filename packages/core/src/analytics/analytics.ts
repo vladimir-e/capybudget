@@ -1,4 +1,4 @@
-import type { Transaction, Category, Account, BudgetBasis } from "./types";
+import type { Transaction, Category, Account, BudgetBasis } from "../entities/types";
 
 export interface DateRange {
   start: Date;

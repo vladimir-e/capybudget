@@ -1,5 +1,5 @@
-import type { Account, AccountType, CategoryGroup, Transaction } from "./types";
-import { ACCOUNT_TYPE_ORDER } from "./account-type-labels";
+import type { Account, AccountType, CategoryGroup, Transaction } from "../entities/types";
+import { ACCOUNT_TYPE_ORDER } from "../constants/account-type-labels";
 
 export const CATEGORY_GROUP_ORDER: CategoryGroup[] = [
   "Income",

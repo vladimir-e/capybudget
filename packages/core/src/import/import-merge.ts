@@ -1,5 +1,5 @@
-import { createAccount } from "./accounts";
-import type { Account, Transaction } from "./types";
+import { createAccount } from "../entities/accounts";
+import type { Account, Transaction } from "../entities/types";
 import type { ImportTransaction, ImportAliases } from "./import-types";
 
 export interface MergeInput {

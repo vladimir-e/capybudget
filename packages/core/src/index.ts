@@ -9,8 +9,8 @@ export type {
   Category,
   TransactionType,
   Transaction,
-} from "./types";
-export { BUDGET_BASES, BASIS_OPTION_LABELS } from "./types";
+} from "./entities/types";
+export { BUDGET_BASES, BASIS_OPTION_LABELS } from "./entities/types";
 
 // Money utilities
 export {
@@ -19,7 +19,7 @@ export {
   getAmountClass,
   centsToEditString,
   parseMoney,
-} from "./money";
+} from "./utils/money";
 
 // Date utilities
 export {
@@ -28,19 +28,19 @@ export {
   parseLocalDate,
   formatDateLabel,
   localDateTime,
-} from "./date-utils";
+} from "./utils/date-utils";
 
 // Account-type labels & ordering
 export {
   ACCOUNT_TYPE_LABELS,
   ACCOUNT_TYPE_ORDER,
-} from "./account-type-labels";
+} from "./constants/account-type-labels";
 
 // Default categories
-export { DEFAULT_CATEGORIES } from "./default-categories";
+export { DEFAULT_CATEGORIES } from "./constants/default-categories";
 
 // Account operations
-export type { AccountFormData } from "./accounts";
+export type { AccountFormData } from "./entities/accounts";
 export {
   createAccount,
   createOpeningBalanceTransaction,
@@ -51,10 +51,10 @@ export {
   reorderAccounts,
   unarchiveAccount,
   setNetWorthExclusions,
-} from "./accounts";
+} from "./entities/accounts";
 
 // Category operations
-export type { CategoryFormData } from "./categories";
+export type { CategoryFormData } from "./entities/categories";
 export {
   createCategory,
   updateCategory,
@@ -62,15 +62,15 @@ export {
   archiveCategory,
   unarchiveCategory,
   setCategoryAssigned,
-} from "./categories";
+} from "./entities/categories";
 
 // Transaction operations
-export type { TransactionFormData } from "./transactions";
+export type { TransactionFormData } from "./entities/transactions";
 export {
   createTransaction,
   updateTransaction,
   deleteTransaction,
-} from "./transactions";
+} from "./entities/transactions";
 
 // Bulk transaction operations
 export {
@@ -79,17 +79,17 @@ export {
   bulkMoveAccount,
   bulkChangeDate,
   bulkChangeMerchant,
-} from "./bulk-transactions";
+} from "./entities/bulk-transactions";
 
 // Merchant categorization
 export {
   getUniqueMerchants,
   matchMerchants,
   findCategoryForMerchant,
-} from "./merchant";
+} from "./utils/merchant";
 
 // Queries
-export type { TransferPair } from "./queries";
+export type { TransferPair } from "./analytics/queries";
 export {
   CATEGORY_GROUP_ORDER,
   getAccountBalance,
@@ -97,7 +97,7 @@ export {
   getTransactionsForAccount,
   getNetWorth,
   resolveTransferPair,
-} from "./queries";
+} from "./analytics/queries";
 
 // Import types
 export type {
@@ -105,22 +105,22 @@ export type {
   ImportAliases,
   ImportPhase,
   ImportLogEntry,
-} from "./import-types";
+} from "./import/import-types";
 
 // Import account matching
-export { matchAccountsByName } from "./import-matching";
+export { matchAccountsByName } from "./import/import-matching";
 
 // Import merge operations
-export type { MergeInput, MergeOutput } from "./import-merge";
-export { prepareMerge } from "./import-merge";
+export type { MergeInput, MergeOutput } from "./import/import-merge";
+export { prepareMerge } from "./import/import-merge";
 
 // Import validation
-export type { ValidationResult } from "./import-validation";
-export { validateImportTransactions } from "./import-validation";
+export type { ValidationResult } from "./import/import-validation";
+export { validateImportTransactions } from "./import/import-validation";
 
 // Import duplicate detection
-export type { DuplicateConfidence, DuplicateMatch } from "./import-duplicates";
-export { detectDuplicates } from "./import-duplicates";
+export type { DuplicateConfidence, DuplicateMatch } from "./import/import-duplicates";
+export { detectDuplicates } from "./import/import-duplicates";
 
 // CSV mapping types
 export type {
@@ -134,11 +134,11 @@ export type {
   ColumnRef,
   SingleColumnRef,
   MultiColumnRef,
-} from "./csv-mapping";
+} from "./import/csv-mapping";
 
 // CSV transform engine
-export type { TransformResult, TransformError } from "./csv-transform";
-export { transformCsv, serializeImportCsv, parseCurrencyToCents } from "./csv-transform";
+export type { TransformResult, TransformError } from "./import/csv-transform";
+export { transformCsv, serializeImportCsv, parseCurrencyToCents } from "./import/csv-transform";
 
 // Analytics
 export type {
@@ -154,7 +154,7 @@ export type {
   MonthlyBudgetSummary,
   CategoryHistoricalStats,
   CategoryHistoricalStatsResult,
-} from "./analytics";
+} from "./analytics/analytics";
 export {
   ensureMinMonths,
   filterTransactionsByDateRange,
@@ -169,4 +169,4 @@ export {
   getCategoryHistoricalStats,
   basisMonths,
   basisLabel,
-} from "./analytics";
+} from "./analytics/analytics";
