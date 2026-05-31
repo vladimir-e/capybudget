@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { sortImportTransactions, filterImportTransactions } from "./import-table";
+import { sortImportTransactions, filterImportTransactions } from "@/lib/import-table-utils";
 import type { ImportTransaction } from "@capybudget/core";
 
 function txn(overrides: Partial<ImportTransaction> = {}): ImportTransaction {

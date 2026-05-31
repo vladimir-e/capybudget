@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useState } from "react";
 import {
   Table,
   TableBody,
@@ -7,46 +7,30 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Calendar } from "@/components/ui/calendar";
 import { Checkbox } from "@/components/ui/checkbox";
-import { MerchantInput } from "@/components/budget/merchant-input";
 import { CategorySelector } from "@/components/budget/category-selector";
 import { AccountSelector } from "@/components/budget/account-selector";
 import type { ImportTransaction, DuplicateMatch } from "@capybudget/core";
 import type { Category, Account } from "@capybudget/core";
+import { formatMoney, formatDateLabel } from "@capybudget/core";
 import {
-  formatMoney,
-  parseMoney,
-  centsToEditString,
-  parseLocalDate,
-  toDateString,
-  formatDateLabel,
-} from "@capybudget/core";
-import { useTransactions } from "@/hooks/use-budget-data";
+  amountColorClass,
+  type ImportSortColumn,
+  type ImportSortConfig,
+} from "@/lib/import-table-utils";
+import {
+  DateEdit,
+  MerchantEdit,
+  AmountEdit,
+  TypeEdit,
+} from "./import-table-editors";
 import {
   ArrowUpDown,
-  CalendarDays,
   ChevronDown,
   ChevronUp,
   Copy,
   Inbox,
 } from "lucide-react";
-
-// ── Types ───────────────────────────────────────────────────────
-
-export type ImportSortColumn =
-  | "date"
-  | "merchant"
-  | "amount"
-  | "type"
-  | "sourceAccount"
-  | "categoryId";
-
-export interface ImportSortConfig {
-  column: ImportSortColumn;
-  direction: "asc" | "desc";
-}
 
 type EditableColumn = "date" | "merchant" | "amount" | "type";
 
@@ -66,20 +50,9 @@ interface ImportTableProps {
   duplicates: Map<string, DuplicateMatch>;
 }
 
-// ── Helpers ─────────────────────────────────────────────────────
-
-function amountColorClass(txn: ImportTransaction): string {
-  if (txn.type === "income") return "text-amount-income";
-  if (txn.type === "expense") return "text-amount-expense";
-  return "text-muted-foreground";
-}
-
 function defaultDirection(column: ImportSortColumn): "asc" | "desc" {
   return column === "date" ? "desc" : "asc";
 }
-
-const inputClass =
-  "h-7 w-full bg-transparent border-0 border-b border-brand/40 rounded-none px-1 text-[13px] focus:outline-none focus:ring-0 focus:border-brand/60 transition-colors";
 
 // ── SortableHeader ──────────────────────────────────────────────
 
@@ -136,155 +109,6 @@ function SortableHeader({
         />
       </button>
     </TableHead>
-  );
-}
-
-// ── Inline edit cells ───────────────────────────────────────────
-
-function DateEdit({
-  value,
-  onSave,
-  onCancel,
-}: {
-  value: string;
-  onSave: (date: string) => void;
-  onCancel: () => void;
-}) {
-  return (
-    <div onClick={(e) => e.stopPropagation()}>
-      <Popover defaultOpen onOpenChange={(open) => { if (!open) onCancel(); }}>
-        <PopoverTrigger
-          render={
-            <button
-              type="button"
-              className="inline-flex items-center gap-1.5 text-[13px] text-muted-foreground hover:text-foreground transition-colors"
-            />
-          }
-        >
-          <CalendarDays className="h-3.5 w-3.5 text-muted-foreground/50" />
-          <span>{formatDateLabel(value)}</span>
-        </PopoverTrigger>
-        <PopoverContent className="w-auto p-0" align="start">
-          <Calendar
-            mode="single"
-            required
-            selected={parseLocalDate(value)}
-            onSelect={(d) => onSave(toDateString(d))}
-            onDayKeyDown={(day, _modifiers, e) => {
-              if (e.key === "Enter" || e.key === " ") onSave(toDateString(day));
-            }}
-            defaultMonth={parseLocalDate(value)}
-          />
-        </PopoverContent>
-      </Popover>
-    </div>
-  );
-}
-
-function MerchantEdit({
-  value,
-  onSave,
-  onCancel,
-}: {
-  value: string;
-  onSave: (v: string) => void;
-  onCancel: () => void;
-}) {
-  const { data: allTransactions = [] } = useTransactions();
-  const [draft, setDraft] = useState(value);
-
-  return (
-    <div onClick={(e) => e.stopPropagation()}>
-      <MerchantInput
-        value={draft}
-        onChange={setDraft}
-        onSelect={(merchant) => onSave(merchant)}
-        transactions={allTransactions}
-        autoFocus
-        onBlur={() => onSave(draft.trim() || value)}
-        onKeyDown={(e) => {
-          if (e.key === "Enter") { e.preventDefault(); onSave(draft.trim() || value); }
-          if (e.key === "Escape") { e.preventDefault(); onCancel(); }
-        }}
-        className={`${inputClass} text-foreground/80`}
-        placeholder="Merchant"
-      />
-    </div>
-  );
-}
-
-function AmountEdit({
-  txn,
-  onSave,
-  onCancel,
-}: {
-  txn: ImportTransaction;
-  onSave: (cents: number) => void;
-  onCancel: () => void;
-}) {
-  const [value, setValue] = useState(() => centsToEditString(txn.amount));
-  const ref = useRef<HTMLInputElement>(null);
-  useEffect(() => { ref.current?.focus(); ref.current?.select(); }, []);
-
-  const save = () => {
-    const cents = parseMoney(value);
-    if (cents >= 0) {
-      if (txn.type === "expense") onSave(-cents);
-      else if (txn.type === "transfer") onSave(txn.amount < 0 ? -cents : cents);
-      else onSave(cents);
-    } else {
-      onCancel();
-    }
-  };
-
-  return (
-    <div onClick={(e) => e.stopPropagation()} className="inline-flex items-center justify-end">
-      <span className={`text-[13px] font-semibold ${amountColorClass(txn)}`}>
-        {txn.amount < 0 ? "-$" : "$"}
-      </span>
-      <input
-        ref={ref}
-        type="text"
-        inputMode="decimal"
-        value={value}
-        onChange={(e) => setValue(e.target.value)}
-        onBlur={save}
-        onKeyDown={(e) => {
-          if (e.key === "Enter") { e.preventDefault(); save(); }
-          if (e.key === "Escape") { e.preventDefault(); onCancel(); }
-        }}
-        className={`${inputClass} text-right tabular-nums font-semibold ${amountColorClass(txn)}`}
-        style={{ width: `${Math.max(value.length, 4) + 1}ch` }}
-        placeholder="0.00"
-      />
-    </div>
-  );
-}
-
-function TypeEdit({
-  value,
-  onSave,
-  onCancel,
-}: {
-  value: string;
-  onSave: (v: string) => void;
-  onCancel: () => void;
-}) {
-  return (
-    <div onClick={(e) => e.stopPropagation()}>
-      <select
-        autoFocus
-        value={value}
-        onChange={(e) => onSave(e.target.value)}
-        onBlur={onCancel}
-        onKeyDown={(e) => { if (e.key === "Escape") onCancel(); }}
-        className="h-7 rounded-md border border-input bg-background px-1.5 text-[13px] focus:outline-none focus:ring-1 focus:ring-ring"
-      >
-        <option value="expense">expense</option>
-        <option value="income">income</option>
-        <option value="transfer">transfer</option>
-      </select>
-    </div>
   );
 }
 
@@ -575,60 +399,5 @@ function ConfidenceDot({ confidence }: { confidence: string }) {
       className={`inline-block h-1.5 w-1.5 shrink-0 rounded-full ${color}`}
       title={`${confidence} confidence`}
     />
-  );
-}
-
-// ── Sort + Filter utilities ─────────────────────────────────────
-
-export function sortImportTransactions(
-  transactions: ImportTransaction[],
-  sort: ImportSortConfig,
-): ImportTransaction[] {
-  const sorted = [...transactions];
-  const dir = sort.direction === "asc" ? 1 : -1;
-
-  sorted.sort((a, b) => {
-    let cmp = 0;
-    switch (sort.column) {
-      case "date":
-        cmp = a.date.localeCompare(b.date);
-        break;
-      case "merchant":
-        cmp = (a.merchant || a.description).localeCompare(b.merchant || b.description);
-        break;
-      case "amount":
-        cmp = a.amount - b.amount;
-        break;
-      case "type":
-        cmp = a.type.localeCompare(b.type);
-        break;
-      case "sourceAccount":
-        cmp = a.sourceAccount.localeCompare(b.sourceAccount);
-        break;
-      case "categoryId":
-        cmp = a.categoryId.localeCompare(b.categoryId);
-        break;
-    }
-    return cmp * dir;
-  });
-
-  return sorted;
-}
-
-export function filterImportTransactions(
-  transactions: ImportTransaction[],
-  search: string,
-): ImportTransaction[] {
-  if (!search) return transactions;
-  const q = search.toLowerCase();
-  return transactions.filter(
-    (t) =>
-      t.description.toLowerCase().includes(q) ||
-      (t.merchant && t.merchant.toLowerCase().includes(q)) ||
-      t.sourceAccount.toLowerCase().includes(q) ||
-      t.sourceCategory.toLowerCase().includes(q) ||
-      t.memo.toLowerCase().includes(q) ||
-      t.type.includes(q) ||
-      formatMoney(t.amount).toLowerCase().includes(q),
   );
 }
