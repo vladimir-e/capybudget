@@ -17,6 +17,7 @@ import { useIntelligenceStore } from "@/stores/intelligence-store"
 import { detectClaudeCli } from "@/services/claude-cli-detect"
 import type { CapyCommand } from "@/hooks/use-custom-commands"
 import { useMediaQuery, usePanelResize } from "@/hooks/use-panel-resize"
+import { useCapySessionContext } from "@/contexts/capy-session-context"
 import {
   MAX_ATTACHMENT_SIZE,
   MAX_TOTAL_ATTACHMENT_SIZE,
@@ -40,13 +41,6 @@ function panelMaxWidth(win: Window): number {
 }
 
 interface CapyOverlayProps {
-  open: boolean
-  onClose: () => void
-  messages: ChatMessage[]
-  isStreaming: boolean
-  onSend: (text: string, files?: FileAttachment[]) => void
-  onStop: () => void
-  onNewChat: () => void
   instructions: string
   onSaveInstructions: (text: string) => Promise<void>
   commands: CapyCommand[]
@@ -54,18 +48,21 @@ interface CapyOverlayProps {
 }
 
 export function CapyOverlay({
-  open,
-  onClose,
-  messages,
-  isStreaming,
-  onSend,
-  onStop,
-  onNewChat,
   instructions,
   onSaveInstructions,
   commands,
   onSaveCommands,
 }: CapyOverlayProps) {
+  const {
+    open,
+    setOpen,
+    messages,
+    isStreaming,
+    sendMessage: onSend,
+    stopStreaming: onStop,
+    newChat: onNewChat,
+  } = useCapySessionContext()
+  const onClose = useCallback(() => setOpen(false), [setOpen])
   const [input, setInput] = useState("")
   const [attachments, setAttachments] = useState<FileAttachment[]>([])
   const [instructionsOpen, setInstructionsOpen] = useState(false)

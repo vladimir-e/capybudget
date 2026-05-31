@@ -26,7 +26,7 @@ import {
 } from "@capybudget/intelligence"
 import type { BudgetRepository, FileAdapter } from "@capybudget/persistence"
 
-interface UseCapySessionOptions {
+export interface UseCapySessionOptions {
   budgetPath: string
   budgetName: string
   mcpServerPath: string

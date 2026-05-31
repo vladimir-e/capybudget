@@ -10,6 +10,10 @@ import {
 } from "@tanstack/react-router"
 import { CapyOverlay } from "./capy-overlay"
 import {
+  CapySessionContext,
+  type CapySessionContextValue,
+} from "@/contexts/capy-session-context"
+import {
   useIntelligenceStore,
   _resetIntelligenceStoreForTests,
   _setStoreLoaderForTests,
@@ -51,6 +55,18 @@ async function mountOverlay({
   onStop = () => {},
   onNewChat = () => {},
 }: MountOptions = {}) {
+  // The overlay now consumes its session from CapySessionProvider; inject a
+  // test value directly so each test controls messages / streaming / callbacks.
+  const sessionValue: CapySessionContextValue = {
+    messages,
+    isStreaming,
+    sendMessage: onSend,
+    stopStreaming: onStop,
+    newChat: onNewChat,
+    open,
+    setOpen: () => {},
+  }
+
   const rootRoute = createRootRoute()
   // The overlay reads path/name from the /budget search context and routes
   // settings to /budget/settings, so mount it under a matching parent.
@@ -62,19 +78,14 @@ async function mountOverlay({
       name: (search.name as string) ?? "Budget",
     }),
     component: () => (
-      <CapyOverlay
-        open={open}
-        onClose={() => {}}
-        messages={messages}
-        isStreaming={isStreaming}
-        onSend={onSend}
-        onStop={onStop}
-        onNewChat={onNewChat}
-        instructions=""
-        onSaveInstructions={async () => {}}
-        commands={[]}
-        onSaveCommands={async () => {}}
-      />
+      <CapySessionContext.Provider value={sessionValue}>
+        <CapyOverlay
+          instructions=""
+          onSaveInstructions={async () => {}}
+          commands={[]}
+          onSaveCommands={async () => {}}
+        />
+      </CapySessionContext.Provider>
     ),
   })
   const settingsRoute = createRoute({

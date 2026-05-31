@@ -1,7 +1,11 @@
-import { useEffect, useMemo } from "react";
+import { useCallback, useEffect, useMemo } from "react";
 import { createFileRoute, Navigate, Outlet } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { RepositoryProvider } from "@/contexts/repository-context";
+import { CapySessionProvider } from "@/components/capy/capy-session-provider";
+import { useCustomInstructions } from "@/hooks/use-custom-instructions";
+import { invalidateAfterCapyMutation } from "@/components/budget/capy-invalidation";
+import { useIntelligenceStore } from "@/stores/intelligence-store";
 import { budgetKeys } from "@/hooks/use-budget-data";
 import { createInMemoryRepository } from "@capybudget/persistence";
 import { PROFILES } from "../data/profiles";
@@ -33,15 +37,15 @@ export const Route = createFileRoute("/budget")({
 });
 
 /**
- * Repo-owning layout for the demo budget subtree. The in-memory repo is created
- * once per scenario and disposed only when leaving the budget — navigating
- * between the chrome (`_shell`) and settings keeps it (and its edits) alive.
- *
- * Seam for Unit 3: a persistent Capy session provider slots in here around the
- * Outlet, mirroring the desktop layout.
+ * Repo- and session-owning layout for the demo budget subtree. The in-memory
+ * repo and the Capy session are created once per scenario and disposed only when
+ * leaving the budget — navigating between the chrome (`_shell`) and settings
+ * keeps the repo (and its edits) and the chat conversation alive, mirroring the
+ * desktop layout. The demo's vite alias swaps the underlying session adapter for
+ * a deterministic stub; the hook/context wiring is identical.
  */
 function DemoBudgetLayout() {
-  const { path: profileId } = Route.useSearch();
+  const { path: profileId, name } = Route.useSearch();
   const profile = PROFILES[profileId];
   const queryClient = useQueryClient();
 
@@ -65,13 +69,39 @@ function DemoBudgetLayout() {
     };
   }, [repo, queryClient]);
 
+  const provider = useIntelligenceStore((s) => s.config.provider);
+  const customInstructions = useCustomInstructions(profileId);
+
+  const onDataChanged = useCallback(() => {
+    if (!repo) return;
+    invalidateAfterCapyMutation({
+      provider,
+      repo,
+      invalidateQueries: () => queryClient.invalidateQueries({ queryKey: budgetKeys.all }),
+    });
+  }, [queryClient, repo, provider]);
+
+  const sessionOptions = useMemo(
+    () => ({
+      budgetPath: profileId,
+      budgetName: name,
+      mcpServerPath: "packages/mcp/src/server.ts",
+      customInstructions: customInstructions.instructions,
+      onDataChanged,
+      repo: repo ?? undefined,
+    }),
+    [profileId, name, customInstructions.instructions, onDataChanged, repo],
+  );
+
   if (!profile || !repo) {
     return <Navigate to="/" />;
   }
 
   return (
     <RepositoryProvider key={profileId} value={repo}>
-      <Outlet />
+      <CapySessionProvider options={sessionOptions}>
+        <Outlet />
+      </CapySessionProvider>
     </RepositoryProvider>
   );
 }
