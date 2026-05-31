@@ -1,27 +1,11 @@
 import { describe, it, expect } from "vitest";
+import { makeTransaction as makeTxn } from "@capybudget/core/test-factories";
 import {
   createTransaction,
   updateTransaction,
   deleteTransaction,
   type TransactionFormData,
 } from "./transactions";
-import type { Transaction } from "./types";
-
-function makeTxn(overrides: Partial<Transaction> = {}): Transaction {
-  return {
-    id: crypto.randomUUID(),
-    datetime: "2026-01-15T12:00:00.000Z",
-    type: "expense",
-    amount: -5000,
-    categoryId: "cat-1",
-    accountId: "acc-1",
-    transferPairId: "",
-    merchant: "Store",
-    note: "",
-    createdAt: "2026-01-15T00:00:00.000Z",
-    ...overrides,
-  };
-}
 
 describe("createTransaction", () => {
   it("creates an income transaction with positive amount", () => {

@@ -1,7 +1,8 @@
 import { describe, it, expect } from "vitest";
+import { makeAccount } from "@capybudget/core/test-factories";
 import { prepareMerge } from "./import-merge";
 import type { ImportTransaction } from "./import-types";
-import type { Account, Transaction } from "../entities/types";
+import type { Transaction } from "../entities/types";
 
 function makeImportTxn(overrides: Partial<ImportTransaction> = {}): ImportTransaction {
   return {
@@ -18,19 +19,6 @@ function makeImportTxn(overrides: Partial<ImportTransaction> = {}): ImportTransa
     targetAccountId: "",
     categoryId: "cat-1",
     categoryConfidence: "high",
-    ...overrides,
-  };
-}
-
-function makeAccount(overrides: Partial<Account> = {}): Account {
-  return {
-    id: crypto.randomUUID(),
-    name: "Existing Account",
-    type: "checking",
-    archived: false,
-    excludeFromNetWorth: false,
-    sortOrder: 1,
-    createdAt: "2026-01-01T00:00:00.000Z",
     ...overrides,
   };
 }

@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+  makeCategory,
+  makeTransaction as makeTxn,
+} from "@capybudget/core/test-factories";
+import {
   createCategory,
   updateCategory,
   deleteCategory,
@@ -7,35 +11,6 @@ import {
   unarchiveCategory,
   setCategoryAssigned,
 } from "./categories";
-import type { Category, Transaction } from "./types";
-
-function makeCategory(overrides: Partial<Category> = {}): Category {
-  return {
-    id: crypto.randomUUID(),
-    name: "Groceries",
-    group: "Daily Living",
-    archived: false,
-    sortOrder: 1,
-    assigned: null,
-    ...overrides,
-  };
-}
-
-function makeTxn(overrides: Partial<Transaction> = {}): Transaction {
-  return {
-    id: crypto.randomUUID(),
-    datetime: "2026-01-15T12:00:00.000Z",
-    type: "expense",
-    amount: -5000,
-    categoryId: "cat-1",
-    accountId: "acc-1",
-    transferPairId: "",
-    merchant: "Store",
-    note: "",
-    createdAt: "2026-01-15T00:00:00.000Z",
-    ...overrides,
-  };
-}
 
 describe("createCategory", () => {
   it("assigns a UUID id", () => {

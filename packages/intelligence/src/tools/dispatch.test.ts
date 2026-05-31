@@ -1,21 +1,9 @@
 import { describe, it, expect, vi } from "vitest"
 import type { Account, Category, Transaction } from "@capybudget/core"
+import { makeAccount } from "@capybudget/core/test-factories"
 import type { BudgetRepository, FileAdapter } from "@capybudget/persistence"
 import { runTool, isDispatchTool, type ToolContext } from "./dispatch"
 import { handleListAccounts } from "./handlers/data"
-
-function makeAccount(overrides: Partial<Account> = {}): Account {
-  return {
-    id: "acc-1",
-    name: "Checking",
-    type: "checking",
-    archived: false,
-    excludeFromNetWorth: false,
-    sortOrder: 1,
-    createdAt: "2026-01-01T00:00:00.000Z",
-    ...overrides,
-  }
-}
 
 function makeRepo(data: {
   accounts?: Account[]

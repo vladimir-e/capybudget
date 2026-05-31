@@ -1,5 +1,10 @@
 import { describe, it, expect, vi } from "vitest"
 import type { Account, Category, Transaction } from "@capybudget/core"
+import {
+  makeAccount,
+  makeCategory,
+  makeTransaction as makeTxn,
+} from "@capybudget/core/test-factories"
 import type { BudgetRepository } from "@capybudget/persistence"
 import {
   handleCreateTransaction,
@@ -20,49 +25,6 @@ import {
   handleAssignCategories,
   handleBulkUpdateTransactions,
 } from "./mutation"
-
-// ── Test data factories ─────────────────────────────────────────
-
-function makeAccount(overrides: Partial<Account> = {}): Account {
-  return {
-    id: "acc-1",
-    name: "Checking",
-    type: "checking",
-    archived: false,
-    excludeFromNetWorth: false,
-    sortOrder: 1,
-    createdAt: "2026-01-01T00:00:00.000Z",
-    ...overrides,
-  }
-}
-
-function makeCategory(overrides: Partial<Category> = {}): Category {
-  return {
-    id: "cat-1",
-    name: "Groceries",
-    group: "Daily Living",
-    archived: false,
-    sortOrder: 1,
-    assigned: null,
-    ...overrides,
-  }
-}
-
-function makeTxn(overrides: Partial<Transaction> = {}): Transaction {
-  return {
-    id: "txn-1",
-    datetime: "2026-01-15T12:00:00.000",
-    type: "expense",
-    amount: -5000,
-    categoryId: "cat-1",
-    accountId: "acc-1",
-    transferPairId: "",
-    merchant: "Whole Foods",
-    note: "",
-    createdAt: "2026-01-15T00:00:00.000Z",
-    ...overrides,
-  }
-}
 
 function createMockRepo(data: {
   accounts?: Account[]
