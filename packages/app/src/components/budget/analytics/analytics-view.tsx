@@ -1,13 +1,4 @@
 import { useEffect, useMemo } from "react";
-import { Settings } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
 import {
   filterTransactionsByDateRange,
   getPeriodSummary,
@@ -15,7 +6,6 @@ import {
 import type { DateRange } from "@capybudget/core";
 import { useTransactions, useCategories, useAccounts } from "@/hooks/use-budget-data";
 import { useAnalyticsStore, type PeriodType, type TabId } from "@/stores/analytics-store";
-import { CategoryPanel } from "@/components/budget/category-panel";
 import { DateRangeNav } from "./date-range-nav";
 import { SummaryStrip } from "./summary-strip";
 import { SpendingTab } from "./spending-tab";
@@ -100,45 +90,21 @@ export function AnalyticsView() {
     <div className="flex flex-col h-full">
       {/* Tab bar */}
       <div className="border-b px-6">
-        <div className="flex items-center -mb-px">
-          <div className="flex gap-0 flex-1 min-w-0 overflow-x-auto">
-            {TABS.map((tab) => (
-              <button
-                key={tab.id}
-                type="button"
-                onClick={() => setActiveTab(tab.id)}
-                className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
-                  activeTab === tab.id
-                    ? "border-brand text-foreground"
-                    : "border-transparent text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </div>
-
-          {/* Category management gear */}
-          <Dialog>
-            <DialogTrigger
-              render={
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
-                  className="ml-2 shrink-0 text-muted-foreground hover:text-foreground"
-                  aria-label="Manage categories"
-                />
-              }
+        <div className="flex gap-0 -mb-px min-w-0 overflow-x-auto">
+          {TABS.map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => setActiveTab(tab.id)}
+              className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+                activeTab === tab.id
+                  ? "border-brand text-foreground"
+                  : "border-transparent text-muted-foreground hover:text-foreground"
+              }`}
             >
-              <Settings className="h-4 w-4" />
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-lg max-h-[80vh] overflow-y-auto">
-              <DialogHeader>
-                <DialogTitle>Manage Categories</DialogTitle>
-              </DialogHeader>
-              <CategoryPanel categories={categories} />
-            </DialogContent>
-          </Dialog>
+              {tab.label}
+            </button>
+          ))}
         </div>
       </div>
 
