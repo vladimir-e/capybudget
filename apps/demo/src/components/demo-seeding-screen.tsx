@@ -52,7 +52,7 @@ export function DemoSeedingScreen({ name, onDone }: DemoSeedingScreenProps) {
               Seeding random data…
             </h1>
             <p className="text-sm text-muted-foreground">
-              Nothing here is real — or saved.
+              Any changes reset when you reload.
             </p>
           </div>
 
