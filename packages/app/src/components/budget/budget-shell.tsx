@@ -10,7 +10,7 @@ import { TransactionForm } from "@/components/budget/transaction-form";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { ColorThemeSwitcher } from "@/components/color-theme-switcher";
 import { CapyButton } from "@/components/capy/capy-button";
-import { CapyOverlay } from "@/components/capy/capy-overlay";
+import { CapyOverlay } from "@/components/capy/capy-overlay/capy-overlay";
 import { useCapySession } from "@/hooks/use-capy-session";
 import { BudgetUIProvider, type BudgetUIContextValue } from "@/contexts/budget-context";
 import {
