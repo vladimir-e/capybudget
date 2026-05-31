@@ -104,9 +104,11 @@ export function ProviderSection() {
   }
 
   // Warn the user if they previously selected claude-cli but it's no
-  // longer detected — don't auto-flip; let them decide.
+  // longer detected — don't auto-flip; let them decide. Never in the demo:
+  // the demo seeds claude-cli to power its stubbed chat, but Settings there
+  // is a disabled preview that reads as "Off", so the warning is noise.
   const claudeMissingWarning =
-    provider === "claude-cli" && claudeDetected === false
+    !__IS_DEMO__ && provider === "claude-cli" && claudeDetected === false
 
   return (
     <Card>
@@ -170,7 +172,9 @@ export function ProviderSection() {
         )}
 
         <RadioGroup
-          value={toFormValue(provider)}
+          // The demo's selection is a disabled preview — show "Off" rather than
+          // the claude-cli seed that quietly powers its stubbed chat.
+          value={__IS_DEMO__ ? OFF_FORM_VALUE : toFormValue(provider)}
           onValueChange={(v) => handleProviderChange(v as ProviderFormValue)}
           className="gap-3"
         >
@@ -203,7 +207,7 @@ export function ProviderSection() {
             description="Use the local Claude Code CLI. Runs against your Claude subscription."
             disabled={__IS_DEMO__ || claudeDetected === false || claudeProbing}
             hint={
-              IS_DIST_BUILD ? (
+              __IS_DEMO__ ? undefined : IS_DIST_BUILD ? (
                 <span>
                   Not available in the desktop build —{" "}
                   <button

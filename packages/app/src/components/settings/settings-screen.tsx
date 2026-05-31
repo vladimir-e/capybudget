@@ -40,7 +40,10 @@ export function SettingsScreen() {
   }
 
   return (
-    <div className="flex h-full">
+    // We don't support mobile, but the demo may be opened on a phone — keep a
+    // min width and scroll horizontally rather than squeezing the panes ugly.
+    <div className="h-full overflow-x-auto overflow-y-hidden">
+    <div className="flex h-full min-w-[48rem]">
       <nav
         aria-label="Settings sections"
         className="flex w-60 shrink-0 flex-col border-r border-sidebar-border bg-sidebar"
@@ -69,7 +72,7 @@ export function SettingsScreen() {
         </div>
       </nav>
 
-      <main className="flex-1 overflow-auto">
+      <main className="flex-1 overflow-y-auto">
         <div className="mx-auto w-full max-w-2xl space-y-6 px-6 py-8">
           {active === "intelligence" && (
             <>
@@ -81,6 +84,7 @@ export function SettingsScreen() {
           {active === "categories" && <CategoriesSection />}
         </div>
       </main>
+    </div>
     </div>
   )
 }
