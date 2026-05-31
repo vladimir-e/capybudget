@@ -13,7 +13,9 @@ export function useThemeColors<T extends Record<string, string>>(
       attributeFilter: ["class", "data-theme"],
     });
     return () => observer.disconnect();
-  }, []); // vars is stable (object literal at call site gets recreated but keys don't change)
+    // vars keys are stable across renders; the observer re-reads live values on theme change.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return colors;
 }

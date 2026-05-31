@@ -4,7 +4,15 @@ import reactRefresh from "eslint-plugin-react-refresh";
 import tseslint from "typescript-eslint";
 
 export default tseslint.config(
-  { ignores: ["dist", "src/routeTree.gen.ts", "apps/demo/src/routeTree.gen.ts", "src-tauri"] },
+  {
+    ignores: [
+      "dist",
+      "**/.astro/**",
+      "src/routeTree.gen.ts",
+      "apps/demo/src/routeTree.gen.ts",
+      "src-tauri",
+    ],
+  },
   {
     extends: [js.configs.recommended, ...tseslint.configs.recommended],
     files: ["**/*.{ts,tsx}"],
@@ -21,7 +29,11 @@ export default tseslint.config(
     },
   },
   {
-    files: ["src/routes/**/*.tsx", "src/components/ui/**/*.tsx", "apps/demo/src/routes/**/*.tsx"],
+    files: [
+      "packages/app/src/routes/**/*.tsx",
+      "packages/app/src/components/ui/**/*.tsx",
+      "apps/demo/src/routes/**/*.tsx",
+    ],
     rules: {
       "react-refresh/only-export-components": "off",
     },
