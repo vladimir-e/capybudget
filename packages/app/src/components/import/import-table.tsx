@@ -17,7 +17,7 @@ import {
   amountColorClass,
   type ImportSortColumn,
   type ImportSortConfig,
-} from "@/lib/import-table-utils";
+} from "@/components/import/import-table-utils";
 import {
   DateEdit,
   MerchantEdit,

@@ -11,9 +11,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { InlineEditCell, type EditableColumn } from "@/components/budget/inline-edit-cells";
 import type { Account, Category, Transaction, TransactionFormData } from "@capybudget/core";
-import { formatMoney, getAmountClass, resolveTransferPair } from "@capybudget/core";
+import { formatMoney, formatDateLabel, getAmountClass, resolveTransferPair } from "@capybudget/core";
 import { ArrowRight, Info, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
-import { formatDate } from "@/components/budget/transaction-list-utils";
 
 export interface TransactionRowProps {
   txn: Transaction;
@@ -106,7 +105,7 @@ export const TransactionRowMemo = memo(function TransactionRow({
       >
         {activeCol === "date" ? (
           <InlineEditCell txn={txn} column="date" accounts={accounts} categories={categories} onSave={onInlineSave} onCancel={onInlineCancel} />
-        ) : formatDate(txn.datetime)}
+        ) : formatDateLabel(txn.datetime.slice(0, 10))}
       </TableCell>
       {showAccountColumn && (
         <TableCell

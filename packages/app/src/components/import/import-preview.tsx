@@ -23,7 +23,7 @@ import {
   sortImportTransactions,
   filterImportTransactions,
   type ImportSortConfig,
-} from "@/lib/import-table-utils";
+} from "@/components/import/import-table-utils";
 import { ImportMapping } from "./import-mapping";
 import { Search, X, FileUp, Sparkles, Loader2, GitMerge, AlertTriangle, Copy } from "lucide-react";
 

@@ -39,8 +39,8 @@ export type ToolDefinition = {
 
 /**
  * The merged tool list shipped to the model: data + mutation + import +
- * csv + read_file + render. Returned as a fresh array so callers can
- * safely mutate it.
+ * csv + read_file + read_spec + render. Returned as a fresh array so
+ * callers can safely mutate it.
  *
  * Both chat and import sessions use the same surface. The system prompt
  * (chat vs. import) tells the model which tools are appropriate to

@@ -11,7 +11,7 @@ import {
   formatDateLabel,
 } from "@capybudget/core";
 import { useTransactions } from "@/hooks/use-budget-data";
-import { amountColorClass } from "@/lib/import-table-utils";
+import { amountColorClass } from "@/components/import/import-table-utils";
 import { CalendarDays } from "lucide-react";
 
 const inputClass =
