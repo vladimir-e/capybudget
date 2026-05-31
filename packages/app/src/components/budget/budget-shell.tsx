@@ -29,7 +29,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { ChevronDown, ChevronLeft, ChevronRight, FolderOpen, Github, LogOut } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight, Download, FolderOpen, Github, LogOut } from "lucide-react";
 import { open as shellOpen } from "@tauri-apps/plugin-shell";
 import type { Account, Transaction, TransactionFormData } from "@capybudget/core";
 import { toast } from "sonner";
@@ -241,6 +241,19 @@ export function BudgetShell() {
           </div>
           <div className="flex items-center justify-end gap-1">
             <div className="hidden md:flex items-center gap-1">
+              {__IS_DEMO__ && (
+                <a
+                  href="https://capybudget.app"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label="Get the desktop app"
+                  title="Get the desktop app"
+                  className={buttonVariants({ variant: "default" })}
+                >
+                  <Download className="h-4 w-4" />
+                  Get the desktop app
+                </a>
+              )}
               {__IS_DEMO__ && (
                 <a
                   href="https://github.com/vladimir-e/capybudget"

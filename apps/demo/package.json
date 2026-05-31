@@ -10,9 +10,10 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@capybudget/app": "*",
     "@capybudget/core": "*",
-    "@capybudget/persistence": "*",
     "@capybudget/intelligence": "*",
-    "@capybudget/app": "*"
+    "@capybudget/persistence": "*",
+    "@vercel/analytics": "^2.0.1"
   }
 }

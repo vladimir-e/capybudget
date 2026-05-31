@@ -1,5 +1,6 @@
 ---
 import "../styles/global.css";
+import Analytics from '@vercel/analytics/astro';
 
 interface Props {
   title: string;
@@ -59,6 +60,7 @@ const year = new Date().getFullYear();
         document.documentElement.setAttribute('data-theme', s);
       })();
     </script>
+    <Analytics />
   </head>
   <body class="min-h-screen flex flex-col overflow-x-hidden">
     <!-- Dark mode ambient orbs (kept as the one dark-mode flourish) -->
