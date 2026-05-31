@@ -40,9 +40,10 @@ export function SettingsScreen() {
   }
 
   return (
-    // We don't support mobile, but the demo may be opened on a phone — keep a
-    // min width and scroll horizontally rather than squeezing the panes ugly.
-    <div className="h-full overflow-x-auto overflow-y-hidden">
+    // Pin to the viewport (like BudgetShell) so the content pane scrolls, not
+    // the page — otherwise the sidebar (and its back button) scroll away. The
+    // min width + horizontal scroll keeps the demo usable if opened on a phone.
+    <div className="h-screen overflow-x-auto overflow-y-hidden">
     <div className="flex h-full min-w-[48rem]">
       <nav
         aria-label="Settings sections"

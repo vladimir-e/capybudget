@@ -37,9 +37,7 @@ export const Route = createFileRoute("/budget")({
   component: DemoBudgetLayout,
 });
 
-// Demo mirror of the desktop budget layout: owns the in-memory repo + session
-// for the scenario, survives the chrome↔settings swap. The vite alias swaps the
-// session adapter for a deterministic stub; the hook/context wiring is identical.
+// Demo mirror of the desktop budget layout (session adapter is a stub via vite alias).
 function DemoBudgetLayout() {
   const { path: profileId, name } = Route.useSearch();
   const profile = PROFILES[profileId];

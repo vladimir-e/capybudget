@@ -24,9 +24,8 @@ export const Route = createFileRoute("/budget")({
   component: BudgetLayout,
 });
 
-// Owns the repo and Capy session for the budget subtree: created once per
-// budget path, disposed only on unmount. Stays mounted across the chrome↔
-// settings swap, so repo, query cache, and chat survive the round-trip.
+// Owns the repo + Capy session for the budget subtree so they survive the
+// chrome↔settings swap (disposed only when this layout unmounts).
 function BudgetLayout() {
   const { path, name } = Route.useSearch();
   const queryClient = useQueryClient();
