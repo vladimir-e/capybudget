@@ -2,8 +2,7 @@
  * App-global config selecting the AI provider and its credentials.
  *
  * Persisted by the app via @tauri-apps/plugin-store. v1 keeps API
- * keys in this same blob — see specs/INTELLIGENCE_PROVIDERS.md
- * "Open Question 1" for the rationale.
+ * keys in this same blob — see specs/INTELLIGENCE.md "Settings".
  *
  * `provider: null` is the "AI features disabled" state — first-run
  * default, and what users pick when they want Capy quiet without

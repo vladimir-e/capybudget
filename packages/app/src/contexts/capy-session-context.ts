@@ -1,14 +1,8 @@
 import { createContext, useContext } from "react";
 import type { FileAttachment, ChatMessage } from "@capybudget/intelligence";
 
-/**
- * The single Capy session, lifted to the `/budget` layout so it outlives the
- * chrome↔settings swap. The session, its message state, and the panel's open
- * flag are all created once per budget and survive a trip through full-screen
- * settings — the whole chat is one piece of state, not split between the
- * persistent layout and the transient shell. The chrome (BudgetShell) and the
- * overlay are pure consumers.
- */
+// The single Capy session (messages + open flag), provided by the `/budget`
+// layout so it outlives the chrome↔settings swap. Consumers are read-only.
 export interface CapySessionContextValue {
   messages: ChatMessage[];
   isStreaming: boolean;

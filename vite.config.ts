@@ -1,4 +1,5 @@
 import { defineConfig } from "vite";
+import { configDefaults } from "vitest/config";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import { TanStackRouterVite } from "@tanstack/router-plugin/vite";
@@ -33,7 +34,7 @@ export default defineConfig(async () => ({
     setupFiles: ["./packages/app/src/test/setup.ts"],
     // Demo specs run under apps/demo's own config (npm run test:demo) so they
     // see __IS_DEMO__ = true and the Tauri stubs. Keep them out of this run.
-    exclude: ["**/node_modules/**", "apps/demo/**"],
+    exclude: [...configDefaults.exclude, "apps/demo/**"],
   },
   clearScreen: false,
   server: {

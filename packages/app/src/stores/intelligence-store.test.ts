@@ -158,9 +158,9 @@ describe("useIntelligenceStore setters", () => {
     _setStoreLoaderForTests(async () => backend)
     const s = useIntelligenceStore.getState()
     s.setAnthropicKey("sk-1")
-    s.setAnthropicModel("claude-opus-4-7")
+    s.setAnthropicModel("custom-model-xyz")
     const cfg = useIntelligenceStore.getState().config
-    expect(cfg.anthropic).toEqual({ apiKey: "sk-1", model: "claude-opus-4-7" })
+    expect(cfg.anthropic).toEqual({ apiKey: "sk-1", model: "custom-model-xyz" })
     // openai untouched
     expect(cfg.openai).toEqual(DEFAULT_INTELLIGENCE_CONFIG.openai)
   })

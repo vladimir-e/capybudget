@@ -9,6 +9,7 @@ import {
   Outlet,
   RouterProvider,
 } from "@tanstack/react-router"
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { DEFAULT_INTELLIGENCE_CONFIG } from "@capybudget/intelligence"
 
 // Suppress sonner toasts during tests (must be hoisted via vi.mock).
@@ -70,7 +71,14 @@ async function renderSettings(
   })
 
   await router.load()
-  const result = render(<RouterProvider router={router} />)
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  })
+  const result = render(
+    <QueryClientProvider client={queryClient}>
+      <RouterProvider router={router} />
+    </QueryClientProvider>,
+  )
   return { ...result, router }
 }
 

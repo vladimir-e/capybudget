@@ -24,14 +24,9 @@ export const Route = createFileRoute("/budget")({
   component: BudgetLayout,
 });
 
-/**
- * Repo- and session-owning layout for the whole budget subtree. Both the
- * repository and the Capy session are created once per budget path and disposed
- * only when this layout unmounts — i.e. when leaving the budget or switching
- * budgets. Navigating between the chrome tabs (`_shell`) and full-screen settings
- * keeps this layout mounted, so the repo, its TanStack Query cache, and the chat
- * conversation all survive the round-trip.
- */
+// Owns the repo and Capy session for the budget subtree: created once per
+// budget path, disposed only on unmount. Stays mounted across the chrome↔
+// settings swap, so repo, query cache, and chat survive the round-trip.
 function BudgetLayout() {
   const { path, name } = Route.useSearch();
   const queryClient = useQueryClient();
@@ -69,7 +64,7 @@ function BudgetLayout() {
   );
 
   return (
-    <RepositoryProvider value={repo}>
+    <RepositoryProvider key={path} value={repo}>
       <CapySessionProvider key={path} options={sessionOptions}>
         <Outlet />
       </CapySessionProvider>

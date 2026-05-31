@@ -1,9 +1,16 @@
 /**
  * Generic hook for reading/writing a file in the budget folder.
- * Handles load-with-fallback, cancellation, and save-to-disk.
+ * Handles load-with-fallback and save-to-disk.
+ *
+ * Backed by a single TanStack Query entry keyed on (budgetPath, fileName), so
+ * every surface that reads the same file shares one cache value. A `save` from
+ * any surface writes the file and pushes the new value into the cache, so all
+ * subscribers — including the lifted `/budget` layout that feeds the Capy
+ * session — re-render with the fresh content immediately.
  */
 
-import { useState, useEffect, useCallback, useRef } from "react"
+import { useCallback } from "react"
+import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { readTextFile, writeTextFile } from "@tauri-apps/plugin-fs"
 import { join as joinPath } from "@tauri-apps/api/path"
 
@@ -20,36 +27,33 @@ export function useBudgetFile<T>(
   parse: (text: string) => T,
   format: (value: T) => string,
 ): UseBudgetFileReturn<T> {
-  const [data, setData] = useState<T>(defaultValue)
-  const [isLoading, setIsLoading] = useState(true)
-  const pathRef = useRef(budgetPath)
-  pathRef.current = budgetPath
+  const queryClient = useQueryClient()
+  const queryKey = ["budget-file", budgetPath, fileName] as const
 
-  useEffect(() => {
-    let cancelled = false
-
-    async function load() {
+  const { data, isLoading } = useQuery({
+    queryKey,
+    queryFn: async () => {
       try {
         const filePath = await joinPath(budgetPath, fileName)
         const text = await readTextFile(filePath)
-        if (!cancelled) setData(parse(text))
+        return text == null ? defaultValue : parse(text)
       } catch {
-        // File doesn't exist yet — use defaults
-        if (!cancelled) setData(defaultValue)
-      } finally {
-        if (!cancelled) setIsLoading(false)
+        // File doesn't exist yet (or fs is stubbed) — use defaults.
+        return defaultValue
       }
-    }
+    },
+    staleTime: Infinity,
+  })
 
-    load()
-    return () => { cancelled = true }
-  }, [budgetPath]) // eslint-disable-line react-hooks/exhaustive-deps
+  const save = useCallback(
+    async (value: T) => {
+      const filePath = await joinPath(budgetPath, fileName)
+      await writeTextFile(filePath, format(value))
+      queryClient.setQueryData(queryKey, value)
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [budgetPath, fileName, queryClient],
+  )
 
-  const save = useCallback(async (value: T) => {
-    const filePath = await joinPath(pathRef.current, fileName)
-    await writeTextFile(filePath, format(value))
-    setData(value)
-  }, [fileName]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  return { data, isLoading, save }
+  return { data: data ?? defaultValue, isLoading, save }
 }

@@ -131,7 +131,7 @@ describe("useCapySession session teardown", () => {
 
     // Swap Sonnet → Opus within the same provider.
     act(() => {
-      useIntelligenceStore.getState().setAnthropicModel("claude-opus-4-7")
+      useIntelligenceStore.getState().setAnthropicModel("claude-opus-4-8")
     })
     expect(firstSession.killSpy).toHaveBeenCalled()
   })

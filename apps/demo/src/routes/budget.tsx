@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { createFileRoute, Navigate, Outlet } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { RepositoryProvider } from "@/contexts/repository-context";
@@ -10,6 +10,7 @@ import { budgetKeys } from "@/hooks/use-budget-data";
 import { createInMemoryRepository } from "@capybudget/persistence";
 import { PROFILES } from "../data/profiles";
 import { generateScenarioData } from "../data/generator";
+import { DemoSeedingScreen } from "../components/demo-seeding-screen";
 
 interface BudgetSearch {
   path: string;
@@ -36,18 +37,25 @@ export const Route = createFileRoute("/budget")({
   component: DemoBudgetLayout,
 });
 
-/**
- * Repo- and session-owning layout for the demo budget subtree. The in-memory
- * repo and the Capy session are created once per scenario and disposed only when
- * leaving the budget — navigating between the chrome (`_shell`) and settings
- * keeps the repo (and its edits) and the chat conversation alive, mirroring the
- * desktop layout. The demo's vite alias swaps the underlying session adapter for
- * a deterministic stub; the hook/context wiring is identical.
- */
+// Demo mirror of the desktop budget layout: owns the in-memory repo + session
+// for the scenario, survives the chrome↔settings swap. The vite alias swaps the
+// session adapter for a deterministic stub; the hook/context wiring is identical.
 function DemoBudgetLayout() {
   const { path: profileId, name } = Route.useSearch();
   const profile = PROFILES[profileId];
   const queryClient = useQueryClient();
+
+  // Play the seeding beat once per scenario entry. The flag lives in this
+  // persistent layout, so visiting Settings (a sibling of `_shell`) doesn't
+  // remount it and replay the animation. Reset on scenario change during
+  // render to avoid a flash of the previous scenario's shell.
+  const [seeded, setSeeded] = useState(false);
+  const markSeeded = useCallback(() => setSeeded(true), []);
+  const [seededFor, setSeededFor] = useState(profileId);
+  if (seededFor !== profileId) {
+    setSeededFor(profileId);
+    setSeeded(false);
+  }
 
   // One repo per scenario entry: in-app navigation and edits survive, only a
   // hard reload regenerates. This ephemerality is the "safe to mess around"
@@ -100,7 +108,7 @@ function DemoBudgetLayout() {
   return (
     <RepositoryProvider key={profileId} value={repo}>
       <CapySessionProvider key={profileId} options={sessionOptions}>
-        <Outlet />
+        {seeded ? <Outlet /> : <DemoSeedingScreen name={name} onDone={markSeeded} />}
       </CapySessionProvider>
     </RepositoryProvider>
   );

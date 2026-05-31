@@ -11,6 +11,7 @@ CHANGELOG PHILOSOPHY:
 
 ## Unreleased
 
+- **Settings** - Dedicated budget-scoped Settings screen (⌘,) with Intelligence + Categories sections; chat survives the round-trip; Claude Code model picker; categories moved out of the analytics cog.
 - **Demo** - Scenarios seed ~3 years of data anchored to today, so analytics render live; brief seeding screen on entry.
 - **Monthly Budget** - Every category budgets itself from spending history; zoned progress bar with green/red zones, history pins, and auto-vs-explicit targets (#49).
 - **Monthly Budget** - Configurable comparison basis (3/6/12-month or same month last year), chosen on the legend and remembered per device (#49).
