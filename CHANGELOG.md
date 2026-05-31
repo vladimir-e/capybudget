@@ -14,6 +14,7 @@ CHANGELOG PHILOSOPHY:
 - **Web** - Vercel Web Analytics (visits only, cookieless) on promo site + demo; demo gains a "Get the desktop app" CTA and a small-screen notice.
 - **Settings** - Dedicated budget-scoped Settings screen (⌘,) with Intelligence + Categories sections; chat survives the round-trip; Claude Code model picker; categories moved out of the analytics cog.
 - **Demo** - Scenarios seed ~3 years of data anchored to today, so analytics render live; brief seeding screen on entry.
+- **Demo** - SPA fallback so deep links no longer 404 at the edge; a hard refresh always lands on scenario selection instead of a regenerated budget (#53).
 - **Monthly Budget** - Every category budgets itself from spending history; zoned progress bar with green/red zones, history pins, and auto-vs-explicit targets (#49).
 - **Monthly Budget** - Configurable comparison basis (3/6/12-month or same month last year), chosen on the legend and remembered per device (#49).
 - **Capy** - Live cache invalidation per mutation; `list_transactions` gains `sort` + `offset`; new `transaction_bounds` tool.

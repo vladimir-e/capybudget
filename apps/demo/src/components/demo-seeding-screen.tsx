@@ -52,8 +52,7 @@ export function DemoSeedingScreen({ name, onDone }: DemoSeedingScreenProps) {
               Seeding random data…
             </h1>
             <p className="text-sm text-muted-foreground">
-              Made-up numbers, just for you. Poke at anything — nothing here is
-              real and nothing is saved.
+              Nothing here is real — or saved.
             </p>
           </div>
 

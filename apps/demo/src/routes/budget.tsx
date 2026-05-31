@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { createFileRoute, Navigate, Outlet } from "@tanstack/react-router";
+import { createFileRoute, Navigate, Outlet, redirect } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { RepositoryProvider } from "@/contexts/repository-context";
 import { CapySessionProvider } from "@/components/capy/capy-session-provider";
@@ -11,6 +11,7 @@ import { createInMemoryRepository } from "@capybudget/persistence";
 import { PROFILES } from "../data/profiles";
 import { generateScenarioData } from "../data/generator";
 import { DemoSeedingScreen } from "../components/demo-seeding-screen";
+import { hasEnteredScenario } from "../session-entry";
 
 interface BudgetSearch {
   path: string;
@@ -34,6 +35,14 @@ export const Route = createFileRoute("/budget")({
     path: (search.path as string) ?? "",
     name: (search.name as string) ?? "",
   }),
+  // A hard refresh or deep link resets the module-scoped entry flag, so any
+  // arrival at /budget that wasn't reached through the selector this session
+  // bounces to scenario selection — never into a freshly-regenerated budget.
+  beforeLoad: () => {
+    if (!hasEnteredScenario()) {
+      throw redirect({ to: "/" });
+    }
+  },
   component: DemoBudgetLayout,
 });
 

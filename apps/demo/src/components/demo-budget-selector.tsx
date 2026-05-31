@@ -10,6 +10,7 @@ import bgNight from "@/assets/capy-bg-night.webp";
 
 import { PROFILE_LIST } from "../data/profiles";
 import type { DemoProfile } from "../data/profiles";
+import { markScenarioEntered } from "../session-entry";
 
 const PROFILE_STICKERS: Record<string, string> = {
   underwater: "/capy-tired.webp",
@@ -25,6 +26,7 @@ export function DemoBudgetSelector() {
   const bgUrl = isDark ? bgNight : bgDay;
 
   function handleSelect(profile: DemoProfile) {
+    markScenarioEntered();
     void navigate({
       to: "/budget",
       search: { path: profile.id, name: profile.name },
