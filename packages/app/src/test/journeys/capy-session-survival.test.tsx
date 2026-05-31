@@ -130,7 +130,7 @@ describe("Capy session survives a settings round-trip", () => {
     await waitFor(() => expect(session.killSpy).toHaveBeenCalled());
   }, TIMEOUT);
 
-  it("rebuilds the session when the provider changes", async () => {
+  it("starts a fresh chat when the provider changes", async () => {
     const { user } = await renderApp({ seed: { accounts: [], categories: [], transactions: [] } });
     await waitFor(() => {
       expect(screen.getByRole("heading", { name: "All Accounts" })).toBeInTheDocument();
@@ -138,12 +138,14 @@ describe("Capy session survives a settings round-trip", () => {
 
     const session = await seedConversation(user);
 
-    // Switching provider must rebuild the session (signature change), even
-    // though BudgetLayout stays mounted.
+    // Switching provider tears down the session (signature change) and wipes
+    // the conversation — the new adapter never saw these turns, so leaving them
+    // on screen would fake a continuous thread.
     act(() => {
       useIntelligenceStore.getState().setProvider("anthropic");
     });
 
     await waitFor(() => expect(session.killSpy).toHaveBeenCalled());
+    await waitFor(() => expect(screen.queryByText(ASSISTANT_REPLY)).not.toBeInTheDocument());
   }, TIMEOUT);
 });

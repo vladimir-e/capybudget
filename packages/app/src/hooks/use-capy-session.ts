@@ -160,13 +160,23 @@ export function useCapySession(opts: UseCapySessionOptions): UseCapySessionRetur
     return lifecycle.sessionRef.current
   }, [lifecycle])
 
-  // When the user changes provider or swaps the model within a
-  // provider, tear down any running session so the next message goes
-  // to the freshly-configured adapter. Without this, `ensureSession()`
-  // would short-circuit on the still-populated `sessionRef` and route
-  // user messages to the previous adapter (e.g. an old Claude CLI
-  // subprocess after switching to Anthropic), or to a session running
-  // against the previous model.
+  // Tear down the session and wipe the on-screen conversation. The session
+  // bakes its adapter, model, and instructions in at creation, so a fresh
+  // chat is the only honest reset — carrying old messages into a new session
+  // would show a continuous thread the new model never actually saw.
+  const resetConversation = useCallback(() => {
+    lifecycle.cancel()
+    setMessages([])
+    hadMutationsRef.current = false
+    ackedToolCallsRef.current = new Set()
+  }, [lifecycle])
+
+  // When the user changes provider or swaps the model within a provider,
+  // start a fresh chat: the running session targets the old adapter/model and
+  // has no memory of these turns anyway. Without the reset, `ensureSession()`
+  // would either short-circuit on the still-populated `sessionRef` (routing
+  // messages to the previous adapter) or spin up a new session under a thread
+  // that visually implies continuity it doesn't have.
   const provider = useIntelligenceStore((s) => s.config.provider)
   const anthropicModel = useIntelligenceStore((s) => s.config.anthropic.model)
   const openaiModel = useIntelligenceStore((s) => s.config.openai.model)
@@ -184,10 +194,13 @@ export function useCapySession(opts: UseCapySessionOptions): UseCapySessionRetur
   const prevSignatureRef = useRef(sessionSignature)
   useEffect(() => {
     if (prevSignatureRef.current !== sessionSignature) {
-      lifecycle.cancel()
+      // Gated by the signature change — fires only on a real provider/model
+      // swap, not on every render, so the reset can't cascade.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      resetConversation()
       prevSignatureRef.current = sessionSignature
     }
-  }, [sessionSignature, lifecycle])
+  }, [sessionSignature, resetConversation])
 
   const sendMessage = useCallback(
     (text: string, files?: FileAttachment[]) => {
@@ -303,12 +316,5 @@ export function useCapySession(opts: UseCapySessionOptions): UseCapySessionRetur
     ackedToolCallsRef.current = new Set()
   }, [lifecycle])
 
-  const newChat = useCallback(() => {
-    lifecycle.cancel()
-    setMessages([])
-    hadMutationsRef.current = false
-    ackedToolCallsRef.current = new Set()
-  }, [lifecycle])
-
-  return { messages, isStreaming: lifecycle.isStreaming, sendMessage, stopStreaming, newChat }
+  return { messages, isStreaming: lifecycle.isStreaming, sendMessage, stopStreaming, newChat: resetConversation }
 }
