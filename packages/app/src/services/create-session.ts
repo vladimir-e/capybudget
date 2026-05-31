@@ -26,6 +26,6 @@ export function createSession(opts: SessionOptions): CapySession | null {
       anthropic: (o) => new AnthropicSession(o),
       openai: (o) => new OpenAiSession(o),
     },
-    options: opts,
+    options: { ...opts, claudeCliModel: config.claudeCli.model },
   })
 }

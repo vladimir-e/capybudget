@@ -25,6 +25,12 @@ export interface ClaudeCliAdapterOptions {
   budgetPath: string
   mcpServerPath: string
   systemPrompt: string
+  /**
+   * CLI `--model` value. Empty string omits the flag so the CLI uses
+   * its own default; an alias (`opus` / `sonnet` / `haiku`) or full
+   * model ID selects a specific model.
+   */
+  model: string
   onEvent: (event: StreamEvent) => void
   /**
    * Fires when the Claude CLI subprocess exits unexpectedly (not the
@@ -60,6 +66,8 @@ export interface SessionOptions {
   onExit?: () => void
   repo?: BudgetRepository
   fileAdapter?: FileAdapter
+  /** Claude-CLI-only `--model` value; ignored by API adapters. */
+  claudeCliModel?: string
 }
 
 export interface AdapterConstructors {
@@ -89,6 +97,7 @@ export function createIntelligenceSession(
         budgetPath: options.budgetPath,
         mcpServerPath: options.mcpServerPath,
         systemPrompt: options.systemPrompt,
+        model: options.claudeCliModel ?? "",
         onEvent: options.onEvent,
         onExit: options.onExit,
       })

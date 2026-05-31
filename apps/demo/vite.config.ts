@@ -47,4 +47,12 @@ export default defineConfig({
     host: true,
     allowedHosts: true,
   },
+  test: {
+    // Demo-only specs run under this config so they see the demo's
+    // `__IS_DEMO__ = true` define and Tauri stubs — the exact environment
+    // the demo ships in. The main suite runs against the desktop config.
+    environment: "jsdom",
+    include: ["src/**/*.test.{ts,tsx}"],
+    setupFiles: ["./src/test/setup.ts"],
+  },
 });

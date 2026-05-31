@@ -160,6 +160,32 @@ describe("useCapySession session teardown", () => {
     expect(firstSession.killSpy).toHaveBeenCalled()
   })
 
+  it("kills the session when the Claude Code model changes", () => {
+    useIntelligenceStore.setState({
+      hydrated: true,
+      config: {
+        ...DEFAULT_INTELLIGENCE_CONFIG,
+        provider: "claude-cli",
+        claudeCli: { model: "" },
+      },
+    })
+
+    const { result } = renderHook(() => useCapySession(baseOpts))
+
+    act(() => {
+      result.current.sendMessage("hi")
+    })
+    expect(createdSessions).toHaveLength(1)
+    const firstSession = createdSessions[0]
+
+    // Pick a specific CLI model — the signature shifts from
+    // `claude-cli:` to `claude-cli:opus`, forcing a rebuild.
+    act(() => {
+      useIntelligenceStore.getState().setClaudeCliModel("opus")
+    })
+    expect(firstSession.killSpy).toHaveBeenCalled()
+  })
+
   it("does NOT kill the session when an unrelated model field changes", () => {
     // User is on Anthropic; the OpenAI model field changes (e.g. via
     // settings save). The running Anthropic session should be untouched.

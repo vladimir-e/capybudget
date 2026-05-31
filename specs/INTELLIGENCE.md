@@ -189,12 +189,21 @@ interface IntelligenceConfig {
   provider: "claude-cli" | "anthropic" | "openai" | null
   anthropic: { apiKey: string; model: string }
   openai:    { apiKey: string; model: string }
+  claudeCli: { model: string } // "" lets the CLI pick its default
 }
 ```
 
-The `/settings` route renders a provider radio + per-provider config (API key, model dropdown, custom-model toggle, test-connection button). First-run defaults to `null` — users must explicitly pick a provider so they're never surprised by quota usage. The radio's "Off" label maps to `null` at the form boundary. Claude Code is still auto-detected via `claude --version` and disabled in the picker if not installed.
+Settings lives in the `/budget` Intelligence section. It renders a provider radio + per-provider config (API key where applicable, model picker, test-connection button). The radio order is **Off / Anthropic API / OpenAI API / Claude Code**; Claude Code carries an `advanced` badge and sits last as the source-build option. First-run defaults to `null` — users must explicitly pick a provider so they're never surprised by quota usage. The radio's "Off" label maps to `null` at the form boundary. Claude Code is auto-detected via `claude --version` and disabled in the picker if not installed.
+
+Every provider uses one shared model picker: a curated dropdown plus a "Use a custom model" toggle that swaps in a free-text field for any model ID outside the list. A saved model not in the curated list opens the field in custom mode, so a user's pinned model survives a refreshed list. The curated options:
+
+- **Anthropic** — Claude Opus 4.8 (`claude-opus-4-8`), Claude Sonnet 4.6 (`claude-sonnet-4-6`, the default), Claude Haiku 4.5 (`claude-haiku-4-5`).
+- **OpenAI** — GPT-5.5 (`gpt-5.5`, the default), GPT-5.4 mini (`gpt-5.4-mini`), GPT-5.4 nano (`gpt-5.4-nano`).
+- **Claude Code** — Default (empty, the CLI decides), plus the `opus` / `sonnet` / `haiku` aliases. A non-empty value passes through as the CLI's `--model` flag at spawn; empty omits the flag.
 
 When `provider === null`, the Capy overlay shows an empty-state CTA instead of the chat UI.
+
+The Intelligence section also hosts a chat-instructions editor for `capy-instructions.md` (see Custom Instructions). The same file is editable from the Capy overlay; edits apply to the next conversation. The web demo can't store an AI provider, so it renders the provider list disabled behind a desktop-only notice and omits the per-provider config and the chat-instructions editor; Categories management stays fully functional.
 
 ## Context Enrichment
 
@@ -212,7 +221,7 @@ What did I spend on food this month?
 
 ## Custom Instructions
 
-Users can write custom instructions for the chat assistant in `capy-instructions.md` in the budget folder. These compose into the chat system prompt at session start:
+Users can write custom instructions for the chat assistant in `capy-instructions.md` in the budget folder, edited from either the Capy overlay dialog or the Settings ▸ Intelligence editor — both write the same file. These compose into the chat system prompt at session start:
 
 ```
 {SYSTEM_PROMPT}

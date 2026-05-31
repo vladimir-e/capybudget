@@ -170,6 +170,7 @@ export function useCapySession(opts: UseCapySessionOptions): UseCapySessionRetur
   const provider = useIntelligenceStore((s) => s.config.provider)
   const anthropicModel = useIntelligenceStore((s) => s.config.anthropic.model)
   const openaiModel = useIntelligenceStore((s) => s.config.openai.model)
+  const claudeCliModel = useIntelligenceStore((s) => s.config.claudeCli.model)
   // Single "session signature" — any change to provider or the model
   // for the active provider should rebuild the session.
   const sessionSignature =
@@ -177,7 +178,9 @@ export function useCapySession(opts: UseCapySessionOptions): UseCapySessionRetur
       ? `anthropic:${anthropicModel}`
       : provider === "openai"
         ? `openai:${openaiModel}`
-        : (provider ?? "off") // "claude-cli" / null carry no model — stable string signature
+        : provider === "claude-cli"
+          ? `claude-cli:${claudeCliModel}`
+          : (provider ?? "off") // null carries no model — stable string signature
   const prevSignatureRef = useRef(sessionSignature)
   useEffect(() => {
     if (prevSignatureRef.current !== sessionSignature) {

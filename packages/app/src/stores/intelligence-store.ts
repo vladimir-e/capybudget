@@ -75,6 +75,20 @@ interface IntelligenceStore {
   setAnthropicModel(m: string): void
   setOpenAiKey(k: string): void
   setOpenAiModel(m: string): void
+  setClaudeCliModel(m: string): void
+}
+
+/**
+ * Backfill defaults for keys a persisted config predates. Older configs
+ * were written before `claudeCli` existed; merging the default keeps
+ * hydrate from handing the rest of the app a config with missing slices.
+ */
+function withDefaults(loaded: IntelligenceConfig): IntelligenceConfig {
+  return {
+    ...DEFAULT_INTELLIGENCE_CONFIG,
+    ...loaded,
+    claudeCli: { ...DEFAULT_INTELLIGENCE_CONFIG.claudeCli, ...loaded.claudeCli },
+  }
 }
 
 let backend: ConfigStoreBackend | null = null
@@ -112,7 +126,7 @@ export const useIntelligenceStore = create<IntelligenceStore>((set, get) => ({
         return
       }
 
-      set({ config: loaded, hydrated: true })
+      set({ config: withDefaults(loaded), hydrated: true })
     })()
 
     try {
@@ -152,6 +166,13 @@ export const useIntelligenceStore = create<IntelligenceStore>((set, get) => ({
   setOpenAiModel(model) {
     const cur = get().config
     const next = { ...cur, openai: { ...cur.openai, model } }
+    set({ config: next })
+    void persist(next)
+  },
+
+  setClaudeCliModel(model) {
+    const cur = get().config
+    const next = { ...cur, claudeCli: { ...cur.claudeCli, model } }
     set({ config: next })
     void persist(next)
   },

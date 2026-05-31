@@ -4,32 +4,21 @@ import { ExternalLink, Eye, EyeOff, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 import { useIntelligenceStore } from "@/stores/intelligence-store"
 import { pingApi } from "@/lib/api-testing"
+import { ModelField, type ModelOption } from "./model-field"
 import { TestResult, type TestState } from "./test-result"
 
 type ApiProviderKey = "anthropic" | "openai"
 
-interface ModelOption {
-  value: string
-  label: string
-}
-
 const ANTHROPIC_MODELS: ModelOption[] = [
-  { value: "claude-opus-4-7", label: "Claude Opus 4.7" },
+  { value: "claude-opus-4-8", label: "Claude Opus 4.8" },
   { value: "claude-sonnet-4-6", label: "Claude Sonnet 4.6" },
   { value: "claude-haiku-4-5", label: "Claude Haiku 4.5" },
 ]
 
 const OPENAI_MODELS: ModelOption[] = [
-  { value: "gpt-5.4", label: "GPT-5.4" },
+  { value: "gpt-5.5", label: "GPT-5.5" },
   { value: "gpt-5.4-mini", label: "GPT-5.4 mini" },
   { value: "gpt-5.4-nano", label: "GPT-5.4 nano" },
 ]
@@ -126,10 +115,6 @@ function ApiProviderConfig({
     setDraftKey(apiKey)
   }
 
-  // Custom-model toggle: on if the current model is not in the curated list.
-  const isModelInList = models.some((m) => m.value === model)
-  const [customMode, setCustomMode] = useState(!isModelInList && model !== "")
-
   function handleKeyBlur() {
     if (draftKey === apiKey) return
     onSaveKey(draftKey)
@@ -215,49 +200,12 @@ function ApiProviderConfig({
         <TestResult state={testState} />
       </div>
 
-      {/* Model field */}
-      <div className="space-y-2">
-        <div className="flex items-center justify-between">
-          <Label htmlFor={`${providerKey}-model`}>Model</Label>
-          <label className="inline-flex cursor-pointer items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors">
-            <input
-              type="checkbox"
-              className="h-3 w-3 cursor-pointer accent-brand"
-              checked={customMode}
-              onChange={(e) => setCustomMode(e.target.checked)}
-            />
-            Use a custom model
-          </label>
-        </div>
-        {customMode ? (
-          <Input
-            id={`${providerKey}-model`}
-            placeholder="model-identifier"
-            value={model}
-            onChange={(e) => onSaveModel(e.target.value)}
-            spellCheck={false}
-            autoComplete="off"
-          />
-        ) : (
-          <Select
-            value={model}
-            onValueChange={(v) => {
-              if (typeof v === "string") onSaveModel(v)
-            }}
-          >
-            <SelectTrigger id={`${providerKey}-model`} className="w-full">
-              <SelectValue placeholder="Select a model…" />
-            </SelectTrigger>
-            <SelectContent>
-              {models.map((m) => (
-                <SelectItem key={m.value} value={m.value}>
-                  {m.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        )}
-      </div>
+      <ModelField
+        id={`${providerKey}-model`}
+        model={model}
+        onSaveModel={onSaveModel}
+        models={models}
+      />
 
       <ProviderDocLink label={ui.docLabel} href={ui.docHref} />
     </div>

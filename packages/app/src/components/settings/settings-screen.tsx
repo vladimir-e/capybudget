@@ -3,7 +3,10 @@ import { useNavigate, useSearch } from "@tanstack/react-router"
 import { ArrowLeft, Shapes, Sparkles } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { ProviderSection } from "./provider-section"
+import { ChatInstructionsSection } from "./chat-instructions-section"
 import { CategoriesSection } from "./categories-section"
+
+declare const __IS_DEMO__: boolean
 
 type SettingsSection = "intelligence" | "categories"
 
@@ -68,7 +71,13 @@ export function SettingsScreen() {
 
       <main className="flex-1 overflow-auto">
         <div className="mx-auto w-full max-w-2xl space-y-6 px-6 py-8">
-          {active === "intelligence" && <ProviderSection />}
+          {active === "intelligence" && (
+            <>
+              <ProviderSection />
+              {/* AI is desktop-only; the demo has no instructions file to edit. */}
+              {!__IS_DEMO__ && <ChatInstructionsSection />}
+            </>
+          )}
           {active === "categories" && <CategoriesSection />}
         </div>
       </main>

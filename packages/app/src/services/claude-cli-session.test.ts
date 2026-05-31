@@ -66,13 +66,14 @@ vi.mock("@tauri-apps/api/path", () => ({
 
 import { ClaudeCliSession } from "./claude-cli-session"
 
-function makeSession() {
+function makeSession(model = "") {
   const events: StreamEvent[] = []
   const exitHandler = vi.fn()
   const session = new ClaudeCliSession({
     budgetPath: "/budget",
     mcpServerPath: "mcp/server.js",
     systemPrompt: "you are capy",
+    model,
     onEvent: (e) => events.push(e),
     onExit: exitHandler,
   })
@@ -155,6 +156,30 @@ describe("ClaudeCliSession", () => {
     const idx = args.indexOf("--max-turns")
     expect(idx).toBeGreaterThan(-1)
     expect(args[idx + 1]).toBe(String(SESSION_TOOL_CALL_BUDGET))
+  })
+
+  it("omits --model when no model is configured (CLI default)", async () => {
+    const { Command } = await import("@tauri-apps/plugin-shell")
+    const create = Command.create as ReturnType<typeof vi.fn>
+    create.mockClear()
+    const { session } = makeSession("")
+    await session.send("hi")
+
+    const args = create.mock.calls[0][1] as string[]
+    expect(args).not.toContain("--model")
+  })
+
+  it("passes --model when a model is configured", async () => {
+    const { Command } = await import("@tauri-apps/plugin-shell")
+    const create = Command.create as ReturnType<typeof vi.fn>
+    create.mockClear()
+    const { session } = makeSession("opus")
+    await session.send("hi")
+
+    const args = create.mock.calls[0][1] as string[]
+    const idx = args.indexOf("--model")
+    expect(idx).toBeGreaterThan(-1)
+    expect(args[idx + 1]).toBe("opus")
   })
 
   it("passes --disallowedTools listing the CLI's stock built-ins to silence meta-narration", async () => {

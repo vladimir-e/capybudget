@@ -23,6 +23,7 @@ export class ClaudeCliSession implements CapySession {
   private readonly budgetPath: string
   private readonly mcpServerPath: string
   private readonly systemPrompt: string
+  private readonly model: string
   private readonly onEvent: (event: StreamEvent) => void
   private readonly onExit?: () => void
   private killed = false
@@ -38,6 +39,7 @@ export class ClaudeCliSession implements CapySession {
     this.budgetPath = opts.budgetPath
     this.mcpServerPath = opts.mcpServerPath
     this.systemPrompt = opts.systemPrompt
+    this.model = opts.model
     this.onEvent = opts.onEvent
     this.onExit = opts.onExit
   }
@@ -92,6 +94,8 @@ export class ClaudeCliSession implements CapySession {
       this.budgetPath,
       "--setting-sources",
       "",
+      // Empty model defers to the CLI's own default — omit the flag entirely.
+      ...(this.model ? ["--model", this.model] : []),
       // Runaway-loop backstop; the CLI exits with `error_max_turns` when tripped.
       "--max-turns",
       String(SESSION_TOOL_CALL_BUDGET),

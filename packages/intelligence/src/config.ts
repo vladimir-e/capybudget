@@ -18,14 +18,17 @@ export interface IntelligenceConfig {
   provider: IntelligenceProvider
   anthropic: { apiKey: string; model: string }
   openai: { apiKey: string; model: string }
+  /** Empty model means "let the Claude Code CLI pick its default". */
+  claudeCli: { model: string }
 }
 
 /**
  * Default model per provider — used as the seed value in the settings
- * UI. The user can override via a custom-model field in Round 4.
+ * UI. The user can override via a custom-model field.
  */
 export const DEFAULT_INTELLIGENCE_CONFIG: IntelligenceConfig = {
   provider: null,
   anthropic: { apiKey: "", model: "claude-sonnet-4-6" },
-  openai: { apiKey: "", model: "gpt-5.4" },
+  openai: { apiKey: "", model: "gpt-5.5" },
+  claudeCli: { model: "" },
 }

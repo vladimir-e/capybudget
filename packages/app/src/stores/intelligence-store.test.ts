@@ -76,6 +76,36 @@ describe("useIntelligenceStore.hydrate", () => {
     expect(useIntelligenceStore.getState().config.provider).toBeNull()
   })
 
+  it("backfills the claudeCli default for configs persisted before it existed", async () => {
+    // Older on-disk config has no `claudeCli` key. Hydrate must merge the
+    // default instead of handing the app a config with a missing slice.
+    const backend = makeBackend({
+      provider: "anthropic",
+      anthropic: { apiKey: "sk-x", model: "claude-sonnet-4-6" },
+      openai: { apiKey: "", model: "gpt-5.4" },
+    })
+    _setStoreLoaderForTests(async () => backend)
+
+    await useIntelligenceStore.getState().hydrate()
+    const state = useIntelligenceStore.getState()
+    expect(state.config.claudeCli).toEqual({ model: "" })
+    // The user's actual choices survive the merge.
+    expect(state.config.provider).toBe("anthropic")
+    expect(state.config.openai.model).toBe("gpt-5.4")
+  })
+
+  it("preserves a persisted claudeCli model through hydrate", async () => {
+    const backend = makeBackend({
+      ...DEFAULT_INTELLIGENCE_CONFIG,
+      provider: "claude-cli",
+      claudeCli: { model: "opus" },
+    })
+    _setStoreLoaderForTests(async () => backend)
+
+    await useIntelligenceStore.getState().hydrate()
+    expect(useIntelligenceStore.getState().config.claudeCli.model).toBe("opus")
+  })
+
   it("preserves an existing user's provider choice", async () => {
     const backend = makeBackend({
       provider: "claude-cli",
@@ -144,6 +174,17 @@ describe("useIntelligenceStore setters", () => {
     const cfg = useIntelligenceStore.getState().config
     expect(cfg.openai).toEqual({ apiKey: "sk-oa", model: "gpt-5-pro" })
     expect(cfg.anthropic).toEqual(DEFAULT_INTELLIGENCE_CONFIG.anthropic)
+  })
+
+  it("setClaudeCliModel updates only the claudeCli slice", () => {
+    const backend = makeBackend(null)
+    _setStoreLoaderForTests(async () => backend)
+    const s = useIntelligenceStore.getState()
+    s.setClaudeCliModel("sonnet")
+    const cfg = useIntelligenceStore.getState().config
+    expect(cfg.claudeCli).toEqual({ model: "sonnet" })
+    expect(cfg.anthropic).toEqual(DEFAULT_INTELLIGENCE_CONFIG.anthropic)
+    expect(cfg.openai).toEqual(DEFAULT_INTELLIGENCE_CONFIG.openai)
   })
 
   it("persists writes to the backend", async () => {

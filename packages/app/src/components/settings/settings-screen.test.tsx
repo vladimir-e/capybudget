@@ -106,6 +106,63 @@ describe("SettingsScreen", () => {
     expect(screen.getByText("OpenAI API")).toBeInTheDocument()
   })
 
+  it("orders providers Off / Anthropic / OpenAI / Claude Code", async () => {
+    await renderSettings()
+
+    const labels = screen
+      .getAllByText(/^(Off|Anthropic API|OpenAI API|Claude Code)$/)
+      .map((el) => el.textContent)
+    expect(labels).toEqual([
+      "Off",
+      "Anthropic API",
+      "OpenAI API",
+      "Claude Code",
+    ])
+  })
+
+  it("badges Claude Code as advanced", async () => {
+    await renderSettings()
+    expect(screen.getByText("advanced")).toBeInTheDocument()
+  })
+
+  it("exposes a model selector for Claude Code", async () => {
+    recheckMock.mockResolvedValue(true)
+    useIntelligenceStore.setState({
+      hydrated: true,
+      config: { ...DEFAULT_INTELLIGENCE_CONFIG, provider: "claude-cli" },
+    })
+    await renderSettings()
+
+    // The shared ModelField renders a Model label + custom-model toggle.
+    expect(await screen.findByLabelText("Model")).toBeInTheDocument()
+    expect(screen.getByLabelText("Use a custom model")).toBeInTheDocument()
+  })
+
+  it("Claude Code custom-model field accepts a full model ID", async () => {
+    const user = userEvent.setup()
+    recheckMock.mockResolvedValue(true)
+    useIntelligenceStore.setState({
+      hydrated: true,
+      config: { ...DEFAULT_INTELLIGENCE_CONFIG, provider: "claude-cli" },
+    })
+    await renderSettings()
+
+    await user.click(await screen.findByLabelText("Use a custom model"))
+    const input = screen.getByPlaceholderText("model-identifier")
+    await user.type(input, "claude-opus-4-8")
+
+    await waitFor(() => {
+      expect(useIntelligenceStore.getState().config.claudeCli.model).toBe(
+        "claude-opus-4-8",
+      )
+    })
+  })
+
+  it("renders the chat-instructions editor in the Intelligence section", async () => {
+    await renderSettings()
+    expect(screen.getByText("Chat instructions")).toBeInTheDocument()
+  })
+
   it("'Off' is the selected radio for first-run users", async () => {
     useIntelligenceStore.setState({
       hydrated: true,

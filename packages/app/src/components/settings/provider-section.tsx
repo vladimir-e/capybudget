@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react"
 import { open as shellOpen } from "@tauri-apps/plugin-shell"
-import { AlertTriangle, Check, Loader2 } from "lucide-react"
+import { AlertTriangle, Check, Loader2, Sparkles } from "lucide-react"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import {
@@ -16,7 +16,19 @@ import { recheckClaudeCli } from "@/services/claude-cli-detect"
 import { useIntelligenceStore } from "@/stores/intelligence-store"
 import type { IntelligenceProvider } from "@capybudget/intelligence"
 import { AnthropicConfig, OpenAiConfig } from "./api-provider-config"
+import { ModelField, type ModelOption } from "./model-field"
 import { TestResult, type TestState } from "./test-result"
+
+declare const __IS_DEMO__: boolean
+
+// CLI `--model` aliases plus the empty default. The custom field on
+// ModelField covers any full model ID beyond these.
+const CLAUDE_CLI_MODELS: ModelOption[] = [
+  { value: "", label: "Default (Claude Code decides)" },
+  { value: "opus", label: "Opus" },
+  { value: "sonnet", label: "Sonnet" },
+  { value: "haiku", label: "Haiku" },
+]
 
 // The Claude Code adapter spawns the `claude` CLI and routes tool calls
 // through an MCP server we run as a child Node process. In a distributed
@@ -106,6 +118,20 @@ export function ProviderSection() {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
+        {__IS_DEMO__ && (
+          <div className="flex items-start gap-3 rounded-lg border border-brand/30 bg-brand/5 px-3 py-2.5 text-sm">
+            <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-brand" />
+            <div className="flex-1">
+              <p className="font-medium">AI is only available in the desktop app</p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                The web demo runs entirely in your browser and can't store an AI
+                provider. Download the desktop app to chat with Capy and use
+                smart import.
+              </p>
+            </div>
+          </div>
+        )}
+
         {claudeMissingWarning && (
           <div className="flex items-start gap-3 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2.5 text-sm text-destructive">
             <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
@@ -149,17 +175,33 @@ export function ProviderSection() {
           className="gap-3"
         >
           {/* "Off" is first so the default radio is visibly the
-              opt-out — users explicitly enable AI features. */}
+              opt-out — users explicitly enable AI features. The API
+              providers lead; Claude Code is the advanced, source-build
+              option and sits last. */}
           <ProviderRadio
             value={OFF_FORM_VALUE}
             label="Off"
             description="Capy is disabled. Pick a provider below to enable AI features."
+            disabled={__IS_DEMO__}
+          />
+          <ProviderRadio
+            value="anthropic"
+            label="Anthropic API"
+            description="Direct API calls. Pay-per-use with your own key."
+            disabled={__IS_DEMO__}
+          />
+          <ProviderRadio
+            value="openai"
+            label="OpenAI API"
+            description="Direct API calls. Pay-per-use with your own key."
+            disabled={__IS_DEMO__}
           />
           <ProviderRadio
             value="claude-cli"
             label="Claude Code"
+            badge="advanced"
             description="Use the local Claude Code CLI. Runs against your Claude subscription."
-            disabled={claudeDetected === false || claudeProbing}
+            disabled={__IS_DEMO__ || claudeDetected === false || claudeProbing}
             hint={
               IS_DIST_BUILD ? (
                 <span>
@@ -196,20 +238,11 @@ export function ProviderSection() {
               ) : null
             }
           />
-          <ProviderRadio
-            value="anthropic"
-            label="Anthropic API"
-            description="Direct API calls. Pay-per-use with your own key."
-          />
-          <ProviderRadio
-            value="openai"
-            label="OpenAI API"
-            description="Direct API calls. Pay-per-use with your own key."
-          />
         </RadioGroup>
 
-        {/* Per-provider configuration — null (Off) has no sub-config. */}
-        {provider !== null && (
+        {/* Per-provider configuration — null (Off) has no sub-config, and
+            the demo can't run any provider. */}
+        {!__IS_DEMO__ && provider !== null && (
           <div className="border-t pt-6">
             {provider === "claude-cli" && (
               <ClaudeCliConfig
@@ -241,6 +274,7 @@ interface ProviderRadioProps {
   label: string
   description: string
   disabled?: boolean
+  badge?: string
   hint?: React.ReactNode
 }
 
@@ -249,6 +283,7 @@ function ProviderRadio({
   label,
   description,
   disabled,
+  badge,
   hint,
 }: ProviderRadioProps) {
   return (
@@ -260,7 +295,14 @@ function ProviderRadio({
     >
       <RadioGroupItem value={value} disabled={disabled} className="mt-0.5" />
       <div className="flex-1 space-y-1">
-        <div className="text-sm font-medium leading-none">{label}</div>
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-medium leading-none">{label}</span>
+          {badge && (
+            <span className="rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+              {badge}
+            </span>
+          )}
+        </div>
         <p className="text-xs text-muted-foreground leading-snug">
           {description}
         </p>
@@ -280,6 +322,8 @@ interface ClaudeCliConfigProps {
 
 function ClaudeCliConfig({ detected, probing, onRecheck }: ClaudeCliConfigProps) {
   const [testState, setTestState] = useState<TestState>({ kind: "idle" })
+  const model = useIntelligenceStore((s) => s.config.claudeCli.model)
+  const setModel = useIntelligenceStore((s) => s.setClaudeCliModel)
 
   async function handleTest() {
     setTestState({ kind: "running" })
@@ -303,39 +347,48 @@ function ClaudeCliConfig({ detected, probing, onRecheck }: ClaudeCliConfigProps)
   }
 
   return (
-    <div className="space-y-3">
-      <div className="flex items-center justify-between">
-        <p className="text-sm">
-          {probing ? (
-            <span className="inline-flex items-center gap-1.5 text-muted-foreground">
-              <Loader2 className="h-3.5 w-3.5 animate-spin" /> Checking…
-            </span>
-          ) : detected ? (
-            <span className="inline-flex items-center gap-1.5 text-amount-income">
-              <Check className="h-3.5 w-3.5" /> Detected
-            </span>
-          ) : (
-            <span className="inline-flex items-center gap-1.5 text-destructive">
-              <AlertTriangle className="h-3.5 w-3.5" /> Not detected
-            </span>
-          )}
-        </p>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={handleTest}
-          disabled={testState.kind === "running"}
-        >
-          {testState.kind === "running" ? (
-            <>
-              <Loader2 className="h-3 w-3 animate-spin" /> Testing…
-            </>
-          ) : (
-            "Test connection"
-          )}
-        </Button>
+    <div className="space-y-5">
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <p className="text-sm">
+            {probing ? (
+              <span className="inline-flex items-center gap-1.5 text-muted-foreground">
+                <Loader2 className="h-3.5 w-3.5 animate-spin" /> Checking…
+              </span>
+            ) : detected ? (
+              <span className="inline-flex items-center gap-1.5 text-amount-income">
+                <Check className="h-3.5 w-3.5" /> Detected
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1.5 text-destructive">
+                <AlertTriangle className="h-3.5 w-3.5" /> Not detected
+              </span>
+            )}
+          </p>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleTest}
+            disabled={testState.kind === "running"}
+          >
+            {testState.kind === "running" ? (
+              <>
+                <Loader2 className="h-3 w-3 animate-spin" /> Testing…
+              </>
+            ) : (
+              "Test connection"
+            )}
+          </Button>
+        </div>
+        <TestResult state={testState} />
       </div>
-      <TestResult state={testState} />
+
+      <ModelField
+        id="claude-cli-model"
+        model={model}
+        onSaveModel={setModel}
+        models={CLAUDE_CLI_MODELS}
+      />
     </div>
   )
 }

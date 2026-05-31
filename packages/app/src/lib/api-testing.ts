@@ -50,7 +50,7 @@ export async function pingOpenAi(
     const { default: OpenAI } = await import("openai")
     const client = new OpenAI({ apiKey, dangerouslyAllowBrowser: true })
     await client.chat.completions.create({
-      model: model || "gpt-5.4",
+      model: model || "gpt-5.5",
       max_completion_tokens: 8,
       messages: [{ role: "user", content: "Hi" }],
     })

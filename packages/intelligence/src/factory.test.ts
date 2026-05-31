@@ -67,9 +67,23 @@ describe("createIntelligenceSession", () => {
       budgetPath: opts.budgetPath,
       mcpServerPath: opts.mcpServerPath,
       systemPrompt: opts.systemPrompt,
+      model: "",
       onEvent: opts.onEvent,
       onExit: opts.onExit,
     })
+  })
+
+  it("threads claudeCliModel through to the claude-cli ctor as model", () => {
+    const ctor = vi.fn().mockImplementation(() => makeStubSession())
+    const opts: SessionOptions = { ...makeOptions(), claudeCliModel: "opus" }
+    createIntelligenceSession({
+      config: { ...DEFAULT_INTELLIGENCE_CONFIG, provider: "claude-cli" },
+      adapters: { "claude-cli": ctor },
+      options: opts,
+    })
+    expect(ctor).toHaveBeenCalledWith(
+      expect.objectContaining({ model: "opus" }),
+    )
   })
 
   it("threads onExit through to the claude-cli ctor", () => {
@@ -90,9 +104,9 @@ describe("createIntelligenceSession", () => {
     const ctor = vi.fn()
     const session = createIntelligenceSession({
       config: {
+        ...DEFAULT_INTELLIGENCE_CONFIG,
         provider: "anthropic",
         anthropic: { apiKey: "", model: "claude-sonnet-4-6" },
-        openai: { apiKey: "", model: "gpt-5.4" },
       },
       adapters: { anthropic: ctor },
       options: makeOptions(),
@@ -106,9 +120,9 @@ describe("createIntelligenceSession", () => {
     const opts = makeOptions()
     const session = createIntelligenceSession({
       config: {
+        ...DEFAULT_INTELLIGENCE_CONFIG,
         provider: "anthropic",
         anthropic: { apiKey: "sk-ant-1", model: "claude-sonnet-4-6" },
-        openai: { apiKey: "", model: "gpt-5.4" },
       },
       adapters: { anthropic: ctor },
       options: opts,
@@ -130,9 +144,9 @@ describe("createIntelligenceSession", () => {
     const opts = makeOptions()
     const session = createIntelligenceSession({
       config: {
+        ...DEFAULT_INTELLIGENCE_CONFIG,
         provider: "openai",
-        anthropic: { apiKey: "", model: "claude-sonnet-4-6" },
-        openai: { apiKey: "sk-openai-1", model: "gpt-5.4" },
+        openai: { apiKey: "sk-openai-1", model: "gpt-5.5" },
       },
       adapters: { openai: ctor },
       options: opts,
@@ -142,7 +156,7 @@ describe("createIntelligenceSession", () => {
       budgetPath: opts.budgetPath,
       systemPrompt: opts.systemPrompt,
       apiKey: "sk-openai-1",
-      model: "gpt-5.4",
+      model: "gpt-5.5",
       onEvent: opts.onEvent,
       repo: opts.repo,
       fileAdapter: opts.fileAdapter,
