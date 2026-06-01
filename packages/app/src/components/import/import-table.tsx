@@ -8,6 +8,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Checkbox } from "@/components/ui/checkbox";
+import { EmptyState } from "@/components/ui/empty-state";
 import { CategorySelector } from "@/components/budget/category-selector";
 import { AccountSelector } from "@/components/budget/account-selector";
 import type { ImportTransaction, DuplicateMatch } from "@capybudget/core";
@@ -165,11 +166,12 @@ export function ImportTable({
 
   if (transactions.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center py-24 text-muted-foreground">
-        <Inbox className="h-12 w-12 mb-3 opacity-30" strokeWidth={1.5} />
-        <p className="text-base font-medium">No transactions found</p>
-        <p className="text-sm mt-1 opacity-70">Try adjusting your search.</p>
-      </div>
+      <EmptyState
+        icon={<Inbox strokeWidth={1.5} />}
+        title="No transactions found"
+        description="Try adjusting your search."
+        className="py-24"
+      />
     );
   }
 

@@ -15,6 +15,8 @@ import {
 } from "@capybudget/core";
 import type { Transaction, DateRange } from "@capybudget/core";
 import { useThemeColors } from "./use-theme-colors";
+import { EmptyState } from "@/components/ui/empty-state";
+import { NO_DATA_YET } from "./empty-copy";
 import { TransactionsModal } from "@/components/budget/transactions-modal";
 import { TransactionsDrilldownLink } from "@/components/budget/transactions-drilldown-link";
 import type { PeriodType } from "@/stores/analytics-store";
@@ -53,12 +55,14 @@ interface MerchantsTabProps {
   transactions: Transaction[];
   dateRange: DateRange;
   periodType: PeriodType;
+  hasAnyTransactions: boolean;
 }
 
 export function MerchantsTab({
   transactions,
   dateRange,
   periodType,
+  hasAnyTransactions,
 }: MerchantsTabProps) {
   const merchants = useMemo(
     () => getTopMerchants(transactions, 15),
@@ -89,9 +93,7 @@ export function MerchantsTab({
 
   if (merchants.length === 0) {
     return (
-      <p className="text-sm text-muted-foreground py-12 text-center">
-        No merchant data in this period
-      </p>
+      <EmptyState title={hasAnyTransactions ? "No merchant data in this period" : NO_DATA_YET} />
     );
   }
 

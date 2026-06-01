@@ -13,6 +13,8 @@ import {
 } from "@capybudget/core";
 import type { Transaction, Category, DateRange } from "@capybudget/core";
 import { ChartSwitcher } from "./chart-switcher";
+import { EmptyState } from "@/components/ui/empty-state";
+import { NO_DATA_YET } from "./empty-copy";
 import { TransactionsModal } from "@/components/budget/transactions-modal";
 import { TransactionsDrilldownLink } from "@/components/budget/transactions-drilldown-link";
 import type { PeriodType } from "@/stores/analytics-store";
@@ -86,6 +88,7 @@ interface SpendingTabProps {
   categories: Category[];
   dateRange: DateRange;
   periodType: PeriodType;
+  hasAnyTransactions: boolean;
 }
 
 type ViewMode = SpendingViewMode;
@@ -100,6 +103,7 @@ export function SpendingTab({
   categories,
   dateRange,
   periodType,
+  hasAnyTransactions,
 }: SpendingTabProps) {
   const [viewMode, setViewMode] = useState<ViewMode>("expenses");
   const [drilldown, setDrilldown] = useState<SliceDrilldown | null>(null);
@@ -208,9 +212,7 @@ export function SpendingTab({
           </div>
         </div>
       ) : (
-        <p className="text-sm text-muted-foreground py-12 text-center">
-          {emptyMessage}
-        </p>
+        <EmptyState title={hasAnyTransactions ? emptyMessage : NO_DATA_YET} />
       )}
 
       <TransactionsModal

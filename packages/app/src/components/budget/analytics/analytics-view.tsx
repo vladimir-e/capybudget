@@ -60,6 +60,11 @@ export function AnalyticsView() {
     }
   }, [transactions, updateDataBounds]);
 
+  // Whole-budget signal — distinguishes a brand-new budget (forward-looking
+  // copy) from a period that simply has no data (period-scoped copy). Tabs
+  // can't derive this themselves: they receive period-filtered slices.
+  const hasAnyTransactions = transactions.length > 0;
+
   // Filtered transactions
   const filtered = useMemo(
     () => filterTransactionsByDateRange(transactions, dateRange),
@@ -135,22 +140,38 @@ export function AnalyticsView() {
             categories={categories}
             dateRange={dateRange}
             periodType={periodType}
+            hasAnyTransactions={hasAnyTransactions}
           />
         )}
         {activeTab === "netWorth" && (
-          <NetWorthTab accounts={accounts} transactions={transactions} dateRange={dateRange} />
+          <NetWorthTab
+            accounts={accounts}
+            transactions={transactions}
+            dateRange={dateRange}
+            hasAnyTransactions={hasAnyTransactions}
+          />
         )}
         {activeTab === "cashFlow" && (
-          <CashFlowTab transactions={transactions} dateRange={dateRange} />
+          <CashFlowTab
+            transactions={transactions}
+            dateRange={dateRange}
+            hasAnyTransactions={hasAnyTransactions}
+          />
         )}
         {activeTab === "compare" && (
-          <CompareTab transactions={transactions} categories={categories} dateRange={dateRange} />
+          <CompareTab
+            transactions={transactions}
+            categories={categories}
+            dateRange={dateRange}
+            hasAnyTransactions={hasAnyTransactions}
+          />
         )}
         {activeTab === "merchants" && (
           <MerchantsTab
             transactions={filtered}
             dateRange={dateRange}
             periodType={periodType}
+            hasAnyTransactions={hasAnyTransactions}
           />
         )}
         {activeTab === "monthlyBudget" && (
@@ -158,6 +179,7 @@ export function AnalyticsView() {
             transactions={transactions}
             categories={categories}
             dateRange={dateRange}
+            hasAnyTransactions={hasAnyTransactions}
           />
         )}
       </div>

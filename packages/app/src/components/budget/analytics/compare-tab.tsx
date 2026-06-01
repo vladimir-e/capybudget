@@ -18,6 +18,8 @@ import {
 import type { Category, DateRange, Transaction } from "@capybudget/core";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ChartSwitcher } from "./chart-switcher";
+import { EmptyState } from "@/components/ui/empty-state";
+import { NO_DATA_YET } from "./empty-copy";
 
 // ── Constants ──
 
@@ -59,6 +61,7 @@ interface CompareTabProps {
   transactions: Transaction[];
   categories: Category[];
   dateRange: DateRange;
+  hasAnyTransactions: boolean;
 }
 
 // ── Tooltip ──
@@ -221,7 +224,7 @@ interface CompareTabBodyProps extends CompareTabProps {
   viewMode: ViewMode;
 }
 
-function CompareTabBody({ transactions, categories, dateRange, viewMode }: CompareTabBodyProps) {
+function CompareTabBody({ transactions, categories, dateRange, viewMode, hasAnyTransactions }: CompareTabBodyProps) {
   // Build category rows for current period + view mode.
   const rows = useMemo(
     () => buildCategoryRows(transactions, categories, dateRange, viewMode),
@@ -340,9 +343,13 @@ function CompareTabBody({ transactions, categories, dateRange, viewMode }: Compa
 
   if (!periodHasData) {
     return (
-      <p className="text-sm text-muted-foreground py-12 text-center">
-        No {viewMode === "expense" ? "expenses" : "income"} in this period
-      </p>
+      <EmptyState
+        title={
+          hasAnyTransactions
+            ? `No ${viewMode === "expense" ? "expenses" : "income"} in this period`
+            : NO_DATA_YET
+        }
+      />
     );
   }
 

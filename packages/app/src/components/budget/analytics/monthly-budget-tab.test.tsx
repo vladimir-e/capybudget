@@ -99,7 +99,7 @@ describe("MonthlyBudgetTab — KPI strip", () => {
   it("'Spent this month' drills into every categorized expense in the month", async () => {
     const user = userEvent.setup();
     renderWithProviders(
-      <MonthlyBudgetTab transactions={txns} categories={mockCategories} dateRange={dateRange} />,
+      <MonthlyBudgetTab transactions={txns} categories={mockCategories} dateRange={dateRange} hasAnyTransactions />,
     );
 
     const link = screen.getByRole("button", { name: /view spent this month transactions/i });
@@ -116,7 +116,7 @@ describe("MonthlyBudgetTab — KPI strip", () => {
 
   it("'Tracking toward' and 'Over budget' cards are display-only (no drilldown link)", () => {
     renderWithProviders(
-      <MonthlyBudgetTab transactions={txns} categories={mockCategories} dateRange={dateRange} />,
+      <MonthlyBudgetTab transactions={txns} categories={mockCategories} dateRange={dateRange} hasAnyTransactions />,
     );
 
     expect(
@@ -131,7 +131,7 @@ describe("MonthlyBudgetTab — KPI strip", () => {
 describe("MonthlyBudgetTab — row states", () => {
   it("shows overspend as a signed negative ('-$X') in the expense token", () => {
     renderWithProviders(
-      <MonthlyBudgetTab transactions={txns} categories={mockCategories} dateRange={dateRange} />,
+      <MonthlyBudgetTab transactions={txns} categories={mockCategories} dateRange={dateRange} hasAnyTransactions />,
     );
     // Rent: $2,000 spent against a $1,000 budget → -$1,000.00 remaining.
     const remaining = screen.getByText("-$1,000.00");
@@ -142,7 +142,7 @@ describe("MonthlyBudgetTab — row states", () => {
 
   it("tags an untargeted category's target cell with a 'set' affordance and a dash for remaining", () => {
     renderWithProviders(
-      <MonthlyBudgetTab transactions={txns} categories={mockCategories} dateRange={dateRange} />,
+      <MonthlyBudgetTab transactions={txns} categories={mockCategories} dateRange={dateRange} hasAnyTransactions />,
     );
     // Subscriptions has no budget and no history → its target cell offers to
     // set a budget rather than showing a number.
@@ -154,7 +154,7 @@ describe("MonthlyBudgetTab — row states", () => {
 describe("MonthlyBudgetTab — with-history table", () => {
   it("renders the two-pin bar legend (last month + reference)", () => {
     renderWithProviders(
-      <MonthlyBudgetTab transactions={txns} categories={mockCategories} dateRange={dateRange} />,
+      <MonthlyBudgetTab transactions={txns} categories={mockCategories} dateRange={dateRange} hasAnyTransactions />,
     );
     // The legend keys only the history pins now; the zones/divider are
     // self-evident and no longer carry a legend row.
@@ -169,7 +169,7 @@ describe("MonthlyBudgetTab — with-history table", () => {
   it("labels the reference picker with the resolved basis (trailing6 → '6-mo avg')", () => {
     mockBasis = "trailing6";
     renderWithProviders(
-      <MonthlyBudgetTab transactions={txns} categories={mockCategories} dateRange={dateRange} />,
+      <MonthlyBudgetTab transactions={txns} categories={mockCategories} dateRange={dateRange} hasAnyTransactions />,
     );
     expect(screen.getByRole("button", { name: /comparison basis: 6-mo avg/i })).toBeInTheDocument();
   });
@@ -177,7 +177,7 @@ describe("MonthlyBudgetTab — with-history table", () => {
   it("resolves sameMonthLastYear to the actual month on the trigger (May 2026 → 'May 2025')", () => {
     mockBasis = "sameMonthLastYear";
     renderWithProviders(
-      <MonthlyBudgetTab transactions={txns} categories={mockCategories} dateRange={dateRange} />,
+      <MonthlyBudgetTab transactions={txns} categories={mockCategories} dateRange={dateRange} hasAnyTransactions />,
     );
     // dateRange starts May 2026 → the reference month is May 2025.
     expect(screen.getByRole("button", { name: /comparison basis: May 2025/i })).toBeInTheDocument();
@@ -186,7 +186,7 @@ describe("MonthlyBudgetTab — with-history table", () => {
   it("persists a new basis when an option is chosen", async () => {
     const user = userEvent.setup();
     renderWithProviders(
-      <MonthlyBudgetTab transactions={txns} categories={mockCategories} dateRange={dateRange} />,
+      <MonthlyBudgetTab transactions={txns} categories={mockCategories} dateRange={dateRange} hasAnyTransactions />,
     );
     await user.click(screen.getByRole("button", { name: /comparison basis: 3-mo avg/i }));
     // The menu lists the descriptive option labels; pick "12 months".
@@ -208,7 +208,7 @@ describe("MonthlyBudgetTab — no-history first month", () => {
 
   it("renders untargeted rows with the KPI strip and hides the legend + filter", () => {
     renderWithProviders(
-      <MonthlyBudgetTab transactions={monthOneTxns} categories={freshCats} dateRange={dateRange} />,
+      <MonthlyBudgetTab transactions={monthOneTxns} categories={freshCats} dateRange={dateRange} hasAnyTransactions />,
     );
     // The categories render as untargeted rows — no explanatory notice.
     expect(screen.getByText("Groceries")).toBeInTheDocument();
@@ -223,10 +223,17 @@ describe("MonthlyBudgetTab — no-history first month", () => {
 });
 
 describe("MonthlyBudgetTab — genuinely empty", () => {
-  it("prompts to add categories and shows no framing chrome", () => {
+  it("prompts to add categories with gentle first-run framing", () => {
     renderWithProviders(
-      <MonthlyBudgetTab transactions={[]} categories={[]} dateRange={dateRange} />,
+      <MonthlyBudgetTab
+        transactions={[]}
+        categories={[]}
+        dateRange={dateRange}
+        hasAnyTransactions={false}
+      />,
     );
     expect(screen.getByText(/No categories to budget/i)).toBeInTheDocument();
+    // Brand-new budget → forward-looking copy, not an imperative.
+    expect(screen.getByText(/useful once you add categories and data/i)).toBeInTheDocument();
   });
 });

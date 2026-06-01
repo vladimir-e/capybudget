@@ -64,6 +64,7 @@ describe("SpendingTab — drilldown wiring", () => {
         categories={mockCategories}
         dateRange={dateRange}
         periodType="month"
+        hasAnyTransactions
       />,
     );
 

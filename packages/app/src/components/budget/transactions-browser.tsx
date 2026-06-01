@@ -3,6 +3,7 @@ import { Search, X } from "lucide-react";
 import type { Category, Transaction } from "@capybudget/core";
 import { formatMoney } from "@capybudget/core";
 import { Input } from "@/components/ui/input";
+import { EmptyState } from "@/components/ui/empty-state";
 import { TransactionList } from "@/components/budget/transaction-list";
 import { useAccounts, useCategories } from "@/hooks/use-budget-data";
 import {
@@ -226,9 +227,14 @@ export function TransactionsBrowser({
        *  defers to the parent flex height in modal context. */}
       <div className="flex-1 min-h-0 overflow-auto">
         {emptyFromSearch ? (
-          <p className="text-sm text-muted-foreground py-12 text-center">
-            No transactions match <code className="font-mono text-xs">{search}</code>
-          </p>
+          <EmptyState
+            title={
+              <>
+                No transactions match{" "}
+                <code className="font-mono text-xs">{search}</code>
+              </>
+            }
+          />
         ) : (
           <TransactionList
             transactions={visible}

@@ -24,17 +24,20 @@ import {
 } from "./monthly-budget-drilldown";
 import { KpiStrip } from "./monthly-budget-kpi-strip";
 import { ColumnHeader, GroupSection } from "./monthly-budget-group-section";
+import { EmptyState } from "@/components/ui/empty-state";
 
 interface MonthlyBudgetTabProps {
   transactions: Transaction[];
   categories: Category[];
   dateRange: DateRange;
+  hasAnyTransactions: boolean;
 }
 
 export function MonthlyBudgetTab({
   transactions,
   categories,
   dateRange,
+  hasAnyTransactions,
 }: MonthlyBudgetTabProps) {
   const [hideUntargeted, setHideUntargeted] = useState(false);
   const [drilldown, setDrilldown] = useState<MonthlyBudgetDrilldown | null>(null);
@@ -152,9 +155,14 @@ export function MonthlyBudgetTab({
 
       {/* Empty state */}
       {!hasCategories ? (
-        <p className="text-sm text-muted-foreground py-12 text-center">
-          No categories to budget. Add categories to start tracking.
-        </p>
+        <EmptyState
+          title="No categories to budget"
+          description={
+            hasAnyTransactions
+              ? "Add categories to start tracking."
+              : "This will be useful once you add categories and data."
+          }
+        />
       ) : (
         <div className="space-y-3">
           {/* Filter + legend share one row: the "show only tracked" toggle

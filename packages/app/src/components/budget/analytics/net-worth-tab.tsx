@@ -20,6 +20,8 @@ import {
 import type { Account, Transaction, DateRange } from "@capybudget/core";
 import { ChartSwitcher } from "./chart-switcher";
 import { useThemeColors } from "./use-theme-colors";
+import { EmptyState } from "@/components/ui/empty-state";
+import { NO_DATA_YET } from "./empty-copy";
 
 const SHORT_MONTHS = [
   "Jan", "Feb", "Mar", "Apr", "May", "Jun",
@@ -52,6 +54,7 @@ interface NetWorthTabProps {
   accounts: Account[];
   transactions: Transaction[];
   dateRange: DateRange;
+  hasAnyTransactions: boolean;
 }
 
 type ChartMode = "bar" | "area";
@@ -61,7 +64,7 @@ const CHART_OPTIONS: Array<{ value: ChartMode; label: string }> = [
   { value: "area", label: "Area" },
 ];
 
-export function NetWorthTab({ accounts, transactions, dateRange }: NetWorthTabProps) {
+export function NetWorthTab({ accounts, transactions, dateRange, hasAnyTransactions }: NetWorthTabProps) {
   const [chartMode, setChartMode] = useState<ChartMode>("bar");
 
   // Defer heavy inputs so the tab shell renders immediately
@@ -93,9 +96,7 @@ export function NetWorthTab({ accounts, transactions, dateRange }: NetWorthTabPr
 
   if (chartData.length === 0) {
     return (
-      <p className="text-sm text-muted-foreground py-12 text-center">
-        No data available
-      </p>
+      <EmptyState title={hasAnyTransactions ? "No data available" : NO_DATA_YET} />
     );
   }
 

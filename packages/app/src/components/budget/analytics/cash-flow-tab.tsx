@@ -18,6 +18,8 @@ import {
   getCashFlow,
 } from "@capybudget/core";
 import type { Transaction, DateRange } from "@capybudget/core";
+import { EmptyState } from "@/components/ui/empty-state";
+import { NO_DATA_YET } from "./empty-copy";
 
 // ── Tooltip ──
 
@@ -57,9 +59,10 @@ function CashFlowTooltipContent({
 interface CashFlowTabProps {
   transactions: Transaction[];
   dateRange: DateRange;
+  hasAnyTransactions: boolean;
 }
 
-export function CashFlowTab({ transactions, dateRange }: CashFlowTabProps) {
+export function CashFlowTab({ transactions, dateRange, hasAnyTransactions }: CashFlowTabProps) {
   const cashFlowData = useMemo(
     () => getCashFlow(transactions, ensureMinMonths(dateRange, 12)),
     [transactions, dateRange],
@@ -72,9 +75,9 @@ export function CashFlowTab({ transactions, dateRange }: CashFlowTabProps) {
 
   if (cashFlowData.length === 0) {
     return (
-      <p className="text-sm text-muted-foreground py-12 text-center">
-        No cash flow data in this period
-      </p>
+      <EmptyState
+        title={hasAnyTransactions ? "No cash flow data in this period" : NO_DATA_YET}
+      />
     );
   }
 

@@ -11,6 +11,7 @@ CHANGELOG PHILOSOPHY:
 
 ## Unreleased
 
+- **Analytics** - Shared `EmptyState` component; analytics tabs distinguish a brand-new budget ("useful once you have more data") from an empty period.
 - **Web** - Vercel Web Analytics (visits only, cookieless) on promo site + demo; demo gains a "Get the desktop app" CTA and a small-screen notice.
 - **Settings** - Dedicated budget-scoped Settings screen (⌘,) with Intelligence + Categories sections; chat survives the round-trip; Claude Code model picker; categories moved out of the analytics cog.
 - **Demo** - Scenarios seed ~3 years of data anchored to today, so analytics render live; brief seeding screen on entry.
