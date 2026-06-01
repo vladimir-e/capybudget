@@ -7,7 +7,6 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Checkbox } from "@/components/ui/checkbox";
-import { EmptyState } from "@/components/ui/empty-state";
 import { useSetNetWorthExclusions } from "@/hooks/use-account-mutations";
 import { computeToggleExclusions } from "./net-worth-filter-utils";
 
@@ -67,7 +66,9 @@ export function NetWorthFilter({ accounts }: NetWorthFilterProps) {
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto py-1">
           {candidates.length === 0 && (
-            <EmptyState title="No active accounts" className="px-3 py-6" />
+            <div className="px-3 py-2 text-sm text-muted-foreground">
+              No active accounts.
+            </div>
           )}
           {[...byType.entries()].map(([type, accts], idx) => (
             <div key={type} className={idx === 0 ? "" : "mt-1"}>
