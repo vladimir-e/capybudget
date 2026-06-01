@@ -1,10 +1,12 @@
-import { useCallback, useState, type ReactNode } from "react";
+import { useCallback, useMemo, useState, type ReactNode } from "react";
 import { TransactionList } from "@/components/budget/transaction-list";
 import { TransactionToolbar } from "@/components/budget/transaction-toolbar";
 import { DeleteTransactionDialog } from "@/components/budget/delete-transaction-dialog";
 import { BulkActionBar } from "@/components/budget/bulk-action-bar";
+import { FirstRunGuide } from "@/components/budget/first-run-guide";
+import { EmptyState } from "@/components/ui/empty-state";
 import { useBudgetUI } from "@/contexts/budget-context";
-import { useAccounts, useCategories } from "@/hooks/use-budget-data";
+import { useAccounts, useCategories, useTransactions } from "@/hooks/use-budget-data";
 import { useUpdateTransaction, useDeleteTransaction } from "@/hooks/use-transaction-mutations";
 import { useTransactionFilters } from "@/hooks/use-transaction-filters";
 import { useTransactionSelection } from "@/hooks/use-transaction-selection";
@@ -21,6 +23,7 @@ interface TransactionViewProps {
 export function TransactionView({ transactions, header, showAccountColumn, readOnly }: TransactionViewProps) {
   const { data: accounts = [] } = useAccounts();
   const { data: categories = [] } = useCategories();
+  const { data: allTransactions = [] } = useTransactions();
   const { editingTxnId, editTransaction, cancelEdit } = useBudgetUI();
   const { filters, setFilters, sort, setSort, filtered } = useTransactionFilters(transactions, accounts, categories);
   const selection = useTransactionSelection(filtered);
@@ -48,6 +51,22 @@ export function TransactionView({ transactions, header, showAccountColumn, readO
     [updateTxn, editingTxnId, cancelEdit],
   );
 
+  const isFiltered =
+    filters.search !== "" || filters.categoryId !== null || filters.dateRange !== null;
+
+  // First run only: the whole budget is empty and we're on the primary
+  // all-accounts view (showAccountColumn). A single empty account while others
+  // hold data, or a filter/search that matched nothing, get the plain state.
+  const emptyState = useMemo<ReactNode>(() => {
+    if (isFiltered) {
+      return <EmptyState className="py-24" title="No matching transactions" description="Try adjusting your search or filters." />;
+    }
+    if (showAccountColumn && allTransactions.length === 0) {
+      return <FirstRunGuide />;
+    }
+    return undefined;
+  }, [isFiltered, showAccountColumn, allTransactions.length]);
+
   return (
     <div>
       {header}
@@ -68,6 +87,7 @@ export function TransactionView({ transactions, header, showAccountColumn, readO
           onToggleAll={readOnly ? undefined : selection.toggleAll}
           allSelected={selection.allSelected}
           indeterminate={selection.indeterminate}
+          emptyState={emptyState}
         />
 
         {!readOnly && (

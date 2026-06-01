@@ -179,13 +179,18 @@ export function BudgetShell() {
     setFormOpen(false);
   }, []);
 
+  const openAccountDialog = useCallback(() => setAccountDialogOpen(true), []);
+
   const uiCtx = useMemo<BudgetUIContextValue>(() => ({
     editingTxnId: editingTxn?.id,
     editTransaction,
     cancelEdit,
     currentAccountId,
     setCurrentAccountId,
-  }), [editingTxn?.id, editTransaction, cancelEdit, currentAccountId]);
+    hasAccounts,
+    openAccountDialog,
+    startTransaction: toggleForm,
+  }), [editingTxn?.id, editTransaction, cancelEdit, currentAccountId, hasAccounts, openAccountDialog, toggleForm]);
 
   return (
     <BudgetUIProvider value={uiCtx}>

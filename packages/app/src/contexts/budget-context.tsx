@@ -7,6 +7,12 @@ export interface BudgetUIContextValue {
   cancelEdit: () => void;
   currentAccountId: string | undefined;
   setCurrentAccountId: (id: string | undefined) => void;
+  /** Whether the budget has at least one non-archived account. */
+  hasAccounts: boolean;
+  /** Open the Add Account dialog. */
+  openAccountDialog: () => void;
+  /** Open the new-transaction flow (the ⌘N path: redirects to account creation when there are no accounts). */
+  startTransaction: () => void;
 }
 
 const BudgetUIContext = createContext<BudgetUIContextValue | null>(null);

@@ -24,8 +24,9 @@ describe("Fresh start", () => {
     });
     await waitForApp();
 
-    // "Add transaction" should redirect to account creation
-    await user.click(screen.getByRole("button", { name: /add transaction/i }));
+    // The header "Add transaction" should redirect to account creation
+    const header = screen.getByRole("banner");
+    await user.click(within(header).getByRole("button", { name: /add transaction/i }));
 
     const dialog = await screen.findByRole("dialog");
     expect(within(dialog).getByText("Add Account")).toBeInTheDocument();
@@ -37,9 +38,10 @@ describe("Fresh start", () => {
       seed: { accounts: [], categories: [groceries], transactions: [] },
     });
     await waitForApp();
+    const header = screen.getByRole("banner");
 
     // Step 1: Click "Add transaction" → account dialog opens (no accounts yet)
-    await user.click(screen.getByRole("button", { name: /add transaction/i }));
+    await user.click(within(header).getByRole("button", { name: /add transaction/i }));
     const dialog = await screen.findByRole("dialog");
 
     // Step 2: Create an account
@@ -54,7 +56,7 @@ describe("Fresh start", () => {
     expect(repo.data.accounts[0].name).toBe("My Checking");
 
     // Step 3: Now "Add transaction" opens the form
-    await user.click(screen.getByRole("button", { name: /add transaction/i }));
+    await user.click(within(header).getByRole("button", { name: /add transaction/i }));
     const amountInput = screen.getByPlaceholderText("0.00");
     await waitFor(() => expect(amountInput).toHaveFocus());
 

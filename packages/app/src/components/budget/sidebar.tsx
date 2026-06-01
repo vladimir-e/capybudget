@@ -137,7 +137,7 @@ export function Sidebar({
   }
 
   return (
-    <div className="relative flex w-72 h-full flex-col bg-sidebar shrink-0">
+    <aside aria-label="Accounts" className="relative flex w-72 h-full flex-col bg-sidebar shrink-0">
       {/* Net Worth — warm hero area */}
       <div className="px-4 pt-4 pb-3">
         <div className="rounded-lg bg-brand-subtle px-3 py-3">
@@ -284,7 +284,7 @@ export function Sidebar({
           <DialogFooter showCloseButton />
         </DialogContent>
       </Dialog>
-    </div>
+    </aside>
   );
 }
 

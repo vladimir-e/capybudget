@@ -49,7 +49,8 @@ describe("Account lifecycle", () => {
     });
     await waitForApp();
 
-    await user.click(screen.getByRole("button", { name: /add account/i }));
+    const sidebar = screen.getByRole("complementary", { name: "Accounts" });
+    await user.click(within(sidebar).getByRole("button", { name: /add account/i }));
     const dialog = await screen.findByRole("dialog");
 
     await user.type(within(dialog).getByLabelText("Name"), "Primary Checking");
@@ -70,7 +71,8 @@ describe("Account lifecycle", () => {
     });
     await waitForApp();
 
-    await user.click(screen.getByRole("button", { name: /add account/i }));
+    const sidebar = screen.getByRole("complementary", { name: "Accounts" });
+    await user.click(within(sidebar).getByRole("button", { name: /add account/i }));
     const dialog = await screen.findByRole("dialog");
 
     await user.type(within(dialog).getByLabelText("Name"), "BofA Savings");

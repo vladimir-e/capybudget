@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState, type ReactNode } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import {
   Table,
@@ -8,6 +8,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Checkbox } from "@/components/ui/checkbox";
+import { EmptyState } from "@/components/ui/empty-state";
 import { type EditableColumn } from "@/components/budget/inline-edit-cells";
 import type { Transaction, TransactionFormData } from "@capybudget/core";
 import { useAccounts, useCategories, useTransactions } from "@/hooks/use-budget-data";
@@ -40,6 +41,8 @@ interface TransactionListProps {
   onToggleAll?: () => void;
   allSelected?: boolean;
   indeterminate?: boolean;
+  /** Rendered when there are no rows. Defaults to the plain "No transactions yet" state. */
+  emptyState?: ReactNode;
 }
 
 // ---------------------------------------------------------------------------
@@ -113,6 +116,7 @@ export function TransactionList({
   onToggleAll,
   allSelected,
   indeterminate,
+  emptyState,
 }: TransactionListProps) {
   const { data: accounts = [] } = useAccounts();
   const { data: categories = [] } = useCategories();
@@ -170,11 +174,14 @@ export function TransactionList({
 
   if (transactions.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center py-24 text-muted-foreground">
-        <Inbox className="h-12 w-12 mb-3 opacity-30" strokeWidth={1.5} />
-        <p className="text-base font-medium">No transactions yet</p>
-        <p className="text-sm mt-1 opacity-70">Transactions will appear here once added.</p>
-      </div>
+      emptyState ?? (
+        <EmptyState
+          className="py-24"
+          icon={<Inbox strokeWidth={1.5} />}
+          title="No transactions yet"
+          description="Transactions will appear here once added."
+        />
+      )
     );
   }
 
