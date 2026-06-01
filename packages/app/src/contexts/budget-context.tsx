@@ -11,7 +11,7 @@ export interface BudgetUIContextValue {
   hasAccounts: boolean;
   /** Open the Add Account dialog. */
   openAccountDialog: () => void;
-  /** Open the new-transaction flow (the ⌘N path: redirects to account creation when there are no accounts). */
+  /** Open the new-transaction form. Redirects to account creation when there are no accounts. */
   startTransaction: () => void;
 }
 

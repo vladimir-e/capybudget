@@ -42,6 +42,11 @@ describe("First-run guide", () => {
     const logBtn = within(steps[1]).getByRole("button", { name: "Add transaction" });
     expect(logBtn).toHaveAttribute("aria-disabled", "true");
 
+    // The hint is the whole point of the aria-disabled (not native-disabled)
+    // pattern: a native-disabled button wouldn't fire the hover tooltip.
+    await user.hover(logBtn);
+    expect(await screen.findByText("Add an account first.")).toBeInTheDocument();
+
     // Add an account via the guide's own step-1 button.
     await user.click(within(steps[0]).getByRole("button", { name: "Add account" }));
     const dialog = await screen.findByRole("dialog");

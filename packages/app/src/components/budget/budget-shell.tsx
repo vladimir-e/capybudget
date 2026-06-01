@@ -22,6 +22,7 @@ import { useAccounts } from "@/hooks/use-budget-data";
 import { useCustomInstructions } from "@/hooks/use-custom-instructions";
 import { useCustomCommands } from "@/hooks/use-custom-commands";
 import { useImportStore } from "@/stores/import-store";
+import { modKey } from "@/lib/platform";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -83,8 +84,6 @@ export function BudgetShell() {
   const formPanelRef = useRef<HTMLDivElement>(null);
   const formKey = editingTxn?.id ?? "new";
 
-  const isMac = navigator.userAgent.includes("Mac");
-
   const toggleForm = useCallback(() => {
     if (isArchivedView) return;
     if (!hasAccounts) {
@@ -95,6 +94,16 @@ export function BudgetShell() {
       if (prev) setEditingTxn(null);
       return !prev;
     });
+  }, [hasAccounts, isArchivedView]);
+
+  const openTransactionForm = useCallback(() => {
+    if (isArchivedView) return;
+    if (!hasAccounts) {
+      setAccountDialogOpen(true);
+      return;
+    }
+    setEditingTxn(null);
+    setFormOpen(true);
   }, [hasAccounts, isArchivedView]);
 
   const handleDismissForm = useCallback(() => {
@@ -189,8 +198,8 @@ export function BudgetShell() {
     setCurrentAccountId,
     hasAccounts,
     openAccountDialog,
-    startTransaction: toggleForm,
-  }), [editingTxn?.id, editTransaction, cancelEdit, currentAccountId, hasAccounts, openAccountDialog, toggleForm]);
+    startTransaction: openTransactionForm,
+  }), [editingTxn?.id, editTransaction, cancelEdit, currentAccountId, hasAccounts, openAccountDialog, openTransactionForm]);
 
   return (
     <BudgetUIProvider value={uiCtx}>
@@ -239,7 +248,7 @@ export function BudgetShell() {
                 <ChevronDown className={`h-3.5 w-3.5 transition-transform duration-200 ${effectiveFormOpen ? "rotate-180" : ""}`} />
                 <span>New Transaction</span>
                 <kbd className="hidden sm:inline rounded bg-muted px-1.5 py-0.5 text-[10px] font-mono text-muted-foreground/70 border border-border/50">
-                  {isMac ? "\u2318" : "Ctrl+"}N
+                  {modKey}N
                 </kbd>
               </button>
             )}

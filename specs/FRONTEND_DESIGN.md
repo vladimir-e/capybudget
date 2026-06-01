@@ -128,6 +128,10 @@ Be explicit about consequences. Warn when deleting a transfer (both legs go), de
 
 Guide the user: prompt to create first account, first transaction, or explain empty filter results. When adding a transaction with no accounts, intercept and trigger account creation.
 
+A budget with no transactions yet replaces the all-accounts empty state with a calm three-step setup panel: add accounts, log transactions, ask Capy. The panel reflects live state — step 1 marks done and step 2 activates once an account exists — and disappears the moment any transaction lands.
+
+Analytics empty states split on whole-budget vs period scope. When the entire budget is empty, every tab shows the same forward-looking, no-CTA line ("This will be useful once you have more data"); when the budget has data but the selected period doesn't, the tab shows period-scoped copy ("No expenses in this period").
+
 ## Typography
 
 - Font: Geist Variable (sans-serif).

@@ -25,6 +25,7 @@ import {
 import { KpiStrip } from "./monthly-budget-kpi-strip";
 import { ColumnHeader, GroupSection } from "./monthly-budget-group-section";
 import { EmptyState } from "@/components/ui/empty-state";
+import { NO_CATEGORIES_YET } from "./empty-copy";
 
 interface MonthlyBudgetTabProps {
   transactions: Transaction[];
@@ -160,7 +161,7 @@ export function MonthlyBudgetTab({
           description={
             hasAnyTransactions
               ? "Add categories to start tracking."
-              : "This will be useful once you add categories and data."
+              : NO_CATEGORIES_YET
           }
         />
       ) : (

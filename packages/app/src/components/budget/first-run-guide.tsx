@@ -5,8 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useBudgetUI } from "@/contexts/budget-context";
 import { useCapySessionContext } from "@/contexts/capy-session-context";
-
-const MOD = navigator.userAgent.includes("Mac") ? "⌘" : "Ctrl+";
+import { modKey } from "@/lib/platform";
 
 interface StepProps {
   icon: ReactNode;
@@ -72,7 +71,7 @@ export function FirstRunGuide() {
           label="Log transactions"
           sublabel={
             <>
-              Press <kbd className="rounded bg-muted px-1 py-0.5 font-mono text-[10px] text-muted-foreground/80">{MOD}N</kbd>, or import from statements &amp; screenshots.
+              Press <kbd className="rounded bg-muted px-1 py-0.5 font-mono text-[10px] text-muted-foreground/80">{modKey}N</kbd>, or import from statements &amp; screenshots.
             </>
           }
           action={
