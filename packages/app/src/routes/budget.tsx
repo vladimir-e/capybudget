@@ -9,7 +9,7 @@ import { useIntelligenceStore } from "@/stores/intelligence-store";
 import { createCsvRepository } from "@capybudget/persistence";
 import type { DisposableRepository } from "@capybudget/persistence";
 import { tauriFileAdapter } from "../../../../src/adapters/tauri-file-adapter";
-import { budgetKeys } from "@/hooks/use-budget-data";
+import { budgetKeys, useBudgetSnapshot } from "@/hooks/use-budget-data";
 
 interface BudgetSearch {
   path: string;
@@ -40,6 +40,7 @@ function BudgetLayout() {
 
   const provider = useIntelligenceStore((s) => s.config.provider);
   const customInstructions = useCustomInstructions(path);
+  const getBudgetSnapshot = useBudgetSnapshot();
 
   const onDataChanged = useCallback(() => {
     invalidateAfterCapyMutation({
@@ -55,11 +56,12 @@ function BudgetLayout() {
       budgetName: name,
       mcpServerPath: "packages/mcp/src/server.ts",
       customInstructions: customInstructions.instructions,
+      getBudgetSnapshot,
       onDataChanged,
       repo,
       fileAdapter: tauriFileAdapter,
     }),
-    [path, name, customInstructions.instructions, onDataChanged, repo],
+    [path, name, customInstructions.instructions, getBudgetSnapshot, onDataChanged, repo],
   );
 
   return (

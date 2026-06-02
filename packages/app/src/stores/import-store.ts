@@ -3,6 +3,7 @@ import { createSession } from "@/services/create-session";
 import {
   buildContext,
   runTool,
+  type BudgetSnapshot,
   type CapySession,
   type ChatMessage,
   type ContentBlock,
@@ -70,6 +71,8 @@ interface ImportStore {
     budgetName: string;
     mcpServerPath: string;
     systemPrompt: string;
+    /** Budget shape attached to the enrich kickoff message. */
+    snapshot?: BudgetSnapshot;
     repo?: BudgetRepository;
     fileAdapter?: FileAdapter;
   }) => void;
@@ -251,6 +254,7 @@ export const useImportStore = create<ImportStore>((set, get) => ({
     budgetName,
     mcpServerPath,
     systemPrompt,
+    snapshot,
     repo,
     fileAdapter,
   }) => {
@@ -278,7 +282,7 @@ export const useImportStore = create<ImportStore>((set, get) => ({
       },
     });
 
-    const context = buildContext({ budgetName, budgetPath });
+    const context = buildContext({ budgetName, budgetPath, snapshot });
     const message = `${context}\nEnrich the imported transactions.`;
 
     set({

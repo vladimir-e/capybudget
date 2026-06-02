@@ -18,6 +18,7 @@ import {
   isImageAttachment,
   SYSTEM_PROMPT,
   MUTATION_TOOL_NAMES,
+  type BudgetSnapshot,
   type FileAttachment,
   type MessageContent,
   type StreamEvent,
@@ -31,6 +32,10 @@ export interface UseCapySessionOptions {
   budgetName: string
   mcpServerPath: string
   customInstructions?: string
+  /** Snapshot of the budget's current shape, attached to the first message
+   *  of a session so Capy knows what it's working with without a tool call.
+   *  Called lazily at first-send time to read the freshest data. */
+  getBudgetSnapshot?: () => BudgetSnapshot | undefined
   onDataChanged?: () => void
   /** Required by API adapters (in-process tool dispatch); ignored by Claude CLI. */
   repo?: BudgetRepository
@@ -50,6 +55,8 @@ export function useCapySession(opts: UseCapySessionOptions): UseCapySessionRetur
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const hadMutationsRef = useRef(false)
   const ackedToolCallsRef = useRef<Set<string>>(new Set())
+  // Snapshot rides on the first message of each session only.
+  const snapshotSentRef = useRef(false)
 
   // Keep a ref to messages for use in sendMessage / stopStreaming without
   // stale closures.
@@ -169,6 +176,7 @@ export function useCapySession(opts: UseCapySessionOptions): UseCapySessionRetur
     setMessages([])
     hadMutationsRef.current = false
     ackedToolCallsRef.current = new Set()
+    snapshotSentRef.current = false
   }, [lifecycle])
 
   // When the user changes provider or swaps the model within a provider,
@@ -206,9 +214,12 @@ export function useCapySession(opts: UseCapySessionOptions): UseCapySessionRetur
     (text: string, files?: FileAttachment[]) => {
       if (lifecycle.isStreamingRef.current) return
       const o = lifecycle.optsRef.current
+      const snapshot = snapshotSentRef.current ? undefined : o.getBudgetSnapshot?.()
+      snapshotSentRef.current = true
       const context = buildContext({
         budgetName: o.budgetName,
         budgetPath: o.budgetPath,
+        snapshot,
       })
 
       const allFiles = files ?? []

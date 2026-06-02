@@ -19,7 +19,7 @@ import { Button } from "@/components/ui/button";
 import { useImportRepository, type SourceFileInfo } from "@/hooks/use-import-repository";
 import { useImportStore } from "@/stores/import-store";
 import { useImportInstructions } from "@/hooks/use-custom-instructions";
-import { useAccounts } from "@/hooks/use-budget-data";
+import { useAccounts, useBudgetSnapshot } from "@/hooks/use-budget-data";
 import { useIntelligenceStore } from "@/stores/intelligence-store";
 import { useBudgetRepository } from "@/contexts/repository-context";
 import {
@@ -83,6 +83,7 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
   const [localInstructions, setLocalInstructions] = useState<string | null>(null);
   const [selectedAccountId, setSelectedAccountId] = useState("");
   const { data: accounts = [] } = useAccounts();
+  const getBudgetSnapshot = useBudgetSnapshot();
 
   // Import only requires a configured AI provider — provider-specific
   // capability gaps (e.g. OpenAI's chat API not accepting PDF bytes)
@@ -301,7 +302,7 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
       });
     }
 
-    const context = buildContext({ budgetName, budgetPath });
+    const context = buildContext({ budgetName, budgetPath, snapshot: getBudgetSnapshot() });
     const textInstructions = (() => {
       const lines: string[] = [context, ""];
       lines.push(

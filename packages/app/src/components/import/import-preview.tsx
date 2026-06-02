@@ -13,6 +13,7 @@ import {
 import { useImportInstructions } from "@/hooks/use-custom-instructions";
 import { useImportMerge } from "@/hooks/use-import-merge";
 import { useImportData } from "@/hooks/use-import-data";
+import { useBudgetSnapshot } from "@/hooks/use-budget-data";
 import { useImportStore } from "@/stores/import-store";
 import { useBudgetRepository } from "@/contexts/repository-context";
 import { tauriFileAdapter } from "../../../../../src/adapters/tauri-file-adapter";
@@ -62,6 +63,7 @@ export function ImportPreview({ budgetPath, budgetName, onMergeComplete }: Impor
 
   const customInstructions = useImportInstructions(budgetPath);
   const repo = useBudgetRepository();
+  const getBudgetSnapshot = useBudgetSnapshot();
 
   // ── Enrichment (via store — survives navigation) ───────────────
   const isEnriching = useImportStore((s) => s.isEnriching);
@@ -90,10 +92,11 @@ export function ImportPreview({ budgetPath, budgetName, onMergeComplete }: Impor
       budgetName,
       mcpServerPath: "packages/mcp/src/server.ts",
       systemPrompt,
+      snapshot: getBudgetSnapshot(),
       repo,
       fileAdapter: tauriFileAdapter,
     });
-  }, [flushWriteBack, storeStartEnrichment, budgetPath, budgetName, customInstructions.instructions, repo]);
+  }, [flushWriteBack, storeStartEnrichment, budgetPath, budgetName, customInstructions.instructions, getBudgetSnapshot, repo]);
 
   // Reload from disk periodically while enrichment is running
   useEffect(() => {

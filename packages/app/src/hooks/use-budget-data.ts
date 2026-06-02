@@ -1,4 +1,10 @@
-import { useQuery } from "@tanstack/react-query";
+import { useCallback } from "react";
+import { useQueryClient, useQuery } from "@tanstack/react-query";
+import {
+  buildBudgetSnapshot,
+  type BudgetSnapshot,
+} from "@capybudget/intelligence";
+import type { Account, Category, Transaction } from "@capybudget/core";
 import { useBudgetRepository } from "@/contexts/repository-context";
 
 export const budgetKeys = {
@@ -33,4 +39,23 @@ export function useTransactions() {
     queryFn: () => repo.getTransactions(),
     staleTime: Infinity,
   });
+}
+
+/**
+ * Returns a getter that builds a budget snapshot from the freshest cached
+ * query data on demand. Used to attach a data snapshot to the first message
+ * of a Capy session (chat and import) without a tool round-trip. Reads the
+ * cache lazily — no extra fetch, no stale closure.
+ */
+export function useBudgetSnapshot(): () => BudgetSnapshot {
+  const queryClient = useQueryClient();
+  return useCallback(() => {
+    const accounts =
+      queryClient.getQueryData<Account[]>(budgetKeys.accounts()) ?? [];
+    const transactions =
+      queryClient.getQueryData<Transaction[]>(budgetKeys.transactions()) ?? [];
+    const categories =
+      queryClient.getQueryData<Category[]>(budgetKeys.categories()) ?? [];
+    return buildBudgetSnapshot(accounts, transactions, categories);
+  }, [queryClient]);
 }
