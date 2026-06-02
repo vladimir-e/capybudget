@@ -14,7 +14,7 @@ CHANGELOG PHILOSOPHY:
 - **Help** - In-app user guide at `/budget/help` (rail icon beside Settings): scroll-anchored sidebar, live-demo link, ESC to dismiss; linked from the first-run guide.
 - **Onboarding** - First-run guide on the empty all-accounts view: a calm three-step panel (add accounts, log transactions, ask Capy) that tracks live state and disappears once any transaction exists.
 - **Analytics** - Shared `EmptyState` component; analytics tabs distinguish a brand-new budget ("useful once you have more data") from an empty period.
-- **Web** - User-guide docs page on the promo site (mirrors the in-app Help copy), linked from the footer and beside the hero demo CTA.
+- **Web** - User-guide docs page on the promo site (mirrors the in-app Help copy), linked from the footer, the How-to-start section, and beside the hero demo CTA; dropped the stale getting-started install walkthrough.
 - **Web** - Vercel Web Analytics (visits only, cookieless) on promo site + demo; demo gains a "Get the desktop app" CTA and a small-screen notice.
 - **Settings** - Dedicated budget-scoped Settings screen (⌘,) with Intelligence + Categories sections; chat survives the round-trip; Claude Code model picker; categories moved out of the analytics cog.
 - **Demo** - Scenarios seed ~3 years of data anchored to today, so analytics render live; brief seeding screen on entry.

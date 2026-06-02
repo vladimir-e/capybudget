@@ -116,8 +116,10 @@ const year = new Date().getFullYear();
       <div class="mx-auto max-w-5xl px-6 py-8">
         <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between text-xs text-muted">
           <p>© {year} Capy Budget · MIT licensed</p>
-          <a href="/docs/user-guide" class="nav-link self-start sm:self-auto">Documentation</a>
-          <p>Made in NYC 🗽</p>
+          <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-6">
+            <a href="/docs/user-guide" class="footer-link">Documentation</a>
+            <p>Made in NYC 🗽</p>
+          </div>
         </div>
       </div>
     </footer>
@@ -142,6 +144,14 @@ const year = new Date().getFullYear();
     border-radius: 0.375rem;
   }
   .nav-link:hover {
+    color: var(--color-heading);
+  }
+
+  .footer-link {
+    color: var(--color-muted);
+    transition: color 0.18s ease;
+  }
+  .footer-link:hover {
     color: var(--color-heading);
   }
 
