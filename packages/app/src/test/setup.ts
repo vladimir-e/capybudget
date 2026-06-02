@@ -21,6 +21,19 @@ globalThis.ResizeObserver = class ResizeObserver {
   disconnect() {}
 };
 
+// IntersectionObserver (used by the Help screen's scroll-spy)
+globalThis.IntersectionObserver = class IntersectionObserver {
+  readonly root = null;
+  readonly rootMargin = "";
+  readonly thresholds = [];
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+  takeRecords() {
+    return [];
+  }
+} as unknown as typeof IntersectionObserver;
+
 // matchMedia (used by next-themes)
 Object.defineProperty(window, "matchMedia", {
   writable: true,

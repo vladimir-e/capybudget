@@ -89,6 +89,21 @@ describe("NavigationRail", () => {
     expect(settingsLink.getAttribute("aria-current")).toBe("page");
   });
 
+  it("renders a Help entry next to Settings", async () => {
+    await renderRail({ activeSection: "accounts" });
+
+    const helpLink = screen.getByRole("link", { name: "Help" });
+    expect(helpLink).toBeInTheDocument();
+    expect(helpLink.getAttribute("href")).toMatch(/^\/budget\/help\?/);
+  });
+
+  it("marks help as active when on /budget/help", async () => {
+    await renderRail({ activeSection: "accounts", initialPath: "/budget/help" });
+
+    const helpLink = screen.getByRole("link", { name: "Help" });
+    expect(helpLink.getAttribute("aria-current")).toBe("page");
+  });
+
   it("does not mark settings as active when on a budget route", async () => {
     await renderRail({ activeSection: "accounts", initialPath: "/budget" });
 

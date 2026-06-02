@@ -1,6 +1,6 @@
 import { useEffect, useMemo } from "react";
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
-import { Receipt, PieChart, FileUp, Settings } from "lucide-react";
+import { Receipt, PieChart, FileUp, Settings, BookOpen } from "lucide-react";
 
 export type Section = "accounts" | "budget" | "import";
 
@@ -46,6 +46,7 @@ export function NavigationRail({
   // should highlight.
   const currentPath = useRouterState({ select: (s) => s.location.pathname });
   const isSettings = currentPath === "/budget/settings";
+  const isHelp = currentPath === "/budget/help";
 
   return (
     <>
@@ -58,6 +59,7 @@ export function NavigationRail({
         {/* Bottom utility cluster — separated from primary nav.
             Sidebar collapse lives on the sidebar itself, not the rail. */}
         <div className="mt-auto flex flex-col items-center gap-1 pb-3 pt-2 border-t border-sidebar-border/40 w-full">
+          <NavItem variant="rail" to="/budget/help" search={search} active={isHelp} icon={BookOpen} label="Help" />
           <NavItem variant="rail" to="/budget/settings" search={search} active={isSettings} icon={Settings} label="Settings" />
         </div>
       </nav>

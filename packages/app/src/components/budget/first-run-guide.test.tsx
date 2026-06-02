@@ -77,6 +77,19 @@ describe("First-run guide", () => {
     await waitFor(() => expect(overlay).not.toHaveAttribute("inert"));
   }, TIMEOUT);
 
+  it("opens the Help screen from the documentation link", async () => {
+    const { user } = await renderApp({ seed: { accounts: [], categories: [], transactions: [] } });
+    await waitForApp();
+
+    await user.click(screen.getByRole("button", { name: "Check the documentation" }));
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole("heading", { name: "Capy Budget — user guide" }),
+      ).toBeInTheDocument();
+    });
+  }, TIMEOUT);
+
   it("does not show once the budget has any transaction", async () => {
     const account = makeAccount({ id: "acc-1", name: "Checking" });
     const txn = makeTransaction({ id: "txn-1", accountId: "acc-1", merchant: "Corner Store" });

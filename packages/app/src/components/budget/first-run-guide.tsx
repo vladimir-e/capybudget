@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { Check, FileText, Sparkles, Wallet } from "lucide-react";
+import { useNavigate, useSearch } from "@tanstack/react-router";
 
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -47,6 +48,8 @@ function Step({ icon, label, sublabel, done, action }: StepProps) {
 export function FirstRunGuide() {
   const { hasAccounts, openAccountDialog, startTransaction } = useBudgetUI();
   const { setOpen: setCapyOpen } = useCapySessionContext();
+  const navigate = useNavigate();
+  const { path, name } = useSearch({ from: "/budget" });
 
   return (
     <div className="mx-auto max-w-md py-16 text-center">
@@ -111,6 +114,18 @@ export function FirstRunGuide() {
           }
         />
       </ol>
+
+      <p className="mt-6 text-xs text-muted-foreground">
+        New here?{" "}
+        <button
+          type="button"
+          onClick={() => navigate({ to: "/budget/help", search: { path, name } })}
+          className="text-foreground/70 underline underline-offset-2 transition-colors hover:text-foreground"
+        >
+          Check the documentation
+        </button>{" "}
+        for quick orientation.
+      </p>
     </div>
   );
 }
