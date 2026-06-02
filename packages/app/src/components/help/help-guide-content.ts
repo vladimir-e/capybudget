@@ -29,7 +29,7 @@ export interface HelpSection {
 export const HELP_TITLE = "How budgeting works";
 
 export const HELP_INTRO =
-  "You add your accounts — anywhere your money sits — to see your whole financial picture in one place. Your budget is then a list of transactions: every balance, total, and chart the app shows is computed from it. Keep the list accurate and everything downstream takes care of itself.";
+  "You add your accounts — anywhere your money sits — to see your whole financial picture in one place. Your budget is then a list of transactions: every balance and chart that the app shows is computed from it. Keep the list accurate and everything downstream takes care of itself.";
 
 export const HELP_SECTIONS: HelpSection[] = [
   {
