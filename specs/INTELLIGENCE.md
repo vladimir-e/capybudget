@@ -207,7 +207,7 @@ The Intelligence section also hosts a chat-instructions editor for `capy-instruc
 
 ## Context Enrichment
 
-Each user message is wrapped with app context before sending. The first message of a session also carries a compact **budget snapshot** — account count, transaction count, the full transaction date range, and category names grouped by group — so Capy knows the shape of the data without a tool round-trip. The snapshot is derived from the app's cached entities at first-message time (`buildBudgetSnapshot`), reading the freshest cache, and rides on the first turn only; chat and import sessions both attach it.
+Each user message is wrapped with app context before sending. The first message of a session also carries a compact **budget snapshot** — account and transaction counts, the date range, and the category list — so Capy knows the shape of the data without a tool round-trip.
 
 ```
 [Context]
