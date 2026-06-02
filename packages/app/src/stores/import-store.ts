@@ -71,7 +71,7 @@ interface ImportStore {
     budgetName: string;
     mcpServerPath: string;
     systemPrompt: string;
-    /** Budget shape attached to the enrich kickoff message. */
+    /** Budget shape attached to the import kickoff message (normalize or enrich). */
     snapshot?: BudgetSnapshot;
     repo?: BudgetRepository;
     fileAdapter?: FileAdapter;

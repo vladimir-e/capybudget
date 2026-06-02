@@ -9,7 +9,8 @@
  * `useCategories` results); `formatBudgetSnapshot` renders it for the prompt.
  */
 
-import type { Account, Category, Transaction } from "@capybudget/core"
+import { CATEGORY_GROUP_ORDER } from "@capybudget/core"
+import type { Account, Category, CategoryGroup, Transaction } from "@capybudget/core"
 
 export interface BudgetSnapshot {
   accountCount: number
@@ -20,8 +21,6 @@ export interface BudgetSnapshot {
   /** Non-archived category names keyed by group, in group order. */
   categoriesByGroup: Array<{ group: string; names: string[] }>
 }
-
-const GROUP_ORDER = ["Income", "Fixed", "Daily Living", "Personal", "Irregular"]
 
 export function buildBudgetSnapshot(
   accounts: Account[],
@@ -36,7 +35,7 @@ export function buildBudgetSnapshot(
     if (latest === null || date > latest) latest = date
   }
 
-  const byGroup = new Map<string, string[]>()
+  const byGroup = new Map<CategoryGroup, string[]>()
   for (const c of categories) {
     if (c.archived) continue
     const names = byGroup.get(c.group) ?? []
@@ -45,8 +44,8 @@ export function buildBudgetSnapshot(
   }
 
   const orderedGroups = [
-    ...GROUP_ORDER.filter((g) => byGroup.has(g)),
-    ...[...byGroup.keys()].filter((g) => !GROUP_ORDER.includes(g)),
+    ...CATEGORY_GROUP_ORDER.filter((g) => byGroup.has(g)),
+    ...[...byGroup.keys()].filter((g) => !CATEGORY_GROUP_ORDER.includes(g)),
   ]
 
   return {

@@ -10,6 +10,8 @@ import {
   type HelpBlock,
 } from "./help-guide-content"
 
+declare const __IS_DEMO__: boolean
+
 const DEMO_URL = "https://demo.capybudget.app"
 
 export function HelpScreen() {
@@ -109,14 +111,16 @@ export function HelpScreen() {
             <h1 className="text-2xl font-bold tracking-tight">{HELP_TITLE}</h1>
             <p className="mt-3 text-muted-foreground">{HELP_INTRO}</p>
 
-            <button
-              type="button"
-              onClick={() => void shellOpen(DEMO_URL)}
-              className="mt-5 inline-flex items-center gap-1.5 text-sm text-brand transition-colors hover:text-brand/80"
-            >
-              Prefer to poke around first? Try the live demo
-              <ExternalLink className="h-3.5 w-3.5" />
-            </button>
+            {!__IS_DEMO__ && (
+              <button
+                type="button"
+                onClick={() => void shellOpen(DEMO_URL)}
+                className="mt-5 inline-flex items-center gap-1.5 text-sm text-brand transition-colors hover:text-brand/80"
+              >
+                Prefer to poke around first? Try the live demo
+                <ExternalLink className="h-3.5 w-3.5" />
+              </button>
+            )}
 
             {HELP_SECTIONS.map((section) => (
               <section key={section.id} className="mt-10">

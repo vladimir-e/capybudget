@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as BudgetRouteImport } from './routes/budget'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as BudgetSettingsRouteImport } from './routes/budget/settings'
+import { Route as BudgetHelpRouteImport } from './routes/budget/help'
 import { Route as BudgetShellRouteImport } from './routes/budget/_shell'
 import { Route as BudgetShellIndexRouteImport } from './routes/budget/_shell/index'
 import { Route as BudgetShellImportRouteImport } from './routes/budget/_shell/import'
@@ -31,6 +32,11 @@ const IndexRoute = IndexRouteImport.update({
 const BudgetSettingsRoute = BudgetSettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
+  getParentRoute: () => BudgetRoute,
+} as any)
+const BudgetHelpRoute = BudgetHelpRouteImport.update({
+  id: '/help',
+  path: '/help',
   getParentRoute: () => BudgetRoute,
 } as any)
 const BudgetShellRoute = BudgetShellRouteImport.update({
@@ -62,6 +68,7 @@ const BudgetShellAccountAccountIdRoute =
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/budget': typeof BudgetShellRouteWithChildren
+  '/budget/help': typeof BudgetHelpRoute
   '/budget/settings': typeof BudgetSettingsRoute
   '/budget/categories': typeof BudgetShellCategoriesRoute
   '/budget/import': typeof BudgetShellImportRoute
@@ -71,6 +78,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/budget': typeof BudgetShellIndexRoute
+  '/budget/help': typeof BudgetHelpRoute
   '/budget/settings': typeof BudgetSettingsRoute
   '/budget/categories': typeof BudgetShellCategoriesRoute
   '/budget/import': typeof BudgetShellImportRoute
@@ -81,6 +89,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/budget': typeof BudgetRouteWithChildren
   '/budget/_shell': typeof BudgetShellRouteWithChildren
+  '/budget/help': typeof BudgetHelpRoute
   '/budget/settings': typeof BudgetSettingsRoute
   '/budget/_shell/categories': typeof BudgetShellCategoriesRoute
   '/budget/_shell/import': typeof BudgetShellImportRoute
@@ -92,6 +101,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/budget'
+    | '/budget/help'
     | '/budget/settings'
     | '/budget/categories'
     | '/budget/import'
@@ -101,6 +111,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/budget'
+    | '/budget/help'
     | '/budget/settings'
     | '/budget/categories'
     | '/budget/import'
@@ -110,6 +121,7 @@ export interface FileRouteTypes {
     | '/'
     | '/budget'
     | '/budget/_shell'
+    | '/budget/help'
     | '/budget/settings'
     | '/budget/_shell/categories'
     | '/budget/_shell/import'
@@ -143,6 +155,13 @@ declare module '@tanstack/react-router' {
       path: '/settings'
       fullPath: '/budget/settings'
       preLoaderRoute: typeof BudgetSettingsRouteImport
+      parentRoute: typeof BudgetRoute
+    }
+    '/budget/help': {
+      id: '/budget/help'
+      path: '/help'
+      fullPath: '/budget/help'
+      preLoaderRoute: typeof BudgetHelpRouteImport
       parentRoute: typeof BudgetRoute
     }
     '/budget/_shell': {
@@ -203,11 +222,13 @@ const BudgetShellRouteWithChildren = BudgetShellRoute._addFileChildren(
 
 interface BudgetRouteChildren {
   BudgetShellRoute: typeof BudgetShellRouteWithChildren
+  BudgetHelpRoute: typeof BudgetHelpRoute
   BudgetSettingsRoute: typeof BudgetSettingsRoute
 }
 
 const BudgetRouteChildren: BudgetRouteChildren = {
   BudgetShellRoute: BudgetShellRouteWithChildren,
+  BudgetHelpRoute: BudgetHelpRoute,
   BudgetSettingsRoute: BudgetSettingsRoute,
 }
 
