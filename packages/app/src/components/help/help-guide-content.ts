@@ -26,17 +26,27 @@ export interface HelpSection {
   blocks: HelpBlock[];
 }
 
-export const HELP_TITLE = "Capy Budget — user guide";
+export const HELP_TITLE = "How budgeting works";
 
 export const HELP_INTRO =
-  "Everything in your budget is a transaction. Every balance, total, and chart the app shows is computed from that one list. Keep the list accurate and everything downstream is correct.";
+  "You add your accounts — anywhere your money sits — to see your whole financial picture in one place. Your budget is then a list of transactions: every balance, total, and chart the app shows is computed from it. Keep the list accurate and everything downstream takes care of itself.";
 
 export const HELP_SECTIONS: HelpSection[] = [
   {
-    id: "what-you-put-in",
-    title: "What you put in",
+    id: "accounts",
+    title: "Accounts",
     blocks: [
-      { kind: "paragraph", text: "**Transactions** — every time money moves:" },
+      {
+        kind: "paragraph",
+        text: "Anywhere value sits: checking, cash, savings, credit cards, loans, crypto. You never type a balance — it's the sum of the account's transactions. Debts are negative balances, so your accounts together add up to your net worth.",
+      },
+    ],
+  },
+  {
+    id: "transactions",
+    title: "Transactions",
+    blocks: [
+      { kind: "paragraph", text: "Every time money moves, it's one of three kinds:" },
       {
         kind: "list",
         items: [
@@ -52,19 +62,21 @@ export const HELP_SECTIONS: HelpSection[] = [
         kind: "paragraph",
         text: "A credit-card purchase is an expense; paying that card later is a transfer, not new spending — the one thing worth getting right.",
       },
+    ],
+  },
+  {
+    id: "categories",
+    title: "Categories",
+    blocks: [
       {
         kind: "paragraph",
-        text: "**Accounts** — anywhere value sits: checking, cash, savings, credit cards, loans, crypto. You never type a balance; it's the sum of the account's transactions. Debts are negative balances.",
-      },
-      {
-        kind: "paragraph",
-        text: "**Categories** — where money goes, grouped by how much control you have over it (fixed costs, day-to-day, irregular). Sensible defaults from the start; change them freely.",
+        text: "Where your money goes, grouped by how much control you have over it (fixed costs, day-to-day, irregular). Sensible defaults from the start; change them freely.",
       },
     ],
   },
   {
-    id: "getting-it-in",
-    title: "Getting it in",
+    id: "importing",
+    title: "Importing",
     blocks: [
       {
         kind: "paragraph",
@@ -73,8 +85,8 @@ export const HELP_SECTIONS: HelpSection[] = [
     ],
   },
   {
-    id: "what-you-get-back",
-    title: "What you get back",
+    id: "analytics",
+    title: "Analytics",
     blocks: [
       { kind: "paragraph", text: "Each view answers one question:" },
       {

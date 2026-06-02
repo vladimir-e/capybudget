@@ -63,7 +63,7 @@ describe("HelpScreen", () => {
     await renderHelp()
 
     expect(
-      screen.getByRole("heading", { name: "Capy Budget — user guide" }),
+      screen.getByRole("heading", { name: "How budgeting works" }),
     ).toBeInTheDocument()
 
     const sidebar = screen.getByRole("navigation", { name: "Help sections" })

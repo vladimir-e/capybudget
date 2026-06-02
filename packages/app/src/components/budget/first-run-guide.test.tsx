@@ -85,7 +85,7 @@ describe("First-run guide", () => {
 
     await waitFor(() => {
       expect(
-        screen.getByRole("heading", { name: "Capy Budget — user guide" }),
+        screen.getByRole("heading", { name: "How budgeting works" }),
       ).toBeInTheDocument();
     });
   }, TIMEOUT);
