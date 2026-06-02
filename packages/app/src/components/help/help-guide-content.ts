@@ -5,9 +5,9 @@
 // can observe each section by id. Inline emphasis is rendered by HelpScreen's
 // lightweight `**bold**` parser — keep markup to bold spans and bullet lists.
 //
-// The promo site (apps/www/src/content/docs/) carries the same copy as MDX for
-// SEO. The two surfaces are intentionally separate (Astro vs Vite); when this
-// copy changes, mirror it there.
+// The promo site mirrors this copy as MDX at
+// apps/www/src/content/docs/user-guide.mdx for SEO. The two surfaces are
+// intentionally separate (Astro vs Vite); when this copy changes, mirror it there.
 
 export interface HelpListItem {
   /** Leading bold lead-in, e.g. "Expense" in "**Expense** — money out." */

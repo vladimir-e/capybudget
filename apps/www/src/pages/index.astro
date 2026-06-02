@@ -259,7 +259,7 @@ const demoUrl = "https://demo.capybudget.app";
         </div>
       </div>
 
-      <div class="mt-10 flex justify-center">
+      <div class="mt-10 flex flex-wrap items-center justify-center gap-x-5 gap-y-3">
         <a href={demoUrl} class="btn-secondary" target="_blank" rel="noopener noreferrer">
           <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
             <path stroke-linecap="round" stroke-linejoin="round" d="M14.25 9.75 16.5 12l-2.25 2.25m-4.5 0L7.5 12l2.25-2.25M6 20.25h12A2.25 2.25 0 0 0 20.25 18V6A2.25 2.25 0 0 0 18 3.75H6A2.25 2.25 0 0 0 3.75 6v12A2.25 2.25 0 0 0 6 20.25Z" />
@@ -267,6 +267,7 @@ const demoUrl = "https://demo.capybudget.app";
           <span>Try the live demo</span>
           <span class="arrow" aria-hidden="true">→</span>
         </a>
+        <a href="/docs/user-guide" class="text-link">or read how it works</a>
       </div>
     </div>
   </section>
@@ -1638,6 +1639,20 @@ const demoUrl = "https://demo.capybudget.app";
   }
   .platform-mini:hover {
     color: var(--color-heading);
+  }
+
+  /* Tertiary text action beside the hero demo button: hands-on vs. read. */
+  .text-link {
+    font-size: 0.9rem;
+    color: var(--color-muted);
+    text-decoration-line: underline;
+    text-decoration-color: var(--color-line);
+    text-underline-offset: 3px;
+    transition: color 0.18s ease, text-decoration-color 0.18s ease;
+  }
+  .text-link:hover {
+    color: var(--color-heading);
+    text-decoration-color: var(--color-terra);
   }
 
   /* ============================================================ */
