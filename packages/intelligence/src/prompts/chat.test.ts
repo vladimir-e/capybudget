@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { buildContext, SYSTEM_PROMPT } from "./chat";
+import { APP_KNOWLEDGE } from "./app-knowledge";
 import { SPECS, SPEC_FILENAMES } from "../specs.generated";
 
 describe("buildContext", () => {
@@ -53,12 +54,15 @@ describe("buildContext", () => {
 });
 
 describe("SYSTEM_PROMPT", () => {
-  it("embeds the full DATA_MODEL.md", () => {
-    expect(SYSTEM_PROMPT).toContain(SPECS["DATA_MODEL.md"]);
+  it("embeds the shared app-knowledge brief", () => {
+    expect(SYSTEM_PROMPT).toContain(APP_KNOWLEDGE);
   });
 
-  it("embeds the full PRODUCT.md", () => {
-    expect(SYSTEM_PROMPT).toContain(SPECS["PRODUCT.md"]);
+  it("does not embed the full DATA_MODEL.md or PRODUCT.md (those move to read_spec)", () => {
+    // The heavy specs are reachable via read_spec, not baked into every
+    // session. Guards against regressing the token-floor cleanup.
+    expect(SYSTEM_PROMPT).not.toContain(SPECS["DATA_MODEL.md"]);
+    expect(SYSTEM_PROMPT).not.toContain(SPECS["PRODUCT.md"]);
   });
 
   it("tells the model about read_spec and lists the available files", () => {

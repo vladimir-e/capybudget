@@ -46,8 +46,17 @@ export type {
   ApiAdapterOptions,
 } from "./factory"
 
-// Prompts (chat / import / enrich)
-export { SYSTEM_PROMPT, buildContext, IMPORT_SYSTEM_PROMPT, ENRICH_SYSTEM_PROMPT } from "./prompts"
+// Prompts (chat / import / enrich) + shared budget snapshot
+export {
+  SYSTEM_PROMPT,
+  buildContext,
+  IMPORT_SYSTEM_PROMPT,
+  ENRICH_SYSTEM_PROMPT,
+  APP_KNOWLEDGE,
+  buildBudgetSnapshot,
+  formatBudgetSnapshot,
+} from "./prompts"
+export type { BudgetSnapshot } from "./prompts"
 
 // Render-tool → ContentBlock map (shared by every adapter)
 export { buildRenderToolMap, RENDER_FOLLOWUPS_TOOL_NAME } from "./render-map"

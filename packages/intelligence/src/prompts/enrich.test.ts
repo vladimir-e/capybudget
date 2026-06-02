@@ -1,7 +1,12 @@
 import { describe, it, expect } from "vitest"
 import { ENRICH_SYSTEM_PROMPT } from "./enrich"
+import { APP_KNOWLEDGE } from "./app-knowledge"
 
 describe("ENRICH_SYSTEM_PROMPT", () => {
+  it("embeds the shared app-knowledge brief", () => {
+    expect(ENRICH_SYSTEM_PROMPT).toContain(APP_KNOWLEDGE)
+  })
+
   it("describes the core enrichment loop tools", () => {
     expect(ENRICH_SYSTEM_PROMPT).toContain("enrich_stats")
     expect(ENRICH_SYSTEM_PROMPT).toContain("enrich_sample")

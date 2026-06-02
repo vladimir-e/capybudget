@@ -140,4 +140,4 @@ Each migration `n → n+1` is a pure-ish function on the budget folder, idempote
 
 ---
 
-**Maintenance note.** This file is baked into Capy's chat system prompt verbatim — see `packages/intelligence/src/prompts/chat.ts` and the bundling step in `packages/intelligence/scripts/generate-specs.ts`. When you edit this file, the prompt picks up the change on the next build (or `npm run generate:specs`), but the change also goes live to every running session on the next prompt build. Make sure additions/removals here read well as Capy's working knowledge — it's not just a spec, it's instructions.
+**Maintenance note.** This file is *not* embedded in the system prompts — Capy's always-on working knowledge lives in `specs/APP_KNOWLEDGE.md`. This file is reachable on demand via the `read_spec` tool when Capy needs the exact schema beyond that brief. It's still bundled into `specs.generated.ts` by `packages/intelligence/scripts/generate-specs.ts`, so run `npm run generate:specs` after editing (CI's `generate-specs.test` enforces sync).

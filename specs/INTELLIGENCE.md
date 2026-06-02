@@ -207,13 +207,22 @@ The Intelligence section also hosts a chat-instructions editor for `capy-instruc
 
 ## Context Enrichment
 
-Each user message is wrapped with app context before sending:
+Each user message is wrapped with app context before sending. The first message of a session also carries a compact **budget snapshot** — account count, transaction count, the full transaction date range, and category names grouped by group — so Capy knows the shape of the data without a tool round-trip. The snapshot is derived from the app's cached entities at session init (`buildBudgetSnapshot`) and rides on the first turn only; chat and import sessions both attach it.
 
 ```
 [Context]
 Budget: personal
 Date: March 15, 2026
 Budget folder: /path/to/budget
+
+[Budget snapshot]
+Accounts: 4 active
+Transactions: 1820 (2020-01-03 → 2026-03-14)
+Categories:
+  Income: Paycheck, Other Income
+  Fixed: Housing, Bills & Utilities, Subscriptions
+  Daily Living: Groceries, Dining Out, Transportation
+  ...
 
 [User message]
 What did I spend on food this month?
@@ -247,12 +256,9 @@ Establishes Capy's personality:
 - Concise, direct answers
 - Confirms destructive actions before executing
 
-The prompt also bakes in two spec files as always-on context so capy understands the app's surface area without having to ask:
+All three prompts open with a shared **app-knowledge brief** (`specs/APP_KNOWLEDGE.md`, factored through `prompts/app-knowledge.ts`) so chat, import, and enrich each understand the same working model — the transaction log, accounts, categories, derived budgets, the analytics surface, who the user is, and what Capy's job is. It's a tight, purpose-built doc, not a spec dump: ~1.3K tokens of always-on common ground rather than the full schema and feature inventory.
 
-- **`DATA_MODEL.md`** — embedded in full. Capy needs the exact schema to interpret tool results and form valid mutations.
-- **`PRODUCT.md`** — curated excerpt (everything above `## Target Platforms`). The deployment/distribution sections are skipped — capy reasons about how the app works, not how it ships.
-
-Both embeds are sourced from `packages/intelligence/src/specs.generated.ts`, which is regenerated on every build by `scripts/generate-specs.ts`. The two spec files carry maintenance-note footers flagging this dependency for human editors. For anything beyond the always-on context — architecture, the import pipeline, the intelligence layer itself — capy calls `read_spec`.
+The brief is sourced from `packages/intelligence/src/specs.generated.ts`, regenerated on every build by `scripts/generate-specs.ts`; `APP_KNOWLEDGE.md` carries a maintenance-note footer flagging this dependency. For detail beyond the brief — the exact CSV schemas in `DATA_MODEL.md`, the full feature inventory in `PRODUCT.md`, the architecture, the import pipeline, the intelligence layer itself — capy calls `read_spec`.
 
 ## Import Sessions
 
@@ -275,7 +281,7 @@ Reads the normalized CSV, identifies merchants, matches accounts, and categorize
 
 The `categoryConfidence` field coordinates between AI and user: enrichment writes `"high"` (merchant history match) or `"low"` (keyword inference), and skips rows where confidence is `"high"` (user-confirmed). The UI shows a confidence dot indicator next to each category.
 
-Both sessions use the same `CapySession` interface and the same tool surface — only the system prompt changes.
+Both sessions use the same `CapySession` interface and the same tool surface, and both open with the shared app-knowledge brief — only the entry-point-specific instructions layered on top change.
 
 ## Session Tool-Call Budget
 

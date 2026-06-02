@@ -9,8 +9,8 @@
  *
  * - `SPECS` — { filename → file content } for every `specs/*.md` file.
  *   The `read_spec` tool reads this map directly; no runtime fs access.
- *   The chat prompt embeds `SPECS["PRODUCT.md"]` and `SPECS["DATA_MODEL.md"]`
- *   in full as always-on context.
+ *   The chat / import / enrich prompts embed `SPECS["APP_KNOWLEDGE.md"]`
+ *   as the shared always-on brief; the rest are reachable via `read_spec`.
  * - `SPEC_FILENAMES` — sorted array of available filenames.
  */
 
@@ -43,8 +43,8 @@ export function buildSpecsModule(specsDir: string = DEFAULT_SPECS_DIR): string {
 // refresh after editing a spec.
 //
 // SPECS: map of filename → full file content. Consumed by the
-//        \`read_spec\` tool, and by the chat prompt which embeds
-//        \`PRODUCT.md\` and \`DATA_MODEL.md\` in full.
+//        \`read_spec\` tool, and by the chat / import / enrich prompts
+//        which embed \`APP_KNOWLEDGE.md\` as the shared always-on brief.
 
 export const SPECS: Readonly<Record<string, string>> = Object.freeze({
 ${specsEntries}

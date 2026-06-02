@@ -65,4 +65,4 @@ See `FRONTEND_DESIGN.md` for interaction patterns, color scheme, typography, and
 
 ---
 
-**Maintenance note.** This file is embedded in full into Capy's chat system prompt as the always-on product brief — see `packages/intelligence/src/prompts/chat.ts`. When editing the feature inventory above, the change reaches every chat session on the next prompt build. Make sure additions/removals read well as Capy's working knowledge of what the app can do.
+**Maintenance note.** This file is *not* embedded in the system prompts — Capy's always-on working knowledge lives in `specs/APP_KNOWLEDGE.md`. This file is reachable on demand via the `read_spec` tool when Capy needs the full feature inventory beyond that brief, so keep the inventory above accurate and self-contained.
