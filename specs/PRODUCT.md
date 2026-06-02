@@ -62,7 +62,3 @@ Accounts grouped by type: Cash, Checking, Savings, Credit, Investment, Loans, Ar
 ## UX & Visual Design
 
 See `FRONTEND_DESIGN.md` for interaction patterns, color scheme, typography, and accessibility guidelines.
-
----
-
-**Maintenance note.** This file is *not* embedded in the system prompts — Capy's always-on working knowledge lives in `specs/APP_KNOWLEDGE.md`. This file is reachable on demand via the `read_spec` tool when Capy needs the full feature inventory beyond that brief, so keep the inventory above accurate and self-contained.

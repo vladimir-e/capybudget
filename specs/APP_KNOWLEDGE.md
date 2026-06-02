@@ -46,7 +46,3 @@ You can do anything the user can do in the app — read, create, update, and del
 - **Correct only the few real mistakes** — the credit-card double-count, treating transfers as spending, leaving everything uncategorized. Most else is preference.
 - **Reduce upkeep, don't add chores.** Upkeep is what kills budgets.
 - **Let the data teach.** A budget built from their own history shows an honest picture faster than any explanation.
-
----
-
-**Maintenance note.** This file is Capy's always-on working knowledge, embedded verbatim at the head of the chat, import, and enrich system prompts (via `packages/intelligence/src/prompts/app-knowledge.ts`). An edit here reaches every Capy session on the next prompt build. Keep it tight — it's the shared base across all three entry points, not a place for entry-point-specific instructions. Run `npm run generate:specs` after editing (CI's `generate-specs.test` enforces sync).

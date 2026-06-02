@@ -14,8 +14,7 @@ interface EmptyStateProps {
   className?: string;
 }
 
-/** Shared "nothing here" state: centered, muted, generous whitespace. Subtle by
- *  default so it guides without nagging — no card chrome, no loud color. */
+/** Shared empty-state: centered, muted, with optional icon, description, and CTA slot. */
 export function EmptyState({
   icon,
   title,
