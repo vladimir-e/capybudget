@@ -11,6 +11,8 @@ CHANGELOG PHILOSOPHY:
 
 ## Unreleased
 
+- **Shortcuts** - Hold ⌘ to reveal keyboard-shortcut hints across the app (rail 1/2/3, ⌘N, ⌘I, ⌘,); Settings now dismisses on Esc like Help.
+- **Capy** - Labeled "Ask Capy" launcher with a breathing glow; the chat header shows the active AI provider instead of a generic tagline.
 - **Help** - In-app user guide at `/budget/help` (rail icon beside Settings): scroll-anchored sidebar, live-demo link, ESC to dismiss; linked from the first-run guide.
 - **Onboarding** - First-run guide on the empty all-accounts view: a calm three-step panel (add accounts, log transactions, ask Capy) that tracks live state and disappears once any transaction exists.
 - **Analytics** - Shared `EmptyState` component; analytics tabs distinguish a brand-new budget ("useful once you have more data") from an empty period.

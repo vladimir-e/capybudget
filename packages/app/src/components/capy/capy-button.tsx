@@ -21,8 +21,7 @@ export function CapyButton({ active, onClick }: CapyButtonProps) {
         }
       `}
     >
-      {/* Breathing glow behind the transparent pill — the original "Capy
-          breathing in the corner" effect; the label carries discoverability. */}
+      {/* Glow only reads on the transparent idle pill — a solid fill hides it. */}
       {!active && <div className="capy-glow absolute inset-0 rounded-full" />}
       <Sparkles className="relative h-4 w-4" />
       <span className="relative hidden sm:inline">Ask Capy</span>

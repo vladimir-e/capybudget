@@ -30,6 +30,8 @@ import { ConfiguredEmptyState, UnconfiguredEmptyState } from "./capy-empty-state
 import { MessageBubble } from "./capy-message-bubble"
 import { FileChip } from "./file-chip"
 
+declare const __IS_DEMO__: boolean
+
 // Panel sizing — the desktop default and lower bound. Below `sm:`
 // the panel goes full-width and the resize handle is hidden, which
 // preserves the mobile layout for the web demo.
@@ -298,20 +300,22 @@ export function CapyOverlay({
             <div className="mt-0.5 flex items-center gap-1.5">
               <span
                 className={`h-1.5 w-1.5 rounded-full ${
-                  isConfigured ? "bg-green-500" : "bg-muted-foreground/40"
+                  __IS_DEMO__ || isConfigured ? "bg-green-500" : "bg-muted-foreground/40"
                 }`}
                 aria-hidden="true"
               />
               <p className="truncate text-xs text-muted-foreground">
-                {isConfigured && config.provider
-                  ? PROVIDER_LABELS[config.provider]
-                  : "Not configured"}
+                {/* Demo seeds claude-cli to power its stubbed chat but presents
+                    AI as "Off" in Settings — show a neutral label, not the seed. */}
+                {__IS_DEMO__
+                  ? "Your AI assistant"
+                  : isConfigured && config.provider
+                    ? PROVIDER_LABELS[config.provider]
+                    : "Not configured"}
               </p>
             </div>
           </div>
         </div>
-        {/* Collapse sits alone in the corner — an easy, uncrowded tap target
-            roughly where the launcher was (New chat moved to the composer). */}
         <button
           type="button"
           onClick={onClose}

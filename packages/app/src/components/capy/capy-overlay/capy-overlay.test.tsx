@@ -636,3 +636,29 @@ describe("CapyOverlay inline markdown", () => {
     expect(strongs[1].className).not.toContain("text-brand")
   })
 })
+
+describe("CapyOverlay header subtitle", () => {
+  it("shows the active provider when configured", async () => {
+    useIntelligenceStore.setState({
+      hydrated: true,
+      config: {
+        ...DEFAULT_INTELLIGENCE_CONFIG,
+        provider: "anthropic",
+        anthropic: { apiKey: "sk-ant-test", model: "claude-sonnet-4-6" },
+      },
+    })
+    await mountOverlay()
+
+    expect(screen.getByText("Anthropic API")).toBeInTheDocument()
+  })
+
+  it("shows 'Not configured' when no provider is set", async () => {
+    useIntelligenceStore.setState({
+      hydrated: true,
+      config: { ...DEFAULT_INTELLIGENCE_CONFIG, provider: null },
+    })
+    await mountOverlay()
+
+    expect(screen.getByText("Not configured")).toBeInTheDocument()
+  })
+})
