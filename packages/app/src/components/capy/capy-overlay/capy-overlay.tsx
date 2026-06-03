@@ -447,7 +447,7 @@ export function CapyOverlay({
               <button
                 type="button"
                 onClick={() => setInstructionsOpen(true)}
-                className="inline-flex items-center gap-1 text-xs text-muted-foreground/40 hover:text-muted-foreground transition-colors cursor-pointer"
+                className="action-link inline-flex items-center gap-1 text-xs cursor-pointer"
                 aria-label="Custom instructions"
               >
                 <Settings2 className="h-3 w-3" />
@@ -457,7 +457,7 @@ export function CapyOverlay({
                 <button
                   type="button"
                   onClick={onNewChat}
-                  className="inline-flex items-center gap-1 text-xs text-muted-foreground/40 hover:text-muted-foreground transition-colors cursor-pointer"
+                  className="action-link inline-flex items-center gap-1 text-xs cursor-pointer"
                   aria-label="New chat"
                 >
                   <RotateCcw className="h-3 w-3" />

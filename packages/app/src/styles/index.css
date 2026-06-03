@@ -531,6 +531,19 @@
     }
 }
 
+/* ── UI primitives ───────────────────────────────────────────
+   Subtle interactive label — legible at rest, full-strength on hover. Use for
+   tertiary action links instead of dim opacity-on-muted (e.g. /40–/50), which
+   fails contrast in every theme. Tokens are themed, so it adapts to light/dark
+   and every color theme automatically. */
+.action-link {
+  color: color-mix(in oklch, var(--muted-foreground) 80%, transparent);
+  transition: color 150ms ease;
+}
+.action-link:hover {
+  color: var(--foreground);
+}
+
 /* ── Recharts — suppress focus/selection outlines on SVG ────── */
 
 .recharts-wrapper,
