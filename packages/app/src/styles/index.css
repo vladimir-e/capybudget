@@ -549,14 +549,18 @@
 .capy-glow {
   background: var(--brand);
   opacity: 0;
-  filter: blur(8px);
-  animation: capy-pulse 3s ease-in-out infinite;
+  filter: blur(10px);
+  animation: capy-pulse 3.5s ease-in-out infinite;
   pointer-events: none;
 }
 
 @keyframes capy-pulse {
-  0%, 100% { opacity: 0.15; }
-  50% { opacity: 0.4; }
+  0%, 100% { opacity: 0.2; }
+  50% { opacity: 0.5; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .capy-glow { animation: none; opacity: 0.3; }
 }
 
 .capy-scroll {

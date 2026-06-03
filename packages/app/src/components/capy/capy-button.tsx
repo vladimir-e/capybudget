@@ -17,7 +17,9 @@ export function CapyButton({ active, onClick }: CapyButtonProps) {
         ${active ? "shadow-inner" : "shadow-sm"}
       `}
     >
-      {!active && <div className="capy-glow absolute inset-0 rounded-full" />}
+      {/* Breathing halo — extends past the solid pill so the brand glow reads
+          as an aura (inset-0 would be brand-on-brand and invisible). */}
+      {!active && <div className="capy-glow absolute -inset-1 rounded-full" />}
       <Sparkles className="relative h-4 w-4" />
       <span className="relative hidden sm:inline">Ask Capy</span>
     </button>
