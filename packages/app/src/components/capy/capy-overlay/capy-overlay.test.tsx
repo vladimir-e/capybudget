@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
-import { cleanup, render, screen, waitFor } from "@testing-library/react"
+import { useEffect, useState } from "react"
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import {
   createMemoryHistory,
@@ -55,16 +56,37 @@ async function mountOverlay({
   onStop = () => {},
   onNewChat = () => {},
 }: MountOptions = {}) {
-  // The overlay now consumes its session from CapySessionProvider; inject a
-  // test value directly so each test controls messages / streaming / callbacks.
-  const sessionValue: CapySessionContextValue = {
-    messages,
-    isStreaming,
-    sendMessage: onSend,
-    stopStreaming: onStop,
-    newChat: onNewChat,
-    open,
-    setOpen: () => {},
+  // The overlay consumes its session from CapySessionProvider. A small stateful
+  // harness injects a test value and lets tests update messages after mount
+  // (needed to fire the autoscroll useLayoutEffect); `updateMessages` is
+  // captured here and surfaced on the return value.
+  const harness: { setMessages: (m: ChatMessage[]) => void } = {
+    setMessages: () => {},
+  }
+  const Harness = () => {
+    const [msgs, setMsgs] = useState<ChatMessage[]>(messages)
+    useEffect(() => {
+      harness.setMessages = setMsgs
+    }, [setMsgs])
+    const sessionValue: CapySessionContextValue = {
+      messages: msgs,
+      isStreaming,
+      sendMessage: onSend,
+      stopStreaming: onStop,
+      newChat: onNewChat,
+      open,
+      setOpen: () => {},
+    }
+    return (
+      <CapySessionContext.Provider value={sessionValue}>
+        <CapyOverlay
+          instructions=""
+          onSaveInstructions={async () => {}}
+          commands={[]}
+          onSaveCommands={async () => {}}
+        />
+      </CapySessionContext.Provider>
+    )
   }
 
   const rootRoute = createRootRoute()
@@ -77,16 +99,7 @@ async function mountOverlay({
       path: (search.path as string) ?? "",
       name: (search.name as string) ?? "Budget",
     }),
-    component: () => (
-      <CapySessionContext.Provider value={sessionValue}>
-        <CapyOverlay
-          instructions=""
-          onSaveInstructions={async () => {}}
-          commands={[]}
-          onSaveCommands={async () => {}}
-        />
-      </CapySessionContext.Provider>
-    ),
+    component: () => <Harness />,
   })
   const settingsRoute = createRoute({
     getParentRoute: () => budgetRoute,
@@ -103,7 +116,11 @@ async function mountOverlay({
   })
 
   await router.load()
-  return { ...render(<RouterProvider router={router} />), router }
+  return {
+    ...render(<RouterProvider router={router} />),
+    router,
+    setMessages: (m: ChatMessage[]) => act(() => harness.setMessages(m)),
+  }
 }
 
 beforeEach(() => {
@@ -660,5 +677,123 @@ describe("CapyOverlay header subtitle", () => {
     await mountOverlay()
 
     expect(screen.getByText("Not configured")).toBeInTheDocument()
+  })
+})
+
+// jsdom has no layout, so scroll geometry must be installed by hand. The
+// setter clamps like a real element (scrollTop maxes at scrollHeight -
+// clientHeight) so a snap-to-bottom against shrunken content lands where the
+// browser would put it.
+function installScrollGeometry(
+  el: HTMLElement,
+  init: { scrollHeight: number; clientHeight: number },
+) {
+  const state = { ...init, top: 0 }
+  Object.defineProperty(el, "clientHeight", {
+    configurable: true,
+    get: () => state.clientHeight,
+  })
+  Object.defineProperty(el, "scrollHeight", {
+    configurable: true,
+    get: () => state.scrollHeight,
+  })
+  Object.defineProperty(el, "scrollTop", {
+    configurable: true,
+    get: () => state.top,
+    set: (v: number) => {
+      const max = Math.max(0, state.scrollHeight - state.clientHeight)
+      state.top = Math.max(0, Math.min(v, max))
+    },
+  })
+  return state
+}
+
+const assistantText = (id: string, text: string): ChatMessage => ({
+  id,
+  role: "assistant",
+  blocks: [{ type: "text", content: text }],
+})
+
+const jumpButton = () =>
+  screen.queryByRole("button", { name: /scroll to latest/i })
+
+describe("CapyOverlay autoscroll", () => {
+  beforeEach(() => {
+    useIntelligenceStore.setState({
+      hydrated: true,
+      config: { ...DEFAULT_INTELLIGENCE_CONFIG, provider: "claude-cli" },
+    })
+  })
+
+  it("releases on the first upward scroll and re-pins on return to bottom", async () => {
+    const { container } = await mountOverlay({
+      isStreaming: true,
+      messages: [assistantText("a", "line one"), assistantText("b", "line two")],
+    })
+    const el = container.querySelector(".capy-scroll") as HTMLElement
+    const geo = installScrollGeometry(el, { scrollHeight: 1000, clientHeight: 400 })
+
+    // Parked at the bottom → no jump button.
+    geo.top = 600
+    fireEvent.scroll(el)
+    expect(jumpButton()).toBeNull()
+
+    // User scrolls up → released, jump button appears.
+    geo.top = 200
+    fireEvent.scroll(el)
+    expect(jumpButton()).toBeInTheDocument()
+
+    // Back to within the threshold of the bottom → re-pinned, button gone.
+    geo.top = 590
+    fireEvent.scroll(el)
+    expect(jumpButton()).toBeNull()
+  })
+
+  it("stays pinned when content height shrinks for a frame (no false release)", async () => {
+    const { container, setMessages } = await mountOverlay({
+      isStreaming: true,
+      messages: [assistantText("a", "thinking then answer")],
+    })
+    const el = container.querySelector(".capy-scroll") as HTMLElement
+    const geo = installScrollGeometry(el, { scrollHeight: 1000, clientHeight: 400 })
+
+    // Pinned at the bottom.
+    geo.top = 600
+    fireEvent.scroll(el)
+    expect(jumpButton()).toBeNull()
+
+    // The tall "Thinking…" bubble is replaced by a short first token: height
+    // collapses, and the next render's useLayoutEffect snaps to the new (much
+    // lower) bottom. The snap must record its own position so the resulting
+    // scroll event isn't misread as the user scrolling up.
+    geo.scrollHeight = 500
+    setMessages([assistantText("a", "short")]) // fires the layout-effect snap (clamps to 100)
+    fireEvent.scroll(el)
+    expect(jumpButton()).toBeNull()
+  })
+
+  it("re-pins and hides the jump button when the user sends a message", async () => {
+    const user = userEvent.setup()
+    const onSend = vi.fn()
+    const { container } = await mountOverlay({
+      onSend,
+      messages: [assistantText("a", "history")],
+    })
+    const el = container.querySelector(".capy-scroll") as HTMLElement
+    const geo = installScrollGeometry(el, { scrollHeight: 1000, clientHeight: 400 })
+
+    geo.top = 600
+    fireEvent.scroll(el)
+    geo.top = 100
+    fireEvent.scroll(el)
+    expect(jumpButton()).toBeInTheDocument()
+
+    await user.type(
+      screen.getByPlaceholderText("Ask Capy anything about your finances..."),
+      "hello{Enter}",
+    )
+
+    expect(onSend).toHaveBeenCalledWith("hello", undefined)
+    expect(jumpButton()).toBeNull()
   })
 })

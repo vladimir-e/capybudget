@@ -11,6 +11,9 @@ CHANGELOG PHILOSOPHY:
 
 ## Unreleased
 
+- **Capy** - Fix OpenAI sessions dying after a tool-only turn — an empty terminal completion poisoned the replayed history, so every later message failed.
+- **Capy** - Wide chat tables scroll horizontally instead of squeezing; streaming auto-scroll no longer yanks you back when you scroll up to read (jump-to-latest button re-engages).
+- **Capy** - Refreshed starter suggestions and default saved commands (categorize transactions, review subscriptions, account data cutoff).
 - **Shortcuts** - Hold ⌘ to reveal keyboard-shortcut hints across the app (rail 1/2/3, ⌘N, ⌘I, ⌘,); Settings now dismisses on Esc like Help.
 - **Capy** - Labeled "Ask Capy" launcher with a breathing glow; the chat header shows the active AI provider instead of a generic tagline.
 - **Help** - In-app user guide at `/budget/help` (rail icon beside Settings): scroll-anchored sidebar, live-demo link, ESC to dismiss; linked from the first-run guide.

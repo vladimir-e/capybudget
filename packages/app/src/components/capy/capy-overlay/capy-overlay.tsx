@@ -163,7 +163,14 @@ export function CapyOverlay({
 
   const scrollToBottom = useCallback(() => {
     const el = scrollRef.current
-    if (el) el.scrollTop = el.scrollHeight
+    if (!el) return
+    el.scrollTop = el.scrollHeight
+    // Record the position we just set so the resulting scroll event isn't
+    // misread as a user gesture. Matters when content height *shrinks* for a
+    // frame — e.g. the tall "Thinking…" bubble is replaced by the first short
+    // token — which would otherwise look like an upward scroll and wrongly
+    // release a pinned user.
+    lastScrollTopRef.current = el.scrollTop
   }, [])
 
   // Re-engage following the stream and snap to the newest output.
@@ -173,11 +180,11 @@ export function CapyOverlay({
     scrollToBottom()
   }, [scrollToBottom])
 
-  // Recompute pin state on every scroll. Auto-follow only ever scrolls
-  // *down*, so any upward movement is the user — release on the first such
-  // tick rather than waiting for them to clear the threshold, otherwise the
-  // next token snaps them back and they have to out-scroll the stream.
-  // Re-pin once they return to the bottom on their own.
+  // Recompute pin state on every scroll. Programmatic snaps record their own
+  // resulting position (see scrollToBottom), so any *remaining* upward delta
+  // is the user — release on the first such tick rather than waiting for them
+  // to clear the threshold, otherwise the next token snaps them back and they
+  // have to out-scroll the stream. Re-pin once they return to the bottom.
   const handleMessagesScroll = useCallback(() => {
     const el = scrollRef.current
     if (!el) return
