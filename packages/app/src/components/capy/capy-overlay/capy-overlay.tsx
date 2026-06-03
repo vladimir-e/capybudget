@@ -81,6 +81,7 @@ export function CapyOverlay({
   // streaming tokens to the bottom; once they scroll up to read we stop,
   // and a "jump to latest" button lets them re-engage.
   const pinnedToBottomRef = useRef(true)
+  const lastScrollTopRef = useRef(0)
   const [showJumpToLatest, setShowJumpToLatest] = useState(false)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const firstChipRef = useRef<HTMLButtonElement>(null)
@@ -172,13 +173,23 @@ export function CapyOverlay({
     scrollToBottom()
   }, [scrollToBottom])
 
-  // Recompute whether the user is pinned to the bottom on every scroll.
-  // A programmatic snap to bottom keeps this true; scrolling up flips it
-  // false and reveals the jump button.
+  // Recompute pin state on every scroll. Auto-follow only ever scrolls
+  // *down*, so any upward movement is the user — release on the first such
+  // tick rather than waiting for them to clear the threshold, otherwise the
+  // next token snaps them back and they have to out-scroll the stream.
+  // Re-pin once they return to the bottom on their own.
   const handleMessagesScroll = useCallback(() => {
     const el = scrollRef.current
     if (!el) return
-    const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight
+    const prevTop = lastScrollTopRef.current
+    const top = el.scrollTop
+    lastScrollTopRef.current = top
+    if (top < prevTop - 1) {
+      pinnedToBottomRef.current = false
+      setShowJumpToLatest(true)
+      return
+    }
+    const distanceFromBottom = el.scrollHeight - top - el.clientHeight
     const atBottom = distanceFromBottom <= STICK_TO_BOTTOM_THRESHOLD
     pinnedToBottomRef.current = atBottom
     setShowJumpToLatest(!atBottom)
