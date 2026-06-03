@@ -51,15 +51,19 @@ export function BlockRenderer({
 /* ── Table ─────────────────────────────────────────────────────── */
 
 function TableView({ headers, rows }: Pick<TableBlock, "headers" | "rows">) {
+  // Tables can carry more columns than the chat panel is wide. Let the table
+  // grow to its content width (min-w-full keeps narrow tables filling the
+  // panel) and scroll the container horizontally rather than squeezing or
+  // wrapping cells into an unreadable mess.
   return (
-    <div className="rounded-xl border border-border/30 overflow-hidden">
-      <table className="w-full text-sm">
+    <div className="rounded-xl border border-border/30 overflow-x-auto capy-scroll">
+      <table className="w-max min-w-full text-sm">
         <thead>
           <tr className="bg-muted/40">
             {headers.map((h) => (
               <th
                 key={h}
-                className="px-4 py-2.5 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground"
+                className="px-4 py-2.5 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground whitespace-nowrap"
               >
                 {h}
               </th>
@@ -72,7 +76,7 @@ function TableView({ headers, rows }: Pick<TableBlock, "headers" | "rows">) {
               {row.map((cell, j) => (
                 <td
                   key={j}
-                  className={`px-4 py-2.5 text-foreground/80 ${
+                  className={`px-4 py-2.5 text-foreground/80 whitespace-nowrap ${
                     cell.startsWith("-$")
                       ? "text-amount-expense font-medium tabular-nums"
                       : cell.startsWith("$")
