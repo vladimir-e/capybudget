@@ -1,6 +1,7 @@
 import { useEffect, useMemo } from "react";
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import { Receipt, PieChart, FileUp, Settings, BookOpen } from "lucide-react";
+import { ModHintBadge } from "@/components/budget/mod-hint-badge";
 
 export type Section = "accounts" | "budget" | "import";
 
@@ -52,15 +53,15 @@ export function NavigationRail({
     <>
       {/* Desktop: vertical rail */}
       <nav className="hidden md:flex w-16 flex-col items-center border-r border-sidebar-border bg-sidebar pt-3 gap-1 shrink-0">
-        <NavItem variant="rail" to="/budget" search={search} active={isAccounts} icon={Receipt} label="Accounts" />
-        <NavItem variant="rail" to="/budget/categories" search={search} active={isBudget} icon={PieChart} label="Budget" />
-        <NavItem variant="rail" to="/budget/import" search={search} active={isImport} icon={FileUp} label="Import" indicator={hasImportData} />
+        <NavItem variant="rail" to="/budget" search={search} active={isAccounts} icon={Receipt} label="Accounts" hint="1" />
+        <NavItem variant="rail" to="/budget/categories" search={search} active={isBudget} icon={PieChart} label="Budget" hint="2" />
+        <NavItem variant="rail" to="/budget/import" search={search} active={isImport} icon={FileUp} label="Import" indicator={hasImportData} hint="3" />
 
         {/* Bottom utility cluster — separated from primary nav.
             Sidebar collapse lives on the sidebar itself, not the rail. */}
         <div className="mt-auto flex flex-col items-center gap-1 pb-3 pt-2 border-t border-sidebar-border/40 w-full">
           <NavItem variant="rail" to="/budget/help" search={search} active={isHelp} icon={BookOpen} label="Help" />
-          <NavItem variant="rail" to="/budget/settings" search={search} active={isSettings} icon={Settings} label="Settings" />
+          <NavItem variant="rail" to="/budget/settings" search={search} active={isSettings} icon={Settings} label="Settings" hint="," />
         </div>
       </nav>
 
@@ -103,6 +104,7 @@ function NavItem({
   icon: Icon,
   label,
   indicator,
+  hint,
 }: {
   variant: "rail" | "tab";
   to: string;
@@ -111,6 +113,7 @@ function NavItem({
   icon: React.ComponentType<{ className?: string }>;
   label: string;
   indicator?: boolean;
+  hint?: string;
 }) {
   const s = variantStyles[variant];
   return (
@@ -125,6 +128,7 @@ function NavItem({
       {indicator && (
         <span className={`absolute flex h-2 w-2 rounded-full bg-brand animate-pulse ${s.indicator}`} />
       )}
+      {hint && <ModHintBadge className="right-0 top-0">{hint}</ModHintBadge>}
     </Link>
   );
 }

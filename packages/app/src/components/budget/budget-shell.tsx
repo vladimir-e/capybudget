@@ -10,6 +10,8 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { ColorThemeSwitcher } from "@/components/color-theme-switcher";
 import { CapyButton } from "@/components/capy/capy-button";
 import { CapyOverlay } from "@/components/capy/capy-overlay/capy-overlay";
+import { ModHintProvider } from "@/components/budget/mod-hint-provider";
+import { ModHintBadge } from "@/components/budget/mod-hint-badge";
 import { BudgetUIProvider, type BudgetUIContextValue } from "@/contexts/budget-context";
 import { useCapySessionContext } from "@/contexts/capy-session-context";
 import {
@@ -203,6 +205,7 @@ export function BudgetShell() {
 
   return (
     <BudgetUIProvider value={uiCtx}>
+      <ModHintProvider>
       <div className="flex h-screen flex-col">
         {/* Header — full width, top */}
         <header className="grid grid-cols-3 items-center border-b px-4 py-2 bg-background/80 backdrop-blur-sm">
@@ -284,11 +287,14 @@ export function BudgetShell() {
               <ColorThemeSwitcher />
               <ThemeToggle />
             </div>
-            <div className="md:ml-1.5 md:border-l md:border-border/50 md:pl-2.5">
+            <div className="relative md:ml-1.5 md:border-l md:border-border/50 md:pl-2.5">
               <CapyButton
                 active={capyOpen}
                 onClick={() => setCapyOpen((prev) => !prev)}
               />
+              <ModHintBadge className="left-1/2 top-full mt-1.5 -translate-x-1/2">
+                {modKey}I
+              </ModHintBadge>
             </div>
           </div>
         </header>
@@ -383,6 +389,7 @@ export function BudgetShell() {
         }}
         editingAccount={editingAccount}
       />
+      </ModHintProvider>
     </BudgetUIProvider>
   );
 }
