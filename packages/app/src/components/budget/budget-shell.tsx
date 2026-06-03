@@ -358,6 +358,7 @@ export function BudgetShell() {
             className={`absolute top-0 inset-x-0 z-10 flex justify-center transition-transform duration-250 ease-out ${
               effectiveFormOpen ? "translate-y-0" : "-translate-y-full"
             }`}
+            {...(!effectiveFormOpen ? { inert: true, "aria-hidden": true } : {})}
           >
             {/* deliberate: floating form panel uses heavier elevation than dialog */}
             <div className="w-full max-w-sm rounded-b-2xl border-x border-b bg-background shadow-2xl px-6 pt-5 pb-4">
