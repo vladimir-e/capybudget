@@ -21,6 +21,7 @@ import { useCapySessionContext } from "@/contexts/capy-session-context"
 import {
   MAX_ATTACHMENT_SIZE,
   MAX_TOTAL_ATTACHMENT_SIZE,
+  PROVIDER_LABELS,
   type FileAttachment,
   type ChatMessage,
   type IntelligenceProvider,
@@ -295,9 +296,16 @@ export function CapyOverlay({
               Capy
             </h2>
             <div className="mt-0.5 flex items-center gap-1.5">
-              <span className="h-1.5 w-1.5 rounded-full bg-green-500" aria-hidden="true" />
+              <span
+                className={`h-1.5 w-1.5 rounded-full ${
+                  isConfigured ? "bg-green-500" : "bg-muted-foreground/40"
+                }`}
+                aria-hidden="true"
+              />
               <p className="truncate text-xs text-muted-foreground">
-                Your financial assistant
+                {isConfigured && config.provider
+                  ? PROVIDER_LABELS[config.provider]
+                  : "Not configured"}
               </p>
             </div>
           </div>

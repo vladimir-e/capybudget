@@ -13,6 +13,17 @@
 
 export type IntelligenceProvider = "claude-cli" | "anthropic" | "openai" | null
 
+/**
+ * Human-facing provider names — the shared vocabulary shown in Settings and
+ * the Capy header. Keyed by the real (non-null) providers; `null` ("Off") is
+ * an absence, labelled at the call site.
+ */
+export const PROVIDER_LABELS: Record<Exclude<IntelligenceProvider, null>, string> = {
+  "claude-cli": "Claude Code",
+  anthropic: "Anthropic API",
+  openai: "OpenAI API",
+}
+
 export interface IntelligenceConfig {
   provider: IntelligenceProvider
   anthropic: { apiKey: string; model: string }

@@ -14,6 +14,7 @@ import { Label } from "@/components/ui/label"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { recheckClaudeCli } from "@/services/claude-cli-detect"
 import { useIntelligenceStore } from "@/stores/intelligence-store"
+import { PROVIDER_LABELS } from "@capybudget/intelligence"
 import type { IntelligenceProvider } from "@capybudget/intelligence"
 import { AnthropicConfig, OpenAiConfig } from "./api-provider-config"
 import { ModelField, type ModelOption } from "./model-field"
@@ -55,11 +56,9 @@ function fromFormValue(value: ProviderFormValue): IntelligenceProvider {
   return value === OFF_FORM_VALUE ? null : value
 }
 
-const PROVIDER_LABELS: Record<ProviderFormValue, string> = {
+const PROVIDER_FORM_LABELS: Record<ProviderFormValue, string> = {
   off: "Off",
-  "claude-cli": "Claude Code",
-  anthropic: "Anthropic API",
-  openai: "OpenAI API",
+  ...PROVIDER_LABELS,
 }
 
 export function ProviderSection() {
@@ -100,7 +99,7 @@ export function ProviderSection() {
     const nextProvider = fromFormValue(next)
     if (nextProvider === provider) return
     setProvider(nextProvider)
-    toast.success(`Provider set to ${PROVIDER_LABELS[next]}`)
+    toast.success(`Provider set to ${PROVIDER_FORM_LABELS[next]}`)
   }
 
   // Warn the user if they previously selected claude-cli but it's no

@@ -30,6 +30,7 @@ export type { CapySessionOptions, CapySession } from "./session"
 // Provider config
 export {
   DEFAULT_INTELLIGENCE_CONFIG,
+  PROVIDER_LABELS,
 } from "./config"
 export type {
   IntelligenceConfig,
