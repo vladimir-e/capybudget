@@ -14,19 +14,22 @@ export interface CapyCommand {
 
 const DEFAULT_COMMANDS: CapyCommand[] = [
   {
-    id: "spending-breakdown",
-    name: "Spending breakdown",
-    prompt: "Break down my spending this month by category",
+    id: "categorize-transactions",
+    name: "Categorize transactions",
+    prompt:
+      "Find my most recent uncategorized transactions and assign each one a category based on the merchant, amount, and any notes. Show me the proposed categories before applying them.",
   },
   {
-    id: "subscriptions",
-    name: "Subscriptions audit",
-    prompt: "List all my recurring subscriptions and their monthly cost",
+    id: "review-subscriptions",
+    name: "Review subscriptions",
+    prompt:
+      "Surface my active recurring payments — subscriptions, memberships, and other periodic charges. List each with its cadence and monthly cost.",
   },
   {
-    id: "savings-rate",
-    name: "Savings rate",
-    prompt: "What percentage of my income am I saving this month compared to last month?",
+    id: "account-data-cutoff",
+    name: "Account data cutoff",
+    prompt:
+      "For each active account, show the date of the most recent transaction so I can see how current each account's data is before importing more from my bank.",
   },
 ]
 
