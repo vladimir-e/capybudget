@@ -2,6 +2,7 @@ import { useEffect, useMemo } from "react";
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import { Receipt, PieChart, FileUp, Settings, BookOpen } from "lucide-react";
 import { ModHintBadge } from "@/components/budget/mod-hint-badge";
+import { modKey } from "@/lib/platform";
 
 export type Section = "accounts" | "budget" | "import";
 
@@ -61,7 +62,7 @@ export function NavigationRail({
             Sidebar collapse lives on the sidebar itself, not the rail. */}
         <div className="mt-auto flex flex-col items-center gap-1 pb-3 pt-2 border-t border-sidebar-border/40 w-full">
           <NavItem variant="rail" to="/budget/help" search={search} active={isHelp} icon={BookOpen} label="Help" />
-          <NavItem variant="rail" to="/budget/settings" search={search} active={isSettings} icon={Settings} label="Settings" hint="," />
+          <NavItem variant="rail" to="/budget/settings" search={search} active={isSettings} icon={Settings} label="Settings" hint={`${modKey},`} />
         </div>
       </nav>
 
@@ -128,7 +129,7 @@ function NavItem({
       {indicator && (
         <span className={`absolute flex h-2 w-2 rounded-full bg-brand animate-pulse ${s.indicator}`} />
       )}
-      {hint && <ModHintBadge className="right-0 top-0">{hint}</ModHintBadge>}
+      {hint && <ModHintBadge className="left-1/2 top-1 -translate-x-1/2">{hint}</ModHintBadge>}
     </Link>
   );
 }

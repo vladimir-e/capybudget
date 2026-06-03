@@ -208,7 +208,7 @@ export function BudgetShell() {
       <ModHintProvider>
       <div className="flex h-screen flex-col">
         {/* Header — full width, top */}
-        <header className="grid grid-cols-3 items-center border-b px-4 py-2 bg-background/80 backdrop-blur-sm">
+        <header className="relative z-40 grid grid-cols-3 items-center border-b px-4 py-2 bg-background/80 backdrop-blur-sm">
           <div className="flex items-center">
             <DropdownMenu>
               <DropdownMenuTrigger
@@ -236,24 +236,26 @@ export function BudgetShell() {
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
-          <div className="flex justify-center">
+          <div className="relative flex justify-center">
             {!isArchivedView && (
-              <button
-                type="button"
-                onClick={toggleForm}
-                className={`group flex items-center gap-2 rounded-full px-3 py-1 text-xs font-medium transition-all ${
-                  effectiveFormOpen
-                    ? "bg-muted text-foreground"
-                    : "text-muted-foreground hover:text-foreground hover:bg-muted/30"
-                }`}
-                aria-label={effectiveFormOpen ? "Close transaction form" : "Add transaction"}
-              >
-                <ChevronDown className={`h-3.5 w-3.5 transition-transform duration-200 ${effectiveFormOpen ? "rotate-180" : ""}`} />
-                <span>New Transaction</span>
-                <kbd className="hidden sm:inline rounded bg-muted px-1.5 py-0.5 text-[10px] font-mono text-muted-foreground/70 border border-border/50">
+              <>
+                <button
+                  type="button"
+                  onClick={toggleForm}
+                  className={`group flex items-center gap-2 rounded-full px-3 py-1 text-xs font-medium transition-all ${
+                    effectiveFormOpen
+                      ? "bg-muted text-foreground"
+                      : "text-muted-foreground hover:text-foreground hover:bg-muted/30"
+                  }`}
+                  aria-label={effectiveFormOpen ? "Close transaction form" : "Add transaction"}
+                >
+                  <ChevronDown className={`h-3.5 w-3.5 transition-transform duration-200 ${effectiveFormOpen ? "rotate-180" : ""}`} />
+                  <span>New Transaction</span>
+                </button>
+                <ModHintBadge className="left-1/2 top-full mt-1.5 -translate-x-1/2">
                   {modKey}N
-                </kbd>
-              </button>
+                </ModHintBadge>
+              </>
             )}
           </div>
           <div className="flex items-center justify-end gap-1">

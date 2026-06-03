@@ -30,16 +30,18 @@ describe("Cmd-hold shortcut overlay", () => {
     // Switch to fake timers only to drive the hold delay deterministically.
     vi.useFakeTimers();
 
-    // Each rail item carries a digit chip; the Capy pill carries the full chord.
-    const railDigits = ["1", "2", "3", ","];
-    const railBadges = railDigits.map((d) =>
-      // The digit appears only inside the decorative kbd chip.
-      screen.getByText(d, { selector: "kbd[aria-hidden='true']" }),
-    );
-    const pillBadge = screen.getByText(isMac ? "⌘I" : "Ctrl+I", {
-      selector: "kbd[aria-hidden='true']",
-    });
-    const all = [...railBadges, pillBadge];
+    // Primary rail items carry bare-digit chips; everything else is a full chord.
+    const chip = (label: string) =>
+      screen.getByText(label, { selector: "kbd[aria-hidden='true']" });
+    const mod = isMac ? "⌘" : "Ctrl+";
+    const all = [
+      chip("1"),
+      chip("2"),
+      chip("3"),
+      chip(`${mod},`), // Settings
+      chip(`${mod}N`), // New Transaction
+      chip(`${mod}I`), // Ask Capy
+    ];
 
     // Resting: hidden, and absolutely positioned so they never reflow siblings.
     for (const b of all) {

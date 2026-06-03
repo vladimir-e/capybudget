@@ -19,7 +19,7 @@ export function ModHintBadge({ children, className }: ModHintBadgeProps) {
     <kbd
       aria-hidden="true"
       className={cn(
-        "pointer-events-none absolute z-20 rounded bg-muted px-1.5 py-0.5 text-[10px] font-mono leading-none text-muted-foreground/70 border border-border/50",
+        "pointer-events-none absolute z-20 rounded bg-foreground px-1.5 py-0.5 text-[10px] font-medium font-mono leading-none text-background shadow-sm",
         "opacity-0 transition-opacity duration-150 ease-out motion-reduce:transition-none",
         revealed && "opacity-100",
         className,
