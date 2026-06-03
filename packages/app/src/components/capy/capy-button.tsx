@@ -13,7 +13,7 @@ export function CapyButton({ active, onClick }: CapyButtonProps) {
       aria-label={active ? "Close Capy assistant" : "Open Capy assistant"}
       className={`
         relative flex h-8 items-center gap-1.5 rounded-full px-3 text-sm font-medium
-        bg-brand text-primary-foreground transition-all duration-300
+        bg-brand text-primary-foreground transition-all duration-300 hover:brightness-110
         ${active ? "shadow-inner" : "shadow-sm"}
       `}
     >
