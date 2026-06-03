@@ -244,14 +244,25 @@ export class OpenAiSession implements CapySession {
         emitContent()
       }
 
-      const assistantMessage: OpenAI.Chat.Completions.ChatCompletionAssistantMessageParam = {
-        role: "assistant",
-        content: assistantTextOnly.length > 0 ? assistantTextOnly : null,
+      // Persist the turn only when it carries text or tool calls. An empty
+      // terminal completion (no text, no tool calls — e.g. the model renders
+      // a table via a tool then says nothing) must not be stored as
+      // `{content: null}`: OpenAI rejects a null-content assistant message
+      // that has no tool_calls ("expected a string, got null"). Since the
+      // whole history replays on every send, one such turn poisons the rest
+      // of the session. Tool-call turns keep null content (the canonical
+      // OpenAI shape); text turns carry the string.
+      const hasToolCalls = assistantToolCalls.length > 0
+      if (assistantTextOnly.length > 0 || hasToolCalls) {
+        const assistantMessage: OpenAI.Chat.Completions.ChatCompletionAssistantMessageParam = {
+          role: "assistant",
+          content: assistantTextOnly.length > 0 ? assistantTextOnly : null,
+        }
+        if (hasToolCalls) {
+          assistantMessage.tool_calls = assistantToolCalls
+        }
+        this.messages.push(assistantMessage)
       }
-      if (assistantToolCalls.length > 0) {
-        assistantMessage.tool_calls = assistantToolCalls
-      }
-      this.messages.push(assistantMessage)
 
       if (finishReason !== "tool_calls") return
 

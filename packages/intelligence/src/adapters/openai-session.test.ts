@@ -663,6 +663,40 @@ describe("OpenAiSession", () => {
     expect(types).toContain("table")
   })
 
+  it("never stores a null-content assistant turn with no tool_calls (poisoned-history regression)", async () => {
+    // Mirrors the real failure: a turn uses a tool, then the terminal
+    // completion returns neither text nor tool calls. That empty turn used
+    // to be stored as {role:"assistant", content:null} with no tool_calls,
+    // which OpenAI rejects on every later send ("expected a string, got
+    // null") — poisoning the rest of the session.
+    queueTurn({
+      toolCallDeltas: [
+        { index: 0, id: "tc-1", name: "list_accounts", argFragments: ["{}"] },
+      ],
+      finish_reason: "tool_calls",
+    })
+    queueTurn({ finish_reason: "stop" }) // empty terminal turn — no text, no tools
+    mockRunTool.mockResolvedValue("ok")
+
+    const { session, events } = makeSession()
+    await session.send("how am I doing?")
+
+    // A follow-up send replays the full history to the API.
+    queueTurn({ textDeltas: ["Doing great."], finish_reason: "stop" })
+    await session.send("got it")
+
+    const sent = lastCreateCall().messages as Array<{
+      role: string
+      content: unknown
+      tool_calls?: unknown
+    }>
+    const poisoned = sent.filter(
+      (m) => m.role === "assistant" && m.content === null && !m.tool_calls,
+    )
+    expect(poisoned).toEqual([])
+    expect(events.some((e) => e.type === "error")).toBe(false)
+  })
+
   it("restart() resets the budget counter so the next session starts fresh", async () => {
     const { SESSION_TOOL_CALL_BUDGET } = await import("@capybudget/intelligence")
     for (let i = 0; i < SESSION_TOOL_CALL_BUDGET + 1; i++) {
