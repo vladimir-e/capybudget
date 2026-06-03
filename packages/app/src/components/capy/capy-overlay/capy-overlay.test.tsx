@@ -187,7 +187,7 @@ describe("CapyOverlay empty state", () => {
 
     expect(screen.getByText(/Hey, I.m Capy\./)).toBeInTheDocument()
     expect(
-      screen.getByRole("button", { name: "How am I doing this month?" }),
+      screen.getByRole("button", { name: "What can you help me with?" }),
     ).toBeInTheDocument()
     const textarea = screen.getByPlaceholderText(
       "Ask Capy anything about your finances...",
@@ -325,11 +325,11 @@ describe("CapyOverlay click-through behavior", () => {
     await mountOverlay({ onSend })
 
     await user.click(
-      screen.getByRole("button", { name: "How am I doing this month?" }),
+      screen.getByRole("button", { name: "What can you help me with?" }),
     )
 
     expect(onSend).toHaveBeenCalledTimes(1)
-    expect(onSend).toHaveBeenCalledWith("How am I doing this month?")
+    expect(onSend).toHaveBeenCalledWith("What can you help me with?")
   })
 
   it("clicking 'New chat' calls onNewChat when messages exist", async () => {
