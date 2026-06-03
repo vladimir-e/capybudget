@@ -1,6 +1,7 @@
-import { useRef, useEffect, useState, useCallback, type KeyboardEvent, type ChangeEvent, type DragEvent } from "react"
+import { useRef, useEffect, useLayoutEffect, useState, useCallback, type KeyboardEvent, type ChangeEvent, type DragEvent } from "react"
 import { useNavigate, useSearch } from "@tanstack/react-router"
 import {
+  ArrowDown,
   PanelRightClose,
   Paperclip,
   RotateCcw,
@@ -39,6 +40,11 @@ const PANEL_MIN_WIDTH = 440
 const PANEL_MAX_WIDTH_CAP = 720
 const PANEL_WIDTH_STORAGE_KEY = "capy-panel-width"
 
+// Distance from the bottom (px) within which we treat the user as "pinned"
+// to the latest output and keep auto-scrolling as tokens stream in. Scroll
+// up past this and we back off so reading isn't interrupted.
+const STICK_TO_BOTTOM_THRESHOLD = 32
+
 function panelMaxWidth(win: Window): number {
   return Math.min(win.innerWidth * 0.5, PANEL_MAX_WIDTH_CAP)
 }
@@ -71,6 +77,11 @@ export function CapyOverlay({
   const [instructionsOpen, setInstructionsOpen] = useState(false)
   const [isDragging, setIsDragging] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
+  // Whether the user is parked at the latest output. While true we follow
+  // streaming tokens to the bottom; once they scroll up to read we stop,
+  // and a "jump to latest" button lets them re-engage.
+  const pinnedToBottomRef = useRef(true)
+  const [showJumpToLatest, setShowJumpToLatest] = useState(false)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const firstChipRef = useRef<HTMLButtonElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -149,11 +160,36 @@ export function CapyOverlay({
     }
   }, [open, isConfigured])
 
-  useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight
-    }
-  }, [messages])
+  const scrollToBottom = useCallback(() => {
+    const el = scrollRef.current
+    if (el) el.scrollTop = el.scrollHeight
+  }, [])
+
+  // Re-engage following the stream and snap to the newest output.
+  const jumpToLatest = useCallback(() => {
+    pinnedToBottomRef.current = true
+    setShowJumpToLatest(false)
+    scrollToBottom()
+  }, [scrollToBottom])
+
+  // Recompute whether the user is pinned to the bottom on every scroll.
+  // A programmatic snap to bottom keeps this true; scrolling up flips it
+  // false and reveals the jump button.
+  const handleMessagesScroll = useCallback(() => {
+    const el = scrollRef.current
+    if (!el) return
+    const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight
+    const atBottom = distanceFromBottom <= STICK_TO_BOTTOM_THRESHOLD
+    pinnedToBottomRef.current = atBottom
+    setShowJumpToLatest(!atBottom)
+  }, [])
+
+  // Follow streaming output only while the user is parked at the bottom.
+  // Layout effect so the snap happens before paint — no flash of the
+  // pre-scroll position between tokens.
+  useLayoutEffect(() => {
+    if (pinnedToBottomRef.current) scrollToBottom()
+  }, [messages, scrollToBottom])
 
   const processFiles = useCallback(async (files: File[]) => {
     // Phase 1: read files (no state dependency)
@@ -198,6 +234,7 @@ export function CapyOverlay({
   const handleSend = () => {
     const text = input.trim()
     if ((!text && attachments.length === 0) || isStreaming) return
+    jumpToLatest()
     onSend(text, attachments.length > 0 ? attachments : undefined)
     setInput("")
     setAttachments([])
@@ -205,6 +242,7 @@ export function CapyOverlay({
 
   const handleSuggestion = (prompt: string) => {
     if (isStreaming) return
+    jumpToLatest()
     onSend(prompt)
   }
 
@@ -328,52 +366,66 @@ export function CapyOverlay({
       </div>
 
       {/* Messages */}
-      <div
-        ref={scrollRef}
-        className="flex-1 overflow-y-auto px-5 pb-4 capy-scroll"
-      >
-        <div className="space-y-5 py-4">
-          {messages.length === 0 && !isConfigured && (
-            <UnconfiguredEmptyState
-              claudeCliAvailable={claudeCliAvailable}
-              onPickProvider={openSettings}
-              onOpenSettings={() => openSettings()}
-              firstChipRef={firstChipRef}
-            />
-          )}
-          {messages.length === 0 && isConfigured && (
-            <ConfiguredEmptyState onSuggestion={handleSuggestion} />
-          )}
-          {messages.map((msg, i) => {
-            // Only the trailing assistant message can be "still streaming";
-            // earlier messages are settled history. Tool-progress cards
-            // and the in-progress spinner only appear on this turn.
-            const isLastAssistant =
-              msg.role === "assistant" && i === messages.length - 1
-            return (
-              <MessageBubble
-                key={msg.id}
-                message={msg}
-                isStreaming={isStreaming && isLastAssistant}
-                onSend={onSend}
+      <div className="relative flex min-h-0 flex-1 flex-col">
+        <div
+          ref={scrollRef}
+          onScroll={handleMessagesScroll}
+          className="flex-1 overflow-y-auto px-5 pb-4 capy-scroll"
+        >
+          <div className="space-y-5 py-4">
+            {messages.length === 0 && !isConfigured && (
+              <UnconfiguredEmptyState
+                claudeCliAvailable={claudeCliAvailable}
+                onPickProvider={openSettings}
+                onOpenSettings={() => openSettings()}
+                firstChipRef={firstChipRef}
               />
-            )
-          })}
-          {isStreaming && lastMessageHasNoBlocks(messages) && (
-            <div className="flex justify-start">
-              <div className="rounded-2xl rounded-bl-sm bg-muted/40 px-5 py-4">
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <div className="capy-thinking flex gap-1">
-                    <span className="h-1.5 w-1.5 rounded-full bg-brand/60" />
-                    <span className="h-1.5 w-1.5 rounded-full bg-brand/60" />
-                    <span className="h-1.5 w-1.5 rounded-full bg-brand/60" />
+            )}
+            {messages.length === 0 && isConfigured && (
+              <ConfiguredEmptyState onSuggestion={handleSuggestion} />
+            )}
+            {messages.map((msg, i) => {
+              // Only the trailing assistant message can be "still streaming";
+              // earlier messages are settled history. Tool-progress cards
+              // and the in-progress spinner only appear on this turn.
+              const isLastAssistant =
+                msg.role === "assistant" && i === messages.length - 1
+              return (
+                <MessageBubble
+                  key={msg.id}
+                  message={msg}
+                  isStreaming={isStreaming && isLastAssistant}
+                  onSend={onSend}
+                />
+              )
+            })}
+            {isStreaming && lastMessageHasNoBlocks(messages) && (
+              <div className="flex justify-start">
+                <div className="rounded-2xl rounded-bl-sm bg-muted/40 px-5 py-4">
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <div className="capy-thinking flex gap-1">
+                      <span className="h-1.5 w-1.5 rounded-full bg-brand/60" />
+                      <span className="h-1.5 w-1.5 rounded-full bg-brand/60" />
+                      <span className="h-1.5 w-1.5 rounded-full bg-brand/60" />
+                    </div>
+                    Thinking...
                   </div>
-                  Thinking...
                 </div>
               </div>
-            </div>
-          )}
+            )}
+          </div>
         </div>
+        {showJumpToLatest && (
+          <button
+            type="button"
+            onClick={jumpToLatest}
+            aria-label="Scroll to latest"
+            title="Scroll to latest"
+            className="absolute bottom-3 right-4 z-10 flex h-9 w-9 items-center justify-center rounded-full border border-border/40 bg-background/95 text-foreground/80 shadow-lg backdrop-blur transition-colors hover:border-brand/40 hover:text-foreground"
+          >
+            <ArrowDown className="h-4 w-4" />
+          </button>
+        )}
       </div>
 
       {/* Input — hidden entirely until a provider is configured. The
