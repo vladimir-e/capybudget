@@ -12,17 +12,14 @@ export function CapyButton({ active, onClick }: CapyButtonProps) {
       onClick={onClick}
       aria-label={active ? "Close Capy assistant" : "Open Capy assistant"}
       className={`
-        relative flex h-10 w-10 items-center justify-center rounded-xl
-        transition-all duration-300
-        ${
-          active
-            ? "bg-brand text-primary-foreground shadow-lg"
-            : "text-brand hover:bg-brand/10"
-        }
+        relative flex h-8 items-center gap-1.5 rounded-full px-3 text-sm font-medium
+        bg-brand text-primary-foreground transition-all duration-300
+        ${active ? "shadow-inner" : "shadow-sm"}
       `}
     >
-      {!active && <div className="capy-glow absolute inset-0 rounded-xl" />}
-      <Sparkles className="relative h-5 w-5" />
+      {!active && <div className="capy-glow absolute inset-0 rounded-full" />}
+      <Sparkles className="relative h-4 w-4" />
+      <span className="relative hidden sm:inline">Ask Capy</span>
     </button>
   )
 }
