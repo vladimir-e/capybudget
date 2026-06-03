@@ -1,10 +1,10 @@
 import { type RefObject } from "react"
 import {
-  CreditCard,
-  PieChart,
-  Receipt,
+  GraduationCap,
+  Repeat,
   Settings,
-  TrendingUp,
+  Sparkles,
+  Tags,
 } from "lucide-react"
 import capyMascot from "@/assets/capy-neutral.webp"
 import type { IntelligenceProvider } from "@capybudget/intelligence"
@@ -105,31 +105,31 @@ export function UnconfiguredEmptyState({
 }
 
 interface SuggestionCard {
-  icon: typeof TrendingUp
+  icon: typeof Sparkles
   label: string
   prompt: string
 }
 
 const SUGGESTION_CARDS: ReadonlyArray<SuggestionCard> = [
   {
-    icon: TrendingUp,
-    label: "How am I doing this month?",
-    prompt: "How am I doing this month?",
+    icon: Sparkles,
+    label: "What can you help me with?",
+    prompt: "What can you help me with?",
   },
   {
-    icon: PieChart,
-    label: "Where did my money go in 2025?",
-    prompt: "Where did my money go in 2025?",
+    icon: GraduationCap,
+    label: "Teach me how to budget",
+    prompt: "Teach me how to budget",
   },
   {
-    icon: Receipt,
-    label: "Find duplicate transactions",
-    prompt: "Find duplicate transactions in my budget",
+    icon: Repeat,
+    label: "Find recurring subscriptions",
+    prompt: "Find my recurring subscriptions and what they cost",
   },
   {
-    icon: CreditCard,
-    label: "Help me set a grocery budget",
-    prompt: "Help me set a grocery budget",
+    icon: Tags,
+    label: "Help me categorize transactions",
+    prompt: "Help me categorize my uncategorized transactions",
   },
 ]
 
