@@ -1,2 +1,17 @@
 @import "../../../packages/app/src/styles/index.css";
 @source "../../../packages/app/src";
+
+/* ── Mobile notice offset ─────────────────────────────────────────────
+   <MobileNotice> is a fixed, full-width strip (sm:hidden, h-8 = 2rem) in the
+   #demo-overlays root, so it overlays the app's top chrome — including the
+   Ask Capy button we want mobile visitors to see. Drop the app's full-screen
+   panes below it on small screens. Scoped to the demo so the shared app stays
+   unaware of demo chrome; the 2rem must match the notice's h-8. */
+@media (width < 40rem) {
+  #root {
+    padding-top: 2rem;
+  }
+  #root .h-screen {
+    height: calc(100vh - 2rem);
+  }
+}

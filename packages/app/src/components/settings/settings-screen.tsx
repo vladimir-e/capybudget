@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 import { useNavigate, useSearch } from "@tanstack/react-router"
 import { ArrowLeft, Shapes, Sparkles } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -35,9 +35,23 @@ export function SettingsScreen() {
   const { path, name } = useSearch({ from: "/budget" })
   const [active, setActive] = useState<SettingsSection>("intelligence")
 
-  function handleBack() {
+  const handleBack = useCallback(() => {
     navigate({ to: "/budget", search: { path, name } })
-  }
+  }, [navigate, path, name])
+
+  // Esc returns to the budget — like the Help screen — but not while a field is
+  // focused, so inputs keep their own Esc (e.g. cancelling a category rename).
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key !== "Escape") return
+      const t = e.target as HTMLElement
+      if (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable) return
+      e.preventDefault()
+      handleBack()
+    }
+    document.addEventListener("keydown", onKeyDown)
+    return () => document.removeEventListener("keydown", onKeyDown)
+  }, [handleBack])
 
   return (
     // Pin to the viewport (like BudgetShell) so the content pane scrolls, not

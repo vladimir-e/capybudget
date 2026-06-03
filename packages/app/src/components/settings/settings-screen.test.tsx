@@ -330,4 +330,35 @@ describe("SettingsScreen", () => {
     await user.click(screen.getByLabelText("Hide API key"))
     expect(keyInput.type).toBe("password")
   })
+
+  it("returns to the budget on Escape", async () => {
+    const user = userEvent.setup()
+    const { router } = await renderSettings()
+    expect(router.state.location.pathname).toBe("/budget/settings")
+
+    await user.keyboard("{Escape}")
+
+    await waitFor(() => {
+      expect(router.state.location.pathname).toBe("/budget")
+    })
+  })
+
+  it("ignores Escape while a field is focused", async () => {
+    const user = userEvent.setup()
+    useIntelligenceStore.setState({
+      hydrated: true,
+      config: { ...DEFAULT_INTELLIGENCE_CONFIG, provider: "anthropic" },
+    })
+    const { router } = await renderSettings()
+
+    const keyInput = await screen.findByLabelText("API key")
+    keyInput.focus()
+    await user.keyboard("{Escape}")
+
+    // The field keeps its own Esc; settings stays mounted, no navigation.
+    expect(router.state.location.pathname).toBe("/budget/settings")
+    expect(
+      screen.getByRole("button", { name: "Back to budget" }),
+    ).toBeInTheDocument()
+  })
 })
