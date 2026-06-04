@@ -244,14 +244,10 @@ export class OpenAiSession implements CapySession {
         emitContent()
       }
 
-      // Persist the turn only when it carries text or tool calls. An empty
-      // terminal completion (no text, no tool calls — e.g. the model renders
-      // a table via a tool then says nothing) must not be stored as
-      // `{content: null}`: OpenAI rejects a null-content assistant message
-      // that has no tool_calls ("expected a string, got null"). Since the
-      // whole history replays on every send, one such turn poisons the rest
-      // of the session. Tool-call turns keep null content (the canonical
-      // OpenAI shape); text turns carry the string.
+      // Only persist a turn that carries text or tool calls. An empty terminal
+      // completion stored as `{content: null}` with no tool_calls is invalid to
+      // OpenAI, and history replays on every send — so one poisons the whole
+      // session. Tool-call turns keep null content (canonical).
       const hasToolCalls = assistantToolCalls.length > 0
       if (assistantTextOnly.length > 0 || hasToolCalls) {
         const assistantMessage: OpenAI.Chat.Completions.ChatCompletionAssistantMessageParam = {
@@ -264,12 +260,10 @@ export class OpenAiSession implements CapySession {
         this.messages.push(assistantMessage)
       }
 
-      // Exit on any non-tool_calls finish — and also when the model claims
-      // `tool_calls` but emitted none. With no tool calls there is nothing to
-      // execute, history is unchanged, and re-sending the identical request
-      // would spin `while (true)` forever, burning API tokens on every pass
-      // (the tool-call budget counts executions, so it can't stop this). Treat
-      // the contradictory response as terminal.
+      // Exit on a non-tool_calls finish — and on a tool_calls finish with no
+      // tool calls: nothing to execute, history unchanged, so re-sending spins
+      // forever and burns tokens (the tool-call budget counts executions, not
+      // this). Treat the contradiction as terminal.
       if (finishReason !== "tool_calls" || !hasToolCalls) return
 
       const toolMessages: OpenAI.Chat.Completions.ChatCompletionToolMessageParam[] = []
