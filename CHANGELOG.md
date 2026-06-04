@@ -12,6 +12,7 @@ CHANGELOG PHILOSOPHY:
 ## Unreleased
 
 - **Capy** - Fix OpenAI sessions dying after a tool-only turn — an empty terminal completion poisoned the replayed history, so every later message failed.
+- **Capy** - Guard the OpenAI agentic loop against a contradictory `tool_calls` finish with no tool calls, which could spin and burn API tokens.
 - **Capy** - Wide chat tables scroll horizontally instead of squeezing; streaming auto-scroll no longer yanks you back when you scroll up to read (jump-to-latest button re-engages).
 - **Capy** - Refreshed starter suggestions and default saved commands (categorize transactions, review subscriptions, account data cutoff).
 - **Shortcuts** - Hold ⌘ to reveal keyboard-shortcut hints across the app (rail 1/2/3, ⌘N, ⌘I, ⌘,); Settings now dismisses on Esc like Help.

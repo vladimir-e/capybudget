@@ -697,6 +697,22 @@ describe("OpenAiSession", () => {
     expect(events.some((e) => e.type === "error")).toBe(false)
   })
 
+  it("treats a tool_calls finish with no tool calls as terminal (no infinite loop)", async () => {
+    // A contradictory response: finish_reason says tool_calls but no tool-call
+    // deltas arrive. Nothing is executed, so history is unchanged — looping
+    // would re-send the identical request forever and burn tokens on each
+    // pass. Only one turn is queued: if the loop spins, the second
+    // chat.completions.create() finds an empty queue and throws.
+    queueTurn({ finish_reason: "tool_calls" })
+
+    const { session, events } = makeSession()
+    await session.send("hi")
+
+    expect(mockCreate).toHaveBeenCalledTimes(1)
+    expect(events.some((e) => e.type === "done")).toBe(true)
+    expect(events.some((e) => e.type === "error")).toBe(false)
+  })
+
   it("restart() resets the budget counter so the next session starts fresh", async () => {
     const { SESSION_TOOL_CALL_BUDGET } = await import("@capybudget/intelligence")
     for (let i = 0; i < SESSION_TOOL_CALL_BUDGET + 1; i++) {

@@ -264,7 +264,13 @@ export class OpenAiSession implements CapySession {
         this.messages.push(assistantMessage)
       }
 
-      if (finishReason !== "tool_calls") return
+      // Exit on any non-tool_calls finish — and also when the model claims
+      // `tool_calls` but emitted none. With no tool calls there is nothing to
+      // execute, history is unchanged, and re-sending the identical request
+      // would spin `while (true)` forever, burning API tokens on every pass
+      // (the tool-call budget counts executions, so it can't stop this). Treat
+      // the contradictory response as terminal.
+      if (finishReason !== "tool_calls" || !hasToolCalls) return
 
       const toolMessages: OpenAI.Chat.Completions.ChatCompletionToolMessageParam[] = []
       let budgetExhausted = false
