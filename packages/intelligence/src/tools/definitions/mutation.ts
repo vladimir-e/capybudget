@@ -141,7 +141,8 @@ export const MUTATION_TOOL_DEFS = [
   },
   {
     name: "update_account",
-    description: "Update an account's name or type.",
+    description:
+      "Update an account. Only provided fields change. `archived: true` archives it (fails if the balance is non-zero); `archived: false` restores it to the sidebar and net worth. `excludeFromNetWorth` toggles whether the account counts toward Net Worth.",
     inputSchema: {
       type: "object" as const,
       properties: {
@@ -157,6 +158,15 @@ export const MUTATION_TOOL_DEFS = [
           type: "string",
           enum: ["cash", "checking", "savings", "credit_card", "loan", "asset", "crypto"],
           description: "New account type",
+        },
+        archived: {
+          type: "boolean",
+          description:
+            "true archives the account (fails unless balance is zero); false unarchives it.",
+        },
+        excludeFromNetWorth: {
+          type: "boolean",
+          description: "true excludes the account from Net Worth; false includes it.",
         },
       },
       required: ["id"],
@@ -175,57 +185,6 @@ export const MUTATION_TOOL_DEFS = [
         },
       },
       required: ["id"],
-    },
-  },
-  {
-    name: "archive_account",
-    description:
-      "Archive an account. Fails if the balance is not zero.",
-    inputSchema: {
-      type: "object" as const,
-      properties: {
-        id: {
-          type: "string",
-          description: "Account ID to archive",
-        },
-      },
-      required: ["id"],
-    },
-  },
-  {
-    name: "unarchive_account",
-    description:
-      "Unarchive an account so it reappears in the sidebar and net-worth calculations.",
-    inputSchema: {
-      type: "object" as const,
-      properties: {
-        id: {
-          type: "string",
-          description: "Account ID to unarchive",
-        },
-      },
-      required: ["id"],
-    },
-  },
-  {
-    name: "set_net_worth_exclusions",
-    description:
-      "Toggle whether one or more accounts are excluded from Net Worth. `exclude: true` excludes them; `exclude: false` includes them. Archived accounts are skipped (the flag is meaningless until they're unarchived).",
-    inputSchema: {
-      type: "object" as const,
-      properties: {
-        accountIds: {
-          type: "array",
-          items: { type: "string" },
-          minItems: 1,
-          description: "Account IDs to update",
-        },
-        exclude: {
-          type: "boolean",
-          description: "true = exclude from Net Worth, false = include",
-        },
-      },
-      required: ["accountIds", "exclude"],
     },
   },
 
@@ -251,7 +210,8 @@ export const MUTATION_TOOL_DEFS = [
   },
   {
     name: "update_category",
-    description: "Update a category's name or group.",
+    description:
+      "Update a category. Only provided fields change. `archived` toggles visibility. `budgetCents` sets the monthly budget target in integer cents (e.g. 20000 = $200/month): `null` marks it untracked, `0` tracks at zero (distinct from null), and omitting the field leaves the budget unchanged.",
     inputSchema: {
       type: "object" as const,
       properties: {
@@ -267,6 +227,15 @@ export const MUTATION_TOOL_DEFS = [
           type: "string",
           enum: ["Income", "Fixed", "Daily Living", "Personal", "Irregular"],
           description: "New category group",
+        },
+        archived: {
+          type: "boolean",
+          description: "true archives the category (hidden from the UI); false unarchives it.",
+        },
+        budgetCents: {
+          type: ["integer", "null"],
+          description:
+            "Monthly budget target in cents. null = untracked. 0 = tracked at zero. Omit to leave unchanged.",
         },
       },
       required: ["id"],
@@ -287,80 +256,12 @@ export const MUTATION_TOOL_DEFS = [
       required: ["id"],
     },
   },
-  {
-    name: "archive_category",
-    description: "Archive a category so it's hidden from the UI.",
-    inputSchema: {
-      type: "object" as const,
-      properties: {
-        id: {
-          type: "string",
-          description: "Category ID to archive",
-        },
-      },
-      required: ["id"],
-    },
-  },
-  {
-    name: "unarchive_category",
-    description: "Unarchive a category so it reappears in the UI.",
-    inputSchema: {
-      type: "object" as const,
-      properties: {
-        id: {
-          type: "string",
-          description: "Category ID to unarchive",
-        },
-      },
-      required: ["id"],
-    },
-  },
-  {
-    name: "set_category_budget",
-    description:
-      "Set the monthly budget target for a category. `assigned` is in integer cents (e.g. 20000 = $200/month). Pass `null` to mark the category as untracked. `0` is a distinct, valid value (tracked at zero).",
-    inputSchema: {
-      type: "object" as const,
-      properties: {
-        categoryId: {
-          type: "string",
-          description: "Category ID",
-        },
-        assigned: {
-          type: ["integer", "null"],
-          description:
-            "Monthly target in cents. null = untracked. 0 = tracked at zero.",
-        },
-      },
-      required: ["categoryId", "assigned"],
-    },
-  },
 
   // ── Bulk ────────────────────────────────────────────────────────
   {
-    name: "assign_categories",
-    description:
-      "Assign a category to multiple transactions at once. Skips transfers.",
-    inputSchema: {
-      type: "object" as const,
-      properties: {
-        transactionIds: {
-          type: "array",
-          items: { type: "string" },
-          description: "Transaction IDs to update",
-        },
-        categoryId: {
-          type: "string",
-          description: "Category ID to assign",
-        },
-      },
-      required: ["transactionIds", "categoryId"],
-    },
-  },
-  {
     name: "bulk_update_transactions",
     description:
-      "Apply account, date, and/or merchant changes to many transactions in one call. At least one field in `set` is required. Transfers are skipped for account and merchant changes (transfers move money — they have no merchant, and an account move would orphan the pair). Date changes apply to whatever IDs are passed; if you want both legs of a transfer to shift, include both IDs.",
+      "Apply category, account, date, and/or merchant changes to many transactions in one call. At least one field in `set` is required. Transfers are skipped for category, account, and merchant changes (transfers move money — they have no category or merchant, and an account move would orphan the pair). Date changes apply to whatever IDs are passed; if you want both legs of a transfer to shift, include both IDs.",
     inputSchema: {
       type: "object" as const,
       properties: {
@@ -373,8 +274,12 @@ export const MUTATION_TOOL_DEFS = [
         set: {
           type: "object",
           description:
-            "Fields to change. At least one of accountId, date, merchant must be present.",
+            "Fields to change. At least one of categoryId, accountId, date, merchant must be present.",
           properties: {
+            categoryId: {
+              type: "string",
+              description: "New category ID. Validated against existing categories.",
+            },
             accountId: {
               type: "string",
               description: "New account ID. Validated against existing accounts.",

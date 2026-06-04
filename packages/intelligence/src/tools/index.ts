@@ -33,7 +33,6 @@ export {
   handleListAccounts,
   handleListTransactions,
   handleListCategories,
-  handleSpendingSummary,
   handleSearchMerchants,
 } from "./handlers/data"
 export {
@@ -43,16 +42,9 @@ export {
   handleCreateAccount,
   handleUpdateAccount,
   handleDeleteAccount,
-  handleArchiveAccount,
-  handleUnarchiveAccount,
-  handleSetNetWorthExclusions,
   handleCreateCategory,
   handleUpdateCategory,
   handleDeleteCategory,
-  handleArchiveCategory,
-  handleUnarchiveCategory,
-  handleSetCategoryBudget,
-  handleAssignCategories,
   handleBulkUpdateTransactions,
 } from "./handlers/mutation"
 export {

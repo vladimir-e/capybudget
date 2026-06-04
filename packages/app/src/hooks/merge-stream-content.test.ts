@@ -32,25 +32,25 @@ describe("mergeStreamContent", () => {
 
     // Tick 1: tool arrives.
     state = mergeStreamContent(state, [
-      { type: "tool-activity", tool: "spending_summary" },
+      { type: "tool-activity", tool: "list_transactions" },
     ])
 
     // Tick 2: text starts streaming.
     state = mergeStreamContent(state, [
-      { type: "tool-activity", tool: "spending_summary" },
+      { type: "tool-activity", tool: "list_transactions" },
       { type: "text", content: "Here's what I found." },
     ])
 
     // Tick 3: donut chart appears.
     state = mergeStreamContent(state, [
-      { type: "tool-activity", tool: "spending_summary" },
+      { type: "tool-activity", tool: "list_transactions" },
       { type: "text", content: "Here's what I found." },
       { type: "donut-chart", title: "Spending", data: [{ label: "Food", value: 50 }] },
     ])
 
     // Tick 4: closing text streams in.
     state = mergeStreamContent(state, [
-      { type: "tool-activity", tool: "spending_summary" },
+      { type: "tool-activity", tool: "list_transactions" },
       { type: "text", content: "Here's what I found." },
       { type: "donut-chart", title: "Spending", data: [{ label: "Food", value: 50 }] },
       { type: "text", content: "Hope this helps!" },

@@ -135,8 +135,8 @@ Single source of truth shared between transports:
 - **Definitions** — tool descriptors (name, description, JSON-Schema input). Both transports consume the same list for ListTools / SDK tool config.
 - **Dispatch** — `runTool(name, input, ctx) → string`. The MCP server and the API adapters call this with the same signature. `ToolContext` is `{ repo, fileAdapter, budgetPath }`.
 - **Handlers** — per-tool implementations:
-  - **Data tools** — `list_accounts`, `list_transactions` (filters + `sort` + `offset`), `list_categories`, `spending_summary`, `search_merchants`, `transaction_bounds` (count + date range, same filters as `list_transactions`)
-  - **Mutation tools** — full CRUD for transactions / accounts / categories, plus `assign_categories`, `bulk_update_transactions` (account/date/merchant across many rows), `set_category_budget` (sets the explicit `assigned` budget; a category without one still has an implicit target derived from its spending history), `unarchive_account` / `unarchive_category` (reverse archive), `set_net_worth_exclusions` (toggle Net Worth inclusion)
+  - **Data tools** — `list_accounts`, `list_transactions` (filters + `sort` + `offset`), `list_categories`, `search_merchants`
+  - **Mutation tools** — full CRUD for transactions / accounts / categories, plus `bulk_update_transactions` (category/account/date/merchant across many rows; skips transfers for category/account/merchant). `update_account` carries `archived` (archiving fails on a non-zero balance) and `excludeFromNetWorth`. `update_category` carries `archived` and `budgetCents` (the explicit `assigned` budget — `null` untracked, `0` tracked-at-zero, omitted unchanged; a category without one still has an implicit target derived from its spending history).
   - **Import tools** — `read_import_file`, `write_import_file`, `append_import_file`, `list_import_files` (over `.capy/import/`)
   - **CSV tools** — `analyze_csv`, `preview_transform`, `transform_csv`, `auto_enrich`, `enrich_stats`, `enrich_sample`, `enrich_update`
   - **read_file** — generic budget-folder text reader; mirrors what Claude CLI's built-in `Read` provides natively
@@ -154,8 +154,7 @@ The app invalidates caches per mutation tool call (not per turn) so the UI refle
 | Tool | Input | Renders as |
 |---|---|---|
 | `render_table` | `{ headers, rows }` | Data table with amount coloring |
-| `render_bar_chart` | `{ title, data: [{label, value}] }` | Horizontal bar chart |
-| `render_donut_chart` | `{ title, data: [{label, value}] }` | SVG donut chart with legend |
+| `render_chart` | `{ title, type: "bar" \| "donut", data: [{label, value}] }` | Horizontal bar chart or SVG donut chart with legend, per `type` |
 | `render_followups` | `{ chips: [{label, prompt}] }` (1–4 items) | Follow-up suggestion chips after an answer. |
 
 No-ops on the dispatch side — they carry structured data from AI to frontend via `tool_use` events.

@@ -42,12 +42,12 @@ describe("serializeConversation", () => {
     const messages: ChatMessage[] = [
       msg("assistant",
         { type: "text", content: "Let me check." },
-        { type: "tool-activity", tool: "spending_summary" },
+        { type: "tool-activity", tool: "list_transactions" },
         { type: "text", content: "Here are the results." },
       ),
     ]
     expect(serializeConversation(messages, 5000)).toBe(
-      "Capy: Let me check.\n[Tool: spending_summary]\nCapy: Here are the results.",
+      "Capy: Let me check.\n[Tool: list_transactions]\nCapy: Here are the results.",
     )
   })
 

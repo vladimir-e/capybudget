@@ -27,7 +27,8 @@ CHANGELOG PHILOSOPHY:
 - **Demo** - SPA fallback so deep links no longer 404 at the edge; a hard refresh always lands on scenario selection instead of a regenerated budget (#53).
 - **Monthly Budget** - Every category budgets itself from spending history; zoned progress bar with green/red zones, history pins, and auto-vs-explicit targets (#49).
 - **Monthly Budget** - Configurable comparison basis (3/6/12-month or same month last year), chosen on the legend and remembered per device (#49).
-- **Capy** - Live cache invalidation per mutation; `list_transactions` gains `sort` + `offset`; new `transaction_bounds` tool.
+- **Capy** - Leaner AI tool surface: cut `spending_summary`/`transaction_bounds`, folded archive/unarchive/budget/net-worth-exclusion into `update_account`/`update_category`, folded `assign_categories` into `bulk_update_transactions`, merged the chart tools into `render_chart({type})`.
+- **Capy** - Live cache invalidation per mutation; `list_transactions` gains `sort` + `offset`.
 - **Capy** - Don't drop the in-memory repo cache between in-process mutations — was silently losing all-but-the-last write in multi-tool Anthropic/OpenAI turns.
 - **Capy** - Fix ~30s post-message hang by decoupling loop exit from stream drain across all three adapters (#44).
 - **Capy** - Silence Claude CLI "deliberation" assistant turn via `--disallowedTools` and a voice rule in the chat prompt (#44).

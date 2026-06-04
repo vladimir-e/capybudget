@@ -34,7 +34,7 @@ describe("parseStreamLine", () => {
       ])
     })
 
-    it("maps render_bar_chart to a bar-chart ContentBlock", () => {
+    it("maps render_chart type 'bar' to a bar-chart ContentBlock", () => {
       const data = [
         { label: "Food", value: 450 },
         { label: "Rent", value: 1200 },
@@ -45,8 +45,8 @@ describe("parseStreamLine", () => {
           content: [
             {
               type: "tool_use",
-              name: "render_bar_chart",
-              input: { title: "Spending by Category", data },
+              name: "render_chart",
+              input: { title: "Spending by Category", type: "bar", data },
             },
           ],
         },
@@ -60,7 +60,7 @@ describe("parseStreamLine", () => {
       ])
     })
 
-    it("maps render_donut_chart to a donut-chart ContentBlock", () => {
+    it("maps render_chart type 'donut' to a donut-chart ContentBlock", () => {
       const data = [
         { label: "Fixed", value: 60 },
         { label: "Variable", value: 40 },
@@ -71,8 +71,8 @@ describe("parseStreamLine", () => {
           content: [
             {
               type: "tool_use",
-              name: "render_donut_chart",
-              input: { title: "Budget Split", data },
+              name: "render_chart",
+              input: { title: "Budget Split", type: "donut", data },
             },
           ],
         },
@@ -266,9 +266,10 @@ describe("parseStreamLine", () => {
             },
             {
               type: "tool_use",
-              name: "mcp__capy__render_bar_chart",
+              name: "mcp__capy__render_chart",
               input: {
                 title: "Balances",
+                type: "bar",
                 data: [{ label: "Checking", value: 5000 }],
               },
             },

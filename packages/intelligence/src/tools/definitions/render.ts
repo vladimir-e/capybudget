@@ -26,13 +26,18 @@ export const RENDER_TOOL_DEFS = [
     },
   },
   {
-    name: "render_bar_chart",
+    name: "render_chart",
     description:
-      "Render a horizontal bar chart in the UI. Use for comparing values across categories.",
+      "Render a chart in the UI. `type: \"bar\"` draws a horizontal bar chart (comparing values across categories); `type: \"donut\"` draws a donut chart (proportions and distributions).",
     inputSchema: {
       type: "object" as const,
       properties: {
         title: { type: "string", description: "Chart title" },
+        type: {
+          type: "string",
+          enum: ["bar", "donut"],
+          description: "Chart style: 'bar' for comparisons, 'donut' for proportions.",
+        },
         data: {
           type: "array",
           items: {
@@ -46,31 +51,7 @@ export const RENDER_TOOL_DEFS = [
           description: "Data points. Values should be positive numbers (dollars, not cents).",
         },
       },
-      required: ["title", "data"],
-    },
-  },
-  {
-    name: "render_donut_chart",
-    description:
-      "Render a donut/pie chart in the UI. Use for showing proportions and distributions.",
-    inputSchema: {
-      type: "object" as const,
-      properties: {
-        title: { type: "string", description: "Chart title" },
-        data: {
-          type: "array",
-          items: {
-            type: "object",
-            properties: {
-              label: { type: "string" },
-              value: { type: "number" },
-            },
-            required: ["label", "value"],
-          },
-          description: "Data points. Values should be positive numbers (dollars, not cents).",
-        },
-      },
-      required: ["title", "data"],
+      required: ["title", "type", "data"],
     },
   },
   {

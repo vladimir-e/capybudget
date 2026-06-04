@@ -211,9 +211,10 @@ describe("ClaudeCliSession", () => {
               { type: "text", text: "Here's the split:" },
               {
                 type: "tool_use",
-                name: "mcp__capy__render_donut_chart",
+                name: "mcp__capy__render_chart",
                 input: {
                   title: "Spending",
+                  type: "donut",
                   data: [{ label: "Food", value: 50 }],
                 },
               },

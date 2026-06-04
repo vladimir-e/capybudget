@@ -13,16 +13,9 @@ import {
   handleCreateAccount,
   handleUpdateAccount,
   handleDeleteAccount,
-  handleArchiveAccount,
-  handleUnarchiveAccount,
-  handleSetNetWorthExclusions,
   handleCreateCategory,
   handleUpdateCategory,
   handleDeleteCategory,
-  handleArchiveCategory,
-  handleUnarchiveCategory,
-  handleSetCategoryBudget,
-  handleAssignCategories,
   handleBulkUpdateTransactions,
 } from "./mutation"
 
@@ -221,6 +214,63 @@ describe("handleUpdateAccount", () => {
     const saved = (repo.saveAccounts as ReturnType<typeof vi.fn>).mock.calls[0][0]
     expect(saved[0].name).toBe("New Name")
   })
+
+  it("archives an account with zero balance", async () => {
+    const repo = createMockRepo({
+      accounts: [makeAccount({ id: "acc-1", archived: false })],
+      transactions: [],
+    })
+    const result = JSON.parse(
+      await handleUpdateAccount(repo, { id: "acc-1", archived: true }),
+    )
+    expect(result.success).toBe(true)
+    const saved = (repo.saveAccounts as ReturnType<typeof vi.fn>).mock.calls[0][0]
+    expect(saved[0].archived).toBe(true)
+  })
+
+  it("throws when archiving an account with non-zero balance", async () => {
+    const repo = createMockRepo({
+      accounts: [makeAccount({ id: "acc-1" })],
+      transactions: [makeTxn({ accountId: "acc-1", amount: 5000 })],
+    })
+    await expect(
+      handleUpdateAccount(repo, { id: "acc-1", archived: true }),
+    ).rejects.toThrow(/non-zero/)
+  })
+
+  it("unarchives an account", async () => {
+    const repo = createMockRepo({
+      accounts: [makeAccount({ id: "acc-1", archived: true })],
+    })
+    const result = JSON.parse(
+      await handleUpdateAccount(repo, { id: "acc-1", archived: false }),
+    )
+    expect(result.success).toBe(true)
+    const saved = (repo.saveAccounts as ReturnType<typeof vi.fn>).mock.calls[0][0]
+    expect(saved[0].archived).toBe(false)
+  })
+
+  it("toggles excludeFromNetWorth on the targeted account only", async () => {
+    const repo = createMockRepo({
+      accounts: [
+        makeAccount({ id: "acc-1", excludeFromNetWorth: false }),
+        makeAccount({ id: "acc-2", excludeFromNetWorth: false }),
+      ],
+    })
+    await handleUpdateAccount(repo, { id: "acc-1", excludeFromNetWorth: true })
+    const saved = (repo.saveAccounts as ReturnType<typeof vi.fn>).mock.calls[0][0]
+    expect(saved.find((a: Account) => a.id === "acc-1").excludeFromNetWorth).toBe(true)
+    expect(saved.find((a: Account) => a.id === "acc-2").excludeFromNetWorth).toBe(false)
+  })
+
+  it("returns error for unknown account", async () => {
+    const repo = createMockRepo({ accounts: [makeAccount({ id: "acc-1" })] })
+    const result = JSON.parse(
+      await handleUpdateAccount(repo, { id: "ghost", name: "X" }),
+    )
+    expect(result.error).toMatch(/not found/)
+    expect(repo.saveAccounts).not.toHaveBeenCalled()
+  })
 })
 
 describe("handleDeleteAccount", () => {
@@ -243,30 +293,6 @@ describe("handleDeleteAccount", () => {
     await expect(
       handleDeleteAccount(repo, { id: "acc-1" }),
     ).rejects.toThrow(/Cannot delete/)
-  })
-})
-
-describe("handleArchiveAccount", () => {
-  it("archives account with zero balance", async () => {
-    const repo = createMockRepo({
-      accounts: [makeAccount({ id: "acc-1" })],
-      transactions: [],
-    })
-    const result = JSON.parse(
-      await handleArchiveAccount(repo, { id: "acc-1" }),
-    )
-    expect(result.success).toBe(true)
-  })
-
-  it("throws when balance is non-zero", async () => {
-    const repo = createMockRepo({
-      accounts: [makeAccount({ id: "acc-1" })],
-      transactions: [makeTxn({ accountId: "acc-1", amount: 5000 })],
-    })
-
-    await expect(
-      handleArchiveAccount(repo, { id: "acc-1" }),
-    ).rejects.toThrow(/non-zero/)
   })
 })
 
@@ -307,6 +333,79 @@ describe("handleUpdateCategory", () => {
     expect(saved[0].name).toBe("Dining Out")
     expect(saved[0].group).toBe("Daily Living")
   })
+
+  it("archives and unarchives a category", async () => {
+    const repo = createMockRepo({
+      categories: [makeCategory({ id: "cat-1", archived: false })],
+    })
+    await handleUpdateCategory(repo, { id: "cat-1", archived: true })
+    expect(
+      (repo.saveCategories as ReturnType<typeof vi.fn>).mock.calls[0][0][0].archived,
+    ).toBe(true)
+
+    await handleUpdateCategory(repo, { id: "cat-1", archived: false })
+    expect(
+      (repo.saveCategories as ReturnType<typeof vi.fn>).mock.calls[1][0][0].archived,
+    ).toBe(false)
+  })
+
+  it("sets a numeric monthly budget via budgetCents", async () => {
+    const repo = createMockRepo({
+      categories: [makeCategory({ id: "cat-1", assigned: null })],
+    })
+    const result = JSON.parse(
+      await handleUpdateCategory(repo, { id: "cat-1", budgetCents: 12500 }),
+    )
+    expect(result.success).toBe(true)
+    const saved = (repo.saveCategories as ReturnType<typeof vi.fn>).mock.calls[0][0]
+    expect(saved[0].assigned).toBe(12500)
+  })
+
+  it("treats budgetCents=0 as tracked-at-zero", async () => {
+    const repo = createMockRepo({
+      categories: [makeCategory({ id: "cat-1", assigned: 20000 })],
+    })
+    await handleUpdateCategory(repo, { id: "cat-1", budgetCents: 0 })
+    const saved = (repo.saveCategories as ReturnType<typeof vi.fn>).mock.calls[0][0]
+    expect(saved[0].assigned).toBe(0)
+  })
+
+  it("treats budgetCents=null as untracked", async () => {
+    const repo = createMockRepo({
+      categories: [makeCategory({ id: "cat-1", assigned: 20000 })],
+    })
+    await handleUpdateCategory(repo, { id: "cat-1", budgetCents: null })
+    const saved = (repo.saveCategories as ReturnType<typeof vi.fn>).mock.calls[0][0]
+    expect(saved[0].assigned).toBeNull()
+  })
+
+  it("leaves the budget unchanged when budgetCents is omitted", async () => {
+    const repo = createMockRepo({
+      categories: [makeCategory({ id: "cat-1", assigned: 20000 })],
+    })
+    await handleUpdateCategory(repo, { id: "cat-1", name: "Renamed" })
+    const saved = (repo.saveCategories as ReturnType<typeof vi.fn>).mock.calls[0][0]
+    expect(saved[0].assigned).toBe(20000)
+  })
+
+  it("rejects negative budgetCents", async () => {
+    const repo = createMockRepo({
+      categories: [makeCategory({ id: "cat-1" })],
+    })
+    const result = JSON.parse(
+      await handleUpdateCategory(repo, { id: "cat-1", budgetCents: -100 }),
+    )
+    expect(result.error).toMatch(/non-negative/)
+    expect(repo.saveCategories).not.toHaveBeenCalled()
+  })
+
+  it("returns error for unknown category", async () => {
+    const repo = createMockRepo({ categories: [makeCategory({ id: "cat-1" })] })
+    const result = JSON.parse(
+      await handleUpdateCategory(repo, { id: "ghost", name: "X" }),
+    )
+    expect(result.error).toMatch(/not found/)
+  })
 })
 
 describe("handleDeleteCategory", () => {
@@ -331,265 +430,48 @@ describe("handleDeleteCategory", () => {
   })
 })
 
-describe("handleArchiveCategory", () => {
-  it("archives a category", async () => {
+// ── bulk_update_transactions ────────────────────────────────────
+
+describe("handleBulkUpdateTransactions", () => {
+  it("assigns category to non-transfers and skips transfers", async () => {
     const repo = createMockRepo({
-      categories: [makeCategory({ id: "cat-1", archived: false })],
-    })
-    const result = JSON.parse(
-      await handleArchiveCategory(repo, { id: "cat-1" }),
-    )
-
-    expect(result.success).toBe(true)
-    const saved = (repo.saveCategories as ReturnType<typeof vi.fn>).mock.calls[0][0]
-    expect(saved[0].archived).toBe(true)
-  })
-})
-
-// ── Bulk ────────────────────────────────────────────────────────
-
-describe("handleAssignCategories", () => {
-  it("assigns category to multiple transactions", async () => {
-    const repo = createMockRepo({
+      categories: [makeCategory({ id: "cat-1" })],
       transactions: [
         makeTxn({ id: "txn-1", categoryId: "" }),
-        makeTxn({ id: "txn-2", categoryId: "" }),
-        makeTxn({ id: "txn-3", categoryId: "cat-other" }),
+        makeTxn({ id: "txn-2", categoryId: "cat-other" }),
+        makeTxn({ id: "txn-3", type: "transfer", categoryId: "", transferPairId: "txn-4" }),
       ],
     })
     const result = JSON.parse(
-      await handleAssignCategories(repo, {
-        transactionIds: ["txn-1", "txn-2"],
-        categoryId: "cat-1",
+      await handleBulkUpdateTransactions(repo, {
+        transactionIds: ["txn-1", "txn-2", "txn-3"],
+        set: { categoryId: "cat-1" },
       }),
     )
 
     expect(result.success).toBe(true)
+    expect(result.counts.categoryId).toBe(2) // transfer skipped
     const saved = (repo.saveTransactions as ReturnType<typeof vi.fn>).mock.calls[0][0]
-    expect(saved[0].categoryId).toBe("cat-1")
-    expect(saved[1].categoryId).toBe("cat-1")
-    expect(saved[2].categoryId).toBe("cat-other")
-  })
-
-  it("skips transfer transactions", async () => {
-    const repo = createMockRepo({
-      transactions: [
-        makeTxn({ id: "txn-1", type: "transfer", categoryId: "" }),
-        makeTxn({ id: "txn-2", categoryId: "" }),
-      ],
-    })
-
-    await handleAssignCategories(repo, {
-      transactionIds: ["txn-1", "txn-2"],
-      categoryId: "cat-1",
-    })
-
-    const saved = (repo.saveTransactions as ReturnType<typeof vi.fn>).mock.calls[0][0]
-    expect(saved[0].categoryId).toBe("") // transfer untouched
-    expect(saved[1].categoryId).toBe("cat-1")
-  })
-})
-
-// ── Unarchive ───────────────────────────────────────────────────
-
-describe("handleUnarchiveAccount", () => {
-  it("flips archived false", async () => {
-    const repo = createMockRepo({
-      accounts: [makeAccount({ id: "acc-1", archived: true })],
-    })
-    const result = JSON.parse(
-      await handleUnarchiveAccount(repo, { id: "acc-1" }),
-    )
-    expect(result.success).toBe(true)
-    const saved = (repo.saveAccounts as ReturnType<typeof vi.fn>).mock.calls[0][0]
-    expect(saved[0].archived).toBe(false)
-  })
-
-  it("no-ops when already unarchived (still succeeds)", async () => {
-    const repo = createMockRepo({
-      accounts: [makeAccount({ id: "acc-1", archived: false })],
-    })
-    const result = JSON.parse(
-      await handleUnarchiveAccount(repo, { id: "acc-1" }),
-    )
-    expect(result.success).toBe(true)
-  })
-
-  it("returns error for unknown account", async () => {
-    const repo = createMockRepo({ accounts: [makeAccount({ id: "acc-1" })] })
-    const result = JSON.parse(
-      await handleUnarchiveAccount(repo, { id: "nope" }),
-    )
-    expect(result.error).toMatch(/Invalid accountId/)
-    expect(repo.saveAccounts).not.toHaveBeenCalled()
-  })
-})
-
-describe("handleUnarchiveCategory", () => {
-  it("flips archived false", async () => {
-    const repo = createMockRepo({
-      categories: [makeCategory({ id: "cat-1", archived: true })],
-    })
-    const result = JSON.parse(
-      await handleUnarchiveCategory(repo, { id: "cat-1" }),
-    )
-    expect(result.success).toBe(true)
-    const saved = (repo.saveCategories as ReturnType<typeof vi.fn>).mock.calls[0][0]
-    expect(saved[0].archived).toBe(false)
-  })
-
-  it("returns error for unknown category", async () => {
-    const repo = createMockRepo({ categories: [makeCategory({ id: "cat-1" })] })
-    const result = JSON.parse(
-      await handleUnarchiveCategory(repo, { id: "nope" }),
-    )
-    expect(result.error).toMatch(/Invalid categoryId/)
-  })
-})
-
-// ── set_net_worth_exclusions ────────────────────────────────────
-
-describe("handleSetNetWorthExclusions", () => {
-  it("excludes specified accounts", async () => {
-    const repo = createMockRepo({
-      accounts: [
-        makeAccount({ id: "acc-1", excludeFromNetWorth: false }),
-        makeAccount({ id: "acc-2", excludeFromNetWorth: false }),
-        makeAccount({ id: "acc-3", excludeFromNetWorth: false }),
-      ],
-    })
-    const result = JSON.parse(
-      await handleSetNetWorthExclusions(repo, {
-        accountIds: ["acc-1", "acc-2"],
-        exclude: true,
-      }),
-    )
-    expect(result.success).toBe(true)
-    const saved = (repo.saveAccounts as ReturnType<typeof vi.fn>).mock.calls[0][0]
-    expect(saved.find((a: Account) => a.id === "acc-1").excludeFromNetWorth).toBe(true)
-    expect(saved.find((a: Account) => a.id === "acc-2").excludeFromNetWorth).toBe(true)
-    expect(saved.find((a: Account) => a.id === "acc-3").excludeFromNetWorth).toBe(false)
-  })
-
-  it("re-includes previously excluded accounts without touching others", async () => {
-    const repo = createMockRepo({
-      accounts: [
-        makeAccount({ id: "acc-1", excludeFromNetWorth: true }),
-        makeAccount({ id: "acc-2", excludeFromNetWorth: true }),
-        makeAccount({ id: "acc-3", excludeFromNetWorth: false }),
-      ],
-    })
-    await handleSetNetWorthExclusions(repo, {
-      accountIds: ["acc-1"],
-      exclude: false,
-    })
-    const saved = (repo.saveAccounts as ReturnType<typeof vi.fn>).mock.calls[0][0]
-    expect(saved.find((a: Account) => a.id === "acc-1").excludeFromNetWorth).toBe(false)
-    // acc-2 stays excluded — not in the input list, prior state preserved
-    expect(saved.find((a: Account) => a.id === "acc-2").excludeFromNetWorth).toBe(true)
-    expect(saved.find((a: Account) => a.id === "acc-3").excludeFromNetWorth).toBe(false)
-  })
-
-  it("rejects invalid accountIds", async () => {
-    const repo = createMockRepo({ accounts: [makeAccount({ id: "acc-1" })] })
-    const result = JSON.parse(
-      await handleSetNetWorthExclusions(repo, {
-        accountIds: ["acc-1", "ghost"],
-        exclude: true,
-      }),
-    )
-    expect(result.error).toMatch(/Invalid accountId/)
-    expect(repo.saveAccounts).not.toHaveBeenCalled()
-  })
-
-  it("rejects empty accountIds", async () => {
-    const repo = createMockRepo({ accounts: [makeAccount({ id: "acc-1" })] })
-    const result = JSON.parse(
-      await handleSetNetWorthExclusions(repo, {
-        accountIds: [],
-        exclude: true,
-      }),
-    )
-    expect(result.error).toMatch(/non-empty array/)
-  })
-})
-
-// ── set_category_budget ─────────────────────────────────────────
-
-describe("handleSetCategoryBudget", () => {
-  it("sets a numeric monthly target", async () => {
-    const repo = createMockRepo({
-      categories: [makeCategory({ id: "cat-1", assigned: null })],
-    })
-    const result = JSON.parse(
-      await handleSetCategoryBudget(repo, {
-        categoryId: "cat-1",
-        assigned: 12500,
-      }),
-    )
-    expect(result.success).toBe(true)
-    const saved = (repo.saveCategories as ReturnType<typeof vi.fn>).mock.calls[0][0]
-    expect(saved[0].assigned).toBe(12500)
-  })
-
-  it("accepts assigned=0 as tracked at zero", async () => {
-    const repo = createMockRepo({
-      categories: [makeCategory({ id: "cat-1", assigned: 20000 })],
-    })
-    await handleSetCategoryBudget(repo, { categoryId: "cat-1", assigned: 0 })
-    const saved = (repo.saveCategories as ReturnType<typeof vi.fn>).mock.calls[0][0]
-    expect(saved[0].assigned).toBe(0)
-  })
-
-  it("accepts assigned=null as untracked", async () => {
-    const repo = createMockRepo({
-      categories: [makeCategory({ id: "cat-1", assigned: 20000 })],
-    })
-    await handleSetCategoryBudget(repo, { categoryId: "cat-1", assigned: null })
-    const saved = (repo.saveCategories as ReturnType<typeof vi.fn>).mock.calls[0][0]
-    expect(saved[0].assigned).toBeNull()
-  })
-
-  it("rejects missing assigned field (distinct from null)", async () => {
-    const repo = createMockRepo({
-      categories: [makeCategory({ id: "cat-1" })],
-    })
-    const result = JSON.parse(
-      await handleSetCategoryBudget(repo, { categoryId: "cat-1" }),
-    )
-    expect(result.error).toMatch(/assigned is required/)
-  })
-
-  it("rejects negative assigned", async () => {
-    const repo = createMockRepo({
-      categories: [makeCategory({ id: "cat-1" })],
-    })
-    const result = JSON.parse(
-      await handleSetCategoryBudget(repo, {
-        categoryId: "cat-1",
-        assigned: -100,
-      }),
-    )
-    expect(result.error).toMatch(/non-negative/)
+    expect(saved.find((t: Transaction) => t.id === "txn-1").categoryId).toBe("cat-1")
+    expect(saved.find((t: Transaction) => t.id === "txn-2").categoryId).toBe("cat-1")
+    expect(saved.find((t: Transaction) => t.id === "txn-3").categoryId).toBe("") // transfer untouched
   })
 
   it("rejects unknown categoryId", async () => {
     const repo = createMockRepo({
       categories: [makeCategory({ id: "cat-1" })],
+      transactions: [makeTxn({ id: "txn-1", categoryId: "" })],
     })
     const result = JSON.parse(
-      await handleSetCategoryBudget(repo, {
-        categoryId: "ghost",
-        assigned: 1000,
+      await handleBulkUpdateTransactions(repo, {
+        transactionIds: ["txn-1"],
+        set: { categoryId: "ghost" },
       }),
     )
     expect(result.error).toMatch(/Invalid categoryId/)
+    expect(repo.saveTransactions).not.toHaveBeenCalled()
   })
-})
 
-// ── bulk_update_transactions ────────────────────────────────────
-
-describe("handleBulkUpdateTransactions", () => {
   it("changes account on selected transactions, skips transfers", async () => {
     const repo = createMockRepo({
       accounts: [makeAccount({ id: "acc-1" }), makeAccount({ id: "acc-2" })],

@@ -32,14 +32,15 @@ const BUILDERS: Record<string, RenderBuilder> = {
     return { type: "table", headers: input.headers, rows: input.rows } satisfies TableBlock
   },
 
-  render_bar_chart: (input) => {
+  render_chart: (input) => {
     if (typeof input.title !== "string" || !Array.isArray(input.data)) return null
-    return { type: "bar-chart", title: input.title, data: input.data } satisfies BarChartBlock
-  },
-
-  render_donut_chart: (input) => {
-    if (typeof input.title !== "string" || !Array.isArray(input.data)) return null
-    return { type: "donut-chart", title: input.title, data: input.data } satisfies DonutChartBlock
+    if (input.type === "donut") {
+      return { type: "donut-chart", title: input.title, data: input.data } satisfies DonutChartBlock
+    }
+    if (input.type === "bar") {
+      return { type: "bar-chart", title: input.title, data: input.data } satisfies BarChartBlock
+    }
+    return null
   },
 
   [RENDER_FOLLOWUPS_TOOL_NAME]: (input) => {

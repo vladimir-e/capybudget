@@ -382,7 +382,7 @@ describe("CapyOverlay tool-progress grouping", () => {
         role: "assistant",
         blocks: [
           { type: "tool-activity", tool: "list_transactions" },
-          { type: "tool-activity", tool: "spending_summary" },
+          { type: "tool-activity", tool: "list_accounts" },
           { type: "tool-activity", tool: "list_categories" },
           { type: "text", content: "Done." },
         ],
@@ -392,7 +392,7 @@ describe("CapyOverlay tool-progress grouping", () => {
 
     // All three tool labels render
     expect(screen.getByText("Querying transactions")).toBeInTheDocument()
-    expect(screen.getByText("Calculating spending")).toBeInTheDocument()
+    expect(screen.getByText("Querying accounts")).toBeInTheDocument()
     expect(screen.getByText("Querying categories")).toBeInTheDocument()
   })
 
@@ -404,7 +404,7 @@ describe("CapyOverlay tool-progress grouping", () => {
         role: "assistant",
         blocks: [
           { type: "tool-activity", tool: "list_transactions" },
-          { type: "tool-activity", tool: "spending_summary" },
+          { type: "tool-activity", tool: "list_accounts" },
         ],
       },
     ]
@@ -424,7 +424,7 @@ describe("CapyOverlay tool-progress grouping", () => {
         role: "assistant",
         blocks: [
           { type: "tool-activity", tool: "list_transactions" },
-          { type: "tool-activity", tool: "spending_summary" },
+          { type: "tool-activity", tool: "list_accounts" },
           { type: "text", content: "Done." },
         ],
       },
@@ -443,7 +443,7 @@ describe("CapyOverlay tool-progress grouping", () => {
         blocks: [
           { type: "tool-activity", tool: "list_transactions" },
           { type: "text", content: "Here you go." },
-          { type: "tool-activity", tool: "spending_summary" },
+          { type: "tool-activity", tool: "list_accounts" },
         ],
       },
     ]
@@ -456,7 +456,7 @@ describe("CapyOverlay tool-progress grouping", () => {
     // Grouped cards live inside the bubbles; can be 2+ depending on
     // surrounding bubble layout. Both labels must be present.
     expect(screen.getByText("Querying transactions")).toBeInTheDocument()
-    expect(screen.getByText("Calculating spending")).toBeInTheDocument()
+    expect(screen.getByText("Querying accounts")).toBeInTheDocument()
     // Sanity: at least the two tool group cards exist.
     expect(labels.length).toBeGreaterThanOrEqual(2)
   })
@@ -522,7 +522,7 @@ describe("CapyOverlay tool → text → tool while streaming", () => {
         blocks: [
           { type: "tool-activity", tool: "list_transactions" },
           { type: "text", content: "I see…" },
-          { type: "tool-activity", tool: "spending_summary" },
+          { type: "tool-activity", tool: "list_accounts" },
         ],
       },
     ]
@@ -530,7 +530,7 @@ describe("CapyOverlay tool → text → tool while streaming", () => {
 
     // Both labels render.
     expect(screen.getByText("Querying transactions")).toBeInTheDocument()
-    expect(screen.getByText("Calculating spending")).toBeInTheDocument()
+    expect(screen.getByText("Querying accounts")).toBeInTheDocument()
 
     // Two grouped tool cards (text in between forces a split).
     const toolCards = container.querySelectorAll(

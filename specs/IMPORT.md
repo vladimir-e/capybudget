@@ -168,7 +168,6 @@ Deterministic functions querying budget data, available during both normalizatio
 - `list_accounts` — all accounts with balances
 - `list_categories` — all categories grouped
 - `list_transactions` — filterable by account, merchant substring, date range
-- `spending_summary` — totals by category for a date range
 
 ## Custom Instructions
 

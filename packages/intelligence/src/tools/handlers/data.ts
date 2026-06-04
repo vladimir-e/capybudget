@@ -109,47 +109,6 @@ export async function handleListTransactions(
   return JSON.stringify(result, null, 2)
 }
 
-/**
- * Return the count and date range of transactions matching the same
- * filters as `list_transactions`. One call replaces the binary-search
- * probing the model used to do to find the oldest/newest entry.
- */
-export async function handleTransactionBounds(
-  repo: BudgetRepository,
-  args: Record<string, unknown>,
-): Promise<string> {
-  const allTxns = await repo.getTransactions()
-  const txns = applyTransactionFilters(allTxns, args)
-
-  if (txns.length === 0) {
-    return JSON.stringify(
-      { count: 0, minDate: null, maxDate: null, spanDays: 0 },
-      null,
-      2,
-    )
-  }
-
-  let minDt = txns[0].datetime
-  let maxDt = txns[0].datetime
-  for (const t of txns) {
-    if (t.datetime < minDt) minDt = t.datetime
-    if (t.datetime > maxDt) maxDt = t.datetime
-  }
-
-  const minDate = minDt.slice(0, 10)
-  const maxDate = maxDt.slice(0, 10)
-  const msPerDay = 24 * 60 * 60 * 1000
-  const spanDays = Math.round(
-    (Date.parse(maxDate) - Date.parse(minDate)) / msPerDay,
-  )
-
-  return JSON.stringify(
-    { count: txns.length, minDate, maxDate, spanDays },
-    null,
-    2,
-  )
-}
-
 export async function handleListCategories(repo: BudgetRepository): Promise<string> {
   const categories = await repo.getCategories()
 
@@ -161,52 +120,6 @@ export async function handleListCategories(repo: BudgetRepository): Promise<stri
   }
 
   return JSON.stringify(grouped, null, 2)
-}
-
-export async function handleSpendingSummary(
-  repo: BudgetRepository,
-  args: Record<string, unknown>,
-): Promise<string> {
-  const now = new Date()
-  const startDate =
-    (args.startDate as string) ??
-    `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`
-  const endDate = (args.endDate as string) ?? now.toISOString().slice(0, 10)
-
-  const transactions = await repo.getTransactions()
-  const categories = await repo.getCategories()
-  const categoryMap = new Map(categories.map((c: Category) => [c.id, c.name]))
-
-  const expenses = transactions.filter(
-    (t: Transaction) =>
-      t.type === "expense" &&
-      t.datetime >= startDate &&
-      t.datetime <= endDate + "T23:59:59",
-  )
-
-  const byCat = new Map<string, { count: number; totalCents: number }>()
-  for (const t of expenses) {
-    const catName = categoryMap.get(t.categoryId) ?? (t.categoryId || "Uncategorized")
-    const entry = byCat.get(catName) ?? { count: 0, totalCents: 0 }
-    entry.count++
-    entry.totalCents += t.amount // negative cents
-    byCat.set(catName, entry)
-  }
-
-  const result = [...byCat.entries()]
-    .sort((a, b) => a[1].totalCents - b[1].totalCents) // most negative first
-    .map(([category, { count, totalCents }]) => ({
-      category,
-      transactions: count,
-      total: formatMoney(totalCents),
-      totalCents,
-    }))
-
-  return JSON.stringify(
-    { period: `${startDate} to ${endDate}`, spending: result },
-    null,
-    2,
-  )
 }
 
 export async function handleSearchMerchants(

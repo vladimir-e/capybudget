@@ -194,7 +194,7 @@ export class CapySession {
     const delay = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
     const blocks: ContentBlock[] = [];
 
-    blocks.push({ type: "tool-activity", tool: "spending_summary" });
+    blocks.push({ type: "tool-activity", tool: "list_transactions" });
     this.emit(blocks);
     await delay(2000);
     if (this.cancelled) return;

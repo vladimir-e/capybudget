@@ -513,9 +513,10 @@ describe("AnthropicSession", () => {
       toolUses: [
         {
           id: "tu-donut",
-          name: "render_donut_chart",
+          name: "render_chart",
           input: {
             title: "Spending",
+            type: "donut",
             data: [{ label: "Food", value: 50 }],
           },
         },

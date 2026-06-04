@@ -9,8 +9,8 @@
  * the corresponding ContentBlock.
  *
  * Tools this dispatch knows about:
- *   - data tools  (list_*, spending_summary, search_merchants)
- *   - mutation tools (create/update/delete/archive/assign_*)
+ *   - data tools  (list_*, search_merchants)
+ *   - mutation tools (create/update/delete + bulk_update_transactions)
  *   - import tools (read/write/append/list_import_file)
  *   - csv tools (analyze_csv, preview_transform, transform_csv,
  *                auto_enrich, enrich_*)
@@ -24,9 +24,7 @@ import {
   handleListAccounts,
   handleListTransactions,
   handleListCategories,
-  handleSpendingSummary,
   handleSearchMerchants,
-  handleTransactionBounds,
 } from "./handlers/data"
 import {
   handleCreateTransaction,
@@ -35,16 +33,9 @@ import {
   handleCreateAccount,
   handleUpdateAccount,
   handleDeleteAccount,
-  handleArchiveAccount,
-  handleUnarchiveAccount,
-  handleSetNetWorthExclusions,
   handleCreateCategory,
   handleUpdateCategory,
   handleDeleteCategory,
-  handleArchiveCategory,
-  handleUnarchiveCategory,
-  handleSetCategoryBudget,
-  handleAssignCategories,
   handleBulkUpdateTransactions,
 } from "./handlers/mutation"
 import {
@@ -81,9 +72,7 @@ const HANDLERS: Record<string, ToolHandler> = {
   list_accounts: ({ repo }) => handleListAccounts(repo),
   list_transactions: ({ repo }, args) => handleListTransactions(repo, args),
   list_categories: ({ repo }) => handleListCategories(repo),
-  spending_summary: ({ repo }, args) => handleSpendingSummary(repo, args),
   search_merchants: ({ repo }, args) => handleSearchMerchants(repo, args),
-  transaction_bounds: ({ repo }, args) => handleTransactionBounds(repo, args),
 
   // Mutations
   create_transaction: ({ repo }, args) => handleCreateTransaction(repo, args),
@@ -92,16 +81,9 @@ const HANDLERS: Record<string, ToolHandler> = {
   create_account: ({ repo }, args) => handleCreateAccount(repo, args),
   update_account: ({ repo }, args) => handleUpdateAccount(repo, args),
   delete_account: ({ repo }, args) => handleDeleteAccount(repo, args),
-  archive_account: ({ repo }, args) => handleArchiveAccount(repo, args),
-  unarchive_account: ({ repo }, args) => handleUnarchiveAccount(repo, args),
-  set_net_worth_exclusions: ({ repo }, args) => handleSetNetWorthExclusions(repo, args),
   create_category: ({ repo }, args) => handleCreateCategory(repo, args),
   update_category: ({ repo }, args) => handleUpdateCategory(repo, args),
   delete_category: ({ repo }, args) => handleDeleteCategory(repo, args),
-  archive_category: ({ repo }, args) => handleArchiveCategory(repo, args),
-  unarchive_category: ({ repo }, args) => handleUnarchiveCategory(repo, args),
-  set_category_budget: ({ repo }, args) => handleSetCategoryBudget(repo, args),
-  assign_categories: ({ repo }, args) => handleAssignCategories(repo, args),
   bulk_update_transactions: ({ repo }, args) => handleBulkUpdateTransactions(repo, args),
 
   // Import working directory

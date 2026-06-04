@@ -35,15 +35,15 @@ describe("parseStreamLine", () => {
       expect(parseStreamLine(line)).toEqual([])
     })
 
-    it("skips render_bar_chart with missing title", () => {
+    it("skips render_chart with missing title", () => {
       const line = JSON.stringify({
         type: "assistant",
         message: {
           content: [
             {
               type: "tool_use",
-              name: "render_bar_chart",
-              input: { data: [{ label: "X", value: 1 }] },
+              name: "render_chart",
+              input: { type: "bar", data: [{ label: "X", value: 1 }] },
             },
           ],
         },
@@ -51,15 +51,31 @@ describe("parseStreamLine", () => {
       expect(parseStreamLine(line)).toEqual([])
     })
 
-    it("skips render_donut_chart with missing data", () => {
+    it("skips render_chart with missing data", () => {
       const line = JSON.stringify({
         type: "assistant",
         message: {
           content: [
             {
               type: "tool_use",
-              name: "render_donut_chart",
-              input: { title: "Test" },
+              name: "render_chart",
+              input: { title: "Test", type: "donut" },
+            },
+          ],
+        },
+      })
+      expect(parseStreamLine(line)).toEqual([])
+    })
+
+    it("skips render_chart with an unknown type", () => {
+      const line = JSON.stringify({
+        type: "assistant",
+        message: {
+          content: [
+            {
+              type: "tool_use",
+              name: "render_chart",
+              input: { title: "Test", type: "pie", data: [{ label: "X", value: 1 }] },
             },
           ],
         },

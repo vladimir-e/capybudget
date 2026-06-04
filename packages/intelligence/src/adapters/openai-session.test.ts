@@ -343,7 +343,7 @@ describe("OpenAiSession", () => {
         {
           index: 0,
           id: "call_xyz",
-          name: "spending_summary",
+          name: "list_transactions",
           argFragments: [
             '{"start',
             'Date":"',
@@ -359,9 +359,9 @@ describe("OpenAiSession", () => {
 
     mockRunTool.mockResolvedValueOnce("ok")
     const { session } = makeSession()
-    await session.send("Spending in Jan 2025?")
+    await session.send("Transactions in Jan 2025?")
     expect(mockRunTool).toHaveBeenCalledWith(
-      "spending_summary",
+      "list_transactions",
       { startDate: "2025-01-01" },
       expect.anything(),
     )
@@ -631,8 +631,8 @@ describe("OpenAiSession", () => {
         {
           index: 0,
           id: "tc-donut",
-          name: "render_donut_chart",
-          argFragments: ['{"title":"Spending","data":[{"label":"Food","value":50}]}'],
+          name: "render_chart",
+          argFragments: ['{"title":"Spending","type":"donut","data":[{"label":"Food","value":50}]}'],
         },
       ],
       finish_reason: "tool_calls",
