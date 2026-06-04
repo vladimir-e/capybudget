@@ -57,7 +57,7 @@ export const RENDER_TOOL_DEFS = [
   {
     name: "render_followups",
     description:
-      "Render 2-3 follow-up suggestion chips below the response. Each chip has a short label (button text) and a prompt (sent as the user's next message when clicked). Use for natural follow-up questions or related views.",
+      "Render 2-3 follow-up suggestion chips below the response — natural next questions or related views.",
     inputSchema: {
       type: "object" as const,
       properties: {

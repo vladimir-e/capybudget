@@ -10,7 +10,7 @@ export {
   MUTATION_TOOL_NAMES,
   getToolDefinitions,
 } from "./definitions"
-export type { ToolDefinition } from "./definitions"
+export type { ToolDefinition, ToolMode } from "./definitions"
 
 // Dispatch
 export { runTool, isDispatchTool } from "./dispatch"

@@ -132,7 +132,7 @@ All three adapters share `buildRenderToolMap()` from `@capybudget/intelligence` 
 
 Single source of truth shared between transports:
 
-- **Definitions** — tool descriptors (name, description, JSON-Schema input). Both transports consume the same list for ListTools / SDK tool config.
+- **Definitions** — tool descriptors (name, description, JSON-Schema input), 30 in all. `getToolDefinitions(mode?)` is the single source: no argument returns the full surface (what the MCP server exposes); a `mode` (`"chat"` | `"import"`) filters to that mode's tools (see **Mode gating** below).
 - **Dispatch** — `runTool(name, input, ctx) → string`. The MCP server and the API adapters call this with the same signature. `ToolContext` is `{ repo, fileAdapter, budgetPath }`.
 - **Handlers** — per-tool implementations:
   - **Data tools** — `list_accounts`, `list_transactions` (filters + `sort` + `offset`), `list_categories`, `search_merchants`
@@ -144,6 +144,15 @@ Single source of truth shared between transports:
   - **Render tools** — no-op on dispatch (return `"Rendered."`); the frontend intercepts the `tool_use` event and emits the corresponding ContentBlock
 
 All filesystem access goes through the `FileAdapter` on the context, so the same handler runs against node fs (MCP server) and Tauri fs (API adapters in the renderer). The `FileAdapter` interface covers core CSV repo ops (read/write/rename/join) plus the import-handler ops (`mkdir`, `exists`, `readDir`, `appendFile`, `remove`, `stat`).
+
+### Mode gating
+
+An in-process API session sees only the tools its system prompt can use, so a chat asking "what did I spend on coffee" isn't handed the CSV/enrich pipeline (and doesn't pay to re-send those schemas every turn). The factory threads a `mode` into the API adapters, which pass it to `getToolDefinitions(mode)`:
+
+- **chat** (21 tools) — reads, full CRUD, render tools, `read_file`/`read_spec`, plus `search_merchants` (the prompt reaches for it on "how much did I spend at X?") and read-only import visibility (`read_import_file` / `list_import_files`) for staged-import questions. No CSV/enrich/write tools.
+- **import** (16 tools) — the CSV transform + enrich pipeline, the import working-directory writers, `search_merchants` (look up a cryptic description in budget history), `list_accounts`/`list_categories` (transfer-target and category UUIDs), and `read_file`/`read_spec`. Covers both Smart Import sessions (normalize and enrich). No render or live-budget mutation tools.
+
+The membership map lives next to the definitions (`tools/definitions/index.ts`), and its source of truth is the prompts: a tool is in a mode iff that mode's prompt tells the model to call it. The **Claude CLI adapter is not gated** — it routes tools through the MCP server, which stays full-surface. So does the MCP server for external agents.
 
 ### Mutation cache invalidation
 
@@ -163,7 +172,7 @@ No-ops on the dispatch side — they carry structured data from AI to frontend v
 
 ## MCP Server (External Agents)
 
-The MCP server is a thin transport: it wires the tool definitions to ListTools and `runTool()` to CallTool. Same surface as the in-process API adapters dispatch — Claude Desktop / Cursor / VS Code Copilot users see identical tool behavior.
+The MCP server is a thin transport: it wires the tool definitions to ListTools and `runTool()` to CallTool. It exposes the **full surface** (`getToolDefinitions()` with no mode) — external agents (Claude Desktop / Cursor / VS Code Copilot) drive their own flows and aren't constrained to a single chat/import mode. The in-process API adapters are mode-gated (see **Mode gating**); dispatch behavior is identical across both.
 
 ```json
 {
@@ -280,7 +289,7 @@ Reads the normalized CSV, identifies merchants, matches accounts, and categorize
 
 The `categoryConfidence` field coordinates between AI and user: enrichment writes `"high"` (merchant history match) or `"low"` (keyword inference), and skips rows where confidence is `"high"` (user-confirmed). The UI shows a confidence dot indicator next to each category.
 
-Both sessions use the same `CapySession` interface and the same tool surface, and both open with the shared app-knowledge brief — only the entry-point-specific instructions layered on top change.
+Both sessions use the same `CapySession` interface, run in `import` mode (the same gated tool surface), and open with the shared app-knowledge brief — only the entry-point-specific instructions layered on top change.
 
 ## Session Tool-Call Budget
 

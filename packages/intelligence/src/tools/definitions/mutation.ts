@@ -142,7 +142,7 @@ export const MUTATION_TOOL_DEFS = [
   {
     name: "update_account",
     description:
-      "Update an account. Only provided fields change. `archived: true` archives it (fails if the balance is non-zero); `archived: false` restores it to the sidebar and net worth. `excludeFromNetWorth` toggles whether the account counts toward Net Worth.",
+      "Update an account. Only provided fields change. See the `archived` and `excludeFromNetWorth` param docs for their effects.",
     inputSchema: {
       type: "object" as const,
       properties: {
@@ -211,7 +211,7 @@ export const MUTATION_TOOL_DEFS = [
   {
     name: "update_category",
     description:
-      "Update a category. Only provided fields change. `archived` toggles visibility. `budgetCents` sets the monthly budget target in integer cents (e.g. 20000 = $200/month): `null` marks it untracked, `0` tracks at zero (distinct from null), and omitting the field leaves the budget unchanged.",
+      "Update a category. Only provided fields change. `archived` toggles visibility; `budgetCents` sets the monthly budget target (see its param doc).",
     inputSchema: {
       type: "object" as const,
       properties: {
@@ -261,7 +261,7 @@ export const MUTATION_TOOL_DEFS = [
   {
     name: "bulk_update_transactions",
     description:
-      "Apply category, account, date, and/or merchant changes to many transactions in one call. At least one field in `set` is required. Transfers are skipped for category, account, and merchant changes (transfers move money — they have no category or merchant, and an account move would orphan the pair). Date changes apply to whatever IDs are passed; if you want both legs of a transfer to shift, include both IDs.",
+      "Apply category, account, date, and/or merchant changes to many transactions at once. Transfers are skipped for category/account/merchant changes (they have neither, and moving one leg orphans the pair); date changes apply to any ID, so pass both legs to shift a transfer.",
     inputSchema: {
       type: "object" as const,
       properties: {

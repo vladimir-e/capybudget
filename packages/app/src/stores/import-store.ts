@@ -139,6 +139,7 @@ export const useImportStore = create<ImportStore>((set, get) => ({
       budgetPath,
       mcpServerPath,
       systemPrompt,
+      mode: "import",
       repo,
       fileAdapter,
       onEvent: (event: StreamEvent) => {
@@ -264,6 +265,7 @@ export const useImportStore = create<ImportStore>((set, get) => ({
       budgetPath,
       mcpServerPath,
       systemPrompt,
+      mode: "import",
       repo,
       fileAdapter,
       onEvent: (event: StreamEvent) => {

@@ -19,7 +19,7 @@ export const CSV_TOOL_DEFS = [
   {
     name: "preview_transform",
     description:
-      "Apply a column mapping to the first N rows of a source CSV file and return the transformed result. Use this to verify the mapping is correct before running the full transform. Returns transformed rows as JSON + any parse errors.",
+      "Apply a column mapping to the first N rows of a source CSV and return the transformed rows plus any parse errors — verify the mapping before the full transform.",
     inputSchema: {
       type: "object" as const,
       properties: {
@@ -61,7 +61,7 @@ export const CSV_TOOL_DEFS = [
   {
     name: "auto_enrich",
     description:
-      "Code-based enrichment: (1) maps sourceCategory → budget categories, (2) matches sourceAccount → budget accounts, (3) resolves transfer target accounts. Leaves merchant empty for the model to fill with cleaned names. Runs automatically when an enrichment session starts. Call it again only if you suspect it didn't run (e.g., after a manual `write_import_file`).",
+      "Code-based enrichment: maps sourceCategory → categories, sourceAccount → accounts, and resolves transfer targets. Leaves merchant empty for you to clean. Runs automatically at session start — call again only if you suspect it didn't (e.g. after a manual write_import_file).",
     inputSchema: {
       type: "object" as const,
       properties: {},

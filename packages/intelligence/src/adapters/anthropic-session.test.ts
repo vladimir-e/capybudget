@@ -177,11 +177,12 @@ vi.mock("../tools", async (importOriginal) => {
 
 import { AnthropicSession } from "./anthropic-session"
 
-function makeSession() {
+function makeSession(mode: "chat" | "import" = "chat") {
   const events: StreamEvent[] = []
   const session = new AnthropicSession({
     budgetPath: "/budget",
     systemPrompt: "you are capy",
+    mode,
     apiKey: "sk-ant-test",
     model: "claude-sonnet-4-6",
     onEvent: (e) => events.push(e),
@@ -798,5 +799,48 @@ describe("AnthropicSession", () => {
     const blocks = lastUser!.content as Array<{ type: string }>
     expect(blocks.some((b) => b.type === "tool_result")).toBe(true)
     expect(blocks.some((b) => b.type === "text")).toBe(true)
+  })
+})
+
+describe("AnthropicSession tool gating", () => {
+  async function toolNamesFor(mode: "chat" | "import"): Promise<string[]> {
+    const { session } = makeSession(mode)
+    queueTurn({ textDeltas: ["ok"], stop_reason: "end_turn" })
+    await session.send("hi")
+    const tools = lastStreamCall().tools as Array<{ name: string }>
+    return tools.map((t) => t.name)
+  }
+
+  it("chat sends only chat-mode tools — render tools in, import/csv tools out", async () => {
+    const names = await toolNamesFor("chat")
+    expect(names).toContain("render_table")
+    expect(names).toContain("render_chart")
+    expect(names).toContain("render_followups")
+    expect(names).toContain("list_transactions")
+    expect(names).toContain("create_transaction")
+    expect(names).not.toContain("analyze_csv")
+    expect(names).not.toContain("transform_csv")
+    expect(names).not.toContain("enrich_update")
+    expect(names).not.toContain("write_import_file")
+    expect(names).toHaveLength(21)
+  })
+
+  it("import sends only import-mode tools — csv/enrich in, render/CRUD out", async () => {
+    const names = await toolNamesFor("import")
+    expect(names).toContain("analyze_csv")
+    expect(names).toContain("transform_csv")
+    expect(names).toContain("enrich_update")
+    expect(names).toContain("write_import_file")
+    expect(names).not.toContain("render_table")
+    expect(names).not.toContain("render_chart")
+    expect(names).not.toContain("render_followups")
+    expect(names).not.toContain("create_transaction")
+    expect(names).not.toContain("list_transactions")
+    expect(names).toHaveLength(16)
+  })
+
+  it("keeps search_merchants in both modes (both prompts advertise it)", async () => {
+    expect(await toolNamesFor("chat")).toContain("search_merchants")
+    expect(await toolNamesFor("import")).toContain("search_merchants")
   })
 })

@@ -67,7 +67,7 @@ export const DATA_TOOL_DEFS = [
   {
     name: "search_merchants",
     description:
-      "Search for merchants in the budget's transaction history. Searches both merchant names and raw transaction notes/descriptions. Returns matching merchants with their most recent category and match quality (full, word, fuzzy). Use this to identify merchants from import descriptions — try multiple query chunks for cryptic descriptions (e.g. for 'RBHOOD HGSTS LLC' try 'RBHOOD' and 'HOOD').",
+      "Search the budget's transaction history (merchant names + raw descriptions) for a merchant. Returns matches with their most recent category and match quality (full, word, fuzzy). For cryptic bank descriptions, try multiple query chunks (e.g. for 'RBHOOD HGSTS LLC' try 'RBHOOD' and 'HOOD').",
     inputSchema: {
       type: "object" as const,
       properties: {

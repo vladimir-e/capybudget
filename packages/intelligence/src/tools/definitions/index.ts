@@ -38,25 +38,89 @@ export type ToolDefinition = {
 }
 
 /**
- * The merged tool list shipped to the model: data + mutation + import +
- * csv + read_file + read_spec + render. Returned as a fresh array so
- * callers can safely mutate it.
- *
- * Both chat and import sessions use the same surface. The system prompt
- * (chat vs. import) tells the model which tools are appropriate to
- * reach for — exposing the full set is simpler than switching toolsets
- * per session and matches what MCP-based external agents see.
+ * In-process session modes. Each runs one system prompt and sees only
+ * the tools that prompt advertises. `chat` is the conversational
+ * overlay; `import` covers both Smart Import sessions (normalize and
+ * enrich), which share a tool surface.
  */
-export function getToolDefinitions(): ToolDefinition[] {
-  return [
-    ...DATA_TOOL_DEFS,
-    ...MUTATION_TOOL_DEFS,
-    ...IMPORT_TOOL_DEFS,
-    ...CSV_TOOL_DEFS,
-    READ_FILE_TOOL_DEF,
-    READ_SPEC_TOOL_DEF,
-    ...RENDER_TOOL_DEFS,
-  ]
+export type ToolMode = "chat" | "import"
+
+const ALL_TOOL_DEFS: readonly ToolDefinition[] = [
+  ...DATA_TOOL_DEFS,
+  ...MUTATION_TOOL_DEFS,
+  ...IMPORT_TOOL_DEFS,
+  ...CSV_TOOL_DEFS,
+  READ_FILE_TOOL_DEF,
+  READ_SPEC_TOOL_DEF,
+  ...RENDER_TOOL_DEFS,
+]
+
+/**
+ * Which modes may reach for each tool. The source of truth is each
+ * mode's system prompt (`prompts/chat.ts`, `prompts/import.ts`,
+ * `prompts/enrich.ts`): a tool is listed for a mode iff that prompt
+ * tells the model to use it. Keep this map and those prompts coherent —
+ * never advertise a tool a mode can't see, never gate one a prompt
+ * tells the model to call.
+ *
+ * Notable cross-mode tools: chat keeps `search_merchants` ("how much
+ * did I spend at X?") and read-only import visibility
+ * (`list_import_files` / `read_import_file`) for staged-import
+ * questions; import keeps `search_merchants` (look up a cryptic
+ * description in budget history) plus `list_accounts` / `list_categories`
+ * for transfer-target and category UUIDs. The render tools are chat-only;
+ * the CSV / enrich / write tools are import-only.
+ */
+const TOOL_MODES: Readonly<Record<string, readonly ToolMode[]>> = {
+  // Data
+  list_accounts: ["chat", "import"],
+  list_transactions: ["chat"],
+  list_categories: ["chat", "import"],
+  search_merchants: ["chat", "import"],
+  // Mutation
+  create_transaction: ["chat"],
+  update_transaction: ["chat"],
+  delete_transactions: ["chat"],
+  create_account: ["chat"],
+  update_account: ["chat"],
+  delete_account: ["chat"],
+  create_category: ["chat"],
+  update_category: ["chat"],
+  delete_category: ["chat"],
+  bulk_update_transactions: ["chat"],
+  // Import working directory
+  read_import_file: ["chat", "import"],
+  write_import_file: ["import"],
+  append_import_file: ["import"],
+  list_import_files: ["chat", "import"],
+  // CSV transform + enrichment
+  analyze_csv: ["import"],
+  preview_transform: ["import"],
+  transform_csv: ["import"],
+  auto_enrich: ["import"],
+  enrich_stats: ["import"],
+  enrich_sample: ["import"],
+  enrich_update: ["import"],
+  // Generic readers
+  read_file: ["chat", "import"],
+  read_spec: ["chat", "import"],
+  // Render
+  render_table: ["chat"],
+  render_chart: ["chat"],
+  render_followups: ["chat"],
+}
+
+/**
+ * The tool list shipped to the model. With no argument, returns the
+ * full surface — what the MCP server exposes to external agents. With a
+ * `mode`, returns only that mode's tools (see `TOOL_MODES`), so an
+ * in-process chat or import session pays for and sees only what its
+ * prompt can use. Returned as a fresh array so callers can safely
+ * mutate it.
+ */
+export function getToolDefinitions(mode?: ToolMode): ToolDefinition[] {
+  if (!mode) return [...ALL_TOOL_DEFS]
+  return ALL_TOOL_DEFS.filter((t) => TOOL_MODES[t.name]?.includes(mode))
 }
 
 /**

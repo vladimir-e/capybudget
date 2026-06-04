@@ -7,13 +7,14 @@ import { SPEC_FILENAMES } from "../../specs.generated"
 
 export const READ_SPEC_TOOL_DEF = {
   name: "read_spec",
-  description: `Read one of Capy Budget's design specs. The prompt already embeds the app-knowledge guide (the working model + your role); reach for this tool for deeper detail — exact CSV schemas in DATA_MODEL.md, the full feature inventory in PRODUCT.md, the architecture, the import pipeline, or the intelligence layer internals. Available files: ${SPEC_FILENAMES.join(", ")}.`,
+  description:
+    "Read one of Capy Budget's design specs for detail beyond the app-knowledge brief already in your prompt — exact CSV schemas (DATA_MODEL.md), the feature inventory (PRODUCT.md), the architecture, the import pipeline, or the intelligence internals.",
   inputSchema: {
     type: "object" as const,
     properties: {
       filename: {
         type: "string",
-        description: `Spec filename, e.g. 'ARCHITECTURE.md'. Must be one of: ${SPEC_FILENAMES.join(", ")}.`,
+        description: "Spec filename to read.",
         enum: [...SPEC_FILENAMES],
       },
     },
