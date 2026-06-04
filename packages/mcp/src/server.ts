@@ -37,10 +37,11 @@ const server = new Server(
 )
 
 server.setRequestHandler(ListToolsRequestSchema, async () => ({
-  // Single source of truth — `getToolDefinitions()` returns the full
-  // tool surface (data, mutation, import, csv, read_file, render).
-  // External agents (Claude Desktop, Cursor) see the same tools the
-  // app's API adapters dispatch in-process.
+  // Single source of truth — `getToolDefinitions()` with no mode returns
+  // the full tool surface (data, mutation, import, csv, read_file,
+  // read_spec, render). External agents (Claude Desktop, Cursor) get the
+  // whole surface; the app's in-process API adapters dispatch the same
+  // tools but gate them per session mode.
   tools: getToolDefinitions(),
 }))
 

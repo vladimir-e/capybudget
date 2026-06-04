@@ -104,49 +104,51 @@ describe("getToolDefinitions", () => {
 })
 
 describe("prompt/gating coherence", () => {
-  // A tool a prompt names but the mode can't see (advertised-but-gated), or a
-  // tool the mode exposes that no prompt mentions (gated-but-unadvertised),
-  // is a drift bug. These guard both directions on the tools that carry
-  // semantic guidance in the prompts.
-  const chatPrompt = SYSTEM_PROMPT
-  const importPrompts = `${IMPORT_SYSTEM_PROMPT}\n${ENRICH_SYSTEM_PROMPT}`
+  // The dangerous drift is advertised-but-gated-out: a prompt tells the model
+  // to call a tool the mode can't see. The prompts cite the specific tools
+  // they drive in backticks (`analyze_csv`, `enrich_update`, …); prose
+  // mentions of CRUD-as-a-category aren't actionable names. So extract the
+  // backticked tokens that match a real tool name and assert each one is in
+  // that mode's gated set — a true cross-check, not a tautology.
+  const ALL_TOOL_NAMES = new Set(getToolDefinitions().map((t) => t.name))
 
-  it("every tool the chat prompt names is in the chat surface", () => {
+  function advertisedTools(prompt: string): string[] {
+    const found = new Set<string>()
+    for (const m of prompt.matchAll(/`([a-z_]+)`/g)) {
+      if (ALL_TOOL_NAMES.has(m[1])) found.add(m[1])
+    }
+    return [...found]
+  }
+
+  it("every tool the chat prompt cites is in the chat surface", () => {
     const chat = new Set(getToolDefinitions("chat").map((t) => t.name))
-    for (const name of chat) {
-      if (chatPrompt.includes(name)) expect(chat.has(name)).toBe(true)
-    }
-    // Spot-check the tools the chat prompt explicitly tells the model to use.
-    for (const t of ["search_merchants", "list_import_files", "read_import_file", "read_spec"]) {
-      expect(chatPrompt).toContain(t)
-      expect(chat.has(t)).toBe(true)
+    const advertised = advertisedTools(SYSTEM_PROMPT)
+    expect(advertised.length).toBeGreaterThan(0)
+    for (const name of advertised) {
+      expect(chat, `chat prompt cites \`${name}\` but it is gated out of chat`).toContain(name)
     }
   })
 
-  it("every tool the import prompts name is in the import surface", () => {
+  it("every tool the import prompts cite is in the import surface", () => {
     const imp = new Set(getToolDefinitions("import").map((t) => t.name))
-    for (const t of [
-      "analyze_csv",
-      "preview_transform",
-      "transform_csv",
-      "auto_enrich",
-      "enrich_stats",
-      "enrich_sample",
-      "enrich_update",
-      "write_import_file",
-      "append_import_file",
-      "search_merchants",
-      "list_categories",
-      "list_accounts",
-    ]) {
-      expect(importPrompts).toContain(t)
-      expect(imp.has(t)).toBe(true)
+    const advertised = advertisedTools(`${IMPORT_SYSTEM_PROMPT}\n${ENRICH_SYSTEM_PROMPT}`)
+    expect(advertised.length).toBeGreaterThan(0)
+    for (const name of advertised) {
+      expect(imp, `import prompt cites \`${name}\` but it is gated out of import`).toContain(name)
     }
   })
 
-  it("the chat prompt does not advertise an import-only tool", () => {
+  it("the chat prompt does not cite an import-only tool", () => {
+    const chatOnly = advertisedTools(SYSTEM_PROMPT)
+    const imp = new Set(getToolDefinitions("import").map((t) => t.name))
+    const chat = new Set(getToolDefinitions("chat").map((t) => t.name))
+    for (const name of chatOnly) {
+      // Anything chat cites must be reachable in chat; if it's also absent
+      // from chat's surface it'd be a leak of an import-only tool into chat.
+      expect(chat.has(name) || !imp.has(name)).toBe(true)
+    }
     for (const t of ["analyze_csv", "transform_csv", "enrich_update", "auto_enrich"]) {
-      expect(chatPrompt).not.toContain(t)
+      expect(SYSTEM_PROMPT).not.toContain(`\`${t}\``)
     }
   })
 })
