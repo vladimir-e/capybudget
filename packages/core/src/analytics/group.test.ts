@@ -157,6 +157,17 @@ describe("groupTransactions — dimensions", () => {
     );
     expect(groups[0].key[0].label).toBe("2025-W01");
   });
+
+  it("rolls a late-December date into the next year's ISO W01", () => {
+    // 2025-12-29 is the Monday of the ISO week whose Thursday (Jan 1 2026)
+    // falls in 2026 — so the week-year is 2026, not 2025.
+    const groups = groupTransactions(
+      [makeTxn({ datetime: "2025-12-29T12:00:00.000Z" })],
+      { groupBy: ["week"], metrics: ["count"] },
+      ctx,
+    );
+    expect(groups[0].key[0].label).toBe("2026-W01");
+  });
 });
 
 // ── amountBucket ────────────────────────────────────────────────────────
@@ -376,6 +387,21 @@ describe("computeCadence", () => {
     expect(c.madGapDays).toBe(1);
   });
 
+  it("keeps a one-day gap across a DST spring-forward boundary", () => {
+    // US DST springs forward 2026-03-08, making that calendar day 23 hours
+    // long. Consecutive days straddling it must still read as 1-day gaps —
+    // locking the cadence math against any future TZ-sensitive date handling.
+    const txns = [
+      makeTxn({ datetime: "2026-03-07T12:00:00.000Z" }),
+      makeTxn({ datetime: "2026-03-08T12:00:00.000Z" }),
+      makeTxn({ datetime: "2026-03-09T12:00:00.000Z" }),
+    ];
+    const c = computeCadence(txns);
+    expect(c.minGapDays).toBe(1);
+    expect(c.maxGapDays).toBe(1);
+    expect(c.medianGapDays).toBe(1);
+  });
+
   it("is reachable as a per-group metric", () => {
     const txns = [
       makeTxn({ merchant: "Netflix", datetime: "2026-01-05T12:00:00.000Z" }),
@@ -429,6 +455,33 @@ describe("groupTransactions — sort + limit", () => {
     );
     expect(groups).toHaveLength(1);
     expect(groups[0].key[0].label).toBe("Groceries");
+  });
+
+  // The handler casts a free model string into sortByMetric, so a metric the
+  // group didn't compute — or `cadence`, whose value is an object — can reach
+  // sortValue at runtime. It must coerce to a stable no-op, not NaN-shuffle.
+  it("leaves group order stable when sortByMetric references an unrequested metric", () => {
+    const insertion = (opts: Parameters<typeof groupTransactions>[1]) =>
+      groupTransactions(txns, opts, ctx).map((g) => g.key[0].label);
+    const baseline = insertion({ groupBy: ["category"], metrics: ["count"] });
+    const sortedByMissing = insertion({
+      groupBy: ["category"],
+      metrics: ["count"],
+      sortByMetric: "sum" as never, // requested only count, not sum
+    });
+    expect(sortedByMissing).toEqual(baseline);
+  });
+
+  it("leaves group order stable when sortByMetric is 'cadence' (object value)", () => {
+    const insertion = (opts: Parameters<typeof groupTransactions>[1]) =>
+      groupTransactions(txns, opts, ctx).map((g) => g.key[0].label);
+    const baseline = insertion({ groupBy: ["category"], metrics: ["cadence"] });
+    const sortedByCadence = insertion({
+      groupBy: ["category"],
+      metrics: ["cadence"],
+      sortByMetric: "cadence" as never,
+    });
+    expect(sortedByCadence).toEqual(baseline);
   });
 });
 

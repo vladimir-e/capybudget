@@ -4,14 +4,9 @@
  * owns filtering) and rolls it up by one or more dimensions, computing the
  * requested metrics per group.
  *
- * Subsumes the stats/rollup/histogram/recurrence family: spending-by-category,
- * merchant rollups, day-of-month histograms, amount+date duplicate buckets,
- * distinct counts, and per-group cadence (the recurrence substrate).
- *
- * Plain data in, plain data out — no app types, no repository, no name
- * resolution beyond the account/category maps it's handed. All money is
- * **signed** integer cents: spending groups sum *negative*. That's correct
- * and deliberate — the model is told amounts are signed and reads the sign.
+ * All money is **signed** integer cents: spending groups sum *negative*.
+ * That's correct and deliberate — the model is told amounts are signed and
+ * reads the sign.
  *
  * Dates are taken from the `YYYY-MM-DD` prefix of `datetime` (the local
  * calendar date the app writes), never re-parsed through a timezone. Cadence
@@ -110,6 +105,17 @@ export interface GroupOptions {
 
 // ── Statistics over signed cents ────────────────────────────────────────
 
+/** Min via reduce (no spread) — correct at any array size, unlike
+ *  `Math.min(...arr)` which overflows the call stack on huge arrays. */
+function minOf(values: number[]): number {
+  return values.reduce((a, b) => (b < a ? b : a), values[0]);
+}
+
+/** Max via reduce — see {@link minOf}. */
+function maxOf(values: number[]): number {
+  return values.reduce((a, b) => (b > a ? b : a), values[0]);
+}
+
 /** Median of a numeric array. Even counts average the two middles. Empty → 0. */
 export function median(values: number[]): number {
   if (values.length === 0) return 0;
@@ -188,8 +194,8 @@ export function computeCadence(txns: Transaction[]): GroupCadence {
   return {
     occurrences,
     medianGapDays: med,
-    minGapDays: Math.min(...gaps),
-    maxGapDays: Math.max(...gaps),
+    minGapDays: minOf(gaps),
+    maxGapDays: maxOf(gaps),
     madGapDays: median(deviations),
   };
 }
@@ -281,15 +287,15 @@ function computeMetrics(
         group.sum = amounts.reduce((a, b) => a + b, 0);
         break;
       case "avg":
-        group.avg = amounts.length
-          ? amounts.reduce((a, b) => a + b, 0) / amounts.length
-          : 0;
+        // A bucket exists only because a transaction landed in it, so
+        // `amounts.length` is always ≥ 1 here.
+        group.avg = amounts.reduce((a, b) => a + b, 0) / amounts.length;
         break;
       case "min":
-        group.min = amounts.length ? Math.min(...amounts) : 0;
+        group.min = minOf(amounts);
         break;
       case "max":
-        group.max = amounts.length ? Math.max(...amounts) : 0;
+        group.max = maxOf(amounts);
         break;
       case "median":
         group.median = median(amounts);
@@ -314,9 +320,15 @@ function computeMetrics(
   return group;
 }
 
-/** Stable sort value for the chosen metric (cadence isn't sortable). */
+/**
+ * Sort value for the chosen metric. Coerces anything non-numeric to 0 so an
+ * unrequested metric — or `cadence`, whose value is an object the model can
+ * still pass as a free-string `sortByMetric` despite the type — sorts as a
+ * stable no-op instead of producing `NaN` comparisons.
+ */
 function sortValue(group: TransactionGroup, metric: Exclude<GroupMetric, "cadence">): number {
-  return group[metric] ?? 0;
+  const v = group[metric];
+  return typeof v === "number" ? v : 0;
 }
 
 /**
