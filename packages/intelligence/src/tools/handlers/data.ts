@@ -4,13 +4,20 @@
  * dispatch) and the in-process API adapters.
  */
 
-import type { Account, Category, Transaction } from "@capybudget/core"
+import type {
+  Account,
+  Category,
+  Transaction,
+  GroupDimension,
+  GroupMetric,
+} from "@capybudget/core"
 import {
   formatMoney,
   getAccountBalance,
   getUniqueMerchants,
   findCategoryForMerchant,
   searchTransactions,
+  groupTransactions,
 } from "@capybudget/core"
 import type { BudgetRepository } from "@capybudget/persistence"
 
@@ -138,16 +145,26 @@ export async function handleListTransactions(
   const accountMap = new Map(accounts.map((a: Account) => [a.id, a.name]))
   const categoryMap = new Map(categories.map((c: Category) => [c.id, c.name]))
 
-  const sort = (args.sort as TransactionSort | undefined) ?? "newest"
-  const comparator = SORT_COMPARATORS[sort] ?? SORT_COMPARATORS.newest
-  // Copy before sorting: `applyTransactionFilters` and the repo's
-  // `getTransactions()` can both hand back a cached array by reference, and
-  // an in-place sort would reorder the persistence cache for every later read.
-  let txns = [...applyTransactionFilters(allTxns, args)].sort(comparator)
-
-  const limit = (args.limit as number) || 50
-  const offset = Math.max(0, (args.offset as number) || 0)
-  txns = txns.slice(offset, offset + limit)
+  let txns: Transaction[]
+  if (Array.isArray(args.ids)) {
+    // Fetch-by-ids: the scan→drill companion. Return exactly the requested
+    // rows, in the order asked (silently dropping ids that don't exist), and
+    // skip the filter/sort/paginate path entirely.
+    const byId = new Map(allTxns.map((t) => [t.id, t]))
+    txns = (args.ids as string[])
+      .map((id) => byId.get(id))
+      .filter((t): t is Transaction => t !== undefined)
+  } else {
+    const sort = (args.sort as TransactionSort | undefined) ?? "newest"
+    const comparator = SORT_COMPARATORS[sort] ?? SORT_COMPARATORS.newest
+    // Copy before sorting: `applyTransactionFilters` and the repo's
+    // `getTransactions()` can both hand back a cached array by reference, and
+    // an in-place sort would reorder the persistence cache for every later read.
+    const sorted = [...applyTransactionFilters(allTxns, args)].sort(comparator)
+    const limit = (args.limit as number) || 50
+    const offset = Math.max(0, (args.offset as number) || 0)
+    txns = sorted.slice(offset, offset + limit)
+  }
 
   const result =
     args.format === "compact"
@@ -177,6 +194,37 @@ export async function handleSearchTransactions(
   const txns = [...matched].sort(comparator).slice(0, (args.limit as number) || 50)
 
   return JSON.stringify(txns.map(compactRow), null, 2)
+}
+
+export async function handleGroupTransactions(
+  repo: BudgetRepository,
+  args: Record<string, unknown>,
+): Promise<string> {
+  const allTxns = await repo.getTransactions()
+  const accounts = await repo.getAccounts()
+  const categories = await repo.getCategories()
+
+  // Same filter pipeline as search: structured filters, then the core fuzzy
+  // matcher for `query`. Grouping runs over the already-filtered set.
+  const filtered = applyTransactionFilters(allTxns, args)
+  const scoped = args.query
+    ? searchTransactions(filtered, args.query as string, { accounts, categories })
+    : filtered
+
+  const groups = groupTransactions(
+    scoped,
+    {
+      groupBy: (args.groupBy as GroupDimension[] | undefined) ?? [],
+      metrics: (args.metrics as GroupMetric[] | undefined) ?? ["count"],
+      amountBucketCents: args.amountBucketCents as number | undefined,
+      sortByMetric: args.sortByMetric as Exclude<GroupMetric, "cadence"> | undefined,
+      sortDir: args.sortDir as "asc" | "desc" | undefined,
+      limit: args.limit as number | undefined,
+    },
+    { accounts, categories },
+  )
+
+  return JSON.stringify(groups, null, 2)
 }
 
 export async function handleListCategories(repo: BudgetRepository): Promise<string> {

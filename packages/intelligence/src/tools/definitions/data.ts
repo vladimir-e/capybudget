@@ -52,6 +52,12 @@ export const DATA_TOOL_DEFS = [
           description:
             "Number of transactions to skip before returning results (default: 0). Use with `limit` to paginate.",
         },
+        ids: {
+          type: "array",
+          items: { type: "string" },
+          description:
+            "Fetch exactly these transaction IDs (in order), ignoring all other filters/sort/pagination. The drill companion to a compact scan or group_transactions result. Pairs well with format:'compact'.",
+        },
         format: {
           type: "string",
           enum: ["compact", "full"],
@@ -109,6 +115,103 @@ export const DATA_TOOL_DEFS = [
           description: "Maximum rows to return (default: 50)",
         },
       },
+    },
+  },
+  {
+    name: "group_transactions",
+    description:
+      "Aggregate transactions into groups and compute metrics per group — the universal rollup. Same filters as search_transactions (query/account/category/type/date/amount), then group by one or more dimensions and request metrics. All money is SIGNED cents: spending groups sum negative. Covers spending-by-category, merchant rollups, day-of-month histograms, amount+date duplicate clusters (groupBy:[amountBucket,month]), distinct counts, and recurrence (the `cadence` metric: median/min/max day-gap between a group's sorted occurrences). Each group returns its key(s) (resolved label + raw id for merchant/category/account) plus the requested metrics.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        groupBy: {
+          type: "array",
+          items: {
+            type: "string",
+            enum: [
+              "merchant",
+              "category",
+              "account",
+              "type",
+              "month",
+              "week",
+              "dayOfMonth",
+              "amountBucket",
+            ],
+          },
+          description:
+            "Dimensions to group by, in key order. Multi-key supported, e.g. [merchant, dayOfMonth] or [amountBucket, month]. month=YYYY-MM, week=ISO YYYY-Www, dayOfMonth=1–31.",
+        },
+        metrics: {
+          type: "array",
+          items: {
+            type: "string",
+            enum: [
+              "count",
+              "sum",
+              "avg",
+              "min",
+              "max",
+              "median",
+              "distinctMerchants",
+              "distinctAccounts",
+              "distinctCategories",
+              "distinctAmounts",
+              "cadence",
+            ],
+          },
+          description:
+            "Metrics per group (over signed amount cents). `cadence` is heavier — request only for recurrence questions; it returns {occurrences, medianGapDays, minGapDays, maxGapDays, madGapDays} (gaps null for a single occurrence).",
+        },
+        amountBucketCents: {
+          type: "number",
+          description:
+            "Bucket size in cents for the amountBucket dimension. Omit for exact-amount grouping (the duplicate-detection case).",
+        },
+        query: {
+          type: "string",
+          description:
+            "Free-text scope matched across merchant, note, category/account name, and money formats (same as search_transactions). Optional.",
+        },
+        accountId: { type: "string", description: "Filter by account ID" },
+        categoryId: { type: "string", description: "Filter by category ID" },
+        type: {
+          type: "string",
+          enum: ["income", "expense", "transfer"],
+          description: "Filter by transaction type",
+        },
+        startDate: {
+          type: "string",
+          description: "Filter to transactions on or after this date (YYYY-MM-DD)",
+        },
+        endDate: {
+          type: "string",
+          description: "Filter to transactions on or before this date (YYYY-MM-DD)",
+        },
+        minAmountCents: {
+          type: "number",
+          description: "Filter to signed amount >= this (cents)",
+        },
+        maxAmountCents: {
+          type: "number",
+          description: "Filter to signed amount <= this (cents)",
+        },
+        sortByMetric: {
+          type: "string",
+          description:
+            "Sort groups by this requested metric (cadence not sortable). Omit to leave unordered.",
+        },
+        sortDir: {
+          type: "string",
+          enum: ["asc", "desc"],
+          description: "Sort direction (default desc).",
+        },
+        limit: {
+          type: "number",
+          description: "Keep only the top-N groups after sorting.",
+        },
+      },
+      required: ["groupBy", "metrics"],
     },
   },
   {

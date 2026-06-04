@@ -833,12 +833,13 @@ describe("AnthropicSession tool gating", () => {
     expect(names).toContain("render_followups")
     expect(names).toContain("list_transactions")
     expect(names).toContain("search_transactions")
+    expect(names).toContain("group_transactions")
     expect(names).toContain("create_transaction")
     expect(names).not.toContain("analyze_csv")
     expect(names).not.toContain("transform_csv")
     expect(names).not.toContain("enrich_update")
     expect(names).not.toContain("write_import_file")
-    expect(names).toHaveLength(22)
+    expect(names).toHaveLength(23)
   })
 
   it("import sends only import-mode tools — csv/enrich in, render/CRUD out", async () => {

@@ -9,7 +9,8 @@
  * the corresponding ContentBlock.
  *
  * Tools this dispatch knows about:
- *   - data tools  (list_*, search_transactions, search_merchants)
+ *   - data tools  (list_*, search_transactions, group_transactions,
+ *                 search_merchants)
  *   - mutation tools (create/update/delete + bulk_update_transactions)
  *   - import tools (read/write/append/list_import_file)
  *   - csv tools (analyze_csv, preview_transform, transform_csv,
@@ -24,6 +25,7 @@ import {
   handleListAccounts,
   handleListTransactions,
   handleSearchTransactions,
+  handleGroupTransactions,
   handleListCategories,
   handleSearchMerchants,
 } from "./handlers/data"
@@ -73,6 +75,7 @@ const HANDLERS: Record<string, ToolHandler> = {
   list_accounts: ({ repo }) => handleListAccounts(repo),
   list_transactions: ({ repo }, args) => handleListTransactions(repo, args),
   search_transactions: ({ repo }, args) => handleSearchTransactions(repo, args),
+  group_transactions: ({ repo }, args) => handleGroupTransactions(repo, args),
   list_categories: ({ repo }) => handleListCategories(repo),
   search_merchants: ({ repo }, args) => handleSearchMerchants(repo, args),
 

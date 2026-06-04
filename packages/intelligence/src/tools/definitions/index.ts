@@ -76,6 +76,7 @@ const TOOL_MODES: Readonly<Record<string, readonly ToolMode[]>> = {
   list_accounts: ["chat", "import"],
   list_transactions: ["chat"],
   search_transactions: ["chat"],
+  group_transactions: ["chat"],
   list_categories: ["chat", "import"],
   search_merchants: ["chat", "import"],
   // Mutation

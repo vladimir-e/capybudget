@@ -11,6 +11,7 @@ import {
   handleListCategories,
   handleListTransactions,
   handleSearchTransactions,
+  handleGroupTransactions,
 } from "./data"
 
 function createMockRepo(data: {
@@ -512,6 +513,64 @@ describe("handleListTransactions format", () => {
   })
 })
 
+// ── handleListTransactions: ids (fetch-by-id drill) ─────────────
+
+describe("handleListTransactions ids", () => {
+  const accounts = [makeAccount({ id: "acc-1", name: "Checking" })]
+  const categories = [makeCategory({ id: "cat-1", name: "Groceries" })]
+
+  function buildRepo() {
+    return createMockRepo({
+      accounts,
+      categories,
+      transactions: [
+        makeTxn({ id: "t-1", datetime: "2026-01-01T00:00:00.000Z" }),
+        makeTxn({ id: "t-2", datetime: "2026-02-01T00:00:00.000Z" }),
+        makeTxn({ id: "t-3", datetime: "2026-03-01T00:00:00.000Z" }),
+      ],
+    })
+  }
+
+  it("returns exactly the requested rows in the order asked", async () => {
+    const result = JSON.parse(
+      await handleListTransactions(buildRepo(), { ids: ["t-3", "t-1"] }),
+    )
+    expect(result.map((t: { id: string }) => t.id)).toEqual(["t-3", "t-1"])
+  })
+
+  it("works with format:'compact'", async () => {
+    const result = JSON.parse(
+      await handleListTransactions(buildRepo(), { ids: ["t-2"], format: "compact" }),
+    )
+    expect(result[0]).toMatchObject({ id: "t-2", accountId: "acc-1" })
+    expect(result[0]).not.toHaveProperty("account")
+  })
+
+  it("silently drops ids that don't exist", async () => {
+    const result = JSON.parse(
+      await handleListTransactions(buildRepo(), { ids: ["t-2", "nope"] }),
+    )
+    expect(result.map((t: { id: string }) => t.id)).toEqual(["t-2"])
+  })
+
+  it("ignores other filters/sort/pagination when ids is given", async () => {
+    const result = JSON.parse(
+      await handleListTransactions(buildRepo(), {
+        ids: ["t-1", "t-3"],
+        accountId: "acc-nope",
+        sort: "oldest",
+        limit: 1,
+      }),
+    )
+    expect(result.map((t: { id: string }) => t.id)).toEqual(["t-1", "t-3"])
+  })
+
+  it("returns an empty array for an empty ids list", async () => {
+    const result = JSON.parse(await handleListTransactions(buildRepo(), { ids: [] }))
+    expect(result).toEqual([])
+  })
+})
+
 // ── handleSearchTransactions ────────────────────────────────────
 
 describe("handleSearchTransactions", () => {
@@ -656,5 +715,124 @@ describe("read handlers do not reorder the source array", () => {
     const repo = sharedRefRepo(txns)
     await handleSearchTransactions(repo, {})
     expect(txns.map((t) => t.id)).toEqual(["t-a", "t-c", "t-b"])
+  })
+
+  it("handleGroupTransactions leaves the cached array untouched (bare {})", async () => {
+    const txns = source()
+    const repo = sharedRefRepo(txns)
+    await handleGroupTransactions(repo, { groupBy: ["month"], metrics: ["count"] })
+    expect(txns.map((t) => t.id)).toEqual(["t-a", "t-c", "t-b"])
+  })
+})
+
+// ── handleGroupTransactions (filter→group integration) ──────────
+
+describe("handleGroupTransactions", () => {
+  const accounts = [
+    makeAccount({ id: "acc-1", name: "Chase Checking" }),
+    makeAccount({ id: "acc-2", name: "Amex Gold" }),
+  ]
+  const categories = [
+    makeCategory({ id: "cat-groc", name: "Groceries" }),
+    makeCategory({ id: "cat-dine", name: "Dining Out" }),
+  ]
+
+  function buildRepo() {
+    return createMockRepo({
+      accounts,
+      categories,
+      transactions: [
+        makeTxn({ id: "g1", merchant: "Whole Foods", categoryId: "cat-groc", accountId: "acc-1", amount: -8500, datetime: "2026-01-05T00:00:00.000Z" }),
+        makeTxn({ id: "g2", merchant: "Trader Joes", categoryId: "cat-groc", accountId: "acc-1", amount: -4500, datetime: "2026-02-05T00:00:00.000Z" }),
+        makeTxn({ id: "g3", merchant: "Nobu", categoryId: "cat-dine", accountId: "acc-2", amount: -22000, datetime: "2026-01-10T00:00:00.000Z" }),
+        makeTxn({ id: "g4", merchant: "Employer", type: "income", categoryId: "cat-groc", accountId: "acc-1", amount: 500000, datetime: "2026-01-31T00:00:00.000Z" }),
+      ],
+    })
+  }
+
+  it("groups spending by category with signed sums", async () => {
+    const groups = JSON.parse(
+      await handleGroupTransactions(buildRepo(), {
+        groupBy: ["category"],
+        metrics: ["sum", "count"],
+        type: "expense",
+        sortByMetric: "count",
+        sortDir: "desc",
+      }),
+    )
+    const groc = groups.find((g: { key: { id: string }[] }) => g.key[0].id === "cat-groc")
+    expect(groc.sum).toBe(-13000) // -8500 + -4500, income excluded by type filter
+    expect(groc.count).toBe(2)
+    expect(groc.key[0].label).toBe("Groceries")
+  })
+
+  it("applies a free-text query before grouping", async () => {
+    const groups = JSON.parse(
+      await handleGroupTransactions(buildRepo(), {
+        query: "whole foods",
+        groupBy: ["merchant"],
+        metrics: ["count"],
+      }),
+    )
+    expect(groups).toHaveLength(1)
+    expect(groups[0].key[0].label).toBe("Whole Foods")
+  })
+
+  it("applies a date filter before grouping", async () => {
+    const groups = JSON.parse(
+      await handleGroupTransactions(buildRepo(), {
+        startDate: "2026-01-01",
+        endDate: "2026-01-31",
+        groupBy: ["month"],
+        metrics: ["count"],
+      }),
+    )
+    expect(groups).toHaveLength(1)
+    expect(groups[0].key[0].label).toBe("2026-01")
+    expect(groups[0].count).toBe(3) // g1, g3, g4
+  })
+
+  it("sorts groups by a metric and caps to a limit", async () => {
+    const groups = JSON.parse(
+      await handleGroupTransactions(buildRepo(), {
+        groupBy: ["merchant"],
+        metrics: ["sum"],
+        type: "expense",
+        sortByMetric: "sum",
+        sortDir: "asc", // most-negative first
+        limit: 1,
+      }),
+    )
+    expect(groups).toHaveLength(1)
+    expect(groups[0].key[0].label).toBe("Nobu") // -22000 is the most-negative
+  })
+
+  it("exposes cadence as a per-group metric", async () => {
+    const repo = createMockRepo({
+      accounts,
+      categories,
+      transactions: [
+        makeTxn({ merchant: "Netflix", datetime: "2026-01-05T00:00:00.000Z" }),
+        makeTxn({ merchant: "Netflix", datetime: "2026-02-05T00:00:00.000Z" }),
+        makeTxn({ merchant: "Netflix", datetime: "2026-03-05T00:00:00.000Z" }),
+      ],
+    })
+    const groups = JSON.parse(
+      await handleGroupTransactions(repo, { groupBy: ["merchant"], metrics: ["cadence"] }),
+    )
+    expect(groups[0].cadence.occurrences).toBe(3)
+    expect(groups[0].cadence.medianGapDays).toBeGreaterThanOrEqual(28)
+    expect(groups[0].cadence.medianGapDays).toBeLessThanOrEqual(31)
+  })
+
+  it("returns an empty array when nothing survives filtering", async () => {
+    const groups = JSON.parse(
+      await handleGroupTransactions(buildRepo(), {
+        query: "zzz-nope",
+        groupBy: ["category"],
+        metrics: ["sum"],
+      }),
+    )
+    expect(groups).toEqual([])
   })
 })

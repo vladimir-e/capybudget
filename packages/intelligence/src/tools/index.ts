@@ -33,6 +33,7 @@ export {
   handleListAccounts,
   handleListTransactions,
   handleSearchTransactions,
+  handleGroupTransactions,
   handleListCategories,
   handleSearchMerchants,
 } from "./handlers/data"

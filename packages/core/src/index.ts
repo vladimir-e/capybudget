@@ -178,3 +178,19 @@ export {
   matchesTransaction,
   searchTransactions,
 } from "./analytics/search";
+
+// Transaction grouping (the universal aggregator behind group_transactions)
+export type {
+  GroupDimension,
+  GroupMetric,
+  GroupCadence,
+  TransactionGroup,
+  GroupKeyPart,
+  GroupContext,
+  GroupOptions,
+} from "./analytics/group";
+export {
+  groupTransactions,
+  computeCadence,
+  median,
+} from "./analytics/group";

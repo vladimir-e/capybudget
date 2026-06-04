@@ -12,6 +12,9 @@ dist
 dist-ssr
 *.local
 
+# TypeScript incremental build cache
+*.tsbuildinfo
+
 # TanStack Router generated
 src/routeTree.gen.ts
 
