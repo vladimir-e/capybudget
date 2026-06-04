@@ -176,9 +176,10 @@ export async function handleUpdateAccount(
     accounts,
   )
 
+  // archiveAccount throws on a non-zero balance; running it before saving
+  // means a rejected archive never persists the name/type/exclusion edits.
   if (typeof args.archived === "boolean") {
     if (args.archived) {
-      // Preserves the balance≠0 guard.
       const transactions = await repo.getTransactions()
       next = archiveAccount(id, next, transactions)
     } else {
@@ -189,7 +190,7 @@ export async function handleUpdateAccount(
   if (typeof args.excludeFromNetWorth === "boolean") {
     const exclude = args.excludeFromNetWorth
     next = next.map((a) =>
-      a.id === id ? { ...a, excludeFromNetWorth: exclude } : a,
+      a.id === id && !a.archived ? { ...a, excludeFromNetWorth: exclude } : a,
     )
   }
 
@@ -331,9 +332,6 @@ export async function handleBulkUpdateTransactions(
   }
   const nonTransferTargeted = targeted.filter((t) => t.type !== "transfer").length
 
-  // Per-field counters — matches the enrich_update style so the model can
-  // tell which fields actually landed (transfers silently skipped show up as
-  // 0 for category/account/merchant, non-zero for date).
   const counts = { categoryId: 0, accountId: 0, date: 0, merchant: 0 }
 
   if (categoryId !== undefined) {

@@ -238,6 +238,17 @@ describe("handleUpdateAccount", () => {
     ).rejects.toThrow(/non-zero/)
   })
 
+  it("does not persist a name change when a combined archive fails on balance", async () => {
+    const repo = createMockRepo({
+      accounts: [makeAccount({ id: "acc-1", name: "Old" })],
+      transactions: [makeTxn({ accountId: "acc-1", amount: 5000 })],
+    })
+    await expect(
+      handleUpdateAccount(repo, { id: "acc-1", name: "New Name", archived: true }),
+    ).rejects.toThrow(/non-zero/)
+    expect(repo.saveAccounts).not.toHaveBeenCalled()
+  })
+
   it("unarchives an account", async () => {
     const repo = createMockRepo({
       accounts: [makeAccount({ id: "acc-1", archived: true })],
@@ -261,6 +272,15 @@ describe("handleUpdateAccount", () => {
     const saved = (repo.saveAccounts as ReturnType<typeof vi.fn>).mock.calls[0][0]
     expect(saved.find((a: Account) => a.id === "acc-1").excludeFromNetWorth).toBe(true)
     expect(saved.find((a: Account) => a.id === "acc-2").excludeFromNetWorth).toBe(false)
+  })
+
+  it("leaves an archived account's excludeFromNetWorth unchanged (mirrors core)", async () => {
+    const repo = createMockRepo({
+      accounts: [makeAccount({ id: "acc-1", archived: true, excludeFromNetWorth: false })],
+    })
+    await handleUpdateAccount(repo, { id: "acc-1", excludeFromNetWorth: true })
+    const saved = (repo.saveAccounts as ReturnType<typeof vi.fn>).mock.calls[0][0]
+    expect(saved[0].excludeFromNetWorth).toBe(false)
   })
 
   it("returns error for unknown account", async () => {
