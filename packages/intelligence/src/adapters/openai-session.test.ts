@@ -19,7 +19,7 @@ interface FakeTurn {
   tailChunk?: { content: string }
 }
 
-const { mockCreate, queueTurn, lastCreateCall, abortSignals } = vi.hoisted(
+const { mockCreate, queueTurn, lastCreateCall, allCreateCalls, abortSignals } = vi.hoisted(
   () => {
     const queue: FakeTurn[] = []
     const calls: Array<{ messages: unknown; tools: unknown }> = []
@@ -152,6 +152,7 @@ const { mockCreate, queueTurn, lastCreateCall, abortSignals } = vi.hoisted(
       mockCreate: create,
       queueTurn,
       lastCreateCall: () => calls[calls.length - 1],
+      allCreateCalls: () => calls,
       abortSignals: signals,
     }
   },
@@ -239,6 +240,34 @@ describe("OpenAiSession", () => {
     const messages = call.messages as Array<{ role: string; content: unknown }>
     expect(messages[0]).toEqual({ role: "system", content: "you are capy" })
     expect(messages[1].role).toBe("user")
+  })
+
+  it("keeps the tools + system prefix byte-stable across turns (prefix caching)", async () => {
+    // OpenAI auto-caches a request's static prefix; the win only lands if that
+    // prefix is identical turn-to-turn. Drive two model turns (tool call → reply)
+    // and assert the tools array and the leading system message are unchanged —
+    // per-turn content rides in the tail messages, never the prefix.
+    queueTurn({
+      toolCallDeltas: [
+        { index: 0, id: "call_1", name: "list_accounts", argFragments: ["{}"] },
+      ],
+      finish_reason: "tool_calls",
+    })
+    queueTurn({ textDeltas: ["Done."], finish_reason: "stop" })
+    mockRunTool.mockResolvedValueOnce("ok")
+
+    const { session } = makeSession()
+    await session.send("How much do I have?")
+
+    // The hoisted `calls` array spans the whole file; this session's two turns
+    // are the last two entries.
+    const all = allCreateCalls()
+    const [turn1, turn2] = all.slice(-2)
+    expect(turn1.tools).toEqual(turn2.tools)
+    const firstSystem = (turn1.messages as Array<unknown>)[0]
+    const secondSystem = (turn2.messages as Array<unknown>)[0]
+    expect(firstSystem).toEqual({ role: "system", content: "you are capy" })
+    expect(secondSystem).toEqual(firstSystem)
   })
 
   it("dispatches a tool call (arguments arrive across many deltas), threads tool_call_id, and continues the loop", async () => {

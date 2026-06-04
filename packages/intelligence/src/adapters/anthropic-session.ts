@@ -149,7 +149,16 @@ export class AnthropicSession implements CapySession {
       const stream = this.client.messages.stream(
         {
           model: this.opts.model,
-          system: this.opts.systemPrompt,
+          // One breakpoint at the end of system caches the whole static prefix
+          // before it — tools, then system — so multi-turn loops re-read it
+          // instead of re-billing ~7-8K tokens of schema every turn.
+          system: [
+            {
+              type: "text",
+              text: this.opts.systemPrompt,
+              cache_control: { type: "ephemeral" },
+            },
+          ],
           messages: this.messages,
           tools,
           max_tokens: MAX_TOKENS,

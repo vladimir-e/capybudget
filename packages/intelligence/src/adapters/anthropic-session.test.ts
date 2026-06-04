@@ -19,7 +19,7 @@ interface FakeTurn {
 
 const { mockStream, queueTurn, lastStreamCall, abortSignals, streamStubs } = vi.hoisted(() => {
   const queue: FakeTurn[] = []
-  const calls: Array<{ messages: unknown; tools: unknown }> = []
+  const calls: Array<{ messages: unknown; tools: unknown; system: unknown }> = []
   const signals: AbortSignal[] = []
   const stubs: Array<{ controller: AbortController; abortSpy: ReturnType<typeof vi.fn> }> = []
 
@@ -27,6 +27,7 @@ const { mockStream, queueTurn, lastStreamCall, abortSignals, streamStubs } = vi.
     calls.push({
       messages: JSON.parse(JSON.stringify(params.messages)),
       tools: params.tools,
+      system: params.system,
     })
     if (opts?.signal) signals.push(opts.signal as AbortSignal)
     const turn = queue.shift()
@@ -220,6 +221,20 @@ describe("AnthropicSession", () => {
       blocks: [{ type: "text", content: "Hello, world" }],
     })
     expect(events[events.length - 1]).toEqual({ type: "done" })
+  })
+
+  it("sends system as a cache-marked content block (caches the tools+system prefix)", async () => {
+    queueTurn({ textDeltas: ["ok"], stop_reason: "end_turn" })
+    const { session } = makeSession()
+    await session.send("Hi")
+
+    expect(lastStreamCall().system).toEqual([
+      {
+        type: "text",
+        text: "you are capy",
+        cache_control: { type: "ephemeral" },
+      },
+    ])
   })
 
   it("dispatches tool_use, returns the result, and continues the loop", async () => {

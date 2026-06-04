@@ -157,6 +157,10 @@ export class OpenAiSession implements CapySession {
       this.abortController = new AbortController()
 
       // System prompt kept out of `this.messages` so restart() resets cleanly.
+      // The tools + system prefix must stay byte-identical across turns for
+      // OpenAI's automatic prefix caching to hit — `systemPrompt` is immutable
+      // for the session's life and all per-turn context (budget snapshot, date,
+      // attachments) rides in the user messages of `this.messages`, never here.
       const requestMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
         { role: "system", content: this.opts.systemPrompt },
         ...this.messages,

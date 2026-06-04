@@ -154,6 +154,15 @@ An in-process API session sees only the tools its system prompt can use, so a ch
 
 The membership map lives next to the definitions (`tools/definitions/index.ts`), and its source of truth is the prompts: a tool is in a mode iff that mode's prompt tells the model to call it. The **Claude CLI adapter is not gated** — it routes tools through the MCP server, which stays full-surface. So does the MCP server for external agents.
 
+### Prompt caching
+
+The tools + system prefix is static across a session, so the API adapters cache it instead of re-billing ~7-8K tokens of schema every turn of a multi-turn loop. All per-turn content (the context wrapper, budget snapshot, attachments — see **Context Enrichment**) rides in the user messages, after the prefix, so the prefix stays identical turn-to-turn.
+
+- **Anthropic** marks the system block with `cache_control: { type: "ephemeral" }`. One breakpoint at the end of system caches everything before it in the prefix hierarchy — tools, then system. Cache hits show up as `cache_read_input_tokens` in usage from turn 2 on.
+- **OpenAI** caches eligible prefixes (>~1024 tokens) automatically, no flag — the adapter's job is to keep the prefix byte-stable: the system message is immutable for the session and leads every request, tools follow the same definition order, dynamic content never bakes into either.
+
+This is in-process-adapter only; the Claude CLI manages its own caching.
+
 ### Mutation cache invalidation
 
 The app invalidates caches per mutation tool call (not per turn) so the UI reflects Capy's changes live as it works. `MUTATION_TOOL_NAMES` is exposed for matching.
