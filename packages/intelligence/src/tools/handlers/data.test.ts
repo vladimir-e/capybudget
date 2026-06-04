@@ -615,3 +615,46 @@ describe("handleSearchTransactions", () => {
     expect(result).toEqual([])
   })
 })
+
+// ── sort must not mutate the persistence cache ──────────────────
+//
+// The CSV repository's `getTransactions()` returns its cached array by
+// reference (not a copy). A handler that sorts in place reorders that cache
+// for every later read. These guard both read handlers against that.
+
+describe("read handlers do not reorder the source array", () => {
+  // Mirrors the CSV repo's contract: the same array reference every call.
+  function sharedRefRepo(transactions: Transaction[]): BudgetRepository {
+    return {
+      getAccounts: vi.fn().mockResolvedValue([makeAccount({ id: "acc-1" })]),
+      getCategories: vi.fn().mockResolvedValue([makeCategory({ id: "cat-1" })]),
+      getTransactions: vi.fn().mockResolvedValue(transactions),
+      saveAccounts: vi.fn().mockResolvedValue(undefined),
+      saveCategories: vi.fn().mockResolvedValue(undefined),
+      saveTransactions: vi.fn().mockResolvedValue(undefined),
+    }
+  }
+
+  // Deliberately not newest-first, so a default sort would reorder it.
+  function source(): Transaction[] {
+    return [
+      makeTxn({ id: "t-a", datetime: "2026-01-01T00:00:00.000Z" }),
+      makeTxn({ id: "t-c", datetime: "2026-03-01T00:00:00.000Z" }),
+      makeTxn({ id: "t-b", datetime: "2026-02-01T00:00:00.000Z" }),
+    ]
+  }
+
+  it("handleListTransactions leaves the cached array untouched (bare {})", async () => {
+    const txns = source()
+    const repo = sharedRefRepo(txns)
+    await handleListTransactions(repo, {})
+    expect(txns.map((t) => t.id)).toEqual(["t-a", "t-c", "t-b"])
+  })
+
+  it("handleSearchTransactions leaves the cached array untouched (bare {})", async () => {
+    const txns = source()
+    const repo = sharedRefRepo(txns)
+    await handleSearchTransactions(repo, {})
+    expect(txns.map((t) => t.id)).toEqual(["t-a", "t-c", "t-b"])
+  })
+})

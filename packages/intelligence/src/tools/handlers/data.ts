@@ -138,11 +138,12 @@ export async function handleListTransactions(
   const accountMap = new Map(accounts.map((a: Account) => [a.id, a.name]))
   const categoryMap = new Map(categories.map((c: Category) => [c.id, c.name]))
 
-  let txns = applyTransactionFilters(allTxns, args)
-
   const sort = (args.sort as TransactionSort | undefined) ?? "newest"
   const comparator = SORT_COMPARATORS[sort] ?? SORT_COMPARATORS.newest
-  txns.sort(comparator)
+  // Copy before sorting: `applyTransactionFilters` and the repo's
+  // `getTransactions()` can both hand back a cached array by reference, and
+  // an in-place sort would reorder the persistence cache for every later read.
+  let txns = [...applyTransactionFilters(allTxns, args)].sort(comparator)
 
   const limit = (args.limit as number) || 50
   const offset = Math.max(0, (args.offset as number) || 0)
@@ -164,17 +165,16 @@ export async function handleSearchTransactions(
   const accounts = await repo.getAccounts()
   const categories = await repo.getCategories()
 
-  let txns = applyTransactionFilters(allTxns, args)
-  if (args.query) {
-    txns = searchTransactions(txns, args.query as string, { accounts, categories })
-  }
+  const filtered = applyTransactionFilters(allTxns, args)
+  const matched = args.query
+    ? searchTransactions(filtered, args.query as string, { accounts, categories })
+    : filtered
 
   const sort = (args.sort as TransactionSort | undefined) ?? "newest"
   const comparator = SORT_COMPARATORS[sort] ?? SORT_COMPARATORS.newest
-  txns.sort(comparator)
-
-  const limit = (args.limit as number) || 50
-  txns = txns.slice(0, limit)
+  // Copy before sorting — `matched` may be a cached array by reference (no
+  // query and no narrowing filter), and an in-place sort would mutate it.
+  const txns = [...matched].sort(comparator).slice(0, (args.limit as number) || 50)
 
   return JSON.stringify(txns.map(compactRow), null, 2)
 }

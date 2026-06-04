@@ -46,6 +46,11 @@ describe("matchesMoney", () => {
     expect(matchesMoney(29000, "290")).toBe(true);
   });
 
+  it("matches the documented headline example: 29 → $1.29 and $290", () => {
+    expect(matchesMoney(129, "29")).toBe(true); // "$1.29" contains "29"
+    expect(matchesMoney(29000, "29")).toBe(true); // "$290.00" contains "29"
+  });
+
   it("matches the dotted form of a sub-dollar amount ($1.29)", () => {
     expect(matchesMoney(129, "1.29")).toBe(true);
     // The decimal point breaks the digit run, so a dotless "129" does NOT
