@@ -6,7 +6,7 @@ Built with Tauri v2, React, and TypeScript. Optional intelligence layer. Structu
 
 **[capybudget.app](https://capybudget.app)** | **[Demo](https://demo.capybudget.app)**
 
-![Capy Budget](./apps/www/public/capy-resistance.jpg)
+<img src="./apps/www/public/capy-resistance.jpg" alt="Capy Budget" width="350" />
 
 ## Quick Start
 
