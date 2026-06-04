@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { Search, X } from "lucide-react";
 import type { Category, Transaction } from "@capybudget/core";
-import { formatMoney } from "@capybudget/core";
+import { searchTransactions } from "@capybudget/core";
 import { Input } from "@/components/ui/input";
 import { EmptyState } from "@/components/ui/empty-state";
 import { TransactionList } from "@/components/budget/transaction-list";
@@ -40,40 +40,6 @@ interface TransactionsBrowserProps {
 
 /** Below this row count, the search field adds clutter without value. */
 const SEARCH_THRESHOLD = 10;
-
-// ---------------------------------------------------------------------------
-// Local search — substring match across every column the user sees in the
-// table: merchant, category, account, note, amount. Intentionally narrower
-// than `filterTransactions` in that it doesn't carry sort/date/category
-// state — this is the local feel of a popup, not the full toolbar.
-// ---------------------------------------------------------------------------
-
-function matchesAmount(cents: number, q: string): boolean {
-  const formatted = formatMoney(cents).toLowerCase();
-  if (formatted.includes(q)) return true;
-  const plain = formatted.replace(/,/g, "");
-  if (plain.includes(q)) return true;
-  const noCurrency = plain.replace("$", "");
-  return noCurrency.includes(q);
-}
-
-function searchTransactions(
-  transactions: Transaction[],
-  query: string,
-  categoryMap: Map<string, string>,
-  accountMap: Map<string, string>,
-): Transaction[] {
-  const q = query.trim().toLowerCase();
-  if (!q) return transactions;
-  return transactions.filter((t) => {
-    if (t.merchant.toLowerCase().includes(q)) return true;
-    if (t.note.toLowerCase().includes(q)) return true;
-    if (categoryMap.get(t.categoryId)?.includes(q)) return true;
-    if (accountMap.get(t.accountId)?.includes(q)) return true;
-    if (matchesAmount(t.amount, q)) return true;
-    return false;
-  });
-}
 
 // ---------------------------------------------------------------------------
 // Chips
@@ -151,19 +117,6 @@ export function TransactionsBrowser({
 
   const showSearch = transactions.length > SEARCH_THRESHOLD;
 
-  const categoryMap = useMemo(() => {
-    const m = new Map(categories.map((c) => [c.id, c.name.toLowerCase()]));
-    // The transaction list renders missing `categoryId` as "Uncategorized" —
-    // mirror that here so typing "uncategorized" in the search matches.
-    m.set("", "uncategorized");
-    return m;
-  }, [categories]);
-
-  const accountMap = useMemo(
-    () => new Map(accounts.map((a) => [a.id, a.name.toLowerCase()])),
-    [accounts],
-  );
-
   // The search field unmounts when `showSearch === false`, so `search`
   // can't change in that branch. Gating the body keeps the search work
   // off the small-list path even if a previous render left `search`
@@ -171,9 +124,9 @@ export function TransactionsBrowser({
   const filteredBySearch = useMemo(
     () =>
       showSearch
-        ? searchTransactions(transactions, search, categoryMap, accountMap)
+        ? searchTransactions(transactions, search, { accounts, categories })
         : transactions,
-    [showSearch, transactions, search, categoryMap, accountMap],
+    [showSearch, transactions, search, accounts, categories],
   );
   const visible = useMemo(
     () => sortTransactions(filteredBySearch, sort, accounts, categories),

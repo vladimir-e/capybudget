@@ -32,6 +32,7 @@ export const SESSION_TOOL_CALL_BUDGET = 100
 export {
   handleListAccounts,
   handleListTransactions,
+  handleSearchTransactions,
   handleListCategories,
   handleSearchMerchants,
 } from "./handlers/data"

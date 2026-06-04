@@ -170,3 +170,11 @@ export {
   basisMonths,
   basisLabel,
 } from "./analytics/analytics";
+
+// Transaction search (fuzzy cross-field + money matcher)
+export type { SearchContext } from "./analytics/search";
+export {
+  matchesMoney,
+  matchesTransaction,
+  searchTransactions,
+} from "./analytics/search";

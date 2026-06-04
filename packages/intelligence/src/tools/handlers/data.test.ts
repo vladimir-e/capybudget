@@ -10,6 +10,7 @@ import {
   handleListAccounts,
   handleListCategories,
   handleListTransactions,
+  handleSearchTransactions,
 } from "./data"
 
 function createMockRepo(data: {
@@ -450,5 +451,167 @@ describe("handleListTransactions sort + offset", () => {
     )
     expect(result).toHaveLength(1)
     expect(result[0].id).toBe("txn-newest-small") // default sort: newest first
+  })
+})
+
+// ── handleListTransactions: format ──────────────────────────────
+
+describe("handleListTransactions format", () => {
+  const accounts = [makeAccount({ id: "acc-1", name: "Checking" })]
+  const categories = [makeCategory({ id: "cat-1", name: "Groceries" })]
+
+  it("defaults to the verbose, name-resolved shape (back-compat)", async () => {
+    const repo = createMockRepo({
+      accounts,
+      categories,
+      transactions: [
+        makeTxn({ id: "t1", accountId: "acc-1", categoryId: "cat-1", amount: -1250 }),
+      ],
+    })
+    const result = JSON.parse(await handleListTransactions(repo, {}))
+    expect(result[0]).toMatchObject({
+      account: "Checking",
+      category: "Groceries",
+      amount: "-$12.50",
+      amountCents: -1250,
+    })
+    expect(result[0]).not.toHaveProperty("accountId")
+  })
+
+  it("`format: \"compact\"` returns the lean shape with raw ids and signed cents", async () => {
+    const repo = createMockRepo({
+      accounts,
+      categories,
+      transactions: [
+        makeTxn({
+          id: "t1",
+          datetime: "2026-02-03T10:00:00.000Z",
+          accountId: "acc-1",
+          categoryId: "cat-1",
+          amount: -1250,
+          merchant: "Costco",
+          note: "raw desc",
+          transferPairId: "",
+        }),
+      ],
+    })
+    const result = JSON.parse(await handleListTransactions(repo, { format: "compact" }))
+    expect(result[0]).toEqual({
+      id: "t1",
+      date: "2026-02-03",
+      amountCents: -1250,
+      type: "expense",
+      accountId: "acc-1",
+      categoryId: "cat-1",
+      merchant: "Costco",
+      note: "raw desc",
+      transferPairId: "",
+    })
+    expect(result[0]).not.toHaveProperty("account")
+    expect(result[0]).not.toHaveProperty("amount")
+  })
+})
+
+// ── handleSearchTransactions ────────────────────────────────────
+
+describe("handleSearchTransactions", () => {
+  const accounts = [
+    makeAccount({ id: "acc-1", name: "Chase Checking" }),
+    makeAccount({ id: "acc-2", name: "Amex Gold" }),
+  ]
+  const categories = [
+    makeCategory({ id: "cat-1", name: "Groceries" }),
+    makeCategory({ id: "cat-2", name: "Dining Out" }),
+  ]
+
+  function buildRepo() {
+    return createMockRepo({
+      accounts,
+      categories,
+      transactions: [
+        makeTxn({ id: "t-wf", merchant: "Whole Foods", categoryId: "cat-1", accountId: "acc-1", amount: -8500, datetime: "2026-01-05T00:00:00.000Z" }),
+        makeTxn({ id: "t-nobu", merchant: "Nobu", note: "RESTAURANT", categoryId: "cat-2", accountId: "acc-2", amount: -22000, datetime: "2026-01-10T00:00:00.000Z" }),
+        makeTxn({ id: "t-apple", merchant: "Apple", note: "APL*ITUNES", categoryId: "cat-2", accountId: "acc-1", amount: -999, datetime: "2026-01-20T00:00:00.000Z" }),
+        makeTxn({ id: "t-pay", merchant: "Employer", type: "income", categoryId: "cat-1", accountId: "acc-1", amount: 500000, datetime: "2026-01-31T00:00:00.000Z" }),
+      ],
+    })
+  }
+
+  it("returns compact rows", async () => {
+    const result = JSON.parse(await handleSearchTransactions(buildRepo(), { query: "nobu" }))
+    expect(result).toHaveLength(1)
+    expect(result[0]).toEqual({
+      id: "t-nobu",
+      date: "2026-01-10",
+      amountCents: -22000,
+      type: "expense",
+      accountId: "acc-2",
+      categoryId: "cat-2",
+      merchant: "Nobu",
+      note: "RESTAURANT",
+      transferPairId: "",
+    })
+  })
+
+  it("matches across merchant, note, category name, account name, and money", async () => {
+    const ids = async (query: string) =>
+      JSON.parse(await handleSearchTransactions(buildRepo(), { query }))
+        .map((r: { id: string }) => r.id)
+        .sort()
+    expect(await ids("itunes")).toEqual(["t-apple"]) // note
+    expect(await ids("dining")).toEqual(["t-apple", "t-nobu"]) // category name
+    expect(await ids("amex")).toEqual(["t-nobu"]) // account name
+    expect(await ids("220")).toEqual(["t-nobu"]) // money fragment
+  })
+
+  it("combines a query with structured filters", async () => {
+    const result = JSON.parse(
+      await handleSearchTransactions(buildRepo(), { query: "dining", accountId: "acc-1" }),
+    )
+    expect(result.map((r: { id: string }) => r.id)).toEqual(["t-apple"])
+  })
+
+  it("filters by type without a query", async () => {
+    const result = JSON.parse(await handleSearchTransactions(buildRepo(), { type: "income" }))
+    expect(result.map((r: { id: string }) => r.id)).toEqual(["t-pay"])
+  })
+
+  it("filters by signed amount range", async () => {
+    // Outflows of $90 or more (<= -9000 cents).
+    const result = JSON.parse(
+      await handleSearchTransactions(buildRepo(), { maxAmountCents: -9000 }),
+    )
+    expect(result.map((r: { id: string }) => r.id).sort()).toEqual(["t-nobu"])
+  })
+
+  it("filters by date range", async () => {
+    const result = JSON.parse(
+      await handleSearchTransactions(buildRepo(), { startDate: "2026-01-15", endDate: "2026-01-25" }),
+    )
+    expect(result.map((r: { id: string }) => r.id)).toEqual(["t-apple"])
+  })
+
+  it("sorts and limits", async () => {
+    const result = JSON.parse(
+      await handleSearchTransactions(buildRepo(), { sort: "oldest", limit: 2 }),
+    )
+    expect(result.map((r: { id: string }) => r.id)).toEqual(["t-wf", "t-nobu"])
+  })
+
+  it("with no query and no filters returns everything (newest first)", async () => {
+    const result = JSON.parse(await handleSearchTransactions(buildRepo(), {}))
+    expect(result.map((r: { id: string }) => r.id)).toEqual([
+      "t-pay",
+      "t-apple",
+      "t-nobu",
+      "t-wf",
+    ])
+  })
+
+  it("returns an empty array when nothing matches", async () => {
+    const result = JSON.parse(
+      await handleSearchTransactions(buildRepo(), { query: "zzz-nope" }),
+    )
+    expect(result).toEqual([])
   })
 })

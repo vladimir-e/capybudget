@@ -10,6 +10,7 @@ import {
   getAccountBalance,
   getUniqueMerchants,
   findCategoryForMerchant,
+  searchTransactions,
 } from "@capybudget/core"
 import type { BudgetRepository } from "@capybudget/persistence"
 
@@ -46,7 +47,13 @@ const SORT_COMPARATORS: Record<
   amount_desc: (a, b) => b.amount - a.amount,
 }
 
-/** Apply the shared filter set (accountId / categoryId / merchant / start / end). */
+/**
+ * Apply the structured (non-text) filter set shared by `list_transactions`
+ * and `search_transactions`: accountId / categoryId / merchant / type /
+ * start / end / min / max amount. All optional. The free-text `query`
+ * (cross-field substring incl. money) is applied separately via the core
+ * matcher, since it needs account/category names for resolution.
+ */
 function applyTransactionFilters(
   txns: Transaction[],
   args: Record<string, unknown>,
@@ -62,6 +69,9 @@ function applyTransactionFilters(
     const q = (args.merchant as string).toLowerCase()
     out = out.filter((t) => t.merchant.toLowerCase().includes(q))
   }
+  if (args.type) {
+    out = out.filter((t) => t.type === args.type)
+  }
   if (args.startDate) {
     out = out.filter((t) => t.datetime >= (args.startDate as string))
   }
@@ -70,7 +80,51 @@ function applyTransactionFilters(
       (t) => t.datetime <= (args.endDate as string) + "T23:59:59",
     )
   }
+  if (typeof args.minAmountCents === "number") {
+    out = out.filter((t) => t.amount >= (args.minAmountCents as number))
+  }
+  if (typeof args.maxAmountCents === "number") {
+    out = out.filter((t) => t.amount <= (args.maxAmountCents as number))
+  }
   return out
+}
+
+/**
+ * Lean row for token-efficient scanning: raw signed cents, raw ids, no name
+ * resolution or formatting. The model resolves names via `list_accounts` /
+ * `list_categories` only when it needs them.
+ */
+function compactRow(t: Transaction) {
+  return {
+    id: t.id,
+    date: t.datetime.slice(0, 10),
+    amountCents: t.amount,
+    type: t.type,
+    accountId: t.accountId,
+    categoryId: t.categoryId,
+    merchant: t.merchant,
+    note: t.note,
+    transferPairId: t.transferPairId,
+  }
+}
+
+/** Verbose, name-resolved row — `list_transactions`' default shape. */
+function verboseRow(
+  t: Transaction,
+  accountMap: Map<string, string>,
+  categoryMap: Map<string, string>,
+) {
+  return {
+    id: t.id,
+    date: t.datetime.slice(0, 10),
+    type: t.type,
+    amount: formatMoney(t.amount),
+    amountCents: t.amount,
+    account: accountMap.get(t.accountId) ?? t.accountId,
+    category: categoryMap.get(t.categoryId) ?? (t.categoryId || "Uncategorized"),
+    merchant: t.merchant || "(none)",
+    note: t.note || "",
+  }
 }
 
 export async function handleListTransactions(
@@ -94,19 +148,35 @@ export async function handleListTransactions(
   const offset = Math.max(0, (args.offset as number) || 0)
   txns = txns.slice(offset, offset + limit)
 
-  const result = txns.map((t: Transaction) => ({
-    id: t.id,
-    date: t.datetime.slice(0, 10),
-    type: t.type,
-    amount: formatMoney(t.amount),
-    amountCents: t.amount,
-    account: accountMap.get(t.accountId) ?? t.accountId,
-    category: categoryMap.get(t.categoryId) ?? (t.categoryId || "Uncategorized"),
-    merchant: t.merchant || "(none)",
-    note: t.note || "",
-  }))
+  const result =
+    args.format === "compact"
+      ? txns.map(compactRow)
+      : txns.map((t) => verboseRow(t, accountMap, categoryMap))
 
   return JSON.stringify(result, null, 2)
+}
+
+export async function handleSearchTransactions(
+  repo: BudgetRepository,
+  args: Record<string, unknown>,
+): Promise<string> {
+  const allTxns = await repo.getTransactions()
+  const accounts = await repo.getAccounts()
+  const categories = await repo.getCategories()
+
+  let txns = applyTransactionFilters(allTxns, args)
+  if (args.query) {
+    txns = searchTransactions(txns, args.query as string, { accounts, categories })
+  }
+
+  const sort = (args.sort as TransactionSort | undefined) ?? "newest"
+  const comparator = SORT_COMPARATORS[sort] ?? SORT_COMPARATORS.newest
+  txns.sort(comparator)
+
+  const limit = (args.limit as number) || 50
+  txns = txns.slice(0, limit)
+
+  return JSON.stringify(txns.map(compactRow), null, 2)
 }
 
 export async function handleListCategories(repo: BudgetRepository): Promise<string> {
