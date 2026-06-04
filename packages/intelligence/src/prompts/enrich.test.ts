@@ -13,9 +13,9 @@ describe("ENRICH_SYSTEM_PROMPT", () => {
     expect(ENRICH_SYSTEM_PROMPT).toContain("enrich_update")
   })
 
-  it("points at search_merchants as a lookup for cryptic descriptions", () => {
-    // Without this, the model never reaches for the existing merchant
+  it("points at search_transactions as a lookup for cryptic descriptions", () => {
+    // Without this, the model never reaches for the existing budget
     // history when faced with bank codes like "RBHOOD HGSTS LLC".
-    expect(ENRICH_SYSTEM_PROMPT).toContain("search_merchants")
+    expect(ENRICH_SYSTEM_PROMPT).toContain("search_transactions")
   })
 })

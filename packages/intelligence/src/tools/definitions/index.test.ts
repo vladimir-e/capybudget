@@ -10,7 +10,6 @@ const CHAT_TOOLS = [
   "search_transactions",
   "group_transactions",
   "list_categories",
-  "search_merchants",
   "create_transaction",
   "update_transaction",
   "delete_transactions",
@@ -33,7 +32,7 @@ const CHAT_TOOLS = [
 const IMPORT_TOOLS = [
   "list_accounts",
   "list_categories",
-  "search_merchants",
+  "search_transactions",
   "read_import_file",
   "write_import_file",
   "append_import_file",
@@ -50,15 +49,15 @@ const IMPORT_TOOLS = [
 ]
 
 describe("getToolDefinitions", () => {
-  it("returns the full 32-tool surface with no mode (MCP server is ungated)", () => {
+  it("returns the full 31-tool surface with no mode (MCP server is ungated)", () => {
     const all = getToolDefinitions()
-    expect(all).toHaveLength(32)
+    expect(all).toHaveLength(31)
   })
 
-  it("gates chat mode to its 23 tools", () => {
+  it("gates chat mode to its 22 tools", () => {
     const names = getToolDefinitions("chat").map((t) => t.name)
     expect(new Set(names)).toEqual(new Set(CHAT_TOOLS))
-    expect(names).toHaveLength(23)
+    expect(names).toHaveLength(22)
   })
 
   it("gates import mode to its 16 tools", () => {

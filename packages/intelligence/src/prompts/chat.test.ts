@@ -72,8 +72,8 @@ describe("SYSTEM_PROMPT", () => {
     }
   });
 
-  it("mentions search_merchants so chat can answer merchant-by-name questions", () => {
-    expect(SYSTEM_PROMPT).toContain("search_merchants");
+  it("mentions search_transactions so chat can answer merchant-by-name questions", () => {
+    expect(SYSTEM_PROMPT).toContain("search_transactions");
   });
 
   it("acknowledges the import-side read tools available in the chat session", () => {

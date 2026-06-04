@@ -35,7 +35,7 @@ When in doubt, categorize with "low". An uncategorized row is worse than a low-c
 - **enrich_update** — Bulk SET ... WHERE. Returns per-field counts of what was set vs skipped. Only sets currently-empty fields.
 - **auto_enrich** — One-time code-based matching for sourceCategory / sourceAccount / transfer targets. Already ran before this prompt — call it again only if you suspect it didn't run.
 - **list_categories** — All budget categories grouped, with UUIDs. Required before any enrich_update that sets categoryId — the tool validates the UUID and rejects invented or stale values.
-- **search_merchants** — Look up a merchant in the user's existing budget history. Try this when a raw description is cryptic (an unusual abbreviation, a bank code, a partial name): the same merchant often shows up across statements, and a hit comes back with the category the user used last time. For "RBHOOD HGSTS LLC" try "RBHOOD" or "HOOD"; for "SQ *COFFEE CART" try "COFFEE CART". When it returns a confident match, reuse that merchant name and categoryId rather than guessing.
+- **search_transactions** — Search the user's existing budget history. Reach for it when a raw description is cryptic (an unusual abbreviation, a bank code, a partial name): the same merchant usually shows up across past statements, already cleaned and categorized. Search with chunks of the raw description — for "RBHOOD HGSTS LLC" try "RBHOOD" then "HOOD"; for "SQ *COFFEE CART" try "COFFEE CART". Use \`format: "compact"\` and a small \`limit\` (5–10); the matching rows carry the \`merchant\` and \`categoryId\` the user settled on last time. When the hits agree, reuse that merchant name and categoryId rather than guessing.
 
 ## Step 0 — Assess
 

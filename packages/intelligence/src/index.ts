@@ -91,7 +91,6 @@ export {
   handleListAccounts,
   handleListTransactions,
   handleListCategories,
-  handleSearchMerchants,
   handleCreateTransaction,
   handleUpdateTransaction,
   handleDeleteTransactions,

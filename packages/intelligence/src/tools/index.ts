@@ -35,7 +35,6 @@ export {
   handleSearchTransactions,
   handleGroupTransactions,
   handleListCategories,
-  handleSearchMerchants,
 } from "./handlers/data"
 export {
   handleCreateTransaction,

@@ -48,7 +48,7 @@ function makeCtx(repo: BudgetRepository = makeRepo({})): ToolContext {
 describe("isDispatchTool", () => {
   it("recognizes data tools", () => {
     expect(isDispatchTool("list_accounts")).toBe(true)
-    expect(isDispatchTool("search_merchants")).toBe(true)
+    expect(isDispatchTool("search_transactions")).toBe(true)
   })
 
   it("recognizes mutation tools", () => {

@@ -223,23 +223,4 @@ export const DATA_TOOL_DEFS = [
       properties: {},
     },
   },
-  {
-    name: "search_merchants",
-    description:
-      "Search the budget's transaction history (merchant names + raw descriptions) for a merchant. Returns matches with their most recent category and match quality (full, word, fuzzy). For cryptic bank descriptions, try multiple query chunks (e.g. for 'RBHOOD HGSTS LLC' try 'RBHOOD' and 'HOOD').",
-    inputSchema: {
-      type: "object" as const,
-      properties: {
-        query: {
-          type: "string",
-          description: "Search query — a merchant name, abbreviation, or chunk from a bank description. Case-insensitive.",
-        },
-        limit: {
-          type: "number",
-          description: "Maximum merchant results to return (default: 10)",
-        },
-      },
-      required: ["query"],
-    },
-  },
 ] as const

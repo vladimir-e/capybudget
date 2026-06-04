@@ -11,7 +11,7 @@ CHANGELOG PHILOSOPHY:
 
 ## Unreleased
 
-- **Capy** - New `search_transactions` tool: fuzzy free-text + money search across transactions (same matching as the app's list); `list_transactions` gains a compact row format.
+- **Capy** - New `search_transactions` tool: fuzzy free-text + money search across transactions (same matching as the app's list); `list_transactions` gains a compact row format. Retires `search_merchants` — chat and import enrichment now read merchant + category off matching rows.
 - **Capy** - New `group_transactions` aggregator (#57): group by merchant/category/account/type/month/week/dayOfMonth/amountBucket (multi-key) with count/sum/avg/min/max/median/distinct/cadence metrics; `list_transactions` gains an `ids` fetch param.
 - **Capy** - Fix OpenAI sessions dying after a tool-only turn — an empty terminal completion poisoned the replayed history, so every later message failed.
 - **Capy** - Guard the OpenAI agentic loop against a contradictory `tool_calls` finish with no tool calls, which could spin and burn API tokens.

@@ -839,7 +839,7 @@ describe("AnthropicSession tool gating", () => {
     expect(names).not.toContain("transform_csv")
     expect(names).not.toContain("enrich_update")
     expect(names).not.toContain("write_import_file")
-    expect(names).toHaveLength(23)
+    expect(names).toHaveLength(22)
   })
 
   it("import sends only import-mode tools — csv/enrich in, render/CRUD out", async () => {
@@ -856,8 +856,8 @@ describe("AnthropicSession tool gating", () => {
     expect(names).toHaveLength(16)
   })
 
-  it("keeps search_merchants in both modes (both prompts advertise it)", async () => {
-    expect(await toolNamesFor("chat")).toContain("search_merchants")
-    expect(await toolNamesFor("import")).toContain("search_merchants")
+  it("keeps search_transactions in both modes (both prompts advertise it)", async () => {
+    expect(await toolNamesFor("chat")).toContain("search_transactions")
+    expect(await toolNamesFor("import")).toContain("search_transactions")
   })
 })

@@ -63,22 +63,22 @@ const ALL_TOOL_DEFS: readonly ToolDefinition[] = [
  * never advertise a tool a mode can't see, never gate one a prompt
  * tells the model to call.
  *
- * Notable cross-mode tools: chat keeps `search_merchants` ("how much
- * did I spend at X?") and read-only import visibility
- * (`list_import_files` / `read_import_file`) for staged-import
- * questions; import keeps `search_merchants` (look up a cryptic
- * description in budget history) plus `list_accounts` / `list_categories`
- * for transfer-target and category UUIDs. The render tools are chat-only;
- * the CSV / enrich / write tools are import-only.
+ * Notable cross-mode tools: both modes see `search_transactions` — chat
+ * to find a set ("all my Apple charges"), import to look up a cryptic
+ * description in budget history and inherit its merchant + category. Chat
+ * also gets read-only import visibility (`list_import_files` /
+ * `read_import_file`) for staged-import questions; import also gets
+ * `list_accounts` / `list_categories` for transfer-target and category
+ * UUIDs. The render tools are chat-only; the CSV / enrich / write tools
+ * are import-only.
  */
 const TOOL_MODES: Readonly<Record<string, readonly ToolMode[]>> = {
   // Data
   list_accounts: ["chat", "import"],
   list_transactions: ["chat"],
-  search_transactions: ["chat"],
+  search_transactions: ["chat", "import"],
   group_transactions: ["chat"],
   list_categories: ["chat", "import"],
-  search_merchants: ["chat", "import"],
   // Mutation
   create_transaction: ["chat"],
   update_transaction: ["chat"],
