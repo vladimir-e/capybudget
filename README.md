@@ -1,8 +1,8 @@
-# Capy Budget - IDE for your personal finance
+# Capy Budget - IDE for personal finance
 
-A local-first desktop app for tracking personal finances.
+A local-first desktop app for tracking personal finance.
 
-Built with Tauri v2, React, and TypeScript. Optional intelligence layer. Structured as an npm workspaces monorepo with shared packages for the desktop app, MCP server, web demo, and promo website.
+Built with Tauri v2, React, TypeScript, and optional intelligence layer. Structured as an npm workspaces monorepo with shared packages for the desktop app, MCP server, web demo, and promo website.
 
 **[capybudget.app](https://capybudget.app)** | **[Demo](https://demo.capybudget.app)**
 
