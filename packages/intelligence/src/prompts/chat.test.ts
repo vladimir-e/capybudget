@@ -64,9 +64,6 @@ describe("SYSTEM_PROMPT", () => {
   });
 
   it("reconciles the act-directly stance for wayfinding questions", () => {
-    // The shared brief says to act rather than tell the user where to click;
-    // chat carves out an exception so "where is X" gets the path, not an
-    // improvised location.
     expect(SYSTEM_PROMPT).toContain("where");
     expect(SYSTEM_PROMPT).toContain("never improvise a location");
   });

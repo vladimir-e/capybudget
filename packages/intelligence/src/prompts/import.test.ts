@@ -9,8 +9,6 @@ describe("IMPORT_SYSTEM_PROMPT", () => {
   })
 
   it("omits the chat-only app map", () => {
-    // The app map is wayfinding for the chat overlay; the headless import
-    // pipeline never answers "where do I click" and stays lean without it.
     expect(IMPORT_SYSTEM_PROMPT).not.toContain(APP_MAP)
   })
 

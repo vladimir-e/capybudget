@@ -12,8 +12,6 @@ describe("ImportNotice", () => {
     ).toBeInTheDocument()
   })
 
-  // Same link-safety contract as MobileNotice: point at the promo root, never
-  // a downloadable installer, and open it in a safely-rel'd new tab.
   it("links to the promo site root in a new tab", () => {
     render(<ImportNotice />)
     const link = screen.getByRole("link", { name: /get the desktop app/i })
