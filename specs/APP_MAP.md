@@ -22,9 +22,11 @@ with search, a category filter, and a date-range filter. Selecting one account
 filters the table to it.
 
 **Budget** — the analytics, as tabs across the top: Spending · Cash Flow · Net Worth
-· Compare · Merchants · Monthly Budget. Each tab has an income/expenses/net summary
-and its own period selector (a subset of Month / Quarter / Year / All Time / Custom
-with a ‹ › stepper — granularities vary by tab). What each shows:
+· Compare · Merchants · Monthly Budget. Every tab has its own period selector (a
+subset of Month / Quarter / Year / All Time / Custom with a ‹ › stepper —
+granularities vary by tab). The first five share an income/expenses/net summary;
+Monthly Budget instead shows a spend-vs-target KPI strip (Spent this month /
+Tracking toward / Over budget). What each shows:
 - **Spending** — donut of spend by category; Expenses/Income toggle.
 - **Cash Flow** — paired income-vs-expenses bars per period; hover a period for its
   income, expenses, and net.

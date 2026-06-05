@@ -539,6 +539,9 @@ export function CapyOverlay({
                 </button>
               )}
             </div>
+            {/* 27rem (432px) sits just under PANEL_MIN_WIDTH (440), so the hint
+             *  shows at the desktop default/minimum and hides only once the panel
+             *  is narrower than that — i.e. mobile full-width. */}
             <p className="text-xs text-muted-foreground/40 whitespace-nowrap @max-[27rem]:hidden">
               Shift + Enter for new line
             </p>
