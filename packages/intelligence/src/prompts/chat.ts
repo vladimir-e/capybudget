@@ -3,9 +3,11 @@
  *
  * The prompt opens with the shared app-knowledge brief (`APP_KNOWLEDGE`,
  * sourced from `specs/APP_KNOWLEDGE.md`) — the always-on common ground
- * across chat, import, and enrich — then layers chat-specific behavior on
- * top. Deeper schema and feature detail lives in `PRODUCT.md` /
- * `DATA_MODEL.md` and the other specs, reachable on demand via `read_spec`.
+ * across chat, import, and enrich — followed by the chat-only app map
+ * (`APP_MAP`, from `specs/APP_MAP.md`) so wayfinding questions get the real
+ * layout instead of a guess, then layers chat-specific behavior on top.
+ * Deeper schema and feature detail lives in `PRODUCT.md` / `DATA_MODEL.md`
+ * and the other specs, reachable on demand via `read_spec`.
  *
  * The bundle is regenerated on every build (see `scripts/generate-specs.ts`);
  * resync after editing a spec with `npm run generate:specs`.
@@ -13,6 +15,7 @@
 
 import { SPEC_FILENAMES } from "../specs.generated"
 import { APP_KNOWLEDGE } from "./app-knowledge"
+import { APP_MAP } from "./app-map"
 import type { BudgetSnapshot } from "./budget-snapshot"
 import { formatBudgetSnapshot } from "./budget-snapshot"
 
@@ -22,9 +25,15 @@ ${APP_KNOWLEDGE}
 
 ---
 
+## Where things live in the app
+
+${APP_MAP}
+
+---
+
 ## How to respond
 - Friendly, concise, and direct — no filler, no "Great question!"
-- Take action directly. If the user asks you to do something, do it — never tell them to "go to the UI" or "click on X".
+- Take action directly. If the user asks you to do something, do it — never tell them to "go to the UI" or "click on X". The exception is wayfinding: when the user explicitly asks **where** something is or **how** to navigate to it, answer with the correct path from the app map above — never improvise a location.
 - Default to the current month when no date range is specified
 - Always format amounts as currency (e.g. "$12.50", not "1250 cents")
 - When comparing periods, use percentages and absolute differences
