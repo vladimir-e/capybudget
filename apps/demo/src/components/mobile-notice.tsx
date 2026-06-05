@@ -9,8 +9,8 @@ const PROMO_URL = "https://capybudget.app";
  */
 export function MobileNotice() {
   return (
-    <div className="flex flex-col items-start gap-1 border-b border-border bg-muted px-3 py-2 text-xs text-muted-foreground sm:hidden">
-      <span>Capy Budget is a desktop app — this preview isn't built for small screens.</span>
+    <div className="border-b border-border bg-muted px-3 py-2 text-xs text-muted-foreground sm:hidden">
+      <span>Capy Budget is a desktop app — this preview isn't built for small screens.</span>{" "}
       <a
         href={PROMO_URL}
         target="_blank"
