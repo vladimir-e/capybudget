@@ -1,17 +1,28 @@
 @import "../../../packages/app/src/styles/index.css";
 @source "../../../packages/app/src";
 
-/* ── Mobile notice offset ─────────────────────────────────────────────
-   <MobileNotice> is a fixed, full-width strip (sm:hidden, h-8 = 2rem) in the
-   #demo-overlays root, so it overlays the app's top chrome — including the
-   Ask Capy button we want mobile visitors to see. Drop the app's full-screen
-   panes below it on small screens. Scoped to the demo so the shared app stays
-   unaware of demo chrome; the 2rem must match the notice's h-8. */
+/* ── Mobile notice layout ─────────────────────────────────────────────
+   On phones, <MobileNotice> renders as the first in-flow element (#demo-overlays
+   precedes #root in index.html). The body is a flex column so the notice takes
+   its natural height and #root fills the rest — no magic number tied to the
+   banner's height. The transform on #root promotes it to a containing block, so
+   the shared app's non-portaled `fixed` chrome (the Capy chat overlay) is pinned
+   to the below-banner region instead of the viewport and stays clear of the
+   notice. Portaled overlays (toasts, dialogs, dropdowns) render under <body> and
+   so still cover the full viewport. Scoped to the demo; the shared app stays
+   unaware of demo chrome. */
 @media (width < 40rem) {
+  body {
+    height: 100dvh;
+    display: flex;
+    flex-direction: column;
+  }
   #root {
-    padding-top: 2rem;
+    flex: 1;
+    min-height: 0;
+    transform: translateZ(0);
   }
   #root .h-screen {
-    height: calc(100vh - 2rem);
+    height: 100%;
   }
 }

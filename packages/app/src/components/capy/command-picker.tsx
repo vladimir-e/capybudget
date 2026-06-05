@@ -80,7 +80,7 @@ export function CommandPicker({ commands, onSelect, onSave }: CommandPickerProps
         render={
           <button
             type="button"
-            className="action-link inline-flex items-center gap-1 text-xs cursor-pointer"
+            className="action-link inline-flex items-center gap-1 text-xs cursor-pointer whitespace-nowrap"
           />
         }
       >

@@ -28,4 +28,14 @@ describe("MobileNotice", () => {
     expect(link).toHaveAttribute("target", "_blank")
     expect(link).toHaveAttribute("rel", "noopener noreferrer")
   })
+
+  it("shows the full notice message without truncation", () => {
+    render(<MobileNotice />)
+    const message = screen.getByText(
+      "Capy Budget is a desktop app — this preview isn't built for small screens.",
+    )
+
+    expect(message).toBeInTheDocument()
+    expect(message).not.toHaveClass("truncate")
+  })
 })
