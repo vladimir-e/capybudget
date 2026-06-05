@@ -1,28 +1,42 @@
-import {
-  ENRICH_SYSTEM_PROMPT,
-  IMPORT_SYSTEM_PROMPT,
-  SYSTEM_PROMPT,
-} from "@capybudget/intelligence";
-import { describe, expect, it } from "vitest";
-import { detectMode } from "./demo-capy-session";
+import type { StreamEvent } from "@capybudget/intelligence";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { CapySession } from "./demo-capy-session";
 
-describe("detectMode", () => {
-  it("routes the import prompt to import", () => {
-    expect(detectMode(IMPORT_SYSTEM_PROMPT)).toBe("import");
+afterEach(() => {
+  vi.useRealTimers();
+});
+
+function makeSession(events: StreamEvent[]): CapySession {
+  return new CapySession({
+    budgetPath: "/demo",
+    mcpServerPath: "",
+    systemPrompt: "anything — the demo stub only ever chats",
+    onEvent: (e) => events.push(e),
   });
+}
 
-  it("routes the enrich prompt to enrich", () => {
-    expect(detectMode(ENRICH_SYSTEM_PROMPT)).toBe("enrich");
-  });
+describe("CapySession (demo stub)", () => {
+  it("emits a chat response: a donut chart and a desktop-only notice", async () => {
+    vi.useFakeTimers();
+    const events: StreamEvent[] = [];
+    const session = makeSession(events);
 
-  it("routes the chat prompt to chat", () => {
-    expect(detectMode(SYSTEM_PROMPT)).toBe("chat");
-  });
+    const done = session.send("What can you help me with?");
+    await vi.runAllTimersAsync();
+    await done;
 
-  // Regression: APP_KNOWLEDGE's "normalize messy merchant names" leaks into the
-  // chat prompt, so bare content-word matching wrongly ran the import sim.
-  it("keeps a chat prompt containing the word 'normalize' in chat mode", () => {
-    expect(SYSTEM_PROMPT).toContain("normalize");
-    expect(detectMode(SYSTEM_PROMPT)).toBe("chat");
+    const final = events.filter((e) => e.type === "content").at(-1);
+    expect(final?.type).toBe("content");
+    const blocks = final?.type === "content" ? final.blocks : [];
+
+    expect(blocks.some((b) => b.type === "donut-chart")).toBe(true);
+    expect(
+      blocks.some(
+        (b) =>
+          b.type === "text" &&
+          b.content.includes("only available in the desktop app"),
+      ),
+    ).toBe(true);
+    expect(events.at(-1)).toEqual({ type: "done" });
   });
 });

@@ -1,12 +1,6 @@
-import { createFileRoute, useSearch } from "@tanstack/react-router";
-import { ImportScreen } from "@/components/import/import-screen";
+import { createFileRoute } from "@tanstack/react-router";
+import { ImportNotice } from "../../../components/import-notice";
 
 export const Route = createFileRoute("/budget/_shell/import")({
-  component: ImportView,
+  component: ImportNotice,
 });
-
-function ImportView() {
-  const { path, name } = useSearch({ from: "/budget" });
-
-  return <ImportScreen budgetPath={path} budgetName={name} />;
-}
