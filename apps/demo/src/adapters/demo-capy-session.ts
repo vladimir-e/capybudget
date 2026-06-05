@@ -26,11 +26,13 @@ export interface CapySessionOptions {
 
 type SessionMode = "chat" | "import" | "enrich";
 
-function detectMode(systemPrompt: string): SessionMode {
-  if (systemPrompt.includes("normalize") || systemPrompt.includes("Normalize"))
-    return "import";
-  if (systemPrompt.includes("enrich") || systemPrompt.includes("Enrich"))
-    return "enrich";
+// Match the distinctive task heading each mode-specific prompt carries, not the
+// bare words "normalize"/"enrich" — those leak into every prompt via the shared
+// APP_KNOWLEDGE brief ("normalize messy merchant names"), so content-word
+// sniffing routed plain chat sessions into the import simulation.
+export function detectMode(systemPrompt: string): SessionMode {
+  if (systemPrompt.includes("Your task right now: normalize")) return "import";
+  if (systemPrompt.includes("Your task right now: enrich")) return "enrich";
   return "chat";
 }
 
@@ -202,7 +204,7 @@ export class CapySession {
     blocks.push({
       type: "text",
       content:
-        "Here's a sample of what Capy can do with your budget data. In the full desktop app, I analyze your actual transactions in real time.",
+        "Happy to help! I track your spending, categorize transactions, answer questions about your budget, and turn messy bank exports into a clean ledger. Here's a taste — your spending this month:",
     });
     this.emit(blocks);
     await delay(200);
@@ -210,13 +212,13 @@ export class CapySession {
 
     blocks.push({
       type: "donut-chart",
-      title: "Spending Distribution",
+      title: "This Month's Spending",
       data: [
-        { label: "Housing", value: 1950.0 },
-        { label: "Groceries", value: 265.0 },
-        { label: "Big Purchases", value: 350.0 },
-        { label: "Dining Out", value: 236.0 },
-        { label: "Other", value: 538.0 },
+        { label: "Housing", value: 1850.0 },
+        { label: "Groceries", value: 612.0 },
+        { label: "Dining Out", value: 284.0 },
+        { label: "Transportation", value: 196.0 },
+        { label: "Other", value: 433.0 },
       ],
     });
     this.emit(blocks);
@@ -224,7 +226,7 @@ export class CapySession {
     if (this.cancelled) return;
 
     const closingText =
-      "This is a demo — AI features require the Capy Budget desktop app. Download it to get personalized insights, spending analysis, and natural-language budget management.";
+      "This is a demo, and Capy's intelligence layer is only available in the desktop app. Download the desktop app to chat with Capy about your real budget, get personalized insights, and use smart import.";
     const words = closingText.split(" ");
     let accumulated = "";
     const textBlockIndex = blocks.length;
