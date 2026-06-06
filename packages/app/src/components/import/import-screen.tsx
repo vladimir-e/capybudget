@@ -16,6 +16,14 @@ import {
 import { toast } from "sonner";
 import { useNavigate } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { useImportRepository, type SourceFileInfo } from "@/hooks/use-import-repository";
 import { useImportStore } from "@/stores/import-store";
 import { useImportInstructions } from "@/hooks/use-custom-instructions";
@@ -75,6 +83,7 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
 
   const [fileDuplicates, setFileDuplicates] = useState<Record<string, string>>({});
   const [isDragging, setIsDragging] = useState(false);
+  const [showCancelConfirm, setShowCancelConfirm] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dragCounterRef = useRef(0);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -403,7 +412,7 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
             <Button
               variant="outline"
               size="sm"
-              onClick={handleCancel}
+              onClick={() => setShowCancelConfirm(true)}
               className="gap-1.5 shrink-0"
             >
               <X className="h-3.5 w-3.5" />
@@ -477,6 +486,34 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
 
         </div>
       </div>
+
+      {showCancelConfirm && (
+        <Dialog
+          open={showCancelConfirm}
+          onOpenChange={(open) => { if (!open) setShowCancelConfirm(false); }}
+        >
+          <DialogContent className="sm:max-w-sm">
+            <DialogHeader>
+              <DialogTitle>Cancel import?</DialogTitle>
+              <DialogDescription>
+                This discards the uploaded files and any transactions Capy has
+                extracted. It can't be undone.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setShowCancelConfirm(false)}>
+                Keep importing
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={() => { setShowCancelConfirm(false); handleCancel(); }}
+              >
+                Discard import
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
 
     </div>
   );
