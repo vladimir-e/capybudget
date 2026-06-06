@@ -50,10 +50,11 @@ export const IMPORT_PIPELINE: readonly ImportPhaseStep[] = [
   // matching rules key off the resolved account.
   {
     phase: "enriching",
-    // `auto_enrich` is the deterministic pre-enrich pass — it fuzzy-maps
-    // sourceCategory → categories, sourceAccount → accounts, and resolves
-    // transfer targets, leaving `merchant` for the model. Code-triggered:
-    // not advertised, dispatched here via runTool.
+    // `auto_enrich` is the deterministic pre-enrich pass — it maps
+    // sourceCategory → categories and resolves transfer targets, leaving
+    // `merchant` and `categoryId` gaps for the model. (Account mapping is the
+    // accounts phase's job, not this pass.) Code-triggered: not advertised,
+    // dispatched here via runTool.
     preStepTools: ["auto_enrich"],
     instruction: ENRICH_INSTRUCTION,
   },

@@ -44,7 +44,7 @@ import {
   formatFileSize,
   readImportEnriched,
   IMPORT_SYSTEM_PROMPT,
-  ENRICH_SYSTEM_PROMPT,
+  IMPORT_RESUME_SYSTEM_PROMPT,
   type CliImageContent,
   type CliDocumentContent,
   type MessageContent,
@@ -73,7 +73,7 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
   const runMessages = useImportStore((s) => s.runMessages);
   const startRun = useImportStore((s) => s.startRun);
   const cancelRun = useImportStore((s) => s.cancelRun);
-  const startReenrich = useImportStore((s) => s.startReenrich);
+  const resumeRun = useImportStore((s) => s.resumeRun);
   const resetAfterMerge = useImportStore((s) => s.resetAfterMerge);
   const setPhase = useImportStore((s) => s.setPhase);
   const setGlobalHasImportData = useImportStore((s) => s.setHasImportData);
@@ -122,22 +122,25 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
     return sources;
   }, [repository]);
 
-  /** Resume an interrupted run: finish it by re-running the enrich phase. */
-  const resumeEnrich = useCallback(() => {
+  /**
+   * Resume an interrupted run: re-run the full post-normalize pipeline
+   * (accounts → … → enrich) over the staging CSV in a fresh session. The
+   * dropped source files are gone, so normalize is not re-run — the staging
+   * rows are the input, read through the import tools.
+   */
+  const resumeFullRun = useCallback(() => {
     const customInstr = customInstructions.instructions?.trim();
     const systemPrompt = customInstr
-      ? `${ENRICH_SYSTEM_PROMPT}\n\n## User instructions\n${customInstr}`
-      : ENRICH_SYSTEM_PROMPT;
-    startReenrich({
+      ? `${IMPORT_RESUME_SYSTEM_PROMPT}\n\n## User instructions\n${customInstr}`
+      : IMPORT_RESUME_SYSTEM_PROMPT;
+    resumeRun({
       budgetPath,
-      budgetName,
       mcpServerPath: "packages/mcp/src/server.ts",
       systemPrompt,
-      snapshot: getBudgetSnapshot(),
       repo,
       fileAdapter: tauriFileAdapter,
     });
-  }, [customInstructions.instructions, startReenrich, budgetPath, budgetName, getBudgetSnapshot, repo]);
+  }, [customInstructions.instructions, resumeRun, budgetPath, repo]);
 
   // On mount: if store is idle, check disk to determine initial state.
   // If a run is in flight (normalizing → … → enriching) or done (review),
@@ -151,10 +154,15 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
         if (action.kind === "empty") {
           await refreshSourceFiles();
           setGlobalHasImportData(false);
-        } else {
+        } else if (action.kind === "review") {
           setPhase("review");
           setGlobalHasImportData(true);
-          if (action.kind === "resume-enrich") resumeEnrich();
+        } else {
+          // Interrupted run — re-run the full post-normalize pipeline. The
+          // screen stays on the processing view (resumeFullRun drives the
+          // phase machine) until the run lands on review.
+          setGlobalHasImportData(true);
+          resumeFullRun();
         }
       } else if (phase !== "review") {
         // Reconnecting mid-run — load source files for the processing header

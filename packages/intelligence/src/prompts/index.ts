@@ -15,7 +15,7 @@
  */
 
 export { SYSTEM_PROMPT, buildContext } from "./chat"
-export { IMPORT_SYSTEM_PROMPT } from "./import"
+export { IMPORT_SYSTEM_PROMPT, IMPORT_RESUME_SYSTEM_PROMPT } from "./import"
 export { ACCOUNTS_INSTRUCTION } from "./accounts"
 export { ENRICH_SYSTEM_PROMPT, ENRICH_INSTRUCTION } from "./enrich"
 export { APP_KNOWLEDGE } from "./app-knowledge"

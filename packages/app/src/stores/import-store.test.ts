@@ -399,6 +399,117 @@ describe("import-store", () => {
     });
   });
 
+  // ── Resume an interrupted run (full post-normalize pipeline) ──────
+
+  describe("resumeRun", () => {
+    const resumeRun = () => {
+      const repo = {} as BudgetRepository;
+      const fileAdapter = {} as FileAdapter;
+      useImportStore.getState().resumeRun({
+        budgetPath: "/budget",
+        mcpServerPath: "/mcp",
+        systemPrompt: "you are capy, resuming",
+        repo,
+        fileAdapter,
+      });
+      return { repo, fileAdapter };
+    };
+
+    it("enters at the accounts phase, never re-running normalize", async () => {
+      resumeRun();
+      await flush();
+
+      // The resumed run lands directly on the first post-normalize phase.
+      expect(useImportStore.getState().phase).toBe("accounts");
+      // Normalize (index 0) is the kickoff phase with a null instruction —
+      // a resume must NOT send a normalize turn. The first (and so far only)
+      // injected turn is the accounts instruction, not a normalize kickoff.
+      expect(sessions[0].sends).toEqual([ACCOUNTS_INSTRUCTION]);
+    });
+
+    it("runs the accounts pre-step before injecting the accounts turn", async () => {
+      const { repo, fileAdapter } = resumeRun();
+      await flush();
+
+      expect(mockRunTool).toHaveBeenCalledWith(
+        "apply_account_aliases",
+        {},
+        expect.objectContaining({ repo, fileAdapter, budgetPath: "/budget" }),
+      );
+      const aliasIdx = callOrder.indexOf("runTool:apply_account_aliases");
+      const sendIdx = callOrder.indexOf("send");
+      expect(aliasIdx).toBeGreaterThanOrEqual(0);
+      expect(sendIdx).toBeGreaterThan(aliasIdx);
+    });
+
+    it("walks every post-normalize phase, in order, in one session", async () => {
+      resumeRun();
+      await flush(); // accounts pre-step + inject
+
+      // Drive each remaining agent turn to completion until the run lands on
+      // review. Asserted against the live pipeline (not a hardcoded list), so
+      // when Unit 2 inserts `dedup` after accounts the resume picks it up here.
+      const postNormalize = (IMPORT_PIPELINE as unknown as MutableStep[]).slice(1);
+      const phasesSeen: string[] = [useImportStore.getState().phase];
+      // Already drove the first phase's pre-step + inject above; complete it
+      // and each subsequent phase in turn.
+      for (let i = 0; i < postNormalize.length; i++) {
+        sessions[0].emitDone();
+        await flush();
+        phasesSeen.push(useImportStore.getState().phase);
+      }
+
+      // Phases walked: every post-normalize phase, then terminal review.
+      expect(phasesSeen).toEqual([
+        ...postNormalize.map((s) => s.phase),
+        "review",
+      ]);
+
+      // Each post-normalize phase's instruction was injected, in order, into
+      // the one session — no normalize turn, no second session.
+      expect(sessions).toHaveLength(1);
+      expect(sessions[0].sends).toEqual(
+        postNormalize.map((s) => s.instruction).filter((i) => i !== null),
+      );
+    });
+
+    it("persists the enriched flag when the resumed run completes", async () => {
+      const { fileAdapter } = resumeRun();
+      await flush(); // accounts pre-step + inject
+      sessions[0].emitDone(); // accounts → enrich
+      await flush();
+      sessions[0].emitDone(); // enrich → review
+      await flush();
+
+      expect(useImportStore.getState().phase).toBe("review");
+      expect(mockMarkImportEnriched).toHaveBeenCalledTimes(1);
+      expect(mockMarkImportEnriched).toHaveBeenCalledWith(fileAdapter, "/budget");
+    });
+
+    it("creates exactly one session (no normalize session)", async () => {
+      resumeRun();
+      await flush();
+      sessions[0].emitDone();
+      await flush();
+      sessions[0].emitDone();
+      await flush();
+
+      expect(sessions).toHaveLength(1);
+    });
+
+    it("cancel during a resumed run resets to idle and kills the session", async () => {
+      resumeRun();
+      await flush();
+      expect(useImportStore.getState().phase).toBe("accounts");
+
+      useImportStore.getState().cancelRun();
+
+      expect(useImportStore.getState().phase).toBe("idle");
+      expect(useImportStore.getState().runSession).toBeNull();
+      expect(sessionKill).toHaveBeenCalled();
+    });
+  });
+
   // ── Standalone re-enrich (preview's Enrich button) ────────────────
 
   describe("startReenrich", () => {

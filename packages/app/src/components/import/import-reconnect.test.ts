@@ -12,8 +12,8 @@ describe("resolveReconnect", () => {
     expect(resolveReconnect(true, true)).toEqual({ kind: "review" });
   });
 
-  it("CSV present + not enriched → resume the enrich phase", () => {
-    // Interrupted run: normalize wrote the CSV, enrich never finished.
-    expect(resolveReconnect(true, false)).toEqual({ kind: "resume-enrich" });
+  it("CSV present + not enriched → resume the post-normalize run", () => {
+    // Interrupted run: normalize wrote the CSV, the run never finished.
+    expect(resolveReconnect(true, false)).toEqual({ kind: "resume-run" });
   });
 });

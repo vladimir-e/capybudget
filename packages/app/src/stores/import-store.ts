@@ -22,9 +22,15 @@ import type { BudgetRepository, FileAdapter } from "@capybudget/persistence";
  * (see `@capybudget/intelligence` / INTELLIGENCE.md § Import Sessions).
  *
  * Phase transitions:
- *   idle ──startRun──▸ normalizing ──done──▸ enriching ──done──▸ review
+ *   idle ──startRun───▸ normalizing ──▸ accounts ──▸ … ──▸ enriching ──▸ review
+ *   idle ──resumeRun──▸ accounts ──▸ … ──▸ enriching ──▸ review   (post-crash)
  *   <any run phase> ──cancelRun──▸ idle
  *   review ──cancel/merge──▸ idle
+ *
+ * `resumeRun` recovers a run that died after normalize: a fresh session re-runs
+ * the post-normalize pipeline over the staging CSV (no normalize re-run — the
+ * dropped source files are gone). It shares `driveStep`/`completeRun` with the
+ * happy path, so any phase added after normalize is resumed automatically.
  */
 
 /** Context the orchestrator carries across phases (pre-step dispatch). */
@@ -60,6 +66,22 @@ interface ImportStore {
     /** File names that were attached, for the user-message
      *  `file-attachment` chips in the import UI. */
     sourceFilenames: string[];
+    repo?: BudgetRepository;
+    fileAdapter?: FileAdapter;
+  }) => void;
+  /**
+   * Resume an interrupted run: a previous run died after normalize wrote the
+   * staging CSV but before the post-normalize pipeline finished. Re-run that
+   * pipeline (accounts → … → enrich) over the existing staging rows in a fresh
+   * session — never re-running normalize (the dropped source files are gone).
+   * Reuses the orchestrator's pre-step / inject / complete machinery.
+   */
+  resumeRun: (opts: {
+    budgetPath: string;
+    mcpServerPath: string;
+    /** Standalone system prompt for the fresh session — carries app knowledge
+     *  but no normalize task (the staging CSV is the input). */
+    systemPrompt: string;
     repo?: BudgetRepository;
     fileAdapter?: FileAdapter;
   }) => void;
@@ -121,6 +143,14 @@ function appendRunBlock(
 function pipelineIndexOf(phase: ImportPhase): number {
   return IMPORT_PIPELINE.findIndex((step) => step.phase === phase);
 }
+
+/**
+ * First post-normalize pipeline step. Normalize is the kickoff (index 0); a
+ * resumed run re-enters here and walks to the end. Future phases inserted after
+ * normalize (e.g. Unit 2's `dedup`) are picked up automatically — resume always
+ * starts at the step right after normalize, not a hardcoded phase.
+ */
+const FIRST_POST_NORMALIZE_INDEX = 1;
 
 // ── Store ───────────────────────────────────────────────────────
 
@@ -228,6 +258,67 @@ export const useImportStore = create<ImportStore>((set, get) => ({
         get,
       );
     });
+  },
+
+  resumeRun: ({ budgetPath, mcpServerPath, systemPrompt, repo, fileAdapter }) => {
+    get().runSession?.kill();
+    lastRunTextContent = "";
+    runContext = { budgetPath, repo, fileAdapter };
+
+    const session = createSession({
+      budgetPath,
+      mcpServerPath,
+      systemPrompt,
+      mode: "import",
+      repo,
+      fileAdapter,
+      onEvent: (event: StreamEvent) => handleRunStreamEvent(event, set, get),
+      onExit: () => {
+        console.debug("[import-store] resumed run process exited");
+        if (get().phase === "idle" || get().phase === "review") return;
+        lastRunTextContent = "";
+        const errorBlock: ContentBlock = {
+          type: "text" as const,
+          content:
+            "The import process ended unexpectedly. You can try again by canceling and restarting.",
+        };
+        set({ runMessages: appendErrorMessage(get().runMessages, errorBlock) });
+      },
+    });
+
+    // The resumed run carries no kickoff message: there's no normalize turn,
+    // and the first post-normalize phase's instruction is injected by
+    // `driveStep`. The assistant message is the sink the stream appends into.
+    const assistantMsg: ChatMessage = {
+      id: crypto.randomUUID(),
+      role: "assistant",
+      blocks: [],
+    };
+
+    set({
+      runSession: session,
+      runMessages: [assistantMsg],
+      statusText: "",
+      phase: IMPORT_PIPELINE[FIRST_POST_NORMALIZE_INDEX].phase,
+      hasImportData: false,
+    });
+
+    if (!session) {
+      handleRunStreamEvent(
+        {
+          type: "error",
+          message:
+            "Capy is not configured. Open settings to pick an AI provider.",
+        },
+        set,
+        get,
+      );
+      return;
+    }
+
+    // Re-enter the pipeline at the first post-normalize phase and walk to the
+    // end, reusing the orchestrator's pre-step / inject / complete machinery.
+    void driveStep(FIRST_POST_NORMALIZE_INDEX, session, set, get);
   },
 
   cancelRun: () => {
@@ -359,22 +450,38 @@ async function advanceRun(
   // No live run (e.g. a cancel already tore it down) — nothing to advance.
   if (!session) return;
 
-  const currentIdx = pipelineIndexOf(get().phase);
-  const nextStep: ImportPhaseStep | undefined = IMPORT_PIPELINE[currentIdx + 1];
+  const nextIdx = pipelineIndexOf(get().phase) + 1;
+  await driveStep(nextIdx, session, set, get);
+}
 
-  if (!nextStep) {
+/**
+ * Land the run on pipeline step `stepIdx`: set its phase, run its deterministic
+ * pre-step, then inject its instruction as a user turn into `session`. Past the
+ * end of the pipeline, complete the run. Shared by `advanceRun` (walking the
+ * happy path) and `resumeRun` (re-entering mid-pipeline after an interruption),
+ * so the pre-step / inject / cancel-guard machinery lives in exactly one place.
+ */
+async function driveStep(
+  stepIdx: number,
+  session: CapySession,
+  set: (partial: Partial<ImportStore>) => void,
+  get: () => ImportStore,
+): Promise<void> {
+  const step: ImportPhaseStep | undefined = IMPORT_PIPELINE[stepIdx];
+
+  if (!step) {
     await completeRun(session, set, get);
     return;
   }
 
-  console.debug(`[import-store] advancing → ${nextStep.phase}`);
+  console.debug(`[import-store] driving → ${step.phase}`);
   lastRunTextContent = "";
-  set({ phase: nextStep.phase });
+  set({ phase: step.phase });
 
   // Deterministic pre-step: code-triggered tools dispatched directly (not
   // model-advertised). Best-effort — a failure doesn't gate the agent turn.
   const ctx = runContext;
-  for (const tool of nextStep.preStepTools) {
+  for (const tool of step.preStepTools) {
     if (!ctx?.repo || !ctx.fileAdapter) break;
     // A cancel mid-loop nulls `runSession`; stop before the next mutating
     // tool call rather than draining the rest of the (Unit 2/4 multi-tool)
@@ -395,16 +502,16 @@ async function advanceRun(
   // session and clears `runSession`. Skip the inject if state moved on.
   if (get().runSession !== session) return;
 
-  if (nextStep.instruction === null) {
+  if (step.instruction === null) {
     // Deterministic-only phase (no agent turn) — its pre-step has run, so
     // chain straight to the next phase without a session round-trip.
     void advanceRun(set, get);
     return;
   }
 
-  // Sequential injection: the next phase's instruction enters as a fresh user
-  // turn in the SAME session, re-running the agentic loop with full memory.
-  session.send(nextStep.instruction).catch((err) => {
+  // Sequential injection: the phase's instruction enters as a fresh user turn
+  // in the SAME session, re-running the agentic loop with full memory.
+  session.send(step.instruction).catch((err) => {
     handleRunStreamEvent(
       { type: "error", message: err instanceof Error ? err.message : "Failed to continue import" },
       set,
@@ -513,9 +620,8 @@ function handleReenrichStreamEvent(
       break;
     case "done": {
       set({ isEnriching: false, enrichStatusText: "" });
-      // Resume case: an interrupted run is finished by re-enrich, so the store
-      // records the import as enriched here too (idempotent for the normal
-      // re-enrich of an already-enriched import).
+      // Re-affirm the enriched flag — idempotent, since the manual Enrich
+      // button only runs on an already-enriched import (the run set the flag).
       const ctx = reenrichContext;
       const finish = ctx
         ? markImportEnriched(ctx.fileAdapter, ctx.budgetPath).catch((err) => {

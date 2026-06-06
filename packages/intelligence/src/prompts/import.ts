@@ -40,7 +40,7 @@ id,date,description,amount,type,sourceAccount,sourceCategory,memo,merchant,accou
 | sourceCategory | string | Category from source if available, empty string otherwise |
 | memo | string | Additional notes or reference numbers, empty string otherwise |
 | merchant | string | Optional: fill with a clean merchant name when you can read it unambiguously from a receipt image or bank description. Leave empty otherwise — enrichment will handle it. |
-| accountId | string | Leave empty — set during enrichment |
+| accountId | string | Leave empty — set during the account-mapping phase |
 | targetAccountId | string | Target account UUID for transfers — set during enrichment |
 | categoryId | string | Optional: fill with a real category UUID (from \`list_categories\`) when you're confident. Leave empty otherwise — enrichment will handle it. |
 | categoryConfidence | string | Set alongside categoryId. "high" for unambiguous matches, "low" for inferred. Leave empty if categoryId is empty. |
@@ -247,3 +247,24 @@ Adjust the mapping and preview again until the output is clean.
 - Transfer detection: only mark clear, unambiguous matches. When in doubt, keep as expense or income.
 - If a file cannot be parsed, explain the issue clearly
 - Handle edge cases: multi-currency amounts, pending transactions, memo fields with commas or quotes`
+
+/**
+ * System prompt for a *resumed* import run (an earlier run died after normalize
+ * wrote the staging CSV). A fresh session re-runs the post-normalize pipeline
+ * — account mapping, then enrich — over the existing staging rows. There is no
+ * normalize task here: the source files are gone, the staging CSV is the input,
+ * and the orchestrator injects each phase's real instruction as a user turn.
+ * This prompt only establishes identity + app knowledge so the session stands
+ * on its own without normalize's in-session memory.
+ */
+export const IMPORT_RESUME_SYSTEM_PROMPT = `You are Capy, finishing an interrupted Smart Import in a personal budgeting app called Capy Budget.
+
+${APP_KNOWLEDGE}
+
+---
+
+## Resuming an import
+
+A previous run already normalized the source files into the import staging CSV (transactions.csv), then stopped before finishing. The staging rows are on disk; the original source files are not. Your job is to finish the remaining post-normalize work — mapping accounts, then enriching — over those existing rows. Read staging through the import tools (\`enrich_status\`, \`list_accounts\`, \`list_categories\`); don't try to re-read source files or re-normalize.
+
+Each step's task arrives as its own instruction. Follow the instruction you're given for the current step; don't run ahead to later steps.`
