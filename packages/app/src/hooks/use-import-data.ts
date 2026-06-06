@@ -11,14 +11,12 @@ import type { EntityMapping } from "@/components/import/import-mapping";
  * - Validates categories, applies alias overlay
  * - Manages transaction state + debounced write-back
  * - Manages account mapping with batch accountId updates
- * - Checks state.json enriched flag for auto-enrich trigger
  */
 export function useImportData(budgetPath: string) {
   const [transactions, setTransactions] = useState<ImportTransaction[]>([]);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [accountMapping, setAccountMapping] = useState<EntityMapping>({});
   const [loading, setLoading] = useState(true);
-  const [needsEnrichment, setNeedsEnrichment] = useState(false);
 
   const { data: accounts = [] } = useAccounts();
   const { data: categories = [] } = useCategories();
@@ -77,26 +75,6 @@ export function useImportData(budgetPath: string) {
     load();
     return () => { cancelled = true; };
   }, [loadCsv]);
-
-  // ── Check enrichment flag from state.json ────────────────────
-  useEffect(() => {
-    if (loading || transactions.length === 0) return;
-    let cancelled = false;
-    async function checkEnriched() {
-      const state = await repository.readState();
-      if (!cancelled && !state.enriched) {
-        setNeedsEnrichment(true);
-      }
-    }
-    checkEnriched();
-    return () => { cancelled = true; };
-  }, [loading, transactions.length, repository]);
-
-  const markEnriched = useCallback(async () => {
-    setNeedsEnrichment(false);
-    const state = await repository.readState();
-    await repository.writeState({ ...state, enriched: true });
-  }, [repository]);
 
   // ── Category validation + alias overlay ──────────────────────
   const aliasesAppliedRef = useRef(false);
@@ -250,14 +228,12 @@ export function useImportData(budgetPath: string) {
     setSelectedIds,
     accountMapping,
     loading,
-    needsEnrichment,
 
     // Actions
     loadCsv,
     handleUpdate,
     handleAccountMappingChange,
     flushWriteBack,
-    markEnriched,
 
     // Derived
     sourceAccounts,

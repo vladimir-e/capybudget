@@ -22,18 +22,9 @@ export interface ImportAliases {
 }
 
 /**
- * The import run's phase machine. The agentic run advances through the
- * working phases in order, then lands on the terminal merge-ready review.
- *
+ * The import run's phase machine (see INTELLIGENCE.md § Import Sessions):
  *   idle → normalizing → accounts → dedup → enriching → review
- *
- * `idle` is the pre-run state (drop zone / file list). `accounts` and
- * `dedup` are wired by later units (account mapping, duplicate review);
- * the pipeline runs through them as inert pass-throughs until then.
- * `review` is the preview/table — work is done, the user merges.
- *
- * Naming preserves `normalizing` / `enriching` / `review` from the
- * original three-state store so existing call sites keep working.
+ * `accounts` and `dedup` are inert pass-throughs until their units land.
  */
 export type ImportPhase =
   | "idle"
@@ -43,11 +34,7 @@ export type ImportPhase =
   | "enriching"
   | "review";
 
-/**
- * Discrete progress-bar segments, in fill order. Unit 5 drives the bar
- * off the phase machine via {@link IMPORT_PHASE_SEGMENT}; the `accounts`
- * and `dedup` segments stay inert until their units land.
- */
+/** Discrete progress-bar segments, in fill order (driven by Unit 5). */
 export type ImportSegment =
   | "normalize"
   | "accounts"
@@ -63,10 +50,7 @@ export const IMPORT_SEGMENTS: readonly ImportSegment[] = [
   "done",
 ];
 
-/**
- * Phase → progress segment. `review` is the merge-ready terminal state,
- * so it maps to `done` (the bar is full). `idle` has no segment.
- */
+/** Phase → progress segment. `review` is terminal → `done`; `idle` has none. */
 export const IMPORT_PHASE_SEGMENT: Record<
   Exclude<ImportPhase, "idle">,
   ImportSegment

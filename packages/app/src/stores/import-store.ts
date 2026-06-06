@@ -3,6 +3,7 @@ import { createSession } from "@/services/create-session";
 import {
   runTool,
   buildContext,
+  markImportEnriched,
   IMPORT_PIPELINE,
   type BudgetSnapshot,
   type CapySession,
@@ -16,29 +17,14 @@ import type { ImportPhase } from "@capybudget/core";
 import type { BudgetRepository, FileAdapter } from "@capybudget/persistence";
 
 /**
- * Import store — single source of truth for import UI state.
- *
- * The whole import is **one orchestrated `CapySession`** that walks the
- * `IMPORT_PIPELINE` phase machine (`@capybudget/intelligence`). The normalize
- * phase is the kickoff; each later phase is reached by **sequential
- * injection** — on the session's `done`, the orchestrator runs the next
- * phase's deterministic pre-step (`runTool`) and injects that phase's
- * instruction as a new user turn into the *same* session. The model keeps
- * full memory across phases (no enrich cold-start) while each phase gets a
- * sharp instruction block.
+ * Import store — single source of truth for import UI state. The whole import
+ * is one orchestrated `CapySession` walking the `IMPORT_PIPELINE` phase machine
+ * (see `@capybudget/intelligence` / INTELLIGENCE.md § Import Sessions).
  *
  * Phase transitions:
  *   idle ──startRun──▸ normalizing ──done──▸ enriching ──done──▸ review
  *   <any run phase> ──cancelRun──▸ idle
  *   review ──cancel/merge──▸ idle
- *
- * (Unit 2/4 insert `accounts` and `dedup` phases between normalize and
- * enrich by adding entries to IMPORT_PIPELINE — no change here.)
- *
- * On mount, the component checks disk to initialize:
- *   has transactions.csv → setPhase("review")
- *   has sources only → stays "idle" (component shows file list)
- *   empty → stays "idle" (component shows drop zone)
  */
 
 /** Context the orchestrator carries across phases (pre-step dispatch). */
@@ -78,10 +64,8 @@ interface ImportStore {
     fileAdapter?: FileAdapter;
   }) => void;
   cancelRun: () => void;
-
-  /** Fires when the run completes (lands on review). */
-  onRunComplete: (() => void) | null;
-  setOnRunComplete: (cb: (() => void) | null) => void;
+  /** Merge finished — reset to idle, leaving no session alive. */
+  resetAfterMerge: () => void;
 
   // ── Standalone re-enrich (preview's Enrich button) ───────────
   // A user-initiated re-run of the enrich phase after manual edits in the
@@ -141,6 +125,7 @@ function pipelineIndexOf(phase: ImportPhase): number {
 // ── Store ───────────────────────────────────────────────────────
 
 let runContext: RunContext | null = null;
+let reenrichContext: { budgetPath: string; fileAdapter: FileAdapter } | null = null;
 
 export const useImportStore = create<ImportStore>((set, get) => ({
   phase: "idle",
@@ -154,8 +139,6 @@ export const useImportStore = create<ImportStore>((set, get) => ({
   runSession: null,
   runMessages: [],
   statusText: "",
-  onRunComplete: null,
-  setOnRunComplete: (cb) => set({ onRunComplete: cb }),
 
   startRun: ({
     budgetPath,
@@ -260,6 +243,24 @@ export const useImportStore = create<ImportStore>((set, get) => ({
     });
   },
 
+  resetAfterMerge: () => {
+    // The run session is already dead by `review`; a re-enrich session may
+    // still be alive if the user enriched then merged.
+    get().reenrichSession?.kill();
+    lastRunTextContent = "";
+    runContext = null;
+    set({
+      runSession: null,
+      runMessages: [],
+      statusText: "",
+      reenrichSession: null,
+      isEnriching: false,
+      enrichStatusText: "",
+      phase: "idle",
+      hasImportData: false,
+    });
+  },
+
   // ── Re-enrich ────────────────────────────────────────────────
   reenrichSession: null,
   isEnriching: false,
@@ -277,6 +278,7 @@ export const useImportStore = create<ImportStore>((set, get) => ({
     fileAdapter,
   }) => {
     get().reenrichSession?.kill();
+    reenrichContext = fileAdapter ? { budgetPath, fileAdapter } : null;
 
     const session = createSession({
       budgetPath,
@@ -354,15 +356,14 @@ async function advanceRun(
   get: () => ImportStore,
 ): Promise<void> {
   const session = get().runSession;
+  // No live run (e.g. a cancel already tore it down) — nothing to advance.
+  if (!session) return;
+
   const currentIdx = pipelineIndexOf(get().phase);
   const nextStep: ImportPhaseStep | undefined = IMPORT_PIPELINE[currentIdx + 1];
 
-  if (!session || !nextStep) {
-    // Pipeline complete (or session gone) → merge-ready review.
-    console.debug("[import-store] run complete → review");
-    lastRunTextContent = "";
-    set({ phase: "review", hasImportData: true, statusText: "" });
-    get().onRunComplete?.();
+  if (!nextStep) {
+    await completeRun(session, set, get);
     return;
   }
 
@@ -375,6 +376,10 @@ async function advanceRun(
   const ctx = runContext;
   for (const tool of nextStep.preStepTools) {
     if (!ctx?.repo || !ctx.fileAdapter) break;
+    // A cancel mid-loop nulls `runSession`; stop before the next mutating
+    // tool call rather than draining the rest of the (Unit 2/4 multi-tool)
+    // pre-step against a torn-down run.
+    if (get().runSession !== session) return;
     try {
       await runTool(tool, {}, {
         repo: ctx.repo,
@@ -406,6 +411,39 @@ async function advanceRun(
       get,
     );
   });
+}
+
+/**
+ * The pipeline is exhausted — land on merge-ready review. The store owns the
+ * run-completion side-effects: persist the `enriched` flag (so a reconnect
+ * knows the run finished), then tear down the run session. The preview's
+ * "Enrich" button spins up its own session, so the run session is dead weight
+ * (and a live subprocess on the CLI adapter) past this point.
+ */
+async function completeRun(
+  session: CapySession,
+  set: (partial: Partial<ImportStore>) => void,
+  get: () => ImportStore,
+): Promise<void> {
+  console.debug("[import-store] run complete → review");
+  lastRunTextContent = "";
+
+  const ctx = runContext;
+  if (ctx?.fileAdapter) {
+    try {
+      await markImportEnriched(ctx.fileAdapter, ctx.budgetPath);
+    } catch (err) {
+      console.warn("[import-store] failed to persist enriched flag:", err);
+    }
+  }
+
+  // A cancel during the async persist already tore down the run — don't
+  // resurrect it onto review.
+  if (get().runSession !== session) return;
+
+  session.kill();
+  runContext = null;
+  set({ runSession: null, phase: "review", hasImportData: true, statusText: "" });
 }
 
 // ── Stream event handler ────────────────────────────────────────
@@ -473,10 +511,20 @@ function handleReenrichStreamEvent(
         }
       }
       break;
-    case "done":
+    case "done": {
       set({ isEnriching: false, enrichStatusText: "" });
-      get().onEnrichComplete?.();
+      // Resume case: an interrupted run is finished by re-enrich, so the store
+      // records the import as enriched here too (idempotent for the normal
+      // re-enrich of an already-enriched import).
+      const ctx = reenrichContext;
+      const finish = ctx
+        ? markImportEnriched(ctx.fileAdapter, ctx.budgetPath).catch((err) => {
+            console.warn("[import-store] failed to persist enriched flag:", err);
+          })
+        : Promise.resolve();
+      finish.then(() => get().onEnrichComplete?.());
       break;
+    }
     case "error":
       console.debug("[import-store] re-enrich error:", event.message);
       set({ isEnriching: false, enrichStatusText: "" });

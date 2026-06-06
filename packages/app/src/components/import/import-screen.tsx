@@ -42,7 +42,9 @@ import { tauriFileAdapter } from "../../../../../src/adapters/tauri-file-adapter
 import {
   buildContext,
   formatFileSize,
+  readImportEnriched,
   IMPORT_SYSTEM_PROMPT,
+  ENRICH_SYSTEM_PROMPT,
   type CliImageContent,
   type CliDocumentContent,
   type MessageContent,
@@ -50,6 +52,7 @@ import {
 import { ImportDropZone } from "./import-drop-zone";
 import { ProcessingStatus } from "./processing-status";
 import { ImportPreview } from "./import-preview";
+import { resolveReconnect } from "./import-reconnect";
 
 interface ImportScreenProps {
   budgetPath: string;
@@ -70,6 +73,8 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
   const runMessages = useImportStore((s) => s.runMessages);
   const startRun = useImportStore((s) => s.startRun);
   const cancelRun = useImportStore((s) => s.cancelRun);
+  const startReenrich = useImportStore((s) => s.startReenrich);
+  const resetAfterMerge = useImportStore((s) => s.resetAfterMerge);
   const setPhase = useImportStore((s) => s.setPhase);
   const setGlobalHasImportData = useImportStore((s) => s.setHasImportData);
 
@@ -117,6 +122,23 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
     return sources;
   }, [repository]);
 
+  /** Resume an interrupted run: finish it by re-running the enrich phase. */
+  const resumeEnrich = useCallback(() => {
+    const customInstr = customInstructions.instructions?.trim();
+    const systemPrompt = customInstr
+      ? `${ENRICH_SYSTEM_PROMPT}\n\n## User instructions\n${customInstr}`
+      : ENRICH_SYSTEM_PROMPT;
+    startReenrich({
+      budgetPath,
+      budgetName,
+      mcpServerPath: "packages/mcp/src/server.ts",
+      systemPrompt,
+      snapshot: getBudgetSnapshot(),
+      repo,
+      fileAdapter: tauriFileAdapter,
+    });
+  }, [customInstructions.instructions, startReenrich, budgetPath, budgetName, getBudgetSnapshot, repo]);
+
   // On mount: if store is idle, check disk to determine initial state.
   // If a run is in flight (normalizing → … → enriching) or done (review),
   // trust the store (reconnect).
@@ -124,12 +146,15 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
     async function init() {
       if (phase === "idle") {
         const hasCsv = await repository.hasTransactionsCsv();
-        if (hasCsv) {
-          setPhase("review");
-          setGlobalHasImportData(true);
-        } else {
+        const enriched = hasCsv && (await readImportEnriched(tauriFileAdapter, budgetPath));
+        const action = resolveReconnect(hasCsv, enriched);
+        if (action.kind === "empty") {
           await refreshSourceFiles();
           setGlobalHasImportData(false);
+        } else {
+          setPhase("review");
+          setGlobalHasImportData(true);
+          if (action.kind === "resume-enrich") resumeEnrich();
         }
       } else if (phase !== "review") {
         // Reconnecting mid-run — load source files for the processing header
@@ -482,7 +507,7 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
             <ImportPreview
               budgetPath={budgetPath}
               budgetName={budgetName}
-              onMergeComplete={() => { setPhase("idle"); setGlobalHasImportData(false); setSourceFiles([]); }}
+              onMergeComplete={() => { resetAfterMerge(); setSourceFiles([]); }}
             />
           )}
 

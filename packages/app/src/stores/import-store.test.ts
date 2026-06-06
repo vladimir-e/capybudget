@@ -12,16 +12,44 @@ const mockRunTool = vi.fn<
   ) => Promise<string>
 >();
 
+const mockMarkImportEnriched = vi.fn<
+  (fileAdapter: unknown, budgetPath: string) => Promise<void>
+>();
+
+// The store reads IMPORT_PIPELINE at call time. The mock returns a mutable deep
+// clone (the real one is frozen) so the multi-tool-cancel test can extend the
+// enrich pre-step in place; the imported `IMPORT_PIPELINE` IS that array, and
+// beforeEach restores the enrich step's default tool.
+interface MutableStep {
+  phase: string;
+  preStepTools: string[];
+  instruction: string | null;
+}
+
 vi.mock("@capybudget/intelligence", async (importOriginal) => {
   const original = (await importOriginal()) as Record<string, unknown>;
+  const realPipeline = original.IMPORT_PIPELINE as readonly MutableStep[];
+  const pipeline: MutableStep[] = realPipeline.map((s) => ({
+    phase: s.phase,
+    preStepTools: [...s.preStepTools],
+    instruction: s.instruction,
+  }));
   return {
     ...original,
+    IMPORT_PIPELINE: pipeline,
     runTool: (name: string, input: Record<string, unknown>, ctx: unknown) => {
       callOrder.push(`runTool:${name}`);
       return mockRunTool(name, input, ctx);
     },
+    markImportEnriched: (fileAdapter: unknown, budgetPath: string) => {
+      callOrder.push("markImportEnriched");
+      return mockMarkImportEnriched(fileAdapter, budgetPath);
+    },
   };
 });
+
+const enrichStep = () =>
+  (IMPORT_PIPELINE as unknown as MutableStep[]).find((s) => s.phase === "enriching")!;
 
 // Each created session is a tracked instance: its send() calls (with the
 // emitted onEvent handler) let tests drive the stream and assert that the
@@ -92,6 +120,8 @@ describe("import-store", () => {
     });
     mockRunTool.mockReset();
     mockRunTool.mockResolvedValue("ok");
+    mockMarkImportEnriched.mockReset();
+    mockMarkImportEnriched.mockResolvedValue();
     sessionSend.mockReset();
     sessionSend.mockResolvedValue();
     sessionKill.mockReset();
@@ -99,6 +129,10 @@ describe("import-store", () => {
     callOrder.length = 0;
     sessions.length = 0;
     sessionCounter = 0;
+    // Restore the enrich pre-step to its single-tool default (a test may
+    // extend it in place to exercise multi-tool pre-steps).
+    enrichStep().preStepTools.length = 0;
+    enrichStep().preStepTools.push("auto_enrich");
   });
 
   it("starts with hasImportData false", () => {
@@ -227,16 +261,27 @@ describe("import-store", () => {
       expect(useImportStore.getState().hasImportData).toBe(true);
     });
 
-    it("fires onRunComplete when the run lands on review", async () => {
-      const onComplete = vi.fn();
-      useImportStore.getState().setOnRunComplete(onComplete);
+    it("persists the enriched flag itself on run-complete (no component callback)", async () => {
+      const { fileAdapter } = startRun();
+      sessions[0].emitDone(); // normalize → enrich
+      await flush();
+      sessions[0].emitDone(); // enrich → review
+      await flush();
+
+      // The store — not a mounted component — persisted enriched to state.json.
+      expect(mockMarkImportEnriched).toHaveBeenCalledTimes(1);
+      expect(mockMarkImportEnriched).toHaveBeenCalledWith(fileAdapter, "/budget");
+    });
+
+    it("kills the run session and nulls it on completion", async () => {
       startRun();
       sessions[0].emitDone();
       await flush();
       sessions[0].emitDone();
       await flush();
 
-      expect(onComplete).toHaveBeenCalledTimes(1);
+      expect(sessionKill).toHaveBeenCalled();
+      expect(useImportStore.getState().runSession).toBeNull();
     });
 
     it("cancel resets to idle and kills the session", async () => {
@@ -271,6 +316,31 @@ describe("import-store", () => {
 
       // The enrich turn must NOT have been injected.
       expect(sessions[0].sends.length).toBe(sendsBefore);
+      expect(useImportStore.getState().phase).toBe("idle");
+    });
+
+    it("stops a multi-tool pre-step at the next tool when cancelled mid-loop", async () => {
+      // A future unit gives a phase multiple deterministic pre-step tools.
+      enrichStep().preStepTools.length = 0;
+      enrichStep().preStepTools.push("pre_a", "pre_b");
+
+      // First tool hangs until we cancel; the second must never run.
+      let resolveFirst: (v: string) => void = () => {};
+      mockRunTool.mockImplementationOnce(
+        () => new Promise<string>((r) => { resolveFirst = r; }),
+      );
+
+      startRun();
+      sessions[0].emitDone(); // normalize done → pre-step loop starts (pre_a hangs)
+      await flush();
+
+      useImportStore.getState().cancelRun(); // cancel mid-loop
+      resolveFirst("ok"); // pre_a settles after cancel
+      await flush();
+
+      const toolCalls = callOrder.filter((c) => c.startsWith("runTool:"));
+      expect(toolCalls).toContain("runTool:pre_a");
+      expect(toolCalls).not.toContain("runTool:pre_b");
       expect(useImportStore.getState().phase).toBe("idle");
     });
   });
@@ -339,6 +409,39 @@ describe("import-store", () => {
       useImportStore.getState().cancelReenrich();
       expect(useImportStore.getState().isEnriching).toBe(false);
       expect(useImportStore.getState().reenrichSession).toBeNull();
+    });
+
+    it("persists the enriched flag when re-enrich completes (resume path)", async () => {
+      const { fileAdapter } = startWithRepo();
+      await flush(); // pre-step + first send
+      sessions[0].emitDone();
+      await flush();
+
+      expect(mockMarkImportEnriched).toHaveBeenCalledWith(fileAdapter, "/budget");
+    });
+  });
+
+  // ── Merge teardown ────────────────────────────────────────────────
+
+  describe("resetAfterMerge", () => {
+    it("kills a lingering re-enrich session and resets to idle", () => {
+      useImportStore.getState().startReenrich({
+        budgetPath: "/budget",
+        budgetName: "Test",
+        mcpServerPath: "/mcp",
+        systemPrompt: "you are capy",
+        repo: {} as BudgetRepository,
+        fileAdapter: {} as FileAdapter,
+      });
+      sessionKill.mockClear();
+
+      useImportStore.getState().resetAfterMerge();
+
+      expect(sessionKill).toHaveBeenCalled();
+      expect(useImportStore.getState().reenrichSession).toBeNull();
+      expect(useImportStore.getState().isEnriching).toBe(false);
+      expect(useImportStore.getState().phase).toBe("idle");
+      expect(useImportStore.getState().hasImportData).toBe(false);
     });
   });
 });

@@ -1,23 +1,10 @@
 /**
- * The Smart Import run pipeline.
+ * The Smart Import run pipeline — the ordered phase descriptor for the
+ * single-session run. See INTELLIGENCE.md § Import Sessions.
  *
- * One agentic `CapySession` walks an ordered list of phases. The normalize
- * phase is the kickoff (driven by the import system prompt + the screen's
- * initial message); every later phase is reached by **sequential injection** —
- * the orchestrator runs the phase's deterministic pre-step, then sends its
- * `instruction` as a new user turn into the *same* session. Continuity (the
- * model still remembers what normalize just did) plus focus (each phase gets a
- * sharp instruction block).
- *
- * Adding a phase is adding one ordered entry to {@link IMPORT_PIPELINE} — no
- * control-flow change. The runtime order the feature is building toward is:
- *
- *   normalize → accounts → dedup → enrich
- *
- * Account mapping precedes dedup because dedup's matching rules key off the
- * resolved account. Those two phases land in later units (Unit 4: agent-owned
- * account mapping; Unit 2: dedup tools + persistence) — inserted here between
- * normalize and enrich. Until then the pipeline is normalize → enrich.
+ * Adding a phase is adding one ordered {@link IMPORT_PIPELINE} entry. Order
+ * matters: account mapping must precede dedup because dedup's matching rules
+ * key off the resolved account.
  */
 
 import type { ImportPhase } from "@capybudget/core"

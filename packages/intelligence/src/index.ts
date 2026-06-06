@@ -63,6 +63,7 @@ export type { BudgetSnapshot } from "./prompts"
 // Import run pipeline (the phase machine that drives the single-session run)
 export { IMPORT_PIPELINE } from "./import/run-pipeline"
 export type { ImportPhaseStep } from "./import/run-pipeline"
+export { markImportEnriched, readImportEnriched } from "./import/import-state"
 
 // Render-tool → ContentBlock map (shared by every adapter)
 export { buildRenderToolMap, RENDER_FOLLOWUPS_TOOL_NAME } from "./render-map"

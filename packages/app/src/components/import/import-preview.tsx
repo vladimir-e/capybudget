@@ -51,7 +51,6 @@ export function ImportPreview({ budgetPath, budgetName, onMergeComplete }: Impor
     handleUpdate,
     handleAccountMappingChange,
     flushWriteBack,
-    markEnriched,
     sourceAccounts,
     uncategorizedCount,
     lowConfidenceCount,
@@ -66,28 +65,18 @@ export function ImportPreview({ budgetPath, budgetName, onMergeComplete }: Impor
 
   // ── Enrichment (via store — survives navigation) ───────────────
   // The orchestrated run already enriched before landing on review; this is
-  // the user-initiated re-enrich (after manual edits). Completion of either
-  // the run or a re-enrich marks the import enriched and reloads the table.
+  // the user-initiated re-enrich (after manual edits). On completion the
+  // table reloads from the freshly-written CSV.
   const isEnriching = useImportStore((s) => s.isEnriching);
   const enrichStatusText = useImportStore((s) => s.enrichStatusText);
   const startReenrich = useImportStore((s) => s.startReenrich);
   const cancelReenrich = useImportStore((s) => s.cancelReenrich);
   const setOnEnrichComplete = useImportStore((s) => s.setOnEnrichComplete);
-  const setOnRunComplete = useImportStore((s) => s.setOnRunComplete);
 
-  // Register completion callbacks (run + re-enrich land in the same place).
   useEffect(() => {
-    const onComplete = async () => {
-      await markEnriched();
-      await loadCsv();
-    };
-    setOnEnrichComplete(onComplete);
-    setOnRunComplete(onComplete);
-    return () => {
-      setOnEnrichComplete(null);
-      setOnRunComplete(null);
-    };
-  }, [setOnEnrichComplete, setOnRunComplete, markEnriched, loadCsv]);
+    setOnEnrichComplete(() => { loadCsv(); });
+    return () => setOnEnrichComplete(null);
+  }, [setOnEnrichComplete, loadCsv]);
 
   const handleEnrich = useCallback(async () => {
     await flushWriteBack();
@@ -255,7 +244,6 @@ export function ImportPreview({ budgetPath, budgetName, onMergeComplete }: Impor
               className="h-6 px-2 text-xs text-muted-foreground hover:text-foreground"
               onClick={async () => {
                 cancelReenrich();
-                await markEnriched();
                 await loadCsv();
               }}
             >
