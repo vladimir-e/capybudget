@@ -58,6 +58,7 @@ export {
   handlePreviewTransform,
   handleTransformCsv,
   handleAutoEnrich,
+  handleApplyAccountAliases,
   handleEnrichStatus,
   handleEnrichUpdate,
 } from "./handlers/csv"

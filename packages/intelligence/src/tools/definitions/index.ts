@@ -100,11 +100,11 @@ const TOOL_MODES: Readonly<Record<string, readonly ToolMode[]>> = {
   analyze_csv: ["import"],
   preview_transform: ["import"],
   transform_csv: ["import"],
-  // auto_enrich is code-triggered (the import orchestrator runs it as a
-  // deterministic step), so it's dispatchable but not advertised to any
-  // model — no TOOL_MODES entry. The MCP surface still exposes it
-  // (getToolDefinitions() with no mode), and runTool dispatches it
-  // regardless of this map.
+  // auto_enrich and apply_account_aliases are code-triggered (the import
+  // orchestrator runs them as deterministic pre-steps), so they're
+  // dispatchable but not advertised to any model — no TOOL_MODES entry. The
+  // MCP surface still exposes them (getToolDefinitions() with no mode), and
+  // runTool dispatches them regardless of this map.
   enrich_status: ["import"],
   enrich_update: ["import"],
   // Generic readers

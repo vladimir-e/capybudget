@@ -6,6 +6,7 @@ import {
   handlePreviewTransform,
   handleTransformCsv,
   handleAutoEnrich,
+  handleApplyAccountAliases,
   handleEnrichStatus,
   handleEnrichUpdate,
   __resetEnrichmentCacheForTests,
@@ -462,5 +463,88 @@ describe("handleAutoEnrich", () => {
     // Defense in depth: count how many times the raw description token
     // appears. Exactly once — in the description column itself.
     expect(csv.match(/CHECKCARD/g)?.length).toBe(1)
+  })
+})
+
+// ── apply_account_aliases (accounts-phase pre-step) ──────────────
+
+const CSV_HEADER =
+  "id,date,description,amount,type,sourceAccount,sourceCategory,memo,merchant,accountId,targetAccountId,categoryId,categoryConfidence"
+
+function setStaging(rows: string[]) {
+  fs.files.set(`${IMPORT_DIR}/transactions.csv`, [CSV_HEADER, ...rows].join("\n"))
+}
+
+function setAliases(accounts: Record<string, string>) {
+  fs.files.set(`${BUDGET_PATH}/.capy/aliases.json`, JSON.stringify({ accounts }))
+}
+
+function stagingCsv(): string {
+  return fs.files.get(`${IMPORT_DIR}/transactions.csv`)!
+}
+
+describe("handleApplyAccountAliases", () => {
+  it("sets accountId on rows whose sourceAccount has a stored alias", async () => {
+    setStaging([
+      "imp-1,2024-01-01,COFFEE,-450,expense,Chase Checking,,,,,,,",
+      "imp-2,2024-01-02,RENT,-150000,expense,Chase Checking,,,,,,,",
+    ])
+    setAliases({ "Chase Checking": "acct-chase" })
+
+    const result = await handleApplyAccountAliases(ctx)
+
+    expect(result).toBe("Applied 2 account aliases.")
+    const csv = stagingCsv()
+    expect(csv.match(/acct-chase/g)?.length).toBe(2)
+  })
+
+  it("leaves unmapped source accounts untouched (the agent turn handles them)", async () => {
+    setStaging([
+      "imp-1,2024-01-01,COFFEE,-450,expense,Chase Checking,,,,,,,",
+      "imp-2,2024-01-02,GAS,-4000,expense,💰 BofA Savings,,,,,,,",
+    ])
+    setAliases({ "Chase Checking": "acct-chase" })
+
+    await handleApplyAccountAliases(ctx)
+
+    const csv = stagingCsv()
+    expect(csv).toMatch(/Chase Checking,,,,acct-chase,/)
+    // The unaliased row's accountId stays empty for the agent to fill.
+    expect(csv).toMatch(/💰 BofA Savings,,,,,,,/)
+  })
+
+  it("does not overwrite an accountId already set (alias precedence over a pre-set value)", async () => {
+    setStaging([
+      "imp-1,2024-01-01,COFFEE,-450,expense,Chase Checking,,,,acct-prior,,,",
+    ])
+    setAliases({ "Chase Checking": "acct-alias" })
+
+    await handleApplyAccountAliases(ctx)
+
+    const csv = stagingCsv()
+    expect(csv).toMatch(/acct-prior/)
+    expect(csv).not.toMatch(/acct-alias/)
+  })
+
+  it("skips __create__ aliases (no UUID to persist; the merge step creates the account)", async () => {
+    setStaging([
+      "imp-1,2024-01-01,COFFEE,-450,expense,New Bank,,,,,,,",
+    ])
+    setAliases({ "New Bank": "__create__" })
+
+    const result = await handleApplyAccountAliases(ctx)
+
+    expect(result).toBe("Applied 0 account aliases.")
+    expect(stagingCsv()).toMatch(/New Bank,,,,,,,/)
+  })
+
+  it("reports cleanly when no aliases file exists", async () => {
+    setStaging([
+      "imp-1,2024-01-01,COFFEE,-450,expense,Chase Checking,,,,,,,",
+    ])
+
+    const result = await handleApplyAccountAliases(ctx)
+
+    expect(result).toBe("No stored aliases.")
   })
 })

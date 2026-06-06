@@ -112,9 +112,6 @@ export {
   IMPORT_PHASE_SEGMENT,
 } from "./import/import-types";
 
-// Import account matching
-export { matchAccountsByName } from "./import/import-matching";
-
 // Import merge operations
 export type { MergeInput, MergeOutput } from "./import/import-merge";
 export { prepareMerge } from "./import/import-merge";

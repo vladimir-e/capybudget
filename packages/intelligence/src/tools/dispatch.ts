@@ -13,7 +13,8 @@
  *   - mutation tools (create/update/delete + bulk_update_transactions)
  *   - import tools (read/write/list_import_file)
  *   - csv tools (analyze_csv, preview_transform, transform_csv,
- *                auto_enrich, enrich_status, enrich_update)
+ *                auto_enrich, apply_account_aliases, enrich_status,
+ *                enrich_update)
  *   - read_file (generic budget-folder text reader)
  *   - read_spec (bundled spec doc reader)
  *   - render tools (render_*)
@@ -49,6 +50,7 @@ import {
   handlePreviewTransform,
   handleTransformCsv,
   handleAutoEnrich,
+  handleApplyAccountAliases,
   handleEnrichStatus,
   handleEnrichUpdate,
 } from "./handlers/csv"
@@ -96,6 +98,7 @@ const HANDLERS: Record<string, ToolHandler> = {
   preview_transform: (ctx, args) => handlePreviewTransform(ctx, args),
   transform_csv: (ctx, args) => handleTransformCsv(ctx, args),
   auto_enrich: (ctx) => handleAutoEnrich(ctx, ctx.repo),
+  apply_account_aliases: (ctx) => handleApplyAccountAliases(ctx),
   enrich_status: (ctx, args) => handleEnrichStatus(ctx, args),
   enrich_update: (ctx, args) => handleEnrichUpdate(ctx, args, ctx.repo),
 

@@ -433,6 +433,58 @@ export async function handleEnrichUpdate(
   return [`Matched ${matched} rows.`, ...fieldLines].join("\n")
 }
 
+// ── apply_account_aliases ────────────────────────────────────────
+
+interface ImportAliasesFile {
+  accounts?: Record<string, string>
+}
+
+async function readAliases(ctx: ToolContext): Promise<Record<string, string>> {
+  const aliasPath = await ctx.fileAdapter.join(ctx.budgetPath, ".capy/aliases.json")
+  try {
+    const content = await ctx.fileAdapter.readFile(aliasPath)
+    const parsed = JSON.parse(content) as ImportAliasesFile
+    return parsed.accounts && typeof parsed.accounts === "object"
+      ? parsed.accounts
+      : {}
+  } catch {
+    return {}
+  }
+}
+
+/**
+ * Apply stored account aliases (`.capy/aliases.json`) to the staging CSV —
+ * the deterministic pre-step of the accounts phase. A source account with a
+ * known alias gets its `accountId` set authoritatively; `__create__` aliases
+ * leave `accountId` empty (the row resolves to a new account at merge). This
+ * is the top precedence layer — the agent's mapping turn (which only fills
+ * empty `accountId`s via `enrich_update`) cannot override what aliases set.
+ *
+ * Code-triggered, never advertised: the import orchestrator dispatches it via
+ * `runTool` at the accounts phase, mirroring `auto_enrich`.
+ */
+export async function handleApplyAccountAliases(
+  ctx: ToolContext,
+): Promise<string> {
+  const aliases = await readAliases(ctx)
+  if (Object.keys(aliases).length === 0) {
+    return "No stored aliases."
+  }
+
+  const { data, filePath } = await readImportCsv(ctx)
+  let applied = 0
+  for (const row of data) {
+    if (row.accountId || !row.sourceAccount) continue
+    const target = aliases[row.sourceAccount]
+    if (target === undefined || target === "__create__") continue
+    row.accountId = target
+    applied++
+  }
+
+  await writeImportCsv(ctx, filePath, data)
+  return `Applied ${applied} account alias${applied === 1 ? "" : "es"}.`
+}
+
 // ── auto_enrich + matchers ───────────────────────────────────────
 
 /**
@@ -504,7 +556,6 @@ export async function handleAutoEnrich(
   const activeAccounts = accounts.filter((a) => !a.archived)
 
   let categoriesMatched = 0,
-    accountsMatched = 0,
     transferTargetsMatched = 0
 
   // 1. Source category → budget category
@@ -528,24 +579,9 @@ export async function handleAutoEnrich(
     }
   }
 
-  // 2. Source account → budget account
-  const accountCache = new Map<string, string | null>()
-
-  if (activeAccounts.length > 0) {
-    for (const row of data) {
-      if (row.accountId || !row.sourceAccount) continue
-      if (!accountCache.has(row.sourceAccount)) {
-        accountCache.set(row.sourceAccount, matchAccount(row.sourceAccount, activeAccounts))
-      }
-      const match = accountCache.get(row.sourceAccount)
-      if (match) {
-        row.accountId = match
-        accountsMatched++
-      }
-    }
-  }
-
-  // 3. Transfer target account matching
+  // 2. Transfer target account matching. (Source-account → budget-account
+  // mapping is NOT done here: the accounts phase owns it — stored aliases
+  // then agent judgment, persisted to accountId before enrich runs.)
   if (activeAccounts.length > 0) {
     for (const row of data) {
       if (row.type !== "transfer" || row.targetAccountId) continue
@@ -578,7 +614,6 @@ export async function handleAutoEnrich(
   return [
     `Done. ${data.length} rows processed.`,
     `Categories matched: ${categoriesMatched} (from sourceCategory)`,
-    `Accounts matched: ${accountsMatched}`,
     `Transfer targets matched: ${transferTargetsMatched}`,
     uncategorized > 0
       ? `Still need category: ${uncategorized} rows`
@@ -637,30 +672,3 @@ function matchTransferTarget(
   return null
 }
 
-function matchAccount(
-  sourceAccount: string,
-  accounts: { id: string; name: string }[],
-): string | null {
-  const sourceLower = sourceAccount
-    .toLowerCase()
-    .replace(/[\p{Emoji_Presentation}\p{Extended_Pictographic}]/gu, "")
-    .trim()
-
-  for (const acc of accounts) {
-    const accLower = acc.name
-      .toLowerCase()
-      .replace(/[\p{Emoji_Presentation}\p{Extended_Pictographic}]/gu, "")
-      .trim()
-    if (sourceLower === accLower) return acc.id
-  }
-
-  for (const acc of accounts) {
-    const accLower = acc.name
-      .toLowerCase()
-      .replace(/[\p{Emoji_Presentation}\p{Extended_Pictographic}]/gu, "")
-      .trim()
-    if (sourceLower.includes(accLower) || accLower.includes(sourceLower)) return acc.id
-  }
-
-  return null
-}

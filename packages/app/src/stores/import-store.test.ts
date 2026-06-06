@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import type { BudgetRepository, FileAdapter } from "@capybudget/persistence";
-import { ENRICH_INSTRUCTION, IMPORT_PIPELINE } from "@capybudget/intelligence";
+import { ACCOUNTS_INSTRUCTION, ENRICH_INSTRUCTION, IMPORT_PIPELINE } from "@capybudget/intelligence";
 
 // ── Mocks ──────────────────────────────────────────────────────────
 
@@ -48,8 +48,10 @@ vi.mock("@capybudget/intelligence", async (importOriginal) => {
   };
 });
 
-const enrichStep = () =>
-  (IMPORT_PIPELINE as unknown as MutableStep[]).find((s) => s.phase === "enriching")!;
+const stepFor = (phase: string) =>
+  (IMPORT_PIPELINE as unknown as MutableStep[]).find((s) => s.phase === phase)!;
+const enrichStep = () => stepFor("enriching");
+const accountsStep = () => stepFor("accounts");
 
 // Each created session is a tracked instance: its send() calls (with the
 // emitted onEvent handler) let tests drive the stream and assert that the
@@ -129,10 +131,12 @@ describe("import-store", () => {
     callOrder.length = 0;
     sessions.length = 0;
     sessionCounter = 0;
-    // Restore the enrich pre-step to its single-tool default (a test may
-    // extend it in place to exercise multi-tool pre-steps).
+    // Restore the phase pre-steps to their single-tool defaults (a test may
+    // extend one in place to exercise multi-tool pre-steps).
     enrichStep().preStepTools.length = 0;
     enrichStep().preStepTools.push("auto_enrich");
+    accountsStep().preStepTools.length = 0;
+    accountsStep().preStepTools.push("apply_account_aliases");
   });
 
   it("starts with hasImportData false", () => {
@@ -155,8 +159,22 @@ describe("import-store", () => {
       expect(IMPORT_PIPELINE[IMPORT_PIPELINE.length - 1].phase).toBe("enriching");
     });
 
+    it("runs normalize → accounts → enrich in order", () => {
+      expect(IMPORT_PIPELINE.map((s) => s.phase)).toEqual([
+        "normalizing",
+        "accounts",
+        "enriching",
+      ]);
+    });
+
     it("kickoff phase carries no injected instruction", () => {
       expect(IMPORT_PIPELINE[0].instruction).toBeNull();
+    });
+
+    it("accounts phase injects the accounts instruction and pre-runs apply_account_aliases", () => {
+      const accounts = IMPORT_PIPELINE.find((s) => s.phase === "accounts")!;
+      expect(accounts.instruction).toBe(ACCOUNTS_INSTRUCTION);
+      expect(accounts.preStepTools).toContain("apply_account_aliases");
     });
 
     it("enrich phase injects the enrich instruction and pre-runs auto_enrich", () => {
@@ -186,8 +204,10 @@ describe("import-store", () => {
 
     it("creates exactly one session for the whole run", async () => {
       startRun();
-      // Walk normalize → enrich → done; no phase spawns a new session.
-      sessions[0].emitDone(); // normalize done → advance to enrich
+      // Walk normalize → accounts → enrich → done; no phase spawns a new session.
+      sessions[0].emitDone(); // normalize done → advance to accounts
+      await flush();
+      sessions[0].emitDone(); // accounts done → advance to enrich
       await flush();
       sessions[0].emitDone(); // enrich done → review
       await flush();
@@ -202,7 +222,7 @@ describe("import-store", () => {
       expect(sessions[0].sends[0]).toBe("normalize these files");
     });
 
-    it("transitions normalize → enriching → review in order", async () => {
+    it("transitions normalize → accounts → enriching → review in order", async () => {
       startRun();
       const seen: string[] = [useImportStore.getState().phase];
 
@@ -214,28 +234,55 @@ describe("import-store", () => {
       await flush();
       seen.push(useImportStore.getState().phase);
 
-      expect(seen).toEqual(["normalizing", "enriching", "review"]);
+      sessions[0].emitDone();
+      await flush();
+      seen.push(useImportStore.getState().phase);
+
+      expect(seen).toEqual(["normalizing", "accounts", "enriching", "review"]);
     });
 
-    it("injects the enrich instruction as a new turn into the SAME session", async () => {
+    it("injects accounts then enrich instructions as new turns into the SAME session", async () => {
       startRun();
-      sessions[0].emitDone(); // normalize done
+      sessions[0].emitDone(); // normalize done → accounts
+      await flush();
+      sessions[0].emitDone(); // accounts done → enrich
       await flush();
 
-      // Same session received a second send() — sequential injection, not a
-      // fresh session.
+      // Both phase instructions injected into the one session — sequential
+      // injection, not fresh sessions.
       expect(sessions).toHaveLength(1);
       expect(sessions[0].sends).toEqual([
         "normalize these files",
+        ACCOUNTS_INSTRUCTION,
         ENRICH_INSTRUCTION,
       ]);
     });
 
-    it("runs the auto_enrich pre-step before injecting the enrich turn", async () => {
+    it("runs the apply_account_aliases pre-step before injecting the accounts turn", async () => {
       const { repo, fileAdapter } = startRun();
       callOrder.length = 0; // ignore the kickoff send
 
-      sessions[0].emitDone(); // normalize done → enrich pre-step then inject
+      sessions[0].emitDone(); // normalize done → accounts pre-step then inject
+      await flush();
+
+      expect(mockRunTool).toHaveBeenCalledWith(
+        "apply_account_aliases",
+        {},
+        expect.objectContaining({ repo, fileAdapter, budgetPath: "/budget" }),
+      );
+      const aliasIdx = callOrder.indexOf("runTool:apply_account_aliases");
+      const sendIdx = callOrder.indexOf("send");
+      expect(aliasIdx).toBeGreaterThanOrEqual(0);
+      expect(sendIdx).toBeGreaterThan(aliasIdx);
+    });
+
+    it("runs the auto_enrich pre-step before injecting the enrich turn", async () => {
+      const { repo, fileAdapter } = startRun();
+
+      sessions[0].emitDone(); // normalize done → accounts
+      await flush();
+      callOrder.length = 0; // ignore prior sends/pre-steps
+      sessions[0].emitDone(); // accounts done → enrich pre-step then inject
       await flush();
 
       expect(mockRunTool).toHaveBeenCalledWith(
@@ -256,6 +303,8 @@ describe("import-store", () => {
       await flush();
       sessions[0].emitDone();
       await flush();
+      sessions[0].emitDone();
+      await flush();
 
       expect(useImportStore.getState().phase).toBe("review");
       expect(useImportStore.getState().hasImportData).toBe(true);
@@ -263,7 +312,9 @@ describe("import-store", () => {
 
     it("persists the enriched flag itself on run-complete (no component callback)", async () => {
       const { fileAdapter } = startRun();
-      sessions[0].emitDone(); // normalize → enrich
+      sessions[0].emitDone(); // normalize → accounts
+      await flush();
+      sessions[0].emitDone(); // accounts → enrich
       await flush();
       sessions[0].emitDone(); // enrich → review
       await flush();
@@ -279,6 +330,8 @@ describe("import-store", () => {
       await flush();
       sessions[0].emitDone();
       await flush();
+      sessions[0].emitDone();
+      await flush();
 
       expect(sessionKill).toHaveBeenCalled();
       expect(useImportStore.getState().runSession).toBeNull();
@@ -286,9 +339,9 @@ describe("import-store", () => {
 
     it("cancel resets to idle and kills the session", async () => {
       startRun();
-      sessions[0].emitDone(); // mid-run (now enriching)
+      sessions[0].emitDone(); // mid-run (now accounts)
       await flush();
-      expect(useImportStore.getState().phase).toBe("enriching");
+      expect(useImportStore.getState().phase).toBe("accounts");
 
       useImportStore.getState().cancelRun();
 
@@ -298,8 +351,9 @@ describe("import-store", () => {
       expect(sessionKill).toHaveBeenCalled();
     });
 
-    it("does not inject the enrich turn if cancelled during the pre-step", async () => {
-      // Make auto_enrich hang until we cancel, simulating a mid-pre-step cancel.
+    it("does not inject the next turn if cancelled during the pre-step", async () => {
+      // Make the accounts pre-step (apply_account_aliases) hang until we
+      // cancel, simulating a mid-pre-step cancel.
       let resolvePreStep: (v: string) => void = () => {};
       mockRunTool.mockImplementationOnce(
         () => new Promise<string>((r) => { resolvePreStep = r; }),
@@ -307,22 +361,22 @@ describe("import-store", () => {
 
       startRun();
       const sendsBefore = sessions[0].sends.length;
-      sessions[0].emitDone(); // normalize done → enrich pre-step starts (hangs)
+      sessions[0].emitDone(); // normalize done → accounts pre-step starts (hangs)
       await flush();
 
       useImportStore.getState().cancelRun(); // user cancels during pre-step
       resolvePreStep("ok"); // pre-step finishes after cancel
       await flush();
 
-      // The enrich turn must NOT have been injected.
+      // The accounts turn must NOT have been injected.
       expect(sessions[0].sends.length).toBe(sendsBefore);
       expect(useImportStore.getState().phase).toBe("idle");
     });
 
     it("stops a multi-tool pre-step at the next tool when cancelled mid-loop", async () => {
-      // A future unit gives a phase multiple deterministic pre-step tools.
-      enrichStep().preStepTools.length = 0;
-      enrichStep().preStepTools.push("pre_a", "pre_b");
+      // Give the accounts phase multiple deterministic pre-step tools.
+      accountsStep().preStepTools.length = 0;
+      accountsStep().preStepTools.push("pre_a", "pre_b");
 
       // First tool hangs until we cancel; the second must never run.
       let resolveFirst: (v: string) => void = () => {};

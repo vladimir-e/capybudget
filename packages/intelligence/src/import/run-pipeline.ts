@@ -8,6 +8,7 @@
  */
 
 import type { ImportPhase } from "@capybudget/core"
+import { ACCOUNTS_INSTRUCTION } from "../prompts/accounts"
 import { ENRICH_INSTRUCTION } from "../prompts/enrich"
 
 /** One ordered step in the import run. */
@@ -34,9 +35,19 @@ export const IMPORT_PIPELINE: readonly ImportPhaseStep[] = [
     preStepTools: [],
     instruction: null,
   },
-  // Unit 4 inserts an `accounts` step here (agent maps source accounts →
-  // Capy accounts), and Unit 2 inserts a `dedup` step after it (deterministic
-  // find + agent adjudication). Order matters: accounts before dedup.
+  {
+    phase: "accounts",
+    // `apply_account_aliases` is the deterministic pre-step — it sets
+    // `accountId` from stored `.capy/aliases.json` maps (the authoritative
+    // top precedence layer). The agent turn then maps the remaining unmapped
+    // source accounts via `enrich_update` (which only fills empties), so
+    // aliases always win. Code-triggered: not advertised, dispatched here.
+    preStepTools: ["apply_account_aliases"],
+    instruction: ACCOUNTS_INSTRUCTION,
+  },
+  // Unit 2 inserts a `dedup` step here (deterministic find + agent
+  // adjudication). Order matters: accounts before dedup, since dedup's
+  // matching rules key off the resolved account.
   {
     phase: "enriching",
     // `auto_enrich` is the deterministic pre-enrich pass — it fuzzy-maps

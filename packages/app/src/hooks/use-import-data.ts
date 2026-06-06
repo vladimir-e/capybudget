@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAccounts, useCategories, useTransactions } from "@/hooks/use-budget-data";
 import { useImportRepository } from "@/hooks/use-import-repository";
-import { detectDuplicates, matchAccountsByName } from "@capybudget/core";
+import { detectDuplicates } from "@capybudget/core";
 import type { ImportTransaction, ImportAliases, DuplicateMatch } from "@capybudget/core";
 import type { EntityMapping } from "@/components/import/import-mapping";
 
@@ -76,7 +76,16 @@ export function useImportData(budgetPath: string) {
     return () => { cancelled = true; };
   }, [loadCsv]);
 
-  // ── Category validation + alias overlay ──────────────────────
+  // ── Category validation + account-mapping overlay ────────────
+  //
+  // The run already resolved account mapping onto the staging CSV: the
+  // accounts phase applied stored aliases (top precedence) then the agent
+  // mapped the rest, both persisting `accountId`. The preview just renders
+  // that — no name-match recompute. We read `accountId` off the rows to seed
+  // the dropdowns, then overlay the alias file (which carries `__create__`
+  // sentinels that never land as an `accountId`, and stays the authoritative
+  // top layer). The manual-map path (`handleAccountMappingChange`) is the
+  // user's final override and writes new aliases.
   const aliasesAppliedRef = useRef(false);
   useEffect(() => {
     if (aliasesAppliedRef.current || transactions.length === 0 || accounts.length === 0 || categories.length === 0) return;
@@ -86,21 +95,17 @@ export function useImportData(budgetPath: string) {
       const accountIds = new Set(accounts.map((a) => a.id));
       const categoryIds = new Set(categories.map((c) => c.id));
 
-      // 1. Derive initial account mapping from AI-set accountId values
-      const aiMapping: EntityMapping = {};
+      // 1. Seed the dropdowns from the persisted accountId on each row.
+      const persistedMapping: EntityMapping = {};
       for (const txn of transactions) {
-        if (txn.sourceAccount && !aiMapping[txn.sourceAccount] && txn.accountId) {
+        if (txn.sourceAccount && !persistedMapping[txn.sourceAccount] && txn.accountId) {
           if (accountIds.has(txn.accountId)) {
-            aiMapping[txn.sourceAccount] = txn.accountId;
+            persistedMapping[txn.sourceAccount] = txn.accountId;
           }
         }
       }
 
-      // 2. Direct name match — sourceAccount against existing account names
-      const sourceAccountNames = [...new Set(transactions.map((t) => t.sourceAccount).filter(Boolean))];
-      const nameMapping: EntityMapping = matchAccountsByName(sourceAccountNames, accounts);
-
-      // 3. Validate categoryIds — clear invalid ones
+      // 2. Validate categoryIds — clear invalid ones
       let needsCategoryFix = false;
       const validated = transactions.map((t) => {
         if (t.categoryId && !categoryIds.has(t.categoryId)) {
@@ -114,7 +119,9 @@ export function useImportData(budgetPath: string) {
         scheduleWriteBack();
       }
 
-      // 4. Overlay aliases (user's past mappings override AI + name match)
+      // 3. Overlay the alias file — the authoritative top layer. It also
+      // carries `__create__` sentinels, which the row's `accountId` can't
+      // express (a to-be-created account has no UUID yet).
       const aliasMapping: EntityMapping = {};
       try {
         const aliases: ImportAliases = await repository.readAliases();
@@ -131,8 +138,8 @@ export function useImportData(budgetPath: string) {
         // No aliases file
       }
 
-      // Merge: aliases > name match > AI
-      const merged = { ...aiMapping, ...nameMapping, ...aliasMapping };
+      // Merge: aliases > persisted accountId (aliases-then-agent from the run)
+      const merged = { ...persistedMapping, ...aliasMapping };
       if (Object.keys(merged).length > 0) {
         setAccountMapping(merged);
       }
@@ -153,8 +160,21 @@ export function useImportData(budgetPath: string) {
   );
 
   // ── Account mapping change → batch-update accountId ──────────
+  //
+  // The manual map is the user's final override AND the only alias-write
+  // path: a source account the user maps here is recorded in
+  // `.capy/aliases.json` so the next import pre-selects it (the accounts
+  // phase's alias pre-step). The agent's run-time mapping persists only to
+  // staging `accountId` — it never reaches the alias file. We diff against
+  // the prior mapping and persist just the entries the user actually
+  // changed to an existing account (`__create__` resolves to a UUID at
+  // merge, so that alias is written there).
+  const accountMappingRef = useRef(accountMapping);
+  useEffect(() => { accountMappingRef.current = accountMapping; }, [accountMapping]);
+
   const handleAccountMappingChange = useCallback(
     (newMapping: EntityMapping) => {
+      const prevMapping = accountMappingRef.current;
       setAccountMapping(newMapping);
       setTransactions((prev) =>
         prev.map((t) => {
@@ -166,8 +186,27 @@ export function useImportData(budgetPath: string) {
         }),
       );
       scheduleWriteBack();
+
+      const changed: Record<string, string> = {};
+      for (const [source, target] of Object.entries(newMapping)) {
+        if (target && target !== "__create__" && prevMapping[source] !== target) {
+          changed[source] = target;
+        }
+      }
+      if (Object.keys(changed).length > 0) {
+        void (async () => {
+          try {
+            const aliases = await repository.readAliases();
+            await repository.writeAliases({
+              accounts: { ...aliases.accounts, ...changed },
+            });
+          } catch (err) {
+            console.error("Failed to persist account aliases:", err);
+          }
+        })();
+      }
     },
-    [scheduleWriteBack],
+    [scheduleWriteBack, repository],
   );
 
   // ── Flush before external operations ─────────────────────────

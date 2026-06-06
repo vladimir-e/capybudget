@@ -169,15 +169,19 @@ export function prepareMerge(
   const nextTransactions = [...prevTransactions, ...newTxns];
 
   // ── Build updated aliases ─────────────────────────────────
+  // Aliases for maps to existing accounts are written eagerly by the
+  // preview's manual-map path (the user's deliberate choice). Merge only
+  // records the aliases it alone can resolve: a `__create__` source whose
+  // budget UUID is minted right here. This keeps the agent's run-time
+  // mapping (seeded onto the dropdowns, never manually touched) out of the
+  // alias file — the agent persists `accountId`, not aliases.
   const aliases: ImportAliases = {
     accounts: { ...existingAliases.accounts },
   };
 
-  for (const [source, target] of Object.entries(accountMapping)) {
-    if (target === "__create__" && createdAccountIds[source]) {
+  for (const source of sourcesToCreate) {
+    if (createdAccountIds[source]) {
       aliases.accounts[source] = createdAccountIds[source];
-    } else if (target && target !== "__create__") {
-      aliases.accounts[source] = target;
     }
   }
 

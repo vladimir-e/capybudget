@@ -285,7 +285,10 @@ describe("prepareMerge", () => {
     expect(result.aliases.accounts["New Bank"]).toBe(createdId);
   });
 
-  it("updates aliases with mapped account IDs", () => {
+  it("does not write aliases for maps to existing accounts (manual path owns those)", () => {
+    // Mapping a source to an existing account is the preview's manual-map
+    // job — it writes the alias eagerly. Merge must not re-derive it from the
+    // mapping, or the agent's seeded mapping would leak into the alias file.
     const txn = makeImportTxn({ sourceAccount: "Chase" });
 
     const result = prepareMerge(
@@ -294,21 +297,21 @@ describe("prepareMerge", () => {
         selectedIds: new Set([txn.id]),
         accountMapping: { "Chase": "acct-existing" },
       },
-      [],
+      [makeAccount({ id: "acct-existing", name: "Chase" })],
       [],
     );
 
-    expect(result.aliases.accounts["Chase"]).toBe("acct-existing");
+    expect(result.aliases.accounts["Chase"]).toBeUndefined();
   });
 
   it("preserves existing aliases", () => {
-    const txn = makeImportTxn({ sourceAccount: "Chase" });
+    const txn = makeImportTxn({ sourceAccount: "New Bank" });
 
     const result = prepareMerge(
       {
         transactions: [txn],
         selectedIds: new Set([txn.id]),
-        accountMapping: { "Chase": "acct-1" },
+        accountMapping: { "New Bank": "__create__" },
       },
       [],
       [],
@@ -316,7 +319,9 @@ describe("prepareMerge", () => {
     );
 
     expect(result.aliases.accounts["Old Bank"]).toBe("acct-old");
-    expect(result.aliases.accounts["Chase"]).toBe("acct-1");
+    expect(result.aliases.accounts["New Bank"]).toBe(
+      result.createdAccountIds["New Bank"],
+    );
   });
 
   it("clears empty categoryId and merchant", () => {

@@ -61,7 +61,16 @@ export const CSV_TOOL_DEFS = [
   {
     name: "auto_enrich",
     description:
-      "Code-based enrichment: maps sourceCategory → categories, sourceAccount → accounts, and resolves transfer targets. Leaves merchant empty for you to clean.",
+      "Code-based enrichment: maps sourceCategory → categories and resolves transfer targets. Account mapping is handled separately by the accounts phase. Leaves merchant empty for you to clean.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {},
+    },
+  },
+  {
+    name: "apply_account_aliases",
+    description:
+      "Apply stored account aliases (.capy/aliases.json) to the staging CSV: sets accountId on rows whose sourceAccount has a known alias. The authoritative top precedence layer for account mapping.",
     inputSchema: {
       type: "object" as const,
       properties: {},

@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest"
 import { getToolDefinitions } from "./index"
 import { SYSTEM_PROMPT } from "../../prompts/chat"
 import { IMPORT_SYSTEM_PROMPT } from "../../prompts/import"
+import { ACCOUNTS_INSTRUCTION } from "../../prompts/accounts"
 import { ENRICH_SYSTEM_PROMPT } from "../../prompts/enrich"
 
 const CHAT_TOOLS = [
@@ -44,16 +45,18 @@ const IMPORT_TOOLS = [
 ]
 
 describe("getToolDefinitions", () => {
-  it("returns the full 29-tool surface with no mode (MCP server is ungated)", () => {
+  it("returns the full 30-tool surface with no mode (MCP server is ungated)", () => {
     const all = getToolDefinitions()
-    expect(all).toHaveLength(29)
+    expect(all).toHaveLength(30)
   })
 
-  it("exposes the code-triggered auto_enrich on the MCP surface but no advertised mode", () => {
-    const all = getToolDefinitions().map((t) => t.name)
-    expect(all).toContain("auto_enrich")
-    expect(getToolDefinitions("chat").map((t) => t.name)).not.toContain("auto_enrich")
-    expect(getToolDefinitions("import").map((t) => t.name)).not.toContain("auto_enrich")
+  it("exposes code-triggered tools on the MCP surface but no advertised mode", () => {
+    for (const tool of ["auto_enrich", "apply_account_aliases"]) {
+      const all = getToolDefinitions().map((t) => t.name)
+      expect(all).toContain(tool)
+      expect(getToolDefinitions("chat").map((t) => t.name)).not.toContain(tool)
+      expect(getToolDefinitions("import").map((t) => t.name)).not.toContain(tool)
+    }
   })
 
   it("gates chat mode to its 22 tools", () => {
@@ -143,7 +146,9 @@ describe("prompt/gating coherence", () => {
 
   it("every tool the import prompts cite is in the import surface", () => {
     const imp = new Set(getToolDefinitions("import").map((t) => t.name))
-    const advertised = advertisedTools(`${IMPORT_SYSTEM_PROMPT}\n${ENRICH_SYSTEM_PROMPT}`)
+    const advertised = advertisedTools(
+      `${IMPORT_SYSTEM_PROMPT}\n${ACCOUNTS_INSTRUCTION}\n${ENRICH_SYSTEM_PROMPT}`,
+    )
     expect(advertised.length).toBeGreaterThan(0)
     for (const name of advertised) {
       expect(imp, `import prompt cites \`${name}\` but it is gated out of import`).toContain(name)
