@@ -232,6 +232,28 @@ describe("handleEnrichStatus", () => {
     expect(result).not.toContain("Pay,")
   })
 
+  it("excludes duplicate-marked rows from the counts and the sample", async () => {
+    // imp-2 is a duplicate with an empty category — it must not be counted as
+    // needing work, nor appear in the work sample (it won't be merged and was
+    // already dup-enriched).
+    fs.files.set(
+      `${IMPORT_DIR}/transactions.csv`,
+      [
+        "id,date,description,amount,type,sourceAccount,sourceCategory,memo,merchant,accountId,targetAccountId,categoryId,categoryConfidence,duplicate,duplicateOf,duplicateConfidence",
+        "imp-1,2024-01-01,Coffee,-450,expense,,,,,,,,,,,",
+        "imp-2,2024-01-02,DUPLICATE ROW,-999,expense,,,,,,,,,true,tx-1,high",
+      ].join("\n"),
+    )
+
+    const result = await handleEnrichStatus(ctx, { sampleSize: 20 })
+    // Only the one non-duplicate row is in scope.
+    expect(result).toContain("Total: 1 rows")
+    expect(result).toContain("Still need category: 1")
+    // The duplicate row is absent from the sample.
+    expect(result).toContain("Coffee")
+    expect(result).not.toContain("DUPLICATE ROW")
+  })
+
   it("filters the sample by sampleField (targetAccountId for unmatched transfers)", async () => {
     fs.files.set(
       `${IMPORT_DIR}/transactions.csv`,
@@ -288,6 +310,40 @@ describe("handleEnrichUpdate", () => {
     const csv = fs.files.get(`${IMPORT_DIR}/transactions.csv`)!
     expect(csv).toMatch(/STARBUCKS.*cat-coffee/)
     expect(csv).not.toMatch(/WHOLE FOODS.*cat-coffee/)
+  })
+
+  it("never matches duplicate-marked rows", async () => {
+    // imp-1 is a duplicate — excluded from the merge and already dup-enriched.
+    // Even when it satisfies the WHERE, it must not be matched or touched.
+    fs.files.set(
+      `${IMPORT_DIR}/transactions.csv`,
+      [
+        "id,date,description,amount,type,sourceAccount,sourceCategory,memo,merchant,accountId,targetAccountId,categoryId,categoryConfidence,duplicate,duplicateOf,duplicateConfidence",
+        "imp-1,2024-01-01,STARBUCKS COFFEE,-450,expense,,,,,,,,,true,tx-1,high",
+        "imp-2,2024-01-02,STARBUCKS COFFEE,-450,expense,,,,,,,,,,,",
+      ].join("\n"),
+    )
+
+    const repo = makeRepo({
+      categories: [
+        { id: "cat-coffee", name: "Dining Out", group: "Daily Living", archived: false, sortOrder: 1, assigned: null },
+      ],
+    })
+    const result = await handleEnrichUpdate(
+      { ...ctx, repo },
+      {
+        set: { categoryId: "cat-coffee" },
+        where: { field: "description", contains: "STARBUCKS" },
+      },
+      repo,
+    )
+
+    // Only the non-duplicate row counts toward the match — the duplicate is
+    // invisible to enrich.
+    expect(result).toContain("Matched 1 rows.")
+    const csv = fs.files.get(`${IMPORT_DIR}/transactions.csv`)!
+    const imp1 = csv.split("\n").find((l) => l.startsWith("imp-1"))!
+    expect(imp1).not.toContain("cat-coffee")
   })
 
   it("returns per-field counts including skipped-already-populated fields", async () => {

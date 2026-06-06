@@ -263,7 +263,14 @@ export async function handleEnrichStatus(
   ctx: ToolContext,
   args: Record<string, unknown> = {},
 ): Promise<string> {
-  const { data } = await readImportCsv(ctx)
+  const { data: allRows } = await readImportCsv(ctx)
+
+  // Duplicate-marked rows are excluded from the merge and were already
+  // dup-enriched (merchant/category copied from the matched original), so
+  // enrich has nothing to do with them. Drop them from every count and the
+  // sample — counting them would waste the model's attention on rows that
+  // won't land in the budget.
+  const data = allRows.filter((row) => row.duplicate !== "true")
 
   let withMerchant = 0,
     withCategory = 0,
@@ -407,6 +414,11 @@ export async function handleEnrichUpdate(
   let matched = 0
 
   for (const row of data) {
+    // Duplicate-marked rows are excluded from the merge and already
+    // dup-enriched — never touch them, and never count them toward the
+    // model's set/skip signal (it should only see mergeable rows).
+    if (row.duplicate === "true") continue
+
     const matches = conditions.every((cond) => {
       const value = (row[cond.field] || "").toLowerCase()
       if (cond.equals !== undefined) return value === cond.equals.toLowerCase()

@@ -27,7 +27,8 @@ export interface ImportAliases {
 /**
  * The import run's phase machine (see INTELLIGENCE.md § Import Sessions):
  *   idle → normalizing → accounts → dedup → enriching → review
- * `dedup` is an inert pass-through until its unit lands; `accounts` is live.
+ * Every phase is live. The dedup phase can short-circuit to `review` without
+ * `enriching` when every staging row is a duplicate (the orchestrator's halt).
  */
 export type ImportPhase =
   | "idle"

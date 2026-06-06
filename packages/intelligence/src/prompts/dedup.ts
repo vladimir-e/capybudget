@@ -13,13 +13,20 @@
  */
 
 /**
- * Terminal signal the model emits when every staging row is a duplicate — the
- * import has nothing new to add. The store/preview can match this exact phrase
- * to render it as a result rather than a log line (Unit 5). Kept as a single
- * recognizable token so the seam is clean.
+ * Canonical "nothing to import" phrase for the all-duplicate halt. The
+ * orchestrator — not the model — decides the halt and sets this message
+ * (`buildNothingToImportMessage`), so the terminal text is a reliable
+ * code-set value. Unit 5 renders the resulting `runOutcome` prominently;
+ * the constant is the shared phrase, not a string the model is asked to emit.
  */
 export const NOTHING_TO_IMPORT_SIGNAL =
   "already in your budget — nothing to import"
+
+/** The orchestrator's terminal message for the all-duplicate halt. */
+export function buildNothingToImportMessage(count: number): string {
+  const noun = count === 1 ? "transaction is" : "transactions are"
+  return `All ${count} ${noun} ${NOTHING_TO_IMPORT_SIGNAL}.`
+}
 
 export const DEDUP_INSTRUCTION = `## Your task right now: review duplicates
 
@@ -33,9 +40,7 @@ Some imported rows may already exist in the budget (a re-downloaded statement, a
 
 Skip candidates that are plausibly distinct. A false negative (a real duplicate slips through) is a row the user unselects in the preview; a false positive (a distinct transaction dimmed) is money silently dropped from the import. When unsure, don't mark.
 
-## If everything is a duplicate
-
-If \`find_duplicates\` reports that **every** staging row is already marked (the whole import overlaps what's in the budget), stop here. Don't proceed to enrich — there's nothing new to import. Report exactly: \`"All N transactions are ${NOTHING_TO_IMPORT_SIGNAL}."\` and end your turn.
+Then end your turn. The orchestrator advances the run — it checks the staging rows after you finish and either moves on to enrich or, if every row is now a duplicate, stops with the "nothing to import" result. You don't decide that or report it; just mark the genuine duplicates and stop.
 
 ## Rules
 

@@ -4,6 +4,8 @@ import {
   runTool,
   buildContext,
   markImportEnriched,
+  readStagingDuplicateTally,
+  buildNothingToImportMessage,
   IMPORT_PIPELINE,
   type BudgetSnapshot,
   type CapySession,
@@ -40,6 +42,20 @@ interface RunContext {
   fileAdapter?: FileAdapter;
 }
 
+/**
+ * The run's terminal result, set by the orchestrator on completion. The minimal
+ * seam between the orchestrator (which decides the outcome) and Unit 5 (which
+ * renders terminal moments prominently):
+ *   - `ready` — the run finished with rows to merge (the normal landing).
+ *   - `nothing-to-import` — the dedup halt: every staging row was a duplicate,
+ *     so enrich was skipped. `message` is the orchestrator-built terminal text.
+ * `message` is always code-set, never model prose.
+ */
+export interface RunOutcome {
+  kind: "ready" | "nothing-to-import";
+  message?: string;
+}
+
 interface ImportStore {
   phase: ImportPhase;
   setPhase: (phase: ImportPhase) => void;
@@ -54,6 +70,12 @@ interface ImportStore {
   runMessages: ChatMessage[];
   /** Latest status line surfaced from the run (last non-empty text). */
   statusText: string;
+  /**
+   * The run's terminal result, set on completion (null while in-flight). Unit 5
+   * reads this to render the terminal moment — the "nothing to import" halt or
+   * the merge-ready landing — as a result rather than a log line.
+   */
+  runOutcome: RunOutcome | null;
 
   startRun: (opts: {
     budgetPath: string;
@@ -169,6 +191,7 @@ export const useImportStore = create<ImportStore>((set, get) => ({
   runSession: null,
   runMessages: [],
   statusText: "",
+  runOutcome: null,
 
   startRun: ({
     budgetPath,
@@ -234,6 +257,7 @@ export const useImportStore = create<ImportStore>((set, get) => ({
       runSession: session,
       runMessages: [userMsg, assistantMsg],
       statusText: "",
+      runOutcome: null,
       phase: "normalizing",
       hasImportData: false,
     });
@@ -299,6 +323,7 @@ export const useImportStore = create<ImportStore>((set, get) => ({
       runSession: session,
       runMessages: [assistantMsg],
       statusText: "",
+      runOutcome: null,
       phase: IMPORT_PIPELINE[FIRST_POST_NORMALIZE_INDEX].phase,
       hasImportData: false,
     });
@@ -329,6 +354,7 @@ export const useImportStore = create<ImportStore>((set, get) => ({
       runSession: null,
       runMessages: [],
       statusText: "",
+      runOutcome: null,
       phase: "idle",
       hasImportData: false,
     });
@@ -344,6 +370,7 @@ export const useImportStore = create<ImportStore>((set, get) => ({
       runSession: null,
       runMessages: [],
       statusText: "",
+      runOutcome: null,
       reenrichSession: null,
       isEnriching: false,
       enrichStatusText: "",
@@ -441,6 +468,13 @@ export const useImportStore = create<ImportStore>((set, get) => ({
  * next phase, run its deterministic pre-step then inject its instruction as
  * a new user turn into the same session. If the pipeline is exhausted, the
  * run lands on `review` (merge-ready).
+ *
+ * One deterministic detour: when the phase that just finished is `dedup`, the
+ * orchestrator checks the staging CSV before advancing. If every row is now a
+ * duplicate (high-confidence auto-marks + low-confidence agent marks all
+ * persisted), there's nothing to enrich and nothing to merge — skip enrich and
+ * complete the run with a `nothing-to-import` outcome. The halt is decided here
+ * in code, not by the model's free text.
  */
 async function advanceRun(
   set: (partial: Partial<ImportStore>) => void,
@@ -450,8 +484,47 @@ async function advanceRun(
   // No live run (e.g. a cancel already tore it down) — nothing to advance.
   if (!session) return;
 
-  const nextIdx = pipelineIndexOf(get().phase) + 1;
+  const finishedPhase = get().phase;
+
+  if (finishedPhase === "dedup") {
+    const haltOutcome = await checkNothingToImport();
+    // A cancel during the staging read already tore the run down.
+    if (get().runSession !== session) return;
+    if (haltOutcome) {
+      await completeRun(session, set, get, haltOutcome);
+      return;
+    }
+  }
+
+  const nextIdx = pipelineIndexOf(finishedPhase) + 1;
   await driveStep(nextIdx, session, set, get);
+}
+
+/**
+ * The dedup halt decision: read the staging CSV and, if every row is a
+ * duplicate, return the terminal `nothing-to-import` outcome (with the
+ * count-derived message). Returns null when there's still work to do (some
+ * rows are new) or when the staging state can't be read — in which case the
+ * run advances to enrich as usual.
+ */
+async function checkNothingToImport(): Promise<RunOutcome | null> {
+  const ctx = runContext;
+  if (!ctx?.fileAdapter) return null;
+  try {
+    const { total, duplicateCount } = await readStagingDuplicateTally(
+      ctx.fileAdapter,
+      ctx.budgetPath,
+    );
+    if (total > 0 && duplicateCount === total) {
+      return {
+        kind: "nothing-to-import",
+        message: buildNothingToImportMessage(total),
+      };
+    }
+  } catch (err) {
+    console.warn("[import-store] halt check failed:", err);
+  }
+  return null;
 }
 
 /**
@@ -521,9 +594,12 @@ async function driveStep(
 }
 
 /**
- * The pipeline is exhausted — land on merge-ready review. The store owns the
- * run-completion side-effects: persist the `enriched` flag (so a reconnect
- * knows the run finished), then tear down the run session. The preview's
+ * The run is finished — land on merge-ready review. Reached two ways: the
+ * pipeline ran to exhaustion (`ready`), or the dedup halt fired (the
+ * `nothing-to-import` outcome, enrich skipped). Either way the store owns the
+ * same completion side-effects: persist the `enriched` flag (so a reconnect
+ * knows the run finished — the all-duplicate import has no enrich work left, so
+ * marking it enriched is correct), then tear down the run session. The preview's
  * "Enrich" button spins up its own session, so the run session is dead weight
  * (and a live subprocess on the CLI adapter) past this point.
  */
@@ -531,8 +607,9 @@ async function completeRun(
   session: CapySession,
   set: (partial: Partial<ImportStore>) => void,
   get: () => ImportStore,
+  outcome: RunOutcome = { kind: "ready" },
 ): Promise<void> {
-  console.debug("[import-store] run complete → review");
+  console.debug(`[import-store] run complete (${outcome.kind}) → review`);
   lastRunTextContent = "";
 
   const ctx = runContext;
@@ -550,7 +627,13 @@ async function completeRun(
 
   session.kill();
   runContext = null;
-  set({ runSession: null, phase: "review", hasImportData: true, statusText: "" });
+  set({
+    runSession: null,
+    phase: "review",
+    hasImportData: true,
+    statusText: "",
+    runOutcome: outcome,
+  });
 }
 
 // ── Stream event handler ────────────────────────────────────────

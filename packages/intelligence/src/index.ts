@@ -56,6 +56,7 @@ export {
   ACCOUNTS_INSTRUCTION,
   DEDUP_INSTRUCTION,
   NOTHING_TO_IMPORT_SIGNAL,
+  buildNothingToImportMessage,
   ENRICH_SYSTEM_PROMPT,
   ENRICH_INSTRUCTION,
   APP_KNOWLEDGE,
@@ -67,7 +68,12 @@ export type { BudgetSnapshot } from "./prompts"
 // Import run pipeline (the phase machine that drives the single-session run)
 export { IMPORT_PIPELINE } from "./import/run-pipeline"
 export type { ImportPhaseStep } from "./import/run-pipeline"
-export { markImportEnriched, readImportEnriched } from "./import/import-state"
+export {
+  markImportEnriched,
+  readImportEnriched,
+  readStagingDuplicateTally,
+} from "./import/import-state"
+export type { StagingDuplicateTally } from "./import/import-state"
 
 // Render-tool → ContentBlock map (shared by every adapter)
 export { buildRenderToolMap, RENDER_FOLLOWUPS_TOOL_NAME } from "./render-map"

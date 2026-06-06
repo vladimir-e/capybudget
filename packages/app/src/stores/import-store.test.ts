@@ -21,6 +21,13 @@ const mockMarkImportEnriched = vi.fn<
   (fileAdapter: unknown, budgetPath: string) => Promise<void>
 >();
 
+const mockReadStagingDuplicateTally = vi.fn<
+  (
+    fileAdapter: unknown,
+    budgetPath: string,
+  ) => Promise<{ total: number; duplicateCount: number }>
+>();
+
 // The store reads IMPORT_PIPELINE at call time. The mock returns a mutable deep
 // clone (the real one is frozen) so the multi-tool-cancel test can extend the
 // enrich pre-step in place; the imported `IMPORT_PIPELINE` IS that array, and
@@ -49,6 +56,10 @@ vi.mock("@capybudget/intelligence", async (importOriginal) => {
     markImportEnriched: (fileAdapter: unknown, budgetPath: string) => {
       callOrder.push("markImportEnriched");
       return mockMarkImportEnriched(fileAdapter, budgetPath);
+    },
+    readStagingDuplicateTally: (fileAdapter: unknown, budgetPath: string) => {
+      callOrder.push("readStagingDuplicateTally");
+      return mockReadStagingDuplicateTally(fileAdapter, budgetPath);
     },
   };
 });
@@ -122,6 +133,7 @@ describe("import-store", () => {
       runSession: null,
       runMessages: [],
       statusText: "",
+      runOutcome: null,
       reenrichSession: null,
       isEnriching: false,
       enrichStatusText: "",
@@ -130,6 +142,13 @@ describe("import-store", () => {
     mockRunTool.mockResolvedValue("ok");
     mockMarkImportEnriched.mockReset();
     mockMarkImportEnriched.mockResolvedValue();
+    mockReadStagingDuplicateTally.mockReset();
+    // Default: a partial import (some new rows) — the run advances to enrich,
+    // matching the happy-path tests. The halt tests override this per-case.
+    mockReadStagingDuplicateTally.mockResolvedValue({
+      total: 10,
+      duplicateCount: 3,
+    });
     sessionSend.mockReset();
     sessionSend.mockResolvedValue();
     sessionKill.mockReset();
@@ -361,6 +380,8 @@ describe("import-store", () => {
 
       expect(useImportStore.getState().phase).toBe("review");
       expect(useImportStore.getState().hasImportData).toBe(true);
+      // A partial import (the default tally) lands on the `ready` outcome.
+      expect(useImportStore.getState().runOutcome).toEqual({ kind: "ready" });
     });
 
     it("persists the enriched flag itself on run-complete (no component callback)", async () => {
@@ -439,6 +460,149 @@ describe("import-store", () => {
       expect(toolCalls).toContain("runTool:pre_a");
       expect(toolCalls).not.toContain("runTool:pre_b");
       expect(useImportStore.getState().phase).toBe("idle");
+    });
+  });
+
+  // ── Dedup halt: all-duplicate import skips enrich ─────────────────
+  // The deterministic halt is the regression anchor: after the dedup turn ends,
+  // the orchestrator reads the staging tally; if every row is a duplicate it
+  // skips the enrich phase entirely and completes with a `nothing-to-import`
+  // outcome. Pinned hard — the bug this fixes was the run always advancing.
+
+  describe("dedup halt (all-duplicate import)", () => {
+    const startRun = () => {
+      const repo = {} as BudgetRepository;
+      const fileAdapter = {} as FileAdapter;
+      useImportStore.getState().startRun({
+        budgetPath: "/budget",
+        mcpServerPath: "/mcp",
+        systemPrompt: "you are capy",
+        initialMessage: "normalize these files",
+        sourceFilenames: ["statement.csv"],
+        repo,
+        fileAdapter,
+      });
+      return { repo, fileAdapter };
+    };
+
+    // Walk normalize → accounts → dedup, then end the dedup turn. The halt
+    // decision runs on that final `done`.
+    const driveThroughDedup = async () => {
+      sessions[0].emitDone(); // normalize → accounts
+      await flush();
+      sessions[0].emitDone(); // accounts → dedup
+      await flush();
+      sessions[0].emitDone(); // dedup turn ends → halt check
+      await flush();
+    };
+
+    it("skips enrich and completes with a nothing-to-import outcome when every row is a duplicate", async () => {
+      mockReadStagingDuplicateTally.mockResolvedValue({
+        total: 23,
+        duplicateCount: 23,
+      });
+
+      startRun();
+      const sendsBeforeDedupDone = () => sessions[0].sends.length;
+
+      sessions[0].emitDone(); // normalize → accounts
+      await flush();
+      sessions[0].emitDone(); // accounts → dedup
+      await flush();
+      const sendsAfterDedupInject = sendsBeforeDedupDone();
+      sessions[0].emitDone(); // dedup turn ends → halt fires
+      await flush();
+
+      const state = useImportStore.getState();
+      // Completed terminally without an enrich phase.
+      expect(state.phase).toBe("review");
+      expect(state.runOutcome).toEqual({
+        kind: "nothing-to-import",
+        message: "All 23 transactions are already in your budget — nothing to import.",
+      });
+      // No enrich instruction injected — the run never advanced past dedup.
+      expect(sessions[0].sends).not.toContain(ENRICH_INSTRUCTION);
+      expect(sessions[0].sends.length).toBe(sendsAfterDedupInject);
+      // No enrich pre-step (auto_enrich) ran.
+      expect(callOrder).not.toContain("runTool:auto_enrich");
+    });
+
+    it("checks the staging tally with the run's file adapter", async () => {
+      mockReadStagingDuplicateTally.mockResolvedValue({
+        total: 5,
+        duplicateCount: 5,
+      });
+      const { fileAdapter } = startRun();
+      await driveThroughDedup();
+
+      expect(mockReadStagingDuplicateTally).toHaveBeenCalledWith(
+        fileAdapter,
+        "/budget",
+      );
+    });
+
+    it("still persists the enriched flag and kills the session on a halt", async () => {
+      mockReadStagingDuplicateTally.mockResolvedValue({
+        total: 4,
+        duplicateCount: 4,
+      });
+      const { fileAdapter } = startRun();
+      await driveThroughDedup();
+
+      expect(mockMarkImportEnriched).toHaveBeenCalledTimes(1);
+      expect(mockMarkImportEnriched).toHaveBeenCalledWith(fileAdapter, "/budget");
+      expect(sessionKill).toHaveBeenCalled();
+      expect(useImportStore.getState().runSession).toBeNull();
+    });
+
+    it("proceeds to enrich (ready outcome) when only some rows are duplicates", async () => {
+      mockReadStagingDuplicateTally.mockResolvedValue({
+        total: 50,
+        duplicateCount: 3,
+      });
+
+      startRun();
+      await driveThroughDedup();
+
+      // Partial import: dedup advanced to enrich, the run is still in-flight.
+      expect(useImportStore.getState().phase).toBe("enriching");
+      expect(sessions[0].sends).toContain(ENRICH_INSTRUCTION);
+      expect(callOrder).toContain("runTool:auto_enrich");
+
+      // Finish the enrich turn → ready outcome.
+      sessions[0].emitDone();
+      await flush();
+      expect(useImportStore.getState().phase).toBe("review");
+      expect(useImportStore.getState().runOutcome).toEqual({ kind: "ready" });
+    });
+
+    it("does not halt on an empty staging file (total 0)", async () => {
+      mockReadStagingDuplicateTally.mockResolvedValue({
+        total: 0,
+        duplicateCount: 0,
+      });
+
+      startRun();
+      await driveThroughDedup();
+
+      // No rows at all is not a "nothing to import" halt — proceed to enrich.
+      expect(useImportStore.getState().phase).toBe("enriching");
+      expect(sessions[0].sends).toContain(ENRICH_INSTRUCTION);
+    });
+
+    it("uses singular phrasing for a single-row all-duplicate import", async () => {
+      mockReadStagingDuplicateTally.mockResolvedValue({
+        total: 1,
+        duplicateCount: 1,
+      });
+
+      startRun();
+      await driveThroughDedup();
+
+      expect(useImportStore.getState().runOutcome).toEqual({
+        kind: "nothing-to-import",
+        message: "All 1 transaction is already in your budget — nothing to import.",
+      });
     });
   });
 
