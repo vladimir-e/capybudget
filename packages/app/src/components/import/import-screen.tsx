@@ -370,7 +370,24 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
   }
 
   return (
-    <div className="flex h-full flex-col">
+    <div
+      className="relative flex h-full flex-col"
+      onDragEnter={showDropZone ? handleDragEnter : undefined}
+      onDragLeave={showDropZone ? handleDragLeave : undefined}
+      onDragOver={showDropZone ? handleDragOver : undefined}
+      onDrop={showDropZone ? handleDrop : undefined}
+    >
+      {/* Full-screen drop overlay — the whole import pane is a drop target
+          while in a drop-zone view state. */}
+      {showDropZone && isDragging && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-brand/5 backdrop-blur-sm">
+          <div className="absolute inset-4 flex flex-col items-center justify-center gap-3 rounded-3xl border-2 border-dashed border-brand/50 text-brand">
+            <FileUp className="h-10 w-10" />
+            <p className="text-lg font-semibold">Drop files to import</p>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div className="border-b bg-gradient-to-b from-brand-subtle/40 to-transparent px-6 py-5">
         <div className="flex items-center gap-3">
@@ -404,11 +421,6 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
               onOpenSettings={() => navigate({ to: "/budget/settings", search: { path: budgetPath, name: budgetName } })}
               fileInputRef={fileInputRef}
               onFileSelect={handleFileSelect}
-              isDragging={isDragging}
-              onDragEnter={handleDragEnter}
-              onDragLeave={handleDragLeave}
-              onDragOver={handleDragOver}
-              onDrop={handleDrop}
               onBrowse={() => fileInputRef.current?.click()}
               sourceFiles={sourceFiles}
               uploadingFiles={uploadingFiles}

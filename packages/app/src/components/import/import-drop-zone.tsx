@@ -1,4 +1,4 @@
-import { type ChangeEvent, type DragEvent, type RefObject } from "react";
+import { type ChangeEvent, type RefObject } from "react";
 import {
   Copy,
   File as FileIcon,
@@ -21,11 +21,6 @@ interface ImportDropZoneProps {
   onOpenSettings: () => void;
   fileInputRef: RefObject<HTMLInputElement | null>;
   onFileSelect: (e: ChangeEvent<HTMLInputElement>) => void;
-  isDragging: boolean;
-  onDragEnter: (e: DragEvent) => void;
-  onDragLeave: (e: DragEvent) => void;
-  onDragOver: (e: DragEvent) => void;
-  onDrop: (e: DragEvent) => void;
   onBrowse: () => void;
   sourceFiles: SourceFileInfo[];
   uploadingFiles: Set<string>;
@@ -45,11 +40,6 @@ export function ImportDropZone({
   onOpenSettings,
   fileInputRef,
   onFileSelect,
-  isDragging,
-  onDragEnter,
-  onDragLeave,
-  onDragOver,
-  onDrop,
   onBrowse,
   sourceFiles,
   uploadingFiles,
@@ -76,31 +66,15 @@ export function ImportDropZone({
         onChange={onFileSelect}
       />
       <div
-        onDragEnter={onDragEnter}
-        onDragLeave={onDragLeave}
-        onDragOver={onDragOver}
-        onDrop={onDrop}
         onClick={onBrowse}
-        className={`group relative cursor-pointer rounded-2xl border-2 border-dashed transition-all duration-200 ${
-          isDragging
-            ? "border-brand bg-brand/5 scale-[1.01]"
-            : sourceFiles.length > 0
-              ? "border-border/50 bg-card/30 hover:border-brand/30 hover:bg-brand/3"
-              : "border-border/40 bg-card/20 hover:border-brand/30 hover:bg-brand/3"
-        }`}
+        className="group relative cursor-pointer rounded-2xl border-2 border-dashed border-border bg-muted/30 transition-colors duration-200 hover:border-brand/40 hover:bg-brand/5"
       >
         <div className="flex flex-col items-center justify-center px-6 py-16">
-          <div
-            className={`mb-4 flex h-14 w-14 items-center justify-center rounded-2xl transition-colors ${
-              isDragging
-                ? "bg-brand/15 text-brand"
-                : "bg-muted/40 text-muted-foreground group-hover:bg-brand/10 group-hover:text-brand"
-            }`}
-          >
+          <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-muted/60 text-muted-foreground transition-colors group-hover:bg-brand/10 group-hover:text-brand">
             <FileUp className="h-7 w-7" />
           </div>
           <p className="text-base font-medium text-foreground/80">
-            {isDragging ? "Drop files here" : "Drop files or click to browse"}
+            Drop files or click to browse
           </p>
           <p className="mt-1.5 text-sm text-muted-foreground/60">
             CSV and images of bank statements
@@ -122,7 +96,7 @@ export function ImportDropZone({
             {[...uploadingFiles].map((name) => (
               <div
                 key={`uploading-${name}`}
-                className="flex items-center gap-3 rounded-xl px-4 py-3 border bg-card/50 border-border/30 opacity-60"
+                className="flex items-center gap-3 rounded-xl px-4 py-3 border bg-muted/50 border-border opacity-75"
               >
                 <Upload className="h-4 w-4 text-brand animate-pulse shrink-0" />
                 <span className="truncate block text-sm text-foreground/80 flex-1">
@@ -138,14 +112,14 @@ export function ImportDropZone({
                   key={file.name}
                   className={`flex items-center gap-3 rounded-xl px-4 py-3 border ${
                     dupDate
-                      ? "bg-amber-500/5 border-amber-500/20"
-                      : "bg-card/50 border-border/30"
+                      ? "bg-amber-500/10 border-amber-500/30"
+                      : "bg-muted/50 border-border"
                   }`}
                 >
                   {isImageFilename(file.name) ? (
-                    <Image className="h-4 w-4 text-muted-foreground/60 shrink-0" />
+                    <Image className="h-4 w-4 text-muted-foreground/80 shrink-0" />
                   ) : (
-                    <FileIcon className="h-4 w-4 text-muted-foreground/60 shrink-0" />
+                    <FileIcon className="h-4 w-4 text-muted-foreground/80 shrink-0" />
                   )}
                   <div className="flex-1 min-w-0">
                     <span className="truncate block text-sm text-foreground/80">
@@ -158,13 +132,13 @@ export function ImportDropZone({
                       </span>
                     )}
                   </div>
-                  <span className="text-xs text-muted-foreground/50 tabular-nums shrink-0">
+                  <span className="text-xs text-muted-foreground tabular-nums shrink-0">
                     {formatFileSize(file.size)}
                   </span>
                   <button
                     type="button"
                     onClick={(e) => { e.stopPropagation(); onRemoveFile(file.name); }}
-                    className="rounded-lg p-1 text-muted-foreground/40 hover:text-muted-foreground hover:bg-muted/50 transition-colors"
+                    className="rounded-lg p-1 text-muted-foreground/70 hover:text-foreground hover:bg-muted transition-colors"
                     aria-label={`Remove ${file.name}`}
                   >
                     <X className="h-3.5 w-3.5" />
@@ -173,14 +147,19 @@ export function ImportDropZone({
               );
             })}
           </div>
-          <textarea
-            value={localInstructions ?? ""}
-            onChange={(e) => onInstructionsChange(e.target.value)}
-            onBlur={onInstructionsBlur}
-            placeholder="e.g. &quot;This is my Excel budget export, amounts are in the Debit/Credit columns&quot;"
-            rows={2}
-            className="w-full resize-none rounded-xl border border-border/30 bg-card/30 px-4 py-3 text-sm text-foreground/80 placeholder:text-muted-foreground/40 focus:border-brand/40 focus:outline-none focus:ring-1 focus:ring-brand/20"
-          />
+          <div className="space-y-1.5">
+            <div className="text-xs font-medium uppercase tracking-wider text-muted-foreground/70">
+              Instructions (optional)
+            </div>
+            <textarea
+              value={localInstructions ?? ""}
+              onChange={(e) => onInstructionsChange(e.target.value)}
+              onBlur={onInstructionsBlur}
+              placeholder="e.g. &quot;This is my Excel budget export, amounts are in the Debit/Credit columns&quot;"
+              rows={2}
+              className="w-full resize-none rounded-xl border border-input bg-muted/50 px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground/60 focus:border-brand/50 focus:outline-none focus:ring-1 focus:ring-brand/20 dark:bg-input/30"
+            />
+          </div>
           <div className="flex items-center justify-between pt-1">
             <AccountSelector
               accounts={accounts}
