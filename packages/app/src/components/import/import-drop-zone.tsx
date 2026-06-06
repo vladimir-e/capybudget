@@ -21,6 +21,7 @@ interface ImportDropZoneProps {
   onOpenSettings: () => void;
   fileInputRef: RefObject<HTMLInputElement | null>;
   onFileSelect: (e: ChangeEvent<HTMLInputElement>) => void;
+  dragging: boolean;
   onBrowse: () => void;
   sourceFiles: SourceFileInfo[];
   uploadingFiles: Set<string>;
@@ -40,6 +41,7 @@ export function ImportDropZone({
   onOpenSettings,
   fileInputRef,
   onFileSelect,
+  dragging,
   onBrowse,
   sourceFiles,
   uploadingFiles,
@@ -67,7 +69,9 @@ export function ImportDropZone({
       />
       <div
         onClick={onBrowse}
-        className="group relative cursor-pointer rounded-2xl border-2 border-dashed border-border bg-muted/30 transition-colors duration-200 hover:border-brand/40 hover:bg-brand/5"
+        className={`group relative cursor-pointer rounded-2xl border-2 border-dashed border-border bg-muted/30 transition duration-200 hover:border-brand/40 hover:bg-brand/5 ${
+          dragging ? "opacity-0" : "opacity-100"
+        }`}
       >
         <div className="flex flex-col items-center justify-center px-6 py-16">
           <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-muted/60 text-muted-foreground transition-colors group-hover:bg-brand/10 group-hover:text-brand">

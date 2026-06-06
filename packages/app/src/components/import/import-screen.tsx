@@ -377,11 +377,12 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
       onDragOver={showDropZone ? handleDragOver : undefined}
       onDrop={showDropZone ? handleDrop : undefined}
     >
-      {/* Full-screen drop overlay — the whole import pane is a drop target
-          while in a drop-zone view state. */}
+      {/* Drop overlay — the resting dashed box grown to fill the pane. The
+          seed box fades out underneath (ImportDropZone `dragging`) so the
+          eye reads one frame expanding, not two stacked. */}
       {showDropZone && isDragging && (
-        <div className="absolute inset-0 z-50 flex items-center justify-center bg-brand/5 backdrop-blur-sm">
-          <div className="absolute inset-4 flex flex-col items-center justify-center gap-3 rounded-3xl border-2 border-dashed border-brand/50 text-brand">
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-background/60">
+          <div className="absolute inset-4 flex flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed border-brand/50 bg-brand/5 text-brand animate-in fade-in zoom-in-95 duration-150">
             <FileUp className="h-10 w-10" />
             <p className="text-lg font-semibold">Drop files to import</p>
           </div>
@@ -421,6 +422,7 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
               onOpenSettings={() => navigate({ to: "/budget/settings", search: { path: budgetPath, name: budgetName } })}
               fileInputRef={fileInputRef}
               onFileSelect={handleFileSelect}
+              dragging={isDragging}
               onBrowse={() => fileInputRef.current?.click()}
               sourceFiles={sourceFiles}
               uploadingFiles={uploadingFiles}
