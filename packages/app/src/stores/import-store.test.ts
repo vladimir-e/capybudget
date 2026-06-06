@@ -1081,6 +1081,27 @@ describe("import-store", () => {
       expect(sessionSend).toHaveBeenCalledTimes(1);
     });
 
+    it("sources its pre-steps from the enrich phase, not a hardcoded list", async () => {
+      // Re-enrich must run whatever the `enriching` step declares — so if the
+      // phase's pre-steps change, the standalone path follows. Extend the
+      // phase's pre-steps in place and confirm re-enrich runs all of them,
+      // in order, before the enrich turn.
+      enrichStep().preStepTools.length = 0;
+      enrichStep().preStepTools.push("auto_enrich", "extra_pre");
+
+      const { repo, fileAdapter } = startWithRepo();
+      await flush();
+
+      const ctx = expect.objectContaining({ repo, fileAdapter, budgetPath: "/budget" });
+      expect(mockRunTool).toHaveBeenCalledWith("auto_enrich", {}, ctx);
+      expect(mockRunTool).toHaveBeenCalledWith("extra_pre", {}, ctx);
+
+      const preStepCalls = callOrder.filter((c) => c.startsWith("runTool:"));
+      const sendIdx = callOrder.indexOf("send");
+      expect(preStepCalls).toEqual(["runTool:auto_enrich", "runTool:extra_pre"]);
+      expect(callOrder.indexOf("runTool:extra_pre")).toBeLessThan(sendIdx);
+    });
+
     it("cancelReenrich clears enriching state and kills the session", () => {
       startWithRepo();
       useImportStore.getState().cancelReenrich();

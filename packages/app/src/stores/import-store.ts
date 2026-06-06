@@ -233,6 +233,30 @@ function pipelineIndexOf(phase: ImportPhase): number {
 }
 
 /**
+ * Run the enrich phase's deterministic pre-steps for the standalone re-enrich.
+ * Sources the tool list from the `enriching` step in IMPORT_PIPELINE — the same
+ * declaration the run's enrich phase uses — so the standalone path can't drift
+ * from the phase if those pre-steps change. Best-effort, in array order; a
+ * failure warns and the enrich turn proceeds. No-op when the repo/adapter are
+ * absent or the step declares no pre-steps.
+ */
+async function runEnrichPreSteps(
+  repo: BudgetRepository | undefined,
+  fileAdapter: FileAdapter | undefined,
+  budgetPath: string,
+): Promise<void> {
+  if (!repo || !fileAdapter) return;
+  const tools = IMPORT_PIPELINE.find((s) => s.phase === "enriching")?.preStepTools ?? [];
+  for (const tool of tools) {
+    try {
+      await runTool(tool, {}, { repo, fileAdapter, budgetPath });
+    } catch (err) {
+      console.warn(`[import-store] re-enrich pre-step ${tool} failed:`, err);
+    }
+  }
+}
+
+/**
  * The terminal outcome a finished run lands on, derived from its staging
  * duplicate tally. Every row a duplicate → the `nothing-to-import` halt;
  * otherwise the merge-ready `ready` split (rows that merge vs duplicates
@@ -590,17 +614,11 @@ export const useImportStore = create<ImportStore>((set, get) => ({
       return;
     }
 
-    // Deterministic auto_enrich pre-pass (same as the run's enrich phase),
-    // cancel-race-guarded. Best-effort — the enrich turn proceeds regardless.
-    const preEnrich = repo && fileAdapter
-      ? runTool("auto_enrich", {}, { repo, fileAdapter, budgetPath }).catch(
-          (err: unknown) => {
-            console.warn("[import-store] re-enrich auto_enrich failed:", err);
-          },
-        )
-      : Promise.resolve();
-
-    preEnrich.then(() => {
+    // Deterministic pre-pass: the same pre-step tools the run's enrich phase
+    // declares in IMPORT_PIPELINE — sourced from there, not hardcoded, so the
+    // standalone re-enrich can't drift from the phase. Best-effort; the enrich
+    // turn proceeds regardless, then a cancel-race guard before sending.
+    runEnrichPreSteps(repo, fileAdapter, budgetPath).then(() => {
       if (activeRun !== thisRun) return;
       session.send(message).catch((err) => {
         handleReenrichStreamEvent(
