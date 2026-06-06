@@ -35,13 +35,6 @@ import type { BudgetRepository, FileAdapter } from "@capybudget/persistence";
  * happy path, so any phase added after normalize is resumed automatically.
  */
 
-/** Context the orchestrator carries across phases (pre-step dispatch). */
-interface RunContext {
-  budgetPath: string;
-  repo?: BudgetRepository;
-  fileAdapter?: FileAdapter;
-}
-
 /**
  * The run's terminal result, set by the orchestrator on completion. The seam
  * between the orchestrator (which decides the outcome) and the UI (which renders
@@ -75,7 +68,10 @@ interface ImportStore {
   setHasImportData: (v: boolean) => void;
 
   // ── The single orchestrated run ──────────────────────────────
-  runSession: CapySession | null;
+  // The live run/session itself is held in the module-level `activeRun` (the
+  // engine's source of truth + cancellation guard), not in Zustand — no UI
+  // subscribes to the session object. These fields are the reactive surface the
+  // import screen renders.
   /** Streamed tool-call activity for the whole run (secondary detail; the
    *  status line + log is the primary channel). No assistant prose — import
    *  mode talks via `report_status`, not free text. */
@@ -140,10 +136,11 @@ interface ImportStore {
 
   // ── Standalone re-enrich (preview's Enrich button) ───────────
   // A user-initiated re-run of the enrich phase after manual edits in the
-  // review table. Independent of the orchestrated run — its own short-lived
-  // session over the same import CSV. The auto_enrich pre-step + cancel-race
-  // guard mirror the orchestrator's enrich phase.
-  reenrichSession: CapySession | null;
+  // review table. A standalone single-phase flow over the same import CSV, it
+  // shares the `activeRun` slot (mutually exclusive with a main run) — its
+  // session lives there. The enrich pre-step + cancel-race guard mirror the
+  // orchestrator's enrich phase. These fields are the reactive surface the
+  // preview's Enrich button renders.
   isEnriching: boolean;
   enrichStatusText: string;
   startReenrich: (opts: {
@@ -163,31 +160,17 @@ interface ImportStore {
 // ── Helpers ─────────────────────────────────────────────────────
 
 /**
- * The distinct `report_status` lines for the whole run, oldest-first, each
- * stamped with when it first arrived. Module-level state because the status
- * channel spans phases and a `content` event carries the *cumulative* block
- * array — the current phase-turn's status history re-sent every tick. Two
- * pieces:
- *   - `committedStatusLines` — lines from phases that already finished. Phases
- *     are separate turns, so a phase's `content` array doesn't carry the prior
- *     phases' statuses; the orchestrator commits them on each phase advance.
- *   - the current turn's lines are rederived from its cumulative texts each
- *     tick (idempotent under the re-send), reusing stable stamps.
- * Reset together at every run boundary (start / resume / cancel / merge).
+ * Fold the current phase-turn's status lines into `activeRun`'s committed
+ * history and start a fresh turn — called when the orchestrator advances a
+ * phase. No-op if the run is already torn down.
  */
-let committedStatusLines: StatusLogEntry[] = [];
-let currentTurnStatusLines: StatusLogEntry[] = [];
-
-function resetStatusLines(): void {
-  committedStatusLines = [];
-  currentTurnStatusLines = [];
-}
-
-/** Fold the current phase-turn's status lines into the committed history and
- *  start a fresh turn — called when the orchestrator advances a phase. */
 function commitStatusTurn(): void {
-  committedStatusLines = [...committedStatusLines, ...currentTurnStatusLines];
-  currentTurnStatusLines = [];
+  if (!activeRun) return;
+  activeRun.committedStatusLines = [
+    ...activeRun.committedStatusLines,
+    ...activeRun.currentTurnStatusLines,
+  ];
+  activeRun.currentTurnStatusLines = [];
 }
 
 /**
@@ -199,6 +182,8 @@ function commitStatusTurn(): void {
 function reconcileStatus(
   texts: string[],
 ): { statusText: string; statusLog: StatusLogEntry[] } {
+  const committedStatusLines = activeRun?.committedStatusLines ?? [];
+  const currentTurnStatusLines = activeRun?.currentTurnStatusLines ?? [];
   const turn: StatusLogEntry[] = [];
   const lastCommitted = committedStatusLines[committedStatusLines.length - 1];
   for (const text of texts) {
@@ -211,7 +196,7 @@ function reconcileStatus(
     const prior = currentTurnStatusLines[turn.length];
     turn.push(prior && prior.text === text ? prior : { text, at: Date.now() });
   }
-  currentTurnStatusLines = turn;
+  if (activeRun) activeRun.currentTurnStatusLines = turn;
 
   const lines = [...committedStatusLines, ...turn];
   if (lines.length === 0) return { statusText: "", statusLog: [] };
@@ -234,10 +219,9 @@ function failRun(
 ): void {
   const phase = get().phase;
   if (phase === "idle" || phase === "review") return;
-  get().runSession?.kill();
-  runContext = null;
+  activeRun?.session?.kill();
+  activeRun = null;
   set({
-    runSession: null,
     statusText: "",
     runOutcome: { kind: "error", message },
   });
@@ -282,8 +266,41 @@ const FIRST_POST_NORMALIZE_INDEX = 1;
 
 // ── Store ───────────────────────────────────────────────────────
 
-let runContext: RunContext | null = null;
-let reenrichContext: { budgetPath: string; fileAdapter: FileAdapter } | null = null;
+/**
+ * The one live import flow — the single source of truth for the active run.
+ * The main run and the standalone re-enrich are mutually exclusive (you can't
+ * re-enrich mid-run), so they share this slot, distinguished by `kind`. Null
+ * when idle. Cleared in exactly one place per lifecycle exit (cancel / merge /
+ * complete / fail), so there's no "reset one of four globals" bug class, and
+ * the engine's cancellation/supersession guard is a single identity check
+ * (`activeRun !== thisRun`) against the object captured at the start of an
+ * async sequence.
+ *
+ * `committedStatusLines` / `currentTurnStatusLines` are the run's
+ * `report_status` reconciliation buffers (the distinct status lines, oldest-
+ * first, each stamped with when it first arrived). They live here — not in
+ * Zustand — because the status channel spans phases and a `content` event
+ * carries the *cumulative* block array (the current phase-turn's status history
+ * re-sent every tick):
+ *   - `committedStatusLines` — lines from phases that already finished. Phases
+ *     are separate turns, so a phase's `content` array doesn't carry the prior
+ *     phases' statuses; the orchestrator commits them on each phase advance.
+ *   - `currentTurnStatusLines` — the current turn's lines, rederived from its
+ *     cumulative texts each tick (idempotent under the re-send), reusing stable
+ *     stamps.
+ * Reset together with the rest of `activeRun` at every run boundary.
+ */
+interface ActiveRun {
+  kind: "run" | "reenrich";
+  session: CapySession | null;
+  budgetPath: string;
+  repo?: BudgetRepository;
+  fileAdapter?: FileAdapter;
+  committedStatusLines: StatusLogEntry[];
+  currentTurnStatusLines: StatusLogEntry[];
+}
+
+let activeRun: ActiveRun | null = null;
 
 export const useImportStore = create<ImportStore>((set, get) => ({
   phase: "idle",
@@ -294,7 +311,6 @@ export const useImportStore = create<ImportStore>((set, get) => ({
   setHasImportData: (hasImportData) => set({ hasImportData }),
 
   // ── Run ──────────────────────────────────────────────────────
-  runSession: null,
   runMessages: [],
   statusText: "",
   statusLog: [],
@@ -309,9 +325,7 @@ export const useImportStore = create<ImportStore>((set, get) => ({
     repo,
     fileAdapter,
   }) => {
-    get().runSession?.kill();
-    resetStatusLines();
-    runContext = { budgetPath, repo, fileAdapter };
+    activeRun?.session?.kill();
 
     const session = createSession({
       budgetPath,
@@ -334,6 +348,16 @@ export const useImportStore = create<ImportStore>((set, get) => ({
         );
       },
     });
+
+    activeRun = {
+      kind: "run",
+      session,
+      budgetPath,
+      repo,
+      fileAdapter,
+      committedStatusLines: [],
+      currentTurnStatusLines: [],
+    };
 
     // The screen builds `initialMessage` (text + multimodal blocks for
     // images/PDFs). It's passed through verbatim — image/PDF support
@@ -358,7 +382,6 @@ export const useImportStore = create<ImportStore>((set, get) => ({
     };
 
     set({
-      runSession: session,
       runMessages: [userMsg, assistantMsg],
       statusText: "",
       statusLog: [],
@@ -390,9 +413,7 @@ export const useImportStore = create<ImportStore>((set, get) => ({
   },
 
   resumeRun: ({ budgetPath, mcpServerPath, systemPrompt, repo, fileAdapter }) => {
-    get().runSession?.kill();
-    resetStatusLines();
-    runContext = { budgetPath, repo, fileAdapter };
+    activeRun?.session?.kill();
 
     const session = createSession({
       budgetPath,
@@ -412,6 +433,17 @@ export const useImportStore = create<ImportStore>((set, get) => ({
       },
     });
 
+    const thisRun: ActiveRun = {
+      kind: "run",
+      session,
+      budgetPath,
+      repo,
+      fileAdapter,
+      committedStatusLines: [],
+      currentTurnStatusLines: [],
+    };
+    activeRun = thisRun;
+
     // The resumed run carries no kickoff message: there's no normalize turn,
     // and the first post-normalize phase's instruction is injected by
     // `driveStep`. The assistant message is the sink the stream appends into.
@@ -422,7 +454,6 @@ export const useImportStore = create<ImportStore>((set, get) => ({
     };
 
     set({
-      runSession: session,
       runMessages: [assistantMsg],
       statusText: "",
       statusLog: [],
@@ -446,15 +477,13 @@ export const useImportStore = create<ImportStore>((set, get) => ({
 
     // Re-enter the pipeline at the first post-normalize phase and walk to the
     // end, reusing the orchestrator's pre-step / inject / complete machinery.
-    void driveStep(FIRST_POST_NORMALIZE_INDEX, session, set, get);
+    void driveStep(FIRST_POST_NORMALIZE_INDEX, thisRun, set, get);
   },
 
   cancelRun: () => {
-    get().runSession?.kill();
-    resetStatusLines();
-    runContext = null;
+    activeRun?.session?.kill();
+    activeRun = null;
     set({
-      runSession: null,
       runMessages: [],
       statusText: "",
       statusLog: [],
@@ -466,17 +495,14 @@ export const useImportStore = create<ImportStore>((set, get) => ({
 
   resetAfterMerge: () => {
     // The run session is already dead by `review`; a re-enrich session may
-    // still be alive if the user enriched then merged.
-    get().reenrichSession?.kill();
-    resetStatusLines();
-    runContext = null;
+    // still be alive (held in `activeRun`) if the user enriched then merged.
+    activeRun?.session?.kill();
+    activeRun = null;
     set({
-      runSession: null,
       runMessages: [],
       statusText: "",
       statusLog: [],
       runOutcome: null,
-      reenrichSession: null,
       isEnriching: false,
       enrichStatusText: "",
       phase: "idle",
@@ -502,7 +528,6 @@ export const useImportStore = create<ImportStore>((set, get) => ({
   },
 
   // ── Re-enrich ────────────────────────────────────────────────
-  reenrichSession: null,
   isEnriching: false,
   enrichStatusText: "",
   onEnrichComplete: null,
@@ -517,8 +542,7 @@ export const useImportStore = create<ImportStore>((set, get) => ({
     repo,
     fileAdapter,
   }) => {
-    get().reenrichSession?.kill();
-    reenrichContext = fileAdapter ? { budgetPath, fileAdapter } : null;
+    activeRun?.session?.kill();
 
     const session = createSession({
       budgetPath,
@@ -538,9 +562,20 @@ export const useImportStore = create<ImportStore>((set, get) => ({
       },
     });
 
+    const thisRun: ActiveRun = {
+      kind: "reenrich",
+      session,
+      budgetPath,
+      repo,
+      fileAdapter,
+      committedStatusLines: [],
+      currentTurnStatusLines: [],
+    };
+    activeRun = thisRun;
+
     const message = `${buildContext({ budgetName, budgetPath, snapshot })}\nEnrich the imported transactions.`;
 
-    set({ reenrichSession: session, isEnriching: true, enrichStatusText: "" });
+    set({ isEnriching: true, enrichStatusText: "" });
 
     if (!session) {
       handleReenrichStreamEvent(
@@ -566,7 +601,7 @@ export const useImportStore = create<ImportStore>((set, get) => ({
       : Promise.resolve();
 
     preEnrich.then(() => {
-      if (get().reenrichSession !== session) return;
+      if (activeRun !== thisRun) return;
       session.send(message).catch((err) => {
         handleReenrichStreamEvent(
           { type: "error", message: err instanceof Error ? err.message : "Failed to start enrichment" },
@@ -578,8 +613,9 @@ export const useImportStore = create<ImportStore>((set, get) => ({
   },
 
   cancelReenrich: () => {
-    get().reenrichSession?.kill();
-    set({ reenrichSession: null, isEnriching: false, enrichStatusText: "" });
+    activeRun?.session?.kill();
+    activeRun = null;
+    set({ isEnriching: false, enrichStatusText: "" });
   },
 }));
 
@@ -602,24 +638,24 @@ async function advanceRun(
   set: (partial: Partial<ImportStore>) => void,
   get: () => ImportStore,
 ): Promise<void> {
-  const session = get().runSession;
+  const thisRun = activeRun;
   // No live run (e.g. a cancel already tore it down) — nothing to advance.
-  if (!session) return;
+  if (!thisRun?.session) return;
 
   const finishedPhase = get().phase;
 
   if (finishedPhase === "dedup") {
     const haltOutcome = await checkNothingToImport();
     // A cancel during the staging read already tore the run down.
-    if (get().runSession !== session) return;
+    if (activeRun !== thisRun) return;
     if (haltOutcome) {
-      await completeRun(session, set, get, haltOutcome);
+      await completeRun(thisRun, set, haltOutcome);
       return;
     }
   }
 
   const nextIdx = pipelineIndexOf(finishedPhase) + 1;
-  await driveStep(nextIdx, session, set, get);
+  await driveStep(nextIdx, thisRun, set, get);
 }
 
 /**
@@ -630,10 +666,10 @@ async function advanceRun(
  * run advances to enrich as usual.
  */
 async function checkNothingToImport(): Promise<RunOutcome | null> {
-  const ctx = runContext;
-  if (!ctx?.fileAdapter) return null;
+  const run = activeRun;
+  if (!run?.fileAdapter) return null;
   try {
-    const tally = await readStagingDuplicateTally(ctx.fileAdapter, ctx.budgetPath);
+    const tally = await readStagingDuplicateTally(run.fileAdapter, run.budgetPath);
     const outcome = outcomeFromTally(tally);
     if (outcome.kind === "nothing-to-import") return outcome;
   } catch (err) {
@@ -651,14 +687,17 @@ async function checkNothingToImport(): Promise<RunOutcome | null> {
  */
 async function driveStep(
   stepIdx: number,
-  session: CapySession,
+  thisRun: ActiveRun,
   set: (partial: Partial<ImportStore>) => void,
   get: () => ImportStore,
 ): Promise<void> {
+  const session = thisRun.session;
+  if (!session) return;
+
   const step: ImportPhaseStep | undefined = IMPORT_PIPELINE[stepIdx];
 
   if (!step) {
-    await completeRun(session, set, get);
+    await completeRun(thisRun, set);
     return;
   }
 
@@ -670,18 +709,17 @@ async function driveStep(
 
   // Deterministic pre-step: code-triggered tools dispatched directly (not
   // model-advertised). Best-effort — a failure doesn't gate the agent turn.
-  const ctx = runContext;
   for (const tool of step.preStepTools) {
-    if (!ctx?.repo || !ctx.fileAdapter) break;
-    // A cancel mid-loop nulls `runSession`; stop before the next mutating
+    if (!thisRun.repo || !thisRun.fileAdapter) break;
+    // A cancel mid-loop clears `activeRun`; stop before the next mutating
     // tool call rather than draining the rest of a multi-tool pre-step against
     // a torn-down run.
-    if (get().runSession !== session) return;
+    if (activeRun !== thisRun) return;
     try {
       await runTool(tool, {}, {
-        repo: ctx.repo,
-        fileAdapter: ctx.fileAdapter,
-        budgetPath: ctx.budgetPath,
+        repo: thisRun.repo,
+        fileAdapter: thisRun.fileAdapter,
+        budgetPath: thisRun.budgetPath,
       });
     } catch (err) {
       console.warn(`[import-store] pre-step ${tool} failed:`, err);
@@ -689,8 +727,8 @@ async function driveStep(
   }
 
   // The user may have cancelled while the pre-step ran — the store kills the
-  // session and clears `runSession`. Skip the inject if state moved on.
-  if (get().runSession !== session) return;
+  // session and clears `activeRun`. Skip the inject if state moved on.
+  if (activeRun !== thisRun) return;
 
   if (step.instruction === null) {
     // Deterministic-only phase (no agent turn) — its pre-step has run, so
@@ -721,24 +759,22 @@ async function driveStep(
  * (and a live subprocess on the CLI adapter) past this point.
  */
 async function completeRun(
-  session: CapySession,
+  thisRun: ActiveRun,
   set: (partial: Partial<ImportStore>) => void,
-  get: () => ImportStore,
   outcome: RunOutcome = { kind: "ready" },
 ): Promise<void> {
   console.debug(`[import-store] run complete (${outcome.kind}) → review`);
 
-  const ctx = runContext;
   // The merge-ready landing needs its split (rows that will merge vs duplicates
   // dimmed) for the terminal summary. Read it from the staging tally the halt
   // check already uses — single source, no UI recompute. The halt outcome
   // carries its own message and skips this.
   let resolved = outcome;
-  if (outcome.kind === "ready" && ctx?.fileAdapter) {
+  if (outcome.kind === "ready" && thisRun.fileAdapter) {
     try {
       const tally = await readStagingDuplicateTally(
-        ctx.fileAdapter,
-        ctx.budgetPath,
+        thisRun.fileAdapter,
+        thisRun.budgetPath,
       );
       resolved = outcomeFromTally(tally);
     } catch (err) {
@@ -746,9 +782,9 @@ async function completeRun(
     }
   }
 
-  if (ctx?.fileAdapter) {
+  if (thisRun.fileAdapter) {
     try {
-      await markImportEnriched(ctx.fileAdapter, ctx.budgetPath);
+      await markImportEnriched(thisRun.fileAdapter, thisRun.budgetPath);
     } catch (err) {
       console.warn("[import-store] failed to persist enriched flag:", err);
     }
@@ -756,12 +792,11 @@ async function completeRun(
 
   // A cancel during the async persist already tore down the run — don't
   // resurrect it onto review.
-  if (get().runSession !== session) return;
+  if (activeRun !== thisRun) return;
 
-  session.kill();
-  runContext = null;
+  thisRun.session?.kill();
+  activeRun = null;
   set({
-    runSession: null,
     phase: "review",
     hasImportData: true,
     statusText: "",
@@ -834,9 +869,9 @@ function handleReenrichStreamEvent(
       set({ isEnriching: false, enrichStatusText: "" });
       // Re-affirm the enriched flag — idempotent, since the manual Enrich
       // button only runs on an already-enriched import (the run set the flag).
-      const ctx = reenrichContext;
-      const finish = ctx
-        ? markImportEnriched(ctx.fileAdapter, ctx.budgetPath).catch((err) => {
+      const run = activeRun;
+      const finish = run?.fileAdapter
+        ? markImportEnriched(run.fileAdapter, run.budgetPath).catch((err) => {
             console.warn("[import-store] failed to persist enriched flag:", err);
           })
         : Promise.resolve();

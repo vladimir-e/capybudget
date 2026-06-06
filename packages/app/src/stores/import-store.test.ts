@@ -149,15 +149,16 @@ const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
 
 describe("import-store", () => {
   beforeEach(() => {
+    // Drop any run left live by a prior test — the run/session now lives in the
+    // module-level `activeRun`, which `cancelRun` is the single reset point for.
+    useImportStore.getState().cancelRun();
     useImportStore.setState({
       hasImportData: false,
       phase: "idle",
-      runSession: null,
       runMessages: [],
       statusText: "",
       statusLog: [],
       runOutcome: null,
-      reenrichSession: null,
       isEnriching: false,
       enrichStatusText: "",
     });
@@ -421,12 +422,11 @@ describe("import-store", () => {
       expect(mockMarkImportEnriched).toHaveBeenCalledWith(fileAdapter, "/budget");
     });
 
-    it("kills the run session and nulls it on completion", async () => {
+    it("kills the run session on completion", async () => {
       startRun();
       await driveToReview();
 
       expect(sessionKill).toHaveBeenCalled();
-      expect(useImportStore.getState().runSession).toBeNull();
     });
 
     it("cancel resets to idle and kills the session", async () => {
@@ -438,7 +438,6 @@ describe("import-store", () => {
       useImportStore.getState().cancelRun();
 
       expect(useImportStore.getState().phase).toBe("idle");
-      expect(useImportStore.getState().runSession).toBeNull();
       expect(useImportStore.getState().runMessages).toEqual([]);
       expect(sessionKill).toHaveBeenCalled();
     });
@@ -630,7 +629,6 @@ describe("import-store", () => {
         kind: "error",
         message: "provider exploded",
       });
-      expect(state.runSession).toBeNull();
       expect(sessionKill).toHaveBeenCalled();
       // Phase stays put so the screen keeps the processing view (where the
       // error renders as a prominent result), not idle.
@@ -747,7 +745,6 @@ describe("import-store", () => {
       expect(mockMarkImportEnriched).toHaveBeenCalledTimes(1);
       expect(mockMarkImportEnriched).toHaveBeenCalledWith(fileAdapter, "/budget");
       expect(sessionKill).toHaveBeenCalled();
-      expect(useImportStore.getState().runSession).toBeNull();
     });
 
     it("proceeds to enrich (ready outcome) when only some rows are duplicates", async () => {
@@ -914,7 +911,6 @@ describe("import-store", () => {
       useImportStore.getState().cancelRun();
 
       expect(useImportStore.getState().phase).toBe("idle");
-      expect(useImportStore.getState().runSession).toBeNull();
       expect(sessionKill).toHaveBeenCalled();
     });
 
@@ -1085,11 +1081,11 @@ describe("import-store", () => {
       expect(sessionSend).toHaveBeenCalledTimes(1);
     });
 
-    it("cancelReenrich clears enriching state", () => {
+    it("cancelReenrich clears enriching state and kills the session", () => {
       startWithRepo();
       useImportStore.getState().cancelReenrich();
       expect(useImportStore.getState().isEnriching).toBe(false);
-      expect(useImportStore.getState().reenrichSession).toBeNull();
+      expect(sessionKill).toHaveBeenCalled();
     });
 
     it("persists the enriched flag when re-enrich completes (resume path)", async () => {
@@ -1119,7 +1115,6 @@ describe("import-store", () => {
       useImportStore.getState().resetAfterMerge();
 
       expect(sessionKill).toHaveBeenCalled();
-      expect(useImportStore.getState().reenrichSession).toBeNull();
       expect(useImportStore.getState().isEnriching).toBe(false);
       expect(useImportStore.getState().phase).toBe("idle");
       expect(useImportStore.getState().hasImportData).toBe(false);
