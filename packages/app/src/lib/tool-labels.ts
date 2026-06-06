@@ -24,6 +24,21 @@ const TOOL_LABELS: Record<string, string> = {
   delete_category: "Deleting category",
   bulk_update_transactions: "Updating transactions",
   render_chart: "Rendering chart",
+  // Import-phase tools (run + MCP)
+  analyze_csv: "Analyzing file",
+  preview_transform: "Previewing transform",
+  transform_csv: "Transforming rows",
+  write_import_file: "Writing import file",
+  read_import_file: "Reading import file",
+  list_import_files: "Listing import files",
+  auto_enrich: "Auto-enriching",
+  enrich_status: "Checking progress",
+  enrich_update: "Enriching transactions",
+  apply_account_aliases: "Applying account aliases",
+  find_duplicates: "Finding duplicates",
+  mark_duplicates: "Marking duplicates",
+  auto_mark_duplicates: "Marking duplicates",
+  report_status: "Reporting status",
 }
 
 export function getToolLabel(tool: string): string {

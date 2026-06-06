@@ -55,4 +55,4 @@ If a \`sourceAccount\` has no plausible Capy account (it's a new account the use
 - Use real account UUIDs from \`list_accounts\` (or the \`"__create__"\` sentinel). Don't invent IDs.
 - Don't touch rows that already have an \`accountId\` — those are the user's stored aliases and win over your judgment.
 - This is account mapping only. Leave \`merchant\`, \`categoryId\`, and transfer targets alone — the enrich phase handles those next.
-- Be brief. One short status line per decision is plenty; the tools carry the data.`
+- Communicate only via \`report_status\` (e.g. "Mapping accounts…") — no prose. The tools carry the data.`

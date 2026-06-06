@@ -11,6 +11,7 @@ export type {
   BarChartBlock,
   DonutChartBlock,
   ToolActivityBlock,
+  StatusBlock,
   FileAttachmentBlock,
   FollowupChip,
   FollowupsBlock,
@@ -75,8 +76,12 @@ export {
 } from "./import/import-state"
 export type { StagingDuplicateTally } from "./import/import-state"
 
-// Render-tool → ContentBlock map (shared by every adapter)
-export { buildRenderToolMap, RENDER_FOLLOWUPS_TOOL_NAME } from "./render-map"
+// Tool-call → ContentBlock map (shared by every adapter)
+export {
+  buildRenderToolMap,
+  RENDER_FOLLOWUPS_TOOL_NAME,
+  REPORT_STATUS_TOOL_NAME,
+} from "./render-map"
 
 // Attachments
 export {

@@ -173,12 +173,12 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
     init();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps -- run once on mount
 
-  // Auto-scroll processing messages
+  // Keep the active status line + newest log entry in view. They sit at the
+  // top of the panel (newest-first), so anchor to the top as each line lands.
+  const statusText = useImportStore((s) => s.statusText);
   useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }
-  }, [runMessages]);
+    if (scrollRef.current) scrollRef.current.scrollTop = 0;
+  }, [statusText, runMessages]);
 
   // ── Derived view state ────────────────────────────────────────
   // Store phase is the authority. Disk state only matters for idle sub-states.
@@ -505,7 +505,7 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
                 ref={scrollRef}
                 className="rounded-2xl border border-border/30 bg-card/30 p-5 max-h-[60vh] overflow-y-auto"
               >
-                <ProcessingStatus messages={runMessages} />
+                <ProcessingStatus />
               </div>
             </>
           )}

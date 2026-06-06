@@ -52,4 +52,20 @@ export const IMPORT_TOOL_DEFS = [
       properties: {},
     },
   },
+  {
+    name: "report_status",
+    description:
+      "Report one short progress line to the user during an import run. This is your ONLY way to communicate while importing — write no prose. One tight present-tense line per step, e.g. \"Reading your March statement…\", \"Mapping accounts…\", \"Found 12 overlaps, marking them…\", \"Categorizing 38 transactions…\". The UI shows the latest line and keeps the prior ones as a timestamped log.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        status: {
+          type: "string",
+          description:
+            "A single short human-readable status line (no markdown, no lists).",
+        },
+      },
+      required: ["status"],
+    },
+  },
 ] as const

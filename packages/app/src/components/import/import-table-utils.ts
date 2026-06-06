@@ -38,6 +38,17 @@ export function buildDuplicateView(
   return view;
 }
 
+/** Compose the merge-ready completion summary line from the run's counts
+ *  ("47 ready, 3 duplicates dimmed."). ready = selected non-duplicate rows;
+ *  duplicates = rows the dedup phase marked. */
+export function readySummary(counts: { ready: number; duplicates: number }): string {
+  const { ready, duplicates } = counts;
+  const rows = `${ready} ready`;
+  return duplicates > 0
+    ? `${rows}, ${duplicates} duplicate${duplicates === 1 ? "" : "s"} dimmed.`
+    : `${rows}.`;
+}
+
 export type ImportSortColumn =
   | "date"
   | "merchant"

@@ -43,14 +43,15 @@ const IMPORT_TOOLS = [
   "enrich_update",
   "find_duplicates",
   "mark_duplicates",
+  "report_status",
   "read_file",
   "read_spec",
 ]
 
 describe("getToolDefinitions", () => {
-  it("returns the full 33-tool surface with no mode (MCP server is ungated)", () => {
+  it("returns the full 34-tool surface with no mode (MCP server is ungated)", () => {
     const all = getToolDefinitions()
-    expect(all).toHaveLength(33)
+    expect(all).toHaveLength(34)
   })
 
   it("exposes code-triggered tools on the MCP surface but no advertised mode", () => {
@@ -68,10 +69,10 @@ describe("getToolDefinitions", () => {
     expect(names).toHaveLength(22)
   })
 
-  it("gates import mode to its 13 tools", () => {
+  it("gates import mode to its 14 tools", () => {
     const names = getToolDefinitions("import").map((t) => t.name)
     expect(new Set(names)).toEqual(new Set(IMPORT_TOOLS))
-    expect(names).toHaveLength(13)
+    expect(names).toHaveLength(14)
   })
 
   it("keeps chat free of the import/csv/enrich pipeline", () => {

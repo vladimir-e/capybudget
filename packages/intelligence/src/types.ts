@@ -57,6 +57,14 @@ export interface ToolActivityBlock {
   tool: string
 }
 
+/** A human-readable progress line from `report_status` — the import run's sole
+ *  communication channel. The adapter converts the tool call into this block;
+ *  the import store intercepts it to drive the status line + timestamped log. */
+export interface StatusBlock {
+  type: "status"
+  text: string
+}
+
 export interface FileAttachmentBlock {
   type: "file-attachment"
   name: string
@@ -90,6 +98,7 @@ export type ContentBlock =
   | BarChartBlock
   | DonutChartBlock
   | ToolActivityBlock
+  | StatusBlock
   | FileAttachmentBlock
   | FollowupsBlock
   | ErrorBlock

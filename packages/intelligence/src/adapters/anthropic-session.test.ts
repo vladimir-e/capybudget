@@ -851,6 +851,8 @@ describe("AnthropicSession tool gating", () => {
     expect(names).toContain("find_duplicates")
     expect(names).toContain("mark_duplicates")
     expect(names).toContain("write_import_file")
+    // report_status is the import run's communication channel.
+    expect(names).toContain("report_status")
     expect(names).not.toContain("render_table")
     expect(names).not.toContain("render_chart")
     expect(names).not.toContain("render_followups")
@@ -862,7 +864,7 @@ describe("AnthropicSession tool gating", () => {
     // Staged-file readers are chat-only now; the import session writes its own.
     expect(names).not.toContain("read_import_file")
     expect(names).not.toContain("list_import_files")
-    expect(names).toHaveLength(13)
+    expect(names).toHaveLength(14)
   })
 
   it("keeps search_transactions in both modes (both prompts advertise it)", async () => {

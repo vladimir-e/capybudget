@@ -61,6 +61,10 @@ describe("isDispatchTool", () => {
     expect(isDispatchTool("render_anything")).toBe(true)
   })
 
+  it("recognizes report_status", () => {
+    expect(isDispatchTool("report_status")).toBe(true)
+  })
+
   it("recognizes import + csv + read_file tools", () => {
     expect(isDispatchTool("read_import_file")).toBe(true)
     expect(isDispatchTool("analyze_csv")).toBe(true)
@@ -77,13 +81,16 @@ describe("isDispatchTool", () => {
 })
 
 describe("runTool", () => {
-  it("returns 'Rendered.' for render tools without dispatching", async () => {
+  it("acks channel tools (render_*, report_status) without dispatching", async () => {
     expect(await runTool("render_table", { headers: [], rows: [] }, makeCtx())).toBe(
-      "Rendered.",
+      "Acknowledged.",
     )
     expect(
       await runTool("render_chart", { title: "x", type: "donut", data: [] }, makeCtx()),
-    ).toBe("Rendered.")
+    ).toBe("Acknowledged.")
+    expect(await runTool("report_status", { status: "Reading…" }, makeCtx())).toBe(
+      "Acknowledged.",
+    )
   })
 
   it("dispatches data tools to their handlers", async () => {

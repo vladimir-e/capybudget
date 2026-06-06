@@ -78,6 +78,9 @@ interface MockSession {
   sends: unknown[];
   onEvent: (event: { type: string; blocks?: unknown[]; message?: string }) => void;
   emitContent: (text: string) => void;
+  emitStatus: (text: string) => void;
+  emitToolActivity: (tool: string) => void;
+  emitError: (message: string) => void;
   emitDone: () => void;
 }
 
@@ -91,14 +94,32 @@ vi.mock("@/services/create-session", () => ({
   createSession: vi.fn(
     (opts: { onEvent: MockSession["onEvent"] }) => {
       const id = ++sessionCounter;
+      // Real adapters emit the *cumulative* block array each tick and reset it
+      // per turn (each `send`). The mock mirrors that: emit helpers append to a
+      // per-turn buffer and forward the whole array.
+      let turnBlocks: unknown[] = [];
+      const emit = (block: unknown) => {
+        turnBlocks.push(block);
+        session.onEvent({ type: "content", blocks: [...turnBlocks] });
+      };
       const session: MockSession = {
         id,
         sends: [],
         onEvent: opts.onEvent,
         emitContent(text: string) {
-          this.onEvent({ type: "content", blocks: [{ type: "text", content: text }] });
+          emit({ type: "text", content: text });
+        },
+        emitStatus(text: string) {
+          emit({ type: "status", text });
+        },
+        emitToolActivity(tool: string) {
+          emit({ type: "tool-activity", tool });
+        },
+        emitError(message: string) {
+          this.onEvent({ type: "error", message });
         },
         emitDone() {
+          turnBlocks = []; // a new phase-turn re-sends only its own blocks
           this.onEvent({ type: "done" });
         },
       };
@@ -107,6 +128,7 @@ vi.mock("@/services/create-session", () => ({
         send: (msg: unknown) => {
           callOrder.push("send");
           session.sends.push(msg);
+          turnBlocks = [];
           return sessionSend(msg);
         },
         kill: () => sessionKill(),
@@ -133,6 +155,7 @@ describe("import-store", () => {
       runSession: null,
       runMessages: [],
       statusText: "",
+      statusLog: [],
       runOutcome: null,
       reenrichSession: null,
       isEnriching: false,
@@ -380,8 +403,13 @@ describe("import-store", () => {
 
       expect(useImportStore.getState().phase).toBe("review");
       expect(useImportStore.getState().hasImportData).toBe(true);
-      // A partial import (the default tally) lands on the `ready` outcome.
-      expect(useImportStore.getState().runOutcome).toEqual({ kind: "ready" });
+      // A partial import (the default tally: 10 total, 3 dup) lands on the
+      // `ready` outcome with the merge-ready vs dimmed split computed from the
+      // staging tally.
+      expect(useImportStore.getState().runOutcome).toEqual({
+        kind: "ready",
+        counts: { ready: 7, duplicates: 3 },
+      });
     });
 
     it("persists the enriched flag itself on run-complete (no component callback)", async () => {
@@ -460,6 +488,149 @@ describe("import-store", () => {
       expect(toolCalls).toContain("runTool:pre_a");
       expect(toolCalls).not.toContain("runTool:pre_b");
       expect(useImportStore.getState().phase).toBe("idle");
+    });
+  });
+
+  // ── Status channel: report_status drives the line + log ───────────
+  // Import mode talks via `report_status` (→ `status` blocks), not prose. The
+  // newest line is `statusText`; the prior line drops into `statusLog`, stamped.
+
+  describe("status channel (report_status)", () => {
+    const startRun = () => {
+      useImportStore.getState().startRun({
+        budgetPath: "/budget",
+        mcpServerPath: "/mcp",
+        systemPrompt: "you are capy",
+        initialMessage: "normalize these files",
+        sourceFilenames: ["statement.csv"],
+        repo: {} as BudgetRepository,
+        fileAdapter: {} as FileAdapter,
+      });
+    };
+
+    it("a status block sets the active line; the log stays empty", () => {
+      startRun();
+      sessions[0].emitStatus("Reading your March statement…");
+      expect(useImportStore.getState().statusText).toBe(
+        "Reading your March statement…",
+      );
+      expect(useImportStore.getState().statusLog).toEqual([]);
+    });
+
+    it("a new status line pushes the prior one into the timestamped log", () => {
+      startRun();
+      sessions[0].emitStatus("Reading your March statement…");
+      sessions[0].emitStatus("Mapping accounts…");
+
+      const state = useImportStore.getState();
+      expect(state.statusText).toBe("Mapping accounts…");
+      expect(state.statusLog).toHaveLength(1);
+      expect(state.statusLog[0].text).toBe("Reading your March statement…");
+      expect(typeof state.statusLog[0].at).toBe("number");
+    });
+
+    it("keeps the log newest-first as more lines arrive", () => {
+      startRun();
+      sessions[0].emitStatus("one");
+      sessions[0].emitStatus("two");
+      sessions[0].emitStatus("three");
+
+      const state = useImportStore.getState();
+      expect(state.statusText).toBe("three");
+      expect(state.statusLog.map((e) => e.text)).toEqual(["two", "one"]);
+    });
+
+    it("ignores a repeated consecutive line (no log spam)", () => {
+      startRun();
+      sessions[0].emitStatus("Categorizing…");
+      sessions[0].emitStatus("Categorizing…");
+
+      const state = useImportStore.getState();
+      expect(state.statusText).toBe("Categorizing…");
+      expect(state.statusLog).toEqual([]);
+    });
+
+    it("does not let assistant prose drive the status line", () => {
+      startRun();
+      sessions[0].emitStatus("Reading…");
+      sessions[0].emitContent("Here is a paragraph of prose the model leaked.");
+      // The prose lands in the message stream but never becomes the status line.
+      expect(useImportStore.getState().statusText).toBe("Reading…");
+    });
+
+    it("carries the log across phases (committed on phase advance)", async () => {
+      startRun();
+      sessions[0].emitStatus("Reading your statement…"); // normalize turn
+      sessions[0].emitDone(); // normalize → accounts (commits the normalize line)
+      await flush();
+      sessions[0].emitStatus("Mapping accounts…"); // accounts turn (re-sends only its own)
+
+      const state = useImportStore.getState();
+      expect(state.statusText).toBe("Mapping accounts…");
+      // The normalize line survived into the log even though the accounts turn's
+      // cumulative array no longer carries it.
+      expect(state.statusLog.map((e) => e.text)).toEqual(["Reading your statement…"]);
+    });
+
+    it("resets the line and log on cancel", () => {
+      startRun();
+      sessions[0].emitStatus("one");
+      sessions[0].emitStatus("two");
+      useImportStore.getState().cancelRun();
+      expect(useImportStore.getState().statusText).toBe("");
+      expect(useImportStore.getState().statusLog).toEqual([]);
+    });
+  });
+
+  // ── Run error → terminal error outcome ────────────────────────────
+
+  describe("run error", () => {
+    const startRun = () => {
+      useImportStore.getState().startRun({
+        budgetPath: "/budget",
+        mcpServerPath: "/mcp",
+        systemPrompt: "you are capy",
+        initialMessage: "normalize these files",
+        sourceFilenames: ["statement.csv"],
+        repo: {} as BudgetRepository,
+        fileAdapter: {} as FileAdapter,
+      });
+    };
+
+    it("a mid-run error lands a terminal error outcome and tears down the session", () => {
+      startRun();
+      sessions[0].emitError("provider exploded");
+
+      const state = useImportStore.getState();
+      expect(state.runOutcome).toEqual({
+        kind: "error",
+        message: "provider exploded",
+      });
+      expect(state.runSession).toBeNull();
+      expect(sessionKill).toHaveBeenCalled();
+      // Phase stays put so the screen keeps the processing view (where the
+      // error renders as a prominent result), not idle.
+      expect(state.phase).toBe("normalizing");
+    });
+
+    it("a stray error after the run already landed on review is ignored", async () => {
+      startRun();
+      const session = sessions[0];
+      session.emitDone(); // → accounts
+      await flush();
+      session.emitDone(); // → dedup
+      await flush();
+      session.emitDone(); // dedup turn ends, halt check (partial) → enrich
+      await flush();
+      session.emitDone(); // → review (ready)
+      await flush();
+      expect(useImportStore.getState().phase).toBe("review");
+
+      // The dead session forwards a late error; failRun must bail on `review`.
+      session.emitError("late stray");
+      const state = useImportStore.getState();
+      expect(state.runOutcome?.kind).toBe("ready");
+      expect(state.phase).toBe("review");
     });
   });
 
@@ -569,11 +740,14 @@ describe("import-store", () => {
       expect(sessions[0].sends).toContain(ENRICH_INSTRUCTION);
       expect(callOrder).toContain("runTool:auto_enrich");
 
-      // Finish the enrich turn → ready outcome.
+      // Finish the enrich turn → ready outcome with the completion counts.
       sessions[0].emitDone();
       await flush();
       expect(useImportStore.getState().phase).toBe("review");
-      expect(useImportStore.getState().runOutcome).toEqual({ kind: "ready" });
+      expect(useImportStore.getState().runOutcome).toEqual({
+        kind: "ready",
+        counts: { ready: 47, duplicates: 3 },
+      });
     });
 
     it("does not halt on an empty staging file (total 0)", async () => {

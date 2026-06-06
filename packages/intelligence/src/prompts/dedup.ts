@@ -45,5 +45,5 @@ Then end your turn. The orchestrator advances the run — it checks the staging 
 ## Rules
 
 - Only mark rows the finder surfaced as candidates — \`mark_duplicates\` silently skips ids that aren't current matches, so don't invent ids.
-- Be brief. One short status line is plenty; the tools carry the data.
+- Communicate only via \`report_status\` (e.g. "Found 12 overlaps, marking them…") — no prose. The tools carry the data.
 - This is dedup only. Leave merchant/category cleanup of the non-duplicate rows to the enrich phase next.`

@@ -1,10 +1,29 @@
 import { describe, it, expect } from "vitest";
 import {
   buildDuplicateView,
+  readySummary,
   sortImportTransactions,
   filterImportTransactions,
 } from "@/components/import/import-table-utils";
 import type { ImportTransaction, Transaction } from "@capybudget/core";
+
+describe("readySummary", () => {
+  it("includes the dimmed-duplicate count when there are duplicates", () => {
+    expect(readySummary({ ready: 47, duplicates: 3 })).toBe(
+      "47 ready, 3 duplicates dimmed.",
+    );
+  });
+
+  it("uses singular phrasing for one duplicate", () => {
+    expect(readySummary({ ready: 9, duplicates: 1 })).toBe(
+      "9 ready, 1 duplicate dimmed.",
+    );
+  });
+
+  it("omits the duplicate clause when there are none", () => {
+    expect(readySummary({ ready: 12, duplicates: 0 })).toBe("12 ready.");
+  });
+});
 
 function txn(overrides: Partial<ImportTransaction> = {}): ImportTransaction {
   return {

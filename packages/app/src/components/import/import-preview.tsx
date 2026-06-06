@@ -26,6 +26,7 @@ import {
   type ImportSortConfig,
 } from "@/components/import/import-table-utils";
 import { ImportMapping } from "./import-mapping";
+import { NothingToImportResult, ReadyBanner } from "./import-result";
 import { Search, X, FileUp, Sparkles, Loader2, GitMerge, AlertTriangle, Copy } from "lucide-react";
 
 interface ImportPreviewProps {
@@ -72,6 +73,7 @@ export function ImportPreview({ budgetPath, budgetName, onMergeComplete }: Impor
   const startReenrich = useImportStore((s) => s.startReenrich);
   const cancelReenrich = useImportStore((s) => s.cancelReenrich);
   const setOnEnrichComplete = useImportStore((s) => s.setOnEnrichComplete);
+  const runOutcome = useImportStore((s) => s.runOutcome);
 
   useEffect(() => {
     setOnEnrichComplete(() => { loadCsv(); });
@@ -204,6 +206,13 @@ export function ImportPreview({ budgetPath, budgetName, onMergeComplete }: Impor
     );
   }
 
+  // The all-duplicate halt: every row already exists in the budget, so there's
+  // nothing to merge. Render the terminal result prominently instead of an
+  // all-dimmed table.
+  if (runOutcome?.kind === "nothing-to-import") {
+    return <NothingToImportResult outcome={runOutcome} onDone={onMergeComplete} />;
+  }
+
   if (transactions.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-24 text-center">
@@ -221,6 +230,12 @@ export function ImportPreview({ budgetPath, budgetName, onMergeComplete }: Impor
 
   return (
     <div className="space-y-5 pb-20">
+      {/* Terminal completion summary — the run landed merge-ready. Hidden once
+          the user re-enriches (it's the run's snapshot, not live state). */}
+      {runOutcome?.kind === "ready" && runOutcome.counts && !isEnriching && (
+        <ReadyBanner counts={runOutcome.counts} />
+      )}
+
       {/* Stats bar */}
       <div className="flex items-center justify-between">
         <p className="text-sm text-muted-foreground">

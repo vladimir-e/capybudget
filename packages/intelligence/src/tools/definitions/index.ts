@@ -70,9 +70,11 @@ const ALL_TOOL_DEFS: readonly ToolDefinition[] = [
  * staged-import visibility); the import session writes its own files and
  * tracks them in the run, so it doesn't need to inspect the directory.
  * Import gets `list_accounts` / `list_categories` for transfer-target and
- * category UUIDs. The render tools are chat-only; the CSV / enrich / write
- * tools are import-only. `auto_enrich` is intentionally absent — it's
- * code-triggered, never advertised (see below).
+ * category UUIDs. The CSV / enrich / write tools are import-only. Channel
+ * tools (model calls that the UI renders rather than feeding back as data)
+ * split by mode: chat has the `render_*` family; import has `report_status`,
+ * its sole communication channel during the run. `auto_enrich` is
+ * intentionally absent — it's code-triggered, never advertised (see below).
  */
 const TOOL_MODES: Readonly<Record<string, readonly ToolMode[]>> = {
   // Data
@@ -109,6 +111,7 @@ const TOOL_MODES: Readonly<Record<string, readonly ToolMode[]>> = {
   enrich_update: ["import"],
   find_duplicates: ["import"],
   mark_duplicates: ["import"],
+  report_status: ["import"],
   // Generic readers
   read_file: ["chat", "import"],
   read_spec: ["chat", "import"],

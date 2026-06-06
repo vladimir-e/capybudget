@@ -4,9 +4,10 @@
  * a string result — which is the same string the model would have seen
  * had the call gone through MCP.
  *
- * Render tools (`render_*`) return "Rendered." here; the frontend
- * intercepts the `tool_use` event before dispatch sees it and renders
- * the corresponding ContentBlock.
+ * Channel tools — render tools (`render_*`) and `report_status` — are
+ * no-ops here; they return a short ack. The frontend intercepts the
+ * `tool_use` event before dispatch sees it and renders the corresponding
+ * ContentBlock (a chart/table/follow-up, or the import status line).
  *
  * Tools this dispatch knows about:
  *   - data tools  (list_*, search_transactions, group_transactions)
@@ -18,7 +19,7 @@
  *                auto_mark_duplicates)
  *   - read_file (generic budget-folder text reader)
  *   - read_spec (bundled spec doc reader)
- *   - render tools (render_*)
+ *   - channel tools (render_*, report_status)
  */
 
 import type { BudgetRepository, FileAdapter } from "@capybudget/persistence"
@@ -127,8 +128,8 @@ export async function runTool(
   input: Record<string, unknown>,
   ctx: ToolContext,
 ): Promise<string> {
-  // Render tools are no-ops on dispatch — the frontend renders them.
-  if (name.startsWith("render_")) return "Rendered."
+  // Channel tools are no-ops on dispatch — the frontend renders them.
+  if (isChannelTool(name)) return "Acknowledged."
 
   const handler = HANDLERS[name]
   if (!handler) {
@@ -139,5 +140,11 @@ export async function runTool(
 
 /** True if dispatch knows this tool name. */
 export function isDispatchTool(name: string): boolean {
-  return name.startsWith("render_") || name in HANDLERS
+  return isChannelTool(name) || name in HANDLERS
+}
+
+/** Channel tools (`render_*`, `report_status`) carry their effect in the UI,
+ *  not in a tool result — dispatch acks them without a handler. */
+function isChannelTool(name: string): boolean {
+  return name.startsWith("render_") || name === "report_status"
 }

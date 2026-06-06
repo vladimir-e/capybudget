@@ -1,15 +1,17 @@
 /**
- * Render-tool → ContentBlock mapping.
+ * Tool-call → ContentBlock mapping.
  *
- * Shared by every adapter (Claude CLI, Anthropic API, OpenAI API). The
- * model emits the same `render_*` tool calls regardless of provider, so
- * each adapter routes them through the same builders here. Single source
- * of truth — adding a new render tool means adding it to
- * `RENDER_TOOL_DEFS` + here, nowhere else.
+ * Shared by every adapter (Claude CLI, Anthropic API, OpenAI API). Some
+ * tools are communication channels, not data calls — the model emits them
+ * and the UI renders the result rather than feeding a string back to the
+ * model. Chat's `render_*` family (tables, charts, follow-ups) and import's
+ * `report_status` line all work this way, so each adapter routes them
+ * through the same builders here. Single source of truth — adding such a
+ * tool means adding it to its definitions file + here, nowhere else.
  *
  * Each builder validates the parsed tool input. If the payload is
  * malformed (model misbehavior), the builder returns `null` and the
- * adapter falls back to a `tool-activity` block — the chat keeps moving
+ * adapter falls back to a `tool-activity` block — the session keeps moving
  * rather than crashing the renderer.
  */
 import type {
@@ -18,11 +20,15 @@ import type {
   DonutChartBlock,
   FollowupChip,
   FollowupsBlock,
+  StatusBlock,
   TableBlock,
 } from "./types"
 
 // Terminal-signal tool contract — see specs/INTELLIGENCE.md.
 export const RENDER_FOLLOWUPS_TOOL_NAME = "render_followups"
+
+// Import progress channel — see specs/INTELLIGENCE.md § Import Sessions.
+export const REPORT_STATUS_TOOL_NAME = "report_status"
 
 type RenderBuilder = (input: Record<string, unknown>) => ContentBlock | null
 
@@ -47,6 +53,12 @@ const BUILDERS: Record<string, RenderBuilder> = {
     const chips = sanitizeFollowupChips(input.chips)
     if (chips === null) return null
     return { type: "followups", chips } satisfies FollowupsBlock
+  },
+
+  [REPORT_STATUS_TOOL_NAME]: (input) => {
+    const text = typeof input.status === "string" ? input.status.trim() : ""
+    if (!text) return null
+    return { type: "status", text } satisfies StatusBlock
   },
 }
 

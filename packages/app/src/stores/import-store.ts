@@ -43,17 +43,27 @@ interface RunContext {
 }
 
 /**
- * The run's terminal result, set by the orchestrator on completion. The minimal
- * seam between the orchestrator (which decides the outcome) and Unit 5 (which
- * renders terminal moments prominently):
+ * The run's terminal result, set by the orchestrator on completion. The seam
+ * between the orchestrator (which decides the outcome) and the UI (which renders
+ * the terminal moment prominently — distinct from the running status line/log):
  *   - `ready` — the run finished with rows to merge (the normal landing).
+ *     `counts` carries the merge-ready vs dimmed split for the summary.
  *   - `nothing-to-import` — the dedup halt: every staging row was a duplicate,
  *     so enrich was skipped. `message` is the orchestrator-built terminal text.
+ *   - `error` — the run failed mid-flight. `message` is the failure text.
  * `message` is always code-set, never model prose.
  */
 export interface RunOutcome {
-  kind: "ready" | "nothing-to-import";
+  kind: "ready" | "nothing-to-import" | "error";
   message?: string;
+  /** Set on a `ready` landing: rows that will merge vs duplicate rows dimmed. */
+  counts?: { ready: number; duplicates: number };
+}
+
+/** One past status line, kept in the run log with the time it was superseded. */
+export interface StatusLogEntry {
+  text: string;
+  at: number; // Date.now() — app runtime (browser), fine here
 }
 
 interface ImportStore {
@@ -66,14 +76,20 @@ interface ImportStore {
 
   // ── The single orchestrated run ──────────────────────────────
   runSession: CapySession | null;
-  /** Streamed tool-call / message activity for the whole run. */
+  /** Streamed tool-call activity for the whole run (secondary detail; the
+   *  status line + log is the primary channel). No assistant prose — import
+   *  mode talks via `report_status`, not free text. */
   runMessages: ChatMessage[];
-  /** Latest status line surfaced from the run (last non-empty text). */
+  /** The current step: the latest `report_status` line. Empty until the first
+   *  status arrives. */
   statusText: string;
+  /** Prior status lines, newest-first, each stamped with when a newer line
+   *  superseded it. The active line lives in `statusText`, not here. */
+  statusLog: StatusLogEntry[];
   /**
-   * The run's terminal result, set on completion (null while in-flight). Unit 5
-   * reads this to render the terminal moment — the "nothing to import" halt or
-   * the merge-ready landing — as a result rather than a log line.
+   * The run's terminal result, set on completion (null while in-flight). The UI
+   * reads this to render the terminal moment — the "nothing to import" halt, the
+   * merge-ready landing, or an error — as a prominent result, not a log line.
    */
   runOutcome: RunOutcome | null;
 
@@ -135,30 +151,85 @@ interface ImportStore {
 
 // ── Helpers ─────────────────────────────────────────────────────
 
-let lastRunTextContent = "";
+/**
+ * The distinct `report_status` lines for the whole run, oldest-first, each
+ * stamped with when it first arrived. Module-level state because the status
+ * channel spans phases and a `content` event carries the *cumulative* block
+ * array — the current phase-turn's status history re-sent every tick. Two
+ * pieces:
+ *   - `committedStatusLines` — lines from phases that already finished. Phases
+ *     are separate turns, so a phase's `content` array doesn't carry the prior
+ *     phases' statuses; the orchestrator commits them on each phase advance.
+ *   - the current turn's lines are rederived from its cumulative texts each
+ *     tick (idempotent under the re-send), reusing stable stamps.
+ * Reset together at every run boundary (start / resume / cancel / merge).
+ */
+let committedStatusLines: StatusLogEntry[] = [];
+let currentTurnStatusLines: StatusLogEntry[] = [];
 
-function appendRunBlock(
-  blocks: ContentBlock[],
-  block: ContentBlock,
-): ContentBlock[] {
-  const next = [...blocks];
-  if (block.type === "text") {
-    const prevText = lastRunTextContent;
-    if (prevText && block.content.startsWith(prevText)) {
-      const lastTextIdx = next.findLastIndex((b) => b.type === "text");
-      if (lastTextIdx >= 0) {
-        next[lastTextIdx] = block;
-      } else {
-        next.push(block);
-      }
-    } else {
-      next.push(block);
-    }
-    lastRunTextContent = block.content;
-  } else {
-    next.push(block);
+function resetStatusLines(): void {
+  committedStatusLines = [];
+  currentTurnStatusLines = [];
+}
+
+/** Fold the current phase-turn's status lines into the committed history and
+ *  start a fresh turn — called when the orchestrator advances a phase. */
+function commitStatusTurn(): void {
+  committedStatusLines = [...committedStatusLines, ...currentTurnStatusLines];
+  currentTurnStatusLines = [];
+}
+
+/**
+ * Reconcile the status state against the current phase-turn's cumulative status
+ * texts. Consecutive duplicates collapse (a model re-reporting the same step
+ * doesn't spam the log). Run-wide lines = committed (finished phases) + this
+ * turn's; the newest is the active `statusText`, the rest the log (newest-first).
+ */
+function reconcileStatus(
+  texts: string[],
+): { statusText: string; statusLog: StatusLogEntry[] } {
+  const turn: StatusLogEntry[] = [];
+  const lastCommitted = committedStatusLines[committedStatusLines.length - 1];
+  for (const text of texts) {
+    if (!text) continue;
+    const prevText =
+      turn.length > 0 ? turn[turn.length - 1].text : lastCommitted?.text;
+    if (text === prevText) continue;
+    // Reuse the prior stamp for a line already seen at this position; only
+    // freshly-arrived lines get a new timestamp.
+    const prior = currentTurnStatusLines[turn.length];
+    turn.push(prior && prior.text === text ? prior : { text, at: Date.now() });
   }
-  return next;
+  currentTurnStatusLines = turn;
+
+  const lines = [...committedStatusLines, ...turn];
+  if (lines.length === 0) return { statusText: "", statusLog: [] };
+  const active = lines[lines.length - 1];
+  const log = lines.slice(0, -1).reverse();
+  return { statusText: active.text, statusLog: log };
+}
+
+/**
+ * Tear down a failed run and land it on a terminal `error` outcome. Shared by
+ * the stream `error` event and the Claude-CLI `onExit` (subprocess died). A run
+ * already torn down (idle / review / cancelled) is left alone. The phase stays
+ * put so the screen keeps the processing view, where the error renders as a
+ * prominent result rather than a buried log line.
+ */
+function failRun(
+  message: string,
+  set: (partial: Partial<ImportStore>) => void,
+  get: () => ImportStore,
+): void {
+  const phase = get().phase;
+  if (phase === "idle" || phase === "review") return;
+  get().runSession?.kill();
+  runContext = null;
+  set({
+    runSession: null,
+    statusText: "",
+    runOutcome: { kind: "error", message },
+  });
 }
 
 /** The pipeline index for a given phase, or -1 if not a run phase. */
@@ -191,6 +262,7 @@ export const useImportStore = create<ImportStore>((set, get) => ({
   runSession: null,
   runMessages: [],
   statusText: "",
+  statusLog: [],
   runOutcome: null,
 
   startRun: ({
@@ -203,7 +275,7 @@ export const useImportStore = create<ImportStore>((set, get) => ({
     fileAdapter,
   }) => {
     get().runSession?.kill();
-    lastRunTextContent = "";
+    resetStatusLines();
     runContext = { budgetPath, repo, fileAdapter };
 
     const session = createSession({
@@ -220,14 +292,11 @@ export const useImportStore = create<ImportStore>((set, get) => ({
       // never invoke this — they have no process to die.
       onExit: () => {
         console.debug("[import-store] run process exited");
-        if (get().phase === "idle" || get().phase === "review") return;
-        lastRunTextContent = "";
-        const errorBlock: ContentBlock = {
-          type: "text" as const,
-          content:
-            "The import process ended unexpectedly. You can try again by canceling and restarting.",
-        };
-        set({ runMessages: appendErrorMessage(get().runMessages, errorBlock) });
+        failRun(
+          "The import process ended unexpectedly. Cancel and try again.",
+          set,
+          get,
+        );
       },
     });
 
@@ -257,6 +326,7 @@ export const useImportStore = create<ImportStore>((set, get) => ({
       runSession: session,
       runMessages: [userMsg, assistantMsg],
       statusText: "",
+      statusLog: [],
       runOutcome: null,
       phase: "normalizing",
       hasImportData: false,
@@ -286,7 +356,7 @@ export const useImportStore = create<ImportStore>((set, get) => ({
 
   resumeRun: ({ budgetPath, mcpServerPath, systemPrompt, repo, fileAdapter }) => {
     get().runSession?.kill();
-    lastRunTextContent = "";
+    resetStatusLines();
     runContext = { budgetPath, repo, fileAdapter };
 
     const session = createSession({
@@ -299,14 +369,11 @@ export const useImportStore = create<ImportStore>((set, get) => ({
       onEvent: (event: StreamEvent) => handleRunStreamEvent(event, set, get),
       onExit: () => {
         console.debug("[import-store] resumed run process exited");
-        if (get().phase === "idle" || get().phase === "review") return;
-        lastRunTextContent = "";
-        const errorBlock: ContentBlock = {
-          type: "text" as const,
-          content:
-            "The import process ended unexpectedly. You can try again by canceling and restarting.",
-        };
-        set({ runMessages: appendErrorMessage(get().runMessages, errorBlock) });
+        failRun(
+          "The import process ended unexpectedly. Cancel and try again.",
+          set,
+          get,
+        );
       },
     });
 
@@ -323,6 +390,7 @@ export const useImportStore = create<ImportStore>((set, get) => ({
       runSession: session,
       runMessages: [assistantMsg],
       statusText: "",
+      statusLog: [],
       runOutcome: null,
       phase: IMPORT_PIPELINE[FIRST_POST_NORMALIZE_INDEX].phase,
       hasImportData: false,
@@ -348,12 +416,13 @@ export const useImportStore = create<ImportStore>((set, get) => ({
 
   cancelRun: () => {
     get().runSession?.kill();
-    lastRunTextContent = "";
+    resetStatusLines();
     runContext = null;
     set({
       runSession: null,
       runMessages: [],
       statusText: "",
+      statusLog: [],
       runOutcome: null,
       phase: "idle",
       hasImportData: false,
@@ -364,12 +433,13 @@ export const useImportStore = create<ImportStore>((set, get) => ({
     // The run session is already dead by `review`; a re-enrich session may
     // still be alive if the user enriched then merged.
     get().reenrichSession?.kill();
-    lastRunTextContent = "";
+    resetStatusLines();
     runContext = null;
     set({
       runSession: null,
       runMessages: [],
       statusText: "",
+      statusLog: [],
       runOutcome: null,
       reenrichSession: null,
       isEnriching: false,
@@ -548,7 +618,9 @@ async function driveStep(
   }
 
   console.debug(`[import-store] driving → ${step.phase}`);
-  lastRunTextContent = "";
+  // The prior phase's turn is done — fold its status lines into the run's
+  // committed history before the next phase's turn re-sends only its own.
+  commitStatusTurn();
   set({ phase: step.phase });
 
   // Deterministic pre-step: code-triggered tools dispatched directly (not
@@ -610,9 +682,28 @@ async function completeRun(
   outcome: RunOutcome = { kind: "ready" },
 ): Promise<void> {
   console.debug(`[import-store] run complete (${outcome.kind}) → review`);
-  lastRunTextContent = "";
 
   const ctx = runContext;
+  // The merge-ready landing needs its split (rows that will merge vs duplicates
+  // dimmed) for the terminal summary. Read it from the staging tally the halt
+  // check already uses — single source, no UI recompute. The halt outcome
+  // carries its own message and skips this.
+  let resolved = outcome;
+  if (outcome.kind === "ready" && ctx?.fileAdapter) {
+    try {
+      const { total, duplicateCount } = await readStagingDuplicateTally(
+        ctx.fileAdapter,
+        ctx.budgetPath,
+      );
+      resolved = {
+        kind: "ready",
+        counts: { ready: total - duplicateCount, duplicates: duplicateCount },
+      };
+    } catch (err) {
+      console.warn("[import-store] completion count read failed:", err);
+    }
+  }
+
   if (ctx?.fileAdapter) {
     try {
       await markImportEnriched(ctx.fileAdapter, ctx.budgetPath);
@@ -632,7 +723,7 @@ async function completeRun(
     phase: "review",
     hasImportData: true,
     statusText: "",
-    runOutcome: outcome,
+    runOutcome: resolved,
   });
 }
 
@@ -645,28 +736,31 @@ function handleRunStreamEvent(
 ) {
   switch (event.type) {
     case "content": {
-      let latestText = "";
-      set({
-        runMessages: (() => {
-          const msgs = get().runMessages;
-          const updated = [...msgs];
-          const last = updated[updated.length - 1];
-          if (last?.role !== "assistant") return msgs;
-
-          let blocks = [...last.blocks];
-          for (const block of event.blocks) {
-            blocks = appendRunBlock(blocks, block);
-            if (block.type === "text" && block.content) {
-              const lines = block.content.trim().split("\n");
-              const lastLine = lines[lines.length - 1]?.trim();
-              if (lastLine) latestText = lastLine;
-            }
-          }
-          updated[updated.length - 1] = { ...last, blocks };
-          return updated;
-        })(),
-      });
-      if (latestText) set({ statusText: latestText });
+      // A `content` event carries the cumulative block array for the whole
+      // turn, so the trailing assistant message is replaced wholesale (same as
+      // chat's mergeStreamContent). The run talks via `report_status` (→
+      // `status` blocks), not prose: status blocks are split out to drive the
+      // status line/log and kept out of the message stream; tool-activity rides
+      // along as secondary detail. Status state is rederived from the full
+      // ordered status sequence, so it's idempotent under the cumulative
+      // re-send.
+      const statusTexts: string[] = [];
+      const blocks: ContentBlock[] = [];
+      for (const block of event.blocks) {
+        if (block.type === "status") {
+          if (block.text) statusTexts.push(block.text);
+        } else {
+          blocks.push(block);
+        }
+      }
+      const msgs = get().runMessages;
+      const last = msgs[msgs.length - 1];
+      if (last?.role === "assistant") {
+        const updated = [...msgs];
+        updated[updated.length - 1] = { ...last, blocks };
+        set({ runMessages: updated });
+      }
+      set(reconcileStatus(statusTexts));
       break;
     }
     case "done":
@@ -674,14 +768,7 @@ function handleRunStreamEvent(
       break;
     case "error":
       console.debug("[import-store] run error:", event.message);
-      lastRunTextContent = "";
-      set({
-        statusText: "",
-        runMessages: appendErrorMessage(get().runMessages, {
-          type: "text" as const,
-          content: `Error: ${event.message}`,
-        }),
-      });
+      failRun(event.message, set, get);
       break;
   }
 }
@@ -693,11 +780,11 @@ function handleReenrichStreamEvent(
 ) {
   switch (event.type) {
     case "content":
+      // Re-enrich talks via `report_status` too — drive the status line from
+      // the `status` blocks, not prose.
       for (const block of event.blocks) {
-        if (block.type === "text" && block.content) {
-          const lines = block.content.trim().split("\n");
-          const last = lines[lines.length - 1]?.trim();
-          if (last) set({ enrichStatusText: last });
+        if (block.type === "status" && block.text) {
+          set({ enrichStatusText: block.text });
         }
       }
       break;
@@ -719,21 +806,4 @@ function handleReenrichStreamEvent(
       set({ isEnriching: false, enrichStatusText: "" });
       break;
   }
-}
-
-/** Append an error block to the trailing assistant message (or a new one). */
-function appendErrorMessage(
-  msgs: ChatMessage[],
-  errorBlock: ContentBlock,
-): ChatMessage[] {
-  const updated = [...msgs];
-  const last = updated[updated.length - 1];
-  if (last?.role !== "assistant") {
-    return [
-      ...msgs,
-      { id: crypto.randomUUID(), role: "assistant" as const, blocks: [errorBlock] },
-    ];
-  }
-  updated[updated.length - 1] = { ...last, blocks: [...last.blocks, errorBlock] };
-  return updated;
 }

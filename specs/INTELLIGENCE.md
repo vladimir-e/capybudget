@@ -70,6 +70,7 @@ The tool handlers don't know which transport called them.
 | `bar-chart` | Title + label/value pairs |
 | `donut-chart` | Title + label/value pairs |
 | `tool-activity` | Tool name (persists in chat history) |
+| `status` | One import progress line, from `report_status`. The import store intercepts it to drive the status line/log (see **Status channel**). |
 | `file-attachment` | File name, size, mediaType (rendered as chip) |
 | `followups` | Array of `{label, prompt}` follow-up suggestion chips. Click sends `prompt` as next user message. |
 
@@ -150,7 +151,7 @@ All filesystem access goes through the `FileAdapter` on the context, so the same
 An in-process API session sees only the tools its system prompt can use, so a chat asking "what did I spend on coffee" isn't handed the CSV/enrich pipeline (and doesn't pay to re-send those schemas every turn). The factory threads a `mode` into the API adapters, which pass it to `getToolDefinitions(mode)`:
 
 - **chat** (22 tools) — reads, full CRUD, render tools, `read_file`/`read_spec`, plus `search_transactions` (fuzzy "find all my Apple charges" → compact rows; the prompt also reaches for it on "how much did I spend at X?"), `group_transactions` (spending breakdowns, rollups, recurrence — the prompt steers all aggregation here rather than hand-summing rows), and read-only import visibility (`read_import_file` / `list_import_files`) for staged-import questions. No CSV/enrich/write tools.
-- **import** (13 tools) — the CSV transform + enrich pipeline (`analyze_csv`/`preview_transform`/`transform_csv`/`enrich_status`/`enrich_update`), the dedup pair (`find_duplicates`/`mark_duplicates`), `write_import_file`, `search_transactions` (look up a cryptic description in budget history and inherit the matching rows' merchant + category), `list_accounts`/`list_categories` (transfer-target and category UUIDs), and `read_file`/`read_spec`. The staged-file readers (`read_import_file`/`list_import_files`) are **not** advertised here — the import session writes its own files and tracks them in the run, so it doesn't inspect the directory; they stay chat-only and on the MCP surface. The single import run advertises this union across every phase. No render or live-budget mutation tools.
+- **import** (14 tools) — the CSV transform + enrich pipeline (`analyze_csv`/`preview_transform`/`transform_csv`/`enrich_status`/`enrich_update`), the dedup pair (`find_duplicates`/`mark_duplicates`), `write_import_file`, `report_status` (the run's sole communication channel — see **Status channel**), `search_transactions` (look up a cryptic description in budget history and inherit the matching rows' merchant + category), `list_accounts`/`list_categories` (transfer-target and category UUIDs), and `read_file`/`read_spec`. The staged-file readers (`read_import_file`/`list_import_files`) are **not** advertised here — the import session writes its own files and tracks them in the run, so it doesn't inspect the directory; they stay chat-only and on the MCP surface. The single import run advertises this union across every phase. No render or live-budget mutation tools.
 
 `auto_enrich`, `apply_account_aliases`, and `auto_mark_duplicates` are **code-triggered, never advertised**: none has a `TOOL_MODES` entry, so no model sees them, but they stay on the MCP surface and dispatchable via `runTool` — the import orchestrator runs each as a deterministic phase pre-step (`apply_account_aliases` before the accounts turn, `auto_mark_duplicates` before the dedup turn, `auto_enrich` before the enrich turn). Dispatch (`runTool`) does not consult `TOOL_MODES`; the map gates *advertisement* only, so removing an entry never breaks a direct call.
 
@@ -169,15 +170,16 @@ This is in-process-adapter only; the Claude CLI manages its own caching.
 
 The app invalidates caches per mutation tool call (not per turn) so the UI reflects Capy's changes live as it works. `MUTATION_TOOL_NAMES` is exposed for matching.
 
-### Render tools
+### Channel tools
 
-| Tool | Input | Renders as |
-|---|---|---|
-| `render_table` | `{ headers, rows }` | Data table with amount coloring |
-| `render_chart` | `{ title, type: "bar" \| "donut", data: [{label, value}] }` | Horizontal bar chart or SVG donut chart with legend, per `type` |
-| `render_followups` | `{ chips: [{label, prompt}] }` (1–4 items) | Follow-up suggestion chips after an answer. |
+Some tools are communication channels, not data calls: the model emits them and the UI renders the result rather than feeding a string back to the model. They are no-ops on the dispatch side (`runTool` returns a short ack — `isDispatchTool` recognizes them, but no handler runs), and every adapter converts the `tool_use` into a `ContentBlock` through the shared map in `render-map.ts`. A malformed payload returns `null` from the builder, and the adapter falls back to a `tool-activity` block so the session keeps moving. Adding such a tool means a definition + a builder, nowhere else.
 
-No-ops on the dispatch side — they carry structured data from AI to frontend via `tool_use` events.
+| Tool | Mode | Input | Renders as |
+|---|---|---|---|
+| `render_table` | chat | `{ headers, rows }` | Data table with amount coloring |
+| `render_chart` | chat | `{ title, type: "bar" \| "donut", data: [{label, value}] }` | Horizontal bar chart or SVG donut chart with legend, per `type` |
+| `render_followups` | chat | `{ chips: [{label, prompt}] }` (1–4 items) | Follow-up suggestion chips after an answer. |
+| `report_status` | import | `{ status }` | One progress line in the import run's status channel (see **Status channel**). |
 
 `render_followups` is a **terminal-signal tool**: when the model calls it, the assistant turn is over. The API adapters dispatch the call (so the UI gets the chips) and push the tool_result to history, then exit the agentic loop without making another request. Skipping the ack round-trip saves a full stream per turn. The Claude CLI runs the loop in-subprocess; the prompt tells the model to stay silent after calling `render_followups`, and the stream parser suppresses any empty/whitespace-only assistant text it still emits.
 
@@ -291,7 +293,7 @@ The first phase, **normalize**, is the kickoff — driven by the import system p
 
 The pipeline is ordered and insertable: a phase is one entry. The runtime order the feature builds toward is **normalize → accounts → dedup → enrich**, with account mapping before dedup (dedup's rules key off the resolved account). The run lands on the terminal **review** — the preview/table where the user merges.
 
-Phase machine: `idle → normalizing → accounts → dedup → enriching → review`. The store streams the run's phase plus live activity (tool calls and messages) to the import screen throughout; only `review` swaps to the preview table. Cancelling mid-run stops the session and resets to `idle`.
+Phase machine: `idle → normalizing → accounts → dedup → enriching → review`. The store streams the run's phase plus live activity to the import screen throughout — a phase-driven progress bar and the `report_status` line/log (see **Status channel**), not prose; only `review` swaps to the preview table. Cancelling mid-run stops the session and resets to `idle`.
 
 ### Normalize
 
@@ -334,6 +336,23 @@ Reads the normalized CSV, identifies merchants, and categorizes transactions usi
 The `categoryConfidence` field coordinates between AI and user: enrichment writes `"high"` (merchant history match) or `"low"` (keyword inference), and skips rows where confidence is `"high"` (user-confirmed). The UI shows a confidence dot indicator next to each category.
 
 The run and the standalone re-enrich both use the `CapySession` interface, run in `import` mode (the same gated tool surface), and open with the shared app-knowledge brief — the per-phase instruction blocks (injected as user turns for the run; the system prompt for a standalone re-enrich) are what differ.
+
+### Status channel
+
+During the run, Capy communicates **only** through a structured status channel — no prose. Every import prompt instructs the model to write no free text and to call `report_status` (a [channel tool](#channel-tools)) with one short present-tense line per step ("Reading your March statement…", "Found 12 overlaps, marking them…"). The adapter converts each call into a `status` ContentBlock; the import store intercepts those blocks to drive the status line and never lets assistant text drive it. This is the UX and a token win — no paragraph generation. Tool-activity (which tools ran) rides along as secondary detail.
+
+The store holds the channel state, reset on every run start / resume / cancel / merge:
+
+- **Status line** — the latest `report_status` text, the current step.
+- **Log** — prior lines, newest-first, each stamped with when a newer line superseded it (`Date.now()`, the browser runtime). Consecutive duplicate lines are ignored so a re-report doesn't spam the log.
+
+**Progress bar.** Discrete segments — `normalize → accounts → dedup → enrich → done` (`IMPORT_SEGMENTS` / `IMPORT_PHASE_SEGMENT` in core) — fill as phases complete. The bar is driven by the real phase machine, never a model-emitted percentage, so it is always correct. The active phase's segment is in progress, earlier ones complete, later ones pending. The terminal `review` phase maps to `done`, which sits past every work segment — so all four read complete. That also covers the all-duplicate halt (dedup short-circuits straight to `review`, skipping enrich): the bar lands fully done rather than leaving enrich pending forever.
+
+**Terminal moments are results, not log lines.** The run's outcome (`runOutcome`, set by the orchestrator on completion) renders prominently, distinct from the running status line/log:
+
+- **Halt** (`nothing-to-import`) — the all-duplicate message ("All 23 transactions are already in your budget — nothing to import.") replaces the preview table; the only action is to finish.
+- **Completion** (`ready`) — a merge-ready summary ("47 ready, 3 duplicates dimmed.") sits above the preview table. The counts come from the staging tally the orchestrator already reads (ready = non-duplicate rows; duplicates = rows the dedup phase marked) — single source, no UI recompute.
+- **Error** (`error`) — a run that fails mid-flight (stream error or, on the Claude CLI, the subprocess dying) lands an `error` outcome; the phase stays put so the screen keeps the processing view, where the failure renders as a prominent result rather than a buried log line.
 
 ## Session Tool-Call Budget
 
