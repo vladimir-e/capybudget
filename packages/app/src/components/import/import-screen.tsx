@@ -70,7 +70,6 @@ type ImportViewState =
 export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
   // ── Store state (survives navigation) ─────────────────────────
   const phase = useImportStore((s) => s.phase);
-  const runMessages = useImportStore((s) => s.runMessages);
   const startRun = useImportStore((s) => s.startRun);
   const cancelRun = useImportStore((s) => s.cancelRun);
   const resumeRun = useImportStore((s) => s.resumeRun);
@@ -178,7 +177,7 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
   const statusText = useImportStore((s) => s.statusText);
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = 0;
-  }, [statusText, runMessages]);
+  }, [statusText, phase]);
 
   // ── Derived view state ────────────────────────────────────────
   // Store phase is the authority. Disk state only matters for idle sub-states.

@@ -132,6 +132,11 @@ export class ClaudeCliSession implements CapySession {
     })
 
     command.on("error", (error) => {
+      // Symmetric with the stream-parsed error path: mark the teardown
+      // deliberate so the subsequent `close` skips its onExit and doesn't
+      // double-fire failRun, overwriting this specific message with the
+      // generic "ended unexpectedly" text.
+      this.killed = true
       this.onEvent({ type: "error", message: error, provider: "claude-cli" })
     })
 

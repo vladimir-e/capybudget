@@ -540,6 +540,30 @@ describe("import-store", () => {
       expect(state.statusLog.map((e) => e.text)).toEqual(["two", "one"]);
     });
 
+    it("keeps a logged line's timestamp stable across the cumulative re-send", async () => {
+      vi.useFakeTimers();
+      try {
+        startRun();
+        // First line supersedes into the log once a second line arrives.
+        sessions[0].emitStatus("Reading your March statement…");
+        await vi.advanceTimersByTimeAsync(1000);
+        sessions[0].emitStatus("Mapping accounts…");
+        const firstStamp = useImportStore.getState().statusLog[0].at;
+
+        // A later line triggers another reconcile over the cumulative texts —
+        // the reused prior stamps must hold, not re-stamp at the new clock.
+        await vi.advanceTimersByTimeAsync(1000);
+        sessions[0].emitStatus("Categorizing transactions…");
+
+        const reading = useImportStore
+          .getState()
+          .statusLog.find((e) => e.text === "Reading your March statement…")!;
+        expect(reading.at).toBe(firstStamp);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
     it("ignores a repeated consecutive line (no log spam)", () => {
       startRun();
       sessions[0].emitStatus("Categorizing…");
