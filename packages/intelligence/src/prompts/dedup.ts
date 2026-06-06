@@ -16,7 +16,7 @@
  * Canonical "nothing to import" phrase for the all-duplicate halt. The
  * orchestrator — not the model — decides the halt and sets this message
  * (`buildNothingToImportMessage`), so the terminal text is a reliable
- * code-set value. Unit 5 renders the resulting `runOutcome` prominently;
+ * code-set value. The UI renders the resulting `runOutcome` prominently;
  * the constant is the shared phrase, not a string the model is asked to emit.
  */
 export const NOTHING_TO_IMPORT_SIGNAL =

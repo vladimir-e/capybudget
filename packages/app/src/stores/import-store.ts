@@ -126,6 +126,17 @@ interface ImportStore {
   cancelRun: () => void;
   /** Merge finished — reset to idle, leaving no session alive. */
   resetAfterMerge: () => void;
+  /**
+   * Re-derive the terminal `runOutcome` for a run reconnected straight into
+   * `review` (the app was closed/reopened mid-run, so the in-memory outcome is
+   * gone). Reads the staging tally and reconstructs the same outcome the
+   * orchestrator would have set on completion. Best-effort: a read failure
+   * leaves `runOutcome` null and the preview falls back to the plain table.
+   */
+  restoreReviewOutcome: (opts: {
+    budgetPath: string;
+    fileAdapter: FileAdapter;
+  }) => Promise<void>;
 
   // ── Standalone re-enrich (preview's Enrich button) ───────────
   // A user-initiated re-run of the enrich phase after manual edits in the
@@ -238,10 +249,34 @@ function pipelineIndexOf(phase: ImportPhase): number {
 }
 
 /**
+ * The terminal outcome a finished run lands on, derived from its staging
+ * duplicate tally. Every row a duplicate → the `nothing-to-import` halt;
+ * otherwise the merge-ready `ready` split (rows that merge vs duplicates
+ * dimmed). The single source for both the orchestrator's completion and a
+ * reconnect that lands straight in `review` with the in-memory outcome gone.
+ */
+function outcomeFromTally(tally: {
+  total: number;
+  duplicateCount: number;
+}): RunOutcome {
+  const { total, duplicateCount } = tally;
+  if (total > 0 && duplicateCount === total) {
+    return {
+      kind: "nothing-to-import",
+      message: buildNothingToImportMessage(total),
+    };
+  }
+  return {
+    kind: "ready",
+    counts: { ready: total - duplicateCount, duplicates: duplicateCount },
+  };
+}
+
+/**
  * First post-normalize pipeline step. Normalize is the kickoff (index 0); a
- * resumed run re-enters here and walks to the end. Future phases inserted after
- * normalize (e.g. Unit 2's `dedup`) are picked up automatically — resume always
- * starts at the step right after normalize, not a hardcoded phase.
+ * resumed run re-enters here and walks to the end. Any phase inserted after
+ * normalize is picked up automatically — resume always starts at the step right
+ * after normalize, not a hardcoded phase.
  */
 const FIRST_POST_NORMALIZE_INDEX = 1;
 
@@ -449,6 +484,23 @@ export const useImportStore = create<ImportStore>((set, get) => ({
     });
   },
 
+  restoreReviewOutcome: async ({ budgetPath, fileAdapter }) => {
+    // The run already finished on disk; only the in-memory outcome is gone.
+    // Reconstruct it from the staging tally — the same source the orchestrator
+    // reads on completion — so the completion banner / "nothing to import"
+    // result survive a reconnect. A stale outcome already in state takes
+    // precedence; this only fills the reconnect gap.
+    if (get().runOutcome) return;
+    try {
+      const tally = await readStagingDuplicateTally(fileAdapter, budgetPath);
+      if (get().phase === "review" && !get().runOutcome) {
+        set({ runOutcome: outcomeFromTally(tally) });
+      }
+    } catch (err) {
+      console.warn("[import-store] review-outcome restore failed:", err);
+    }
+  },
+
   // ── Re-enrich ────────────────────────────────────────────────
   reenrichSession: null,
   isEnriching: false,
@@ -629,8 +681,8 @@ async function driveStep(
   for (const tool of step.preStepTools) {
     if (!ctx?.repo || !ctx.fileAdapter) break;
     // A cancel mid-loop nulls `runSession`; stop before the next mutating
-    // tool call rather than draining the rest of the (Unit 2/4 multi-tool)
-    // pre-step against a torn-down run.
+    // tool call rather than draining the rest of a multi-tool pre-step against
+    // a torn-down run.
     if (get().runSession !== session) return;
     try {
       await runTool(tool, {}, {
@@ -691,14 +743,11 @@ async function completeRun(
   let resolved = outcome;
   if (outcome.kind === "ready" && ctx?.fileAdapter) {
     try {
-      const { total, duplicateCount } = await readStagingDuplicateTally(
+      const tally = await readStagingDuplicateTally(
         ctx.fileAdapter,
         ctx.budgetPath,
       );
-      resolved = {
-        kind: "ready",
-        counts: { ready: total - duplicateCount, duplicates: duplicateCount },
-      };
+      resolved = outcomeFromTally(tally);
     } catch (err) {
       console.warn("[import-store] completion count read failed:", err);
     }

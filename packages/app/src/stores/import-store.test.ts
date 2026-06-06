@@ -917,6 +917,113 @@ describe("import-store", () => {
       expect(useImportStore.getState().runSession).toBeNull();
       expect(sessionKill).toHaveBeenCalled();
     });
+
+    it("halts on an all-duplicate resume: dedup skips enrich → nothing-to-import", async () => {
+      // The interrupted run resumes the full post-normalize pipeline (accounts →
+      // dedup → enrich). If the resumed dedup phase finds every staging row is a
+      // duplicate, the shared halt fires here too — enrich is skipped and the run
+      // lands on review with a nothing-to-import outcome. Cross-unit regression
+      // anchor for resume × the all-duplicate halt.
+      mockReadStagingDuplicateTally.mockResolvedValue({
+        total: 12,
+        duplicateCount: 12,
+      });
+
+      resumeRun();
+      await flush(); // accounts pre-step + inject
+      expect(useImportStore.getState().phase).toBe("accounts");
+
+      sessions[0].emitDone(); // accounts → dedup (pre-step + inject)
+      await flush();
+      expect(useImportStore.getState().phase).toBe("dedup");
+
+      sessions[0].emitDone(); // dedup turn ends → halt fires
+      await flush();
+
+      const state = useImportStore.getState();
+      expect(state.phase).toBe("review");
+      expect(state.runOutcome).toEqual({
+        kind: "nothing-to-import",
+        message: "All 12 transactions are already in your budget — nothing to import.",
+      });
+      // Enrich was skipped: no enrich instruction injected, no auto_enrich pre-step.
+      expect(sessions[0].sends).not.toContain(ENRICH_INSTRUCTION);
+      expect(callOrder).not.toContain("runTool:auto_enrich");
+      // One session for the whole resumed run.
+      expect(sessions).toHaveLength(1);
+    });
+  });
+
+  // ── Reconnect into review: re-derive the terminal outcome ─────────
+  // The app was closed/reopened mid-run; the run finished on disk but the
+  // in-memory `runOutcome` is gone. On a fresh mount that lands in `review`,
+  // the store re-derives the outcome from the staging tally so the completion
+  // banner / "nothing to import" result survive the reconnect.
+
+  describe("restoreReviewOutcome", () => {
+    const fileAdapter = {} as FileAdapter;
+    const restore = () =>
+      useImportStore
+        .getState()
+        .restoreReviewOutcome({ budgetPath: "/budget", fileAdapter });
+
+    beforeEach(() => {
+      useImportStore.setState({ phase: "review", runOutcome: null });
+    });
+
+    it("re-derives a ready outcome from a partial staging tally", async () => {
+      mockReadStagingDuplicateTally.mockResolvedValue({
+        total: 50,
+        duplicateCount: 3,
+      });
+      await restore();
+
+      expect(useImportStore.getState().runOutcome).toEqual({
+        kind: "ready",
+        counts: { ready: 47, duplicates: 3 },
+      });
+      expect(mockReadStagingDuplicateTally).toHaveBeenCalledWith(
+        fileAdapter,
+        "/budget",
+      );
+    });
+
+    it("re-derives the nothing-to-import halt from an all-duplicate tally", async () => {
+      mockReadStagingDuplicateTally.mockResolvedValue({
+        total: 23,
+        duplicateCount: 23,
+      });
+      await restore();
+
+      expect(useImportStore.getState().runOutcome).toEqual({
+        kind: "nothing-to-import",
+        message: "All 23 transactions are already in your budget — nothing to import.",
+      });
+    });
+
+    it("does not overwrite an outcome already in state", async () => {
+      useImportStore.setState({
+        runOutcome: { kind: "ready", counts: { ready: 1, duplicates: 0 } },
+      });
+      await restore();
+
+      expect(mockReadStagingDuplicateTally).not.toHaveBeenCalled();
+      expect(useImportStore.getState().runOutcome).toEqual({
+        kind: "ready",
+        counts: { ready: 1, duplicates: 0 },
+      });
+    });
+
+    it("leaves runOutcome null when the staging read fails (best-effort)", async () => {
+      const warnSpy = vi
+        .spyOn(console, "warn")
+        .mockImplementation(() => undefined);
+      mockReadStagingDuplicateTally.mockRejectedValue(new Error("disk gone"));
+      await restore();
+
+      expect(useImportStore.getState().runOutcome).toBeNull();
+      warnSpy.mockRestore();
+    });
   });
 
   // ── Standalone re-enrich (preview's Enrich button) ────────────────

@@ -73,6 +73,7 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
   const startRun = useImportStore((s) => s.startRun);
   const cancelRun = useImportStore((s) => s.cancelRun);
   const resumeRun = useImportStore((s) => s.resumeRun);
+  const restoreReviewOutcome = useImportStore((s) => s.restoreReviewOutcome);
   const resetAfterMerge = useImportStore((s) => s.resetAfterMerge);
   const setPhase = useImportStore((s) => s.setPhase);
   const setGlobalHasImportData = useImportStore((s) => s.setHasImportData);
@@ -156,6 +157,10 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
         } else if (action.kind === "review") {
           setPhase("review");
           setGlobalHasImportData(true);
+          // A reconnect into review lost the in-memory run outcome — re-derive
+          // it from staging so the completion banner / "nothing to import"
+          // result survive (best-effort; null on failure falls back to table).
+          void restoreReviewOutcome({ budgetPath, fileAdapter: tauriFileAdapter });
         } else {
           // Interrupted run — re-run the full post-normalize pipeline. The
           // screen stays on the processing view (resumeFullRun drives the
@@ -295,7 +300,7 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
   // ── Actions ───────────────────────────────────────────────────
   const handleStart = async () => {
     if (sourceFiles.length === 0 || (phase !== "idle" && phase !== "review")) return;
-    console.log("[import] starting run with", sourceFiles.length, "source files");
+    console.debug("[import] starting run with", sourceFiles.length, "source files");
 
     try {
       await repository.writeState({ sourceFiles: sourceFiles.map((f) => f.name) });
@@ -387,7 +392,7 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
   };
 
   const handleCancel = useCallback(async () => {
-    console.log("[import] cancelling import");
+    console.debug("[import] cancelling import");
     cancelRun();
     setFileDuplicates({});
     await repository.clearImportData();

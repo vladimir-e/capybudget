@@ -38,7 +38,7 @@ export type ImportPhase =
   | "enriching"
   | "review";
 
-/** Discrete progress-bar segments, in fill order (driven by Unit 5). */
+/** Discrete progress-bar segments, in fill order. */
 export type ImportSegment =
   | "normalize"
   | "accounts"

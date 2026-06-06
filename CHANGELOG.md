@@ -11,6 +11,7 @@ CHANGELOG PHILOSOPHY:
 
 ## Unreleased
 
+- **Import** - One-step Smart Import: a single run normalizes, pre-maps accounts, dims duplicates, and categorizes — land on a finished preview and hit Merge. Live progress bar + status line; all-duplicate imports report "nothing to import."
 - **Import** - Drop files anywhere on the import pane; Cancel Import now confirms before discarding extracted transactions.
 - **Capy** - New `search_transactions` tool: fuzzy free-text + money search across transactions (same matching as the app's list); `list_transactions` gains a compact row format. Retires `search_merchants` — chat and import enrichment now read merchant + category off matching rows.
 - **Capy** - New `group_transactions` aggregator (#57): group by merchant/category/account/type/month/week/dayOfMonth/amountBucket (multi-key) with count/sum/avg/min/max/median/distinct/cadence metrics; `list_transactions` gains an `ids` fetch param.

@@ -22,6 +22,7 @@ import {
   transformCsv,
   serializeImportCsv,
   detectDuplicates,
+  IMPORT_CSV_COLUMNS,
 } from "@capybudget/core"
 import type { Transaction } from "@capybudget/core"
 import type { BudgetRepository } from "@capybudget/persistence"
@@ -233,29 +234,10 @@ async function writeImportCsv(
   filePath: string,
   data: Record<string, string>[],
 ) {
-  const csv = Papa.unparse(data, { columns: IMPORT_CSV_COLUMNS })
+  const csv = Papa.unparse(data, { columns: [...IMPORT_CSV_COLUMNS] })
   await ctx.fileAdapter.writeFile(filePath, csv)
   csvCache.set(filePath, data)
 }
-
-const IMPORT_CSV_COLUMNS = [
-  "id",
-  "date",
-  "description",
-  "amount",
-  "type",
-  "sourceAccount",
-  "sourceCategory",
-  "memo",
-  "merchant",
-  "accountId",
-  "targetAccountId",
-  "categoryId",
-  "categoryConfidence",
-  "duplicate",
-  "duplicateOf",
-  "duplicateConfidence",
-]
 
 // ── enrich_status / enrich_update ────────────────────────────────
 

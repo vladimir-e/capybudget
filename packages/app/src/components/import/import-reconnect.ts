@@ -6,10 +6,10 @@
  * died after normalize wrote the CSV but before the run completed. Resuming is
  * gated strictly on `enriched === false` so a completed run never re-runs.
  *
- * A resume re-runs the *full* post-normalize pipeline (accounts → … → enrich)
- * over the staging CSV — not enrich alone. An interrupted run may have died
- * before or during account mapping (or, once Unit 2 lands, dedup), so finishing
- * with enrich-only would skip those phases and reach preview unmapped.
+ * A resume re-runs the *full* post-normalize pipeline (accounts → dedup →
+ * enrich) over the staging CSV — not enrich alone. An interrupted run may have
+ * died before or during account mapping or dedup, so finishing with enrich-only
+ * would skip those phases and reach preview unmapped.
  */
 export type ReconnectAction =
   | { kind: "empty" }         // no CSV — fall back to drop zone / file list

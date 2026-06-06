@@ -413,7 +413,12 @@ function shouldSkipRow(
 
 // ── CSV serialization ───────────────────────────────────────────
 
-const IMPORT_COLUMNS = [
+/**
+ * Staging CSV column order — the single source of truth for the import
+ * `transactions.csv` header. Shared with the intelligence layer's CSV
+ * write path (`tools/handlers/csv.ts`) so the two serializers can't drift.
+ */
+export const IMPORT_CSV_COLUMNS = [
   "id", "date", "description", "amount", "type",
   "sourceAccount", "sourceCategory", "memo",
   "merchant", "accountId", "targetAccountId", "categoryId", "categoryConfidence",
@@ -422,9 +427,9 @@ const IMPORT_COLUMNS = [
 
 /** Serialize ImportTransaction[] to a CSV string. */
 export function serializeImportCsv(transactions: ImportTransaction[]): string {
-  const header = IMPORT_COLUMNS.join(",");
+  const header = IMPORT_CSV_COLUMNS.join(",");
   const rows = transactions.map((t) =>
-    IMPORT_COLUMNS.map((col) => csvEscape(String(t[col] ?? ""))).join(","),
+    IMPORT_CSV_COLUMNS.map((col) => csvEscape(String(t[col] ?? ""))).join(","),
   );
   return [header, ...rows].join("\n");
 }

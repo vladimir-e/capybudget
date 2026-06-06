@@ -295,6 +295,8 @@ The pipeline is ordered and insertable: a phase is one entry. The runtime order 
 
 Phase machine: `idle → normalizing → accounts → dedup → enriching → review`. The store streams the run's phase plus live activity to the import screen throughout — a phase-driven progress bar and the `report_status` line/log (see **Status channel**), not prose; only `review` swaps to the preview table. Cancelling mid-run stops the session and resets to `idle`.
 
+A run interrupted after normalize (app closed, process died) reconnects on the next mount and re-runs the **full post-normalize pipeline** (accounts → dedup → enrich) over the existing staging CSV in a fresh session via `IMPORT_RESUME_SYSTEM_PROMPT`; normalize is never re-run, since the dropped source files are gone and the staging rows are the input.
+
 ### Normalize
 
 Takes dropped files, detects format, extracts transactions into a uniform CSV. Leaves enrichment columns empty.

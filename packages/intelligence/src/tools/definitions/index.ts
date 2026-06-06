@@ -40,8 +40,9 @@ export type ToolDefinition = {
 /**
  * In-process session modes. Each runs one system prompt and sees only
  * the tools that prompt advertises. `chat` is the conversational
- * overlay; `import` covers both Smart Import sessions (normalize and
- * enrich), which share a tool surface.
+ * overlay; `import` is the single Smart Import run, which advertises one
+ * phase-spanning tool surface (normalize, accounts, dedup, enrich) plus
+ * the standalone re-enrich that shares it.
  */
 export type ToolMode = "chat" | "import"
 

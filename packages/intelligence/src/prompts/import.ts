@@ -51,6 +51,8 @@ id,date,description,amount,type,sourceAccount,sourceCategory,memo,merchant,accou
 | categoryId | string | Optional: fill with a real category UUID (from \`list_categories\`) when you're confident. Leave empty otherwise — enrichment will handle it. |
 | categoryConfidence | string | Set alongside categoryId. "high" for unambiguous matches, "low" for inferred. Leave empty if categoryId is empty. |
 
+These are the columns you write during normalize. The dedup phase later appends three more (\`duplicate\`, \`duplicateOf\`, \`duplicateConfidence\`) — not your concern here; the transform engine handles the full header.
+
 ---
 
 ## CSV transform pipeline
