@@ -12,7 +12,7 @@
 
 import { describe, it, expect, beforeEach, vi } from "vitest"
 import { act, renderHook, waitFor } from "@testing-library/react"
-import type { Account, Category, ImportAliases, ImportTransaction } from "@capybudget/core"
+import type { Account, Category, ImportAliases, ImportTransaction, Transaction } from "@capybudget/core"
 
 // ── Mocks ───────────────────────────────────────────────────────────
 
@@ -23,11 +23,12 @@ const accounts: Account[] = [
 const categories: Category[] = [
   { id: "cat-1", name: "Groceries", group: "Daily Living", archived: false, sortOrder: 0, assigned: null },
 ]
+let existingTransactions: Transaction[] = []
 
 vi.mock("@/hooks/use-budget-data", () => ({
   useAccounts: () => ({ data: accounts }),
   useCategories: () => ({ data: categories }),
-  useTransactions: () => ({ data: [] }),
+  useTransactions: () => ({ data: existingTransactions }),
 }))
 
 let stagingRows: ImportTransaction[] = []
@@ -71,6 +72,7 @@ function makeRow(overrides: Partial<ImportTransaction>): ImportTransaction {
 beforeEach(() => {
   stagingRows = []
   aliasFile = { accounts: {} }
+  existingTransactions = []
   writeAliases.mockClear()
   writeTransactionsCsv.mockClear()
 })
@@ -140,5 +142,50 @@ describe("useImportData account overlay", () => {
     // Give any async alias write a chance to fire.
     await new Promise((r) => setTimeout(r, 0))
     expect(writeAliases).not.toHaveBeenCalled()
+  })
+})
+
+describe("useImportData persisted duplicates", () => {
+  it("starts duplicate-flagged rows unselected and non-duplicates selected", async () => {
+    const dup = makeRow({ id: "dup-row", duplicate: true, duplicateOf: "ex-1", duplicateConfidence: "high" })
+    const fresh = makeRow({ id: "fresh-row", duplicate: false })
+    stagingRows = [dup, fresh]
+
+    const { result } = renderHook(() => useImportData("/budget"))
+    await waitFor(() => expect(result.current.loading).toBe(false))
+
+    expect(result.current.selectedIds.has("fresh-row")).toBe(true)
+    expect(result.current.selectedIds.has("dup-row")).toBe(false)
+  })
+
+  it("derives the duplicate view from persisted flags, not a live recompute", async () => {
+    // An identical existing transaction sits in the budget, but the staging row
+    // is NOT flagged: the agent didn't mark it, so the preview must not invent a
+    // duplicate. (The frontend live-compute would have flagged it.)
+    existingTransactions = [
+      { id: "ex-1", datetime: "2026-03-01T00:00:00.000", type: "expense", amount: -1000, categoryId: "cat-1", accountId: "acct-chase", transferPairId: "", merchant: "", note: "PURCHASE", createdAt: "" },
+    ]
+    stagingRows = [makeRow({ id: "row", accountId: "acct-chase", duplicate: false })]
+
+    const { result } = renderHook(() => useImportData("/budget"))
+    await waitFor(() => expect(result.current.loading).toBe(false))
+
+    expect(result.current.duplicates.size).toBe(0)
+    expect(result.current.selectedIds.has("row")).toBe(true)
+  })
+
+  it("resolves the matched original from duplicateOf for display", async () => {
+    existingTransactions = [
+      { id: "ex-1", datetime: "2026-03-01T00:00:00.000", type: "expense", amount: -1000, categoryId: "cat-1", accountId: "acct-chase", transferPairId: "", merchant: "Store", note: "PURCHASE", createdAt: "" },
+    ]
+    stagingRows = [makeRow({ id: "dup-row", duplicate: true, duplicateOf: "ex-1", duplicateConfidence: "low" })]
+
+    const { result } = renderHook(() => useImportData("/budget"))
+    await waitFor(() => expect(result.current.loading).toBe(false))
+
+    const info = result.current.duplicates.get("dup-row")
+    expect(info?.confidence).toBe("low")
+    expect(info?.matched?.id).toBe("ex-1")
+    expect(info?.matched?.amount).toBe(-1000)
   })
 })

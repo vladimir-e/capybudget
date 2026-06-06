@@ -1,6 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { sortImportTransactions, filterImportTransactions } from "@/components/import/import-table-utils";
-import type { ImportTransaction } from "@capybudget/core";
+import {
+  buildDuplicateView,
+  sortImportTransactions,
+  filterImportTransactions,
+} from "@/components/import/import-table-utils";
+import type { ImportTransaction, Transaction } from "@capybudget/core";
 
 function txn(overrides: Partial<ImportTransaction> = {}): ImportTransaction {
   return {
@@ -112,5 +116,46 @@ describe("filterImportTransactions", () => {
   it("is case-insensitive", () => {
     const result = filterImportTransactions(txns, "PAYROLL");
     expect(result.map((t) => t.id)).toEqual(["b"]);
+  });
+});
+
+describe("buildDuplicateView", () => {
+  function existing(overrides: Partial<Transaction> = {}): Transaction {
+    return {
+      id: "ex-1",
+      datetime: "2026-01-15T00:00:00.000",
+      type: "expense",
+      amount: -450,
+      categoryId: "cat-1",
+      accountId: "acct-1",
+      transferPairId: "",
+      merchant: "Coffee Shop",
+      note: "Coffee Shop",
+      createdAt: "",
+      ...overrides,
+    };
+  }
+
+  it("includes only rows flagged duplicate, keyed by staging id", () => {
+    const rows = [
+      txn({ id: "a", duplicate: true, duplicateOf: "ex-1", duplicateConfidence: "high" }),
+      txn({ id: "b", duplicate: false }),
+    ];
+    const view = buildDuplicateView(rows, []);
+    expect([...view.keys()]).toEqual(["a"]);
+    expect(view.get("a")?.confidence).toBe("high");
+  });
+
+  it("resolves the matched original from duplicateOf when present in the budget", () => {
+    const rows = [txn({ id: "a", duplicate: true, duplicateOf: "ex-1", duplicateConfidence: "low" })];
+    const view = buildDuplicateView(rows, [existing({ id: "ex-1", amount: -999 })]);
+    expect(view.get("a")?.matched?.id).toBe("ex-1");
+    expect(view.get("a")?.matched?.amount).toBe(-999);
+  });
+
+  it("leaves matched null when duplicateOf no longer resolves", () => {
+    const rows = [txn({ id: "a", duplicate: true, duplicateOf: "gone", duplicateConfidence: "high" })];
+    const view = buildDuplicateView(rows, []);
+    expect(view.get("a")?.matched).toBeNull();
   });
 });

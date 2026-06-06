@@ -11,11 +11,12 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { EmptyState } from "@/components/ui/empty-state";
 import { CategorySelector } from "@/components/budget/category-selector";
 import { AccountSelector } from "@/components/budget/account-selector";
-import type { ImportTransaction, DuplicateMatch } from "@capybudget/core";
+import type { ImportTransaction } from "@capybudget/core";
 import type { Category, Account } from "@capybudget/core";
 import { formatMoney, formatDateLabel } from "@capybudget/core";
 import {
   amountColorClass,
+  type DuplicateInfo,
   type ImportSortColumn,
   type ImportSortConfig,
 } from "@/components/import/import-table-utils";
@@ -48,7 +49,7 @@ interface ImportTableProps {
   categories: Category[];
   accounts: Account[];
   accountMapping: Record<string, string>;
-  duplicates: Map<string, DuplicateMatch>;
+  duplicates: Map<string, DuplicateInfo>;
 }
 
 function defaultDirection(column: ImportSortColumn): "asc" | "desc" {
@@ -242,7 +243,7 @@ export function ImportTable({
                     aria-label="Include transaction"
                   />
                   {dup && (
-                    <span title={`Possible duplicate (${dup.confidence} confidence)`}>
+                    <span title={dupTooltip(dup)}>
                       <Copy
                         className={`h-3 w-3 shrink-0 ${dup.confidence === "high" ? "text-blue-500" : "text-blue-400/60"}`}
                       />
@@ -370,6 +371,24 @@ export function ImportTable({
       </TableBody>
     </Table>
   );
+}
+
+// ── Duplicate tooltip ────────────────────────────────────────────
+//
+// Sourced from the persisted dup flags. When `duplicateOf` still resolves to a
+// budget transaction, surface what it duplicates (date + amount of the
+// original); otherwise fall back to the confidence label.
+
+function dupTooltip(dup: DuplicateInfo): string {
+  const label = dup.confidence
+    ? `Possible duplicate (${dup.confidence} confidence)`
+    : "Possible duplicate";
+  if (dup.matched) {
+    return `${label} — already in budget: ${formatDateLabel(
+      dup.matched.datetime.slice(0, 10),
+    )}, ${formatMoney(dup.matched.amount)}`;
+  }
+  return label;
 }
 
 // ── Type Badge ──────────────────────────────────────────────────

@@ -1,5 +1,42 @@
-import type { ImportTransaction } from "@capybudget/core";
+import type { ImportTransaction, Transaction } from "@capybudget/core";
 import { formatMoney } from "@capybudget/core";
+
+/**
+ * The preview's view of a duplicate row, derived entirely from the persisted
+ * staging flags the agent wrote (`duplicate`/`duplicateOf`/`duplicateConfidence`)
+ * — never from a live recompute. `matched` resolves the original from
+ * `duplicateOf` against the budget, when it's still present, for richer display.
+ */
+export interface DuplicateInfo {
+  confidence: string; // "high" | "low" | ""
+  duplicateOf: string;
+  matched: Transaction | null;
+}
+
+/**
+ * Build the duplicate view keyed by staging-row id from the persisted flags.
+ * The agent is the single source of truth: a row is a duplicate iff its
+ * `duplicate` flag is set. `duplicateOf` is resolved against the budget for the
+ * matched-original affordance.
+ */
+export function buildDuplicateView(
+  transactions: ImportTransaction[],
+  existingTransactions: Transaction[],
+): Map<string, DuplicateInfo> {
+  const view = new Map<string, DuplicateInfo>();
+  if (transactions.length === 0) return view;
+
+  const byId = new Map(existingTransactions.map((t) => [t.id, t]));
+  for (const txn of transactions) {
+    if (!txn.duplicate) continue;
+    view.set(txn.id, {
+      confidence: txn.duplicateConfidence,
+      duplicateOf: txn.duplicateOf,
+      matched: txn.duplicateOf ? byId.get(txn.duplicateOf) ?? null : null,
+    });
+  }
+  return view;
+}
 
 export type ImportSortColumn =
   | "date"

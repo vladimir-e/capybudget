@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAccounts, useCategories, useTransactions } from "@/hooks/use-budget-data";
 import { useImportRepository } from "@/hooks/use-import-repository";
-import { detectDuplicates } from "@capybudget/core";
-import type { ImportTransaction, ImportAliases, DuplicateMatch } from "@capybudget/core";
+import type { ImportTransaction, ImportAliases } from "@capybudget/core";
+import { buildDuplicateView } from "@/components/import/import-table-utils";
 import type { EntityMapping } from "@/components/import/import-mapping";
 
 /**
@@ -53,13 +53,16 @@ export function useImportData(budgetPath: string) {
   }, [writeBack]);
 
   // ── Load CSV on mount ────────────────────────────────────────
-  const [loadGeneration, setLoadGeneration] = useState(0);
+  //
+  // The agent is the single source of truth for duplicates: a row marked
+  // `duplicate` on staging starts unselected (dimmed), so the default merge
+  // excludes it. A user can re-select it to force-import (it's already
+  // dup-enriched). Non-duplicates start selected.
   const loadCsv = useCallback(async () => {
     try {
       const parsed = await repository.readTransactionsCsv();
       setTransactions(parsed);
-      setSelectedIds(new Set(parsed.map((t) => t.id)));
-      setLoadGeneration((g) => g + 1);
+      setSelectedIds(new Set(parsed.filter((t) => !t.duplicate).map((t) => t.id)));
       setLoading(false);
     } catch {
       setLoading(false);
@@ -236,29 +239,13 @@ export function useImportData(budgetPath: string) {
     [transactions],
   );
 
-  // ── Duplicate detection ────────────────────────────────────────
-  const duplicates = useMemo<Map<string, DuplicateMatch>>(
-    () => detectDuplicates(transactions, existingTransactions, accountMapping),
-    [transactions, existingTransactions, accountMapping],
+  // ── Duplicates (persisted, agent-authoritative) ─────────────────
+  // Derived purely from the staging flags the dedup phase wrote — no live
+  // recompute, so table/selection/merge all read the same source.
+  const duplicates = useMemo(
+    () => buildDuplicateView(transactions, existingTransactions),
+    [transactions, existingTransactions],
   );
-
-  // Auto-unselect duplicates once per load cycle
-  const duplicatesAppliedForGenRef = useRef(-1);
-  useEffect(() => {
-    if (duplicatesAppliedForGenRef.current === loadGeneration || duplicates.size === 0 || loading) return;
-    duplicatesAppliedForGenRef.current = loadGeneration;
-
-    async function unselectDuplicates() {
-      setSelectedIds((prev) => {
-        const next = new Set(prev);
-        for (const id of duplicates.keys()) {
-          next.delete(id);
-        }
-        return next;
-      });
-    }
-    unselectDuplicates();
-  }, [duplicates, loading, loadGeneration]);
 
   return {
     // State

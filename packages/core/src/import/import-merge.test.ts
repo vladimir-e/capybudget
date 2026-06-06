@@ -127,6 +127,54 @@ describe("prepareMerge", () => {
     expect(result.transactions[0].accountId).toBe(result.transactions[1].accountId);
   });
 
+  it("excludes a duplicate-and-unselected row from the merge", () => {
+    const fresh = makeImportTxn({ sourceAccount: "Chase Checking", merchant: "Fresh" });
+    const dup = makeImportTxn({
+      sourceAccount: "Chase Checking",
+      merchant: "Dup",
+      duplicate: true,
+      duplicateOf: "ex-1",
+      duplicateConfidence: "high",
+    });
+
+    // The duplicate is unselected (the preview's default) — only `fresh` is in.
+    const result = prepareMerge(
+      {
+        transactions: [fresh, dup],
+        selectedIds: new Set([fresh.id]),
+        accountMapping: { "Chase Checking": "acct-1" },
+      },
+      [],
+      [],
+    );
+
+    expect(result.transactions).toHaveLength(1);
+    expect(result.transactions[0].merchant).toBe("Fresh");
+  });
+
+  it("merges a re-selected duplicate (intentional force-import)", () => {
+    const dup = makeImportTxn({
+      sourceAccount: "Chase Checking",
+      merchant: "Dup",
+      duplicate: true,
+      duplicateOf: "ex-1",
+      duplicateConfidence: "high",
+    });
+
+    const result = prepareMerge(
+      {
+        transactions: [dup],
+        selectedIds: new Set([dup.id]),
+        accountMapping: { "Chase Checking": "acct-1" },
+      },
+      [],
+      [],
+    );
+
+    expect(result.transactions).toHaveLength(1);
+    expect(result.transactions[0].merchant).toBe("Dup");
+  });
+
   it("concatenates description and memo into note", () => {
     const txn = makeImportTxn({
       description: "GROCERY STORE #123",
