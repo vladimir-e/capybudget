@@ -18,6 +18,9 @@ function makeImport(overrides: Partial<ImportTransaction> = {}): ImportTransacti
     targetAccountId: "",
     categoryId: "",
     categoryConfidence: "",
+    duplicate: false,
+    duplicateOf: "",
+    duplicateConfidence: "",
     ...overrides,
   };
 }

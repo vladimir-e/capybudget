@@ -1,6 +1,11 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import type { BudgetRepository, FileAdapter } from "@capybudget/persistence";
-import { ACCOUNTS_INSTRUCTION, ENRICH_INSTRUCTION, IMPORT_PIPELINE } from "@capybudget/intelligence";
+import {
+  ACCOUNTS_INSTRUCTION,
+  DEDUP_INSTRUCTION,
+  ENRICH_INSTRUCTION,
+  IMPORT_PIPELINE,
+} from "@capybudget/intelligence";
 
 // ── Mocks ──────────────────────────────────────────────────────────
 
@@ -52,6 +57,7 @@ const stepFor = (phase: string) =>
   (IMPORT_PIPELINE as unknown as MutableStep[]).find((s) => s.phase === phase)!;
 const enrichStep = () => stepFor("enriching");
 const accountsStep = () => stepFor("accounts");
+const dedupStep = () => stepFor("dedup");
 
 // Each created session is a tracked instance: its send() calls (with the
 // emitted onEvent handler) let tests drive the stream and assert that the
@@ -137,6 +143,8 @@ describe("import-store", () => {
     enrichStep().preStepTools.push("auto_enrich");
     accountsStep().preStepTools.length = 0;
     accountsStep().preStepTools.push("apply_account_aliases");
+    dedupStep().preStepTools.length = 0;
+    dedupStep().preStepTools.push("auto_mark_duplicates");
   });
 
   it("starts with hasImportData false", () => {
@@ -159,10 +167,11 @@ describe("import-store", () => {
       expect(IMPORT_PIPELINE[IMPORT_PIPELINE.length - 1].phase).toBe("enriching");
     });
 
-    it("runs normalize → accounts → enrich in order", () => {
+    it("runs normalize → accounts → dedup → enrich in order", () => {
       expect(IMPORT_PIPELINE.map((s) => s.phase)).toEqual([
         "normalizing",
         "accounts",
+        "dedup",
         "enriching",
       ]);
     });
@@ -175,6 +184,17 @@ describe("import-store", () => {
       const accounts = IMPORT_PIPELINE.find((s) => s.phase === "accounts")!;
       expect(accounts.instruction).toBe(ACCOUNTS_INSTRUCTION);
       expect(accounts.preStepTools).toContain("apply_account_aliases");
+    });
+
+    it("dedup phase injects the dedup instruction and pre-runs auto_mark_duplicates", () => {
+      const dedup = IMPORT_PIPELINE.find((s) => s.phase === "dedup")!;
+      expect(dedup.instruction).toBe(DEDUP_INSTRUCTION);
+      expect(dedup.preStepTools).toContain("auto_mark_duplicates");
+    });
+
+    it("orders accounts before dedup (dedup rules key off the resolved account)", () => {
+      const phases = IMPORT_PIPELINE.map((s) => s.phase);
+      expect(phases.indexOf("accounts")).toBeLessThan(phases.indexOf("dedup"));
     });
 
     it("enrich phase injects the enrich instruction and pre-runs auto_enrich", () => {
@@ -204,10 +224,13 @@ describe("import-store", () => {
 
     it("creates exactly one session for the whole run", async () => {
       startRun();
-      // Walk normalize → accounts → enrich → done; no phase spawns a new session.
+      // Walk normalize → accounts → dedup → enrich → done; no phase spawns a
+      // new session.
       sessions[0].emitDone(); // normalize done → advance to accounts
       await flush();
-      sessions[0].emitDone(); // accounts done → advance to enrich
+      sessions[0].emitDone(); // accounts done → advance to dedup
+      await flush();
+      sessions[0].emitDone(); // dedup done → advance to enrich
       await flush();
       sessions[0].emitDone(); // enrich done → review
       await flush();
@@ -222,38 +245,41 @@ describe("import-store", () => {
       expect(sessions[0].sends[0]).toBe("normalize these files");
     });
 
-    it("transitions normalize → accounts → enriching → review in order", async () => {
+    it("transitions normalize → accounts → dedup → enriching → review in order", async () => {
       startRun();
       const seen: string[] = [useImportStore.getState().phase];
 
-      sessions[0].emitDone();
-      await flush();
-      seen.push(useImportStore.getState().phase);
+      for (let i = 0; i < 4; i++) {
+        sessions[0].emitDone();
+        await flush();
+        seen.push(useImportStore.getState().phase);
+      }
 
-      sessions[0].emitDone();
-      await flush();
-      seen.push(useImportStore.getState().phase);
-
-      sessions[0].emitDone();
-      await flush();
-      seen.push(useImportStore.getState().phase);
-
-      expect(seen).toEqual(["normalizing", "accounts", "enriching", "review"]);
+      expect(seen).toEqual([
+        "normalizing",
+        "accounts",
+        "dedup",
+        "enriching",
+        "review",
+      ]);
     });
 
-    it("injects accounts then enrich instructions as new turns into the SAME session", async () => {
+    it("injects accounts, dedup, then enrich instructions as new turns into the SAME session", async () => {
       startRun();
       sessions[0].emitDone(); // normalize done → accounts
       await flush();
-      sessions[0].emitDone(); // accounts done → enrich
+      sessions[0].emitDone(); // accounts done → dedup
+      await flush();
+      sessions[0].emitDone(); // dedup done → enrich
       await flush();
 
-      // Both phase instructions injected into the one session — sequential
+      // All phase instructions injected into the one session — sequential
       // injection, not fresh sessions.
       expect(sessions).toHaveLength(1);
       expect(sessions[0].sends).toEqual([
         "normalize these files",
         ACCOUNTS_INSTRUCTION,
+        DEDUP_INSTRUCTION,
         ENRICH_INSTRUCTION,
       ]);
     });
@@ -276,13 +302,35 @@ describe("import-store", () => {
       expect(sendIdx).toBeGreaterThan(aliasIdx);
     });
 
-    it("runs the auto_enrich pre-step before injecting the enrich turn", async () => {
+    it("runs the auto_mark_duplicates pre-step before injecting the dedup turn", async () => {
       const { repo, fileAdapter } = startRun();
 
       sessions[0].emitDone(); // normalize done → accounts
       await flush();
       callOrder.length = 0; // ignore prior sends/pre-steps
-      sessions[0].emitDone(); // accounts done → enrich pre-step then inject
+      sessions[0].emitDone(); // accounts done → dedup pre-step then inject
+      await flush();
+
+      expect(mockRunTool).toHaveBeenCalledWith(
+        "auto_mark_duplicates",
+        {},
+        expect.objectContaining({ repo, fileAdapter, budgetPath: "/budget" }),
+      );
+      const autoMarkIdx = callOrder.indexOf("runTool:auto_mark_duplicates");
+      const sendIdx = callOrder.indexOf("send");
+      expect(autoMarkIdx).toBeGreaterThanOrEqual(0);
+      expect(sendIdx).toBeGreaterThan(autoMarkIdx);
+    });
+
+    it("runs the auto_enrich pre-step before injecting the enrich turn", async () => {
+      const { repo, fileAdapter } = startRun();
+
+      sessions[0].emitDone(); // normalize done → accounts
+      await flush();
+      sessions[0].emitDone(); // accounts done → dedup
+      await flush();
+      callOrder.length = 0; // ignore prior sends/pre-steps
+      sessions[0].emitDone(); // dedup done → enrich pre-step then inject
       await flush();
 
       expect(mockRunTool).toHaveBeenCalledWith(
@@ -297,14 +345,19 @@ describe("import-store", () => {
       expect(sendIdx).toBeGreaterThan(autoEnrichIdx);
     });
 
+    // Drive every phase to review: one `done` per pipeline step (normalize's
+    // done advances to step 1, …, the last step's done lands on review), so
+    // this self-extends as phases are inserted.
+    const driveToReview = async () => {
+      for (let i = 0; i < IMPORT_PIPELINE.length; i++) {
+        sessions[0].emitDone();
+        await flush();
+      }
+    };
+
     it("lands on review and marks import data present when the run completes", async () => {
       startRun();
-      sessions[0].emitDone();
-      await flush();
-      sessions[0].emitDone();
-      await flush();
-      sessions[0].emitDone();
-      await flush();
+      await driveToReview();
 
       expect(useImportStore.getState().phase).toBe("review");
       expect(useImportStore.getState().hasImportData).toBe(true);
@@ -312,12 +365,7 @@ describe("import-store", () => {
 
     it("persists the enriched flag itself on run-complete (no component callback)", async () => {
       const { fileAdapter } = startRun();
-      sessions[0].emitDone(); // normalize → accounts
-      await flush();
-      sessions[0].emitDone(); // accounts → enrich
-      await flush();
-      sessions[0].emitDone(); // enrich → review
-      await flush();
+      await driveToReview();
 
       // The store — not a mounted component — persisted enriched to state.json.
       expect(mockMarkImportEnriched).toHaveBeenCalledTimes(1);
@@ -326,12 +374,7 @@ describe("import-store", () => {
 
     it("kills the run session and nulls it on completion", async () => {
       startRun();
-      sessions[0].emitDone();
-      await flush();
-      sessions[0].emitDone();
-      await flush();
-      sessions[0].emitDone();
-      await flush();
+      await driveToReview();
 
       expect(sessionKill).toHaveBeenCalled();
       expect(useImportStore.getState().runSession).toBeNull();
@@ -473,13 +516,20 @@ describe("import-store", () => {
       );
     });
 
+    // Resume enters at the first post-normalize phase (its pre-step + inject
+    // run on the initial flush), so reaching review needs one `done` per
+    // remaining post-normalize phase. Self-extends as phases are inserted.
+    const driveResumeToReview = async () => {
+      for (let i = 0; i < IMPORT_PIPELINE.length - 1; i++) {
+        sessions[0].emitDone();
+        await flush();
+      }
+    };
+
     it("persists the enriched flag when the resumed run completes", async () => {
       const { fileAdapter } = resumeRun();
-      await flush(); // accounts pre-step + inject
-      sessions[0].emitDone(); // accounts → enrich
-      await flush();
-      sessions[0].emitDone(); // enrich → review
-      await flush();
+      await flush(); // first post-normalize phase pre-step + inject
+      await driveResumeToReview();
 
       expect(useImportStore.getState().phase).toBe("review");
       expect(mockMarkImportEnriched).toHaveBeenCalledTimes(1);
@@ -489,10 +539,7 @@ describe("import-store", () => {
     it("creates exactly one session (no normalize session)", async () => {
       resumeRun();
       await flush();
-      sessions[0].emitDone();
-      await flush();
-      sessions[0].emitDone();
-      await flush();
+      await driveResumeToReview();
 
       expect(sessions).toHaveLength(1);
     });

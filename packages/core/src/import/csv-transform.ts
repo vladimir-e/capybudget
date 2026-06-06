@@ -122,6 +122,9 @@ function transformRow(
     targetAccountId: "",
     categoryId: "",
     categoryConfidence: "",
+    duplicate: false,
+    duplicateOf: "",
+    duplicateConfidence: "",
   };
 }
 
@@ -414,6 +417,7 @@ const IMPORT_COLUMNS = [
   "id", "date", "description", "amount", "type",
   "sourceAccount", "sourceCategory", "memo",
   "merchant", "accountId", "targetAccountId", "categoryId", "categoryConfidence",
+  "duplicate", "duplicateOf", "duplicateConfidence",
 ] as const;
 
 /** Serialize ImportTransaction[] to a CSV string. */

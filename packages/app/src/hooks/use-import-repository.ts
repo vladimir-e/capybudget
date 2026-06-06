@@ -15,7 +15,10 @@ import { validateImportTransactions } from "@capybudget/core";
 import type { ImportTransaction, ImportAliases, ImportLogEntry } from "@capybudget/core";
 import { useImportPaths } from "./use-import-paths";
 
-const IMPORT_COERCE = { amount: (v: string | undefined) => (v === undefined || v === "" ? 0 : parseInt(v, 10)) };
+const IMPORT_COERCE = {
+  amount: (v: string | undefined) => (v === undefined || v === "" ? 0 : parseInt(v, 10)),
+  duplicate: (v: string | undefined) => v === "true",
+};
 
 export interface ImportState {
   sourceFiles: string[];
@@ -137,6 +140,9 @@ export function useImportRepository(budgetPath: string) {
         targetAccountId: t.targetAccountId || "",
         categoryId: t.categoryId || "",
         categoryConfidence: t.categoryConfidence || "",
+        duplicate: t.duplicate ?? false,
+        duplicateOf: t.duplicateOf || "",
+        duplicateConfidence: t.duplicateConfidence || "",
       }),
     );
     const { valid, warnings } = validateImportTransactions(parsed);

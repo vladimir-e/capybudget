@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from "vitest"
-import type { Account, Category } from "@capybudget/core"
+import type { Account, Category, Transaction } from "@capybudget/core"
 import type { BudgetRepository } from "@capybudget/persistence"
 import {
   handleAnalyzeCsv,
@@ -9,6 +9,9 @@ import {
   handleApplyAccountAliases,
   handleEnrichStatus,
   handleEnrichUpdate,
+  handleFindDuplicates,
+  handleMarkDuplicates,
+  handleAutoMarkDuplicates,
   __resetEnrichmentCacheForTests,
 } from "./csv"
 import { makeFileAdapter, makeMemoryFs, type MemoryFs } from "./test-utils"
@@ -21,11 +24,13 @@ const IMPORT_DIR = `${BUDGET_PATH}/.capy/import`
 let fs: MemoryFs
 let ctx: ToolContext
 
-function makeRepo(data: { accounts?: Account[]; categories?: Category[] } = {}): BudgetRepository {
+function makeRepo(
+  data: { accounts?: Account[]; categories?: Category[]; transactions?: Transaction[] } = {},
+): BudgetRepository {
   return {
     getAccounts: async () => data.accounts ?? [],
     getCategories: async () => data.categories ?? [],
-    getTransactions: async () => [],
+    getTransactions: async () => data.transactions ?? [],
     saveAccounts: async () => {},
     saveCategories: async () => {},
     saveTransactions: async () => {},
@@ -546,5 +551,191 @@ describe("handleApplyAccountAliases", () => {
     const result = await handleApplyAccountAliases(ctx)
 
     expect(result).toBe("No stored aliases.")
+  })
+})
+
+// ── dedup: find_duplicates / mark_duplicates / auto_mark_duplicates ──
+// By the time dedup runs, the accounts phase has resolved `accountId` (col 10)
+// on every staging row, so the engine's account-keyed rules work. Staging rows
+// below carry a resolved accountId to exercise that path.
+
+function makeExisting(overrides: Partial<Transaction> = {}): Transaction {
+  return {
+    id: crypto.randomUUID(),
+    datetime: "2024-01-01T00:00:00.000",
+    type: "expense",
+    amount: -450,
+    categoryId: "",
+    accountId: "acct-1",
+    transferPairId: "",
+    merchant: "",
+    note: "",
+    createdAt: "2024-01-01T00:00:00.000",
+    ...overrides,
+  }
+}
+
+describe("handleFindDuplicates", () => {
+  it("groups candidates by confidence with the matched original's merchant + categoryId", async () => {
+    // imp-1: exact (date+amount+desc+account) → high.
+    // imp-2: date ±1, amount, same account, no desc match → low.
+    setStaging([
+      "imp-1,2024-01-01,WHOLE FOODS,-3000,expense,Chk,,,,acct-1,,,",
+      "imp-2,2024-01-05,UNKNOWN,-1200,expense,Chk,,,,acct-1,,,",
+    ])
+    const repo = makeRepo({
+      transactions: [
+        makeExisting({
+          id: "tx-high",
+          amount: -3000,
+          note: "WHOLE FOODS",
+          merchant: "Whole Foods",
+          categoryId: "cat-grocery",
+        }),
+        makeExisting({
+          id: "tx-low",
+          datetime: "2024-01-06T00:00:00.000",
+          amount: -1200,
+          note: "DIFFERENT TEXT",
+          merchant: "Costco",
+          categoryId: "cat-shopping",
+        }),
+      ],
+    })
+
+    const result = JSON.parse(await handleFindDuplicates({ ...ctx, repo }, repo))
+
+    expect(result.summary).toEqual({ total: 2, high: 1, low: 1 })
+    expect(result.high).toHaveLength(1)
+    expect(result.high[0]).toMatchObject({
+      importId: "imp-1",
+      matchedTransactionId: "tx-high",
+      matchedMerchant: "Whole Foods",
+      matchedCategoryId: "cat-grocery",
+    })
+    expect(result.low).toHaveLength(1)
+    expect(result.low[0]).toMatchObject({
+      importId: "imp-2",
+      matchedTransactionId: "tx-low",
+      matchedMerchant: "Costco",
+      matchedCategoryId: "cat-shopping",
+    })
+  })
+
+  it("returns an empty candidate set when nothing matches", async () => {
+    setStaging(["imp-1,2024-01-01,COFFEE,-450,expense,Chk,,,,acct-1,,,"])
+    const repo = makeRepo({ transactions: [] })
+
+    const result = JSON.parse(await handleFindDuplicates({ ...ctx, repo }, repo))
+    expect(result.summary).toEqual({ total: 0, high: 0, low: 0 })
+  })
+})
+
+describe("handleMarkDuplicates", () => {
+  it("sets the dup flags AND copies merchant/categoryId from the matched original", async () => {
+    setStaging(["imp-1,2024-01-01,WHOLE FOODS,-3000,expense,Chk,,,,acct-1,,,"])
+    const repo = makeRepo({
+      transactions: [
+        makeExisting({
+          id: "tx-1",
+          amount: -3000,
+          note: "WHOLE FOODS",
+          merchant: "Whole Foods",
+          categoryId: "cat-grocery",
+        }),
+      ],
+    })
+
+    const result = await handleMarkDuplicates({ ...ctx, repo }, { ids: ["imp-1"] }, repo)
+    expect(result).toContain("Marked 1 row")
+
+    const csv = stagingCsv()
+    // duplicate=true, duplicateOf=tx-1, duplicateConfidence=high, and the
+    // matched original's merchant + categoryId dup-enriched onto the row.
+    expect(csv).toContain("Whole Foods")
+    expect(csv).toContain("cat-grocery")
+    expect(csv).toContain("tx-1")
+    expect(csv).toMatch(/true,tx-1,high/)
+  })
+
+  it("skips ids that aren't current duplicate candidates", async () => {
+    setStaging(["imp-1,2024-01-01,COFFEE,-450,expense,Chk,,,,acct-1,,,"])
+    const repo = makeRepo({ transactions: [] }) // nothing matches
+
+    const result = await handleMarkDuplicates({ ...ctx, repo }, { ids: ["imp-1"] }, repo)
+    expect(result).toContain("Marked 0 rows")
+    expect(result).toContain("1 id skipped")
+    expect(stagingCsv()).not.toMatch(/true,/)
+  })
+
+  it("errors on a missing or empty ids array", async () => {
+    setStaging(["imp-1,2024-01-01,COFFEE,-450,expense,Chk,,,,acct-1,,,"])
+    const repo = makeRepo({ transactions: [] })
+    expect(await handleMarkDuplicates({ ...ctx, repo }, {}, repo)).toContain("Error")
+    expect(await handleMarkDuplicates({ ...ctx, repo }, { ids: [] }, repo)).toContain("Error")
+  })
+
+  it("does not clobber an existing merchant/categoryId already on the staging row", async () => {
+    // Row already enriched (merchant=Existing Name, categoryId=cat-keep) inline
+    // during normalize; dup-enrich must fill only empties.
+    setStaging([
+      "imp-1,2024-01-01,WHOLE FOODS,-3000,expense,Chk,,,Existing Name,acct-1,,cat-keep,high",
+    ])
+    const repo = makeRepo({
+      transactions: [
+        makeExisting({
+          id: "tx-1",
+          amount: -3000,
+          note: "WHOLE FOODS",
+          merchant: "Whole Foods",
+          categoryId: "cat-grocery",
+        }),
+      ],
+    })
+
+    await handleMarkDuplicates({ ...ctx, repo }, { ids: ["imp-1"] }, repo)
+    const csv = stagingCsv()
+    expect(csv).toContain("Existing Name")
+    expect(csv).toContain("cat-keep")
+    expect(csv).not.toContain("cat-grocery")
+  })
+})
+
+describe("handleAutoMarkDuplicates", () => {
+  it("auto-marks high-confidence matches only, leaving low for the agent", async () => {
+    setStaging([
+      "imp-1,2024-01-01,WHOLE FOODS,-3000,expense,Chk,,,,acct-1,,,", // exact → high
+      "imp-2,2024-01-05,UNKNOWN,-1200,expense,Chk,,,,acct-1,,,", // date±1, amount-only → low
+    ])
+    const repo = makeRepo({
+      transactions: [
+        makeExisting({
+          id: "tx-high",
+          amount: -3000,
+          note: "WHOLE FOODS",
+          merchant: "Whole Foods",
+          categoryId: "cat-grocery",
+        }),
+        makeExisting({
+          id: "tx-low",
+          datetime: "2024-01-06T00:00:00.000",
+          amount: -1200,
+          note: "DIFFERENT TEXT",
+        }),
+      ],
+    })
+
+    const result = await handleAutoMarkDuplicates({ ...ctx, repo }, repo)
+    expect(result).toContain("Auto-marked 1 high-confidence duplicate")
+
+    const csv = stagingCsv()
+    const lines = csv.trim().split("\n")
+    const imp1 = lines.find((l) => l.startsWith("imp-1"))!
+    const imp2 = lines.find((l) => l.startsWith("imp-2"))!
+    // imp-1 (high) marked + dup-enriched; imp-2 (low) untouched.
+    expect(imp1).toMatch(/true,tx-high,high/)
+    expect(imp1).toContain("Whole Foods")
+    expect(imp2).not.toContain("true")
+    expect(imp2).not.toContain("tx-low")
   })
 })

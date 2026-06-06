@@ -947,18 +947,21 @@ describe("OpenAiSession tool gating", () => {
     expect(names).toContain("transform_csv")
     expect(names).toContain("enrich_status")
     expect(names).toContain("enrich_update")
+    expect(names).toContain("find_duplicates")
+    expect(names).toContain("mark_duplicates")
     expect(names).toContain("write_import_file")
     expect(names).not.toContain("render_table")
     expect(names).not.toContain("render_chart")
     expect(names).not.toContain("render_followups")
     expect(names).not.toContain("create_transaction")
     expect(names).not.toContain("list_transactions")
-    // auto_enrich is code-triggered — never advertised to the model.
+    // auto_enrich and auto_mark_duplicates are code-triggered — never advertised.
     expect(names).not.toContain("auto_enrich")
+    expect(names).not.toContain("auto_mark_duplicates")
     // Staged-file readers are chat-only now; the import session writes its own.
     expect(names).not.toContain("read_import_file")
     expect(names).not.toContain("list_import_files")
-    expect(names).toHaveLength(11)
+    expect(names).toHaveLength(13)
   })
 
   it("keeps search_transactions in both modes (both prompts advertise it)", async () => {

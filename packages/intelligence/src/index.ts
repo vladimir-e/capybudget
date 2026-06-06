@@ -54,6 +54,8 @@ export {
   IMPORT_SYSTEM_PROMPT,
   IMPORT_RESUME_SYSTEM_PROMPT,
   ACCOUNTS_INSTRUCTION,
+  DEDUP_INSTRUCTION,
+  NOTHING_TO_IMPORT_SIGNAL,
   ENRICH_SYSTEM_PROMPT,
   ENRICH_INSTRUCTION,
   APP_KNOWLEDGE,
@@ -118,6 +120,9 @@ export {
   handleApplyAccountAliases,
   handleEnrichStatus,
   handleEnrichUpdate,
+  handleFindDuplicates,
+  handleMarkDuplicates,
+  handleAutoMarkDuplicates,
   handleReadFile,
   handleReadSpec,
 } from "./tools"

@@ -61,6 +61,9 @@ function makeRow(overrides: Partial<ImportTransaction>): ImportTransaction {
     targetAccountId: "",
     categoryId: "",
     categoryConfidence: "",
+    duplicate: false,
+    duplicateOf: "",
+    duplicateConfidence: "",
     ...overrides,
   }
 }

@@ -77,6 +77,40 @@ export const CSV_TOOL_DEFS = [
     },
   },
   {
+    name: "find_duplicates",
+    description:
+      "Find staging rows that likely already exist in the budget. Returns candidates grouped by confidence (high = exact date+amount+description+account; low = date ±1, amount-only, or fuzzy desc), each with the matched original's id, date, amount, merchant, and categoryId. High-confidence matches are auto-marked before you arrive — review the low-confidence list and mark_duplicates the ones that are genuine. Summary + candidate set only, never the full dataset.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {},
+    },
+  },
+  {
+    name: "mark_duplicates",
+    description:
+      "Mark the given staging row ids as duplicates of existing budget transactions: sets duplicate=true, duplicateOf (the matched id), and duplicateConfidence, and copies the matched original's merchant/categoryId onto the row (dup-enrich). Pass the ids you judged to be genuine duplicates; the tool resolves each match's details itself. Ids that aren't current duplicate candidates are skipped.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        ids: {
+          type: "array",
+          items: { type: "string" },
+          description: "Staging row ids (e.g. 'imp-12') to mark as duplicates.",
+        },
+      },
+      required: ["ids"],
+    },
+  },
+  {
+    name: "auto_mark_duplicates",
+    description:
+      "Code-based dedup pre-step: auto-marks every high-confidence duplicate (exact date+amount+description+account) and dup-enriches it. Low-confidence candidates are left for the agent to review.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {},
+    },
+  },
+  {
     name: "enrich_status",
     description:
       "Enrichment progress: total rows and merchant/category/account coverage. Set sampleSize > 0 to also get that many CSV sample rows still needing work (sampleField filters which empty field).",

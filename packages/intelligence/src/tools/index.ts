@@ -61,6 +61,9 @@ export {
   handleApplyAccountAliases,
   handleEnrichStatus,
   handleEnrichUpdate,
+  handleFindDuplicates,
+  handleMarkDuplicates,
+  handleAutoMarkDuplicates,
 } from "./handlers/csv"
 export { handleReadFile } from "./handlers/read-file"
 export { handleReadSpec } from "./handlers/spec"

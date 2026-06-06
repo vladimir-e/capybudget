@@ -4,6 +4,7 @@
  * - `chat.ts` — Capy chat overlay (the conversational assistant)
  * - `import.ts` — Smart Import normalization step
  * - `accounts.ts` — Smart Import account-mapping step
+ * - `dedup.ts` — Smart Import duplicate-review step
  * - `enrich.ts` — Smart Import enrichment step
  *
  * All three open with the shared `APP_KNOWLEDGE` brief (`app-knowledge.ts`)
@@ -17,6 +18,7 @@
 export { SYSTEM_PROMPT, buildContext } from "./chat"
 export { IMPORT_SYSTEM_PROMPT, IMPORT_RESUME_SYSTEM_PROMPT } from "./import"
 export { ACCOUNTS_INSTRUCTION } from "./accounts"
+export { DEDUP_INSTRUCTION, NOTHING_TO_IMPORT_SIGNAL } from "./dedup"
 export { ENRICH_SYSTEM_PROMPT, ENRICH_INSTRUCTION } from "./enrich"
 export { APP_KNOWLEDGE } from "./app-knowledge"
 export { buildBudgetSnapshot, formatBudgetSnapshot } from "./budget-snapshot"

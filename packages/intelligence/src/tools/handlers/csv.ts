@@ -17,9 +17,13 @@ import Papa from "papaparse"
 import {
   type CsvMapping,
   type Category,
+  type ImportTransaction,
+  type DuplicateMatch,
   transformCsv,
   serializeImportCsv,
+  detectDuplicates,
 } from "@capybudget/core"
+import type { Transaction } from "@capybudget/core"
 import type { BudgetRepository } from "@capybudget/persistence"
 import type { ToolContext } from "../dispatch"
 
@@ -248,6 +252,9 @@ const IMPORT_CSV_COLUMNS = [
   "targetAccountId",
   "categoryId",
   "categoryConfidence",
+  "duplicate",
+  "duplicateOf",
+  "duplicateConfidence",
 ]
 
 // ── enrich_status / enrich_update ────────────────────────────────
@@ -483,6 +490,184 @@ export async function handleApplyAccountAliases(
 
   await writeImportCsv(ctx, filePath, data)
   return `Applied ${applied} account alias${applied === 1 ? "" : "es"}.`
+}
+
+// ── dedup: find / mark / auto-mark ───────────────────────────────
+// The finder (`detectDuplicates`, in core) FINDS candidates; the model
+// ADJUDICATES the low-confidence ones. High-confidence matches are exact
+// (date+amount+description+account) and get auto-marked by code. Marking
+// dup-enriches the staging row — it copies the matched original's merchant
+// and categoryId so a dimmed row shows WHAT it duplicates and a false
+// positive is already cleanly categorized.
+
+/** Read staging into typed rows (amount coerced to a number for the engine). */
+function stagingToImportTransactions(
+  data: Record<string, string>[],
+): ImportTransaction[] {
+  return data.map((row) => ({
+    id: row.id ?? "",
+    date: row.date ?? "",
+    description: row.description ?? "",
+    amount: row.amount ? parseInt(row.amount, 10) : 0,
+    type: (row.type as ImportTransaction["type"]) || "expense",
+    sourceAccount: row.sourceAccount ?? "",
+    sourceCategory: row.sourceCategory ?? "",
+    memo: row.memo ?? "",
+    merchant: row.merchant ?? "",
+    accountId: row.accountId ?? "",
+    targetAccountId: row.targetAccountId ?? "",
+    categoryId: row.categoryId ?? "",
+    categoryConfidence: row.categoryConfidence ?? "",
+    duplicate: row.duplicate === "true",
+    duplicateOf: row.duplicateOf ?? "",
+    duplicateConfidence: row.duplicateConfidence ?? "",
+  }))
+}
+
+/**
+ * Run the finder over the current staging CSV. Account is already resolved
+ * onto each staging row (`accountId`) by the accounts phase, so the engine's
+ * `imp.accountId` fallback IS the resolved account — no `accountMapping`
+ * needed. Returns the match map keyed by staging id plus an index of the
+ * matched existing transactions (for dup-enrich + render context).
+ */
+async function runFinder(
+  ctx: ToolContext,
+  repo: BudgetRepository,
+): Promise<{
+  matches: Map<string, DuplicateMatch>
+  existingById: Map<string, Transaction>
+}> {
+  const { data } = await readImportCsv(ctx)
+  const importTxns = stagingToImportTransactions(data)
+  const existing = await repo.getTransactions()
+  const matches = detectDuplicates(importTxns, existing, {})
+  const existingById = new Map(existing.map((t) => [t.id, t]))
+  return { matches, existingById }
+}
+
+/**
+ * find_duplicates — the FINDER, advertised in import mode. Wraps
+ * `detectDuplicates` and returns candidates grouped by confidence, each with
+ * the matched original's merchant/categoryId so the model can see what a row
+ * would duplicate (and so a later `mark_duplicates` dup-enrich is meaningful).
+ * Returns a summary + candidate set, never the full dataset.
+ */
+export async function handleFindDuplicates(
+  ctx: ToolContext,
+  repo: BudgetRepository,
+): Promise<string> {
+  const { matches, existingById } = await runFinder(ctx, repo)
+
+  const high: unknown[] = []
+  const low: unknown[] = []
+  for (const [importId, match] of matches) {
+    const original = existingById.get(match.existingTransactionId)
+    const candidate = {
+      importId,
+      matchedTransactionId: match.existingTransactionId,
+      matchedDate: match.matchedDate,
+      matchedAmountCents: match.matchedAmount,
+      matchedMerchant: original?.merchant ?? "",
+      matchedCategoryId: original?.categoryId ?? "",
+    }
+    ;(match.confidence === "high" ? high : low).push(candidate)
+  }
+
+  return JSON.stringify(
+    {
+      summary: {
+        total: matches.size,
+        high: high.length,
+        low: low.length,
+      },
+      high,
+      low,
+    },
+    null,
+    2,
+  )
+}
+
+/**
+ * Apply duplicate flags to staging rows. For each id in `targetIds` that the
+ * finder actually matched (optionally narrowed to `confidenceFilter`), set
+ * `duplicate`/`duplicateOf`/`duplicateConfidence` and dup-enrich the row with
+ * the matched original's merchant + categoryId (filling only empty fields, so
+ * an existing manual edit is never clobbered). Returns the count marked.
+ */
+async function markRows(
+  ctx: ToolContext,
+  repo: BudgetRepository,
+  targetIds: Set<string> | null,
+  confidenceFilter: DuplicateMatch["confidence"] | null,
+): Promise<number> {
+  const { matches, existingById } = await runFinder(ctx, repo)
+  const { data, filePath } = await readImportCsv(ctx)
+
+  let marked = 0
+  for (const row of data) {
+    const match = matches.get(row.id)
+    if (!match) continue
+    if (targetIds && !targetIds.has(row.id)) continue
+    if (confidenceFilter && match.confidence !== confidenceFilter) continue
+
+    row.duplicate = "true"
+    row.duplicateOf = match.existingTransactionId
+    row.duplicateConfidence = match.confidence
+
+    const original = existingById.get(match.existingTransactionId)
+    if (original) {
+      if (!row.merchant && original.merchant) row.merchant = original.merchant
+      if (!row.categoryId && original.categoryId) row.categoryId = original.categoryId
+    }
+    marked++
+  }
+
+  await writeImportCsv(ctx, filePath, data)
+  return marked
+}
+
+/**
+ * mark_duplicates — the action, advertised in import mode. Given the staging
+ * ids the model judged to be genuine duplicates, persist the dup flags and
+ * dup-enrich each row. The model passes only the verdict (the id list); the
+ * tool re-runs the finder to resolve each match's details authoritatively.
+ */
+export async function handleMarkDuplicates(
+  ctx: ToolContext,
+  args: Record<string, unknown>,
+  repo: BudgetRepository,
+): Promise<string> {
+  const rawIds = args.ids
+  if (!Array.isArray(rawIds) || rawIds.length === 0) {
+    return "Error: provide a non-empty `ids` array of staging row ids to mark."
+  }
+  const targetIds = new Set(rawIds.map(String))
+  const marked = await markRows(ctx, repo, targetIds, null)
+  const skipped = targetIds.size - marked
+  return [
+    `Marked ${marked} row${marked === 1 ? "" : "s"} as duplicate (dup-enriched from the matched original).`,
+    skipped > 0
+      ? `${skipped} id${skipped === 1 ? "" : "s"} skipped (not a current duplicate candidate).`
+      : "",
+  ]
+    .filter(Boolean)
+    .join("\n")
+}
+
+/**
+ * auto_mark_duplicates — code-triggered, never advertised. The deterministic
+ * pre-step of the dedup phase: auto-marks every HIGH-confidence match (exact
+ * date+amount+description+account). Low-confidence candidates are left for the
+ * agent to adjudicate. Mirrors `auto_enrich`/`apply_account_aliases`.
+ */
+export async function handleAutoMarkDuplicates(
+  ctx: ToolContext,
+  repo: BudgetRepository,
+): Promise<string> {
+  const marked = await markRows(ctx, repo, null, "high")
+  return `Auto-marked ${marked} high-confidence duplicate${marked === 1 ? "" : "s"}.`
 }
 
 // ── auto_enrich + matchers ───────────────────────────────────────

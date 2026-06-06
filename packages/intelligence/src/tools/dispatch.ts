@@ -14,7 +14,8 @@
  *   - import tools (read/write/list_import_file)
  *   - csv tools (analyze_csv, preview_transform, transform_csv,
  *                auto_enrich, apply_account_aliases, enrich_status,
- *                enrich_update)
+ *                enrich_update, find_duplicates, mark_duplicates,
+ *                auto_mark_duplicates)
  *   - read_file (generic budget-folder text reader)
  *   - read_spec (bundled spec doc reader)
  *   - render tools (render_*)
@@ -53,6 +54,9 @@ import {
   handleApplyAccountAliases,
   handleEnrichStatus,
   handleEnrichUpdate,
+  handleFindDuplicates,
+  handleMarkDuplicates,
+  handleAutoMarkDuplicates,
 } from "./handlers/csv"
 import { handleReadFile } from "./handlers/read-file"
 import { handleReadSpec } from "./handlers/spec"
@@ -101,6 +105,9 @@ const HANDLERS: Record<string, ToolHandler> = {
   apply_account_aliases: (ctx) => handleApplyAccountAliases(ctx),
   enrich_status: (ctx, args) => handleEnrichStatus(ctx, args),
   enrich_update: (ctx, args) => handleEnrichUpdate(ctx, args, ctx.repo),
+  find_duplicates: (ctx) => handleFindDuplicates(ctx, ctx.repo),
+  mark_duplicates: (ctx, args) => handleMarkDuplicates(ctx, args, ctx.repo),
+  auto_mark_duplicates: (ctx) => handleAutoMarkDuplicates(ctx, ctx.repo),
 
   // Generic file reader (claude-cli has Read built-in; api adapters
   // get this so the import flow's text-file ingestion works)

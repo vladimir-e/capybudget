@@ -9,6 +9,7 @@
 
 import type { ImportPhase } from "@capybudget/core"
 import { ACCOUNTS_INSTRUCTION } from "../prompts/accounts"
+import { DEDUP_INSTRUCTION } from "../prompts/dedup"
 import { ENRICH_INSTRUCTION } from "../prompts/enrich"
 
 /** One ordered step in the import run. */
@@ -45,9 +46,17 @@ export const IMPORT_PIPELINE: readonly ImportPhaseStep[] = [
     preStepTools: ["apply_account_aliases"],
     instruction: ACCOUNTS_INSTRUCTION,
   },
-  // Unit 2 inserts a `dedup` step here (deterministic find + agent
-  // adjudication). Order matters: accounts before dedup, since dedup's
-  // matching rules key off the resolved account.
+  {
+    phase: "dedup",
+    // `auto_mark_duplicates` is the deterministic pre-step — it runs the finder
+    // (`detectDuplicates`) and auto-marks every HIGH-confidence (exact) match,
+    // dup-enriching each. The agent turn then reviews the remaining
+    // LOW-confidence candidates via `find_duplicates` and marks the genuine
+    // ones with `mark_duplicates`. Order matters: accounts before dedup, since
+    // dedup's matching rules key off the resolved account (now persisted).
+    preStepTools: ["auto_mark_duplicates"],
+    instruction: DEDUP_INSTRUCTION,
+  },
   {
     phase: "enriching",
     // `auto_enrich` is the deterministic pre-enrich pass — it maps

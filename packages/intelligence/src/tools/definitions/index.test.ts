@@ -3,6 +3,7 @@ import { getToolDefinitions } from "./index"
 import { SYSTEM_PROMPT } from "../../prompts/chat"
 import { IMPORT_SYSTEM_PROMPT } from "../../prompts/import"
 import { ACCOUNTS_INSTRUCTION } from "../../prompts/accounts"
+import { DEDUP_INSTRUCTION } from "../../prompts/dedup"
 import { ENRICH_SYSTEM_PROMPT } from "../../prompts/enrich"
 
 const CHAT_TOOLS = [
@@ -40,18 +41,20 @@ const IMPORT_TOOLS = [
   "transform_csv",
   "enrich_status",
   "enrich_update",
+  "find_duplicates",
+  "mark_duplicates",
   "read_file",
   "read_spec",
 ]
 
 describe("getToolDefinitions", () => {
-  it("returns the full 30-tool surface with no mode (MCP server is ungated)", () => {
+  it("returns the full 33-tool surface with no mode (MCP server is ungated)", () => {
     const all = getToolDefinitions()
-    expect(all).toHaveLength(30)
+    expect(all).toHaveLength(33)
   })
 
   it("exposes code-triggered tools on the MCP surface but no advertised mode", () => {
-    for (const tool of ["auto_enrich", "apply_account_aliases"]) {
+    for (const tool of ["auto_enrich", "apply_account_aliases", "auto_mark_duplicates"]) {
       const all = getToolDefinitions().map((t) => t.name)
       expect(all).toContain(tool)
       expect(getToolDefinitions("chat").map((t) => t.name)).not.toContain(tool)
@@ -65,10 +68,10 @@ describe("getToolDefinitions", () => {
     expect(names).toHaveLength(22)
   })
 
-  it("gates import mode to its 11 tools", () => {
+  it("gates import mode to its 13 tools", () => {
     const names = getToolDefinitions("import").map((t) => t.name)
     expect(new Set(names)).toEqual(new Set(IMPORT_TOOLS))
-    expect(names).toHaveLength(11)
+    expect(names).toHaveLength(13)
   })
 
   it("keeps chat free of the import/csv/enrich pipeline", () => {
@@ -147,7 +150,7 @@ describe("prompt/gating coherence", () => {
   it("every tool the import prompts cite is in the import surface", () => {
     const imp = new Set(getToolDefinitions("import").map((t) => t.name))
     const advertised = advertisedTools(
-      `${IMPORT_SYSTEM_PROMPT}\n${ACCOUNTS_INSTRUCTION}\n${ENRICH_SYSTEM_PROMPT}`,
+      `${IMPORT_SYSTEM_PROMPT}\n${ACCOUNTS_INSTRUCTION}\n${DEDUP_INSTRUCTION}\n${ENRICH_SYSTEM_PROMPT}`,
     )
     expect(advertised.length).toBeGreaterThan(0)
     for (const name of advertised) {

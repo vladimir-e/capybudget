@@ -14,6 +14,9 @@ export interface ImportTransaction {
   targetAccountId: string; // for transfers: the other account (empty = unmatched)
   categoryId: string; // budget category UUID (AI guess, may be empty)
   categoryConfidence: string; // "high" | "low" | ""
+  duplicate: boolean; // marked as already in the budget (dedup phase)
+  duplicateOf: string; // matched existing transaction id (empty if not a duplicate)
+  duplicateConfidence: string; // "high" | "low" | ""
 }
 
 /** Stored in .capy/aliases.json — survives across imports. */
