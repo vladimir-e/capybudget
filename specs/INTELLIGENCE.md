@@ -331,6 +331,8 @@ Reads the normalized CSV, identifies merchants, and categorizes transactions usi
 
 `enrich_update` returns **per-field counts** of what landed (set vs skipped-as-already-populated). The model uses this signal to know when to stop pattern-matching instead of guessing from a single "Updated N rows" total. It validates `categoryId` against real budget category UUIDs — invented or stale IDs are rejected with a clear error pointing back at `list_categories`.
 
+**Reusing past decisions.** Before guessing a category for a cryptic or unfamiliar description, the enrich prompt steers the model to `search_transactions` the user's committed history for the same merchant and adopt the `merchant`/`categoryId` they already settled on (at `"high"` confidence — it's the user's own choice, not an inference). The user's settled categorization beats a fresh keyword guess. Recurring merchants that duplicate existing rows already inherit that category in the dedup phase (dup-enrich), so this lookup mainly serves new, cryptic rows.
+
 **Idempotency.** Enrich begins with `enrich_status`. If coverage is already complete (merchant + category on every non-transfer row), the session reports the work is done and stops without further calls. Pressing enrich on already-enriched data is a fast no-op. Stop conditions are explicit: full coverage, or two consecutive `enrich_update` calls produce zero actual changes, or the per-session tool-call budget is approaching exhaustion.
 
 The `categoryConfidence` field coordinates between AI and user: enrichment writes `"high"` (merchant history match) or `"low"` (keyword inference), and skips rows where confidence is `"high"` (user-confirmed). The UI shows a confidence dot indicator next to each category.
