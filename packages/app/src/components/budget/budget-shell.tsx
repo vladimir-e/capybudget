@@ -67,7 +67,11 @@ export function BudgetShell() {
       : "accounts";
 
   const hasImportData = useImportStore((s) => s.hasImportData);
-  const isImportBusy = useImportStore((s) => s.phase === "normalizing" || s.isEnriching);
+  // The orchestrated run is "busy" through every working phase; the nav
+  // indicator pulses until it lands on the merge-ready review.
+  const isImportBusy = useImportStore(
+    (s) => s.phase !== "idle" && s.phase !== "review",
+  );
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [accountDialogOpen, setAccountDialogOpen] = useState(false);
   const [editingAccount, setEditingAccount] = useState<Account | null>(null);

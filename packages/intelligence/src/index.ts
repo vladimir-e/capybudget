@@ -53,11 +53,16 @@ export {
   buildContext,
   IMPORT_SYSTEM_PROMPT,
   ENRICH_SYSTEM_PROMPT,
+  ENRICH_INSTRUCTION,
   APP_KNOWLEDGE,
   buildBudgetSnapshot,
   formatBudgetSnapshot,
 } from "./prompts"
 export type { BudgetSnapshot } from "./prompts"
+
+// Import run pipeline (the phase machine that drives the single-session run)
+export { IMPORT_PIPELINE } from "./import/run-pipeline"
+export type { ImportPhaseStep } from "./import/run-pipeline"
 
 // Render-tool → ContentBlock map (shared by every adapter)
 export { buildRenderToolMap, RENDER_FOLLOWUPS_TOOL_NAME } from "./render-map"

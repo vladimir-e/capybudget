@@ -104,7 +104,12 @@ export type {
   ImportTransaction,
   ImportAliases,
   ImportPhase,
+  ImportSegment,
   ImportLogEntry,
+} from "./import/import-types";
+export {
+  IMPORT_SEGMENTS,
+  IMPORT_PHASE_SEGMENT,
 } from "./import/import-types";
 
 // Import account matching

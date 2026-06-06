@@ -5,8 +5,10 @@ Drop a file, intelligence normalizes it, you review and merge. The app is fully 
 ## Flow
 
 ```
-Import Page → Drop Files → Start → Normalization… → Preview → Enrich… → Review → Merge → Cleanup
+Import Page → Drop Files → Start → [ Normalize → Enrich ] one run → Review → Merge → Cleanup
 ```
+
+Start kicks off **one orchestrated run** that walks an ordered phase pipeline — normalize, then enrich — in a single AI session. The phases stream their activity on the import screen; the run lands on a merge-ready review (the preview table). See INTELLIGENCE.md § Import Sessions for the session mechanics (sequential injection, the phase machine, per-phase deterministic pre-steps).
 
 ### 1. File Drop
 
@@ -70,9 +72,9 @@ An independent front-end module operating entirely on import files — no direct
 
 **Aliases** are stored in `.capy/aliases.json` and survive across imports. When a new import begins, mappings are pre-populated from aliases — so returning users don't re-map the same accounts and categories every time. Aliases are persisted at merge time.
 
-### 4. Enrichment (Magic Button)
+### 4. Enrichment
 
-Logical successor of the Start button, shown in the preview area. Intelligence categorizes transactions and sets the merchant field. Each assignment includes a confidence level (`high` | `low`) that the frontend can interpret visually.
+The enrich phase of the run — it follows normalize automatically in the same session via sequential injection (the model already knows what normalize did, so there's no cold-start re-discovery). Intelligence categorizes transactions and sets the merchant field. Each assignment includes a confidence level (`high` | `low`) that the frontend can interpret visually. From the review table the user can re-run enrich manually (an **Enrich** button) after edits — a standalone session over the same CSV.
 
 The agent also resolves `sourceAccount` and `sourceCategory` strings to existing budget entities.
 
@@ -104,9 +106,9 @@ The `merchant` field on `Transaction` is reserved for the cleaned, human-readabl
 
 ## Import State
 
-Import state lives in a Zustand store with an explicit phase machine: `idle` → `normalizing` → `preview`. Sessions survive navigation — the user can leave the import screen and return without losing progress. The navigation indicator pulses during active normalization or enrichment.
+Import state lives in a Zustand store with an explicit phase machine: `idle → normalizing → accounts → dedup → enriching → review`. The orchestrated run advances through the working phases; `review` is the merge-ready terminal state. The run's single session survives navigation — the user can leave the import screen and return without losing progress. The navigation indicator pulses through every working phase, until the run reaches `review`.
 
-Cancel resets to the file drop screen at any time, clearing import data from `.capy/import/`. Aliases (`.capy/aliases.json`) are preserved across cancellations. A stop button allows interrupting enrichment mid-session, with progress auto-refresh.
+Cancel resets to the file drop screen at any time, stopping the session and clearing import data from `.capy/import/`. Aliases (`.capy/aliases.json`) are preserved across cancellations. A stop button allows interrupting a manual re-enrich mid-session, with progress auto-refresh.
 
 ## Import Log
 
@@ -174,6 +176,6 @@ The import screen exposes an editor for `import-instructions.md` in the budget f
 ## Design Principles
 
 - The preview area is a self-contained module. It reads/writes import files only.
-- Intelligence is invoked at two discrete points: normalization and enrichment. The user is always in control between steps.
+- Intelligence runs as one orchestrated session from drop to merge-ready review; the user reviews and merges at the end.
 - The main budget data is read-only until merge.
 - All intermediate state lives in `.capy/import/` — no pollution of the budget database during import.

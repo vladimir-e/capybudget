@@ -47,7 +47,6 @@ export function ImportPreview({ budgetPath, budgetName, onMergeComplete }: Impor
     setSelectedIds,
     accountMapping,
     loading,
-    needsEnrichment,
     loadCsv,
     handleUpdate,
     handleAccountMappingChange,
@@ -66,20 +65,29 @@ export function ImportPreview({ budgetPath, budgetName, onMergeComplete }: Impor
   const getBudgetSnapshot = useBudgetSnapshot();
 
   // ── Enrichment (via store — survives navigation) ───────────────
+  // The orchestrated run already enriched before landing on review; this is
+  // the user-initiated re-enrich (after manual edits). Completion of either
+  // the run or a re-enrich marks the import enriched and reloads the table.
   const isEnriching = useImportStore((s) => s.isEnriching);
   const enrichStatusText = useImportStore((s) => s.enrichStatusText);
-  const storeStartEnrichment = useImportStore((s) => s.startEnrichment);
-  const storeCancelEnrichment = useImportStore((s) => s.cancelEnrichment);
+  const startReenrich = useImportStore((s) => s.startReenrich);
+  const cancelReenrich = useImportStore((s) => s.cancelReenrich);
   const setOnEnrichComplete = useImportStore((s) => s.setOnEnrichComplete);
+  const setOnRunComplete = useImportStore((s) => s.setOnRunComplete);
 
-  // Register completion callback
+  // Register completion callbacks (run + re-enrich land in the same place).
   useEffect(() => {
-    setOnEnrichComplete(async () => {
+    const onComplete = async () => {
       await markEnriched();
       await loadCsv();
-    });
-    return () => setOnEnrichComplete(null);
-  }, [setOnEnrichComplete, markEnriched, loadCsv]);
+    };
+    setOnEnrichComplete(onComplete);
+    setOnRunComplete(onComplete);
+    return () => {
+      setOnEnrichComplete(null);
+      setOnRunComplete(null);
+    };
+  }, [setOnEnrichComplete, setOnRunComplete, markEnriched, loadCsv]);
 
   const handleEnrich = useCallback(async () => {
     await flushWriteBack();
@@ -87,7 +95,7 @@ export function ImportPreview({ budgetPath, budgetName, onMergeComplete }: Impor
     const systemPrompt = customInstr
       ? `${ENRICH_SYSTEM_PROMPT}\n\n## User instructions\n${customInstr}`
       : ENRICH_SYSTEM_PROMPT;
-    storeStartEnrichment({
+    startReenrich({
       budgetPath,
       budgetName,
       mcpServerPath: "packages/mcp/src/server.ts",
@@ -96,28 +104,14 @@ export function ImportPreview({ budgetPath, budgetName, onMergeComplete }: Impor
       repo,
       fileAdapter: tauriFileAdapter,
     });
-  }, [flushWriteBack, storeStartEnrichment, budgetPath, budgetName, customInstructions.instructions, getBudgetSnapshot, repo]);
+  }, [flushWriteBack, startReenrich, budgetPath, budgetName, customInstructions.instructions, getBudgetSnapshot, repo]);
 
-  // Reload from disk periodically while enrichment is running
+  // Reload from disk periodically while a re-enrich is running
   useEffect(() => {
     if (!isEnriching) return;
     const interval = setInterval(() => { loadCsv(); }, 10_000);
     return () => clearInterval(interval);
   }, [isEnriching, loadCsv]);
-
-  // Auto-enrich: trigger enrichment once after first load if not yet enriched
-  const autoEnrichTriggeredRef = useRef(false);
-  useEffect(() => {
-    if (
-      autoEnrichTriggeredRef.current ||
-      loading ||
-      transactions.length === 0 ||
-      isEnriching ||
-      !needsEnrichment
-    ) return;
-    autoEnrichTriggeredRef.current = true;
-    handleEnrich();
-  }, [loading, transactions.length, isEnriching, needsEnrichment, handleEnrich]);
 
   // ── Filtering / sorting ────────────────────────────────────────
   const filtered = useMemo(
@@ -260,8 +254,8 @@ export function ImportPreview({ budgetPath, budgetName, onMergeComplete }: Impor
               variant="ghost"
               className="h-6 px-2 text-xs text-muted-foreground hover:text-foreground"
               onClick={async () => {
-                storeCancelEnrichment();
-                await markEnriched(); // prevent auto-restart on next visit
+                cancelReenrich();
+                await markEnriched();
                 await loadCsv();
               }}
             >

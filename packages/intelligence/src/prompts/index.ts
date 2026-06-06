@@ -15,7 +15,7 @@
 
 export { SYSTEM_PROMPT, buildContext } from "./chat"
 export { IMPORT_SYSTEM_PROMPT } from "./import"
-export { ENRICH_SYSTEM_PROMPT } from "./enrich"
+export { ENRICH_SYSTEM_PROMPT, ENRICH_INSTRUCTION } from "./enrich"
 export { APP_KNOWLEDGE } from "./app-knowledge"
 export { buildBudgetSnapshot, formatBudgetSnapshot } from "./budget-snapshot"
 export type { BudgetSnapshot } from "./budget-snapshot"

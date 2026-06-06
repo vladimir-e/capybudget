@@ -150,7 +150,7 @@ All filesystem access goes through the `FileAdapter` on the context, so the same
 An in-process API session sees only the tools its system prompt can use, so a chat asking "what did I spend on coffee" isn't handed the CSV/enrich pipeline (and doesn't pay to re-send those schemas every turn). The factory threads a `mode` into the API adapters, which pass it to `getToolDefinitions(mode)`:
 
 - **chat** (22 tools) — reads, full CRUD, render tools, `read_file`/`read_spec`, plus `search_transactions` (fuzzy "find all my Apple charges" → compact rows; the prompt also reaches for it on "how much did I spend at X?"), `group_transactions` (spending breakdowns, rollups, recurrence — the prompt steers all aggregation here rather than hand-summing rows), and read-only import visibility (`read_import_file` / `list_import_files`) for staged-import questions. No CSV/enrich/write tools.
-- **import** (11 tools) — the CSV transform + enrich pipeline (`analyze_csv`/`preview_transform`/`transform_csv`/`enrich_status`/`enrich_update`), `write_import_file`, `search_transactions` (look up a cryptic description in budget history and inherit the matching rows' merchant + category), `list_accounts`/`list_categories` (transfer-target and category UUIDs), and `read_file`/`read_spec`. The staged-file readers (`read_import_file`/`list_import_files`) are **not** advertised here — the import session writes its own files and tracks them in the run, so it doesn't inspect the directory; they stay chat-only and on the MCP surface. Covers both Smart Import sessions (normalize and enrich). No render or live-budget mutation tools.
+- **import** (11 tools) — the CSV transform + enrich pipeline (`analyze_csv`/`preview_transform`/`transform_csv`/`enrich_status`/`enrich_update`), `write_import_file`, `search_transactions` (look up a cryptic description in budget history and inherit the matching rows' merchant + category), `list_accounts`/`list_categories` (transfer-target and category UUIDs), and `read_file`/`read_spec`. The staged-file readers (`read_import_file`/`list_import_files`) are **not** advertised here — the import session writes its own files and tracks them in the run, so it doesn't inspect the directory; they stay chat-only and on the MCP surface. The single import run advertises this union across every phase. No render or live-budget mutation tools.
 
 `auto_enrich` is **code-triggered, never advertised**: it has no `TOOL_MODES` entry, so no model sees it, but it's still on the MCP surface and still dispatchable via `runTool` — the import orchestrator runs it as a deterministic pre-enrich step. Dispatch (`runTool`) does not consult `TOOL_MODES`; the map gates *advertisement* only, so removing an entry never breaks a direct call.
 
@@ -281,7 +281,17 @@ The brief is sourced from `packages/intelligence/src/specs.generated.ts`, regene
 
 ## Import Sessions
 
-Smart Import uses two sequential AI sessions, each with a focused prompt. Both work on every provider.
+Smart Import is **one orchestrated `CapySession`** that walks an ordered phase pipeline from dropped files to a merge-ready preview. The run works on every provider.
+
+### One run, sequential injection
+
+The run is owned by the import store and driven by a phase pipeline (`import/run-pipeline.ts`). Each phase is a small descriptor: a phase id, the deterministic pre-step the orchestrator runs (code-triggered tools dispatched via `runTool`, not advertised to the model), and the instruction block injected to start the phase.
+
+The first phase, **normalize**, is the kickoff — driven by the import system prompt and the screen-built initial message. On each phase's `done`, the orchestrator runs the next phase's pre-step, then **injects that phase's instruction as a new user turn into the same session**. The model keeps full memory across phases (no enrich cold-start — the enrich turn already knows what normalize did) while each phase gets a sharp instruction block. The same in-process adapters that merge consecutive user turns make this a re-run of the agentic loop in one session, not a new session.
+
+The pipeline is ordered and insertable: a phase is one entry. The runtime order the feature builds toward is **normalize → accounts → dedup → enrich**, with account mapping before dedup (dedup's rules key off the resolved account). The run lands on the terminal **review** — the preview/table where the user merges.
+
+Phase machine: `idle → normalizing → accounts → dedup → enriching → review`. The store streams the run's phase plus live activity (tool calls and messages) to the import screen throughout; only `review` swaps to the preview table. Cancelling mid-run stops the session and resets to `idle`.
 
 ### Normalize
 
@@ -292,7 +302,7 @@ Takes dropped files, detects format, extracts transactions into a uniform CSV. L
 
 ### Enrich
 
-Reads the normalized CSV, identifies merchants, matches accounts, and categorizes transactions using a mix of code-driven helpers (`auto_enrich` does fuzzy category and account matching in one pass — it intentionally does NOT touch `merchant`, since the raw description is the wrong value for the cleaned-name slot) and bulk SQL-UPDATE-style calls (`enrich_update`). `auto_enrich` is code-triggered — the orchestrator runs it as a deterministic pre-pass before the enrich turn, not something the model calls. Runs automatically after normalization; can be re-triggered manually.
+Reads the normalized CSV, identifies merchants, matches accounts, and categorizes transactions using a mix of code-driven helpers (`auto_enrich` does fuzzy category and account matching in one pass — it intentionally does NOT touch `merchant`, since the raw description is the wrong value for the cleaned-name slot) and bulk SQL-UPDATE-style calls (`enrich_update`). `auto_enrich` is code-triggered — the orchestrator runs it as the enrich phase's deterministic pre-step, not something the model calls. The enrich phase follows normalize automatically via sequential injection; from the preview, the user can re-run enrich manually after edits (a standalone session over the same CSV).
 
 `enrich_update` returns **per-field counts** of what landed (set vs skipped-as-already-populated). The model uses this signal to know when to stop pattern-matching instead of guessing from a single "Updated N rows" total. It validates `categoryId` against real budget category UUIDs — invented or stale IDs are rejected with a clear error pointing back at `list_categories`.
 
@@ -300,7 +310,7 @@ Reads the normalized CSV, identifies merchants, matches accounts, and categorize
 
 The `categoryConfidence` field coordinates between AI and user: enrichment writes `"high"` (merchant history match) or `"low"` (keyword inference), and skips rows where confidence is `"high"` (user-confirmed). The UI shows a confidence dot indicator next to each category.
 
-Both sessions use the same `CapySession` interface, run in `import` mode (the same gated tool surface), and open with the shared app-knowledge brief — only the entry-point-specific instructions layered on top change.
+The run and the standalone re-enrich both use the `CapySession` interface, run in `import` mode (the same gated tool surface), and open with the shared app-knowledge brief — the per-phase instruction blocks (injected as user turns for the run; the system prompt for a standalone re-enrich) are what differ.
 
 ## Session Tool-Call Budget
 

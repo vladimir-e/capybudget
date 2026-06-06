@@ -1,21 +1,19 @@
 /**
- * System prompt for the import enrichment step.
+ * The enrich phase of the Smart Import run.
  *
- * Opens with the shared app-knowledge brief (see `app-knowledge.ts`) so the
- * model understands the app and its role, then drives a REPL loop: assess,
- * decide, update, verify, stop. Every step is idempotent — running enrich on
- * already-enriched data is a fast no-op.
+ * `ENRICH_INSTRUCTION` is the enrich task body — the orchestrator injects it
+ * as a user turn into the single import session once normalize is done (the
+ * session already carries the app-knowledge brief and the memory of what
+ * normalize did, so this block is task-only, no re-briefing).
+ *
+ * `ENRICH_SYSTEM_PROMPT` wraps the same body with the app-knowledge brief for
+ * the standalone re-enrich path (the preview's Enrich button starts a fresh
+ * session whose system prompt must stand on its own).
  */
 
 import { APP_KNOWLEDGE } from "./app-knowledge"
 
-export const ENRICH_SYSTEM_PROMPT = `You are Capy, working the enrich step of the Smart Import flow in a personal budgeting app called Capy Budget.
-
-${APP_KNOWLEDGE}
-
----
-
-## Your task right now: enrich
+export const ENRICH_INSTRUCTION = `## Your task right now: enrich
 
 Fill two fields per row: \`merchant\` (clean human-readable name) and \`categoryId\` (UUID of a budget category). Both should be empty when you arrive; both should be set when you leave. You own the quality of the result.
 
@@ -119,3 +117,11 @@ If there's no obvious clue, leave it — unmatched transfers import as plain inc
 - Between batches, report progress concisely: "85% categorized, working on utilities next."
 - The \`where\` parameter takes a single condition or an array (AND logic). Each: \`{field, equals?, contains?}\`.
 - \`enrich_update\` only sets empty fields. Per-field counts tell you exactly what landed.`
+
+export const ENRICH_SYSTEM_PROMPT = `You are Capy, working the enrich step of the Smart Import flow in a personal budgeting app called Capy Budget.
+
+${APP_KNOWLEDGE}
+
+---
+
+${ENRICH_INSTRUCTION}`

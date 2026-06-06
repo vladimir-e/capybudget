@@ -1,38 +1,52 @@
 import { create } from "zustand";
 import { createSession } from "@/services/create-session";
 import {
-  buildContext,
   runTool,
+  buildContext,
+  IMPORT_PIPELINE,
   type BudgetSnapshot,
   type CapySession,
   type ChatMessage,
   type ContentBlock,
+  type ImportPhaseStep,
   type MessageContent,
   type StreamEvent,
 } from "@capybudget/intelligence";
+import type { ImportPhase } from "@capybudget/core";
 import type { BudgetRepository, FileAdapter } from "@capybudget/persistence";
 
 /**
  * Import store — single source of truth for import UI state.
  *
- * Owns:
- * - `phase`: explicit state machine for the import flow
- * - CapySession subprocesses (survive navigation)
- * - Accumulated messages and status text
+ * The whole import is **one orchestrated `CapySession`** that walks the
+ * `IMPORT_PIPELINE` phase machine (`@capybudget/intelligence`). The normalize
+ * phase is the kickoff; each later phase is reached by **sequential
+ * injection** — on the session's `done`, the orchestrator runs the next
+ * phase's deterministic pre-step (`runTool`) and injects that phase's
+ * instruction as a new user turn into the *same* session. The model keeps
+ * full memory across phases (no enrich cold-start) while each phase gets a
+ * sharp instruction block.
  *
  * Phase transitions:
- *   idle ──startNormalization──▸ normalizing
- *   normalizing ──done──▸ preview
- *   normalizing ──cancel──▸ idle
- *   preview ──cancel/merge──▸ idle
+ *   idle ──startRun──▸ normalizing ──done──▸ enriching ──done──▸ review
+ *   <any run phase> ──cancelRun──▸ idle
+ *   review ──cancel/merge──▸ idle
+ *
+ * (Unit 2/4 insert `accounts` and `dedup` phases between normalize and
+ * enrich by adding entries to IMPORT_PIPELINE — no change here.)
  *
  * On mount, the component checks disk to initialize:
- *   has transactions.csv → setPhase("preview")
+ *   has transactions.csv → setPhase("review")
  *   has sources only → stays "idle" (component shows file list)
  *   empty → stays "idle" (component shows drop zone)
  */
 
-export type ImportPhase = "idle" | "normalizing" | "preview";
+/** Context the orchestrator carries across phases (pre-step dispatch). */
+interface RunContext {
+  budgetPath: string;
+  repo?: BudgetRepository;
+  fileAdapter?: FileAdapter;
+}
 
 interface ImportStore {
   phase: ImportPhase;
@@ -42,15 +56,19 @@ interface ImportStore {
   hasImportData: boolean;
   setHasImportData: (v: boolean) => void;
 
-  // ── Normalization session ───────────────────────────────────
-  normalizeSession: CapySession | null;
-  normalizeMessages: ChatMessage[];
+  // ── The single orchestrated run ──────────────────────────────
+  runSession: CapySession | null;
+  /** Streamed tool-call / message activity for the whole run. */
+  runMessages: ChatMessage[];
+  /** Latest status line surfaced from the run (last non-empty text). */
+  statusText: string;
 
-  startNormalization: (opts: {
+  startRun: (opts: {
     budgetPath: string;
     mcpServerPath: string;
+    /** Import system prompt — carries the app-knowledge brief + normalize task. */
     systemPrompt: string;
-    /** Pre-built multimodal payload from the import screen — text
+    /** Pre-built multimodal kickoff payload from the import screen — text
      *  instructions plus image/PDF attachments encoded as base64. */
     initialMessage: MessageContent;
     /** File names that were attached, for the user-message
@@ -59,39 +77,45 @@ interface ImportStore {
     repo?: BudgetRepository;
     fileAdapter?: FileAdapter;
   }) => void;
-  cancelNormalization: () => void;
+  cancelRun: () => void;
 
-  // ── Enrichment session ──────────────────────────────────────
-  enrichSession: CapySession | null;
+  /** Fires when the run completes (lands on review). */
+  onRunComplete: (() => void) | null;
+  setOnRunComplete: (cb: (() => void) | null) => void;
+
+  // ── Standalone re-enrich (preview's Enrich button) ───────────
+  // A user-initiated re-run of the enrich phase after manual edits in the
+  // review table. Independent of the orchestrated run — its own short-lived
+  // session over the same import CSV. The auto_enrich pre-step + cancel-race
+  // guard mirror the orchestrator's enrich phase.
+  reenrichSession: CapySession | null;
   isEnriching: boolean;
   enrichStatusText: string;
-
-  startEnrichment: (opts: {
+  startReenrich: (opts: {
     budgetPath: string;
     budgetName: string;
     mcpServerPath: string;
     systemPrompt: string;
-    /** Budget shape attached to the import kickoff message (normalize or enrich). */
     snapshot?: BudgetSnapshot;
     repo?: BudgetRepository;
     fileAdapter?: FileAdapter;
   }) => void;
-  cancelEnrichment: () => void;
+  cancelReenrich: () => void;
   onEnrichComplete: (() => void) | null;
   setOnEnrichComplete: (cb: (() => void) | null) => void;
 }
 
 // ── Helpers ─────────────────────────────────────────────────────
 
-let lastNormalizeTextContent = "";
+let lastRunTextContent = "";
 
-function appendNormalizeBlock(
+function appendRunBlock(
   blocks: ContentBlock[],
   block: ContentBlock,
 ): ContentBlock[] {
   const next = [...blocks];
   if (block.type === "text") {
-    const prevText = lastNormalizeTextContent;
+    const prevText = lastRunTextContent;
     if (prevText && block.content.startsWith(prevText)) {
       const lastTextIdx = next.findLastIndex((b) => b.type === "text");
       if (lastTextIdx >= 0) {
@@ -102,14 +126,21 @@ function appendNormalizeBlock(
     } else {
       next.push(block);
     }
-    lastNormalizeTextContent = block.content;
+    lastRunTextContent = block.content;
   } else {
     next.push(block);
   }
   return next;
 }
 
+/** The pipeline index for a given phase, or -1 if not a run phase. */
+function pipelineIndexOf(phase: ImportPhase): number {
+  return IMPORT_PIPELINE.findIndex((step) => step.phase === phase);
+}
+
 // ── Store ───────────────────────────────────────────────────────
+
+let runContext: RunContext | null = null;
 
 export const useImportStore = create<ImportStore>((set, get) => ({
   phase: "idle",
@@ -119,11 +150,14 @@ export const useImportStore = create<ImportStore>((set, get) => ({
   hasImportData: false,
   setHasImportData: (hasImportData) => set({ hasImportData }),
 
-  // ── Normalization ───────────────────────────────────────────
-  normalizeSession: null,
-  normalizeMessages: [],
+  // ── Run ──────────────────────────────────────────────────────
+  runSession: null,
+  runMessages: [],
+  statusText: "",
+  onRunComplete: null,
+  setOnRunComplete: (cb) => set({ onRunComplete: cb }),
 
-  startNormalization: ({
+  startRun: ({
     budgetPath,
     mcpServerPath,
     systemPrompt,
@@ -132,8 +166,9 @@ export const useImportStore = create<ImportStore>((set, get) => ({
     repo,
     fileAdapter,
   }) => {
-    get().normalizeSession?.kill();
-    lastNormalizeTextContent = "";
+    get().runSession?.kill();
+    lastRunTextContent = "";
+    runContext = { budgetPath, repo, fileAdapter };
 
     const session = createSession({
       budgetPath,
@@ -143,41 +178,20 @@ export const useImportStore = create<ImportStore>((set, get) => ({
       repo,
       fileAdapter,
       onEvent: (event: StreamEvent) => {
-        handleNormalizeStreamEvent(event, set, get);
+        handleRunStreamEvent(event, set, get);
       },
       // Claude-CLI-only: subprocess died unexpectedly. API adapters
       // never invoke this — they have no process to die.
       onExit: () => {
-        console.debug("[import-store] normalize process exited");
-        if (get().phase !== "normalizing") return;
-        lastNormalizeTextContent = "";
+        console.debug("[import-store] run process exited");
+        if (get().phase === "idle" || get().phase === "review") return;
+        lastRunTextContent = "";
         const errorBlock: ContentBlock = {
           type: "text" as const,
           content:
-            "The normalization process ended unexpectedly. You can try again by canceling and restarting.",
+            "The import process ended unexpectedly. You can try again by canceling and restarting.",
         };
-        set({
-          normalizeMessages: (() => {
-            const msgs = get().normalizeMessages;
-            const updated = [...msgs];
-            const last = updated[updated.length - 1];
-            if (last?.role !== "assistant") {
-              return [
-                ...msgs,
-                {
-                  id: crypto.randomUUID(),
-                  role: "assistant" as const,
-                  blocks: [errorBlock],
-                },
-              ];
-            }
-            updated[updated.length - 1] = {
-              ...last,
-              blocks: [...last.blocks, errorBlock],
-            };
-            return updated;
-          })(),
-        });
+        set({ runMessages: appendErrorMessage(get().runMessages, errorBlock) });
       },
     });
 
@@ -204,14 +218,15 @@ export const useImportStore = create<ImportStore>((set, get) => ({
     };
 
     set({
-      normalizeSession: session,
-      normalizeMessages: [userMsg, assistantMsg],
+      runSession: session,
+      runMessages: [userMsg, assistantMsg],
+      statusText: "",
       phase: "normalizing",
       hasImportData: false,
     });
 
     if (!session) {
-      handleNormalizeStreamEvent(
+      handleRunStreamEvent(
         {
           type: "error",
           message:
@@ -224,33 +239,35 @@ export const useImportStore = create<ImportStore>((set, get) => ({
     }
 
     session.send(initialMessage).catch((err) => {
-      handleNormalizeStreamEvent(
-        { type: "error", message: err instanceof Error ? err.message : "Failed to start normalization" },
+      handleRunStreamEvent(
+        { type: "error", message: err instanceof Error ? err.message : "Failed to start import" },
         set,
         get,
       );
     });
   },
 
-  cancelNormalization: () => {
-    get().normalizeSession?.kill();
-    lastNormalizeTextContent = "";
+  cancelRun: () => {
+    get().runSession?.kill();
+    lastRunTextContent = "";
+    runContext = null;
     set({
-      normalizeSession: null,
-      normalizeMessages: [],
+      runSession: null,
+      runMessages: [],
+      statusText: "",
       phase: "idle",
       hasImportData: false,
     });
   },
 
-  // ── Enrichment ──────────────────────────────────────────────
-  enrichSession: null,
+  // ── Re-enrich ────────────────────────────────────────────────
+  reenrichSession: null,
   isEnriching: false,
   enrichStatusText: "",
   onEnrichComplete: null,
   setOnEnrichComplete: (cb) => set({ onEnrichComplete: cb }),
 
-  startEnrichment: ({
+  startReenrich: ({
     budgetPath,
     budgetName,
     mcpServerPath,
@@ -259,7 +276,7 @@ export const useImportStore = create<ImportStore>((set, get) => ({
     repo,
     fileAdapter,
   }) => {
-    get().enrichSession?.kill();
+    get().reenrichSession?.kill();
 
     const session = createSession({
       budgetPath,
@@ -268,13 +285,8 @@ export const useImportStore = create<ImportStore>((set, get) => ({
       mode: "import",
       repo,
       fileAdapter,
-      onEvent: (event: StreamEvent) => {
-        handleEnrichStreamEvent(event, set, get);
-      },
-      // Claude-CLI-only: subprocess died unexpectedly. API adapters
-      // never invoke this — they have no process to die.
+      onEvent: (event: StreamEvent) => handleReenrichStreamEvent(event, set, get),
       onExit: () => {
-        console.debug("[import-store] enrich process exited");
         if (!get().isEnriching) return;
         set({
           isEnriching: false,
@@ -284,17 +296,12 @@ export const useImportStore = create<ImportStore>((set, get) => ({
       },
     });
 
-    const context = buildContext({ budgetName, budgetPath, snapshot });
-    const message = `${context}\nEnrich the imported transactions.`;
+    const message = `${buildContext({ budgetName, budgetPath, snapshot })}\nEnrich the imported transactions.`;
 
-    set({
-      enrichSession: session,
-      isEnriching: true,
-      enrichStatusText: "",
-    });
+    set({ reenrichSession: session, isEnriching: true, enrichStatusText: "" });
 
     if (!session) {
-      handleEnrichStreamEvent(
+      handleReenrichStreamEvent(
         {
           type: "error",
           message:
@@ -306,28 +313,20 @@ export const useImportStore = create<ImportStore>((set, get) => ({
       return;
     }
 
-    // Pre-run auto_enrich as the deterministic step before the enrich
-    // turn. Mint-style CSVs with sourceCategory / sourceAccount populated
-    // get fuzzy-matching before the model wakes up; without this, the
-    // model would redo the same work by hand via enrich_update. auto_enrich
-    // is code-triggered only (not advertised to the model), so this call
-    // path is the sole way it runs. Best-effort: if it fails, the enrich
-    // turn still proceeds and the model fills gaps from the raw rows.
+    // Deterministic auto_enrich pre-pass (same as the run's enrich phase),
+    // cancel-race-guarded. Best-effort — the enrich turn proceeds regardless.
     const preEnrich = repo && fileAdapter
       ? runTool("auto_enrich", {}, { repo, fileAdapter, budgetPath }).catch(
           (err: unknown) => {
-            console.warn("[import-store] pre-enrich auto_enrich failed:", err);
+            console.warn("[import-store] re-enrich auto_enrich failed:", err);
           },
         )
       : Promise.resolve();
 
     preEnrich.then(() => {
-      // User may have cancelled while auto_enrich was running — the
-      // store kills the session and clears `enrichSession`. Skip the
-      // send if the state no longer matches the one we started.
-      if (get().enrichSession !== session) return;
+      if (get().reenrichSession !== session) return;
       session.send(message).catch((err) => {
-        handleEnrichStreamEvent(
+        handleReenrichStreamEvent(
           { type: "error", message: err instanceof Error ? err.message : "Failed to start enrichment" },
           set,
           get,
@@ -336,78 +335,130 @@ export const useImportStore = create<ImportStore>((set, get) => ({
     });
   },
 
-  cancelEnrichment: () => {
-    get().enrichSession?.kill();
-    set({
-      enrichSession: null,
-      isEnriching: false,
-      enrichStatusText: "",
-    });
+  cancelReenrich: () => {
+    get().reenrichSession?.kill();
+    set({ reenrichSession: null, isEnriching: false, enrichStatusText: "" });
   },
 }));
 
-// ── Stream event handlers ─────────────────────────────────────
+// ── Orchestrator: phase advancement ────────────────────────────
 
-function handleNormalizeStreamEvent(
+/**
+ * A run phase finished its agent turn. Advance the pipeline: if there's a
+ * next phase, run its deterministic pre-step then inject its instruction as
+ * a new user turn into the same session. If the pipeline is exhausted, the
+ * run lands on `review` (merge-ready).
+ */
+async function advanceRun(
+  set: (partial: Partial<ImportStore>) => void,
+  get: () => ImportStore,
+): Promise<void> {
+  const session = get().runSession;
+  const currentIdx = pipelineIndexOf(get().phase);
+  const nextStep: ImportPhaseStep | undefined = IMPORT_PIPELINE[currentIdx + 1];
+
+  if (!session || !nextStep) {
+    // Pipeline complete (or session gone) → merge-ready review.
+    console.debug("[import-store] run complete → review");
+    lastRunTextContent = "";
+    set({ phase: "review", hasImportData: true, statusText: "" });
+    get().onRunComplete?.();
+    return;
+  }
+
+  console.debug(`[import-store] advancing → ${nextStep.phase}`);
+  lastRunTextContent = "";
+  set({ phase: nextStep.phase });
+
+  // Deterministic pre-step: code-triggered tools dispatched directly (not
+  // model-advertised). Best-effort — a failure doesn't gate the agent turn.
+  const ctx = runContext;
+  for (const tool of nextStep.preStepTools) {
+    if (!ctx?.repo || !ctx.fileAdapter) break;
+    try {
+      await runTool(tool, {}, {
+        repo: ctx.repo,
+        fileAdapter: ctx.fileAdapter,
+        budgetPath: ctx.budgetPath,
+      });
+    } catch (err) {
+      console.warn(`[import-store] pre-step ${tool} failed:`, err);
+    }
+  }
+
+  // The user may have cancelled while the pre-step ran — the store kills the
+  // session and clears `runSession`. Skip the inject if state moved on.
+  if (get().runSession !== session) return;
+
+  if (nextStep.instruction === null) {
+    // Deterministic-only phase (no agent turn) — its pre-step has run, so
+    // chain straight to the next phase without a session round-trip.
+    void advanceRun(set, get);
+    return;
+  }
+
+  // Sequential injection: the next phase's instruction enters as a fresh user
+  // turn in the SAME session, re-running the agentic loop with full memory.
+  session.send(nextStep.instruction).catch((err) => {
+    handleRunStreamEvent(
+      { type: "error", message: err instanceof Error ? err.message : "Failed to continue import" },
+      set,
+      get,
+    );
+  });
+}
+
+// ── Stream event handler ────────────────────────────────────────
+
+function handleRunStreamEvent(
   event: StreamEvent,
   set: (partial: Partial<ImportStore>) => void,
   get: () => ImportStore,
 ) {
   switch (event.type) {
     case "content": {
+      let latestText = "";
       set({
-        normalizeMessages: (() => {
-          const msgs = get().normalizeMessages;
+        runMessages: (() => {
+          const msgs = get().runMessages;
           const updated = [...msgs];
           const last = updated[updated.length - 1];
           if (last?.role !== "assistant") return msgs;
 
           let blocks = [...last.blocks];
           for (const block of event.blocks) {
-            blocks = appendNormalizeBlock(blocks, block);
+            blocks = appendRunBlock(blocks, block);
+            if (block.type === "text" && block.content) {
+              const lines = block.content.trim().split("\n");
+              const lastLine = lines[lines.length - 1]?.trim();
+              if (lastLine) latestText = lastLine;
+            }
           }
           updated[updated.length - 1] = { ...last, blocks };
           return updated;
         })(),
       });
+      if (latestText) set({ statusText: latestText });
       break;
     }
     case "done":
-      // Synchronous transition: normalizing → preview. No async, no race.
-      console.debug("[import-store] normalize done → preview");
-      lastNormalizeTextContent = "";
-      set({ phase: "preview", hasImportData: true });
+      void advanceRun(set, get);
       break;
     case "error":
-      console.debug("[import-store] normalize error:", event.message);
-      lastNormalizeTextContent = "";
+      console.debug("[import-store] run error:", event.message);
+      lastRunTextContent = "";
       set({
-        normalizeMessages: (() => {
-          const msgs = get().normalizeMessages;
-          const updated = [...msgs];
-          const last = updated[updated.length - 1];
-          if (last?.role !== "assistant") {
-            return [
-              ...msgs,
-              {
-                id: crypto.randomUUID(),
-                role: "assistant" as const,
-                blocks: [{ type: "text" as const, content: `Error: ${event.message}` }],
-              },
-            ];
-          }
-          updated[updated.length - 1] = {
-            ...last,
-            blocks: [...last.blocks, { type: "text" as const, content: `Error: ${event.message}` }],
-          };
-          return updated;
-        })(),
+        statusText: "",
+        runMessages: appendErrorMessage(get().runMessages, {
+          type: "text" as const,
+          content: `Error: ${event.message}`,
+        }),
       });
       break;
   }
 }
 
-function handleEnrichStreamEvent(
+function handleReenrichStreamEvent(
   event: StreamEvent,
   set: (partial: Partial<ImportStore>) => void,
   get: () => ImportStore,
@@ -423,13 +474,29 @@ function handleEnrichStreamEvent(
       }
       break;
     case "done":
-      console.debug("[import-store] enrich done");
       set({ isEnriching: false, enrichStatusText: "" });
       get().onEnrichComplete?.();
       break;
     case "error":
-      console.debug("[import-store] enrich error:", event.message);
+      console.debug("[import-store] re-enrich error:", event.message);
       set({ isEnriching: false, enrichStatusText: "" });
       break;
   }
+}
+
+/** Append an error block to the trailing assistant message (or a new one). */
+function appendErrorMessage(
+  msgs: ChatMessage[],
+  errorBlock: ContentBlock,
+): ChatMessage[] {
+  const updated = [...msgs];
+  const last = updated[updated.length - 1];
+  if (last?.role !== "assistant") {
+    return [
+      ...msgs,
+      { id: crypto.randomUUID(), role: "assistant" as const, blocks: [errorBlock] },
+    ];
+  }
+  updated[updated.length - 1] = { ...last, blocks: [...last.blocks, errorBlock] };
+  return updated;
 }

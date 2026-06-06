@@ -61,15 +61,15 @@ type ImportViewState =
   | "loading"        // checking disk on mount
   | "empty"          // no files → drop zone
   | "has-sources"    // source files ready → file list + Start
-  | "normalizing"    // AI processing
-  | "has-preview";   // transactions.csv ready → preview
+  | "processing"     // the orchestrated run (normalize → … → enrich)
+  | "has-preview";   // run complete → merge-ready review
 
 export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
   // ── Store state (survives navigation) ─────────────────────────
   const phase = useImportStore((s) => s.phase);
-  const normalizeMessages = useImportStore((s) => s.normalizeMessages);
-  const startNormalization = useImportStore((s) => s.startNormalization);
-  const cancelNormalization = useImportStore((s) => s.cancelNormalization);
+  const runMessages = useImportStore((s) => s.runMessages);
+  const startRun = useImportStore((s) => s.startRun);
+  const cancelRun = useImportStore((s) => s.cancelRun);
   const setPhase = useImportStore((s) => s.setPhase);
   const setGlobalHasImportData = useImportStore((s) => s.setHasImportData);
 
@@ -118,20 +118,21 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
   }, [repository]);
 
   // On mount: if store is idle, check disk to determine initial state.
-  // If store is "normalizing" or "preview", trust the store (reconnect).
+  // If a run is in flight (normalizing → … → enriching) or done (review),
+  // trust the store (reconnect).
   useEffect(() => {
     async function init() {
       if (phase === "idle") {
         const hasCsv = await repository.hasTransactionsCsv();
         if (hasCsv) {
-          setPhase("preview");
+          setPhase("review");
           setGlobalHasImportData(true);
         } else {
           await refreshSourceFiles();
           setGlobalHasImportData(false);
         }
-      } else if (phase === "normalizing") {
-        // Reconnecting — load source files for the processing header
+      } else if (phase !== "review") {
+        // Reconnecting mid-run — load source files for the processing header
         await refreshSourceFiles();
       }
       setDiskChecked(true);
@@ -144,17 +145,19 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
-  }, [normalizeMessages]);
+  }, [runMessages]);
 
   // ── Derived view state ────────────────────────────────────────
   // Store phase is the authority. Disk state only matters for idle sub-states.
+  // Every run phase (normalize → … → enrich) renders the processing stream on
+  // this screen; only the terminal `review` swaps to the preview table.
   let viewState: ImportViewState;
   if (!diskChecked && phase === "idle") {
     viewState = "loading";
-  } else if (phase === "normalizing") {
-    viewState = "normalizing";
-  } else if (phase === "preview") {
+  } else if (phase === "review") {
     viewState = "has-preview";
+  } else if (phase !== "idle") {
+    viewState = "processing";
   } else if (sourceFiles.length > 0) {
     viewState = "has-sources";
   } else {
@@ -259,8 +262,8 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
 
   // ── Actions ───────────────────────────────────────────────────
   const handleStart = async () => {
-    if (sourceFiles.length === 0 || phase === "normalizing") return;
-    console.log("[import] starting normalization with", sourceFiles.length, "source files");
+    if (sourceFiles.length === 0 || (phase !== "idle" && phase !== "review")) return;
+    console.log("[import] starting run with", sourceFiles.length, "source files");
 
     try {
       await repository.writeState({ sourceFiles: sourceFiles.map((f) => f.name) });
@@ -340,7 +343,7 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
         ? [{ type: "text", text: textInstructions }, ...attachments]
         : textInstructions;
 
-    startNormalization({
+    startRun({
       budgetPath,
       mcpServerPath: "packages/mcp/src/server.ts",
       systemPrompt,
@@ -353,14 +356,14 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
 
   const handleCancel = useCallback(async () => {
     console.log("[import] cancelling import");
-    cancelNormalization();
+    cancelRun();
     setFileDuplicates({});
     await repository.clearImportData();
     setSourceFiles([]);
-  }, [cancelNormalization, repository]);
+  }, [cancelRun, repository]);
 
   // ── Render ────────────────────────────────────────────────────
-  const showProcessing = viewState === "normalizing";
+  const showProcessing = viewState === "processing";
   const showPreview = viewState === "has-preview";
   const showDropZone = viewState === "empty" || viewState === "has-sources";
 
@@ -469,7 +472,7 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
                 ref={scrollRef}
                 className="rounded-2xl border border-border/30 bg-card/30 p-5 max-h-[60vh] overflow-y-auto"
               >
-                <ProcessingStatus messages={normalizeMessages} />
+                <ProcessingStatus messages={runMessages} />
               </div>
             </>
           )}
