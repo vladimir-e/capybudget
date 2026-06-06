@@ -386,11 +386,10 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
       onDragOver={showDropZone ? handleDragOver : undefined}
       onDrop={showDropZone ? handleDrop : undefined}
     >
-      {/* Drop overlay — the resting dashed box grown to fill the pane. The
-          seed box fades out underneath (ImportDropZone `dragging`) so the
-          eye reads one frame expanding, not two stacked. */}
+      {/* Overlay frame deliberately mirrors the seed box's dashed treatment
+          so it reads as one frame expanding, not two stacked. */}
       {showDropZone && isDragging && (
-        <div className="absolute inset-0 z-50 flex items-center justify-center bg-background/60">
+        <div className="pointer-events-none absolute inset-0 z-50 flex items-center justify-center bg-background/60">
           <div className="absolute inset-4 flex flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed border-brand/50 bg-brand/5 text-brand animate-in fade-in zoom-in-95 duration-150">
             <FileUp className="h-10 w-10" />
             <p className="text-lg font-semibold">Drop files to import</p>
@@ -487,33 +486,28 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
         </div>
       </div>
 
-      {showCancelConfirm && (
-        <Dialog
-          open={showCancelConfirm}
-          onOpenChange={(open) => { if (!open) setShowCancelConfirm(false); }}
-        >
-          <DialogContent className="sm:max-w-sm">
-            <DialogHeader>
-              <DialogTitle>Cancel import?</DialogTitle>
-              <DialogDescription>
-                This discards the uploaded files and any transactions Capy has
-                extracted. It can't be undone.
-              </DialogDescription>
-            </DialogHeader>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setShowCancelConfirm(false)}>
-                Keep importing
-              </Button>
-              <Button
-                variant="destructive"
-                onClick={() => { setShowCancelConfirm(false); handleCancel(); }}
-              >
-                Discard import
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      )}
+      <Dialog open={showCancelConfirm} onOpenChange={setShowCancelConfirm}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Cancel import?</DialogTitle>
+            <DialogDescription>
+              This discards the uploaded files and any transactions Capy has
+              extracted. It can't be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowCancelConfirm(false)}>
+              Keep importing
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => { setShowCancelConfirm(false); handleCancel(); }}
+            >
+              Discard import
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
     </div>
   );

@@ -68,8 +68,17 @@ export function ImportDropZone({
         onChange={onFileSelect}
       />
       <div
+        role="button"
+        tabIndex={0}
+        aria-label="Browse for files to import"
         onClick={onBrowse}
-        className={`group relative cursor-pointer rounded-2xl border-2 border-dashed border-border bg-muted/30 transition duration-200 hover:border-brand/40 hover:bg-brand/5 ${
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            onBrowse();
+          }
+        }}
+        className={`group relative cursor-pointer rounded-2xl border-2 border-dashed border-border bg-muted/30 transition duration-200 hover:border-brand/40 hover:bg-brand/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 ${
           dragging ? "opacity-0" : "opacity-100"
         }`}
       >
