@@ -633,16 +633,9 @@ async function checkNothingToImport(): Promise<RunOutcome | null> {
   const ctx = runContext;
   if (!ctx?.fileAdapter) return null;
   try {
-    const { total, duplicateCount } = await readStagingDuplicateTally(
-      ctx.fileAdapter,
-      ctx.budgetPath,
-    );
-    if (total > 0 && duplicateCount === total) {
-      return {
-        kind: "nothing-to-import",
-        message: buildNothingToImportMessage(total),
-      };
-    }
+    const tally = await readStagingDuplicateTally(ctx.fileAdapter, ctx.budgetPath);
+    const outcome = outcomeFromTally(tally);
+    if (outcome.kind === "nothing-to-import") return outcome;
   } catch (err) {
     console.warn("[import-store] halt check failed:", err);
   }

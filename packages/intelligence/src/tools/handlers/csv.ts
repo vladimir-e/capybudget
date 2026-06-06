@@ -180,10 +180,6 @@ export async function handleTransformCsv(
     : newCsv
   await ctx.fileAdapter.writeFile(outPath, finalCsv)
 
-  // Invalidate enrichment cache (per-context — see the enrichment cache
-  // section below).
-  invalidateEnrichmentCache(outPath)
-
   const errorSample = result.errors.slice(0, 10)
 
   return JSON.stringify(
@@ -200,32 +196,17 @@ export async function handleTransformCsv(
   )
 }
 
-// ── Enrichment cache ─────────────────────────────────────────────
-// Keyed on the resolved transactions.csv path so multiple budgets
-// don't collide. The MCP server is single-budget so this is a single
-// entry in practice; the renderer-side dispatch is also single-budget
-// per session.
-
-const csvCache = new Map<string, Record<string, string>[]>()
-
-function invalidateEnrichmentCache(filePath: string): void {
-  csvCache.delete(filePath)
-}
-
-/** Test hook — drops the entire enrichment cache. Production code
- *  invalidates per-path; tests need a clean slate between cases. */
-export function __resetEnrichmentCacheForTests(): void {
-  csvCache.clear()
-}
+// ── staging CSV read/write ───────────────────────────────────────
+// Disk is the single source of truth. Reads always re-parse it, so a
+// write from another process (the MCP subprocess, for the Claude CLI
+// provider) is reflected on the next read. The run is strictly
+// sequential, so there is no concurrent-write race to guard against.
 
 async function readImportCsv(ctx: ToolContext) {
   const dir = await resolveImportDir(ctx)
   const filePath = await ctx.fileAdapter.join(dir, "transactions.csv")
-  const cached = csvCache.get(filePath)
-  if (cached) return { data: cached, filePath }
   const content = await ctx.fileAdapter.readFile(filePath)
   const data = parseRawCsv(content).data
-  csvCache.set(filePath, data)
   return { data, filePath }
 }
 
@@ -236,7 +217,6 @@ async function writeImportCsv(
 ) {
   const csv = Papa.unparse(data, { columns: [...IMPORT_CSV_COLUMNS] })
   await ctx.fileAdapter.writeFile(filePath, csv)
-  csvCache.set(filePath, data)
 }
 
 // ── enrich_status / enrich_update ────────────────────────────────

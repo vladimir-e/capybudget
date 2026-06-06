@@ -12,7 +12,6 @@ import {
   handleFindDuplicates,
   handleMarkDuplicates,
   handleAutoMarkDuplicates,
-  __resetEnrichmentCacheForTests,
 } from "./csv"
 import { makeFileAdapter, makeMemoryFs, type MemoryFs } from "./test-utils"
 import type { ToolContext } from "../dispatch"
@@ -38,7 +37,6 @@ function makeRepo(
 }
 
 beforeEach(() => {
-  __resetEnrichmentCacheForTests()
   fs = makeMemoryFs()
   // Pre-create sources dir so tests can drop source files in directly.
   fs.dirs.add(IMPORT_DIR)
@@ -274,6 +272,78 @@ describe("handleEnrichStatus", () => {
     expect(result).toContain("Move to savings")
     // Non-transfer rows aren't in a targetAccountId sample.
     expect(result).not.toContain("Coffee")
+  })
+})
+
+// ── cross-process read coherence (no stale cache) ────────────────
+// For the Claude CLI provider the model's tool calls run in the MCP
+// subprocess while the orchestrator's pre-steps run in the renderer —
+// two module instances over one transactions.csv on disk. A read-through
+// cache in either instance goes stale the moment the other writes, and
+// the next read+writeback silently clobbers the other's edits. These
+// tests pin that reads always reflect what's on disk by writing a
+// MODIFIED staging file DIRECTLY via the fileAdapter (simulating the
+// other process) between two reads.
+
+describe("staging reads reflect external writes", () => {
+  it("handleEnrichStatus sees an accountId written by another process", async () => {
+    fs.files.set(
+      `${IMPORT_DIR}/transactions.csv`,
+      [
+        "id,date,description,amount,type,sourceAccount,sourceCategory,memo,merchant,accountId,targetAccountId,categoryId,categoryConfidence",
+        "imp-1,2024-01-01,Coffee,-450,expense,Cash,,,,,,,",
+      ].join("\n"),
+    )
+
+    // First read: no account resolved yet.
+    const before = await handleEnrichStatus(ctx, { sampleSize: 0 })
+    expect(before).toContain("Accounts: 0/1")
+
+    // The MCP subprocess resolves accountId and writes to disk directly,
+    // bypassing this instance's writeImportCsv. A stale cache would miss it.
+    fs.files.set(
+      `${IMPORT_DIR}/transactions.csv`,
+      [
+        "id,date,description,amount,type,sourceAccount,sourceCategory,memo,merchant,accountId,targetAccountId,categoryId,categoryConfidence",
+        "imp-1,2024-01-01,Coffee,-450,expense,Cash,,,,acc-1,,,",
+      ].join("\n"),
+    )
+
+    // Second read must reflect the external write.
+    const after = await handleEnrichStatus(ctx, { sampleSize: 0 })
+    expect(after).toContain("Accounts: 1/1")
+  })
+
+  it("handleFindDuplicates sees rows added by another process", async () => {
+    const repo = makeRepo({
+      transactions: [
+        makeExisting({ id: "tx-1", amount: -3000, note: "WHOLE FOODS" }),
+      ],
+    })
+    const findCtx = { ...ctx, repo }
+
+    fs.files.set(
+      `${IMPORT_DIR}/transactions.csv`,
+      [CSV_HEADER, "imp-1,2024-01-01,COFFEE,-450,expense,Chk,,,,acct-1,,,"].join("\n"),
+    )
+
+    // No staging row matches the existing transaction yet.
+    const before = JSON.parse(await handleFindDuplicates(findCtx, repo))
+    expect(before.summary.total).toBe(0)
+
+    // Another process appends a row that DOES match — written to disk directly.
+    fs.files.set(
+      `${IMPORT_DIR}/transactions.csv`,
+      [
+        CSV_HEADER,
+        "imp-1,2024-01-01,COFFEE,-450,expense,Chk,,,,acct-1,,,",
+        "imp-2,2024-01-01,WHOLE FOODS,-3000,expense,Chk,,,,acct-1,,,",
+      ].join("\n"),
+    )
+
+    const after = JSON.parse(await handleFindDuplicates(findCtx, repo))
+    expect(after.summary.total).toBe(1)
+    expect(after.high[0]).toMatchObject({ importId: "imp-2", matchedTransactionId: "tx-1" })
   })
 })
 

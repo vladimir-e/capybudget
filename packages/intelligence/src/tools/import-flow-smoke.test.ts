@@ -14,7 +14,6 @@ import {
   makeMemoryFs,
   type MemoryFs,
 } from "./handlers/test-utils"
-import { __resetEnrichmentCacheForTests } from "./handlers/csv"
 
 const BUDGET_PATH = "/budget"
 
@@ -33,7 +32,6 @@ function makeRepo(data: { accounts: Account[]; categories: Category[] }): Budget
 }
 
 beforeEach(() => {
-  __resetEnrichmentCacheForTests()
   fs = makeMemoryFs()
   fs.dirs.add(`${BUDGET_PATH}/.capy/import/sources`)
   ctx = {
@@ -117,7 +115,6 @@ describe("CSV import smoke", () => {
         },
       ],
     })
-    __resetEnrichmentCacheForTests()
 
     const enrich = await runTool("auto_enrich", {}, ctx)
     expect(enrich).toContain("Categories matched: 3")
