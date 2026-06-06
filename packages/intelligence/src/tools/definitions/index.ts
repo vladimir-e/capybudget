@@ -65,12 +65,14 @@ const ALL_TOOL_DEFS: readonly ToolDefinition[] = [
  *
  * Notable cross-mode tools: both modes see `search_transactions` — chat
  * to find a set ("all my Apple charges"), import to look up a cryptic
- * description in budget history and inherit its merchant + category. Chat
- * also gets read-only import visibility (`list_import_files` /
- * `read_import_file`) for staged-import questions; import also gets
- * `list_accounts` / `list_categories` for transfer-target and category
- * UUIDs. The render tools are chat-only; the CSV / enrich / write tools
- * are import-only.
+ * description in budget history and inherit its merchant + category.
+ * `list_import_files` / `read_import_file` are chat-only (read-only
+ * staged-import visibility); the import session writes its own files and
+ * tracks them in the run, so it doesn't need to inspect the directory.
+ * Import gets `list_accounts` / `list_categories` for transfer-target and
+ * category UUIDs. The render tools are chat-only; the CSV / enrich / write
+ * tools are import-only. `auto_enrich` is intentionally absent — it's
+ * code-triggered, never advertised (see below).
  */
 const TOOL_MODES: Readonly<Record<string, readonly ToolMode[]>> = {
   // Data
@@ -91,17 +93,19 @@ const TOOL_MODES: Readonly<Record<string, readonly ToolMode[]>> = {
   delete_category: ["chat"],
   bulk_update_transactions: ["chat"],
   // Import working directory
-  read_import_file: ["chat", "import"],
+  read_import_file: ["chat"],
   write_import_file: ["import"],
-  append_import_file: ["import"],
-  list_import_files: ["chat", "import"],
+  list_import_files: ["chat"],
   // CSV transform + enrichment
   analyze_csv: ["import"],
   preview_transform: ["import"],
   transform_csv: ["import"],
-  auto_enrich: ["import"],
-  enrich_stats: ["import"],
-  enrich_sample: ["import"],
+  // auto_enrich is code-triggered (the import orchestrator runs it as a
+  // deterministic step), so it's dispatchable but not advertised to any
+  // model — no TOOL_MODES entry. The MCP surface still exposes it
+  // (getToolDefinitions() with no mode), and runTool dispatches it
+  // regardless of this map.
+  enrich_status: ["import"],
   enrich_update: ["import"],
   // Generic readers
   read_file: ["chat", "import"],
@@ -131,10 +135,10 @@ export function getToolDefinitions(mode?: ToolMode): ToolDefinition[] {
  *
  * Scope is budget-data mutations only (accounts, categories, transactions,
  * budgets, net-worth exclusions). Import/CSV workspace writes
- * (`write_import_file`, `append_import_file`, `transform_csv`, `auto_enrich`,
- * `enrich_update`, etc.) are intentionally excluded — they touch
- * `.capy/import/`, which the budget UI doesn't read from. Invalidating
- * on those would refetch budget CSVs that haven't changed.
+ * (`write_import_file`, `transform_csv`, `auto_enrich`, `enrich_update`,
+ * etc.) are intentionally excluded — they touch `.capy/import/`, which the
+ * budget UI doesn't read from. Invalidating on those would refetch budget
+ * CSVs that haven't changed.
  */
 export const MUTATION_TOOL_NAMES: ReadonlySet<string> = new Set(
   MUTATION_TOOL_DEFS.map((t) => t.name),

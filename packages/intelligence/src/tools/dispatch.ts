@@ -11,9 +11,9 @@
  * Tools this dispatch knows about:
  *   - data tools  (list_*, search_transactions, group_transactions)
  *   - mutation tools (create/update/delete + bulk_update_transactions)
- *   - import tools (read/write/append/list_import_file)
+ *   - import tools (read/write/list_import_file)
  *   - csv tools (analyze_csv, preview_transform, transform_csv,
- *                auto_enrich, enrich_*)
+ *                auto_enrich, enrich_status, enrich_update)
  *   - read_file (generic budget-folder text reader)
  *   - read_spec (bundled spec doc reader)
  *   - render tools (render_*)
@@ -42,7 +42,6 @@ import {
 import {
   handleReadImportFile,
   handleWriteImportFile,
-  handleAppendImportFile,
   handleListImportFiles,
 } from "./handlers/import"
 import {
@@ -50,8 +49,7 @@ import {
   handlePreviewTransform,
   handleTransformCsv,
   handleAutoEnrich,
-  handleEnrichStats,
-  handleEnrichSample,
+  handleEnrichStatus,
   handleEnrichUpdate,
 } from "./handlers/csv"
 import { handleReadFile } from "./handlers/read-file"
@@ -91,7 +89,6 @@ const HANDLERS: Record<string, ToolHandler> = {
   // Import working directory
   read_import_file: (ctx, args) => handleReadImportFile(ctx, args),
   write_import_file: (ctx, args) => handleWriteImportFile(ctx, args),
-  append_import_file: (ctx, args) => handleAppendImportFile(ctx, args),
   list_import_files: (ctx) => handleListImportFiles(ctx),
 
   // CSV transform + enrichment
@@ -99,8 +96,7 @@ const HANDLERS: Record<string, ToolHandler> = {
   preview_transform: (ctx, args) => handlePreviewTransform(ctx, args),
   transform_csv: (ctx, args) => handleTransformCsv(ctx, args),
   auto_enrich: (ctx) => handleAutoEnrich(ctx, ctx.repo),
-  enrich_stats: (ctx) => handleEnrichStats(ctx),
-  enrich_sample: (ctx, args) => handleEnrichSample(ctx, args),
+  enrich_status: (ctx, args) => handleEnrichStatus(ctx, args),
   enrich_update: (ctx, args) => handleEnrichUpdate(ctx, args, ctx.repo),
 
   // Generic file reader (claude-cli has Read built-in; api adapters

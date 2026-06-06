@@ -1,7 +1,7 @@
 /**
  * Tool handlers for CSV analysis and programmatic transformation, plus
- * the primitive enrichment helpers (auto_enrich, enrich_stats,
- * enrich_sample, enrich_update).
+ * the primitive enrichment helpers (auto_enrich, enrich_status,
+ * enrich_update).
  *
  * The handlers replace the old "AI processes every CSV row" approach —
  * the agent calls analyze_csv to inspect, defines a mapping, previews
@@ -250,9 +250,12 @@ const IMPORT_CSV_COLUMNS = [
   "categoryConfidence",
 ]
 
-// ── enrich_stats / enrich_sample / enrich_update ─────────────────
+// ── enrich_status / enrich_update ────────────────────────────────
 
-export async function handleEnrichStats(ctx: ToolContext): Promise<string> {
+export async function handleEnrichStatus(
+  ctx: ToolContext,
+  args: Record<string, unknown> = {},
+): Promise<string> {
   const { data } = await readImportCsv(ctx)
 
   let withMerchant = 0,
@@ -278,7 +281,7 @@ export async function handleEnrichStats(ctx: ToolContext): Promise<string> {
   const transferSuffix =
     transfers > 0 ? ` (${transfers} transfers excluded)` : ""
 
-  return [
+  const stats = [
     `Total: ${data.length} rows`,
     `Merchants: ${withMerchant}/${data.length - transfers}${transferSuffix}`,
     `Categories: ${withCategory}/${data.length - transfers}${transferSuffix}`,
@@ -290,16 +293,22 @@ export async function handleEnrichStats(ctx: ToolContext): Promise<string> {
   ]
     .filter(Boolean)
     .join("\n")
+
+  const sampleSize = (args.sampleSize as number) || 0
+  if (sampleSize <= 0) return stats
+
+  const field = (args.sampleField as string) || "any"
+  const sampleCsv = sampleRowsNeedingWork(data, field, sampleSize)
+  return `${stats}\n\nSample:\n${sampleCsv}`
 }
 
-export async function handleEnrichSample(
-  ctx: ToolContext,
-  args: Record<string, unknown>,
-): Promise<string> {
-  const { data } = await readImportCsv(ctx)
-  const field = (args.field as string) || "any"
-  const limit = (args.limit as number) || 20
-
+/** Pick a representative cross-section of rows still needing the given
+ *  field, formatted as a compact CSV for pattern-spotting. */
+function sampleRowsNeedingWork(
+  data: Record<string, string>[],
+  field: string,
+  size: number,
+): string {
   const needsWork = data.filter((row) => {
     if (field === "merchant") return !row.merchant
     if (field === "categoryId") return !row.categoryId && row.type !== "transfer"
@@ -307,7 +316,7 @@ export async function handleEnrichSample(
     return (!row.merchant || !row.categoryId) && row.type !== "transfer"
   })
 
-  const sample = sampleEvenly(needsWork, limit)
+  const sample = sampleEvenly(needsWork, size)
 
   // Compact CSV with only useful columns — include targetAccountId for transfers.
   const isTransferQuery = field === "targetAccountId"

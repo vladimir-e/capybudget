@@ -51,7 +51,6 @@ export {
 export {
   handleReadImportFile,
   handleWriteImportFile,
-  handleAppendImportFile,
   handleListImportFiles,
 } from "./handlers/import"
 export {
@@ -59,8 +58,7 @@ export {
   handlePreviewTransform,
   handleTransformCsv,
   handleAutoEnrich,
-  handleEnrichStats,
-  handleEnrichSample,
+  handleEnrichStatus,
   handleEnrichUpdate,
 } from "./handlers/csv"
 export { handleReadFile } from "./handlers/read-file"

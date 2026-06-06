@@ -4,7 +4,7 @@ export const CSV_TOOL_DEFS = [
   {
     name: "analyze_csv",
     description:
-      "Analyze a source CSV file in .capy/import/sources/. Returns: column headers, first 20 sample rows, total row count, and detected delimiter. Use this to understand the file format before defining a mapping.",
+      "Inspect a source CSV in .capy/import/sources/. Returns column headers, first 20 sample rows, total row count, and delimiter — study before mapping.",
     inputSchema: {
       type: "object" as const,
       properties: {
@@ -19,7 +19,7 @@ export const CSV_TOOL_DEFS = [
   {
     name: "preview_transform",
     description:
-      "Apply a column mapping to the first N rows of a source CSV and return the transformed rows plus any parse errors — verify the mapping before the full transform.",
+      "Apply a column mapping to the first N rows of a source CSV; returns transformed rows plus parse errors. Verify the mapping before transform_csv.",
     inputSchema: {
       type: "object" as const,
       properties: {
@@ -42,7 +42,7 @@ export const CSV_TOOL_DEFS = [
   {
     name: "transform_csv",
     description:
-      "Apply a column mapping to ALL rows of a source CSV file and write to .capy/import/transactions.csv. Appends if the file already exists (for multi-file imports). Use preview_transform first to verify the mapping.",
+      "Apply a column mapping to ALL rows of a source CSV and write .capy/import/transactions.csv (appends for multi-file imports). Run preview_transform first.",
     inputSchema: {
       type: "object" as const,
       properties: {
@@ -61,36 +61,28 @@ export const CSV_TOOL_DEFS = [
   {
     name: "auto_enrich",
     description:
-      "Code-based enrichment: maps sourceCategory → categories, sourceAccount → accounts, and resolves transfer targets. Leaves merchant empty for you to clean. Runs automatically at session start — call again only if you suspect it didn't (e.g. after a manual write_import_file).",
+      "Code-based enrichment: maps sourceCategory → categories, sourceAccount → accounts, and resolves transfer targets. Leaves merchant empty for you to clean.",
     inputSchema: {
       type: "object" as const,
       properties: {},
     },
   },
   {
-    name: "enrich_stats",
+    name: "enrich_status",
     description:
-      "Returns a compact summary of enrichment progress: total rows, how many have merchants, categories, accounts, and how many still need work.",
-    inputSchema: {
-      type: "object" as const,
-      properties: {},
-    },
-  },
-  {
-    name: "enrich_sample",
-    description:
-      "Returns a small CSV sample of rows that still need enrichment. Use this to spot patterns, then apply bulk updates. Returns at most `limit` rows as CSV (default 20).",
+      "Enrichment progress: total rows and merchant/category/account coverage. Set sampleSize > 0 to also get that many CSV sample rows still needing work (sampleField filters which empty field).",
     inputSchema: {
       type: "object" as const,
       properties: {
-        field: {
+        sampleSize: {
+          type: "number",
+          description:
+            "Sample rows to return alongside the summary. 0 (default) = stats only.",
+        },
+        sampleField: {
           type: "string",
           description:
-            "Which empty field to filter by: 'merchant', 'categoryId', 'targetAccountId' (unmatched transfers), or 'any' (default: 'any')",
-        },
-        limit: {
-          type: "number",
-          description: "Max rows to return (default: 20)",
+            "When sampling, which empty field to filter by: 'merchant', 'categoryId', 'targetAccountId' (unmatched transfers), or 'any' (default).",
         },
       },
     },
@@ -98,7 +90,7 @@ export const CSV_TOOL_DEFS = [
   {
     name: "enrich_update",
     description:
-      "Bulk update: set field(s) on all rows matching a condition. Like SQL UPDATE ... WHERE. Only sets empty fields (won't overwrite existing values). Returns per-field counts of what was set vs skipped — read this to see exactly what landed.",
+      "Bulk SET ... WHERE: set field(s) on all rows matching a condition. Only fills empty fields. Returns per-field counts of what was set vs skipped.",
     inputSchema: {
       type: "object" as const,
       properties: {

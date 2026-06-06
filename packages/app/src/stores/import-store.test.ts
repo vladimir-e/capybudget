@@ -123,7 +123,8 @@ describe("import-store", () => {
       startWithRepo();
       await new Promise((resolve) => setTimeout(resolve, 0));
 
-      // Failure is swallowed — the model can call auto_enrich itself as fallback.
+      // Failure is swallowed — the run still proceeds; the deterministic
+      // pre-pass is best-effort, not a hard gate on the enrich turn.
       expect(sessionSend).toHaveBeenCalledTimes(1);
       warnSpy.mockRestore();
     });

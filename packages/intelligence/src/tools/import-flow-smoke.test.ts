@@ -1,8 +1,8 @@
 /**
  * Smoke test: full CSV import pipeline through `runTool` dispatch.
- * Confirms analyze_csv → preview_transform → transform_csv → enrich_*
- * works against an in-memory FileAdapter, mirroring what the API
- * adapters do in production.
+ * Confirms analyze_csv → preview_transform → transform_csv → auto_enrich
+ * → enrich_status works against an in-memory FileAdapter, mirroring what
+ * the API adapters do in production.
  */
 
 import { describe, it, expect, beforeEach } from "vitest"
@@ -44,7 +44,7 @@ beforeEach(() => {
 })
 
 describe("CSV import smoke", () => {
-  it("walks analyze → preview → transform → auto_enrich → enrich_stats", async () => {
+  it("walks analyze → preview → transform → auto_enrich → enrich_status", async () => {
     fs.files.set(
       `${BUDGET_PATH}/.capy/import/sources/2024.csv`,
       [
@@ -122,7 +122,7 @@ describe("CSV import smoke", () => {
     const enrich = await runTool("auto_enrich", {}, ctx)
     expect(enrich).toContain("Categories matched: 3")
 
-    const stats = await runTool("enrich_stats", {}, ctx)
+    const stats = await runTool("enrich_status", {}, ctx)
     expect(stats).toContain("Total: 3 rows")
   })
 })

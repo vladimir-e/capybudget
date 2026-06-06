@@ -8,7 +8,7 @@ export const IMPORT_TOOL_DEFS = [
   {
     name: "read_import_file",
     description:
-      "Read a file from the import working directory (.capy/import/). Use this to read previously normalized or enriched data.",
+      "Read a file from the import working directory (.capy/import/), e.g. normalized or enriched data.",
     inputSchema: {
       type: "object" as const,
       properties: {
@@ -23,7 +23,7 @@ export const IMPORT_TOOL_DEFS = [
   {
     name: "write_import_file",
     description:
-      "Write a file to the import working directory (.capy/import/). Overwrites if the file exists. Use this to write normalized transaction data as CSV.",
+      "Write transaction data to the import working directory (.capy/import/). mode 'overwrite' (default) replaces the file; 'append' adds to it, creating it if absent.",
     inputSchema: {
       type: "object" as const,
       properties: {
@@ -33,26 +33,12 @@ export const IMPORT_TOOL_DEFS = [
         },
         content: {
           type: "string",
-          description: "File content to write",
+          description: "File content",
         },
-      },
-      required: ["filename", "content"],
-    },
-  },
-  {
-    name: "append_import_file",
-    description:
-      "Append content to a file in the import working directory (.capy/import/). Creates the file if it doesn't exist.",
-    inputSchema: {
-      type: "object" as const,
-      properties: {
-        filename: {
+        mode: {
           type: "string",
-          description: "File name to append to",
-        },
-        content: {
-          type: "string",
-          description: "Content to append",
+          enum: ["overwrite", "append"],
+          description: "'overwrite' (default) or 'append'",
         },
       },
       required: ["filename", "content"],
@@ -60,8 +46,7 @@ export const IMPORT_TOOL_DEFS = [
   },
   {
     name: "list_import_files",
-    description:
-      "List files in the import working directory (.capy/import/).",
+    description: "List files in the import working directory (.capy/import/).",
     inputSchema: {
       type: "object" as const,
       properties: {},

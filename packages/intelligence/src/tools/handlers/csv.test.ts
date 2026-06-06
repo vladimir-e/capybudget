@@ -6,8 +6,7 @@ import {
   handlePreviewTransform,
   handleTransformCsv,
   handleAutoEnrich,
-  handleEnrichStats,
-  handleEnrichSample,
+  handleEnrichStatus,
   handleEnrichUpdate,
   __resetEnrichmentCacheForTests,
 } from "./csv"
@@ -169,10 +168,10 @@ describe("handleTransformCsv", () => {
   })
 })
 
-// ── enrich_stats ─────────────────────────────────────────────────
+// ── enrich_status ────────────────────────────────────────────────
 
-describe("handleEnrichStats", () => {
-  it("counts merchants, categories, accounts, and transfers", async () => {
+describe("handleEnrichStatus", () => {
+  it("counts merchants, categories, accounts, and transfers (sampleSize 0 = stats only)", async () => {
     fs.files.set(
       `${IMPORT_DIR}/transactions.csv`,
       [
@@ -184,20 +183,32 @@ describe("handleEnrichStats", () => {
       ].join("\n"),
     )
 
-    const result = await handleEnrichStats(ctx)
+    const result = await handleEnrichStatus(ctx, { sampleSize: 0 })
     expect(result).toContain("Total: 4 rows")
     // Transfers excluded from both denominators — they don't get merchants
     // or categories (merge code clears them in import-merge.ts).
     expect(result).toContain("Merchants: 1/2 (2 transfers excluded)")
     expect(result).toContain("Categories: 1/2 (2 transfers excluded)")
     expect(result).toContain("Unmatched transfers: 1")
+    // No sample requested — stats only.
+    expect(result).not.toContain("Sample:")
   })
-})
 
-// ── enrich_sample ────────────────────────────────────────────────
+  it("defaults to stats-only when sampleSize is omitted", async () => {
+    fs.files.set(
+      `${IMPORT_DIR}/transactions.csv`,
+      [
+        "id,date,description,amount,type,sourceAccount,sourceCategory,memo,merchant,accountId,targetAccountId,categoryId,categoryConfidence",
+        "imp-1,2024-01-01,Coffee,-450,expense,,,,,,,,",
+      ].join("\n"),
+    )
 
-describe("handleEnrichSample", () => {
-  it("returns rows missing merchant + categoryId by default", async () => {
+    const result = await handleEnrichStatus(ctx)
+    expect(result).toContain("Total: 1 rows")
+    expect(result).not.toContain("Sample:")
+  })
+
+  it("appends a sample of rows still needing work when sampleSize > 0", async () => {
     fs.files.set(
       `${IMPORT_DIR}/transactions.csv`,
       [
@@ -207,9 +218,34 @@ describe("handleEnrichSample", () => {
       ].join("\n"),
     )
 
-    const result = await handleEnrichSample(ctx, {})
+    const result = await handleEnrichStatus(ctx, { sampleSize: 20 })
+    expect(result).toContain("Total: 2 rows")
+    expect(result).toContain("Sample:")
     expect(result).toContain("Coffee")
+    // Fully enriched rows are excluded from the sample.
     expect(result).not.toContain("Pay,")
+  })
+
+  it("filters the sample by sampleField (targetAccountId for unmatched transfers)", async () => {
+    fs.files.set(
+      `${IMPORT_DIR}/transactions.csv`,
+      [
+        "id,date,description,amount,type,sourceAccount,sourceCategory,memo,merchant,accountId,targetAccountId,categoryId,categoryConfidence",
+        "imp-1,2024-01-01,Coffee,-450,expense,,,,,,,,",
+        "imp-2,2024-01-02,Move to savings,10000,transfer,Checking,,,,acc-1,,,",
+      ].join("\n"),
+    )
+
+    const result = await handleEnrichStatus(ctx, {
+      sampleSize: 20,
+      sampleField: "targetAccountId",
+    })
+    expect(result).toContain("Sample:")
+    // Transfer-target header + the unmatched transfer row.
+    expect(result).toContain("description,amount,type,sourceAccount,targetAccountId")
+    expect(result).toContain("Move to savings")
+    // Non-transfer rows aren't in a targetAccountId sample.
+    expect(result).not.toContain("Coffee")
   })
 })
 

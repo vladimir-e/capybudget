@@ -69,17 +69,12 @@ export async function handleWriteImportFile(
 ): Promise<string> {
   const dir = await resolveImportDir(ctx)
   const filePath = await safeFilePath(ctx, dir, args.filename)
-  await ctx.fileAdapter.writeFile(filePath, String(args.content ?? ""))
-  return JSON.stringify({ success: true, filename: args.filename })
-}
-
-export async function handleAppendImportFile(
-  ctx: ToolContext,
-  args: Record<string, unknown>,
-): Promise<string> {
-  const dir = await resolveImportDir(ctx)
-  const filePath = await safeFilePath(ctx, dir, args.filename)
-  await ctx.fileAdapter.appendFile(filePath, String(args.content ?? ""))
+  const content = String(args.content ?? "")
+  if (args.mode === "append") {
+    await ctx.fileAdapter.appendFile(filePath, content)
+  } else {
+    await ctx.fileAdapter.writeFile(filePath, content)
+  }
   return JSON.stringify({ success: true, filename: args.filename })
 }
 

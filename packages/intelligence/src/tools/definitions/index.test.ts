@@ -33,25 +33,27 @@ const IMPORT_TOOLS = [
   "list_accounts",
   "list_categories",
   "search_transactions",
-  "read_import_file",
   "write_import_file",
-  "append_import_file",
-  "list_import_files",
   "analyze_csv",
   "preview_transform",
   "transform_csv",
-  "auto_enrich",
-  "enrich_stats",
-  "enrich_sample",
+  "enrich_status",
   "enrich_update",
   "read_file",
   "read_spec",
 ]
 
 describe("getToolDefinitions", () => {
-  it("returns the full 31-tool surface with no mode (MCP server is ungated)", () => {
+  it("returns the full 29-tool surface with no mode (MCP server is ungated)", () => {
     const all = getToolDefinitions()
-    expect(all).toHaveLength(31)
+    expect(all).toHaveLength(29)
+  })
+
+  it("exposes the code-triggered auto_enrich on the MCP surface but no advertised mode", () => {
+    const all = getToolDefinitions().map((t) => t.name)
+    expect(all).toContain("auto_enrich")
+    expect(getToolDefinitions("chat").map((t) => t.name)).not.toContain("auto_enrich")
+    expect(getToolDefinitions("import").map((t) => t.name)).not.toContain("auto_enrich")
   })
 
   it("gates chat mode to its 22 tools", () => {
@@ -60,26 +62,35 @@ describe("getToolDefinitions", () => {
     expect(names).toHaveLength(22)
   })
 
-  it("gates import mode to its 16 tools", () => {
+  it("gates import mode to its 11 tools", () => {
     const names = getToolDefinitions("import").map((t) => t.name)
     expect(new Set(names)).toEqual(new Set(IMPORT_TOOLS))
-    expect(names).toHaveLength(16)
+    expect(names).toHaveLength(11)
   })
 
   it("keeps chat free of the import/csv/enrich pipeline", () => {
     const names = getToolDefinitions("chat").map((t) => t.name)
     for (const t of [
       "write_import_file",
-      "append_import_file",
       "analyze_csv",
       "preview_transform",
       "transform_csv",
       "auto_enrich",
-      "enrich_stats",
-      "enrich_sample",
+      "enrich_status",
       "enrich_update",
     ]) {
       expect(names).not.toContain(t)
+    }
+  })
+
+  it("drops staged-file readers from import (chat-only, still on MCP)", () => {
+    const importNames = getToolDefinitions("import").map((t) => t.name)
+    const chatNames = getToolDefinitions("chat").map((t) => t.name)
+    const allNames = getToolDefinitions().map((t) => t.name)
+    for (const t of ["read_import_file", "list_import_files"]) {
+      expect(importNames).not.toContain(t)
+      expect(chatNames).toContain(t)
+      expect(allNames).toContain(t)
     }
   })
 

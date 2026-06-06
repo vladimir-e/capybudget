@@ -23,7 +23,7 @@ Start triggers intelligence. The agent reads its own `import-instructions.md` fr
 The agent converts dropped files into a uniform internal CSV format, stored in `.capy/import/transactions.csv`. Two normalization paths:
 
 - **CSV files**: AI analyzes a sample via `analyze_csv`, defines a `CsvMapping` (column positions, date format, amount format, skip rows), previews via `preview_transform`, then executes `transform_csv`. All rows processed instantly in code — no AI per-row processing. When multiple CSVs are imported, each `transform_csv` call appends to the existing `transactions.csv` with continuing IDs.
-- **Images/PDFs**: bytes ride into the **initial user message as multimodal content** — image blocks for PNG/JPG/etc., document blocks for PDFs. The agent reads them directly from the message (no Read-tool round-trip) and writes extracted rows via `write_import_file` / `append_import_file`. Suitable for small-volume imports (receipts, statements).
+- **Images/PDFs**: bytes ride into the **initial user message as multimodal content** — image blocks for PNG/JPG/etc., document blocks for PDFs. The agent reads them directly from the message (no Read-tool round-trip) and writes extracted rows via `write_import_file` (`mode: "append"` to add to rows already written from another source). Suitable for small-volume imports (receipts, statements).
 
 OpenAI's chat.completions API doesn't accept PDF input. When the OpenAI provider is selected and the user has dropped a `.pdf`, the import screen banners "switch provider or remove the PDF" and disables Start until the gate clears.
 
@@ -78,12 +78,11 @@ The agent also resolves `sourceAccount` and `sourceCategory` strings to existing
 
 Enrichment uses primitive tools instead of bulk CSV read/write:
 
-1. `auto_enrich` runs first — code-based matching (sourceCategory to categories, sourceAccount to accounts, transfer-target resolution). It intentionally does **not** populate `merchant` — the raw description is the wrong value for the cleaned merchant slot, and at merge time `description` already maps to `Transaction.note` while `merchant` is reserved for the cleaned name the model fills in.
-2. `enrich_stats` gives the AI a compact progress summary.
-3. `enrich_sample` returns ~20 evenly-spaced rows needing work — representative cross-section, not just the first rows.
-4. `enrich_update` applies bulk SET WHERE updates (like SQL UPDATE). Supports single or array of WHERE conditions (AND logic). Returns **per-field counts** (set / skipped-as-already-populated) so the model can tell exactly what landed. Validates `categoryId` against the budget's real category UUIDs.
+1. `auto_enrich` runs first — code-based matching (sourceCategory to categories, sourceAccount to accounts, transfer-target resolution). It intentionally does **not** populate `merchant` — the raw description is the wrong value for the cleaned merchant slot, and at merge time `description` already maps to `Transaction.note` while `merchant` is reserved for the cleaned name the model fills in. It's **code-triggered**: the orchestrator runs it as a deterministic pre-pass, and it's not advertised to the model (no `TOOL_MODES` entry), though it stays dispatchable via `runTool` and on the MCP surface.
+2. `enrich_status` gives the AI a compact progress summary. Pass `sampleSize > 0` (with optional `sampleField`) to also return that many evenly-spaced rows needing work — a representative cross-section, not just the first rows.
+3. `enrich_update` applies bulk SET WHERE updates (like SQL UPDATE). Supports single or array of WHERE conditions (AND logic). Returns **per-field counts** (set / skipped-as-already-populated) so the model can tell exactly what landed. Validates `categoryId` against the budget's real category UUIDs.
 
-The session works idempotently: step 0 is always `enrich_stats`; if coverage is already complete (which is common after a small CSV or a receipt extracted directly during normalize), the session reports the work is done and stops. Otherwise the AI works in a REPL loop — check stats, read a sample, apply a pattern in parallel (merchant + categoryId in the same `enrich_update`), repeat until two consecutive update calls produce zero changes or coverage is complete. Per-session tool-call budget (100, defined in the intelligence layer) is a runaway backstop.
+The session works idempotently: step 0 is always `enrich_status`; if coverage is already complete (which is common after a small CSV or a receipt extracted directly during normalize), the session reports the work is done and stops. Otherwise the AI works in a REPL loop — check status (with a sample), apply a pattern in parallel (merchant + categoryId in the same `enrich_update`), repeat until two consecutive update calls produce zero changes or coverage is complete. Per-session tool-call budget (100, defined in the intelligence layer) is a runaway backstop.
 
 ### 5. Review & Merge
 
@@ -156,9 +155,8 @@ Code-based normalization — AI defines the mapping, code processes all rows:
 
 Primitive tools for AI-assisted enrichment — small samples in, bulk updates out:
 
-- `auto_enrich` — score-based matching (sourceCategory→categories, sourceAccount→accounts, transfer-target resolution). Leaves `merchant` empty for the model to fill with cleaned names.
-- `enrich_stats` — compact progress summary (how many rows enriched, how many remain)
-- `enrich_sample` — ~20 evenly-spaced CSV rows needing work (representative sampling)
+- `auto_enrich` — score-based matching (sourceCategory→categories, sourceAccount→accounts, transfer-target resolution). Leaves `merchant` empty for the model to fill with cleaned names. Code-triggered (deterministic pre-pass), not advertised to the model.
+- `enrich_status` — compact progress summary (how many rows enriched, how many remain). With `sampleSize > 0`, also appends that many evenly-spaced CSV rows needing work (representative sampling); `sampleField` filters which empty field.
 - `enrich_update` — bulk SET WHERE (like SQL UPDATE) for merchant, category, account, confidence. Supports array of WHERE conditions (AND logic). Only sets empty fields. Returns per-field counts (set vs skipped). Validates `categoryId` against real budget category UUIDs.
 
 ### Budget query tools

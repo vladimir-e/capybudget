@@ -30,18 +30,18 @@ When in doubt, categorize with "low". An uncategorized row is worse than a low-c
 
 ## Tools
 
-- **enrich_stats** — Compact progress summary: total rows, merchant/category/account coverage, remaining work.
-- **enrich_sample** — Returns ~20 evenly-spaced CSV rows still needing work. Pass \`field: "merchant"\`, \`field: "categoryId"\`, or omit for any incomplete rows.
+- **enrich_status** — Progress summary: total rows, merchant/category/account coverage, remaining work. Pass \`sampleSize: 20\` (and optional \`sampleField: "merchant"\` / \`"categoryId"\` / \`"targetAccountId"\`) to also get evenly-spaced CSV rows still needing work, so you can spot patterns in one call.
 - **enrich_update** — Bulk SET ... WHERE. Returns per-field counts of what was set vs skipped. Only sets currently-empty fields.
-- **auto_enrich** — One-time code-based matching for sourceCategory / sourceAccount / transfer targets. Already ran before this prompt — call it again only if you suspect it didn't run.
 - **list_categories** — All budget categories grouped, with UUIDs. Required before any enrich_update that sets categoryId — the tool validates the UUID and rejects invented or stale values.
+
+Code-based matching (sourceCategory / sourceAccount / transfer targets) already ran before this prompt, so many rows arrive partly filled. Don't redo that work by hand — just fill the gaps.
 - **search_transactions** — Search the user's existing budget history. Reach for it when a raw description is cryptic (an unusual abbreviation, a bank code, a partial name): the same merchant usually shows up across past statements, already cleaned and categorized. Search with chunks of the raw description — for "RBHOOD HGSTS LLC" try "RBHOOD" then "HOOD"; for "SQ *COFFEE CART" try "COFFEE CART". Use \`format: "compact"\` and a small \`limit\` (5–10); the matching rows carry the \`merchant\` and \`categoryId\` the user settled on last time. When the hits agree, reuse that merchant name and categoryId rather than guessing.
 
 ## Step 0 — Assess
 
-**First action is always \`enrich_stats\`.** Inspect the output:
+**First action is always \`enrich_status\`.** Inspect the output:
 
-- If merchant and category coverage are both already complete (every non-transfer row has both), the data is enriched. Optionally call \`enrich_sample\` once to spot-check merchant quality — if the names look clean, report \`"Looks fully enriched — N transactions ready to merge."\` and STOP. Don't loop, don't try to "improve."
+- If merchant and category coverage are both already complete (every non-transfer row has both), the data is enriched. Optionally call \`enrich_status\` once with \`sampleSize: 20\` to spot-check merchant quality — if the names look clean, report \`"Looks fully enriched — N transactions ready to merge."\` and STOP. Don't loop, don't try to "improve."
 - If there's clear remaining work, proceed to Step 1.
 
 Receipts and small clean imports often arrive fully enriched from the normalize step. Pressing the enrich button on already-enriched data should be a no-op. Don't fight that.
@@ -50,7 +50,7 @@ Receipts and small clean imports often arrive fully enriched from the normalize 
 
 Call \`list_categories\` to get category UUIDs. Cache them in your head — you'll reuse the same UUIDs across many \`enrich_update\` calls.
 
-Call \`enrich_sample\` to see patterns in the remaining work. Look for clusters: same merchant keyword across many rows, same sourceCategory string, same amount/type combinations.
+Call \`enrich_status\` with \`sampleSize: 20\` to see patterns in the remaining work. Look for clusters: same merchant keyword across many rows, same sourceCategory string, same amount/type combinations.
 
 ## Step 2 — Apply patterns in parallel
 
@@ -85,7 +85,7 @@ categoryConfidence: 3 set, 0 skipped (already populated)
 
 ## Step 3 — Verify and stop
 
-After a few rounds of pattern application, call \`enrich_stats\` again. Stop when any of these are true:
+After a few rounds of pattern application, call \`enrich_status\` again. Stop when any of these are true:
 
 - **Stats show full coverage.** Every non-transfer row has merchant + categoryId. Summarize and stop.
 - **Two consecutive enrich_update calls produced 0 changes** (matched 0, or matched > 0 but every field was skipped). You've hit diminishing returns; the remaining rows are too unique to batch. Summarize what's done and stop.
@@ -107,7 +107,7 @@ Rules:
 
 ## Transfer target accounts
 
-Bank statement transfers show only one side. \`auto_enrich\` already resolved the easy cases. For remaining unmatched transfers (\`type === "transfer"\` with empty \`targetAccountId\`), call \`enrich_sample(field: "targetAccountId")\` and use \`enrich_update\` with \`set: { "targetAccountId": "<account-uuid>" }\` when there's a clear clue. Use \`list_accounts\` for valid UUIDs.
+Bank statement transfers show only one side. The deterministic pre-pass already resolved the easy cases. For remaining unmatched transfers (\`type === "transfer"\` with empty \`targetAccountId\`), call \`enrich_status\` with \`sampleSize: 20, sampleField: "targetAccountId"\` and use \`enrich_update\` with \`set: { "targetAccountId": "<account-uuid>" }\` when there's a clear clue. Use \`list_accounts\` for valid UUIDs.
 
 If there's no obvious clue, leave it — unmatched transfers import as plain income/expense. Don't guess.
 

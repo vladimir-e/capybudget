@@ -330,7 +330,7 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
         lines.push("");
       }
       lines.push(
-        "For CSV / text sources, follow the analyze → preview → transform pipeline. For images / PDFs, extract transactions from the attached content and write them via write_import_file (or append_import_file).",
+        "For CSV / text sources, follow the analyze → preview → transform pipeline. For images / PDFs, extract transactions from the attached content and write them via write_import_file (mode 'append' to add to existing rows).",
       );
       return lines.join("\n");
     })();

@@ -3,7 +3,6 @@ import type { BudgetRepository } from "@capybudget/persistence"
 import {
   handleReadImportFile,
   handleWriteImportFile,
-  handleAppendImportFile,
   handleListImportFiles,
 } from "./import"
 import { makeFileAdapter, makeMemoryFs, type MemoryFs } from "./test-utils"
@@ -47,6 +46,32 @@ describe("handleWriteImportFile", () => {
 
     expect(fs.files.get(`${BUDGET_PATH}/.capy/import/data.csv`)).toBe("overwritten")
   })
+
+  it("defaults to overwrite when mode is omitted", async () => {
+    await handleWriteImportFile(ctx, { filename: "data.csv", content: "first" })
+    await handleWriteImportFile(ctx, {
+      filename: "data.csv",
+      content: "second",
+      mode: "overwrite",
+    })
+
+    expect(fs.files.get(`${BUDGET_PATH}/.capy/import/data.csv`)).toBe("second")
+  })
+
+  it("appends with mode 'append', creating the file if absent", async () => {
+    await handleWriteImportFile(ctx, {
+      filename: "log.csv",
+      content: "line1\n",
+      mode: "append",
+    })
+    await handleWriteImportFile(ctx, {
+      filename: "log.csv",
+      content: "line2\n",
+      mode: "append",
+    })
+
+    expect(fs.files.get(`${BUDGET_PATH}/.capy/import/log.csv`)).toBe("line1\nline2\n")
+  })
 })
 
 // ── handleReadImportFile ──────────────────────────────────────
@@ -60,23 +85,6 @@ describe("handleReadImportFile", () => {
 
   it("throws when file does not exist", async () => {
     await expect(handleReadImportFile(ctx, { filename: "missing.csv" })).rejects.toThrow()
-  })
-})
-
-// ── handleAppendImportFile ────────────────────────────────────
-
-describe("handleAppendImportFile", () => {
-  it("appends to an existing file", async () => {
-    await handleWriteImportFile(ctx, { filename: "log.csv", content: "line1\n" })
-    await handleAppendImportFile(ctx, { filename: "log.csv", content: "line2\n" })
-
-    expect(fs.files.get(`${BUDGET_PATH}/.capy/import/log.csv`)).toBe("line1\nline2\n")
-  })
-
-  it("creates the file if it does not exist", async () => {
-    await handleAppendImportFile(ctx, { filename: "new.csv", content: "first line\n" })
-
-    expect(fs.files.get(`${BUDGET_PATH}/.capy/import/new.csv`)).toBe("first line\n")
   })
 })
 
@@ -111,11 +119,12 @@ describe("path traversal protection", () => {
     ).rejects.toThrow("Invalid filename")
   })
 
-  it("rejects ../ in filename for append", async () => {
+  it("rejects ../ in filename for append mode", async () => {
     await expect(
-      handleAppendImportFile(ctx, {
+      handleWriteImportFile(ctx, {
         filename: "subdir/../../escape.txt",
         content: "malicious",
+        mode: "append",
       }),
     ).rejects.toThrow("Invalid filename")
   })

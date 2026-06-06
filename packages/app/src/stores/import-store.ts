@@ -306,12 +306,13 @@ export const useImportStore = create<ImportStore>((set, get) => ({
       return;
     }
 
-    // Pre-run auto_enrich so the prompt's "Already ran before this prompt"
-    // wording is accurate. Mint-style CSVs with sourceCategory /
-    // sourceAccount populated get deterministic fuzzy-matching before
-    // the model wakes up; without this, the model would redo the same
-    // work by hand via enrich_update. Best-effort: if it fails, the
-    // model can still call auto_enrich itself as fallback.
+    // Pre-run auto_enrich as the deterministic step before the enrich
+    // turn. Mint-style CSVs with sourceCategory / sourceAccount populated
+    // get fuzzy-matching before the model wakes up; without this, the
+    // model would redo the same work by hand via enrich_update. auto_enrich
+    // is code-triggered only (not advertised to the model), so this call
+    // path is the sole way it runs. Best-effort: if it fails, the enrich
+    // turn still proceeds and the model fills gaps from the raw rows.
     const preEnrich = repo && fileAdapter
       ? runTool("auto_enrich", {}, { repo, fileAdapter, budgetPath }).catch(
           (err: unknown) => {

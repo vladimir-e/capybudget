@@ -13,9 +13,14 @@ describe("ENRICH_SYSTEM_PROMPT", () => {
   })
 
   it("describes the core enrichment loop tools", () => {
-    expect(ENRICH_SYSTEM_PROMPT).toContain("enrich_stats")
-    expect(ENRICH_SYSTEM_PROMPT).toContain("enrich_sample")
+    expect(ENRICH_SYSTEM_PROMPT).toContain("enrich_status")
     expect(ENRICH_SYSTEM_PROMPT).toContain("enrich_update")
+  })
+
+  it("does not advertise the code-triggered auto_enrich tool", () => {
+    // auto_enrich runs as a deterministic pre-pass — the model must not be
+    // told to call it (it's gated out of the import surface).
+    expect(ENRICH_SYSTEM_PROMPT).not.toContain("`auto_enrich`")
   })
 
   it("points at search_transactions as a lookup for cryptic descriptions", () => {

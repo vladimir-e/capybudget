@@ -217,7 +217,7 @@ When images or PDFs are attached to your initial user message (receipts, bank st
 
 1. Identify every transaction from the visual content
 2. Normalize dates to YYYY-MM-DD, amounts to integer cents (negative = expense), and types (expense / income / transfer)
-3. Append the rows to transactions.csv via \`write_import_file\` (or \`append_import_file\` if you've already written some rows from a CSV source)
+3. Write the rows to transactions.csv via \`write_import_file\` — use \`mode: "append"\` if you've already written some rows from a CSV source, otherwise the default overwrite
 
 This path is expected for small-volume visual sources. For larger printed statements, the CSV transform pipeline above is faster and more accurate when an equivalent CSV is also available.
 
