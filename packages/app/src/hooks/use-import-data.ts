@@ -206,7 +206,6 @@ export function useImportData(budgetPath: string, staging: StagingStore, rowsVer
     setSelectedIds,
     accountMapping,
     loading,
-    loadCsv,
     handleUpdate,
     handleAccountMappingChange,
     flushWriteBack,

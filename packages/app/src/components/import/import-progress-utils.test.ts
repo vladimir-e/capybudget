@@ -1,8 +1,10 @@
 import { describe, it, expect } from "vitest";
+import { makeImportTransaction } from "@capybudget/core/test-factories";
 import {
   PROGRESS_SEGMENTS,
   activeIndex,
   meterView,
+  resumeMeter,
   segmentState,
 } from "./import-progress-utils";
 
@@ -78,5 +80,42 @@ describe("meterView", () => {
       complete: true,
       countLabel: null,
     });
+  });
+});
+
+describe("resumeMeter", () => {
+  const done = (id: string) =>
+    makeImportTransaction({ id, merchant: "X", categoryId: "cat-1", categoryConfidence: "low" });
+  const pending = (id: string) => makeImportTransaction({ id, merchant: "", categoryId: "" });
+
+  it("reconstructs a partial-categorize meter from disk rows", () => {
+    // A resumed import: 2 categorized, 1 still pending → 2 of 3, not complete.
+    const meter = resumeMeter([done("a"), done("b"), pending("c")]);
+    expect(meter).toEqual({ done: 2, total: 3 });
+    // The bar then renders Categorizing partly-filled, never falsely checked,
+    // even though a from-disk phase reads `done`.
+    expect(meterView("done", meter)).toEqual({ fillPct: 67, complete: false, countLabel: "2 of 3" });
+  });
+
+  it("reads complete when every categorizable row landed", () => {
+    expect(resumeMeter([done("a"), done("b")])).toEqual({ done: 2, total: 2 });
+  });
+
+  it("excludes transfers and duplicates from the categorizable population", () => {
+    const rows = [
+      done("a"),
+      pending("b"),
+      makeImportTransaction({ id: "c", type: "transfer" }),
+      makeImportTransaction({ id: "d", duplicate: true }),
+    ];
+    expect(resumeMeter(rows)).toEqual({ done: 1, total: 2 });
+  });
+
+  it("returns null when nothing is categorizable (all fast-pathed / duplicate)", () => {
+    const rows = [
+      makeImportTransaction({ id: "a", type: "transfer" }),
+      makeImportTransaction({ id: "b", duplicate: true }),
+    ];
+    expect(resumeMeter(rows)).toBeNull();
   });
 });

@@ -1,4 +1,5 @@
-import type { ImportPhase } from "@capybudget/intelligence";
+import { needsEnrich, type ImportPhase } from "@capybudget/intelligence";
+import type { ImportTransaction } from "@capybudget/core";
 
 /** The four pipeline phases with their section-bar labels, in order. The
  *  meter-bearing Categorizing phase is the last one. */
@@ -24,6 +25,30 @@ export function segmentState(index: number, phase: ImportPhase): SegmentState {
   if (index < active) return "done";
   if (index === active) return "active";
   return "pending";
+}
+
+/**
+ * The Categorizing meter reconstructed from staged rows — for a from-disk resume
+ * where the store is fresh (no live `batchProgress`) but enrichment partly ran.
+ * Without it, a resumed partial import renders Categorizing full + checked while
+ * the Enrich button still offers "Enrich N" — the bar contradicting reality.
+ *
+ * The meter is over the categorizable population (non-transfer, non-duplicate
+ * rows); `done` is how many already carry a category, `total` is all of them. So
+ * whenever rows still need the classifier, `done < total` and the segment reads
+ * partly-filled, never falsely complete. Returns null when nothing is
+ * categorizable (a fully fast-pathed / all-duplicate import), so the segment
+ * falls back to its plain done state rather than faking a meter.
+ */
+export function resumeMeter(rows: ImportTransaction[]): { done: number; total: number } | null {
+  let total = 0;
+  let done = 0;
+  for (const row of rows) {
+    if (row.type === "transfer" || row.duplicate) continue;
+    total++;
+    if (!needsEnrich(row)) done++;
+  }
+  return total > 0 ? { done, total } : null;
 }
 
 export interface MeterView {

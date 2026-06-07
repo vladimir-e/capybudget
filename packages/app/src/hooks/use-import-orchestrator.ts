@@ -106,7 +106,20 @@ export function useImportOrchestrator(budgetPath: string) {
         },
       });
       if (!session) return null;
-      return new ImportOrchestrator({ session, staging, budget, onEvent: apply });
+      // Identity guard: a run keeps executing after a cancel/replace clears
+      // `activeOrchestrator`, and its trailing events (the in-flight batch's
+      // `rows-changed`) would re-flip the store into preview over freshly
+      // cleared staging. Drop any event from an orchestrator that is no longer
+      // the active one — only the live run drives the UI.
+      const orchestrator: ImportOrchestrator = new ImportOrchestrator({
+        session,
+        staging,
+        budget,
+        onEvent: (event) => {
+          if (activeOrchestrator === orchestrator) apply(event);
+        },
+      });
+      return orchestrator;
     },
     [config, budgetPath, repo, staging, budget, apply],
   );
@@ -139,11 +152,24 @@ export function useImportOrchestrator(budgetPath: string) {
     [buildOrchestrator, beginRun],
   );
 
-  /** Request a clean stop of the in-flight run. The in-flight batch lands and
-   *  persists; resume picks up from staging. No-op when nothing is running. */
-  const stop = useCallback(() => {
-    activeOrchestrator?.stop();
+  /** Request a clean stop of the in-flight run and resolve once the in-flight
+   *  batch has settled (landed + persisted). The run's terminal `done` still
+   *  flows through, so the bar settles into the resumable preview. Staging is
+   *  kept — resume picks it up. No-op when idle. */
+  const stop = useCallback(async () => {
+    await activeOrchestrator?.stop();
   }, []);
 
-  return { supported, start, enrich, stop, staging };
+  /** Cancel = stop + discard. Detaches the orchestrator first so its trailing
+   *  events (the in-flight batch's `rows-changed`) can't re-flip the store after
+   *  the caller clears staging, then awaits the in-flight batch so the clear
+   *  races nothing. The caller clears staging once this resolves. */
+  const cancel = useCallback(async () => {
+    const orchestrator = activeOrchestrator;
+    if (!orchestrator) return;
+    activeOrchestrator = null;
+    await orchestrator.stop();
+  }, []);
+
+  return { supported, start, enrich, stop, cancel, staging };
 }

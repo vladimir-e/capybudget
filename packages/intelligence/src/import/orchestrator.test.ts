@@ -527,6 +527,59 @@ describe("ImportOrchestrator — stop", () => {
     expect(orch.currentPhase).toBe("done");
   });
 
+  it("stop() resolves only after the in-flight batch has landed + persisted", async () => {
+    // The cancel race: a caller awaits stop() then clears staging. stop() must
+    // not resolve until the in-flight batch's write is done — otherwise the
+    // batch lands after the clear and resurrects the discarded import.
+    const rows: ImportTransaction[] = Array.from({ length: 50 }, (_, i) =>
+      makeImportTransaction({ id: `imp-${i + 1}`, description: `V${i}` }),
+    );
+    const staging = new MemoryStagingStore({ transactions: rows });
+
+    // Gate the first batch's model call so the batch is genuinely *in flight*
+    // (dispatched, not yet landed) when stop() fires. `batchStarted` resolves
+    // once the call is entered; `batchGate` holds it open until we release.
+    let releaseBatch!: () => void;
+    const batchGate = new Promise<void>((res) => { releaseBatch = res; });
+    let markStarted!: () => void;
+    const batchStarted = new Promise<void>((res) => { markStarted = res; });
+    let writeAfterStop = false;
+    let stopResolved = false;
+
+    const orch = new ImportOrchestrator({
+      session: new MockStructuredSession([
+        async (messages: readonly { content: unknown }[]) => {
+          markStarted();
+          await batchGate;
+          const text = JSON.stringify(messages);
+          const ids = [...new Set([...text.matchAll(/(imp-\d+)/g)].map((m) => m[1]))];
+          return { rows: ids.map((id) => ({ id, merchant: "C", categoryId: "cat-dining", confidence: "low" })) };
+        },
+      ]),
+      staging,
+      budget: emptyBudget(),
+      // Observe a write that happens after stop() resolved — there must be none.
+      onEvent: (e) => { if (e.type === "rows-changed" && stopResolved) writeAfterStop = true; },
+      concurrency: 1,
+    });
+
+    const runPromise = orch.enrich();
+    // Wait until the first batch's model call is actually dispatched.
+    await batchStarted;
+    const stopPromise = orch.stop().then(() => { stopResolved = true; });
+
+    // stop() is still pending — the in-flight batch hasn't landed yet.
+    releaseBatch();
+    await stopPromise;
+    await runPromise;
+
+    // The in-flight batch landed (its write is part of the run stop() awaited).
+    expect(staging.transactions!.filter((r) => r.categoryId === "cat-dining")).toHaveLength(25);
+    // No rows-changed fired after stop() resolved — the run is fully quiescent.
+    expect(writeAfterStop).toBe(false);
+    expect(orch.currentPhase).toBe("done");
+  });
+
   it("stops dispatching new batches but lets the in-flight one land", async () => {
     const rows: ImportTransaction[] = Array.from({ length: 75 }, (_, i) =>
       makeImportTransaction({ id: `imp-${i + 1}`, description: `V${i}` }),

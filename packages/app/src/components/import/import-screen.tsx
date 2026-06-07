@@ -30,6 +30,7 @@ import {
 } from "@/lib/file-attachments";
 import { ImportDropZone } from "./import-drop-zone";
 import { ImportProgress } from "./import-progress";
+import { resumeMeter } from "./import-progress-utils";
 import { ImportPreview } from "./import-preview";
 
 interface ImportScreenProps {
@@ -49,12 +50,12 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
   const repository = useImportRepository(budgetPath);
 
   // ── Orchestrator + run state ──────────────────────────────────
-  const { supported, start, enrich, stop, staging } = useImportOrchestrator(budgetPath);
+  const { supported, start, enrich, stop, cancel, staging } = useImportOrchestrator(budgetPath);
   const phase = useImportStore((s) => s.phase);
   const status = useImportStore((s) => s.status);
   const log = useImportStore((s) => s.log);
   const batchProgress = useImportStore((s) => s.batchProgress);
-  const grounding = useImportStore((s) => s.grounding);
+  const grounded = useImportStore((s) => s.grounded);
   const error = useImportStore((s) => s.error);
   const running = useImportStore((s) => s.running);
   const rowsVersion = useImportStore((s) => s.rowsVersion);
@@ -64,6 +65,9 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
   // ── Local UI state ────────────────────────────────────────────
   const [diskChecked, setDiskChecked] = useState(false);
   const [hasStagedRows, setHasStagedRows] = useState(false);
+  // Categorizing meter reconstructed from disk on a resume — keeps the section
+  // bar honest before any live `batchProgress` exists. Cleared once a run starts.
+  const [resumeBatch, setResumeBatch] = useState<{ done: number; total: number } | null>(null);
   const [sourceFiles, setSourceFiles] = useState<SourceFileInfo[]>([]);
   const [uploadingFiles, setUploadingFiles] = useState<Set<string>>(new Set());
   const [fileDuplicates, setFileDuplicates] = useState<Record<string, string>>({});
@@ -100,6 +104,7 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
       if (rows && rows.length > 0) {
         setHasStagedRows(true);
         setHasImportData(true);
+        setResumeBatch(resumeMeter(rows));
       } else {
         await refreshSourceFiles();
         setHasImportData(false);
@@ -269,22 +274,34 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
 
   const handleEnrich = useCallback(() => {
     const instructions = customInstructions.instructions?.trim();
-    if (!enrich({ instructions })) toast.error("Import needs Anthropic or OpenAI configured.");
+    if (!enrich({ instructions })) {
+      toast.error("Import needs Anthropic or OpenAI configured.");
+      return;
+    }
+    // A live run now owns the meter — drop the disk-reconstructed resume seed.
+    setResumeBatch(null);
   }, [enrich, customInstructions.instructions]);
 
   const handleCancel = useCallback(async () => {
-    stop();
+    // Cancel discards. Await the in-flight batch first — otherwise an
+    // already-dispatched Categorizing batch lands after `clearImportData`,
+    // re-creating staging and re-flipping the view into preview. `cancel()`
+    // detaches the orchestrator (so its trailing events are dropped) and
+    // resolves once nothing is in flight; only then is it safe to clear.
+    await cancel();
+    await repository.clearImportData();
     reset();
     setFileDuplicates({});
-    await repository.clearImportData();
     setSourceFiles([]);
     setHasStagedRows(false);
+    setResumeBatch(null);
     setHasImportData(false);
-  }, [stop, reset, repository, setHasImportData]);
+  }, [cancel, reset, repository, setHasImportData]);
 
   const handleMergeComplete = useCallback(() => {
     reset();
     setHasStagedRows(false);
+    setResumeBatch(null);
     setHasImportData(false);
     setSourceFiles([]);
   }, [reset, setHasImportData]);
@@ -295,10 +312,10 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
   // The section bar persists through a run and stays as a done-from-state header
   // above a resumed or finished preview — staged rows mean Reading/Normalizing/
   // History all completed, so a resting `idle` phase renders as `done`. It only
-  // disappears at file-attach. (`grounding` keeps the bar up for the brief
-  // window between History's stats and the first staged-rows flip.)
+  // disappears at file-attach. (`grounded` keeps the bar up for the brief window
+  // between History's stats and the first staged-rows flip.)
   const barPhase: ImportPhase = phase === "idle" && hasStagedRows ? "done" : phase;
-  const showProgressBar = showRun && (running || barPhase !== "idle" || grounding !== null);
+  const showProgressBar = showRun && (running || barPhase !== "idle" || grounded);
 
   const subtitle = running
     ? "Importing your transactions…"
@@ -389,7 +406,7 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
                   running={running}
                   status={status}
                   log={log}
-                  batchProgress={batchProgress}
+                  batchProgress={batchProgress ?? resumeBatch}
                 />
               )}
               {hasStagedRows && (

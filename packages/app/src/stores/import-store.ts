@@ -1,7 +1,6 @@
 import { create } from "zustand";
 import type {
   BatchProgress,
-  GroundingEventStats,
   ImportErrorReason,
   ImportEvent,
   ImportLogEntry,
@@ -38,8 +37,10 @@ interface ImportRunState {
   log: ImportLogEntry[];
   /** Categorizing meter over the remaining incomplete rows; null until it ticks. */
   batchProgress: BatchProgress | null;
-  /** History payoff, surfaced once after grounding. */
-  grounding: GroundingEventStats | null;
+  /** True once History has grounded — keeps the section bar up for the brief
+   *  window between the grounding stats and the first staged-rows flip. The
+   *  payoff numbers themselves reach the user through the terminal-log line. */
+  grounded: boolean;
   /** Terminal run error, or null. `recoverable` (e.g. `no_data`) routes the
    *  screen back to file-attach rather than to a hard error state. */
   error: { reason: ImportErrorReason; message: string; recoverable: boolean } | null;
@@ -72,7 +73,7 @@ const IDLE_RUN: ImportRunState = {
   status: "",
   log: [],
   batchProgress: null,
-  grounding: null,
+  grounded: false,
   error: null,
   running: false,
   rowsVersion: 0,
@@ -124,7 +125,7 @@ export function reduce(s: ImportRunState, event: ImportEvent): Partial<ImportRun
     case "log":
       return { log: appendLog(s.log, event.entry) };
     case "grounding":
-      return { grounding: event.stats };
+      return { grounded: true };
     case "batch-progress":
       return { batchProgress: event.progress };
     case "rows-changed":

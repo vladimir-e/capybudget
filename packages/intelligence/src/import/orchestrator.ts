@@ -63,6 +63,9 @@ export class ImportOrchestrator {
   private phase: ImportPhase = "idle";
   private stopRequested = false;
   private running = false;
+  /** The in-flight run's promise, or null when idle. `stop()` awaits it so a
+   *  caller can discard staging knowing no batch will write after the await. */
+  private runPromise: Promise<void> | null = null;
 
   constructor(deps: OrchestratorDeps) {
     this.deps = deps;
@@ -79,10 +82,7 @@ export class ImportOrchestrator {
    * the one worth resuming.
    */
   async start(): Promise<void> {
-    if (this.running) return;
-    this.running = true;
-    this.stopRequested = false;
-    try {
+    return this.run(async () => {
       const existing = await this.deps.staging.readTransactions();
       if (existing) {
         // Resume: staging exists → pick up at Categorizing over the remainder.
@@ -91,11 +91,7 @@ export class ImportOrchestrator {
         return;
       }
       await this.runFromScratch();
-    } catch (err) {
-      this.fail("internal", err instanceof Error ? err.message : String(err));
-    } finally {
-      this.running = false;
-    }
+    });
   }
 
   /**
@@ -104,30 +100,46 @@ export class ImportOrchestrator {
    * enriched data is a no-op and after a partial run it finishes the remainder.
    */
   async enrich(): Promise<void> {
-    if (this.running) return;
-    this.running = true;
-    this.stopRequested = false;
-    try {
+    return this.run(async () => {
       const rows = await this.deps.staging.readTransactions();
       if (!rows) {
         this.fail("internal", "No staged transactions to enrich.");
         return;
       }
       await this.runCategorizing(rows);
-    } catch (err) {
-      this.fail("internal", err instanceof Error ? err.message : String(err));
-    } finally {
-      this.running = false;
-    }
+    });
   }
 
   /**
-   * Request a clean stop. No new batches dispatch; the in-flight batch lands
-   * and persists. Resume picks up from the persisted state — stop is a crash
-   * you chose.
+   * Request a clean stop and resolve once the in-flight batch has settled
+   * (landed + persisted). No new batches dispatch; the in-flight one finishes
+   * its write, so resume picks up from the persisted state — stop is a crash
+   * you chose. Awaiting the returned promise is what lets a *cancel* safely
+   * clear staging afterward: once it resolves, nothing will write again.
    */
-  stop(): void {
+  stop(): Promise<void> {
     this.stopRequested = true;
+    return this.runPromise ?? Promise.resolve();
+  }
+
+  /** Shared run wrapper: serializes against a run already in flight, tracks the
+   *  promise so `stop()` can await it, and funnels uncaught errors to `fail`. */
+  private run(body: () => Promise<void>): Promise<void> {
+    if (this.running) return this.runPromise ?? Promise.resolve();
+    this.running = true;
+    this.stopRequested = false;
+    const promise = (async () => {
+      try {
+        await body();
+      } catch (err) {
+        this.fail("internal", err instanceof Error ? err.message : String(err));
+      } finally {
+        this.running = false;
+        this.runPromise = null;
+      }
+    })();
+    this.runPromise = promise;
+    return promise;
   }
 
   // ── Pipeline ───────────────────────────────────────────────────

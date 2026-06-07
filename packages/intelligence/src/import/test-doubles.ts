@@ -76,8 +76,10 @@ export class MemoryBudgetData implements BudgetDataProvider {
 
 /**
  * A scriptable {@link StructuredSession}. Each call pops the next responder,
- * which either returns a value or throws (to exercise batch-failure isolation).
- * Records every call for assertions; runs out → throws so an over-call is loud.
+ * which returns a value (sync or via a promise) or throws / returns an `Error`
+ * (to exercise batch-failure isolation). An async responder lets a test gate a
+ * batch's completion to drive in-flight ordering (the cancel race). Records
+ * every call for assertions; runs out → throws so an over-call is loud.
  */
 export class MockStructuredSession implements StructuredSession {
   readonly calls: { messages: readonly StructuredMessage[]; schema: JsonSchema }[] = [];
@@ -94,7 +96,7 @@ export class MockStructuredSession implements StructuredSession {
     this.calls.push({ messages, schema });
     const responder = this.responders.shift();
     if (!responder) throw new Error("MockStructuredSession: no responder left for call");
-    const value = responder(messages);
+    const value = await responder(messages);
     if (value instanceof Error) throw value;
     return value as T;
   }

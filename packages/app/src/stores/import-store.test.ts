@@ -7,7 +7,7 @@ const IDLE = {
   status: "",
   log: [] as ImportLogEntry[],
   batchProgress: null,
-  grounding: null,
+  grounded: false,
   error: null,
   running: false,
   rowsVersion: 0,
@@ -46,13 +46,15 @@ describe("import-store reduce", () => {
     expect(afterB.log).toEqual([a, b]);
   });
 
-  it("records grounding stats and batch progress", () => {
+  it("flags grounding and records batch progress", () => {
     const grounding: Extract<ImportEvent, { type: "grounding" }> = {
       type: "grounding",
       stats: { total: 77, resolved: 47, duplicates: 4 },
       message: "47 of 77 resolved from your history · 4 duplicates",
     };
-    expect(reduce(IDLE, grounding).grounding).toEqual({ total: 77, resolved: 47, duplicates: 4 });
+    // The store only keeps a boolean — the payoff numbers reach the user via
+    // the log line, so it doesn't double-store the typed stats.
+    expect(reduce(IDLE, grounding).grounded).toBe(true);
 
     const batch = reduce(IDLE, { type: "batch-progress", progress: { done: 12, total: 30 } });
     expect(batch.batchProgress).toEqual({ done: 12, total: 30 });
@@ -91,14 +93,14 @@ describe("import-store actions", () => {
     useImportStore.setState({
       rowsVersion: 5,
       log: [logEntry("stale")],
-      grounding: { total: 1, resolved: 1, duplicates: 0 },
+      grounded: true,
     });
     useImportStore.getState().beginRun("start");
     const s = useImportStore.getState();
     expect(s.phase).toBe("reading");
     expect(s.running).toBe(true);
     expect(s.log).toEqual([]);
-    expect(s.grounding).toBeNull();
+    expect(s.grounded).toBe(false);
     expect(s.rowsVersion).toBe(0);
   });
 
@@ -106,7 +108,7 @@ describe("import-store actions", () => {
     const entry = logEntry("47 of 77 resolved");
     useImportStore.setState({
       log: [entry],
-      grounding: { total: 77, resolved: 47, duplicates: 4 },
+      grounded: true,
       phase: "done",
       rowsVersion: 6,
     });
@@ -115,7 +117,7 @@ describe("import-store actions", () => {
     expect(s.phase).toBe("categorizing");
     expect(s.running).toBe(true);
     expect(s.log).toEqual([entry]);
-    expect(s.grounding).toEqual({ total: 77, resolved: 47, duplicates: 4 });
+    expect(s.grounded).toBe(true);
     expect(s.rowsVersion).toBe(6);
   });
 
