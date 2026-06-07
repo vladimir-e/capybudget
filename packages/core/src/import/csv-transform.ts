@@ -403,6 +403,7 @@ const IMPORT_COLUMNS = [
   "id", "date", "description", "amount", "type",
   "sourceAccount", "sourceCategory",
   "merchant", "accountId", "targetAccountId", "categoryId", "categoryConfidence",
+  "duplicate",
 ] as const;
 
 /** Serialize ImportTransaction[] to a CSV string. */

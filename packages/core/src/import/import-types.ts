@@ -33,6 +33,7 @@ export interface ImportTransaction {
   targetAccountId: string; // for transfers: the other account (empty = unmatched)
   categoryId: string; // budget category UUID (resolved, may be empty)
   categoryConfidence: string; // "high" | "low" | ""
+  duplicate: boolean; // matches an existing budget txn — skip enrichment, unselect at merge
 }
 
 /** Stored in .capy/aliases.json — survives across imports. */

@@ -67,7 +67,10 @@ export function createStructuredImportSession(
     fileAdapter: options.fileAdapter,
   });
 
-  // The API adapters implement StructuredSession; narrow to the structured
-  // surface so the orchestrator only sees what it uses.
-  return session as unknown as StructuredSession;
+  // The API adapters implement StructuredSession; verify the surface is
+  // actually there before narrowing, so a provider that can't do structured
+  // calls fails honestly at the gate rather than deep inside Normalizing.
+  const candidate = session as unknown as Partial<StructuredSession>;
+  if (typeof candidate.structured !== "function") return null;
+  return candidate as StructuredSession;
 }

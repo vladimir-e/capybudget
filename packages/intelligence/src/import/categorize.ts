@@ -24,16 +24,18 @@ export const ENRICH_BATCH_SIZE = 25;
 export const ENRICH_CONCURRENCY = 4;
 
 /**
- * The enrichment gate. A row needs the classifier when it's missing either a
- * merchant or a category. Transfers are exempt — they carry no merchant/category
- * by design. A duplicate needs no separate case: grounding marks it complete
- * (both fields carried from the matched txn), so it already fails the
- * missing-field test. One predicate thus covers fast-pathed rows, duplicates,
- * hand-mapped rows, landed batches, and re-runs after a partial — resume +
- * re-run need no special-casing.
+ * The enrichment gate: `!duplicate && (!merchant || !categoryId)`. A row needs
+ * the classifier when it isn't a duplicate and is missing either a merchant or a
+ * category. Transfers are exempt — they carry no merchant/category by design.
+ * Duplicates are excluded explicitly: a dup of an *uncategorized* historical txn
+ * has no category to carry, so the missing-field test alone would re-feed it to
+ * the model — the `duplicate` flag is what keeps it out. One predicate thus
+ * covers fast-pathed rows, duplicates, hand-mapped rows, landed batches, and
+ * re-runs after a partial — resume + re-run need no special-casing.
  */
 export function needsEnrich(row: ImportTransaction): boolean {
   if (row.type === "transfer") return false;
+  if (row.duplicate) return false;
   return !row.merchant || !row.categoryId;
 }
 
@@ -81,6 +83,7 @@ function buildEnrichPrompt(
     .map((c) => `${c.id}\t${c.name} (${c.group})`)
     .join("\n");
 
+  const categoryName = new Map(categories.map((c) => [c.id, c.name]));
   const rows = batch.map((row) => {
     const ctx = context[row.id];
     return {
@@ -89,7 +92,7 @@ function buildEnrichPrompt(
       amount: row.amount,
       type: row.type,
       sourceCategory: row.sourceCategory || undefined,
-      history: ctx ? summarizeContext(ctx) : undefined,
+      history: ctx ? summarizeContext(ctx, categoryName) : undefined,
     };
   });
 
@@ -110,8 +113,10 @@ function buildEnrichPrompt(
 
 /** Distill a row's history context into compact prompt text — the top examples
  *  plus merchant/category frequency counts. Trims the sidecar to what the model
- *  needs without re-sending full transaction objects. */
-function summarizeContext(ctx: RowContext) {
+ *  needs without re-sending full transaction objects. `categoryStats[].name`
+ *  carries a categoryId (grounding counts by id); resolve it to its category
+ *  name for the prompt, keeping the id so the model can reuse it directly. */
+function summarizeContext(ctx: RowContext, categoryName: Map<string, string>) {
   return {
     examples: ctx.examples.map((e) => ({
       date: e.date,
@@ -120,6 +125,8 @@ function summarizeContext(ctx: RowContext) {
       categoryId: e.categoryId,
     })),
     merchants: ctx.merchantStats.map((m) => `${m.name} (x${m.count})`),
-    categories: ctx.categoryStats.map((c) => `${c.name} (x${c.count})`),
+    categoryCounts: ctx.categoryStats.map(
+      (c) => `${categoryName.get(c.name) ?? "unknown"} [${c.name}] (x${c.count})`,
+    ),
   };
 }

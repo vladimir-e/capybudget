@@ -36,6 +36,7 @@ export function buildStaged(
     targetAccountId: "",
     categoryId: "",
     categoryConfidence: "",
+    duplicate: false,
   }));
 }
 

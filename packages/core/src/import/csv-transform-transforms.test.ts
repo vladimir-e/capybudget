@@ -13,7 +13,7 @@ describe("serializeImportCsv", () => {
 
     const lines = csv.split("\n");
     expect(lines[0]).toBe(
-      "id,date,description,amount,type,sourceAccount,sourceCategory,merchant,accountId,targetAccountId,categoryId,categoryConfidence",
+      "id,date,description,amount,type,sourceAccount,sourceCategory,merchant,accountId,targetAccountId,categoryId,categoryConfidence,duplicate",
     );
   });
 

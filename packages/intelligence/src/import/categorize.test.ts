@@ -19,6 +19,12 @@ describe("needsEnrich", () => {
   it("is false for transfers (no merchant/category by design)", () => {
     expect(needsEnrich(makeImportTransaction({ type: "transfer", merchant: "", categoryId: "" }))).toBe(false);
   });
+
+  it("is false for a duplicate even when it has no carried category", () => {
+    // A dup of an uncategorized historical txn: missing merchant + category, but
+    // the `!duplicate` term keeps it out of the classifier.
+    expect(needsEnrich(makeImportTransaction({ duplicate: true, merchant: "", categoryId: "" }))).toBe(false);
+  });
 });
 
 describe("batchRows", () => {

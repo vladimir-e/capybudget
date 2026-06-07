@@ -7,19 +7,24 @@ import { FileStagingStore, parseImportCsv } from "./staging-store";
 describe("parseImportCsv", () => {
   it("round-trips serialized staging back into typed rows", () => {
     const rows: ImportTransaction[] = [
-      makeImportTransaction({ id: "imp-1", amount: -2500, merchant: "Whole Foods", categoryId: "cat-1", categoryConfidence: "high" }),
+      makeImportTransaction({ id: "imp-1", amount: -2500, merchant: "Whole Foods", categoryId: "cat-1", categoryConfidence: "high", duplicate: true }),
       makeImportTransaction({ id: "imp-2", amount: 200000, type: "income", description: 'WITH, COMMA "quote"' }),
     ];
     const parsed = parseImportCsv(serializeImportCsv(rows));
 
     expect(parsed).toHaveLength(2);
-    expect(parsed[0]).toMatchObject({ id: "imp-1", amount: -2500, merchant: "Whole Foods", categoryConfidence: "high" });
-    expect(parsed[1]).toMatchObject({ id: "imp-2", amount: 200000, type: "income", description: 'WITH, COMMA "quote"' });
+    expect(parsed[0]).toMatchObject({ id: "imp-1", amount: -2500, merchant: "Whole Foods", categoryConfidence: "high", duplicate: true });
+    expect(parsed[1]).toMatchObject({ id: "imp-2", amount: 200000, type: "income", description: 'WITH, COMMA "quote"', duplicate: false });
   });
 
   it("defaults missing columns gracefully", () => {
     const parsed = parseImportCsv("id,date,amount\nimp-1,2026-01-01,-100");
-    expect(parsed[0]).toMatchObject({ id: "imp-1", amount: -100, merchant: "", categoryId: "", type: "expense" });
+    expect(parsed[0]).toMatchObject({ id: "imp-1", amount: -100, merchant: "", categoryId: "", type: "expense", duplicate: false });
+  });
+
+  it("coerces a corrupt amount to 0 rather than NaN", () => {
+    const parsed = parseImportCsv("id,date,amount\nimp-1,2026-01-01,not-a-number");
+    expect(parsed[0].amount).toBe(0);
   });
 });
 

@@ -18,6 +18,7 @@ function makeImportTxn(overrides: Partial<ImportTransaction> = {}): ImportTransa
     targetAccountId: "",
     categoryId: "cat-1",
     categoryConfidence: "high",
+    duplicate: false,
     ...overrides,
   };
 }

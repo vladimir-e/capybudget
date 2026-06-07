@@ -5,7 +5,9 @@ import type { AdapterConstructors } from "../factory";
 import type { CapySession } from "../session";
 import { canImport, createStructuredImportSession } from "./session-factory";
 
-const stubSession = {} as unknown as CapySession;
+// A session that exposes the structured surface — the factory's #6 guard
+// returns null for anything missing it.
+const stubSession = { structured: vi.fn() } as unknown as CapySession;
 const repo = {} as BudgetRepository;
 const fileAdapter = {} as FileAdapter;
 
@@ -82,6 +84,15 @@ describe("createStructuredImportSession", () => {
     const session = createStructuredImportSession({
       config: config({ provider: "openai" }),
       adapters: { anthropic: vi.fn(() => stubSession) },
+      options: baseOptions,
+    });
+    expect(session).toBeNull();
+  });
+
+  it("returns null when the adapter lacks a structured() surface", () => {
+    const session = createStructuredImportSession({
+      config: config({ provider: "anthropic" }),
+      adapters: { anthropic: vi.fn(() => ({}) as unknown as CapySession) },
       options: baseOptions,
     });
     expect(session).toBeNull();

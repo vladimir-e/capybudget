@@ -18,9 +18,6 @@
 
 import {
   groundImport,
-  matchAccountsByName,
-  type Account,
-  type Category,
   type GroundingResult,
   type ImportTransaction,
   type RowContext,
@@ -144,47 +141,48 @@ export class ImportOrchestrator {
       return;
     }
     this.log("info", "reading", `Read ${sources.length} file(s): ${sources.map((s) => s.name).join(", ")}.`);
-    if (this.stopRequested) return;
+    if (this.stopReturn()) return;
 
-    // Normalizing
+    // Normalizing — held in memory; staging isn't written until History has
+    // grounded it, so "transactions.csv exists" always means normalized +
+    // grounded. A crash before History leaves no staging → reopen lands on
+    // file-attach, never on a half-baked preview.
     this.enterPhase("normalizing");
     const normalized = await this.normalize(sources);
     if (normalized === null) return; // no_data / stop already signaled
-    await this.deps.staging.writeTransactions(normalized);
-    await this.deps.staging.writeState({
-      phase: "normalizing",
-      rowCount: normalized.length,
-      updatedAt: new Date().toISOString(),
-    });
-    this.emit({ type: "rows-changed" });
     this.log("info", "normalizing", `Normalized ${normalized.length} transactions.`);
-    if (this.stopRequested) return;
+    if (this.stopReturn()) return;
 
-    // History
+    // History — first staging write (transactions.csv + context.json together).
     this.enterPhase("history");
     const grounded = await this.runHistory(normalized);
-    if (this.stopRequested) return;
+    if (this.stopReturn()) return;
 
     // Categorizing
     await this.runCategorizing(grounded);
   }
 
-  /** Normalize all sources → one staged set with continuing ids. Returns null
-   *  on `no_data` (logged + routed to file-attach) or on stop. */
+  /**
+   * Normalize all sources → one staged set with continuing ids. Returns null
+   * only when *every* file yielded no transaction data (logged + routed to
+   * file-attach). A single no_data file among several (a selfie dropped
+   * alongside a real statement — the chat on-ramp can do this) is skipped with
+   * a warning, not fatal. A stop is handled by the caller's terminal check
+   * after this returns.
+   */
   private async normalize(
     sources: Awaited<ReturnType<StagingStore["listSources"]>>,
   ): Promise<ImportTransaction[] | null> {
     const all: ImportTransaction[] = [];
     for (const source of sources) {
-      if (this.stopRequested) return null;
+      if (this.stopRequested) break;
       const startId = all.length + 1;
       this.status("normalizing", `Reading ${source.name}…`);
       if (isImageOrPdf(source.mediaType)) {
         const result = await normalizeImage(this.deps.session, source, { startId });
         if (result.noData) {
-          await this.deps.staging.clear();
-          this.fail("no_data", `No transaction data found in ${source.name}: ${result.noData.message}`, true);
-          return null;
+          this.log("warn", "normalizing", `Skipped ${source.name} — no transaction data found.`);
+          continue;
         }
         all.push(...result.rows);
       } else {
@@ -192,7 +190,8 @@ export class ImportOrchestrator {
         all.push(...result.rows);
       }
     }
-    if (all.length === 0) {
+    // All files empty (and not because we stopped early) → no_data terminal.
+    if (all.length === 0 && !this.stopRequested) {
       await this.deps.staging.clear();
       this.fail("no_data", "No transaction data found in the uploaded file(s).", true);
       return null;
@@ -211,14 +210,11 @@ export class ImportOrchestrator {
       this.deps.budget.getAccounts(),
     ]);
 
-    const accountMapping = matchAccountsByName(
-      [...new Set(rows.map((r) => r.sourceAccount).filter(Boolean))],
-      accounts.filter((a) => !a.archived),
-    );
+    // groundImport owns account resolution (name match + aliases) and writes the
+    // result onto each row's `accountId` — no need to recompute the mapping here.
+    const outcome = groundImport({ rows, history, accounts, categories });
 
-    const outcome = groundImport({ rows, history, accounts, categories, accountMapping });
-
-    const grounded = rows.map((row) => applyGrounding(row, outcome.results.get(row.id), accountMapping));
+    const grounded = rows.map((row) => applyGrounding(row, outcome.results.get(row.id)));
     await this.deps.staging.writeTransactions(grounded);
 
     const context: Record<string, RowContext> = {};
@@ -294,6 +290,9 @@ export class ImportOrchestrator {
           const enriched = await enrichBatch(this.deps.session, batch, context, categories);
           applyEnrichmentInto(byId, enriched);
           await persistSnapshot();
+          // `done` counts landed rows only — a failed batch leaves its rows
+          // uncategorized, so the meter must not advance for it.
+          done += batch.length;
           this.emit({ type: "rows-changed" });
         } catch (err) {
           this.log(
@@ -304,9 +303,8 @@ export class ImportOrchestrator {
             }`,
           );
         }
-        done += batch.length;
         this.emit({ type: "batch-progress", progress: { done, total } });
-        this.status("categorizing", `Categorizing ${Math.min(done, total)} of ${total}…`);
+        this.status("categorizing", `Categorizing ${done} of ${total}…`);
       }
     };
 
@@ -342,6 +340,17 @@ export class ImportOrchestrator {
     this.emit({ type: "log", entry });
   }
 
+  /** True when a stop was requested. On the way out it emits the terminal
+   *  signal so an early-phase stop (Reading/Normalizing/History) doesn't leave
+   *  the UI silent with `phase` stuck — `done` is the clean-stop terminal,
+   *  symmetric with a Categorizing stop. */
+  private stopReturn(): boolean {
+    if (!this.stopRequested) return false;
+    this.log("info", this.phase, "Stopped — re-run to continue from here.");
+    this.finish();
+    return true;
+  }
+
   private finish(): void {
     this.phase = "done";
     this.emit({ type: "phase", phase: "done" });
@@ -350,6 +359,7 @@ export class ImportOrchestrator {
 
   private fail(reason: ImportErrorReason, message: string, recoverable = false): void {
     this.phase = "error";
+    this.emit({ type: "phase", phase: "error" });
     this.log("error", "error", message);
     this.emit({ type: "error", reason, message, recoverable });
   }
@@ -361,27 +371,21 @@ export class ImportOrchestrator {
 
 // ── Pure row transforms ──────────────────────────────────────────
 
-/** Write grounding's resolved fields onto a staged row. */
+/** Write grounding's resolved fields onto a staged row. `groundImport` already
+ *  resolved the account, so `result.accountId` is authoritative. */
 function applyGrounding(
   row: ImportTransaction,
   result: GroundingResult | undefined,
-  accountMapping: Record<string, string>,
 ): ImportTransaction {
-  const accountId = result?.accountId || resolveAccount(row.sourceAccount, accountMapping) || row.accountId;
-  if (!result) return { ...row, accountId };
+  if (!result) return row;
   return {
     ...row,
     merchant: result.merchant || row.merchant,
     categoryId: result.categoryId || row.categoryId,
     categoryConfidence: result.categoryConfidence || row.categoryConfidence,
-    accountId,
+    accountId: result.accountId || row.accountId,
+    duplicate: result.duplicate,
   };
-}
-
-function resolveAccount(sourceAccount: string, mapping: Record<string, string>): string {
-  if (!sourceAccount) return "";
-  const mapped = mapping[sourceAccount];
-  return mapped && mapped !== "__create__" ? mapped : "";
 }
 
 /** Merge a landed batch's enrichment into the authoritative row map. Only fills
@@ -405,4 +409,3 @@ function applyEnrichmentInto(
 
 /** The pipeline phases the section bar renders, re-exported for consumers. */
 export { PIPELINE_PHASES };
-export type { Account, Category };

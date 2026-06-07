@@ -291,6 +291,32 @@ describe("ImportOrchestrator — no_data", () => {
     expect(staging.transactions![0].id).toBe("imp-1");
     expect(staging.transactions![0].description).toBe("Netflix");
   });
+
+  it("skips a no_data file among several and imports the rest", async () => {
+    // A selfie dropped alongside a real CSV — the bad file is warned + skipped,
+    // the good file still imports (not all-or-nothing).
+    const staging = new MemoryStagingStore({
+      sources: [
+        { name: "selfie.png", content: "B64", mediaType: "image/png" },
+        csvSource(csvWithRows(2)),
+      ],
+    });
+    const session = new MockStructuredSession([
+      () => ({ error: "no_data", message: "Just a selfie." }),
+      mapResponder,
+      enrichResponder(),
+    ]);
+    const { events, onEvent } = collect();
+
+    await new ImportOrchestrator({ session, staging, budget: emptyBudget(), onEvent, concurrency: 1 }).start();
+
+    expect(events.find((e) => e.type === "error")).toBeUndefined();
+    expect(staging.transactions).toHaveLength(2);
+    const warn = events.find((e) => e.type === "log" && e.entry.level === "warn");
+    expect(warn && warn.type === "log" && warn.entry.message).toContain("selfie.png");
+    // Ids continue from 1 — the skipped file consumed none.
+    expect(staging.transactions![0].id).toBe("imp-1");
+  });
 });
 
 // ── Batch-failure isolation (no retry) ───────────────────────────
@@ -319,7 +345,8 @@ describe("ImportOrchestrator — batch-failure isolation", () => {
     expect(stillPending).toHaveLength(25);
     expect(staging.transactions!.filter((r) => r.categoryId === "cat-dining")).toHaveLength(25);
     // The run still completes — failure isn't fatal.
-    expect(phases(events).at(-1)).toBe("done");
+    const seen = phases(events);
+    expect(seen[seen.length - 1]).toBe("done");
   });
 });
 
@@ -371,5 +398,162 @@ describe("ImportOrchestrator — re-run idempotency + resume", () => {
     expect(phases(secondEvents)).not.toContain("normalizing");
     expect(phases(secondEvents)).toContain("categorizing");
     expect(secondSession.calls).toHaveLength(0);
+  });
+});
+
+// ── Duplicate persistence ────────────────────────────────────────
+
+describe("ImportOrchestrator — duplicate persistence", () => {
+  /** A budget whose history contains the exact row being imported (same date +
+   *  amount + account), but the historical txn is uncategorized. */
+  function budgetWithUncategorizedDup() {
+    const history = [
+      makeTransaction({
+        datetime: "2026-01-10T00:00:00.000Z",
+        amount: -2599,
+        categoryId: "", // uncategorized historical txn
+        merchant: "",
+        note: "ACME STORE",
+        accountId: "acc-checking",
+      }),
+    ];
+    const accounts = [makeAccount({ id: "acc-checking", name: "Checking" })];
+    return new MemoryBudgetData(history, CATEGORIES, accounts);
+  }
+
+  it("persists the duplicate flag and keeps a dup of an uncategorized txn out of the classifier", async () => {
+    const csv = "Date,Description,Amount\n2026-01-10,ACME STORE,-25.99";
+    const staging = new MemoryStagingStore({ sources: [csvSource(csv)] });
+    const session = new MockStructuredSession([mapResponder]); // no enrich call expected
+
+    await new ImportOrchestrator({
+      session,
+      staging,
+      budget: budgetWithUncategorizedDup(),
+      onEvent: () => {},
+      concurrency: 1,
+    }).start();
+
+    const row = staging.transactions![0];
+    expect(row.duplicate).toBe(true);
+    // Dup with no carried category must still skip enrichment (the !duplicate term).
+    expect(session.calls).toHaveLength(1); // mapping only — no enrich batch
+    // Survives a serialize → parse round-trip (resume sees it).
+    const reread = await staging.readTransactions();
+    expect(reread![0].duplicate).toBe(true);
+  });
+});
+
+// ── Resume contract: staging means normalized + grounded ─────────
+
+describe("ImportOrchestrator — resume contract", () => {
+  it("does not write transactions.csv until History has grounded it", async () => {
+    // Stop fires during the mapping call (Normalizing). The run must end before
+    // History writes staging — so reopen lands on file-attach, not a half-baked
+    // ungrounded preview.
+    const staging = new MemoryStagingStore({ sources: [csvSource(csvWithRows(3))] });
+    const orch = new ImportOrchestrator({
+      session: new MockStructuredSession([
+        () => {
+          orch.stop();
+          return MAPPING;
+        },
+      ]),
+      staging,
+      budget: emptyBudget(),
+      onEvent: () => {},
+      concurrency: 1,
+    });
+
+    await orch.start();
+
+    expect(staging.transactions).toBeNull(); // never written
+    expect(staging.context).toBeNull();
+  });
+
+  it("a fresh start() after a Normalizing-stop re-runs the full pipeline", async () => {
+    // No staging was written by the interrupted run, so start() begins from
+    // Reading again — Normalizing runs, History grounds, Categorizing finishes.
+    const staging = new MemoryStagingStore({ sources: [csvSource(csvWithRows(2))] });
+    const firstOrch = new ImportOrchestrator({
+      session: new MockStructuredSession([
+        () => {
+          firstOrch.stop();
+          return MAPPING;
+        },
+      ]),
+      staging,
+      budget: emptyBudget(),
+      onEvent: () => {},
+      concurrency: 1,
+    });
+    await firstOrch.start();
+    expect(staging.transactions).toBeNull();
+
+    const second = new MockStructuredSession([mapResponder, enrichResponder()]);
+    const { events, onEvent } = collect();
+    await new ImportOrchestrator({ session: second, staging, budget: emptyBudget(), onEvent, concurrency: 1 }).start();
+
+    expect(phases(events)).toEqual(["reading", "normalizing", "history", "categorizing", "done"]);
+    expect(staging.transactions).toHaveLength(2);
+  });
+});
+
+// ── Stop ─────────────────────────────────────────────────────────
+
+describe("ImportOrchestrator — stop", () => {
+  it("emits a terminal done when stopped during an early phase", async () => {
+    const staging = new MemoryStagingStore({ sources: [csvSource(csvWithRows(2))] });
+    const { events, onEvent } = collect();
+    const orch = new ImportOrchestrator({
+      session: new MockStructuredSession([
+        () => {
+          orch.stop();
+          return MAPPING;
+        },
+      ]),
+      staging,
+      budget: emptyBudget(),
+      onEvent,
+      concurrency: 1,
+    });
+
+    await orch.start();
+
+    // The run reaches a terminal state instead of going silent.
+    expect(events.some((e) => e.type === "done")).toBe(true);
+    const seen = phases(events);
+    expect(seen[seen.length - 1]).toBe("done");
+    expect(orch.currentPhase).toBe("done");
+  });
+
+  it("stops dispatching new batches but lets the in-flight one land", async () => {
+    const rows: ImportTransaction[] = Array.from({ length: 75 }, (_, i) =>
+      makeImportTransaction({ id: `imp-${i + 1}`, description: `V${i}` }),
+    );
+    const staging = new MemoryStagingStore({ transactions: rows });
+    let calls = 0;
+    const orch = new ImportOrchestrator({
+      session: new MockStructuredSession(
+        Array.from({ length: 3 }, () => (messages: readonly { content: unknown }[]) => {
+          calls++;
+          if (calls === 1) orch.stop(); // stop after the first batch is in-flight
+          const text = JSON.stringify(messages);
+          const ids = [...new Set([...text.matchAll(/(imp-\d+)/g)].map((m) => m[1]))];
+          return { rows: ids.map((id) => ({ id, merchant: "C", categoryId: "cat-dining", confidence: "low" })) };
+        }),
+      ),
+      staging,
+      budget: emptyBudget(),
+      onEvent: () => {},
+      concurrency: 1,
+    });
+
+    await orch.enrich();
+
+    // The first batch landed (25 rows); no further batches dispatched.
+    expect(calls).toBe(1);
+    expect(staging.transactions!.filter((r) => r.categoryId === "cat-dining")).toHaveLength(25);
+    expect(orch.currentPhase).toBe("done");
   });
 });

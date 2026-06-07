@@ -64,6 +64,7 @@ export function makeImportTransaction(
     targetAccountId: "",
     categoryId: "",
     categoryConfidence: "",
+    duplicate: false,
     ...overrides,
   };
 }

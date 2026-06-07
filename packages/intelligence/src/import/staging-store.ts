@@ -78,20 +78,24 @@ export function parseImportCsv(content: string): ImportTransaction[] {
     skipEmptyLines: true,
     transformHeader: (h) => h.trim(),
   });
-  return data.map((row) => ({
-    id: row.id ?? "",
-    date: row.date ?? "",
-    description: row.description ?? "",
-    amount: row.amount ? Number(row.amount) : 0,
-    type: (row.type as ImportTransaction["type"]) || "expense",
-    sourceAccount: row.sourceAccount ?? "",
-    sourceCategory: row.sourceCategory ?? "",
-    merchant: row.merchant ?? "",
-    accountId: row.accountId ?? "",
-    targetAccountId: row.targetAccountId ?? "",
-    categoryId: row.categoryId ?? "",
-    categoryConfidence: row.categoryConfidence ?? "",
-  }));
+  return data.map((row) => {
+    const amount = Number(row.amount);
+    return {
+      id: row.id ?? "",
+      date: row.date ?? "",
+      description: row.description ?? "",
+      amount: Number.isFinite(amount) ? amount : 0,
+      type: (row.type as ImportTransaction["type"]) || "expense",
+      sourceAccount: row.sourceAccount ?? "",
+      sourceCategory: row.sourceCategory ?? "",
+      merchant: row.merchant ?? "",
+      accountId: row.accountId ?? "",
+      targetAccountId: row.targetAccountId ?? "",
+      categoryId: row.categoryId ?? "",
+      categoryConfidence: row.categoryConfidence ?? "",
+      duplicate: row.duplicate === "true",
+    };
+  });
 }
 
 const IMPORT_DIR_REL = ".capy/import";
