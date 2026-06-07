@@ -1,0 +1,184 @@
+/**
+ * Stateless structured-output primitive shared by the in-process API
+ * adapters (Anthropic, OpenAI). One constrained model call returns a
+ * value the caller's JSON Schema describes — no agent loop, no tools.
+ *
+ * Both providers constrain generation to the schema server-side
+ * (Anthropic `output_config.format`, OpenAI `response_format` json_schema).
+ * `parseStructured` is the client-side enforcement layer: it parses the
+ * returned text and checks it against the same schema, so a malformed or
+ * off-schema response surfaces as a thrown error at the call site rather
+ * than as a silently-wrong object downstream.
+ */
+
+import type { MessageContent } from "./types"
+
+/**
+ * One role-tagged message in a structured-output request. `content` is
+ * the same multimodal payload `CapySession.send` accepts — text plus
+ * image / document blocks — so the extraction call (Unit 2) can pass a
+ * receipt image and the enrich call can pass rows + history context
+ * through the identical channel.
+ */
+export interface StructuredMessage {
+  role: "user" | "assistant"
+  content: MessageContent
+}
+
+/**
+ * The stateless structured-output capability. Implemented by the
+ * in-process API adapters (Anthropic, OpenAI); the orchestrator (Unit 2)
+ * depends on this interface, not the concrete session classes, so the
+ * provider stays swappable. The Claude CLI adapter does not implement it —
+ * its structured-call path is deferred (see specs/IMPORT.md).
+ */
+export interface StructuredSession {
+  /**
+   * Make one constrained model call and return the parsed, schema-valid
+   * result. No agent loop, no tools. Rejects with `SchemaValidationError`
+   * if the response isn't valid JSON or doesn't satisfy `schema`, and with
+   * the provider's error otherwise.
+   */
+  structured<T = unknown>(
+    messages: readonly StructuredMessage[],
+    schema: JsonSchema,
+  ): Promise<T>
+}
+
+/**
+ * A JSON Schema describing the structured output. The same shape the tool
+ * layer uses for `inputSchema` (a plain JSON Schema object), so callers
+ * author one schema vocabulary across the package. The subset the
+ * validator enforces is the subset structured-output schemas use:
+ * objects, arrays, the scalar types, `enum`, `required`, nested
+ * `properties`/`items`, and `anyOf` (for discriminated outcomes like
+ * `{ rows }` vs `{ error, message }`).
+ */
+export type JsonSchema = {
+  readonly type?:
+    | "object"
+    | "array"
+    | "string"
+    | "number"
+    | "integer"
+    | "boolean"
+    | "null"
+  readonly properties?: Readonly<Record<string, JsonSchema>>
+  readonly required?: ReadonlyArray<string>
+  readonly items?: JsonSchema
+  readonly enum?: ReadonlyArray<unknown>
+  readonly anyOf?: ReadonlyArray<JsonSchema>
+  readonly additionalProperties?: boolean
+  readonly [key: string]: unknown
+}
+
+export class SchemaValidationError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = "SchemaValidationError"
+  }
+}
+
+/**
+ * Parse `text` as JSON and validate it against `schema`. Returns the
+ * typed value on success; throws `SchemaValidationError` on a parse
+ * failure or schema mismatch.
+ */
+export function parseStructured<T>(text: string, schema: JsonSchema): T {
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(text)
+  } catch (err) {
+    throw new SchemaValidationError(
+      `structured output is not valid JSON: ${err instanceof Error ? err.message : String(err)}`,
+    )
+  }
+  const error = validate(parsed, schema, "$")
+  if (error) throw new SchemaValidationError(error)
+  return parsed as T
+}
+
+function validate(value: unknown, schema: JsonSchema, path: string): string | null {
+  if (schema.anyOf) {
+    const failures = schema.anyOf.map((sub) => validate(value, sub, path))
+    if (failures.every((f) => f !== null)) {
+      return `${path}: value matched none of the anyOf alternatives`
+    }
+    return null
+  }
+
+  if (schema.enum) {
+    const ok = schema.enum.some((allowed) => deepEqual(allowed, value))
+    if (!ok) return `${path}: value is not one of the allowed enum values`
+  }
+
+  switch (schema.type) {
+    case undefined:
+      return null
+    case "null":
+      return value === null ? null : `${path}: expected null`
+    case "boolean":
+      return typeof value === "boolean" ? null : `${path}: expected boolean`
+    case "string":
+      return typeof value === "string" ? null : `${path}: expected string`
+    case "number":
+      return typeof value === "number" && Number.isFinite(value)
+        ? null
+        : `${path}: expected number`
+    case "integer":
+      return typeof value === "number" && Number.isInteger(value)
+        ? null
+        : `${path}: expected integer`
+    case "array":
+      return validateArray(value, schema, path)
+    case "object":
+      return validateObject(value, schema, path)
+  }
+}
+
+function validateArray(value: unknown, schema: JsonSchema, path: string): string | null {
+  if (!Array.isArray(value)) return `${path}: expected array`
+  if (!schema.items) return null
+  for (let i = 0; i < value.length; i++) {
+    const error = validate(value[i], schema.items, `${path}[${i}]`)
+    if (error) return error
+  }
+  return null
+}
+
+function validateObject(value: unknown, schema: JsonSchema, path: string): string | null {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+    return `${path}: expected object`
+  }
+  const obj = value as Record<string, unknown>
+  for (const key of schema.required ?? []) {
+    if (!(key in obj)) return `${path}.${key}: required property is missing`
+  }
+  if (schema.properties) {
+    for (const [key, subSchema] of Object.entries(schema.properties)) {
+      if (key in obj) {
+        const error = validate(obj[key], subSchema, `${path}.${key}`)
+        if (error) return error
+      }
+    }
+  }
+  return null
+}
+
+function deepEqual(a: unknown, b: unknown): boolean {
+  if (a === b) return true
+  if (typeof a !== typeof b) return false
+  if (a === null || b === null) return a === b
+  if (Array.isArray(a) && Array.isArray(b)) {
+    return a.length === b.length && a.every((el, i) => deepEqual(el, b[i]))
+  }
+  if (typeof a === "object" && typeof b === "object") {
+    const aKeys = Object.keys(a as object)
+    const bKeys = Object.keys(b as object)
+    if (aKeys.length !== bKeys.length) return false
+    return aKeys.every((k) =>
+      deepEqual((a as Record<string, unknown>)[k], (b as Record<string, unknown>)[k]),
+    )
+  }
+  return false
+}

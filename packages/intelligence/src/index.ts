@@ -27,6 +27,14 @@ export { extractErrorMessage } from "./error-message"
 // Session interface
 export type { CapySessionOptions, CapySession } from "./session"
 
+// Structured-output primitive (stateless, schema-validated single call)
+export { parseStructured, SchemaValidationError } from "./structured"
+export type {
+  JsonSchema,
+  StructuredMessage,
+  StructuredSession,
+} from "./structured"
+
 // Provider config
 export {
   DEFAULT_INTELLIGENCE_CONFIG,

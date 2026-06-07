@@ -150,10 +150,30 @@ const { mockStream, queueTurn, lastStreamCall, abortSignals, streamStubs } = vi.
   }
 })
 
+const { mockCreate, queueStructured, lastCreateCall } = vi.hoisted(() => {
+  const calls: Array<Record<string, unknown>> = []
+  const responses: Array<{ content: string } | { error: Error }> = []
+  const create = vi.fn().mockImplementation((params: Record<string, unknown>) => {
+    calls.push(params)
+    const next = responses.shift() ?? { content: "{}" }
+    if ("error" in next) return Promise.reject(next.error)
+    return Promise.resolve({
+      content: [{ type: "text", text: next.content }],
+      stop_reason: "end_turn",
+    })
+  })
+  return {
+    mockCreate: create,
+    queueStructured: (next: { content: string } | { error: Error }) =>
+      responses.push(next),
+    lastCreateCall: () => calls[calls.length - 1],
+  }
+})
+
 vi.mock("@anthropic-ai/sdk", () => {
   return {
     default: class {
-      messages = { stream: mockStream }
+      messages = { stream: mockStream, create: mockCreate }
     },
   }
 })
@@ -195,6 +215,7 @@ function makeSession(mode: "chat" | "import" = "chat") {
 
 beforeEach(() => {
   mockStream.mockClear()
+  mockCreate.mockClear()
   mockRunTool.mockReset()
   abortSignals.length = 0
   streamStubs.length = 0
@@ -859,5 +880,74 @@ describe("AnthropicSession tool gating", () => {
   it("keeps search_transactions in both modes (both prompts advertise it)", async () => {
     expect(await toolNamesFor("chat")).toContain("search_transactions")
     expect(await toolNamesFor("import")).toContain("search_transactions")
+  })
+})
+
+describe("AnthropicSession.structured", () => {
+  const SCHEMA = {
+    type: "object" as const,
+    properties: { ok: { type: "boolean" as const } },
+    required: ["ok"],
+  }
+
+  it("makes one constrained, tool-free call and returns the parsed result", async () => {
+    queueStructured({ content: '{"ok": true}' })
+
+    const { session } = makeSession("import")
+    const result = await session.structured<{ ok: boolean }>(
+      [{ role: "user", content: "extract" }],
+      SCHEMA,
+    )
+
+    expect(result).toEqual({ ok: true })
+    expect(mockCreate).toHaveBeenCalledTimes(1)
+    expect(mockStream).not.toHaveBeenCalled()
+
+    const call = lastCreateCall()
+    expect(call.tools).toBeUndefined()
+    expect(call.output_config).toEqual({
+      format: { type: "json_schema", schema: SCHEMA },
+    })
+    expect(call.model).toBe("claude-sonnet-4-6")
+  })
+
+  it("forwards multimodal content (text + image + document) to the SDK", async () => {
+    queueStructured({ content: '{"ok": true}' })
+
+    const { session } = makeSession()
+    await session.structured(
+      [
+        {
+          role: "user",
+          content: [
+            { type: "text", text: "read this receipt" },
+            {
+              type: "image",
+              source: { type: "base64", media_type: "image/png", data: "AAAA" },
+            },
+            {
+              type: "document",
+              source: { type: "base64", media_type: "application/pdf", data: "BBBB" },
+            },
+          ],
+        },
+      ],
+      SCHEMA,
+    )
+
+    const call = lastCreateCall()
+    const messages = call.messages as Array<{ role: string; content: unknown }>
+    expect(messages).toHaveLength(1)
+    const blocks = messages[0].content as Array<{ type: string }>
+    expect(blocks.map((b) => b.type)).toEqual(["text", "image", "document"])
+  })
+
+  it("rejects when the model returns output that violates the schema", async () => {
+    queueStructured({ content: '{"ok": "not a boolean"}' })
+
+    const { session } = makeSession()
+    await expect(
+      session.structured([{ role: "user", content: "x" }], SCHEMA),
+    ).rejects.toThrowError(/boolean/i)
   })
 })

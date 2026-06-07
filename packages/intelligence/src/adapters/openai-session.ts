@@ -6,6 +6,8 @@ import type { ToolMode } from "../tools"
 import type { ApiAdapterOptions } from "../factory"
 import type { CapySession } from "../session"
 import type { ContentBlock, MessageContent } from "../types"
+import { parseStructured } from "../structured"
+import type { JsonSchema, StructuredMessage, StructuredSession } from "../structured"
 
 const MAX_TOKENS = 8192
 
@@ -53,6 +55,14 @@ function toOpenAiUserContent(
   })
 }
 
+/** Assistant turns carry text only — flatten any blocks to their text. */
+function toOpenAiTextContent(content: MessageContent): string {
+  if (typeof content === "string") return content
+  return content
+    .map((block) => (block.type === "text" ? block.text : ""))
+    .join("")
+}
+
 interface ToolCallAccumulator {
   id: string
   name: string
@@ -72,7 +82,7 @@ function finalizeToolArgs(acc: ToolCallAccumulator): Record<string, unknown> | E
   return result
 }
 
-export class OpenAiSession implements CapySession {
+export class OpenAiSession implements CapySession, StructuredSession {
   private readonly client: OpenAI
   private readonly opts: ApiAdapterOptions
   private readonly messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = []
@@ -139,6 +149,36 @@ export class OpenAiSession implements CapySession {
     this.abortController?.abort()
     this.abortController = null
     this.alive = false
+  }
+
+  async structured<T = unknown>(
+    messages: readonly StructuredMessage[],
+    schema: JsonSchema,
+  ): Promise<T> {
+    const requestMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
+      { role: "system", content: this.opts.systemPrompt },
+      ...messages.map((m) =>
+        m.role === "assistant"
+          ? { role: "assistant" as const, content: toOpenAiTextContent(m.content) }
+          : { role: "user" as const, content: toOpenAiUserContent(m.content) },
+      ),
+    ]
+
+    const completion = await this.client.chat.completions.create({
+      model: this.opts.model,
+      messages: requestMessages,
+      max_completion_tokens: MAX_TOKENS,
+      response_format: {
+        type: "json_schema",
+        json_schema: {
+          name: "structured_output",
+          schema: schema as Record<string, unknown>,
+        },
+      },
+    })
+
+    const text = completion.choices[0]?.message.content ?? ""
+    return parseStructured<T>(text, schema)
   }
 
   private async runAgenticLoop(): Promise<void> {

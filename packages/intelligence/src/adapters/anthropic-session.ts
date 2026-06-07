@@ -6,6 +6,8 @@ import type { ToolMode } from "../tools"
 import type { ApiAdapterOptions } from "../factory"
 import type { CapySession } from "../session"
 import type { ContentBlock, MessageContent } from "../types"
+import { parseStructured } from "../structured"
+import type { JsonSchema, StructuredMessage, StructuredSession } from "../structured"
 
 const MAX_TOKENS = 8192
 
@@ -65,7 +67,7 @@ function toAnthropicUserContent(
   })
 }
 
-export class AnthropicSession implements CapySession {
+export class AnthropicSession implements CapySession, StructuredSession {
   private readonly client: Anthropic
   private readonly opts: ApiAdapterOptions
   private readonly messages: Anthropic.MessageParam[] = []
@@ -129,6 +131,31 @@ export class AnthropicSession implements CapySession {
     this.abortController?.abort()
     this.abortController = null
     this.alive = false
+  }
+
+  async structured<T = unknown>(
+    messages: readonly StructuredMessage[],
+    schema: JsonSchema,
+  ): Promise<T> {
+    const message = await this.client.messages.create({
+      model: this.opts.model,
+      system: this.opts.systemPrompt,
+      messages: messages.map((m) => ({
+        role: m.role,
+        content: toAnthropicUserContent(m.content),
+      })),
+      max_tokens: MAX_TOKENS,
+      output_config: {
+        format: { type: "json_schema", schema: schema as Record<string, unknown> },
+      },
+    })
+
+    const text = message.content
+      .filter((block): block is Anthropic.TextBlock => block.type === "text")
+      .map((block) => block.text)
+      .join("")
+
+    return parseStructured<T>(text, schema)
   }
 
   private async runAgenticLoop(): Promise<void> {

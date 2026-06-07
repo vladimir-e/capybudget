@@ -19,13 +19,33 @@ interface FakeTurn {
   tailChunk?: { content: string }
 }
 
-const { mockCreate, queueTurn, lastCreateCall, allCreateCalls, abortSignals } = vi.hoisted(
+const { mockCreate, queueTurn, queueStructured, lastCreateCall, allCreateCalls, abortSignals } = vi.hoisted(
   () => {
     const queue: FakeTurn[] = []
     const calls: Array<{ messages: unknown; tools: unknown }> = []
     const signals: AbortSignal[] = []
 
+    // Non-streaming completions for the structured() path, keyed off the
+    // absence of `stream: true`. Kept separate from the streaming turn queue
+    // so the two request shapes don't share state.
+    const structuredQueue: Array<{ content: string } | { error: Error }> = []
+
     const create = vi.fn().mockImplementation(async (params, opts) => {
+      if (!params.stream) {
+        calls.push({
+          messages: JSON.parse(JSON.stringify(params.messages)),
+          tools: params.tools,
+          response_format: params.response_format,
+        })
+        const next = structuredQueue.shift()
+        if (!next) {
+          throw new Error("Test bug: no structured completion queued")
+        }
+        if ("error" in next) throw next.error
+        return {
+          choices: [{ message: { role: "assistant", content: next.content } }],
+        }
+      }
       calls.push({
         messages: JSON.parse(JSON.stringify(params.messages)),
         tools: params.tools,
@@ -148,9 +168,14 @@ const { mockCreate, queueTurn, lastCreateCall, allCreateCalls, abortSignals } = 
       queue.push(turn)
     }
 
+    function queueStructured(next: { content: string } | { error: Error }) {
+      structuredQueue.push(next)
+    }
+
     return {
       mockCreate: create,
       queueTurn,
+      queueStructured,
       lastCreateCall: () => calls[calls.length - 1],
       allCreateCalls: () => calls,
       abortSignals: signals,
@@ -958,5 +983,75 @@ describe("OpenAiSession tool gating", () => {
   it("keeps search_transactions in both modes (both prompts advertise it)", async () => {
     expect(await toolNamesFor("chat")).toContain("search_transactions")
     expect(await toolNamesFor("import")).toContain("search_transactions")
+  })
+})
+
+describe("OpenAiSession.structured", () => {
+  const SCHEMA = {
+    type: "object" as const,
+    properties: { ok: { type: "boolean" as const } },
+    required: ["ok"],
+  }
+
+  it("makes one constrained, tool-free call and returns the parsed result", async () => {
+    queueStructured({ content: '{"ok": true}' })
+
+    const { session } = makeSession("import")
+    const result = await session.structured<{ ok: boolean }>(
+      [{ role: "user", content: "extract" }],
+      SCHEMA,
+    )
+
+    expect(result).toEqual({ ok: true })
+    expect(mockCreate).toHaveBeenCalledTimes(1)
+
+    const call = lastCreateCall()
+    expect(call.tools).toBeUndefined()
+    expect(call.response_format).toEqual({
+      type: "json_schema",
+      json_schema: { name: "structured_output", schema: SCHEMA },
+    })
+    const messages = call.messages as Array<{ role: string }>
+    expect(messages[0].role).toBe("system")
+  })
+
+  it("forwards image content as image_url and degrades PDFs to a text note", async () => {
+    queueStructured({ content: '{"ok": true}' })
+
+    const { session } = makeSession()
+    await session.structured(
+      [
+        {
+          role: "user",
+          content: [
+            { type: "text", text: "read this receipt" },
+            {
+              type: "image",
+              source: { type: "base64", media_type: "image/png", data: "AAAA" },
+            },
+            {
+              type: "document",
+              source: { type: "base64", media_type: "application/pdf", data: "BBBB" },
+            },
+          ],
+        },
+      ],
+      SCHEMA,
+    )
+
+    const call = lastCreateCall()
+    const messages = call.messages as Array<{ role: string; content: unknown }>
+    const userBlocks = messages[1].content as Array<{ type: string; text?: string }>
+    expect(userBlocks.map((b) => b.type)).toEqual(["text", "image_url", "text"])
+    expect(userBlocks[2].text).toContain("PDF")
+  })
+
+  it("rejects when the model returns output that violates the schema", async () => {
+    queueStructured({ content: '{"ok": "not a boolean"}' })
+
+    const { session } = makeSession()
+    await expect(
+      session.structured([{ role: "user", content: "x" }], SCHEMA),
+    ).rejects.toThrowError(/boolean/i)
   })
 })
