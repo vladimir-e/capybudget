@@ -41,6 +41,13 @@ describe("parseImportCsv", () => {
     expect(parsed[0].amount).toBe(0);
   });
 
+  // `Number("")` is 0, so a blank amount would merge as a real $0 transaction
+  // unless parse maps it to NaN for validation to drop. Distinct from "0".
+  it("drops a row with a blank amount", () => {
+    const parsed = parseImportCsv('id,date,amount,description\nimp-1,2026-01-01,," "');
+    expect(parsed).toHaveLength(0);
+  });
+
   it("backfills a missing id so the row can be matched back by id", () => {
     const parsed = parseImportCsv("id,date,amount\n,2026-01-01,-100");
     expect(parsed).toHaveLength(1);

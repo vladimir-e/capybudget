@@ -57,7 +57,23 @@ export type JsonSchema = {
   readonly items?: JsonSchema
   readonly enum?: ReadonlyArray<unknown>
   readonly anyOf?: ReadonlyArray<JsonSchema>
+  /** When `true`, the OpenAI adapter sends `response_format.json_schema.strict`
+   *  so the provider *guarantees* on-schema output. Only set it on a schema
+   *  that satisfies strict's rules (every object `additionalProperties: false`,
+   *  all properties `required`). The Anthropic adapter ignores it — its
+   *  `output_config.format` enforces the schema unconditionally. */
+  readonly strict?: boolean
   readonly [key: string]: unknown
+}
+
+/** The schema as sent over the wire: the `strict` marker stripped out. It's our
+ *  own field for the OpenAI adapter (it rides the request wrapper, not the
+ *  schema), not a JSON-schema keyword — neither provider should see it inside
+ *  the schema body. */
+export function schemaBody(schema: JsonSchema): Record<string, unknown> {
+  const body: Record<string, unknown> = { ...schema }
+  delete body.strict
+  return body
 }
 
 export class SchemaValidationError extends Error {

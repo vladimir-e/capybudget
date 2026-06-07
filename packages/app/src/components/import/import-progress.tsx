@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import { Check, Loader2 } from "lucide-react";
-import type { ImportLogEntry, ImportPhase } from "@capybudget/intelligence";
+import type { ImportPhase, TerminalLogEntry } from "@capybudget/intelligence";
 import { cn } from "@/lib/utils";
 import {
   PROGRESS_SEGMENTS,
@@ -17,7 +17,7 @@ interface ImportProgressProps {
   /** Current-status line under the bar; empty hides it. */
   status: string;
   /** Accumulated terminal log, oldest first. */
-  log: ImportLogEntry[];
+  log: TerminalLogEntry[];
   /** Categorizing batch meter, or null before it ticks. */
   batchProgress: { done: number; total: number } | null;
 }
@@ -122,13 +122,13 @@ function Segment({
 
 // ── Terminal log pane ────────────────────────────────────────────
 
-const LEVEL_CLASS: Record<ImportLogEntry["level"], string> = {
+const LEVEL_CLASS: Record<TerminalLogEntry["level"], string> = {
   info: "text-foreground/70",
   warn: "text-amber-500",
   error: "text-destructive",
 };
 
-function LogPane({ log }: { log: ImportLogEntry[] }) {
+function LogPane({ log }: { log: TerminalLogEntry[] }) {
   const scrollRef = useRef<HTMLDivElement>(null);
 
   // Keep the newest line in view — the run record reads bottom-up like a tail.

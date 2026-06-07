@@ -56,12 +56,14 @@ describe("normalizeCsv", () => {
 });
 
 describe("normalizeImage", () => {
-  it("extracts rows and feeds them through buildStaged", async () => {
+  it("unwraps the result envelope, extracts rows, and feeds them through buildStaged", async () => {
     const session = new MockStructuredSession([
       () => ({
-        rows: [
-          { date: "2026-01-05", amount: -1599, type: "expense", description: "Netflix", sourceAccount: "Visa", sourceCategory: "Entertainment" },
-        ],
+        result: {
+          rows: [
+            { date: "2026-01-05", amount: -1599, type: "expense", description: "Netflix", sourceAccount: "Visa", sourceCategory: "Entertainment" },
+          ],
+        },
       }),
     ]);
 
@@ -74,24 +76,24 @@ describe("normalizeImage", () => {
   });
 
   it("sends an image block for an image and a document block for a PDF", async () => {
-    const imgSession = new MockStructuredSession([() => ({ rows: [{ date: "2026-01-01", amount: -1, type: "expense", description: "x", sourceAccount: "", sourceCategory: "" }] })]);
+    const imgSession = new MockStructuredSession([() => ({ result: { rows: [{ date: "2026-01-01", amount: -1, type: "expense", description: "x", sourceAccount: "", sourceCategory: "" }] } })]);
     await normalizeImage(imgSession, { name: "r.png", content: "B64", mediaType: "image/png" });
     expect(JSON.stringify(imgSession.calls[0].messages)).toContain('"type":"image"');
 
-    const pdfSession = new MockStructuredSession([() => ({ rows: [{ date: "2026-01-01", amount: -1, type: "expense", description: "x", sourceAccount: "", sourceCategory: "" }] })]);
+    const pdfSession = new MockStructuredSession([() => ({ result: { rows: [{ date: "2026-01-01", amount: -1, type: "expense", description: "x", sourceAccount: "", sourceCategory: "" }] } })]);
     await normalizeImage(pdfSession, { name: "r.pdf", content: "B64", mediaType: "application/pdf" });
     expect(JSON.stringify(pdfSession.calls[0].messages)).toContain('"type":"document"');
   });
 
   it("returns noData for the no_data outcome", async () => {
-    const session = new MockStructuredSession([() => ({ error: "no_data", message: "Just a selfie." })]);
+    const session = new MockStructuredSession([() => ({ result: { error: "no_data", message: "Just a selfie." } })]);
     const { rows, noData } = await normalizeImage(session, { name: "s.png", content: "B64", mediaType: "image/png" });
     expect(rows).toHaveLength(0);
     expect(noData?.message).toBe("Just a selfie.");
   });
 
   it("treats an empty extraction as noData", async () => {
-    const session = new MockStructuredSession([() => ({ rows: [] })]);
+    const session = new MockStructuredSession([() => ({ result: { rows: [] } })]);
     const { noData } = await normalizeImage(session, { name: "s.png", content: "B64", mediaType: "image/png" });
     expect(noData).toBeDefined();
   });

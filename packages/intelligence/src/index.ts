@@ -137,7 +137,7 @@ export type {
   ImportEvent,
   ImportEventHandler,
   ImportPhase,
-  ImportLogEntry,
+  TerminalLogEntry,
   ImportErrorReason,
   LogLevel,
   BatchProgress,

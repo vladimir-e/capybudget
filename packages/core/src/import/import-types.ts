@@ -41,13 +41,6 @@ export interface ImportAliases {
   accounts: Record<string, string>; // sourceString → accountId | "__create__"
 }
 
-export type ImportPhase =
-  | "upload"
-  | "normalizing"
-  | "preview"
-  | "enriching"
-  | "review";
-
 /** One entry in the import log (`.capy/import-log.json`). */
 export interface ImportLogEntry {
   date: string;

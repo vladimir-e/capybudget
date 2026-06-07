@@ -1,15 +1,11 @@
 /**
- * The Categorizing phase's stateless model call + batching helpers.
- *
- * The classifier runs over the ambiguous remainder only — rows that fail the
- * `needsEnrich` predicate (fast-pathed, duplicate, hand-mapped, already
- * enriched) never reach here. Each batch is one tool-less `structured()` call
- * whose prompt embeds the rows, each row's distilled history context, and the
- * full category list (id + name) so the model can only return valid ids.
+ * The Categorizing phase's stateless model call + batching helpers. See
+ * `specs/IMPORT.md` § Categorizing for the batched-classifier shape.
  *
  * Batches are independent and fail in isolation — a thrown call leaves its rows
- * incomplete (they still fail the predicate) and never poisons its siblings.
- * There is no auto-retry: the user-initiated idempotent re-run is the retry.
+ * incomplete (they still fail the `needsEnrich` predicate) and never poisons
+ * its siblings. There is no auto-retry: the user-initiated idempotent re-run is
+ * the retry.
  */
 
 import type { Category, ImportTransaction, RowContext } from "@capybudget/core";

@@ -5,7 +5,7 @@ import { runTool, getToolDefinitions, SESSION_TOOL_CALL_BUDGET } from "../tools"
 import type { ApiAdapterOptions } from "../factory"
 import type { CapySession } from "../session"
 import type { ContentBlock, FileAttachment, MessageContent } from "../types"
-import { parseStructured } from "../structured"
+import { parseStructured, schemaBody } from "../structured"
 import type { JsonSchema, StructuredMessage, StructuredSession } from "../structured"
 
 const MAX_TOKENS = 8192
@@ -161,6 +161,8 @@ export class OpenAiSession implements CapySession, StructuredSession {
       ),
     ]
 
+    // `strict` is our own marker on the schema, not a JSON-schema keyword;
+    // it rides on the json_schema wrapper, not inside the schema OpenAI sees.
     const completion = await this.client.chat.completions.create({
       model: this.opts.model,
       messages: requestMessages,
@@ -169,7 +171,8 @@ export class OpenAiSession implements CapySession, StructuredSession {
         type: "json_schema",
         json_schema: {
           name: "structured_output",
-          schema: schema as Record<string, unknown>,
+          schema: schemaBody(schema),
+          ...(schema.strict === true ? { strict: true } : {}),
         },
       },
     })

@@ -1,11 +1,11 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import type { ImportEvent, ImportLogEntry } from "@capybudget/intelligence";
+import type { ImportEvent, TerminalLogEntry } from "@capybudget/intelligence";
 import { reduce, useImportStore } from "@/stores/import-store";
 
 const IDLE = {
   phase: "idle" as const,
   status: "",
-  log: [] as ImportLogEntry[],
+  log: [] as TerminalLogEntry[],
   batchProgress: null,
   grounded: false,
   error: null,
@@ -13,7 +13,7 @@ const IDLE = {
   rowsVersion: 0,
 };
 
-function logEntry(message: string, level: ImportLogEntry["level"] = "info"): ImportLogEntry {
+function logEntry(message: string, level: TerminalLogEntry["level"] = "info"): TerminalLogEntry {
   return { ts: 1_700_000_000_000, level, phase: "reading", message };
 }
 

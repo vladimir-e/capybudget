@@ -3,8 +3,8 @@ import type {
   BatchProgress,
   ImportErrorReason,
   ImportEvent,
-  ImportLogEntry,
   ImportPhase,
+  TerminalLogEntry,
 } from "@capybudget/intelligence";
 
 /**
@@ -34,7 +34,7 @@ interface ImportRunState {
   /** The single current-status line (with spinner), replaced as it ticks. */
   status: string;
   /** Timestamped terminal log, oldest first. */
-  log: ImportLogEntry[];
+  log: TerminalLogEntry[];
   /** Categorizing meter over the remaining incomplete rows; null until it ticks. */
   batchProgress: BatchProgress | null;
   /** True once History has grounded — keeps the section bar up for the brief
@@ -151,7 +151,7 @@ export function reduce(s: ImportRunState, event: ImportEvent): Partial<ImportRun
   }
 }
 
-function appendLog(log: ImportLogEntry[], entry: ImportLogEntry): ImportLogEntry[] {
+function appendLog(log: TerminalLogEntry[], entry: TerminalLogEntry): TerminalLogEntry[] {
   const next = log.length >= MAX_LOG_ENTRIES ? log.slice(log.length - MAX_LOG_ENTRIES + 1) : [...log];
   next.push(entry);
   return next;

@@ -104,7 +104,6 @@ export type {
   ImportTransaction,
   StagedRecord,
   ImportAliases,
-  ImportPhase,
   ImportLogEntry,
 } from "./import/import-types";
 

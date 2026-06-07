@@ -867,6 +867,25 @@ describe("AnthropicSession.structured", () => {
     expect(call.model).toBe("claude-sonnet-4-6")
   })
 
+  it("drops the OpenAI-only strict marker from the schema it sends", async () => {
+    queueStructured({ content: '{"ok": true}' })
+    const STRICT_SCHEMA = {
+      type: "object" as const,
+      additionalProperties: false,
+      strict: true,
+      properties: { ok: { type: "boolean" as const } },
+      required: ["ok"],
+    }
+
+    const { session } = makeSession()
+    await session.structured([{ role: "user", content: "x" }], STRICT_SCHEMA)
+
+    const oc = lastCreateCall().output_config as { format: { schema: Record<string, unknown> } }
+    // output_config.format enforces the schema unconditionally — `strict` is ours.
+    expect(oc.format.schema).not.toHaveProperty("strict")
+    expect(oc.format.schema).toMatchObject({ additionalProperties: false })
+  })
+
   it("forwards multimodal content (text + image + document) to the SDK", async () => {
     queueStructured({ content: '{"ok": true}' })
 

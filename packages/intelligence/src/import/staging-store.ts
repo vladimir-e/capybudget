@@ -106,7 +106,11 @@ export function parseImportCsv(content: string): ImportTransaction[] {
     transformHeader: (h) => h.trim(),
   });
   const rows = data.map((row): ImportTransaction => {
-    const amount = Number(row.amount);
+    // `Number("")` is 0 (finite), so a blank cell would otherwise survive
+    // validation and merge as a real $0 transaction. Map blank → NaN so the
+    // single non-finite-amount rule in `validateImportTransactions` drops it.
+    const raw = row.amount?.trim() ?? "";
+    const amount = raw === "" ? NaN : Number(raw);
     return {
       id: row.id ?? "",
       date: row.date ?? "",

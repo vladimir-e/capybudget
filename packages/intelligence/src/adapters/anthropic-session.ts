@@ -5,7 +5,7 @@ import { runTool, getToolDefinitions, SESSION_TOOL_CALL_BUDGET } from "../tools"
 import type { ApiAdapterOptions } from "../factory"
 import type { CapySession } from "../session"
 import type { ContentBlock, FileAttachment, MessageContent } from "../types"
-import { parseStructured } from "../structured"
+import { parseStructured, schemaBody } from "../structured"
 import type { JsonSchema, StructuredMessage, StructuredSession } from "../structured"
 
 const MAX_TOKENS = 8192
@@ -148,8 +148,10 @@ export class AnthropicSession implements CapySession, StructuredSession {
         content: toAnthropicUserContent(m.content),
       })),
       max_tokens: MAX_TOKENS,
+      // `output_config.format` enforces the schema unconditionally, so the
+      // OpenAI-only `strict` marker is dropped from the schema Anthropic sees.
       output_config: {
-        format: { type: "json_schema", schema: schema as Record<string, unknown> },
+        format: { type: "json_schema", schema: schemaBody(schema) },
       },
     })
 

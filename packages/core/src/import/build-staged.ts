@@ -11,12 +11,10 @@ export interface BuildStagedOptions {
 }
 
 /**
- * Turn intermediate {@link StagedRecord}s into staged {@link ImportTransaction}s.
- *
- * The single sink both normalization paths converge on. It owns the staging
- * invariants: sequential `imp-N` ids, the trim-45 `description`, sign
- * normalization (avoid `-0`), and empty resolved fields (merchant / accountId /
- * categoryId stay empty — those are History's and enrichment's job).
+ * Turn intermediate {@link StagedRecord}s into staged {@link ImportTransaction}s
+ * — the single sink both normalization paths converge on. Owns the staging
+ * invariants (sequential ids, trim-45 `description`, sign/type, empty resolved
+ * fields); see `specs/IMPORT.md` § Normalizing.
  */
 export function buildStaged(
   records: StagedRecord[],

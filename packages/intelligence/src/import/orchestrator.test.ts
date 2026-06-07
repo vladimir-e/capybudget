@@ -245,7 +245,7 @@ describe("ImportOrchestrator — no_data", () => {
       sources: [{ name: "selfie.png", content: "BASE64", mediaType: "image/png" }],
     });
     const session = new MockStructuredSession([
-      () => ({ error: "no_data", message: "This looks like a photo of a person." }),
+      () => ({ result: { error: "no_data", message: "This looks like a photo of a person." } }),
     ]);
     const { events, onEvent } = collect();
 
@@ -262,7 +262,7 @@ describe("ImportOrchestrator — no_data", () => {
     const staging = new MemoryStagingStore({
       sources: [{ name: "blank.png", content: "BASE64", mediaType: "image/png" }],
     });
-    const session = new MockStructuredSession([() => ({ rows: [] })]);
+    const session = new MockStructuredSession([() => ({ result: { rows: [] } })]);
     const { events, onEvent } = collect();
 
     await new ImportOrchestrator({ session, staging, budget: emptyBudget(), onEvent, concurrency: 1 }).start();
@@ -277,10 +277,12 @@ describe("ImportOrchestrator — no_data", () => {
     });
     const session = new MockStructuredSession([
       () => ({
-        rows: [
-          { date: "2026-01-05", amount: -1599, type: "expense", description: "Netflix", sourceAccount: "Checking", sourceCategory: "" },
-          { date: "2026-01-06", amount: -4200, type: "expense", description: "Shell", sourceAccount: "Checking", sourceCategory: "" },
-        ],
+        result: {
+          rows: [
+            { date: "2026-01-05", amount: -1599, type: "expense", description: "Netflix", sourceAccount: "Checking", sourceCategory: "" },
+            { date: "2026-01-06", amount: -4200, type: "expense", description: "Shell", sourceAccount: "Checking", sourceCategory: "" },
+          ],
+        },
       }),
       enrichResponder(),
     ]);
@@ -302,7 +304,7 @@ describe("ImportOrchestrator — no_data", () => {
       ],
     });
     const session = new MockStructuredSession([
-      () => ({ error: "no_data", message: "Just a selfie." }),
+      () => ({ result: { error: "no_data", message: "Just a selfie." } }),
       mapResponder,
       enrichResponder(),
     ]);

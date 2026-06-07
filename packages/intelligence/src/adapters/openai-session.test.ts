@@ -970,6 +970,38 @@ describe("OpenAiSession.structured", () => {
     expect(messages[0].role).toBe("system")
   })
 
+  it("sends strict on the json_schema wrapper, not inside the schema, for a strict schema", async () => {
+    queueStructured({ content: '{"ok": true}' })
+    const STRICT_SCHEMA = {
+      type: "object" as const,
+      additionalProperties: false,
+      strict: true,
+      properties: { ok: { type: "boolean" as const } },
+      required: ["ok"],
+    }
+
+    const { session } = makeSession()
+    await session.structured([{ role: "user", content: "x" }], STRICT_SCHEMA)
+
+    const rf = lastCreateCall().response_format as {
+      json_schema: { strict?: boolean; schema: Record<string, unknown> }
+    }
+    expect(rf.json_schema.strict).toBe(true)
+    // The marker is stripped from the schema OpenAI validates against.
+    expect(rf.json_schema.schema).not.toHaveProperty("strict")
+    expect(rf.json_schema.schema).toMatchObject({ additionalProperties: false })
+  })
+
+  it("omits strict from the wrapper for a non-strict schema", async () => {
+    queueStructured({ content: '{"ok": true}' })
+
+    const { session } = makeSession()
+    await session.structured([{ role: "user", content: "x" }], SCHEMA)
+
+    const rf = lastCreateCall().response_format as { json_schema: Record<string, unknown> }
+    expect(rf.json_schema).not.toHaveProperty("strict")
+  })
+
   it("forwards image content as image_url and degrades PDFs to a text note", async () => {
     queueStructured({ content: '{"ok": true}' })
 

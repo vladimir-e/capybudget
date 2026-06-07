@@ -1,13 +1,6 @@
 /**
- * The import orchestrator — a deterministic state machine that drives the
- * import pipeline.
- *
- * Code runs the four phases (Reading → Normalizing → History → Categorizing)
- * and emits every status line itself; the model is a stateless pure function
- * called at exactly two points (mapping/extraction, enrich batches). Nothing
- * here narrates in prose and nothing imports React — the engine is headless,
- * driven through {@link ImportOrchestrator}'s API and observed through the
- * {@link ImportEvent} stream.
+ * The import orchestrator state machine. See `specs/IMPORT.md` for the pipeline
+ * shape (phases, the two stateless model-call points, the headless contract).
  *
  * Resume, interrupt, and crash-recovery are one code path: all three leave
  * identical persisted state in `.capy/import/` and resume by re-running
@@ -35,9 +28,9 @@ import {
   type ImportEvent,
   type ImportEventHandler,
   type ImportErrorReason,
-  type ImportLogEntry,
   type ImportPhase,
   type LogLevel,
+  type TerminalLogEntry,
 } from "./events";
 import { isImageOrPdf, normalizeCsv, normalizeImage } from "./normalize";
 import type { StagingStore } from "./staging-store";
@@ -348,7 +341,7 @@ export class ImportOrchestrator {
   }
 
   private log(level: LogLevel, phase: ImportPhase, message: string): void {
-    const entry: ImportLogEntry = { ts: Date.now(), level, phase, message };
+    const entry: TerminalLogEntry = { ts: Date.now(), level, phase, message };
     this.emit({ type: "log", entry });
   }
 

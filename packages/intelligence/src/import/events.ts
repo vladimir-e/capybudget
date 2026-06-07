@@ -31,11 +31,11 @@ export const PIPELINE_PHASES: readonly ImportPhase[] = [
 export type LogLevel = "info" | "warn" | "error";
 
 /**
- * A timestamped terminal-log entry. The orchestrator emits these for the
+ * A timestamped terminal-log line. The orchestrator emits these for the
  * human-readable run record (the "terminal" pane). `phase` ties the line to a
  * section so the UI can group; `ts` is epoch millis for stable ordering.
  */
-export interface ImportLogEntry {
+export interface TerminalLogEntry {
   ts: number;
   level: LogLevel;
   phase: ImportPhase;
@@ -68,7 +68,7 @@ export interface BatchProgress {
 export type ImportEvent =
   | { type: "phase"; phase: ImportPhase }
   | { type: "status"; phase: ImportPhase; message: string }
-  | { type: "log"; entry: ImportLogEntry }
+  | { type: "log"; entry: TerminalLogEntry }
   | { type: "grounding"; stats: GroundingEventStats; message: string }
   | { type: "batch-progress"; progress: BatchProgress }
   | { type: "rows-changed" }

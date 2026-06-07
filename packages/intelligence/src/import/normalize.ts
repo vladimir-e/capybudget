@@ -25,7 +25,7 @@ import {
   CSV_MAPPING_SCHEMA,
   EXTRACTION_SCHEMA,
   type CsvMappingResult,
-  type ExtractionResult,
+  type ExtractionEnvelope,
 } from "./schemas";
 
 /** Rows sampled from the source CSV head and shown to the mapper. */
@@ -139,7 +139,12 @@ export async function normalizeImage(
     sourceBlock(source),
   ];
 
-  const result = await session.structured<ExtractionResult>([{ role: "user", content }], EXTRACTION_SCHEMA);
+  // EXTRACTION_SCHEMA wraps the discriminated outcome in `result` so its root is
+  // an object (OpenAI strict rejects a bare top-level anyOf) — unwrap it here.
+  const { result } = await session.structured<ExtractionEnvelope>(
+    [{ role: "user", content }],
+    EXTRACTION_SCHEMA,
+  );
 
   if ("error" in result) {
     return { rows: [], noData: { message: result.message } };
