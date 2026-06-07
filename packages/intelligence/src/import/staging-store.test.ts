@@ -22,9 +22,29 @@ describe("parseImportCsv", () => {
     expect(parsed[0]).toMatchObject({ id: "imp-1", amount: -100, merchant: "", categoryId: "", type: "expense", duplicate: false });
   });
 
-  it("coerces a corrupt amount to 0 rather than NaN", () => {
+  // The resume seam reads staging an earlier run, a crash, or a hand-edit
+  // wrote — none type-checked. Validation drops genuinely-broken rows so the
+  // orchestrator never enriches and merges a garbage row.
+  it("drops a row whose amount isn't a number", () => {
     const parsed = parseImportCsv("id,date,amount\nimp-1,2026-01-01,not-a-number");
+    expect(parsed).toHaveLength(0);
+  });
+
+  it("drops a row with a malformed date", () => {
+    const parsed = parseImportCsv("id,date,amount\nimp-1,March 1st,-100");
+    expect(parsed).toHaveLength(0);
+  });
+
+  it("keeps a deliberate zero-amount row", () => {
+    const parsed = parseImportCsv("id,date,amount\nimp-1,2026-01-01,0");
+    expect(parsed).toHaveLength(1);
     expect(parsed[0].amount).toBe(0);
+  });
+
+  it("backfills a missing id so the row can be matched back by id", () => {
+    const parsed = parseImportCsv("id,date,amount\n,2026-01-01,-100");
+    expect(parsed).toHaveLength(1);
+    expect(parsed[0].id).toBeTruthy();
   });
 });
 

@@ -86,18 +86,7 @@ describe("SYSTEM_PROMPT", () => {
     expect(SYSTEM_PROMPT).toContain("search_transactions");
   });
 
-  it("acknowledges the import-side read tools available in the chat session", () => {
-    expect(SYSTEM_PROMPT).toContain("read_import_file");
-    expect(SYSTEM_PROMPT).toContain("list_import_files");
-  });
-
-  it("does not promote the import-flow tools as chat actions", () => {
-    // The chat shouldn't initiate normalization or enrichment — those
-    // belong to the import screen's dedicated session. We still want to
-    // surface read-only awareness without prompting the model to drive
-    // the pipeline.
-    expect(SYSTEM_PROMPT).not.toContain("analyze_csv");
-    expect(SYSTEM_PROMPT).not.toContain("transform_csv");
-    expect(SYSTEM_PROMPT).not.toContain("auto_enrich");
+  it("routes attached files through the start_import on-ramp, not direct inserts", () => {
+    expect(SYSTEM_PROMPT).toContain("start_import");
   });
 });

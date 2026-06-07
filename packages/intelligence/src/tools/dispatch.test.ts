@@ -61,9 +61,8 @@ describe("isDispatchTool", () => {
     expect(isDispatchTool("render_anything")).toBe(true)
   })
 
-  it("recognizes import + csv + read_file tools", () => {
-    expect(isDispatchTool("read_import_file")).toBe(true)
-    expect(isDispatchTool("analyze_csv")).toBe(true)
+  it("recognizes the import on-ramp + read_file tools", () => {
+    expect(isDispatchTool("start_import")).toBe(true)
     expect(isDispatchTool("read_file")).toBe(true)
   })
 

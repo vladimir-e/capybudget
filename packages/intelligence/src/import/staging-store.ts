@@ -17,7 +17,12 @@
  */
 
 import Papa from "papaparse";
-import { serializeImportCsv, type ImportTransaction, type RowContext } from "@capybudget/core";
+import {
+  serializeImportCsv,
+  validateImportTransactions,
+  type ImportTransaction,
+  type RowContext,
+} from "@capybudget/core";
 import type { FileAdapter } from "@capybudget/persistence";
 import type { ImportPhase } from "./events";
 
@@ -86,20 +91,27 @@ export interface StagingStore {
 
 /** Parse a serialized `transactions.csv` back into typed rows. Mirrors
  *  `serializeImportCsv`'s columns; missing/extra columns degrade gracefully
- *  (empty string), so a hand-edited or partially-written file still loads. */
+ *  (empty string) so a hand-edited or partially-written file still loads.
+ *
+ *  This is the resume seam — it reads staging written by an earlier run, a
+ *  crash mid-write, or the user's own hand-edits, none of which the type
+ *  system guards. `validateImportTransactions` is the gate: it backfills a
+ *  missing id and drops rows with a malformed date/amount/type so the
+ *  orchestrator never enriches and merges a garbage row. Dropped rows are
+ *  warned, not swallowed silently. */
 export function parseImportCsv(content: string): ImportTransaction[] {
   const { data } = Papa.parse<Record<string, string>>(content, {
     header: true,
     skipEmptyLines: true,
     transformHeader: (h) => h.trim(),
   });
-  return data.map((row) => {
+  const rows = data.map((row): ImportTransaction => {
     const amount = Number(row.amount);
     return {
       id: row.id ?? "",
       date: row.date ?? "",
       description: row.description ?? "",
-      amount: Number.isFinite(amount) ? amount : 0,
+      amount: Number.isFinite(amount) ? amount : NaN,
       type: (row.type as ImportTransaction["type"]) || "expense",
       sourceAccount: row.sourceAccount ?? "",
       sourceCategory: row.sourceCategory ?? "",
@@ -111,6 +123,11 @@ export function parseImportCsv(content: string): ImportTransaction[] {
       duplicate: row.duplicate === "true",
     };
   });
+  const { valid, warnings } = validateImportTransactions(rows);
+  if (warnings.length > 0) {
+    console.warn(`[import] staging validation dropped/fixed rows:\n${warnings.join("\n")}`);
+  }
+  return valid;
 }
 
 const IMPORT_DIR_REL = ".capy/import";

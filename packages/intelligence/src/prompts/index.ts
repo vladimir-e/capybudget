@@ -1,21 +1,17 @@
 /**
- * Barrel module for the intelligence layer's three system prompts.
+ * Barrel module for the intelligence layer's chat system prompt.
  *
- * - `chat.ts` — Capy chat overlay (the conversational assistant)
- * - `import.ts` — Smart Import normalization step
- * - `enrich.ts` — Smart Import enrichment step
+ * `chat.ts` is the Capy chat overlay (the conversational assistant); it
+ * opens with the shared `APP_KNOWLEDGE` brief (`app-knowledge.ts`). The
+ * structured import session carries its own prompt (`import/system-prompt.ts`)
+ * and builds each call's payload inline, so it doesn't live here.
  *
- * All three open with the shared `APP_KNOWLEDGE` brief (`app-knowledge.ts`)
- * so each understands the app and its role from one source.
- *
- * `buildContext` from chat.ts is reused by the import flow to wrap kickoff
- * messages with the standard context header; `buildBudgetSnapshot` /
- * `BudgetSnapshot` let the app attach a data snapshot to the first message.
+ * `buildContext` wraps a chat turn with the standard context header;
+ * `buildBudgetSnapshot` / `BudgetSnapshot` let the app attach a data
+ * snapshot to the first message.
  */
 
 export { SYSTEM_PROMPT, buildContext } from "./chat"
-export { IMPORT_SYSTEM_PROMPT } from "./import"
-export { ENRICH_SYSTEM_PROMPT } from "./enrich"
 export { APP_KNOWLEDGE } from "./app-knowledge"
 export { buildBudgetSnapshot, formatBudgetSnapshot } from "./budget-snapshot"
 export type { BudgetSnapshot } from "./budget-snapshot"

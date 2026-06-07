@@ -440,62 +440,45 @@ describe("AnthropicSession", () => {
     expect(session.isAlive).toBe(false)
   })
 
-  it("walks an import session through analyze_csv → preview_transform → transform_csv", async () => {
+  it("walks a multi-turn tool loop, threading each result back to the model", async () => {
     queueTurn({
       toolUses: [
-        { id: "tu-analyze", name: "analyze_csv", input: { filename: "2024.csv" } },
+        { id: "tu-search", name: "search_transactions", input: { query: "Apple" } },
       ],
       stop_reason: "tool_use",
     })
     queueTurn({
       toolUses: [
         {
-          id: "tu-preview",
-          name: "preview_transform",
-          input: { filename: "2024.csv", mapping: { kind: "stub" } },
+          id: "tu-group",
+          name: "group_transactions",
+          input: { groupBy: ["merchant"], metrics: ["sum"] },
         },
       ],
       stop_reason: "tool_use",
     })
     queueTurn({
-      toolUses: [
-        {
-          id: "tu-transform",
-          name: "transform_csv",
-          input: { filename: "2024.csv", mapping: { kind: "stub" } },
-        },
-      ],
-      stop_reason: "tool_use",
-    })
-    queueTurn({
-      textDeltas: ["Done — 42 rows imported."],
+      textDeltas: ["You spent $312 across 8 Apple charges."],
       stop_reason: "end_turn",
     })
 
     mockRunTool
-      .mockResolvedValueOnce(JSON.stringify({ headers: ["Date"], totalRows: 42 }))
-      .mockResolvedValueOnce(JSON.stringify({ transactions: [{ id: "imp-1" }] }))
-      .mockResolvedValueOnce(JSON.stringify({ success: true, stats: { rows: 42 } }))
+      .mockResolvedValueOnce(JSON.stringify({ rows: [{ id: "t-1" }] }))
+      .mockResolvedValueOnce(JSON.stringify({ groups: [{ key: "Apple", sum: -31200 }] }))
 
     const { session, events } = makeSession()
-    await session.send("Process this file.")
+    await session.send("How much have I spent at Apple?")
 
     expect(mockRunTool).toHaveBeenNthCalledWith(
       1,
-      "analyze_csv",
-      { filename: "2024.csv" },
+      "search_transactions",
+      { query: "Apple" },
       expect.objectContaining({ budgetPath: "/budget" }),
     )
     expect(mockRunTool).toHaveBeenNthCalledWith(
       2,
-      "preview_transform",
-      expect.objectContaining({ filename: "2024.csv" }),
-      expect.objectContaining({ budgetPath: "/budget" }),
-    )
-    expect(mockRunTool).toHaveBeenNthCalledWith(
-      3,
-      "transform_csv",
-      expect.objectContaining({ filename: "2024.csv" }),
+      "group_transactions",
+      expect.objectContaining({ groupBy: ["merchant"] }),
       expect.objectContaining({ budgetPath: "/budget" }),
     )
 
@@ -839,7 +822,7 @@ describe("AnthropicSession", () => {
 })
 
 describe("AnthropicSession tool gating", () => {
-  async function toolNamesFor(mode: "chat" | "import"): Promise<string[]> {
+  async function toolNamesFor(mode: "chat" | "import" = "chat"): Promise<string[]> {
     const { session } = makeSession(mode)
     queueTurn({ textDeltas: ["ok"], stop_reason: "end_turn" })
     await session.send("hi")
@@ -847,7 +830,7 @@ describe("AnthropicSession tool gating", () => {
     return tools.map((t) => t.name)
   }
 
-  it("chat sends only chat-mode tools — render tools in, import/csv tools out", async () => {
+  it("chat sends its full tool surface — render + data + the import on-ramp", async () => {
     const names = await toolNamesFor("chat")
     expect(names).toContain("render_table")
     expect(names).toContain("render_chart")
@@ -857,30 +840,7 @@ describe("AnthropicSession tool gating", () => {
     expect(names).toContain("group_transactions")
     expect(names).toContain("create_transaction")
     expect(names).toContain("start_import")
-    expect(names).not.toContain("analyze_csv")
-    expect(names).not.toContain("transform_csv")
-    expect(names).not.toContain("enrich_update")
-    expect(names).not.toContain("write_import_file")
-    expect(names).toHaveLength(23)
-  })
-
-  it("import sends only import-mode tools — csv/enrich in, render/CRUD out", async () => {
-    const names = await toolNamesFor("import")
-    expect(names).toContain("analyze_csv")
-    expect(names).toContain("transform_csv")
-    expect(names).toContain("enrich_update")
-    expect(names).toContain("write_import_file")
-    expect(names).not.toContain("render_table")
-    expect(names).not.toContain("render_chart")
-    expect(names).not.toContain("render_followups")
-    expect(names).not.toContain("create_transaction")
-    expect(names).not.toContain("list_transactions")
-    expect(names).toHaveLength(16)
-  })
-
-  it("keeps search_transactions in both modes (both prompts advertise it)", async () => {
-    expect(await toolNamesFor("chat")).toContain("search_transactions")
-    expect(await toolNamesFor("import")).toContain("search_transactions")
+    expect(names).toHaveLength(21)
   })
 })
 

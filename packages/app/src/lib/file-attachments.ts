@@ -51,6 +51,16 @@ export function isPdfFilename(name: string): boolean {
   return fileExt(name) === ".pdf"
 }
 
+/**
+ * Whether an import source must be staged as base64 rather than UTF-8 text.
+ * Images and PDFs are binary; the staging store's `content` channel carries
+ * them as base64 text (matching what the model is handed), so the drop path
+ * must encode them — writing raw bytes corrupts the round-trip.
+ */
+export function isImportBinaryFile(file: File): boolean {
+  return isImageFile(file) || file.type === "application/pdf" || isPdfFilename(file.name)
+}
+
 /** MIME type for an image filename, defaulting to image/png for unknown extensions. */
 export function imageMimeForFilename(name: string): string {
   return IMAGE_MIME_BY_EXT[fileExt(name)] ?? "image/png"

@@ -370,8 +370,8 @@ export async function handleBulkUpdateTransactions(
 
   await repo.saveTransactions(transactions)
 
-  // Summary mirrors the enrich_update voice: tell the model exactly what
-  // happened per field so it doesn't re-issue the same call.
+  // Report exactly what changed per field so the model doesn't re-issue the
+  // same call.
   const parts: string[] = []
   if (categoryId !== undefined) parts.push(`category on ${counts.categoryId}`)
   if (accountId !== undefined) parts.push(`account on ${counts.accountId}`)

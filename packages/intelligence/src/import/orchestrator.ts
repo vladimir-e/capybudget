@@ -1,6 +1,6 @@
 /**
- * The import orchestrator — a deterministic state machine that replaces the
- * import + enrich agent loops.
+ * The import orchestrator — a deterministic state machine that drives the
+ * import pipeline.
  *
  * Code runs the four phases (Reading → Normalizing → History → Categorizing)
  * and emits every status line itself; the model is a stateless pure function

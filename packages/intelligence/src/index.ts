@@ -55,12 +55,10 @@ export type {
   ApiAdapterOptions,
 } from "./factory"
 
-// Prompts (chat / import / enrich) + shared budget snapshot
+// Chat prompt + shared budget snapshot
 export {
   SYSTEM_PROMPT,
   buildContext,
-  IMPORT_SYSTEM_PROMPT,
-  ENRICH_SYSTEM_PROMPT,
   APP_KNOWLEDGE,
   buildBudgetSnapshot,
   formatBudgetSnapshot,
@@ -85,7 +83,6 @@ export {
   DATA_TOOL_DEFS,
   MUTATION_TOOL_DEFS,
   IMPORT_TOOL_DEFS,
-  CSV_TOOL_DEFS,
   READ_FILE_TOOL_DEF,
   READ_SPEC_TOOL_DEF,
   RENDER_TOOL_DEFS,
@@ -109,17 +106,6 @@ export {
   handleCreateCategory,
   handleUpdateCategory,
   handleDeleteCategory,
-  handleReadImportFile,
-  handleWriteImportFile,
-  handleAppendImportFile,
-  handleListImportFiles,
-  handleAnalyzeCsv,
-  handlePreviewTransform,
-  handleTransformCsv,
-  handleAutoEnrich,
-  handleEnrichStats,
-  handleEnrichSample,
-  handleEnrichUpdate,
   handleReadFile,
   handleReadSpec,
 } from "./tools"

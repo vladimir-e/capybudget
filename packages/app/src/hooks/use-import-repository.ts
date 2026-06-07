@@ -2,7 +2,6 @@ import { useCallback, useMemo } from "react";
 import {
   readTextFile,
   writeTextFile,
-  writeFile,
   readDir,
   remove,
   mkdir,
@@ -47,16 +46,13 @@ export function useImportRepository(budgetPath: string) {
 
   // ── Source file management ───────────────────────────────────
 
-  /** Write a source file to sources/. Text content as string, binary (images) as bytes. */
+  /** Write a source file to sources/. Content is text the way the staging store
+   *  carries it — UTF-8 for CSV, base64 for images/PDFs — so it round-trips
+   *  through `FileStagingStore.listSources` unchanged. */
   const writeSourceFile = useCallback(
-    async (filename: string, content: string | Uint8Array) => {
+    async (filename: string, content: string) => {
       await ensureSourcesDir();
-      const path = await resolveSourcePath(filename);
-      if (typeof content === "string") {
-        await writeTextFile(path, content);
-      } else {
-        await writeFile(path, content);
-      }
+      await writeTextFile(await resolveSourcePath(filename), content);
     },
     [ensureSourcesDir, resolveSourcePath],
   );

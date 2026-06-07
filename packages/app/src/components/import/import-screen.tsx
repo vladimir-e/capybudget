@@ -26,7 +26,9 @@ import { useImportInstructions } from "@/hooks/use-custom-instructions";
 import { useAccounts } from "@/hooks/use-budget-data";
 import {
   isImageFile,
+  isImportBinaryFile,
   isImportTextFile,
+  readFileAsBase64,
 } from "@/lib/file-attachments";
 import { ImportDropZone } from "./import-drop-zone";
 import { ImportProgress } from "./import-progress";
@@ -208,12 +210,14 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
         }
         setUploadingFiles((prev) => new Set(prev).add(file.name));
         try {
-          if (isImage) {
-            const buffer = await file.arrayBuffer();
-            await repository.writeSourceFile(file.name, new Uint8Array(buffer));
-          } else {
-            await repository.writeSourceFile(file.name, await file.text());
-          }
+          // Binary sources (images, PDFs) stage as base64 text — the staging
+          // store reads `content` back as text and hands it to the model as
+          // base64, so writing raw bytes here corrupts the round-trip. This
+          // matches the chat on-ramp, which stages attachments base64-as-text.
+          const content = isImportBinaryFile(file)
+            ? await readFileAsBase64(file)
+            : await file.text();
+          await repository.writeSourceFile(file.name, content);
         } catch (err) {
           toast.error(`Failed to save ${file.name}`);
           console.error("[import] write source file failed:", err);
