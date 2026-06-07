@@ -125,6 +125,18 @@ function similarity(query: MatchQuery, cand: Candidate): number {
   if (query.key === cand.key) return 1;
   const tokenSim = jaccard(query.tokens, cand.tokens);
   const triSim = dice(query.trigrams, cand.trigrams);
+
+  // Single-token queries sit right at the 0.5 boundary (`uber` vs `uber eats`),
+  // where trigram-only overlap can coincidentally clear threshold against an
+  // unrelated longer merchant. Require the lone token to actually appear as a
+  // whole token in the candidate before trusting the trigram channel — this
+  // tightens precision without lowering recall on the real same-vendor case
+  // (the token IS present there). Known precision/recall tradeoff lives here.
+  if (query.tokens.size === 1) {
+    const [only] = query.tokens;
+    if (!cand.tokens.has(only)) return tokenSim;
+  }
+
   // Token overlap is the stronger signal (whole-word merchant identity);
   // trigrams rescue near-spellings and concatenations. Take the max so either
   // channel can carry a confident match on its own.

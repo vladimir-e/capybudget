@@ -55,6 +55,16 @@ describe("buildStaged", () => {
       const [t] = buildStaged([record({ description: exact })]);
       expect(t.description).toBe(exact);
     });
+
+    it("does not split a surrogate pair at the cap boundary", () => {
+      // 44 ASCII + one astral emoji = the 45th code point spans two UTF-16 units.
+      const desc = "y".repeat(DESCRIPTION_MAX_LENGTH - 1) + "🎉";
+      const [t] = buildStaged([record({ description: desc })]);
+      expect([...t.description]).toHaveLength(DESCRIPTION_MAX_LENGTH);
+      expect(t.description.endsWith("🎉")).toBe(true);
+      // No lone surrogate (a naive slice(0,45) would leave half the emoji).
+      expect(t.description).not.toMatch(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])/);
+    });
   });
 
   describe("sign / type normalization", () => {

@@ -40,5 +40,10 @@ export function buildStaged(
 }
 
 function trimDescription(raw: string): string {
-  return raw.trim().slice(0, DESCRIPTION_MAX_LENGTH);
+  const trimmed = raw.trim();
+  // Slice by code point, not UTF-16 unit, so an astral char (emoji, some CJK)
+  // at the boundary is never split into a lone surrogate.
+  const codePoints = [...trimmed];
+  if (codePoints.length <= DESCRIPTION_MAX_LENGTH) return trimmed;
+  return codePoints.slice(0, DESCRIPTION_MAX_LENGTH).join("");
 }

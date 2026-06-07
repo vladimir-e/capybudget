@@ -101,4 +101,42 @@ describe("HistoryIndex", () => {
     expect(matches[0].txn.id).toBe("dup");
     expect(matches[0].source).toBe("merchant");
   });
+
+  describe("processor-prefixed rows match clean-merchant history", () => {
+    it("'CHECK CARD PURCHASE NETFLIX' matches Netflix history", () => {
+      const index = new HistoryIndex([makeTransaction({ merchant: "Netflix" })]);
+      const matches = index.match(buildMatchQuery("CHECK CARD PURCHASE NETFLIX"));
+      expect(matches.length).toBe(1);
+      expect(matches[0].txn.merchant).toBe("Netflix");
+    });
+
+    it("'SQ *COFFEE BAR' matches Coffee Bar history", () => {
+      const index = new HistoryIndex([makeTransaction({ merchant: "Coffee Bar" })]);
+      const matches = index.match(buildMatchQuery("SQ *COFFEE BAR"));
+      expect(matches.length).toBe(1);
+      expect(matches[0].txn.merchant).toBe("Coffee Bar");
+    });
+
+    it("'TST* RESTAURANT' matches Restaurant history", () => {
+      const index = new HistoryIndex([makeTransaction({ merchant: "Restaurant" })]);
+      const matches = index.match(buildMatchQuery("TST* RESTAURANT"));
+      expect(matches.length).toBe(1);
+      expect(matches[0].txn.merchant).toBe("Restaurant");
+    });
+  });
+
+  describe("single-token query precision", () => {
+    it("a single-token query matches a multi-token merchant containing it", () => {
+      const index = new HistoryIndex([makeTransaction({ merchant: "Uber Eats" })]);
+      const matches = index.match(buildMatchQuery("Uber"));
+      expect(matches.length).toBe(1);
+    });
+
+    it("a single-token query does not trigram-match an unrelated longer merchant", () => {
+      // "uber" shares trigrams with "tuber farm" but is not a whole token there.
+      const index = new HistoryIndex([makeTransaction({ merchant: "Tuber Farm Supply" })]);
+      const matches = index.match(buildMatchQuery("Uber"));
+      expect(matches).toEqual([]);
+    });
+  });
 });

@@ -330,6 +330,41 @@ describe("groundImport — duplicate folding", () => {
     );
     expect(results.get("r1")!.duplicate).toBe(true);
   });
+
+  it("keeps the fast-pathed category when the matched dup has an empty categoryId", () => {
+    // Row fast-paths to Ginger/cat-rent from history, then matches a duplicate
+    // existing txn that itself is uncategorized. The dup flag must not clobber
+    // the category code already resolved. 4 categorized + 1 uncategorized dup =
+    // 80% agreement, so the row still fast-paths before dedup runs.
+    const history = [
+      ...historyFor("Ginger", "cat-rent", 4),
+      makeTransaction({
+        id: "ex-dup",
+        merchant: "Ginger",
+        note: "GINGER",
+        categoryId: "", // uncategorized existing transaction
+        accountId: "acct-checking",
+        amount: -150000,
+        datetime: "2026-02-15T00:00:00.000",
+      }),
+    ];
+    const row = makeImportTransaction({
+      id: "r1",
+      description: "GINGER 0421",
+      amount: -150000,
+      date: "2026-02-15",
+      sourceAccount: "Chase Checking",
+    });
+    const { results } = groundImport(
+      input({ rows: [row], history, accounts: [CHECKING], categories: [GROCERIES, RENT, DINING] }),
+    );
+
+    const r = results.get("r1")!;
+    expect(r.duplicate).toBe(true);
+    expect(r.categoryId).toBe("cat-rent"); // fast-path category survives
+    expect(r.categoryConfidence).toBe("high"); // and its confidence
+    expect(r.merchant).toBe("Ginger");
+  });
 });
 
 // ── Stats ────────────────────────────────────────────────────────

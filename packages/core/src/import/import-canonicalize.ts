@@ -3,12 +3,73 @@
  *
  * The stored `description` (trim-45) is the readable form; matching runs on a
  * separate *match key* derived from it — lowercased, whitespace-collapsed, with
- * trailing reference-number noise stripped. New rows and historical merchant /
- * note text normalize through the same function, which is the whole point:
- * trimmed-vs-trimmed, normalized-vs-normalized, so signal lines up.
+ * leading processor prefixes and trailing reference-number noise stripped. New
+ * rows and historical merchant / note text normalize through the same function,
+ * which is the whole point: trimmed-vs-trimmed, normalized-vs-normalized, so
+ * signal lines up.
  */
 
 const EMOJI_RE = /[\p{Emoji_Presentation}\p{Extended_Pictographic}]/gu;
+
+/**
+ * Well-known leading processor prefixes that dilute the match against clean
+ * history merchants. A real export reads `CHECK CARD PURCHASE NETFLIX`; clean
+ * history reads `Netflix`. Without stripping, the prefix tokens drag token
+ * overlap below threshold and the row misses.
+ *
+ * Two shapes: word prefixes (peeled with their following separator) and
+ * gateway tags like `SQ *` / `TST*` / `PAYPAL *` (the `*` is the tell). Only
+ * conservative, well-known prefixes — never a guess that could be a merchant.
+ */
+const LEADING_WORD_PREFIXES = [
+  "purchase authorized on",
+  "recurring payment authorized on",
+  "debit card purchase",
+  "credit card purchase",
+  "check card purchase",
+  "checkcard",
+  "pos debit",
+  "pos purchase",
+  "pos",
+  "ach debit",
+  "ach credit",
+  "debit purchase",
+  "point of sale",
+  "preauthorized",
+  "purchase",
+];
+
+/**
+ * Strip leading processor prefixes and gateway tags. Symmetric to the trailing
+ * strip and guarded the same way — the caller falls back to the unstripped form
+ * if this empties the string, so a real single-merchant name is never lost.
+ */
+function stripLeadingProcessorPrefix(s: string): string {
+  let out = s;
+  let prev: string;
+  do {
+    prev = out;
+    // Gateway tag: a short code glued to `*` (SQ *, TST*, PAYPAL *). The `*` is
+    // the tell — a real merchant name is not a <=6-char token bound to a star.
+    out = out.replace(/^[a-z0-9]{2,6}\s*\*\s*/iu, "");
+    for (const prefix of LEADING_WORD_PREFIXES) {
+      if (out.startsWith(prefix)) {
+        const rest = out.slice(prefix.length);
+        // Only a prefix if a separator follows — never bite into a merchant
+        // whose name merely starts with one of these words.
+        if (rest === "" || /^[\s,;:*-]/u.test(rest)) {
+          out = rest.replace(/^[\s,;:*-]+/u, "");
+          break;
+        }
+      }
+    }
+    // A leading date that still has a merchant after it ("03/15 spotify" left by
+    // "purchase authorized on 03/15 spotify"). Only when more text follows.
+    out = out.replace(/^\d{1,4}[/.-]\d{1,2}(?:[/.-]\d{1,4})?(?=\s)\s*/u, "");
+    out = out.trim();
+  } while (out !== prev && out.length > 0);
+  return out;
+}
 
 /**
  * Strip trailing reference-number noise: confirmation codes, auth numbers, card
@@ -44,10 +105,15 @@ function stripTrailingReferenceNoise(s: string): string {
 export function canonicalizeMatchKey(raw: string): string {
   const lowered = raw.replace(EMOJI_RE, "").toLowerCase();
   const collapsed = lowered.replace(/\s+/g, " ").trim();
-  const stripped = stripTrailingReferenceNoise(collapsed);
-  // If stripping ate everything (the whole string was reference noise), fall
-  // back to the collapsed form — a key is better than nothing.
-  return stripped.length > 0 ? stripped : collapsed;
+
+  const deprefixed = stripLeadingProcessorPrefix(collapsed);
+  // If a prefix strip empties the string, the whole thing was a prefix — keep
+  // the collapsed form rather than lose the only signal.
+  const base = deprefixed.length > 0 ? deprefixed : collapsed;
+
+  const stripped = stripTrailingReferenceNoise(base);
+  // Same guard for trailing noise that consumed everything.
+  return stripped.length > 0 ? stripped : base;
 }
 
 /** Significant tokens of a match key — alphanumerics, length >= 2. */

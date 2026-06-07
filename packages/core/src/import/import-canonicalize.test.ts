@@ -31,11 +31,11 @@ describe("canonicalizeMatchKey", () => {
     expect(canonicalizeMatchKey("7-Eleven")).toBe("7-eleven");
   });
 
-  it("the same merchant with different trailing ref numbers canonicalizes identically", () => {
+  it("strips leading + trailing noise, keeping the merchant in the middle", () => {
     const a = canonicalizeMatchKey("CHECKCARD GINGER AUTH 11122");
     const b = canonicalizeMatchKey("CHECKCARD GINGER AUTH 99887");
     expect(a).toBe(b);
-    expect(a).toBe("checkcard ginger");
+    expect(a).toBe("ginger");
   });
 
   it("falls back to the collapsed form when stripping eats everything", () => {
@@ -43,8 +43,51 @@ describe("canonicalizeMatchKey", () => {
   });
 
   it("is idempotent — canonicalizing a key again is a no-op", () => {
-    const once = canonicalizeMatchKey("WHOLE FOODS #10234567");
+    const once = canonicalizeMatchKey("CHECK CARD PURCHASE NETFLIX #10234567");
     expect(canonicalizeMatchKey(once)).toBe(once);
+  });
+
+  describe("leading processor-prefix stripping", () => {
+    it("strips 'CHECK CARD PURCHASE'", () => {
+      expect(canonicalizeMatchKey("CHECK CARD PURCHASE NETFLIX")).toBe("netflix");
+    });
+
+    it("strips 'POS DEBIT'", () => {
+      expect(canonicalizeMatchKey("POS DEBIT WHOLE FOODS")).toBe("whole foods");
+    });
+
+    it("strips 'DEBIT CARD PURCHASE'", () => {
+      expect(canonicalizeMatchKey("DEBIT CARD PURCHASE TRADER JOES")).toBe("trader joes");
+    });
+
+    it("strips 'PURCHASE AUTHORIZED ON'", () => {
+      expect(canonicalizeMatchKey("PURCHASE AUTHORIZED ON 03/15 SPOTIFY")).toBe("spotify");
+    });
+
+    it("strips a 'SQ *' gateway tag", () => {
+      expect(canonicalizeMatchKey("SQ *COFFEE")).toBe("coffee");
+    });
+
+    it("strips a 'TST*' gateway tag", () => {
+      expect(canonicalizeMatchKey("TST* RESTAURANT")).toBe("restaurant");
+    });
+
+    it("strips a 'PAYPAL *' gateway tag", () => {
+      expect(canonicalizeMatchKey("PAYPAL *STEAM GAMES")).toBe("steam games");
+    });
+
+    it("does not bite into a merchant whose name starts with a prefix word", () => {
+      // "Purchasing Power" is a real merchant — the word boundary check protects it.
+      expect(canonicalizeMatchKey("Purchasing Power")).toBe("purchasing power");
+    });
+
+    it("falls back when the whole string is a prefix", () => {
+      expect(canonicalizeMatchKey("POS DEBIT")).toBe("pos debit");
+    });
+
+    it("strips both a prefix and trailing ref noise together", () => {
+      expect(canonicalizeMatchKey("POS DEBIT NETFLIX.COM AUTH 998877")).toBe("netflix.com");
+    });
   });
 });
 
