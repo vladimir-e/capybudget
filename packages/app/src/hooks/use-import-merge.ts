@@ -33,9 +33,10 @@ export function useImportMerge(budgetPath: string) {
       const prevTxns =
         queryClient.getQueryData<Transaction[]>(budgetKeys.transactions()) ?? [];
 
-      // Read source file names saved at import start
-      const state = await importRepo.readState();
-      const sourceFileNames = state.sourceFiles ?? [];
+      // Source filenames come from the staging sources directory — the files
+      // are physically there until merge clears them, so the listing is the
+      // source of truth (the orchestrator owns state.json's phase shape).
+      const sourceFileNames = (await importRepo.listSourceFiles()).map((f) => f.name);
 
       // Load existing aliases
       const existingAliases = await importRepo.readAliases();

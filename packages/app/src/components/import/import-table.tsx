@@ -11,7 +11,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { EmptyState } from "@/components/ui/empty-state";
 import { CategorySelector } from "@/components/budget/category-selector";
 import { AccountSelector } from "@/components/budget/account-selector";
-import type { ImportTransaction, DuplicateMatch } from "@capybudget/core";
+import type { ImportTransaction } from "@capybudget/core";
 import type { Category, Account } from "@capybudget/core";
 import { formatMoney, formatDateLabel } from "@capybudget/core";
 import {
@@ -48,7 +48,7 @@ interface ImportTableProps {
   categories: Category[];
   accounts: Account[];
   accountMapping: Record<string, string>;
-  duplicates: Map<string, DuplicateMatch>;
+  duplicateIds: Set<string>;
 }
 
 function defaultDirection(column: ImportSortColumn): "asc" | "desc" {
@@ -128,7 +128,7 @@ export function ImportTable({
   categories,
   accounts,
   accountMapping,
-  duplicates,
+  duplicateIds,
 }: ImportTableProps) {
   const [editingCell, setEditingCell] = useState<{
     rowId: string;
@@ -210,11 +210,11 @@ export function ImportTable({
       <TableBody>
         {transactions.map((txn, i) => {
           const isSelected = selectedIds.has(txn.id);
-          const dup = duplicates.get(txn.id);
+          const isDuplicate = duplicateIds.has(txn.id);
           const activeCol =
             editingCell?.rowId === txn.id ? editingCell.column : null;
 
-          const rowBg = dup && !isSelected
+          const rowBg = isDuplicate && !isSelected
             ? "bg-blue-500/5 opacity-60"
             : isSelected
               ? i % 2 === 0
@@ -241,11 +241,9 @@ export function ImportTable({
                     onCheckedChange={() => onToggleSelect(txn.id, false)}
                     aria-label="Include transaction"
                   />
-                  {dup && (
-                    <span title={`Possible duplicate (${dup.confidence} confidence)`}>
-                      <Copy
-                        className={`h-3 w-3 shrink-0 ${dup.confidence === "high" ? "text-blue-500" : "text-blue-400/60"}`}
-                      />
+                  {isDuplicate && (
+                    <span title="Duplicate of an existing transaction">
+                      <Copy className="h-3 w-3 shrink-0 text-blue-500" />
                     </span>
                   )}
                 </div>

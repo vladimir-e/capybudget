@@ -56,3 +56,4 @@ export type {
 // Structured session factory + capability gate
 export { createStructuredImportSession, canImport } from "./session-factory";
 export type { StructuredImportSessionDeps } from "./session-factory";
+export { IMPORT_STRUCTURED_SYSTEM_PROMPT } from "./system-prompt";

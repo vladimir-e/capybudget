@@ -143,6 +143,7 @@ export {
   ENRICH_BATCH_SCHEMA,
   createStructuredImportSession,
   canImport,
+  IMPORT_STRUCTURED_SYSTEM_PROMPT,
 } from "./import"
 export type {
   OrchestratorDeps,

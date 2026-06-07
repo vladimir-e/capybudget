@@ -1,28 +1,35 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useAccounts, useCategories, useTransactions } from "@/hooks/use-budget-data";
+import { useAccounts, useCategories } from "@/hooks/use-budget-data";
 import { useImportRepository } from "@/hooks/use-import-repository";
-import { detectDuplicates, matchAccountsByName } from "@capybudget/core";
-import type { ImportTransaction, ImportAliases, DuplicateMatch } from "@capybudget/core";
+import { matchAccountsByName } from "@capybudget/core";
+import { needsEnrich, type StagingStore } from "@capybudget/intelligence";
+import type { ImportTransaction, ImportAliases } from "@capybudget/core";
 import type { EntityMapping } from "@/components/import/import-mapping";
 
 /**
- * Owns the import preview data lifecycle:
- * - Loads CSV on mount (via repository, with validation)
- * - Validates categories, applies alias overlay
- * - Manages transaction state + debounced write-back
- * - Manages account mapping with batch accountId updates
- * - Checks state.json enriched flag for auto-enrich trigger
+ * Owns the import preview's data lifecycle against disk staging.
+ *
+ * Staging (`.capy/import/transactions.csv`) is the source of truth — the same
+ * file the orchestrator writes per batch. This hook reads it through the shared
+ * {@link StagingStore} (so the persisted `duplicate` flag round-trips), reloads
+ * it whenever `rowsVersion` ticks (live fill during a run), validates category
+ * ids against the budget, resolves the account mapping, and debounces hand-edit
+ * write-back. It holds no enrichment logic — the orchestrator owns that; the
+ * preview only reflects what's on disk and lets the user correct it.
+ *
+ * `rowsVersion` is the orchestrator's `rows-changed` counter from the store; a
+ * bump means a batch landed, so we re-read. Edits the user makes while a run is
+ * in flight are debounced to disk; the next reload merges them with landed rows
+ * because the orchestrator only fills *empty* fields (idempotent by `needsEnrich`).
  */
-export function useImportData(budgetPath: string) {
+export function useImportData(budgetPath: string, staging: StagingStore, rowsVersion: number) {
   const [transactions, setTransactions] = useState<ImportTransaction[]>([]);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [accountMapping, setAccountMapping] = useState<EntityMapping>({});
   const [loading, setLoading] = useState(true);
-  const [needsEnrichment, setNeedsEnrichment] = useState(false);
 
   const { data: accounts = [] } = useAccounts();
   const { data: categories = [] } = useCategories();
-  const { data: existingTransactions = [] } = useTransactions();
 
   const repository = useImportRepository(budgetPath);
 
@@ -33,110 +40,87 @@ export function useImportData(budgetPath: string) {
 
   const writeBack = useCallback(async () => {
     try {
-      await repository.writeTransactionsCsv(transactionsRef.current);
+      await staging.writeTransactions(transactionsRef.current);
     } catch (err) {
-      console.error("Failed to write import CSV:", err);
+      console.error("[import] write staging failed:", err);
     }
-  }, [repository]);
+  }, [staging]);
 
   const scheduleWriteBack = useCallback(() => {
     if (writeTimerRef.current) clearTimeout(writeTimerRef.current);
     writeTimerRef.current = setTimeout(writeBack, 500);
   }, [writeBack]);
 
-  // ── Flush pending write on unmount ───────────────────────────
-  useEffect(() => {
-    return () => {
-      if (writeTimerRef.current) {
-        clearTimeout(writeTimerRef.current);
-        writeBack();
-      }
-    };
+  const flushWriteBack = useCallback(async () => {
+    if (writeTimerRef.current) {
+      clearTimeout(writeTimerRef.current);
+      writeTimerRef.current = null;
+      await writeBack();
+    }
   }, [writeBack]);
 
-  // ── Load CSV on mount ────────────────────────────────────────
-  const [loadGeneration, setLoadGeneration] = useState(0);
+  useEffect(() => () => { void flushWriteBack(); }, [flushWriteBack]);
+
+  // ── Load staging ─────────────────────────────────────────────
   const loadCsv = useCallback(async () => {
-    try {
-      const parsed = await repository.readTransactionsCsv();
-      setTransactions(parsed);
-      setSelectedIds(new Set(parsed.map((t) => t.id)));
-      setLoadGeneration((g) => g + 1);
-      setLoading(false);
-    } catch {
-      setLoading(false);
-    }
-  }, [repository]);
+    const rows = (await staging.readTransactions()) ?? [];
+    setTransactions(rows);
+    setSelectedIds(new Set(rows.filter((r) => !r.duplicate).map((r) => r.id)));
+    setLoading(false);
+  }, [staging]);
 
+  // Reload on mount and whenever a batch lands (rowsVersion bump). A pending
+  // hand-edit is flushed first so the reload doesn't clobber it.
   useEffect(() => {
     let cancelled = false;
-    async function load() {
-      await loadCsv();
+    async function reload() {
+      await flushWriteBack();
       if (cancelled) return;
+      await loadCsv();
     }
-    load();
+    void reload();
     return () => { cancelled = true; };
-  }, [loadCsv]);
+  }, [loadCsv, flushWriteBack, rowsVersion]);
 
-  // ── Check enrichment flag from state.json ────────────────────
+  // ── Category validation + account mapping ────────────────────
+  const mappingAppliedRef = useRef(false);
   useEffect(() => {
-    if (loading || transactions.length === 0) return;
-    let cancelled = false;
-    async function checkEnriched() {
-      const state = await repository.readState();
-      if (!cancelled && !state.enriched) {
-        setNeedsEnrichment(true);
-      }
-    }
-    checkEnriched();
-    return () => { cancelled = true; };
-  }, [loading, transactions.length, repository]);
-
-  const markEnriched = useCallback(async () => {
-    setNeedsEnrichment(false);
-    const state = await repository.readState();
-    await repository.writeState({ ...state, enriched: true });
-  }, [repository]);
-
-  // ── Category validation + alias overlay ──────────────────────
-  const aliasesAppliedRef = useRef(false);
-  useEffect(() => {
-    if (aliasesAppliedRef.current || transactions.length === 0 || accounts.length === 0 || categories.length === 0) return;
-    aliasesAppliedRef.current = true;
+    if (mappingAppliedRef.current || transactions.length === 0 || accounts.length === 0) return;
+    mappingAppliedRef.current = true;
 
     async function applyMappings() {
       const accountIds = new Set(accounts.map((a) => a.id));
       const categoryIds = new Set(categories.map((c) => c.id));
 
-      // 1. Derive initial account mapping from AI-set accountId values
+      // 1. Account mapping the engine already resolved onto each row.
       const aiMapping: EntityMapping = {};
       for (const txn of transactions) {
-        if (txn.sourceAccount && !aiMapping[txn.sourceAccount] && txn.accountId) {
-          if (accountIds.has(txn.accountId)) {
-            aiMapping[txn.sourceAccount] = txn.accountId;
-          }
+        if (txn.sourceAccount && !aiMapping[txn.sourceAccount] && txn.accountId && accountIds.has(txn.accountId)) {
+          aiMapping[txn.sourceAccount] = txn.accountId;
         }
       }
 
-      // 2. Direct name match — sourceAccount against existing account names
+      // 2. Direct name match — sourceAccount against existing account names.
       const sourceAccountNames = [...new Set(transactions.map((t) => t.sourceAccount).filter(Boolean))];
       const nameMapping: EntityMapping = matchAccountsByName(sourceAccountNames, accounts);
 
-      // 3. Validate categoryIds — clear invalid ones
-      let needsCategoryFix = false;
-      const validated = transactions.map((t) => {
-        if (t.categoryId && !categoryIds.has(t.categoryId)) {
-          needsCategoryFix = true;
-          return { ...t, categoryId: "", categoryConfidence: "" };
+      // 3. Drop any category id no longer in the budget (deleted between runs).
+      if (categoryIds.size > 0) {
+        let needsFix = false;
+        const validated = transactions.map((t) => {
+          if (t.categoryId && !categoryIds.has(t.categoryId)) {
+            needsFix = true;
+            return { ...t, categoryId: "", categoryConfidence: "" };
+          }
+          return t;
+        });
+        if (needsFix) {
+          setTransactions(validated);
+          scheduleWriteBack();
         }
-        return t;
-      });
-      if (needsCategoryFix) {
-        setTransactions(validated);
-        scheduleWriteBack();
       }
 
-      // 4. Overlay aliases (user's past mappings override AI + name match)
+      // 4. Overlay saved aliases (the user's past mappings win).
       const aliasMapping: EntityMapping = {};
       try {
         const aliases: ImportAliases = await repository.readAliases();
@@ -150,31 +134,25 @@ export function useImportData(budgetPath: string) {
           }
         }
       } catch {
-        // No aliases file
+        /* no aliases file */
       }
 
-      // Merge: aliases > name match > AI
       const merged = { ...aiMapping, ...nameMapping, ...aliasMapping };
-      if (Object.keys(merged).length > 0) {
-        setAccountMapping(merged);
-      }
+      if (Object.keys(merged).length > 0) setAccountMapping(merged);
     }
 
-    applyMappings();
+    void applyMappings();
   }, [transactions, accounts, categories, repository, scheduleWriteBack]);
 
-  // ── Transaction update handler ───────────────────────────────
+  // ── Edits ────────────────────────────────────────────────────
   const handleUpdate = useCallback(
     (id: string, patch: Partial<ImportTransaction>) => {
-      setTransactions((prev) =>
-        prev.map((t) => (t.id === id ? { ...t, ...patch } : t)),
-      );
+      setTransactions((prev) => prev.map((t) => (t.id === id ? { ...t, ...patch } : t)));
       scheduleWriteBack();
     },
     [scheduleWriteBack],
   );
 
-  // ── Account mapping change → batch-update accountId ──────────
   const handleAccountMappingChange = useCallback(
     (newMapping: EntityMapping) => {
       setAccountMapping(newMapping);
@@ -192,25 +170,21 @@ export function useImportData(budgetPath: string) {
     [scheduleWriteBack],
   );
 
-  // ── Flush before external operations ─────────────────────────
-  const flushWriteBack = useCallback(async () => {
-    if (writeTimerRef.current) {
-      clearTimeout(writeTimerRef.current);
-      await writeBack();
-    }
-  }, [writeBack]);
-
-  // ── Derived data ─────────────────────────────────────────────
+  // ── Derived ──────────────────────────────────────────────────
   const sourceAccounts = useMemo(
-    () =>
-      [
-        ...new Set(transactions.map((t) => t.sourceAccount).filter(Boolean)),
-      ].sort(),
+    () => [...new Set(transactions.map((t) => t.sourceAccount).filter(Boolean))].sort(),
+    [transactions],
+  );
+
+  /** Ids the engine flagged as duplicates of existing budget rows. Persisted by
+   *  grounding — the app doesn't re-detect. */
+  const duplicateIds = useMemo(
+    () => new Set(transactions.filter((t) => t.duplicate).map((t) => t.id)),
     [transactions],
   );
 
   const uncategorizedCount = useMemo(
-    () => transactions.filter((t) => !t.categoryId && t.type !== "transfer").length,
+    () => transactions.filter((t) => !t.categoryId && t.type !== "transfer" && !t.duplicate).length,
     [transactions],
   );
 
@@ -219,51 +193,28 @@ export function useImportData(budgetPath: string) {
     [transactions],
   );
 
-  // ── Duplicate detection ────────────────────────────────────────
-  const duplicates = useMemo<Map<string, DuplicateMatch>>(
-    () => detectDuplicates(transactions, existingTransactions, accountMapping),
-    [transactions, existingTransactions, accountMapping],
+  /** Rows still needing the classifier — gates the Enrich button. Mirrors the
+   *  orchestrator's own predicate so the UI agrees with what a re-run would do. */
+  const incompleteCount = useMemo(
+    () => transactions.filter(needsEnrich).length,
+    [transactions],
   );
 
-  // Auto-unselect duplicates once per load cycle
-  const duplicatesAppliedForGenRef = useRef(-1);
-  useEffect(() => {
-    if (duplicatesAppliedForGenRef.current === loadGeneration || duplicates.size === 0 || loading) return;
-    duplicatesAppliedForGenRef.current = loadGeneration;
-
-    async function unselectDuplicates() {
-      setSelectedIds((prev) => {
-        const next = new Set(prev);
-        for (const id of duplicates.keys()) {
-          next.delete(id);
-        }
-        return next;
-      });
-    }
-    unselectDuplicates();
-  }, [duplicates, loading, loadGeneration]);
-
   return {
-    // State
     transactions,
     selectedIds,
     setSelectedIds,
     accountMapping,
     loading,
-    needsEnrichment,
-
-    // Actions
     loadCsv,
     handleUpdate,
     handleAccountMappingChange,
     flushWriteBack,
-    markEnriched,
-
-    // Derived
     sourceAccounts,
+    duplicateIds,
     uncategorizedCount,
     lowConfidenceCount,
-    duplicates,
+    incompleteCount,
     accounts,
     categories,
   };

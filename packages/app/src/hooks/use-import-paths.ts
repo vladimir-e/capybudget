@@ -2,16 +2,6 @@ import { useCallback } from "react";
 import { join as joinPath } from "@tauri-apps/api/path";
 
 export function useImportPaths(budgetPath: string) {
-  /** Resolve a path inside .capy/import/ (e.g. "transactions.csv"). */
-  const resolveImportPath = useCallback(
-    async (filename: string) => {
-      const capyDir = await joinPath(budgetPath, ".capy");
-      const importDir = await joinPath(capyDir, "import");
-      return joinPath(importDir, filename);
-    },
-    [budgetPath],
-  );
-
   /** Resolve a path inside .capy/import/sources/ (e.g. "2019.csv"). */
   const resolveSourcePath = useCallback(
     async (filename: string) => {
@@ -47,7 +37,6 @@ export function useImportPaths(budgetPath: string) {
   }, [budgetPath]);
 
   return {
-    resolveImportPath,
     resolveSourcePath,
     resolveSourcesDir,
     resolveImportDir,

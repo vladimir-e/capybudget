@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -10,14 +10,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { useImportInstructions } from "@/hooks/use-custom-instructions";
 import { useImportMerge } from "@/hooks/use-import-merge";
 import { useImportData } from "@/hooks/use-import-data";
-import { useBudgetSnapshot } from "@/hooks/use-budget-data";
-import { useImportStore } from "@/stores/import-store";
-import { useBudgetRepository } from "@/contexts/repository-context";
-import { tauriFileAdapter } from "../../../../../src/adapters/tauri-file-adapter";
-import { ENRICH_SYSTEM_PROMPT } from "@capybudget/intelligence";
+import type { StagingStore } from "@capybudget/intelligence";
 import { formatMoney } from "@capybudget/core";
 import { ImportTable } from "./import-table";
 import {
@@ -26,19 +21,33 @@ import {
   type ImportSortConfig,
 } from "@/components/import/import-table-utils";
 import { ImportMapping } from "./import-mapping";
-import { Search, X, FileUp, Sparkles, Loader2, GitMerge, AlertTriangle, Copy } from "lucide-react";
+import { Search, X, GitMerge, AlertTriangle, Copy, Sparkles, Loader2, Square } from "lucide-react";
 
 interface ImportPreviewProps {
   budgetPath: string;
-  budgetName: string;
+  /** The shared staging store the orchestrator writes to — read source of truth. */
+  staging: StagingStore;
+  /** Bumped each time a batch lands; triggers a staging reload. */
+  rowsVersion: number;
+  /** True while a run is in flight — the table is read-only and Stop replaces Enrich. */
+  running: boolean;
+  /** Interrupt the in-flight run (Stop). */
+  onStop: () => void;
+  /** Re-run Categorizing over the incomplete remainder (Enrich). */
+  onEnrich: () => void;
   onMergeComplete: () => void;
 }
 
-export function ImportPreview({ budgetPath, budgetName, onMergeComplete }: ImportPreviewProps) {
-  const [sort, setSort] = useState<ImportSortConfig>({
-    column: "date",
-    direction: "asc",
-  });
+export function ImportPreview({
+  budgetPath,
+  staging,
+  rowsVersion,
+  running,
+  onStop,
+  onEnrich,
+  onMergeComplete,
+}: ImportPreviewProps) {
+  const [sort, setSort] = useState<ImportSortConfig>({ column: "date", direction: "asc" });
   const [search, setSearch] = useState("");
 
   const {
@@ -47,94 +56,33 @@ export function ImportPreview({ budgetPath, budgetName, onMergeComplete }: Impor
     setSelectedIds,
     accountMapping,
     loading,
-    needsEnrichment,
-    loadCsv,
     handleUpdate,
     handleAccountMappingChange,
     flushWriteBack,
-    markEnriched,
     sourceAccounts,
+    duplicateIds,
     uncategorizedCount,
     lowConfidenceCount,
-    duplicates,
+    incompleteCount,
     accounts,
     categories,
-  } = useImportData(budgetPath);
-
-  const customInstructions = useImportInstructions(budgetPath);
-  const repo = useBudgetRepository();
-  const getBudgetSnapshot = useBudgetSnapshot();
-
-  // ── Enrichment (via store — survives navigation) ───────────────
-  const isEnriching = useImportStore((s) => s.isEnriching);
-  const enrichStatusText = useImportStore((s) => s.enrichStatusText);
-  const storeStartEnrichment = useImportStore((s) => s.startEnrichment);
-  const storeCancelEnrichment = useImportStore((s) => s.cancelEnrichment);
-  const setOnEnrichComplete = useImportStore((s) => s.setOnEnrichComplete);
-
-  // Register completion callback
-  useEffect(() => {
-    setOnEnrichComplete(async () => {
-      await markEnriched();
-      await loadCsv();
-    });
-    return () => setOnEnrichComplete(null);
-  }, [setOnEnrichComplete, markEnriched, loadCsv]);
+  } = useImportData(budgetPath, staging, rowsVersion);
 
   const handleEnrich = useCallback(async () => {
     await flushWriteBack();
-    const customInstr = customInstructions.instructions?.trim();
-    const systemPrompt = customInstr
-      ? `${ENRICH_SYSTEM_PROMPT}\n\n## User instructions\n${customInstr}`
-      : ENRICH_SYSTEM_PROMPT;
-    storeStartEnrichment({
-      budgetPath,
-      budgetName,
-      mcpServerPath: "packages/mcp/src/server.ts",
-      systemPrompt,
-      snapshot: getBudgetSnapshot(),
-      repo,
-      fileAdapter: tauriFileAdapter,
-    });
-  }, [flushWriteBack, storeStartEnrichment, budgetPath, budgetName, customInstructions.instructions, getBudgetSnapshot, repo]);
-
-  // Reload from disk periodically while enrichment is running
-  useEffect(() => {
-    if (!isEnriching) return;
-    const interval = setInterval(() => { loadCsv(); }, 10_000);
-    return () => clearInterval(interval);
-  }, [isEnriching, loadCsv]);
-
-  // Auto-enrich: trigger enrichment once after first load if not yet enriched
-  const autoEnrichTriggeredRef = useRef(false);
-  useEffect(() => {
-    if (
-      autoEnrichTriggeredRef.current ||
-      loading ||
-      transactions.length === 0 ||
-      isEnriching ||
-      !needsEnrichment
-    ) return;
-    autoEnrichTriggeredRef.current = true;
-    handleEnrich();
-  }, [loading, transactions.length, isEnriching, needsEnrichment, handleEnrich]);
+    onEnrich();
+  }, [flushWriteBack, onEnrich]);
 
   // ── Filtering / sorting ────────────────────────────────────────
   const filtered = useMemo(
     () => filterImportTransactions(transactions, search),
     [transactions, search],
   );
-  const sorted = useMemo(
-    () => sortImportTransactions(filtered, sort),
-    [filtered, sort],
-  );
+  const sorted = useMemo(() => sortImportTransactions(filtered, sort), [filtered, sort]);
 
-  // Selection helpers
-  const allSelected =
-    sorted.length > 0 && sorted.every((t) => selectedIds.has(t.id));
-  const indeterminate =
-    !allSelected && sorted.some((t) => selectedIds.has(t.id));
-
+  // ── Selection helpers ──────────────────────────────────────────
+  const allSelected = sorted.length > 0 && sorted.every((t) => selectedIds.has(t.id));
+  const indeterminate = !allSelected && sorted.some((t) => selectedIds.has(t.id));
   const lastToggledRef = useRef<string | null>(null);
 
   const handleToggleSelect = useCallback(
@@ -153,9 +101,10 @@ export function ImportPreview({ budgetPath, budgetName, onMergeComplete }: Impor
               else next.delete(ids[i]);
             }
           }
+        } else if (next.has(id)) {
+          next.delete(id);
         } else {
-          if (next.has(id)) next.delete(id);
-          else next.add(id);
+          next.add(id);
         }
         lastToggledRef.current = id;
         return next;
@@ -177,13 +126,13 @@ export function ImportPreview({ budgetPath, budgetName, onMergeComplete }: Impor
     });
   }, [sorted, setSelectedIds]);
 
-  // Stats
+  // ── Stats ──────────────────────────────────────────────────────
   const selected = transactions.filter((t) => selectedIds.has(t.id));
   const selectedCount = selected.length;
   const totalCount = transactions.length;
   const selectedTotal = selected.reduce((sum, t) => sum + t.amount, 0);
 
-  // Merge
+  // ── Merge ──────────────────────────────────────────────────────
   const [showMergeDialog, setShowMergeDialog] = useState(false);
   const [merging, setMerging] = useState(false);
   const { merge } = useImportMerge(budgetPath);
@@ -196,6 +145,7 @@ export function ImportPreview({ budgetPath, budgetName, onMergeComplete }: Impor
     setShowMergeDialog(false);
     setMerging(true);
     try {
+      await flushWriteBack();
       const result = await merge({ transactions, selectedIds, accountMapping });
       toast.success(
         `Merged ${result.transactionCount} transaction${result.transactionCount !== 1 ? "s" : ""}` +
@@ -205,15 +155,13 @@ export function ImportPreview({ budgetPath, budgetName, onMergeComplete }: Impor
       );
       onMergeComplete();
     } catch (err) {
-      toast.error(
-        `Merge failed: ${err instanceof Error ? err.message : "Unknown error"}`,
-      );
+      toast.error(`Merge failed: ${err instanceof Error ? err.message : "Unknown error"}`);
     } finally {
       setMerging(false);
     }
-  }, [merge, transactions, selectedIds, accountMapping, onMergeComplete]);
+  }, [merge, transactions, selectedIds, accountMapping, onMergeComplete, flushWriteBack]);
 
-  if (loading) {
+  if (loading && transactions.length === 0) {
     return (
       <div className="flex items-center justify-center py-24 text-muted-foreground">
         <Loader2 className="h-5 w-5 animate-spin" />
@@ -221,63 +169,17 @@ export function ImportPreview({ budgetPath, budgetName, onMergeComplete }: Impor
     );
   }
 
-  if (transactions.length === 0) {
-    return (
-      <div className="flex flex-col items-center justify-center py-24 text-center">
-        <FileUp className="h-12 w-12 mb-3 text-muted-foreground/30" />
-        <p className="text-base font-medium text-foreground/80">
-          No transactions found
-        </p>
-        <p className="mt-1.5 text-sm text-muted-foreground/60">
-          The import didn't produce any transactions. Cancel the import to start
-          over.
-        </p>
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-5 pb-20">
-      {/* Stats bar */}
+      {/* Selection summary */}
       <div className="flex items-center justify-between">
         <p className="text-sm text-muted-foreground">
-          <span className="font-medium text-foreground tabular-nums">
-            {selectedCount}
-          </span>{" "}
-          of <span className="tabular-nums">{totalCount}</span> transactions
-          selected for import
+          <span className="font-medium text-foreground tabular-nums">{selectedCount}</span> of{" "}
+          <span className="tabular-nums">{totalCount}</span> transactions selected for import
         </p>
       </div>
 
-      {/* Enriching indicator */}
-      {isEnriching && (
-        <div className="rounded-lg border border-brand/20 bg-brand/5 px-3.5 py-2 text-sm text-foreground/70 space-y-1">
-          <div className="flex items-center gap-2.5">
-            <Loader2 className="h-3.5 w-3.5 animate-spin text-brand shrink-0" />
-            <span className="flex-1">Enriching — identifying merchants and categories…</span>
-            <Button
-              size="sm"
-              variant="ghost"
-              className="h-6 px-2 text-xs text-muted-foreground hover:text-foreground"
-              onClick={async () => {
-                storeCancelEnrichment();
-                await markEnriched(); // prevent auto-restart on next visit
-                await loadCsv();
-              }}
-            >
-              <X className="h-3 w-3 mr-1" />
-              Stop
-            </Button>
-          </div>
-          {enrichStatusText && (
-            <p className="text-xs text-muted-foreground/60 truncate pl-6">
-              {enrichStatusText}
-            </p>
-          )}
-        </div>
-      )}
-
-      {/* Account mapping section (hidden during enrichment to reduce noise) */}
+      {/* Account mapping */}
       <ImportMapping
         sourceAccounts={sourceAccounts}
         accounts={accounts}
@@ -285,11 +187,9 @@ export function ImportPreview({ budgetPath, budgetName, onMergeComplete }: Impor
         onAccountMappingChange={handleAccountMappingChange}
       />
 
-      {/* Search bar */}
+      {/* Search */}
       <div className="flex items-center gap-2">
-        <div
-          className={`relative flex-1 min-w-0 ${search ? "ring-1 ring-brand/30 rounded-lg" : ""}`}
-        >
+        <div className={`relative flex-1 min-w-0 ${search ? "ring-1 ring-brand/30 rounded-lg" : ""}`}>
           <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground/60" />
           <Input
             placeholder="Search imported transactions..."
@@ -311,25 +211,23 @@ export function ImportPreview({ budgetPath, budgetName, onMergeComplete }: Impor
       </div>
 
       {/* Duplicates banner */}
-      {duplicates.size > 0 && (
+      {duplicateIds.size > 0 && (
         <div className="flex items-center gap-2.5 rounded-lg border border-blue-500/20 bg-blue-500/5 px-3.5 py-2 text-sm text-foreground/70">
           <Copy className="h-3.5 w-3.5 text-blue-500 shrink-0" />
           <span>
-            {duplicates.size} possible duplicate{duplicates.size !== 1 ? "s" : ""} detected — already unselected
+            {duplicateIds.size} duplicate{duplicateIds.size !== 1 ? "s" : ""} detected — already unselected
           </span>
         </div>
       )}
 
-      {/* Issues banner (hidden while enrichment is running) */}
-      {!isEnriching && (uncategorizedCount > 0 || lowConfidenceCount > 0) && (
+      {/* Issues banner (hidden during a run — counts are still settling) */}
+      {!running && (uncategorizedCount > 0 || lowConfidenceCount > 0) && (
         <div className="flex items-center gap-2.5 rounded-lg border border-amber-500/20 bg-amber-500/5 px-3.5 py-2 text-sm text-foreground/70">
           <AlertTriangle className="h-3.5 w-3.5 text-amber-500 shrink-0" />
           <span>
             {[
-              uncategorizedCount > 0 &&
-                `${uncategorizedCount} uncategorized`,
-              lowConfidenceCount > 0 &&
-                `${lowConfidenceCount} low confidence`,
+              uncategorizedCount > 0 && `${uncategorizedCount} uncategorized`,
+              lowConfidenceCount > 0 && `${lowConfidenceCount} low confidence`,
             ]
               .filter(Boolean)
               .join(", ")}
@@ -337,8 +235,8 @@ export function ImportPreview({ budgetPath, budgetName, onMergeComplete }: Impor
         </div>
       )}
 
-      {/* Transaction table */}
-      <div className="rounded-xl border border-border/40 overflow-hidden">
+      {/* Table — read-only while a run is in flight (rows are filling in live) */}
+      <div className={`rounded-xl border border-border/40 overflow-hidden ${running ? "pointer-events-none opacity-90" : ""}`}>
         <ImportTable
           transactions={sorted}
           sort={sort}
@@ -352,77 +250,53 @@ export function ImportPreview({ budgetPath, budgetName, onMergeComplete }: Impor
           categories={categories}
           accounts={accounts}
           accountMapping={accountMapping}
-          duplicates={duplicates}
+          duplicateIds={duplicateIds}
         />
       </div>
 
-      {/* ── Floating action bar ──────────────────────────────── */}
-      {selectedCount > 0 && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 animate-in slide-in-from-bottom-4 fade-in duration-200">
-          <div className="flex items-center gap-3 rounded-xl border border-border/60 bg-background/95 backdrop-blur-sm shadow-overlay px-4 py-2.5">
-            {/* Summary */}
-            <div className="flex items-center gap-3 border-r border-border/40 pr-3">
-              <span className="text-sm font-medium tabular-nums">
-                {selectedCount} selected
-              </span>
-              <span className="text-sm text-muted-foreground tabular-nums font-semibold">
-                {formatMoney(selectedTotal)}
-              </span>
-            </div>
+      {/* Floating action bar — always present; Merge gates on selection */}
+      <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 animate-in slide-in-from-bottom-4 fade-in duration-200">
+        <div className="flex items-center gap-3 rounded-xl border border-border/60 bg-background/95 backdrop-blur-sm shadow-overlay px-4 py-2.5">
+          <div className="flex items-center gap-3 border-r border-border/40 pr-3">
+            <span className="text-sm font-medium tabular-nums">{selectedCount} selected</span>
+            <span className="text-sm text-muted-foreground tabular-nums font-semibold">
+              {formatMoney(selectedTotal)}
+            </span>
+          </div>
 
-            {/* Re-enrich button */}
+          {running ? (
+            <Button size="sm" variant="outline" className="gap-1.5" onClick={onStop}>
+              <Square className="h-3.5 w-3.5" />
+              Stop
+            </Button>
+          ) : (
             <Button
               size="sm"
               variant="outline"
               className="gap-1.5"
-              disabled={isEnriching}
+              disabled={incompleteCount === 0}
               onClick={handleEnrich}
             >
-              {isEnriching ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              ) : (
-                <Sparkles className="h-3.5 w-3.5" />
-              )}
-              {isEnriching ? "Enriching\u2026" : "Enrich"}
+              <Sparkles className="h-3.5 w-3.5" />
+              Enrich{incompleteCount > 0 ? ` ${incompleteCount}` : ""}
             </Button>
+          )}
 
-            {/* Merge button */}
-            <Button
-              size="sm"
-              className="gap-1.5"
-              disabled={merging}
-              onClick={() => setShowMergeDialog(true)}
-            >
-              {merging ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              ) : (
-                <GitMerge className="h-3.5 w-3.5" />
-              )}
-              {merging ? "Merging\u2026" : "Merge"}
-            </Button>
-
-            {/* Dismiss */}
-            <Button
-              variant="ghost"
-              size="icon-xs"
-              onClick={() => setSelectedIds(new Set())}
-              className="ml-1 text-muted-foreground/60"
-              aria-label="Clear selection"
-            >
-              <X className="size-4" />
-            </Button>
-          </div>
+          <Button
+            size="sm"
+            className="gap-1.5"
+            disabled={merging || selectedCount === 0}
+            onClick={() => setShowMergeDialog(true)}
+          >
+            {merging ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <GitMerge className="h-3.5 w-3.5" />}
+            {merging ? "Merging…" : "Merge"}
+          </Button>
         </div>
-      )}
+      </div>
 
-      {/* ── Merge confirmation dialog ────────────────────── */}
+      {/* Merge confirmation */}
       {showMergeDialog && (
-        <Dialog
-          open
-          onOpenChange={(open) => {
-            if (!open) setShowMergeDialog(false);
-          }}
-        >
+        <Dialog open onOpenChange={(open) => { if (!open) setShowMergeDialog(false); }}>
           <DialogContent className="sm:max-w-md">
             <DialogHeader>
               <DialogTitle>Merge {selectedCount} transactions?</DialogTitle>
@@ -431,25 +305,20 @@ export function ImportPreview({ budgetPath, budgetName, onMergeComplete }: Impor
                   <span className="block">
                     This will add{" "}
                     <strong>
-                      {selectedCount} transaction
-                      {selectedCount !== 1 ? "s" : ""}
+                      {selectedCount} transaction{selectedCount !== 1 ? "s" : ""}
                     </strong>{" "}
                     ({formatMoney(selectedTotal)}) to your budget.
                   </span>
                   {newAccountCount > 0 && (
                     <span className="block">
-                      {newAccountCount} new account
-                      {newAccountCount > 1 ? "s" : ""} will be created.
+                      {newAccountCount} new account{newAccountCount > 1 ? "s" : ""} will be created.
                     </span>
                   )}
                 </span>
               </DialogDescription>
             </DialogHeader>
             <DialogFooter>
-              <Button
-                variant="outline"
-                onClick={() => setShowMergeDialog(false)}
-              >
+              <Button variant="outline" onClick={() => setShowMergeDialog(false)}>
                 Cancel
               </Button>
               <Button onClick={handleMerge} className="gap-1.5">

@@ -1,144 +1,141 @@
-import { describe, it, expect, beforeEach, vi } from "vitest";
-import type { BudgetRepository, FileAdapter } from "@capybudget/persistence";
+import { describe, it, expect, beforeEach } from "vitest";
+import type { ImportEvent, ImportLogEntry } from "@capybudget/intelligence";
+import { reduce, useImportStore } from "@/stores/import-store";
 
-// ── Mocks ──────────────────────────────────────────────────────────
+const IDLE = {
+  phase: "idle" as const,
+  status: "",
+  log: [] as ImportLogEntry[],
+  batchProgress: null,
+  grounding: null,
+  error: null,
+  running: false,
+  rowsVersion: 0,
+};
 
-const mockRunTool = vi.fn<
-  (
-    name: string,
-    input: Record<string, unknown>,
-    ctx: unknown,
-  ) => Promise<string>
->();
+function logEntry(message: string, level: ImportLogEntry["level"] = "info"): ImportLogEntry {
+  return { ts: 1_700_000_000_000, level, phase: "reading", message };
+}
 
-// Capture send() calls + their ordering relative to runTool() so we
-// can assert the pre-run auto_enrich lands before the first message.
-const sessionSend = vi.fn<(message: unknown) => Promise<void>>();
-const sessionKill = vi.fn<() => Promise<void>>();
-const callOrder: string[] = [];
+describe("import-store reduce", () => {
+  it("advances phase and clears running on terminal phases", () => {
+    expect(reduce(IDLE, { type: "phase", phase: "history" })).toEqual({
+      phase: "history",
+      running: true,
+    });
+    expect(reduce(IDLE, { type: "phase", phase: "done" })).toEqual({
+      phase: "done",
+      running: false,
+    });
+    expect(reduce(IDLE, { type: "phase", phase: "error" })).toEqual({
+      phase: "error",
+      running: false,
+    });
+  });
 
-vi.mock("@capybudget/intelligence", async (importOriginal) => {
-  const original = (await importOriginal()) as Record<string, unknown>;
-  return {
-    ...original,
-    runTool: (name: string, input: Record<string, unknown>, ctx: unknown) => {
-      callOrder.push(`runTool:${name}`);
-      return mockRunTool(name, input, ctx);
-    },
-  };
+  it("replaces the status line", () => {
+    const next = reduce({ ...IDLE, status: "old" }, { type: "status", phase: "reading", message: "new" });
+    expect(next.status).toBe("new");
+  });
+
+  it("appends log entries oldest-first", () => {
+    const a = logEntry("first");
+    const b = logEntry("second");
+    const afterA = { ...IDLE, ...reduce(IDLE, { type: "log", entry: a }) };
+    const afterB = reduce(afterA, { type: "log", entry: b });
+    expect(afterB.log).toEqual([a, b]);
+  });
+
+  it("records grounding stats and batch progress", () => {
+    const grounding: Extract<ImportEvent, { type: "grounding" }> = {
+      type: "grounding",
+      stats: { total: 77, resolved: 47, duplicates: 4 },
+      message: "47 of 77 resolved from your history · 4 duplicates",
+    };
+    expect(reduce(IDLE, grounding).grounding).toEqual({ total: 77, resolved: 47, duplicates: 4 });
+
+    const batch = reduce(IDLE, { type: "batch-progress", progress: { done: 12, total: 30 } });
+    expect(batch.batchProgress).toEqual({ done: 12, total: 30 });
+  });
+
+  it("bumps rowsVersion on rows-changed without touching other state", () => {
+    const next = reduce({ ...IDLE, rowsVersion: 3 }, { type: "rows-changed" });
+    expect(next).toEqual({ rowsVersion: 4 });
+  });
+
+  it("captures recoverable errors and stops running", () => {
+    const next = reduce(
+      { ...IDLE, running: true },
+      { type: "error", reason: "no_data", message: "No transaction data found", recoverable: true },
+    );
+    expect(next.error).toEqual({
+      reason: "no_data",
+      message: "No transaction data found",
+      recoverable: true,
+    });
+    expect(next.running).toBe(false);
+  });
+
+  it("clears running and status on done", () => {
+    const next = reduce({ ...IDLE, running: true, status: "Categorizing 30 of 30…" }, { type: "done" });
+    expect(next).toEqual({ running: false, status: "" });
+  });
 });
 
-vi.mock("@/services/create-session", () => ({
-  createSession: vi.fn(() => ({
-    send: (msg: unknown) => {
-      callOrder.push("send");
-      return sessionSend(msg);
-    },
-    kill: () => sessionKill(),
-    stop: vi.fn(),
-    restart: vi.fn(),
-    isAlive: true,
-  })),
-}));
-
-import { useImportStore } from "@/stores/import-store";
-
-// ── Tests ──────────────────────────────────────────────────────────
-
-describe("import-store", () => {
+describe("import-store actions", () => {
   beforeEach(() => {
+    useImportStore.setState({ ...IDLE, hasImportData: false });
+  });
+
+  it("beginRun('start') clears everything for a fresh reading run, reload counter included", () => {
     useImportStore.setState({
-      hasImportData: false,
-      phase: "idle",
-      enrichSession: null,
-      isEnriching: false,
-      enrichStatusText: "",
+      rowsVersion: 5,
+      log: [logEntry("stale")],
+      grounding: { total: 1, resolved: 1, duplicates: 0 },
     });
-    mockRunTool.mockReset();
-    mockRunTool.mockResolvedValue("ok");
-    sessionSend.mockReset();
-    sessionSend.mockResolvedValue();
-    sessionKill.mockReset();
-    sessionKill.mockResolvedValue();
-    callOrder.length = 0;
+    useImportStore.getState().beginRun("start");
+    const s = useImportStore.getState();
+    expect(s.phase).toBe("reading");
+    expect(s.running).toBe(true);
+    expect(s.log).toEqual([]);
+    expect(s.grounding).toBeNull();
+    expect(s.rowsVersion).toBe(0);
   });
 
-  it("starts with hasImportData false", () => {
-    expect(useImportStore.getState().hasImportData).toBe(false);
+  it("beginRun('enrich') keeps the log + grounding + reload counter, re-enters categorizing", () => {
+    const entry = logEntry("47 of 77 resolved");
+    useImportStore.setState({
+      log: [entry],
+      grounding: { total: 77, resolved: 47, duplicates: 4 },
+      phase: "done",
+      rowsVersion: 6,
+    });
+    useImportStore.getState().beginRun("enrich");
+    const s = useImportStore.getState();
+    expect(s.phase).toBe("categorizing");
+    expect(s.running).toBe(true);
+    expect(s.log).toEqual([entry]);
+    expect(s.grounding).toEqual({ total: 77, resolved: 47, duplicates: 4 });
+    expect(s.rowsVersion).toBe(6);
   });
 
-  it("setHasImportData updates the flag", () => {
+  it("apply folds an event through the store", () => {
+    useImportStore.getState().apply({ type: "batch-progress", progress: { done: 1, total: 4 } });
+    expect(useImportStore.getState().batchProgress).toEqual({ done: 1, total: 4 });
+  });
+
+  it("reset returns fully to idle, reload counter zeroed (no stale run carries over)", () => {
+    useImportStore.setState({ phase: "categorizing", running: true, rowsVersion: 9, status: "busy" });
+    useImportStore.getState().reset();
+    const s = useImportStore.getState();
+    expect(s.phase).toBe("idle");
+    expect(s.running).toBe(false);
+    expect(s.status).toBe("");
+    expect(s.rowsVersion).toBe(0);
+  });
+
+  it("setHasImportData toggles the sidebar flag", () => {
     useImportStore.getState().setHasImportData(true);
     expect(useImportStore.getState().hasImportData).toBe(true);
-
-    useImportStore.getState().setHasImportData(false);
-    expect(useImportStore.getState().hasImportData).toBe(false);
-  });
-
-  describe("startEnrichment", () => {
-    const startWithRepo = () => {
-      const repo = {} as BudgetRepository;
-      const fileAdapter = {} as FileAdapter;
-      useImportStore.getState().startEnrichment({
-        budgetPath: "/budget",
-        budgetName: "Test",
-        mcpServerPath: "/mcp",
-        systemPrompt: "you are capy",
-        repo,
-        fileAdapter,
-      });
-      return { repo, fileAdapter };
-    };
-
-    it("pre-runs auto_enrich before sending the first user message", async () => {
-      const { repo, fileAdapter } = startWithRepo();
-      // The store dispatches send() inside a .then() chained off the
-      // auto_enrich promise — flush microtasks so the chain settles.
-      await new Promise((resolve) => setTimeout(resolve, 0));
-
-      expect(mockRunTool).toHaveBeenCalledWith(
-        "auto_enrich",
-        {},
-        expect.objectContaining({
-          repo,
-          fileAdapter,
-          budgetPath: "/budget",
-        }),
-      );
-
-      // Ordering: auto_enrich must complete before send() fires.
-      const autoEnrichIdx = callOrder.indexOf("runTool:auto_enrich");
-      const sendIdx = callOrder.indexOf("send");
-      expect(autoEnrichIdx).toBeGreaterThanOrEqual(0);
-      expect(sendIdx).toBeGreaterThan(autoEnrichIdx);
-    });
-
-    it("still sends the first message when auto_enrich fails", async () => {
-      // Swallow the expected console.warn so it doesn't pollute test output.
-      const warnSpy = vi
-        .spyOn(console, "warn")
-        .mockImplementation(() => undefined);
-
-      mockRunTool.mockRejectedValueOnce(new Error("disk full"));
-      startWithRepo();
-      await new Promise((resolve) => setTimeout(resolve, 0));
-
-      // Failure is swallowed — the model can call auto_enrich itself as fallback.
-      expect(sessionSend).toHaveBeenCalledTimes(1);
-      warnSpy.mockRestore();
-    });
-
-    it("skips the pre-run when repo/fileAdapter are absent", async () => {
-      useImportStore.getState().startEnrichment({
-        budgetPath: "/budget",
-        budgetName: "Test",
-        mcpServerPath: "/mcp",
-        systemPrompt: "you are capy",
-      });
-      await new Promise((resolve) => setTimeout(resolve, 0));
-
-      expect(mockRunTool).not.toHaveBeenCalled();
-      expect(sessionSend).toHaveBeenCalledTimes(1);
-    });
   });
 });
