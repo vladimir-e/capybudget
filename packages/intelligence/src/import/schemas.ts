@@ -46,15 +46,20 @@ const COLUMN_REF_SCHEMA: JsonSchema = {
 };
 
 /**
- * Not strict: `typeDetection.typeMap` is an open-keyed `Record<string, …>`
+ * The model commits only to the irreducible column ROLES — the date column, the
+ * description column(s), and the amount structure. Everything else
+ * (`date.format`, `amountFormat`, `typeDetection`, `sourceAccount`,
+ * `sourceCategory`) is optional: `completeMapping` in `normalize.ts` infers any
+ * the model omits from the sample values, which is more reliable than trusting
+ * the model for derivable metadata (it can even get `amountFormat` wrong). So
+ * `required` lists only those three roles — an omitted metadata field is
+ * completed in code, never a hard validation failure.
+ *
+ * Also not strict: `typeDetection.typeMap` is an open-keyed `Record<string,…>`
  * (dynamic source values → our types), which OpenAI strict can't express —
- * strict forbids `additionalProperties` other than `false`, and an open map
- * has no fixed `properties`. Reshaping it into a strict-compatible array of
- * pairs would change `core`'s `CsvMapping` contract and its transform-engine
- * tests for the single, low-volume one-shot mapping call — not worth it when
- * the reliability win lives on the batch paths below. `parseStructured` stays
- * the backstop; both providers still honor the `additionalProperties: false`
- * markers as a best-effort constraint.
+ * strict forbids `additionalProperties` other than `false`, and an open map has
+ * no fixed `properties`. `additionalProperties: false` stays as a best-effort
+ * shape constraint both providers honor.
  */
 export const CSV_MAPPING_SCHEMA: JsonSchema = {
   type: "object",
@@ -67,7 +72,7 @@ export const CSV_MAPPING_SCHEMA: JsonSchema = {
         column: { type: "string" },
         format: { type: "string" },
       },
-      required: ["column", "format"],
+      required: ["column"],
     },
     description: COLUMN_REF_SCHEMA,
     amount: {
@@ -148,18 +153,26 @@ export const CSV_MAPPING_SCHEMA: JsonSchema = {
       },
     },
   },
-  required: [
-    "date",
-    "description",
-    "amount",
-    "amountFormat",
-    "typeDetection",
-    "sourceAccount",
-    "sourceCategory",
-  ],
+  required: ["date", "description", "amount"],
 };
 
-export type CsvMappingResult = CsvMapping;
+/**
+ * What the relaxed {@link CSV_MAPPING_SCHEMA} guarantees: the model commits to
+ * the irreducible column roles, while the metadata fields are optional and
+ * `completeMapping` fills any the model omits. Distinct from `core`'s
+ * `CsvMapping` (which is always complete) — this is the raw, pre-completion
+ * shape coming off the model.
+ */
+export type CsvMappingResult = {
+  date: { column: string; format?: string };
+  description: CsvMapping["description"];
+  amount: CsvMapping["amount"];
+  amountFormat?: CsvMapping["amountFormat"];
+  typeDetection?: CsvMapping["typeDetection"];
+  sourceAccount?: CsvMapping["sourceAccount"];
+  sourceCategory?: CsvMapping["sourceCategory"];
+  skipRules?: CsvMapping["skipRules"];
+};
 
 // ── 2. Image / PDF extraction ────────────────────────────────────
 

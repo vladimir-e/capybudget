@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { normalizeCsv, normalizeImage, isImageOrPdf } from "./normalize";
+import { normalizeCsv, normalizeImage, isImageOrPdf, completeMapping } from "./normalize";
 import { CSV_MAPPING_SCHEMA, EXTRACTION_SCHEMA } from "./schemas";
 import { SchemaValidationError } from "../structured";
 import { MockStructuredSession } from "./test-doubles";
@@ -48,29 +48,43 @@ describe("normalizeCsv", () => {
     expect(session.calls).toHaveLength(1);
   });
 
-  it("retries the mapping when the first response omits a required field", async () => {
-    const csv = "Date,Description,Amount\n2026-01-05,COFFEE,-4.50";
-    const incomplete = { ...MAPPING, date: { column: "Date" } }; // date.format missing → schema-rejected
-    const session = new MockStructuredSession([() => incomplete, () => MAPPING]);
+  it("completes omitted metadata from the data and transforms without a retry", async () => {
+    // The model returns only the column roles — no amountFormat, typeDetection,
+    // sourceAccount, or date.format. completeMapping infers them; no re-call.
+    const csv = "Date,Description,Amount\n2026-01-05,COFFEE,-4.50\n2026-01-06,SALARY,2000.00";
+    const rolesOnly = {
+      date: { column: "Date" },
+      description: { column: "Description" },
+      amount: { style: "single", column: "Amount", sign: "negative_expense" },
+    };
+    const session = new MockStructuredSession([() => rolesOnly]);
 
-    const { rows, mapping } = await normalizeCsv(session, { name: "f.csv", content: csv });
+    const { rows, mapping } = await normalizeCsv(session, { name: "checking.csv", content: csv });
 
-    expect(session.calls).toHaveLength(2);
-    // The retry carries the validator's complaint so the model can self-correct.
-    expect(JSON.stringify(session.calls[1].messages)).toContain("rejected by validation");
+    expect(session.calls).toHaveLength(1); // no retry — metadata is inferred, not demanded
     expect(mapping.date.format).toBe("YYYY-MM-DD");
-    expect(rows).toHaveLength(1);
+    expect(mapping.amountFormat.format).toBe("plain");
+    expect(mapping.typeDetection).toEqual({ method: "amount_sign" });
+    expect(mapping.sourceAccount).toEqual({ literal: "checking" });
+    expect(mapping.sourceCategory).toBeNull();
+    expect(rows[0]).toMatchObject({ amount: -450, type: "expense" });
+    expect(rows[1]).toMatchObject({ amount: 200000, type: "income" });
   });
 
-  it("throws when the omission persists across the retry", async () => {
+  it("still surfaces an error when a core field stays missing after the retry", async () => {
+    // `description` is a core role the model must decide — inference can't recover
+    // it. A persistently omitted core field surfaces rather than being masked.
     const csv = "Date,Description,Amount\n2026-01-05,COFFEE,-4.50";
-    const incomplete = { ...MAPPING, date: { column: "Date" } };
-    const session = new MockStructuredSession([() => incomplete, () => incomplete]);
+    const noDescription = {
+      date: { column: "Date", format: "YYYY-MM-DD" },
+      amount: { style: "single", column: "Amount", sign: "negative_expense" },
+    };
+    const session = new MockStructuredSession([() => noDescription, () => noDescription]);
 
     await expect(normalizeCsv(session, { name: "f.csv", content: csv })).rejects.toBeInstanceOf(
       SchemaValidationError,
     );
-    expect(session.calls).toHaveLength(2); // one retry, no more — a broken response isn't masked
+    expect(session.calls).toHaveLength(2); // one retry, then surfaced — not masked
   });
 
   it("returns the transform errors for rows that don't parse (not silently dropped)", async () => {
@@ -93,6 +107,72 @@ describe("normalizeCsv", () => {
     const session = new MockStructuredSession([() => MAPPING]);
     const { rows } = await normalizeCsv(session, { name: "f.csv", content: csv }, { startId: 10 });
     expect(rows[0].id).toBe("imp-10");
+  });
+});
+
+describe("completeMapping", () => {
+  const ROLES = {
+    date: { column: "Date" },
+    description: { column: "Description" } as const,
+    amount: { style: "single", column: "Amount", sign: "negative_expense" } as const,
+  };
+  const sampleWith = (overrides: Record<string, string>) => [{ Date: "2026-01-01", Description: "X", Amount: "1", ...overrides }];
+
+  it("fills every omitted metadata field, defaulting sourceCategory to null", () => {
+    const m = completeMapping(ROLES, sampleWith({ Date: "2026-01-05", Amount: "-4.50" }), "wells-fargo_2026.csv");
+    expect(m.date.format).toBe("YYYY-MM-DD");
+    expect(m.amountFormat.format).toBe("plain");
+    expect(m.typeDetection).toEqual({ method: "amount_sign" });
+    expect(m.sourceAccount).toEqual({ literal: "wells fargo 2026" });
+    expect(m.sourceCategory).toBeNull();
+  });
+
+  it("keeps a model-provided date.format over inference", () => {
+    const m = completeMapping(
+      { ...ROLES, date: { column: "Date", format: "DD/MM/YYYY" } },
+      sampleWith({ Date: "01/05/2026" }),
+      "f.csv",
+    );
+    expect(m.date.format).toBe("DD/MM/YYYY");
+  });
+
+  describe("amountFormat inference", () => {
+    const fmt = (amount: string) => completeMapping(ROLES, sampleWith({ Amount: amount }), "f.csv").amountFormat.format;
+    it("currency for a symbol or thousands grouping", () => {
+      expect(fmt("$1,234.56")).toBe("currency");
+      expect(fmt("1,234.56")).toBe("currency");
+      expect(fmt("($50.00)")).toBe("currency");
+    });
+    it("european for a comma decimal", () => {
+      expect(fmt("1.234,56")).toBe("european");
+      expect(fmt("1234,56")).toBe("european");
+    });
+    it("plain otherwise", () => {
+      expect(fmt("-4.50")).toBe("plain");
+      expect(fmt("1234.56")).toBe("plain");
+    });
+  });
+
+  describe("date.format inference", () => {
+    const df = (date: string) => completeMapping(ROLES, sampleWith({ Date: date }), "f.csv").date.format;
+    it("ISO and dotted forms", () => {
+      expect(df("2026-01-05")).toBe("YYYY-MM-DD");
+      expect(df("2026/01/05")).toBe("YYYY/MM/DD");
+      expect(df("25.01.2026")).toBe("DD.MM.YYYY");
+    });
+    it("defaults ambiguous slash dates to US MM/DD/YYYY", () => {
+      expect(df("01/05/2026")).toBe("MM/DD/YYYY");
+    });
+    it("picks DD/MM when a first component exceeds 12", () => {
+      expect(completeMapping(ROLES, [{ Date: "13/05/2026", Description: "X", Amount: "1" }], "f.csv").date.format).toBe(
+        "DD/MM/YYYY",
+      );
+    });
+    it("picks MM/DD when a second component exceeds 12", () => {
+      expect(completeMapping(ROLES, [{ Date: "05/13/2026", Description: "X", Amount: "1" }], "f.csv").date.format).toBe(
+        "MM/DD/YYYY",
+      );
+    });
   });
 });
 

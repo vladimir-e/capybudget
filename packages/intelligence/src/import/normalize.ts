@@ -63,14 +63,22 @@ export async function normalizeCsv(
   const allRows = parsed.data;
   const sample = allRows.slice(0, MAPPING_SAMPLE_ROWS);
 
-  let mapping = await requestMapping(session, source.name, headers, sample, null);
+  let mapping = completeMapping(
+    await requestMapping(session, source.name, headers, sample, null),
+    sample,
+    source.name,
+  );
 
   // Code-side preview: transform a slice, and if it errors, give the model one
   // correction round. The preview is pure code — no model call to detect the
   // problem, only to fix it.
   const previewErrors = previewTransformErrors(allRows.slice(0, PREVIEW_ROWS), mapping);
   if (previewErrors.length > 0) {
-    mapping = await requestMapping(session, source.name, headers, sample, previewErrors);
+    mapping = completeMapping(
+      await requestMapping(session, source.name, headers, sample, previewErrors),
+      sample,
+      source.name,
+    );
   }
 
   const { transactions, errors } = transformCsv(allRows, mapping, { startId: options.startId });
@@ -126,6 +134,97 @@ async function requestMapping(
 function callMapper(session: StructuredSession, prompt: string): Promise<CsvMappingResult> {
   const messages: { role: "user"; content: MessageContent }[] = [{ role: "user", content: prompt }];
   return session.structured<CsvMappingResult>(messages, CSV_MAPPING_SCHEMA);
+}
+
+/**
+ * Fill any metadata field the model omitted, inferring it from the sample
+ * values. The model only commits to the column roles (date column, description,
+ * amount); reading `amountFormat`/`date.format` from the actual data is more
+ * reliable than trusting the model, so a model-provided `date.format` wins but
+ * an absent one is inferred rather than failing the whole import.
+ */
+export function completeMapping(
+  mapping: CsvMappingResult,
+  samples: Record<string, string>[],
+  filename: string,
+): CsvMapping {
+  return {
+    date: {
+      column: mapping.date.column,
+      format: mapping.date.format ?? inferDateFormat(columnSamples(samples, mapping.date.column)),
+    },
+    description: mapping.description,
+    amount: mapping.amount,
+    amountFormat: mapping.amountFormat ?? inferAmountFormat(amountSamples(samples, mapping.amount)),
+    typeDetection: mapping.typeDetection ?? { method: "amount_sign" },
+    sourceAccount: mapping.sourceAccount ?? { literal: accountFromFilename(filename) },
+    sourceCategory: mapping.sourceCategory ?? null,
+    skipRules: mapping.skipRules,
+  };
+}
+
+function columnSamples(samples: Record<string, string>[], column: string): string[] {
+  return samples.map((row) => row[column] ?? "").filter((v) => v.trim() !== "");
+}
+
+function amountSamples(samples: Record<string, string>[], amount: CsvMapping["amount"]): string[] {
+  const columns =
+    amount.style === "single" ? [amount.column] : [amount.expenseColumn, amount.incomeColumn];
+  return samples
+    .flatMap((row) => columns.map((c) => row[c] ?? ""))
+    .filter((v) => v.trim() !== "");
+}
+
+/**
+ * `1.234,56` (comma decimal) → european; a currency symbol or `1,234.56`
+ * thousands grouping → currency; otherwise plain. European is checked first
+ * because the comma-as-decimal is its defining trait even with a `€` present.
+ */
+function inferAmountFormat(values: string[]): CsvMapping["amountFormat"] {
+  if (values.some((v) => /\d,\d{2}\b/.test(v) && !/\d\.\d{2}\b/.test(v))) {
+    return { format: "european" };
+  }
+  if (
+    values.some((v) => /[$€£¥₽₹₱₴₫₦₩₪₿]/.test(v) || /\d{1,3}(,\d{3})+/.test(v))
+  ) {
+    return { format: "currency" };
+  }
+  return { format: "plain" };
+}
+
+/**
+ * Infer a `DATE_FORMATS`-supported pattern from the sample dates. ISO and dotted
+ * forms are unambiguous; slash dates need disambiguation — a component >12 fixes
+ * which side is the day, otherwise we default to US `MM/DD/YYYY`.
+ */
+function inferDateFormat(values: string[]): string {
+  const dates = values.map((v) => v.split(/[T ]/)[0]).filter(Boolean);
+  const first = dates[0] ?? "";
+  if (/^\d{4}-\d{2}-\d{2}$/.test(first)) return "YYYY-MM-DD";
+  if (/^\d{4}\/\d{2}\/\d{2}$/.test(first)) return "YYYY/MM/DD";
+  if (/^\d{1,2}\.\d{1,2}\.\d{4}$/.test(first)) return "DD.MM.YYYY";
+  if (/^\d{1,2}-\d{1,2}-\d{4}$/.test(first)) return "MM-DD-YYYY";
+  if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(first)) return disambiguateSlashDate(dates);
+  return "MM/DD/YYYY";
+}
+
+function disambiguateSlashDate(dates: string[]): "MM/DD/YYYY" | "DD/MM/YYYY" {
+  for (const d of dates) {
+    const m = d.match(/^(\d{1,2})\/(\d{1,2})\/\d{4}$/);
+    if (!m) continue;
+    if (Number(m[1]) > 12) return "DD/MM/YYYY"; // first component can't be a month
+    if (Number(m[2]) > 12) return "MM/DD/YYYY"; // second component can't be the day
+  }
+  return "MM/DD/YYYY";
+}
+
+function accountFromFilename(filename: string): string {
+  const base = filename
+    .replace(/\.[^.]+$/, "")
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  return base || "Imported";
 }
 
 export interface NormalizeImageResult {
