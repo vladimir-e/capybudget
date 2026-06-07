@@ -15,10 +15,16 @@ import Papa from "papaparse";
 import {
   buildStaged,
   transformCsv,
+  SUPPORTED_DATE_FORMATS,
+  type AmountMapping,
+  type ColumnRef,
   type CsvMapping,
   type ImportTransaction,
+  type SingleAmountMapping,
+  type SkipRule,
   type StagedRecord,
   type TransformError,
+  type TypeDetection,
 } from "@capybudget/core";
 import type { MessageContent } from "../types";
 import { SchemaValidationError, type StructuredSession } from "../structured";
@@ -63,22 +69,14 @@ export async function normalizeCsv(
   const allRows = parsed.data;
   const sample = allRows.slice(0, MAPPING_SAMPLE_ROWS);
 
-  let mapping = completeMapping(
-    await requestMapping(session, source.name, headers, sample, null),
-    sample,
-    source.name,
-  );
+  let mapping = await resolveMapping(session, source.name, headers, sample, null);
 
-  // Code-side preview: transform a slice, and if it errors, give the model one
-  // correction round. The preview is pure code — no model call to detect the
-  // problem, only to fix it.
+  // Code-side preview: transform a slice, and if it errors (e.g. the model named
+  // a column that isn't there), give the model one correction round. The preview
+  // is pure code — no model call to detect the problem, only to fix it.
   const previewErrors = previewTransformErrors(allRows.slice(0, PREVIEW_ROWS), mapping);
   if (previewErrors.length > 0) {
-    mapping = completeMapping(
-      await requestMapping(session, source.name, headers, sample, previewErrors),
-      sample,
-      source.name,
-    );
+    mapping = await resolveMapping(session, source.name, headers, sample, previewErrors);
   }
 
   const { transactions, errors } = transformCsv(allRows, mapping, { startId: options.startId });
@@ -94,13 +92,36 @@ function previewTransformErrors(rows: Record<string, string>[], mapping: CsvMapp
   }
 }
 
-async function requestMapping(
+/**
+ * One mapping call → a guaranteed-valid `CsvMapping`. The model's output is
+ * advisory; `normalizeMapping` heals it. The only failure mode is a core column
+ * role the model never identifies (or names so vaguely it can't be read), which
+ * `normalizeMapping` throws on — that gets one corrective retry before it
+ * surfaces, so a transient bad response doesn't abort the import.
+ */
+async function resolveMapping(
   session: StructuredSession,
   filename: string,
   headers: string[],
   sample: Record<string, string>[],
   priorErrors: string[] | null,
-): Promise<CsvMappingResult> {
+): Promise<CsvMapping> {
+  const prompt = buildMappingPrompt(filename, headers, sample, priorErrors);
+  try {
+    return normalizeMapping(await callMapper(session, prompt), sample, filename);
+  } catch (err) {
+    if (!(err instanceof SchemaValidationError)) throw err;
+    const retryPrompt = `${prompt}\n\nYour previous response could not be used: ${err.message}. Return a mapping that clearly identifies the date column, the description column(s), and the amount column(s).`;
+    return normalizeMapping(await callMapper(session, retryPrompt), sample, filename);
+  }
+}
+
+function buildMappingPrompt(
+  filename: string,
+  headers: string[],
+  sample: Record<string, string>[],
+  priorErrors: string[] | null,
+): string {
   const errorNote =
     priorErrors && priorErrors.length > 0
       ? `\n\nYour previous mapping produced these transform errors. Correct it:\n${priorErrors
@@ -108,27 +129,16 @@ async function requestMapping(
           .join("\n")}`
       : "";
 
-  const prompt = [
+  return [
     `Map this CSV's columns so a transform engine can convert every row into a uniform transaction record.`,
     `File: ${filename}`,
     `Headers: ${headers.join(", ")}`,
     `Sample rows (first ${sample.length}):`,
     JSON.stringify(sample, null, 2),
-    `Return a mapping describing the date column + format, the description column(s), how amounts are structured (single signed column or split debit/credit) and formatted, how to detect expense/income/transfer, the source account (a column or a literal inferred from the filename), and the source category column (or null if absent). Add skipRules for non-transaction rows (opening balances, voids) when present.`,
-    `ALWAYS include date.format as a date pattern matching the sample dates (e.g. MM/DD/YYYY, YYYY-MM-DD, DD.MM.YYYY) — never omit it. Every field the schema marks required must be present in your response.`,
+    `Identify the date column, the description column(s), and how amounts are structured: a single signed column ({ style: "single", column, sign }) or split debit/credit ({ style: "split", expenseColumn, incomeColumn }). Optionally include date.format, the source account, the source category column, and skipRules for non-transaction rows (opening balances, voids).`,
+    `Guidance (the engine heals any deviation, so approximate freely): sign is "negative_expense" or "positive_expense"; date.format like MM/DD/YYYY, YYYY-MM-DD, or DD.MM.YYYY. Amount formatting is read from the data, so don't worry about it.`,
     errorNote,
   ].join("\n");
-
-  try {
-    return await callMapper(session, prompt);
-  } catch (err) {
-    // CSV_MAPPING_SCHEMA is non-strict (its open typeMap can't be expressed in
-    // OpenAI strict), so the model can drop a required field and parseStructured
-    // rejects it. Retry once with the validator's complaint attached.
-    if (!(err instanceof SchemaValidationError)) throw err;
-    const retryPrompt = `${prompt}\n\nYour previous response was rejected by validation: ${err.message}. Return the COMPLETE mapping with every required field present.`;
-    return callMapper(session, retryPrompt);
-  }
 }
 
 function callMapper(session: StructuredSession, prompt: string): Promise<CsvMappingResult> {
@@ -137,37 +147,163 @@ function callMapper(session: StructuredSession, prompt: string): Promise<CsvMapp
 }
 
 /**
- * Fill any metadata field the model omitted, inferring it from the sample
- * values. The model only commits to the column roles (date column, description,
- * amount); reading `amountFormat`/`date.format` from the actual data is more
- * reliable than trusting the model, so a model-provided `date.format` wins but
- * an absent one is inferred rather than failing the whole import.
+ * The sole authority that turns the model's loose, possibly-off mapping into a
+ * guaranteed-valid `CsvMapping`. Column roles are read defensively (tolerating
+ * synonyms and a bare-string form); every metadata field is healed — amount
+ * formatting is always inferred from the data, and the rest is coerced to a
+ * valid value or defaulted. Throws only when a core column role (date,
+ * description, amount) can't be identified at all.
  */
-export function completeMapping(
-  mapping: CsvMappingResult,
+export function normalizeMapping(
+  raw: CsvMappingResult,
   samples: Record<string, string>[],
   filename: string,
 ): CsvMapping {
+  const amount = normalizeAmount(raw.amount, samples);
   return {
-    date: {
-      column: mapping.date.column,
-      format: mapping.date.format ?? inferDateFormat(columnSamples(samples, mapping.date.column)),
-    },
-    description: mapping.description,
-    amount: mapping.amount,
-    amountFormat: mapping.amountFormat ?? inferAmountFormat(amountSamples(samples, mapping.amount)),
-    typeDetection: mapping.typeDetection ?? { method: "amount_sign" },
-    sourceAccount: mapping.sourceAccount ?? { literal: accountFromFilename(filename) },
-    sourceCategory: mapping.sourceCategory ?? null,
-    skipRules: mapping.skipRules,
+    date: normalizeDate(raw.date, samples),
+    description: normalizeRequiredColumnRef(raw.description, "description"),
+    amount,
+    amountFormat: inferAmountFormat(amountSamples(samples, amount)),
+    typeDetection: normalizeTypeDetection(raw.typeDetection),
+    sourceAccount: normalizeSourceAccount(raw.sourceAccount, filename),
+    sourceCategory: toColumnRef(raw.sourceCategory),
+    skipRules: normalizeSkipRules(raw.skipRules),
   };
+}
+
+// ── Defensive value readers ──────────────────────────────────────
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function asString(value: unknown): string | undefined {
+  return typeof value === "string" && value.trim() !== "" ? value.trim() : undefined;
+}
+
+/** First key whose value is a non-empty string — tolerates synonym keys. */
+function pickString(obj: Record<string, unknown>, keys: string[]): string | undefined {
+  for (const key of keys) {
+    const value = asString(obj[key]);
+    if (value) return value;
+  }
+  return undefined;
+}
+
+// ── Field normalizers ────────────────────────────────────────────
+
+function normalizeDate(raw: unknown, samples: Record<string, string>[]): CsvMapping["date"] {
+  const obj = isRecord(raw) ? raw : {};
+  const column = asString(raw) ?? pickString(obj, ["column", "dateColumn", "date"]);
+  if (!column) throw new SchemaValidationError("CSV mapping has no identifiable date column");
+  const modelFormat = asString(obj.format);
+  const format =
+    modelFormat && SUPPORTED_DATE_FORMATS.includes(modelFormat)
+      ? modelFormat
+      : inferDateFormat(columnSamples(samples, column));
+  return { column, format };
+}
+
+function normalizeAmount(raw: unknown, samples: Record<string, string>[]): AmountMapping {
+  const obj = isRecord(raw) ? raw : {};
+  const expenseColumn = pickString(obj, ["expenseColumn", "debitColumn", "outflowColumn", "outflow", "debit"]);
+  const incomeColumn = pickString(obj, ["incomeColumn", "creditColumn", "inflowColumn", "inflow", "credit"]);
+  if (expenseColumn && incomeColumn) {
+    return { style: "split", expenseColumn, incomeColumn };
+  }
+  const column = asString(raw) ?? pickString(obj, ["column", "amountColumn", "amount", "value"]);
+  if (!column) throw new SchemaValidationError("CSV mapping has no identifiable amount column");
+  return { style: "single", column, sign: normalizeSign(obj.sign, samples, column) };
+}
+
+/**
+ * Coerce the model's sign to one of the two valid values: any "positive"/
+ * "negative" phrasing maps directly; otherwise infer from the data — a column
+ * with negative values stores expenses as negatives, an all-positive column
+ * (e.g. a credit-card charges export) reads as positive-expense.
+ */
+function normalizeSign(raw: unknown, samples: Record<string, string>[], column: string): SingleAmountMapping["sign"] {
+  const sign = typeof raw === "string" ? raw.toLowerCase() : "";
+  if (sign.includes("positive")) return "positive_expense";
+  if (sign.includes("negative")) return "negative_expense";
+  const hasNegative = columnSamples(samples, column).some((v) => /^[(-]/.test(v));
+  return hasNegative ? "negative_expense" : "positive_expense";
+}
+
+const TYPE_METHODS = new Set<TypeDetection["method"]>(["amount_sign", "column", "rules"]);
+
+function normalizeTypeDetection(raw: unknown): TypeDetection {
+  const obj = isRecord(raw) ? raw : {};
+  const method =
+    typeof obj.method === "string" && TYPE_METHODS.has(obj.method as TypeDetection["method"])
+      ? (obj.method as TypeDetection["method"])
+      : "amount_sign";
+  const result: TypeDetection = { method };
+  const typeColumn = asString(obj.typeColumn);
+  if (typeColumn) result.typeColumn = typeColumn;
+  if (isRecord(obj.typeMap)) result.typeMap = obj.typeMap as TypeDetection["typeMap"];
+  if (Array.isArray(obj.transferPatterns)) {
+    const patterns = obj.transferPatterns.filter((p): p is string => typeof p === "string");
+    if (patterns.length) result.transferPatterns = patterns;
+  }
+  return result;
+}
+
+function normalizeSourceAccount(raw: unknown, filename: string): CsvMapping["sourceAccount"] {
+  const literal = asString(raw);
+  if (literal) return { literal };
+  if (isRecord(raw)) {
+    const column = pickString(raw, ["column"]);
+    if (column) return { column };
+    const fromLiteral = pickString(raw, ["literal", "value", "name"]);
+    if (fromLiteral) return { literal: fromLiteral };
+  }
+  return { literal: accountFromFilename(filename) };
+}
+
+function normalizeRequiredColumnRef(raw: unknown, role: string): ColumnRef {
+  const ref = toColumnRef(raw);
+  if (!ref) throw new SchemaValidationError(`CSV mapping has no identifiable ${role} column`);
+  return ref;
+}
+
+/** A `string`, `{ column }`, or `{ columns, separator }` → `ColumnRef`; else null. */
+function toColumnRef(raw: unknown): ColumnRef | null {
+  const single = asString(raw);
+  if (single) return { column: single };
+  if (isRecord(raw)) {
+    const column = pickString(raw, ["column"]);
+    if (column) return { column };
+    if (Array.isArray(raw.columns)) {
+      const columns = raw.columns.filter((c): c is string => typeof c === "string" && c.trim() !== "");
+      if (columns.length) return { columns, separator: asString(raw.separator) ?? " " };
+    }
+  }
+  return null;
+}
+
+function normalizeSkipRules(raw: unknown): SkipRule[] | undefined {
+  if (!Array.isArray(raw)) return undefined;
+  const rules = raw.flatMap((entry): SkipRule[] => {
+    if (!isRecord(entry)) return [];
+    const column = pickString(entry, ["column"]);
+    if (!column) return [];
+    const rule: SkipRule = { column };
+    const contains = asString(entry.contains);
+    const equals = asString(entry.equals);
+    if (contains) rule.contains = contains;
+    if (equals) rule.equals = equals;
+    return [rule];
+  });
+  return rules.length ? rules : undefined;
 }
 
 function columnSamples(samples: Record<string, string>[], column: string): string[] {
   return samples.map((row) => row[column] ?? "").filter((v) => v.trim() !== "");
 }
 
-function amountSamples(samples: Record<string, string>[], amount: CsvMapping["amount"]): string[] {
+function amountSamples(samples: Record<string, string>[], amount: AmountMapping): string[] {
   const columns =
     amount.style === "single" ? [amount.column] : [amount.expenseColumn, amount.incomeColumn];
   return samples

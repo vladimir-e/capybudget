@@ -179,6 +179,10 @@ const DATE_FORMATS: Record<string, (s: string) => string | null> = {
   },
 };
 
+/** The date-format patterns {@link transformCsv} can parse — the canonical
+ *  vocabulary a model-supplied `date.format` must be constrained to. */
+export const SUPPORTED_DATE_FORMATS: readonly string[] = Object.keys(DATE_FORMATS);
+
 function pad2(s: string): string {
   return s.length === 1 ? `0${s}` : s;
 }

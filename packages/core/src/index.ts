@@ -175,7 +175,12 @@ export type {
 
 // CSV transform engine
 export type { TransformResult, TransformError } from "./import/csv-transform";
-export { transformCsv, serializeImportCsv, parseCurrencyToCents } from "./import/csv-transform";
+export {
+  transformCsv,
+  serializeImportCsv,
+  parseCurrencyToCents,
+  SUPPORTED_DATE_FORMATS,
+} from "./import/csv-transform";
 
 // Analytics
 export type {

@@ -23,156 +23,51 @@
  */
 
 import type { JsonSchema } from "../structured";
-import type { CsvMapping, StagedRecord } from "@capybudget/core";
+import type { StagedRecord } from "@capybudget/core";
 
 // ── 1. CSV mapping ───────────────────────────────────────────────
 
-const COLUMN_REF_SCHEMA: JsonSchema = {
-  anyOf: [
-    {
-      type: "object",
-      properties: { column: { type: "string" } },
-      required: ["column"],
-    },
-    {
-      type: "object",
-      properties: {
-        columns: { type: "array", items: { type: "string" } },
-        separator: { type: "string" },
-      },
-      required: ["columns", "separator"],
-    },
-  ],
-};
-
 /**
- * The model commits only to the irreducible column ROLES — the date column, the
- * description column(s), and the amount structure. Everything else
- * (`date.format`, `amountFormat`, `typeDetection`, `sourceAccount`,
- * `sourceCategory`) is optional: `completeMapping` in `normalize.ts` infers any
- * the model omits from the sample values, which is more reliable than trusting
- * the model for derivable metadata (it can even get `amountFormat` wrong). So
- * `required` lists only those three roles — an omitted metadata field is
- * completed in code, never a hard validation failure.
- *
- * Also not strict: `typeDetection.typeMap` is an open-keyed `Record<string,…>`
- * (dynamic source values → our types), which OpenAI strict can't express —
- * strict forbids `additionalProperties` other than `false`, and an open map has
- * no fixed `properties`. `additionalProperties: false` stays as a best-effort
- * shape constraint both providers honor.
+ * The mapping the model returns is ADVISORY, not authoritative —
+ * `normalizeMapping` in `normalize.ts` is the sole authority that turns it into
+ * a valid `CsvMapping`. So this schema is a soft hint, never a rejection gate:
+ * it carries NO enums (the model phrases values like `amountFormat` or `sign`
+ * however it likes), leaves the metadata values untyped (`{}` accepts anything),
+ * and sets no `additionalProperties` (an unexpected extra key can't reject). The
+ * only client-side check that can fire is presence of the three irreducible
+ * column roles — date column, description, amount — and even a missing one is
+ * backstopped by a one-shot retry before it surfaces. Shape guidance for the
+ * model lives in the prompt, not here.
  */
 export const CSV_MAPPING_SCHEMA: JsonSchema = {
   type: "object",
-  additionalProperties: false,
   properties: {
     date: {
       type: "object",
-      additionalProperties: false,
       properties: {
         column: { type: "string" },
         format: { type: "string" },
       },
       required: ["column"],
     },
-    description: COLUMN_REF_SCHEMA,
-    amount: {
-      anyOf: [
-        {
-          type: "object",
-          additionalProperties: false,
-          properties: {
-            style: { type: "string", enum: ["single"] },
-            column: { type: "string" },
-            sign: { type: "string", enum: ["negative_expense", "positive_expense"] },
-          },
-          required: ["style", "column", "sign"],
-        },
-        {
-          type: "object",
-          additionalProperties: false,
-          properties: {
-            style: { type: "string", enum: ["split"] },
-            expenseColumn: { type: "string" },
-            incomeColumn: { type: "string" },
-          },
-          required: ["style", "expenseColumn", "incomeColumn"],
-        },
-      ],
-    },
-    amountFormat: {
-      type: "object",
-      additionalProperties: false,
-      properties: {
-        format: { type: "string", enum: ["plain", "currency", "european"] },
-      },
-      required: ["format"],
-    },
-    typeDetection: {
-      type: "object",
-      properties: {
-        method: { type: "string", enum: ["amount_sign", "column", "rules"] },
-        typeColumn: { type: "string" },
-        typeMap: { type: "object" },
-        transferPatterns: { type: "array", items: { type: "string" } },
-      },
-      required: ["method"],
-    },
-    sourceAccount: {
-      anyOf: [
-        {
-          type: "object",
-          additionalProperties: false,
-          properties: { column: { type: "string" } },
-          required: ["column"],
-        },
-        {
-          type: "object",
-          additionalProperties: false,
-          properties: { literal: { type: "string" } },
-          required: ["literal"],
-        },
-      ],
-    },
-    sourceCategory: {
-      anyOf: [
-        COLUMN_REF_SCHEMA,
-        { type: "null" },
-      ],
-    },
-    skipRules: {
-      type: "array",
-      items: {
-        type: "object",
-        additionalProperties: false,
-        properties: {
-          column: { type: "string" },
-          contains: { type: "string" },
-          equals: { type: "string" },
-        },
-        required: ["column"],
-      },
-    },
+    description: {},
+    amount: {},
+    amountFormat: {},
+    typeDetection: {},
+    sourceAccount: {},
+    sourceCategory: {},
+    skipRules: {},
   },
   required: ["date", "description", "amount"],
 };
 
 /**
- * What the relaxed {@link CSV_MAPPING_SCHEMA} guarantees: the model commits to
- * the irreducible column roles, while the metadata fields are optional and
- * `completeMapping` fills any the model omits. Distinct from `core`'s
- * `CsvMapping` (which is always complete) — this is the raw, pre-completion
- * shape coming off the model.
+ * The raw, advisory mapping coming off the model — deliberately untyped beyond
+ * "a JSON object", because the model may phrase any value outside our
+ * vocabulary or shape. `normalizeMapping` reads it defensively and is the sole
+ * authority that produces a valid `core` `CsvMapping`.
  */
-export type CsvMappingResult = {
-  date: { column: string; format?: string };
-  description: CsvMapping["description"];
-  amount: CsvMapping["amount"];
-  amountFormat?: CsvMapping["amountFormat"];
-  typeDetection?: CsvMapping["typeDetection"];
-  sourceAccount?: CsvMapping["sourceAccount"];
-  sourceCategory?: CsvMapping["sourceCategory"];
-  skipRules?: CsvMapping["skipRules"];
-};
+export type CsvMappingResult = Record<string, unknown>;
 
 // ── 2. Image / PDF extraction ────────────────────────────────────
 
