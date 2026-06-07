@@ -1,0 +1,375 @@
+import { describe, it, expect } from "vitest";
+import {
+  makeAccount,
+  makeCategory,
+  makeImportTransaction,
+  makeTransaction,
+} from "@capybudget/core/test-factories";
+import type { ImportTransaction } from "@capybudget/core";
+import { ImportOrchestrator } from "./orchestrator";
+import type { ImportEvent, ImportPhase } from "./events";
+import { CSV_MAPPING_SCHEMA, ENRICH_BATCH_SCHEMA, EXTRACTION_SCHEMA } from "./schemas";
+import {
+  MemoryBudgetData,
+  MemoryStagingStore,
+  MockStructuredSession,
+} from "./test-doubles";
+
+// ── Fixtures ─────────────────────────────────────────────────────
+
+const GROCERIES = makeCategory({ id: "cat-groceries", name: "Groceries" });
+const DINING = makeCategory({ id: "cat-dining", name: "Dining Out" });
+const CATEGORIES = [GROCERIES, DINING];
+
+/** A budget data provider with categories + a history that fast-paths "WHOLE
+ *  FOODS" (3 matching txns, all Groceries). */
+function budgetWithHistory() {
+  const history = [
+    makeTransaction({ merchant: "Whole Foods", note: "WHOLE FOODS", categoryId: "cat-groceries", datetime: "2026-01-01T00:00:00.000Z" }),
+    makeTransaction({ merchant: "Whole Foods", note: "WHOLE FOODS", categoryId: "cat-groceries", datetime: "2026-02-01T00:00:00.000Z" }),
+    makeTransaction({ merchant: "Whole Foods", note: "WHOLE FOODS", categoryId: "cat-groceries", datetime: "2026-03-01T00:00:00.000Z" }),
+  ];
+  return new MemoryBudgetData(history, CATEGORIES, [makeAccount({ name: "Checking" })]);
+}
+
+function emptyBudget() {
+  return new MemoryBudgetData([], CATEGORIES, []);
+}
+
+/** Build a tiny CSV with N expense rows of distinct unknown merchants. */
+function csvWithRows(count: number): string {
+  const lines = ["Date,Description,Amount"];
+  for (let i = 0; i < count; i++) {
+    lines.push(`2026-01-${String((i % 28) + 1).padStart(2, "0")},MERCHANT ${i},-${10 + i}.00`);
+  }
+  return lines.join("\n");
+}
+
+function csvSource(content: string, name = "statement.csv") {
+  return { name, content, mediaType: "text/csv" };
+}
+
+const MAPPING = {
+  date: { column: "Date", format: "YYYY-MM-DD" },
+  description: { column: "Description" },
+  amount: { style: "single", column: "Amount", sign: "negative_expense" },
+  amountFormat: { format: "plain" },
+  typeDetection: { method: "amount_sign" },
+  sourceAccount: { literal: "Checking" },
+  sourceCategory: null,
+};
+
+/** Responder that returns the CSV mapping. */
+const mapResponder = () => MAPPING;
+
+/** Responder that enriches every row in the batch as Dining Out. */
+function enrichResponder(merchant = "Cleaned", categoryId = "cat-dining") {
+  return (messages: readonly { content: unknown }[]) => {
+    const text = JSON.stringify(messages);
+    const ids = [...new Set([...text.matchAll(/(imp-\d+)/g)].map((m) => m[1]))];
+    return { rows: ids.map((id) => ({ id, merchant, categoryId, confidence: "low" })) };
+  };
+}
+
+function collect() {
+  const events: ImportEvent[] = [];
+  return { events, onEvent: (e: ImportEvent) => events.push(e) };
+}
+
+const phases = (events: ImportEvent[]): ImportPhase[] =>
+  events.filter((e): e is { type: "phase"; phase: ImportPhase } => e.type === "phase").map((e) => e.phase);
+
+// ── Phase progression ────────────────────────────────────────────
+
+describe("ImportOrchestrator — phase progression", () => {
+  it("runs Reading → Normalizing → History → Categorizing → done", async () => {
+    const staging = new MemoryStagingStore({ sources: [csvSource(csvWithRows(3))] });
+    const session = new MockStructuredSession([mapResponder, enrichResponder()]);
+    const { events, onEvent } = collect();
+
+    const orch = new ImportOrchestrator({
+      session,
+      staging,
+      budget: emptyBudget(),
+      onEvent,
+      concurrency: 1,
+    });
+    await orch.start();
+
+    expect(phases(events)).toEqual([
+      "reading",
+      "normalizing",
+      "history",
+      "categorizing",
+      "done",
+    ]);
+    expect(orch.currentPhase).toBe("done");
+  });
+
+  it("emits the grounding payoff line after History", async () => {
+    const staging = new MemoryStagingStore({ sources: [csvSource(csvWithRows(2))] });
+    const session = new MockStructuredSession([mapResponder, enrichResponder()]);
+    const { events, onEvent } = collect();
+
+    await new ImportOrchestrator({ session, staging, budget: emptyBudget(), onEvent, concurrency: 1 }).start();
+
+    const grounding = events.find((e) => e.type === "grounding");
+    expect(grounding).toBeDefined();
+    expect(grounding && grounding.type === "grounding" && grounding.stats.total).toBe(2);
+  });
+
+  it("passes the right schema to each model call", async () => {
+    const staging = new MemoryStagingStore({ sources: [csvSource(csvWithRows(1))] });
+    const session = new MockStructuredSession([mapResponder, enrichResponder()]);
+
+    await new ImportOrchestrator({ session, staging, budget: emptyBudget(), onEvent: () => {}, concurrency: 1 }).start();
+
+    expect(session.calls[0].schema).toBe(CSV_MAPPING_SCHEMA);
+    expect(session.calls[1].schema).toBe(ENRICH_BATCH_SCHEMA);
+  });
+});
+
+// ── Fast-path / duplicate rows skip Categorizing ─────────────────
+
+describe("ImportOrchestrator — rows that skip Categorizing", () => {
+  it("fast-pathed rows never reach the classifier", async () => {
+    // Two rows: one fast-paths off history (WHOLE FOODS), one is unknown.
+    const csv = "Date,Description,Amount\n2026-01-10,WHOLE FOODS,-50.00\n2026-01-11,MYSTERY VENDOR,-12.00";
+    const staging = new MemoryStagingStore({ sources: [csvSource(csv)] });
+    const session = new MockStructuredSession([mapResponder, enrichResponder()]);
+
+    await new ImportOrchestrator({ session, staging, budget: budgetWithHistory(), onEvent: () => {}, concurrency: 1 }).start();
+
+    // Mapping call + exactly one enrich batch (only the mystery row needs it).
+    expect(session.calls).toHaveLength(2);
+    const enrichText = JSON.stringify(session.calls[1].messages);
+    expect(enrichText).toContain("MYSTERY VENDOR");
+    expect(enrichText).not.toContain("WHOLE FOODS");
+
+    const rows = staging.transactions!;
+    const wholeFoods = rows.find((r) => r.description === "WHOLE FOODS")!;
+    expect(wholeFoods.categoryId).toBe("cat-groceries");
+    expect(wholeFoods.categoryConfidence).toBe("high");
+    expect(wholeFoods.merchant).toBe("Whole Foods");
+  });
+
+  it("a transfer row never reaches the classifier", async () => {
+    const rows = [
+      makeImportTransaction({ id: "imp-1", type: "transfer", description: "XFER" }),
+      makeImportTransaction({ id: "imp-2", description: "UNKNOWN", merchant: "", categoryId: "" }),
+    ];
+    const staging = new MemoryStagingStore({ transactions: rows });
+    const session = new MockStructuredSession([enrichResponder()]);
+
+    await new ImportOrchestrator({ session, staging, budget: emptyBudget(), onEvent: () => {}, concurrency: 1 }).enrich();
+
+    expect(session.calls).toHaveLength(1);
+    const text = JSON.stringify(session.calls[0].messages);
+    expect(text).toContain("imp-2");
+    expect(text).not.toContain("imp-1");
+  });
+
+  it("skips Categorizing entirely when nothing needs enrichment", async () => {
+    const rows = [
+      makeImportTransaction({ id: "imp-1", merchant: "Done", categoryId: "cat-groceries" }),
+    ];
+    const staging = new MemoryStagingStore({ transactions: rows });
+    const session = new MockStructuredSession([]); // no calls expected
+    const { events, onEvent } = collect();
+
+    await new ImportOrchestrator({ session, staging, budget: emptyBudget(), onEvent, concurrency: 1 }).enrich();
+
+    expect(session.calls).toHaveLength(0);
+    expect(phases(events)).toEqual(["categorizing", "done"]);
+  });
+});
+
+// ── Batching + per-batch persistence ─────────────────────────────
+
+describe("ImportOrchestrator — batching + per-batch persistence", () => {
+  it("splits >25 rows into multiple batches and persists each as it lands", async () => {
+    const rows: ImportTransaction[] = Array.from({ length: 60 }, (_, i) =>
+      makeImportTransaction({ id: `imp-${i + 1}`, description: `V${i}` }),
+    );
+    const staging = new MemoryStagingStore({ transactions: rows });
+    // 60 rows / 25 = 3 batches.
+    const session = new MockStructuredSession([enrichResponder(), enrichResponder(), enrichResponder()]);
+
+    await new ImportOrchestrator({ session, staging, budget: emptyBudget(), onEvent: () => {}, concurrency: 1 }).enrich();
+
+    expect(session.calls).toHaveLength(3);
+    // One write per landed batch (3), each writing back into staging.
+    expect(staging.writeCount).toBe(3);
+    expect(staging.transactions!.every((r) => r.categoryId === "cat-dining")).toBe(true);
+  });
+
+  it("does not lose writes when batches run concurrently", async () => {
+    // 100 rows / 25 = 4 batches, run with the default concurrency of 4 (all at
+    // once). Each batch enriches its own ids; a read-modify-write race would
+    // drop some. Every row must land.
+    const rows: ImportTransaction[] = Array.from({ length: 100 }, (_, i) =>
+      makeImportTransaction({ id: `imp-${i + 1}`, description: `V${i}` }),
+    );
+    const staging = new MemoryStagingStore({ transactions: rows });
+    const session = new MockStructuredSession(
+      Array.from({ length: 4 }, () => enrichResponder()),
+    );
+
+    // Concurrency 4 (the default) — omit the override.
+    await new ImportOrchestrator({ session, staging, budget: emptyBudget(), onEvent: () => {} }).enrich();
+
+    expect(staging.transactions!.filter((r) => r.categoryId === "cat-dining")).toHaveLength(100);
+  });
+
+  it("emits batch-progress over the remaining incomplete rows", async () => {
+    const rows: ImportTransaction[] = Array.from({ length: 30 }, (_, i) =>
+      makeImportTransaction({ id: `imp-${i + 1}`, description: `V${i}` }),
+    );
+    const staging = new MemoryStagingStore({ transactions: rows });
+    const session = new MockStructuredSession([enrichResponder(), enrichResponder()]);
+    const { events, onEvent } = collect();
+
+    await new ImportOrchestrator({ session, staging, budget: emptyBudget(), onEvent, concurrency: 1 }).enrich();
+
+    const progress = events.filter((e) => e.type === "batch-progress");
+    const last = progress[progress.length - 1];
+    expect(last.type === "batch-progress" && last.progress).toEqual({ done: 30, total: 30 });
+  });
+});
+
+// ── no_data ──────────────────────────────────────────────────────
+
+describe("ImportOrchestrator — no_data", () => {
+  it("routes a no_data image to a recoverable error and writes no staging", async () => {
+    const staging = new MemoryStagingStore({
+      sources: [{ name: "selfie.png", content: "BASE64", mediaType: "image/png" }],
+    });
+    const session = new MockStructuredSession([
+      () => ({ error: "no_data", message: "This looks like a photo of a person." }),
+    ]);
+    const { events, onEvent } = collect();
+
+    await new ImportOrchestrator({ session, staging, budget: emptyBudget(), onEvent, concurrency: 1 }).start();
+
+    const error = events.find((e) => e.type === "error");
+    expect(error && error.type === "error" && error.reason).toBe("no_data");
+    expect(error && error.type === "error" && error.recoverable).toBe(true);
+    expect(staging.transactions).toBeNull();
+    expect(session.calls[0].schema).toBe(EXTRACTION_SCHEMA);
+  });
+
+  it("treats an empty extraction as no_data", async () => {
+    const staging = new MemoryStagingStore({
+      sources: [{ name: "blank.png", content: "BASE64", mediaType: "image/png" }],
+    });
+    const session = new MockStructuredSession([() => ({ rows: [] })]);
+    const { events, onEvent } = collect();
+
+    await new ImportOrchestrator({ session, staging, budget: emptyBudget(), onEvent, concurrency: 1 }).start();
+
+    expect(events.find((e) => e.type === "error" && e.reason === "no_data")).toBeDefined();
+    expect(staging.transactions).toBeNull();
+  });
+
+  it("extracts rows from a real bank screenshot like a CSV", async () => {
+    const staging = new MemoryStagingStore({
+      sources: [{ name: "bank.png", content: "BASE64", mediaType: "image/png" }],
+    });
+    const session = new MockStructuredSession([
+      () => ({
+        rows: [
+          { date: "2026-01-05", amount: -1599, type: "expense", description: "Netflix", sourceAccount: "Checking", sourceCategory: "" },
+          { date: "2026-01-06", amount: -4200, type: "expense", description: "Shell", sourceAccount: "Checking", sourceCategory: "" },
+        ],
+      }),
+      enrichResponder(),
+    ]);
+
+    await new ImportOrchestrator({ session, staging, budget: emptyBudget(), onEvent: () => {}, concurrency: 1 }).start();
+
+    expect(staging.transactions).toHaveLength(2);
+    expect(staging.transactions![0].id).toBe("imp-1");
+    expect(staging.transactions![0].description).toBe("Netflix");
+  });
+});
+
+// ── Batch-failure isolation (no retry) ───────────────────────────
+
+describe("ImportOrchestrator — batch-failure isolation", () => {
+  it("a failed batch leaves its rows incomplete and never retries", async () => {
+    const rows: ImportTransaction[] = Array.from({ length: 50 }, (_, i) =>
+      makeImportTransaction({ id: `imp-${i + 1}`, description: `V${i}` }),
+    );
+    const staging = new MemoryStagingStore({ transactions: rows });
+    // Batch 1 throws, batch 2 succeeds. No retry → exactly 2 calls.
+    const session = new MockStructuredSession([
+      () => new Error("rate limited"),
+      enrichResponder(),
+    ]);
+    const { events, onEvent } = collect();
+
+    await new ImportOrchestrator({ session, staging, budget: emptyBudget(), onEvent, concurrency: 1 }).enrich();
+
+    expect(session.calls).toHaveLength(2); // no retry of the failed batch
+    const warn = events.find((e) => e.type === "log" && e.entry.level === "warn");
+    expect(warn).toBeDefined();
+
+    // Batch 1's rows (imp-1..25) stay uncategorized; batch 2's are done.
+    const stillPending = staging.transactions!.filter((r) => !r.categoryId);
+    expect(stillPending).toHaveLength(25);
+    expect(staging.transactions!.filter((r) => r.categoryId === "cat-dining")).toHaveLength(25);
+    // The run still completes — failure isn't fatal.
+    expect(phases(events).at(-1)).toBe("done");
+  });
+});
+
+// ── Re-run idempotency + resume ──────────────────────────────────
+
+describe("ImportOrchestrator — re-run idempotency + resume", () => {
+  it("re-running enrich only processes rows that still need it", async () => {
+    // 25 done + 25 pending = one batch of work on re-run.
+    const done = Array.from({ length: 25 }, (_, i) =>
+      makeImportTransaction({ id: `imp-${i + 1}`, merchant: "X", categoryId: "cat-dining" }),
+    );
+    const pending = Array.from({ length: 25 }, (_, i) =>
+      makeImportTransaction({ id: `imp-${i + 26}`, description: `P${i}` }),
+    );
+    const staging = new MemoryStagingStore({ transactions: [...done, ...pending] });
+    const session = new MockStructuredSession([enrichResponder()]);
+
+    await new ImportOrchestrator({ session, staging, budget: emptyBudget(), onEvent: () => {}, concurrency: 1 }).enrich();
+
+    expect(session.calls).toHaveLength(1); // only the 25 pending rows
+    expect(staging.transactions!.every((r) => r.categoryId)).toBe(true);
+  });
+
+  it("re-run never clobbers a hand-mapped value", async () => {
+    const hand = makeImportTransaction({ id: "imp-1", merchant: "Hand Mapped", categoryId: "cat-groceries", categoryConfidence: "high" });
+    const staging = new MemoryStagingStore({ transactions: [hand] });
+    const session = new MockStructuredSession([]); // hand row fails predicate → no call
+
+    await new ImportOrchestrator({ session, staging, budget: emptyBudget(), onEvent: () => {}, concurrency: 1 }).enrich();
+
+    expect(session.calls).toHaveLength(0);
+    expect(staging.transactions![0].merchant).toBe("Hand Mapped");
+    expect(staging.transactions![0].categoryId).toBe("cat-groceries");
+  });
+
+  it("a second full run resumes at Categorizing when staging already exists", async () => {
+    const staging = new MemoryStagingStore({ sources: [csvSource(csvWithRows(3))] });
+    const firstSession = new MockStructuredSession([mapResponder, enrichResponder()]);
+    const { events: firstEvents, onEvent: onFirst } = collect();
+    await new ImportOrchestrator({ session: firstSession, staging, budget: emptyBudget(), onEvent: onFirst, concurrency: 1 }).start();
+    expect(phases(firstEvents)).toContain("normalizing");
+
+    // Rows are now fully enriched; a fresh start() resumes and re-categorizes
+    // only what still needs it (nothing) — no Normalizing, no mapping call.
+    const secondSession = new MockStructuredSession([]);
+    const { events: secondEvents, onEvent: onSecond } = collect();
+    await new ImportOrchestrator({ session: secondSession, staging, budget: emptyBudget(), onEvent: onSecond, concurrency: 1 }).start();
+
+    expect(phases(secondEvents)).not.toContain("normalizing");
+    expect(phases(secondEvents)).toContain("categorizing");
+    expect(secondSession.calls).toHaveLength(0);
+  });
+});

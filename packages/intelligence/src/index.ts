@@ -124,3 +124,46 @@ export {
 } from "./tools"
 export type { ToolDefinition, ToolMode, ToolContext } from "./tools"
 
+// Import orchestrator — state machine, event stream, injected seams, schemas
+export {
+  ImportOrchestrator,
+  PIPELINE_PHASES,
+  FileStagingStore,
+  parseImportCsv,
+  normalizeCsv,
+  normalizeImage,
+  isImageOrPdf,
+  enrichBatch,
+  batchRows,
+  needsEnrich,
+  ENRICH_BATCH_SIZE,
+  ENRICH_CONCURRENCY,
+  CSV_MAPPING_SCHEMA,
+  EXTRACTION_SCHEMA,
+  ENRICH_BATCH_SCHEMA,
+  createStructuredImportSession,
+  canImport,
+} from "./import"
+export type {
+  OrchestratorDeps,
+  ImportEvent,
+  ImportEventHandler,
+  ImportPhase,
+  ImportLogEntry,
+  ImportErrorReason,
+  LogLevel,
+  BatchProgress,
+  GroundingEventStats,
+  StagingStore,
+  SourceFile,
+  ImportState,
+  BudgetDataProvider,
+  NormalizeCsvResult,
+  NormalizeImageResult,
+  CsvMappingResult,
+  ExtractionResult,
+  EnrichBatchResult,
+  EnrichedRow,
+  StructuredImportSessionDeps,
+} from "./import"
+
