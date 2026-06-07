@@ -28,6 +28,7 @@ import {
   isImageFile,
   isImportBinaryFile,
   isImportTextFile,
+  isPdfFilename,
   readFileAsBase64,
 } from "@/lib/file-attachments";
 import { ImportDropZone } from "./import-drop-zone";
@@ -52,7 +53,7 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
   const repository = useImportRepository(budgetPath);
 
   // ── Orchestrator + run state ──────────────────────────────────
-  const { supported, start, enrich, stop, cancel, staging } = useImportOrchestrator(budgetPath);
+  const { supported, pdfSupported, start, enrich, stop, cancel, staging } = useImportOrchestrator(budgetPath);
   const phase = useImportStore((s) => s.phase);
   const status = useImportStore((s) => s.status);
   const log = useImportStore((s) => s.log);
@@ -208,6 +209,12 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
           toast.error(`${file.name} is not a supported file type`);
           continue;
         }
+        // The active provider must be able to read PDFs, or the import starts a
+        // run the model never sees (OpenAI swaps PDFs for a placeholder note).
+        if ((file.type === "application/pdf" || isPdfFilename(file.name)) && !pdfSupported) {
+          toast.error(`${file.name} skipped — PDF import needs the Anthropic provider`);
+          continue;
+        }
         setUploadingFiles((prev) => new Set(prev).add(file.name));
         try {
           // Binary sources (images, PDFs) stage as base64 text — the staging
@@ -247,7 +254,7 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
         /* best-effort */
       }
     },
-    [repository, refreshSourceFiles],
+    [repository, refreshSourceFiles, pdfSupported],
   );
 
   const handleDragEnter = useCallback((e: DragEvent) => {
@@ -458,6 +465,7 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
                   rowsVersion={rowsVersion}
                   running={running}
                   onStop={stop}
+                  onStopRun={cancel}
                   onEnrich={handleEnrich}
                   onMergeComplete={handleMergeComplete}
                 />

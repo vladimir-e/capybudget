@@ -18,6 +18,7 @@ import {
   type CsvMapping,
   type ImportTransaction,
   type StagedRecord,
+  type TransformError,
 } from "@capybudget/core";
 import type { MessageContent } from "../types";
 import { SchemaValidationError, type StructuredSession } from "../structured";
@@ -36,6 +37,10 @@ const PREVIEW_ROWS = 15;
 export interface NormalizeCsvResult {
   rows: ImportTransaction[];
   mapping: CsvMapping;
+  /** Rows the final transform couldn't parse (bad date/amount surviving the
+   *  preview re-call). Dropped from `rows`; the orchestrator surfaces them as a
+   *  warn-level log so the user sees what was skipped instead of it vanishing. */
+  errors: TransformError[];
 }
 
 /**
@@ -68,8 +73,8 @@ export async function normalizeCsv(
     mapping = await requestMapping(session, source.name, headers, sample, previewErrors);
   }
 
-  const { transactions } = transformCsv(allRows, mapping, { startId: options.startId });
-  return { rows: transactions, mapping };
+  const { transactions, errors } = transformCsv(allRows, mapping, { startId: options.startId });
+  return { rows: transactions, mapping, errors };
 }
 
 function previewTransformErrors(rows: Record<string, string>[], mapping: CsvMapping): string[] {

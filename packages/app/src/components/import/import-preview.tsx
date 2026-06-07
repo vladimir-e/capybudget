@@ -31,8 +31,12 @@ interface ImportPreviewProps {
   rowsVersion: number;
   /** True while a run is in flight — the table is read-only and Stop replaces Enrich. */
   running: boolean;
-  /** Interrupt the in-flight run (Stop). */
+  /** Interrupt the in-flight run (Stop) — keeps staging, stays resumable. */
   onStop: () => void;
+  /** Fully stop + detach the in-flight run. Called before a merge so no batch
+   *  can write `transactions.csv` after the merge clears staging (the same race
+   *  class as Cancel). Resolves once nothing is in flight; no-op when idle. */
+  onStopRun: () => Promise<void>;
   /** Re-run Categorizing over the incomplete remainder (Enrich). */
   onEnrich: () => void;
   onMergeComplete: () => void;
@@ -44,6 +48,7 @@ export function ImportPreview({
   rowsVersion,
   running,
   onStop,
+  onStopRun,
   onEnrich,
   onMergeComplete,
 }: ImportPreviewProps) {
@@ -145,6 +150,10 @@ export function ImportPreview({
     setShowMergeDialog(false);
     setMerging(true);
     try {
+      // Stop + detach any in-flight run before merge clears staging — otherwise
+      // a late Categorizing batch writes transactions.csv after the clear and
+      // resurrects the import (or lets it merge twice).
+      await onStopRun();
       await flushWriteBack();
       const result = await merge({ transactions, selectedIds, accountMapping });
       toast.success(
@@ -159,7 +168,7 @@ export function ImportPreview({
     } finally {
       setMerging(false);
     }
-  }, [merge, transactions, selectedIds, accountMapping, onMergeComplete, flushWriteBack]);
+  }, [merge, transactions, selectedIds, accountMapping, onMergeComplete, flushWriteBack, onStopRun]);
 
   if (loading && transactions.length === 0) {
     return (

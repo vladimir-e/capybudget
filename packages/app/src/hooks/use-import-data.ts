@@ -29,7 +29,7 @@ export function useImportData(budgetPath: string, staging: StagingStore, rowsVer
   const [loading, setLoading] = useState(true);
 
   const { data: accounts = [] } = useAccounts();
-  const { data: categories = [] } = useCategories();
+  const { data: categories = [], isSuccess: categoriesLoaded } = useCategories();
 
   const repository = useImportRepository(budgetPath);
 
@@ -85,7 +85,17 @@ export function useImportData(budgetPath: string, staging: StagingStore, rowsVer
   // ── Category validation + account mapping ────────────────────
   const mappingAppliedRef = useRef(false);
   useEffect(() => {
-    if (mappingAppliedRef.current || transactions.length === 0 || accounts.length === 0) return;
+    // Gate on categories being *loaded* too, not just accounts: latching before
+    // the categories query resolves would skip the category-id validation below,
+    // leaving persisted ids of deleted categories in place (and `needsEnrich`
+    // would treat those rows as complete).
+    if (
+      mappingAppliedRef.current ||
+      transactions.length === 0 ||
+      accounts.length === 0 ||
+      !categoriesLoaded
+    )
+      return;
     mappingAppliedRef.current = true;
 
     async function applyMappings() {
@@ -142,7 +152,7 @@ export function useImportData(budgetPath: string, staging: StagingStore, rowsVer
     }
 
     void applyMappings();
-  }, [transactions, accounts, categories, repository, scheduleWriteBack]);
+  }, [transactions, accounts, categories, categoriesLoaded, repository, scheduleWriteBack]);
 
   // ── Edits ────────────────────────────────────────────────────
   const handleUpdate = useCallback(

@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import {
   makeAccount,
   makeCategory,
@@ -318,6 +318,48 @@ describe("ImportOrchestrator — no_data", () => {
     expect(warn && warn.type === "log" && warn.entry.message).toContain("selfie.png");
     // Ids continue from 1 — the skipped file consumed none.
     expect(staging.transactions![0].id).toBe("imp-1");
+  });
+});
+
+// ── CSV transform errors surface as warnings ─────────────────────
+
+describe("ImportOrchestrator — CSV transform errors", () => {
+  it("warns about rows the transform couldn't parse instead of dropping them silently", async () => {
+    // Row 2's date is unparseable — it errors in the final transform. The run
+    // still imports the good row, but the user gets a warn-log line.
+    const csv = "Date,Description,Amount\n2026-01-05,COFFEE,-4.50\nNOTADATE,BROKEN,-1.00";
+    const staging = new MemoryStagingStore({ sources: [csvSource(csv)] });
+    // Two mapping calls (the bad row trips the preview re-call) + one enrich batch.
+    const session = new MockStructuredSession([mapResponder, mapResponder, enrichResponder()]);
+    const { events, onEvent } = collect();
+
+    await new ImportOrchestrator({ session, staging, budget: emptyBudget(), onEvent, concurrency: 1 }).start();
+
+    expect(staging.transactions).toHaveLength(1); // only the good row staged
+    const warn = events.find((e) => e.type === "log" && e.entry.level === "warn");
+    expect(warn && warn.type === "log" && warn.entry.phase).toBe("normalizing");
+    expect(warn && warn.type === "log" && warn.entry.message).toContain("skipped");
+    expect(warn && warn.type === "log" && warn.entry.message).toContain("NOTADATE");
+  });
+});
+
+// ── Crash-safe write order: context before transactions ──────────
+
+describe("ImportOrchestrator — History write order", () => {
+  it("writes context.json before transactions.csv so the resume gate stays correct", async () => {
+    // Resume gates on transactions.csv existing; writing it last guarantees
+    // "transactions.csv exists ⟹ context.json exists" — no Categorizing resume
+    // with empty context after a crash mid-History.
+    const staging = new MemoryStagingStore({ sources: [csvSource(csvWithRows(3))] });
+    const session = new MockStructuredSession([mapResponder, enrichResponder()]);
+    const ctxSpy = vi.spyOn(staging, "writeContext");
+    const txnSpy = vi.spyOn(staging, "writeTransactions");
+
+    await new ImportOrchestrator({ session, staging, budget: emptyBudget(), onEvent: () => {}, concurrency: 1 }).start();
+
+    expect(ctxSpy).toHaveBeenCalled();
+    expect(txnSpy).toHaveBeenCalled();
+    expect(ctxSpy.mock.invocationCallOrder[0]).toBeLessThan(txnSpy.mock.invocationCallOrder[0]);
   });
 });
 

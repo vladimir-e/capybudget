@@ -73,6 +73,21 @@ describe("normalizeCsv", () => {
     expect(session.calls).toHaveLength(2); // one retry, no more — a broken response isn't masked
   });
 
+  it("returns the transform errors for rows that don't parse (not silently dropped)", async () => {
+    // Row 2's date can't parse under any valid mapping, so it survives the
+    // preview re-call and errors in the final transform. The errors must come
+    // back so the orchestrator can warn instead of letting the row vanish.
+    const csv = "Date,Description,Amount\n2026-01-05,COFFEE,-4.50\nNOTADATE,BROKEN,-1.00";
+    const session = new MockStructuredSession([() => MAPPING, () => MAPPING]);
+
+    const { rows, errors } = await normalizeCsv(session, { name: "f.csv", content: csv });
+
+    expect(rows).toHaveLength(1); // only COFFEE transforms
+    expect(errors).toHaveLength(1);
+    expect(errors[0].row).toBe(2);
+    expect(errors[0].message).toContain("NOTADATE");
+  });
+
   it("continues ids from startId for multi-file appends", async () => {
     const csv = "Date,Description,Amount\n2026-01-05,COFFEE,-4.50";
     const session = new MockStructuredSession([() => MAPPING]);

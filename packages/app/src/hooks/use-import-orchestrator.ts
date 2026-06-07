@@ -4,6 +4,7 @@ import {
   FileStagingStore,
   IMPORT_STRUCTURED_SYSTEM_PROMPT,
   canImport,
+  canReadPdf,
   createStructuredImportSession,
   type BudgetDataProvider,
 } from "@capybudget/intelligence";
@@ -64,6 +65,7 @@ export function useImportOrchestrator(budgetPath: string) {
   const beginRun = useImportStore((s) => s.beginRun);
 
   const supported = canImport(config.provider);
+  const pdfSupported = canReadPdf(config.provider);
 
   const staging = useMemo(
     () => new FileStagingStore(tauriFileAdapter, budgetPath),
@@ -171,5 +173,5 @@ export function useImportOrchestrator(budgetPath: string) {
     await orchestrator.stop();
   }, []);
 
-  return { supported, start, enrich, stop, cancel, staging };
+  return { supported, pdfSupported, start, enrich, stop, cancel, staging };
 }

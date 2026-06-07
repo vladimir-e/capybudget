@@ -24,6 +24,16 @@ export function canImport(provider: IntelligenceConfig["provider"]): boolean {
   return provider === "anthropic" || provider === "openai";
 }
 
+/** Whether a provider can read PDF/document attachments. Anthropic sends PDFs
+ *  through the SDK's native `document` type; OpenAI's `chat.completions` can't
+ *  read documents — the adapter swaps a PDF for a placeholder note, so a PDF
+ *  import would reach the model as text the user never sees. The Import tab gates
+ *  PDF drops on this so an OpenAI user can't start an import the model is blind
+ *  to. (`canImport` already excludes the CLI provider entirely.) */
+export function canReadPdf(provider: IntelligenceConfig["provider"]): boolean {
+  return provider === "anthropic";
+}
+
 export interface StructuredImportSessionDeps {
   config: IntelligenceConfig;
   adapters: AdapterConstructors;

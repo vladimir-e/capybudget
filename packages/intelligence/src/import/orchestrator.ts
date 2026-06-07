@@ -14,6 +14,7 @@ import {
   type GroundingResult,
   type ImportTransaction,
   type RowContext,
+  type TransformError,
 } from "@capybudget/core";
 import type { StructuredSession } from "../structured";
 import type { BudgetDataProvider } from "./budget-data";
@@ -192,6 +193,9 @@ export class ImportOrchestrator {
         all.push(...result.rows);
       } else {
         const result = await normalizeCsv(this.deps.session, source, { startId });
+        if (result.errors.length > 0) {
+          this.log("warn", "normalizing", describeSkippedRows(source.name, result.errors));
+        }
         all.push(...result.rows);
       }
     }
@@ -219,12 +223,17 @@ export class ImportOrchestrator {
     // result onto each row's `accountId` — no need to recompute the mapping here.
     const outcome = groundImport({ rows, history, accounts, categories });
 
-    const grounded = rows.map((row) => applyGrounding(row, outcome.results.get(row.id)));
-    await this.deps.staging.writeTransactions(grounded);
-
+    // Write context.json *before* transactions.csv: resume gates on
+    // transactions.csv existing, so this ordering makes "transactions.csv exists
+    // ⟹ context.json exists" hold. A crash between the two writes then leaves no
+    // transactions.csv → file-attach, never a Categorizing resume with empty
+    // context (which would degrade AI categorization for ambiguous rows).
     const context: Record<string, RowContext> = {};
     for (const [id, ctx] of outcome.context) context[id] = ctx;
     await this.deps.staging.writeContext(context);
+
+    const grounded = rows.map((row) => applyGrounding(row, outcome.results.get(row.id)));
+    await this.deps.staging.writeTransactions(grounded);
 
     await this.deps.staging.writeState({
       phase: "history",
@@ -372,6 +381,16 @@ export class ImportOrchestrator {
   private emit(event: ImportEvent): void {
     this.deps.onEvent(event);
   }
+}
+
+/** Warn-log line for rows the CSV transform couldn't parse. Each error message
+ *  already carries its row number and reason; cap the detail so a wholly broken
+ *  file logs a line, not a wall. */
+function describeSkippedRows(name: string, errors: TransformError[]): string {
+  const shown = errors.slice(0, 3).map((e) => e.message);
+  const more = errors.length > shown.length ? ` (+${errors.length - shown.length} more)` : "";
+  const noun = errors.length === 1 ? "row" : "rows";
+  return `${errors.length} ${noun} skipped in ${name} — couldn't parse: ${shown.join("; ")}${more}`;
 }
 
 // ── Pure row transforms ──────────────────────────────────────────

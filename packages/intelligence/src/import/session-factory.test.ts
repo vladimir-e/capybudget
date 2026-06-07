@@ -3,7 +3,7 @@ import type { BudgetRepository, FileAdapter } from "@capybudget/persistence";
 import { DEFAULT_INTELLIGENCE_CONFIG, type IntelligenceConfig } from "../config";
 import type { AdapterConstructors } from "../factory";
 import type { CapySession } from "../session";
-import { canImport, createStructuredImportSession } from "./session-factory";
+import { canImport, canReadPdf, createStructuredImportSession } from "./session-factory";
 
 // A session that exposes the structured surface — the factory's #6 guard
 // returns null for anything missing it.
@@ -36,6 +36,15 @@ describe("canImport", () => {
     expect(canImport("openai")).toBe(true);
     expect(canImport("claude-cli")).toBe(false);
     expect(canImport(null)).toBe(false);
+  });
+});
+
+describe("canReadPdf", () => {
+  it("allows only Anthropic — OpenAI can't read documents", () => {
+    expect(canReadPdf("anthropic")).toBe(true);
+    expect(canReadPdf("openai")).toBe(false);
+    expect(canReadPdf("claude-cli")).toBe(false);
+    expect(canReadPdf(null)).toBe(false);
   });
 });
 

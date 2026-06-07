@@ -130,6 +130,7 @@ export {
   ENRICH_BATCH_SCHEMA,
   createStructuredImportSession,
   canImport,
+  canReadPdf,
   IMPORT_STRUCTURED_SYSTEM_PROMPT,
 } from "./import"
 export type {
