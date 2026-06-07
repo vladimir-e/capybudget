@@ -27,30 +27,134 @@ import type { StagedRecord } from "@capybudget/core";
 
 // ── 1. CSV mapping ───────────────────────────────────────────────
 
+/** Either a single named column or several joined by a separator. */
+const COLUMN_REF_SCHEMA: JsonSchema = {
+  anyOf: [
+    {
+      type: "object",
+      additionalProperties: false,
+      properties: { column: { type: "string" } },
+      required: ["column"],
+    },
+    {
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        columns: { type: "array", items: { type: "string" } },
+        separator: { type: "string" },
+      },
+      required: ["columns"],
+    },
+  ],
+};
+
 /**
  * The mapping the model returns is ADVISORY, not authoritative —
  * `normalizeMapping` in `normalize.ts` is the sole authority that turns it into
- * a valid `CsvMapping`. So this schema is a soft hint, never a rejection gate:
- * it carries NO enums (the model phrases values like `amountFormat` or `sign`
- * however it likes), leaves every value untyped (`{}` accepts anything), and
- * sets no `additionalProperties` (an unexpected extra key can't reject). The
- * only field required is `amount` — the one role we can't synthesize (no amount
- * means it isn't a transaction file). Date and description default in code (an
- * auto-detected column, else the import date / an empty string), so the mapping
- * bends rather than breaks. A wholly missing amount is still backstopped by a
- * one-shot retry before it surfaces. Shape guidance lives in the prompt.
+ * a valid `CsvMapping`. Tolerance lives in two places that this schema keeps
+ * intact: it carries NO enums (the model phrases `sign`, `amountFormat.format`,
+ * and `typeDetection.method` however it likes — they are plain strings the code
+ * coerces) and requires only `amount` (the one role we can't synthesize — no
+ * amount means it isn't a transaction file; date and description default in
+ * code, so the mapping bends rather than breaks).
+ *
+ * What this schema does NOT loosen is *structure*. Anthropic's `output_config`
+ * rejects any object without `additionalProperties: false`, so every object
+ * here — top-level, nested, inside `anyOf`, and array `items` — sets it
+ * explicitly and lists real-typed properties (mirroring `EXTRACTION_SCHEMA`).
+ * The over-loosening that 400'd was structural (`{}` objects with no
+ * `additionalProperties`); the loosening we actually need is value-level, above.
+ *
+ * `typeDetection.typeMap` is intentionally absent: an open-keyed map can't
+ * satisfy `additionalProperties: false`, and `normalizeMapping` defaults
+ * `typeDetection` without a model-provided map.
  */
 export const CSV_MAPPING_SCHEMA: JsonSchema = {
   type: "object",
+  additionalProperties: false,
   properties: {
-    date: {},
-    description: {},
-    amount: {},
-    amountFormat: {},
-    typeDetection: {},
-    sourceAccount: {},
-    sourceCategory: {},
-    skipRules: {},
+    date: {
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        column: { type: "string" },
+        format: { type: "string" },
+      },
+      required: ["column"],
+    },
+    description: COLUMN_REF_SCHEMA,
+    amount: {
+      anyOf: [
+        {
+          type: "object",
+          additionalProperties: false,
+          properties: {
+            style: { type: "string" },
+            column: { type: "string" },
+            sign: { type: "string" },
+          },
+          required: ["column"],
+        },
+        {
+          type: "object",
+          additionalProperties: false,
+          properties: {
+            style: { type: "string" },
+            expenseColumn: { type: "string" },
+            incomeColumn: { type: "string" },
+          },
+          required: ["expenseColumn", "incomeColumn"],
+        },
+      ],
+    },
+    amountFormat: {
+      type: "object",
+      additionalProperties: false,
+      properties: { format: { type: "string" } },
+      required: ["format"],
+    },
+    typeDetection: {
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        method: { type: "string" },
+        typeColumn: { type: "string" },
+        transferPatterns: { type: "array", items: { type: "string" } },
+      },
+      required: ["method"],
+    },
+    sourceAccount: {
+      anyOf: [
+        {
+          type: "object",
+          additionalProperties: false,
+          properties: { column: { type: "string" } },
+          required: ["column"],
+        },
+        {
+          type: "object",
+          additionalProperties: false,
+          properties: { literal: { type: "string" } },
+          required: ["literal"],
+        },
+      ],
+    },
+    sourceCategory: {
+      anyOf: [...COLUMN_REF_SCHEMA.anyOf!, { type: "null" }],
+    },
+    skipRules: {
+      type: "array",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          column: { type: "string" },
+          contains: { type: "string" },
+          equals: { type: "string" },
+        },
+        required: ["column"],
+      },
+    },
   },
   required: ["amount"],
 };

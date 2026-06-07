@@ -138,7 +138,8 @@ function buildMappingPrompt(
     `Sample rows (first ${sample.length}):`,
     JSON.stringify(sample, null, 2),
     `Identify the date column, the description column(s), and how amounts are structured: a single signed column ({ style: "single", column, sign }) or split debit/credit ({ style: "split", expenseColumn, incomeColumn }). Optionally include date.format, the source account, the source category column, and skipRules for non-transaction rows (opening balances, voids).`,
-    `Guidance (the engine heals any deviation, so approximate freely): sign is "negative_expense" or "positive_expense"; date.format like MM/DD/YYYY, YYYY-MM-DD, or DD.MM.YYYY. Amount formatting is read from the data, so don't worry about it.`,
+    `Determine the sign convention from the account type and the merchant context, not from a default. "sign" says which polarity is an expense: "negative_expense" (negatives are spending, positives are income — typical of bank/checking exports) or "positive_expense" (positives are spending — typical of CREDIT-CARD statements). On a credit-card statement such as Apple Card, purchases are POSITIVE and represent expenses, while NEGATIVE amounts are payments toward the card — treat those as transfers, not income. For split debit/credit columns, the outflow/debit column is expenses. Add transferPatterns for descriptions that name a card payment or account-to-account move (e.g. "Payment", "ACH Pmt", "Transfer") so they classify as transfers.`,
+    `Guidance (the engine heals any deviation, so approximate freely): date.format like MM/DD/YYYY, YYYY-MM-DD, or DD.MM.YYYY. Amount formatting is read from the data, so don't worry about it.`,
     errorNote,
   ].join("\n");
 }
@@ -242,17 +243,32 @@ function normalizeAmount(raw: unknown, samples: Record<string, string>[]): Amoun
 }
 
 /**
- * Coerce the model's sign to one of the two valid values: any "positive"/
- * "negative" phrasing maps directly; otherwise infer from the data — a column
- * with negative values stores expenses as negatives, an all-positive column
- * (e.g. a credit-card charges export) reads as positive-expense.
+ * Sign is genuine model judgment — it depends on account type and merchant
+ * context (an Apple Card export reads positive purchases as expenses; a checking
+ * export reads them as income), which the data can't reveal. So a model-provided
+ * sign is authoritative and is never overridden by the data: any recognizable
+ * phrasing is coerced to one of the two valid values. The data heuristic is the
+ * last resort, reached only when the model offered no usable sign at all — a
+ * column with negatives stores expenses as negatives; an all-positive column
+ * reads as positive-expense.
  */
 function normalizeSign(raw: unknown, samples: Record<string, string>[], column: string): SingleAmountMapping["sign"] {
-  const sign = typeof raw === "string" ? raw.toLowerCase() : "";
-  if (sign.includes("positive")) return "positive_expense";
-  if (sign.includes("negative")) return "negative_expense";
+  const coerced = coerceSign(typeof raw === "string" ? raw.toLowerCase() : "");
+  if (coerced) return coerced;
   const hasNegative = columnSamples(samples, column).some((v) => /^[(-]/.test(v));
   return hasNegative ? "negative_expense" : "positive_expense";
+}
+
+/**
+ * Map the model's free-text sign onto the two valid values, reading the cue from
+ * whichever polarity it names as spending: "positive"/"charge"/"credit" → spends
+ * are positive; "negative"/"debit" → spends are negative. Returns null when the
+ * string carries no usable signal, so the caller falls back to the data.
+ */
+function coerceSign(sign: string): SingleAmountMapping["sign"] | null {
+  if (/positive|charge|credit/.test(sign)) return "positive_expense";
+  if (/negative|debit/.test(sign)) return "negative_expense";
+  return null;
 }
 
 const TYPE_METHODS = new Set<TypeDetection["method"]>(["amount_sign", "column", "rules"]);

@@ -2,7 +2,42 @@ import { describe, it, expect } from "vitest";
 import { normalizeCsv, normalizeImage, isImageOrPdf, normalizeMapping } from "./normalize";
 import { CSV_MAPPING_SCHEMA, EXTRACTION_SCHEMA } from "./schemas";
 import { SchemaValidationError } from "../structured";
+import type { JsonSchema } from "../structured";
 import { MockStructuredSession } from "./test-doubles";
+
+/** Walk every node of a schema (properties, items, anyOf), yielding each. */
+function* walkSchema(schema: JsonSchema): Generator<JsonSchema> {
+  yield schema;
+  for (const sub of schema.anyOf ?? []) yield* walkSchema(sub);
+  if (schema.items) yield* walkSchema(schema.items);
+  for (const prop of Object.values(schema.properties ?? {})) yield* walkSchema(prop);
+}
+
+describe("CSV_MAPPING_SCHEMA", () => {
+  it("sets additionalProperties:false on every object node (Anthropic output_config requirement)", () => {
+    for (const node of walkSchema(CSV_MAPPING_SCHEMA)) {
+      if (node.type === "object") {
+        expect(node.additionalProperties, JSON.stringify(node)).toBe(false);
+        expect(node.properties, JSON.stringify(node)).toBeDefined();
+      }
+    }
+  });
+
+  it("carries no enum anywhere — off-vocabulary values stay tolerated", () => {
+    for (const node of walkSchema(CSV_MAPPING_SCHEMA)) {
+      expect(node.enum).toBeUndefined();
+    }
+  });
+
+  it("requires only amount at the top level", () => {
+    expect(CSV_MAPPING_SCHEMA.required).toEqual(["amount"]);
+  });
+
+  it("does not describe an open-keyed typeMap", () => {
+    const typeDetection = CSV_MAPPING_SCHEMA.properties?.typeDetection;
+    expect(typeDetection?.properties?.typeMap).toBeUndefined();
+  });
+});
 
 const MAPPING = {
   date: { column: "Date", format: "YYYY-MM-DD" },
@@ -177,6 +212,30 @@ describe("normalizeCsv", () => {
     expect(errors[0].message).toContain("NOTADATE");
   });
 
+  it("maps an Apple-Card-style positive=expense statement correctly", async () => {
+    // Apple Card convention: positive purchases are expenses, the negative row
+    // is a payment toward the card (a transfer). The model returns
+    // positive_expense plus a transfer pattern; the column has a negative, but
+    // the model's sign must win over the data heuristic.
+    const csv =
+      "Date,Description,Amount\n2026-01-05,APPLE STORE,49.99\n2026-01-06,GROCERIES,82.10\n2026-01-10,ACH Payment - Bank,-200.00";
+    const appleCardMapping = {
+      date: { column: "Date" },
+      description: { column: "Description" },
+      amount: { style: "single", column: "Amount", sign: "positive_expense" },
+      typeDetection: { method: "rules", transferPatterns: ["Payment"] },
+    };
+    const session = new MockStructuredSession([() => appleCardMapping]);
+
+    const { rows, mapping } = await normalizeCsv(session, { name: "apple-card.csv", content: csv });
+
+    expect(session.calls).toHaveLength(1); // no retry — clean mapping
+    expect(mapping.amount).toMatchObject({ sign: "positive_expense" });
+    expect(rows[0]).toMatchObject({ description: "APPLE STORE", amount: -4999, type: "expense" });
+    expect(rows[1]).toMatchObject({ description: "GROCERIES", amount: -8210, type: "expense" });
+    expect(rows[2]).toMatchObject({ amount: 20000, type: "transfer" });
+  });
+
   it("continues ids from startId for multi-file appends", async () => {
     const csv = "Date,Description,Amount\n2026-01-05,COFFEE,-4.50";
     const session = new MockStructuredSession([() => MAPPING]);
@@ -309,10 +368,19 @@ describe("normalizeMapping", () => {
     it("maps recognizable phrasings", () => {
       expect(sign("expenses_are_negative", "-1")).toBe("negative_expense");
       expect(sign("charges positive", "1")).toBe("positive_expense");
+      expect(sign("positive_expense", "5")).toBe("positive_expense");
+      expect(sign("debits_negative", "-5")).toBe("negative_expense");
     });
-    it("infers from the data when the sign is absent or unrecognized", () => {
+    it("honors the model's sign even when the data would guess otherwise", () => {
+      // Apple Card: purchases positive = expense, but the column also has
+      // negatives (card payments). The data heuristic would see negatives and
+      // pick negative_expense; the model's positive_expense must win.
+      expect(sign("positive_expense", "-100.00")).toBe("positive_expense");
+      expect(sign("charges_are_positive", "-100.00")).toBe("positive_expense");
+    });
+    it("infers from the data only when the model gave no usable sign", () => {
       expect(sign(undefined, "-4.50")).toBe("negative_expense"); // negatives present
-      expect(sign("???", "2.99")).toBe("positive_expense"); // all-positive (credit-card charges)
+      expect(sign("???", "2.99")).toBe("positive_expense"); // unparseable → data: all-positive
     });
   });
 
