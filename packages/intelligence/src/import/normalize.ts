@@ -58,7 +58,7 @@ export interface NormalizeCsvResult {
 export async function normalizeCsv(
   session: StructuredSession,
   source: { name: string; content: string },
-  options: { startId?: number } = {},
+  options: { startId?: number; importDate?: string } = {},
 ): Promise<NormalizeCsvResult> {
   const parsed = Papa.parse<Record<string, string>>(source.content, {
     header: true,
@@ -68,15 +68,16 @@ export async function normalizeCsv(
   const headers = parsed.meta.fields ?? [];
   const allRows = parsed.data;
   const sample = allRows.slice(0, MAPPING_SAMPLE_ROWS);
+  const importDate = options.importDate ?? todayIso();
 
-  let mapping = await resolveMapping(session, source.name, headers, sample, null);
+  let mapping = await resolveMapping(session, source.name, headers, sample, importDate, null);
 
   // Code-side preview: transform a slice, and if it errors (e.g. the model named
   // a column that isn't there), give the model one correction round. The preview
   // is pure code — no model call to detect the problem, only to fix it.
   const previewErrors = previewTransformErrors(allRows.slice(0, PREVIEW_ROWS), mapping);
   if (previewErrors.length > 0) {
-    mapping = await resolveMapping(session, source.name, headers, sample, previewErrors);
+    mapping = await resolveMapping(session, source.name, headers, sample, importDate, previewErrors);
   }
 
   const { transactions, errors } = transformCsv(allRows, mapping, { startId: options.startId });
@@ -94,8 +95,8 @@ function previewTransformErrors(rows: Record<string, string>[], mapping: CsvMapp
 
 /**
  * One mapping call → a guaranteed-valid `CsvMapping`. The model's output is
- * advisory; `normalizeMapping` heals it. The only failure mode is a core column
- * role the model never identifies (or names so vaguely it can't be read), which
+ * advisory; `normalizeMapping` heals it. The only failure mode is an amount
+ * column that can't be identified at all (date and description default), which
  * `normalizeMapping` throws on — that gets one corrective retry before it
  * surfaces, so a transient bad response doesn't abort the import.
  */
@@ -104,15 +105,16 @@ async function resolveMapping(
   filename: string,
   headers: string[],
   sample: Record<string, string>[],
+  importDate: string,
   priorErrors: string[] | null,
 ): Promise<CsvMapping> {
   const prompt = buildMappingPrompt(filename, headers, sample, priorErrors);
   try {
-    return normalizeMapping(await callMapper(session, prompt), sample, filename);
+    return normalizeMapping(await callMapper(session, prompt), sample, filename, importDate);
   } catch (err) {
     if (!(err instanceof SchemaValidationError)) throw err;
-    const retryPrompt = `${prompt}\n\nYour previous response could not be used: ${err.message}. Return a mapping that clearly identifies the date column, the description column(s), and the amount column(s).`;
-    return normalizeMapping(await callMapper(session, retryPrompt), sample, filename);
+    const retryPrompt = `${prompt}\n\nYour previous response could not be used: ${err.message}. Return a mapping that clearly identifies the amount column(s).`;
+    return normalizeMapping(await callMapper(session, retryPrompt), sample, filename, importDate);
   }
 }
 
@@ -151,18 +153,20 @@ function callMapper(session: StructuredSession, prompt: string): Promise<CsvMapp
  * guaranteed-valid `CsvMapping`. Column roles are read defensively (tolerating
  * synonyms and a bare-string form); every metadata field is healed — amount
  * formatting is always inferred from the data, and the rest is coerced to a
- * valid value or defaulted. Throws only when a core column role (date,
- * description, amount) can't be identified at all.
+ * valid value or defaulted. Amount is the only role that can fail (a file with
+ * no amount column isn't a transaction file); date and description default —
+ * date to an auto-detected column else the import date, description to empty.
  */
 export function normalizeMapping(
   raw: CsvMappingResult,
   samples: Record<string, string>[],
   filename: string,
+  importDate: string,
 ): CsvMapping {
   const amount = normalizeAmount(raw.amount, samples);
   return {
-    date: normalizeDate(raw.date, samples),
-    description: normalizeRequiredColumnRef(raw.description, "description"),
+    date: normalizeDate(raw.date, samples, importDate),
+    description: normalizeDescription(raw.description),
     amount,
     amountFormat: inferAmountFormat(amountSamples(samples, amount)),
     typeDetection: normalizeTypeDetection(raw.typeDetection),
@@ -193,16 +197,35 @@ function pickString(obj: Record<string, unknown>, keys: string[]): string | unde
 
 // ── Field normalizers ────────────────────────────────────────────
 
-function normalizeDate(raw: unknown, samples: Record<string, string>[]): CsvMapping["date"] {
+/**
+ * Model's date column → else a column whose sample values parse as dates → else
+ * a literal import date applied to every row. Never throws: a transaction
+ * without an explicit date is still a transaction, just dated to the import.
+ */
+function normalizeDate(
+  raw: unknown,
+  samples: Record<string, string>[],
+  importDate: string,
+): CsvMapping["date"] {
   const obj = isRecord(raw) ? raw : {};
   const column = asString(raw) ?? pickString(obj, ["column", "dateColumn", "date"]);
-  if (!column) throw new SchemaValidationError("CSV mapping has no identifiable date column");
-  const modelFormat = asString(obj.format);
-  const format =
-    modelFormat && SUPPORTED_DATE_FORMATS.includes(modelFormat)
-      ? modelFormat
-      : inferDateFormat(columnSamples(samples, column));
-  return { column, format };
+  if (column) {
+    const modelFormat = asString(obj.format);
+    const format =
+      modelFormat && SUPPORTED_DATE_FORMATS.includes(modelFormat)
+        ? modelFormat
+        : inferDateFormat(columnSamples(samples, column));
+    return { column, format };
+  }
+  return detectDateColumn(samples) ?? { literal: importDate };
+}
+
+/** Yields "" for every row (resolveColumnRef joins an empty column list) — the
+ *  default when the source has no description column. */
+const EMPTY_DESCRIPTION: ColumnRef = { columns: [], separator: " " };
+
+function normalizeDescription(raw: unknown): ColumnRef {
+  return toColumnRef(raw) ?? EMPTY_DESCRIPTION;
 }
 
 function normalizeAmount(raw: unknown, samples: Record<string, string>[]): AmountMapping {
@@ -212,7 +235,8 @@ function normalizeAmount(raw: unknown, samples: Record<string, string>[]): Amoun
   if (expenseColumn && incomeColumn) {
     return { style: "split", expenseColumn, incomeColumn };
   }
-  const column = asString(raw) ?? pickString(obj, ["column", "amountColumn", "amount", "value"]);
+  const column =
+    asString(raw) ?? pickString(obj, ["column", "amountColumn", "amount", "value"]) ?? detectAmountColumn(samples);
   if (!column) throw new SchemaValidationError("CSV mapping has no identifiable amount column");
   return { style: "single", column, sign: normalizeSign(obj.sign, samples, column) };
 }
@@ -262,10 +286,58 @@ function normalizeSourceAccount(raw: unknown, filename: string): CsvMapping["sou
   return { literal: accountFromFilename(filename) };
 }
 
-function normalizeRequiredColumnRef(raw: unknown, role: string): ColumnRef {
-  const ref = toColumnRef(raw);
-  if (!ref) throw new SchemaValidationError(`CSV mapping has no identifiable ${role} column`);
-  return ref;
+// ── Column auto-detection (when the model named no role) ─────────
+
+/** A column whose every non-empty sample value parses as a supported date. */
+function detectDateColumn(samples: Record<string, string>[]): CsvMapping["date"] | null {
+  if (samples.length === 0) return null;
+  for (const header of Object.keys(samples[0])) {
+    const values = columnSamples(samples, header);
+    if (values.length > 0 && values.every(looksLikeDate)) {
+      return { column: header, format: inferDateFormat(values) };
+    }
+  }
+  return null;
+}
+
+function looksLikeDate(value: string): boolean {
+  const v = value.split(/[T ]/)[0];
+  return /^\d{4}[-/]\d{2}[-/]\d{2}$/.test(v) || /^\d{1,2}[./-]\d{1,2}[./-]\d{4}$/.test(v);
+}
+
+/**
+ * A column whose values read as money — preferring one with a clear monetary
+ * signal (sign, cents, or currency symbol) over a bare-integer column that might
+ * be an id. Date columns are excluded so a dotted European date isn't mistaken
+ * for a number.
+ */
+function detectAmountColumn(samples: Record<string, string>[]): string | undefined {
+  if (samples.length === 0) return undefined;
+  const headers = Object.keys(samples[0]);
+  const isNumeric = (header: string): boolean => {
+    const values = columnSamples(samples, header);
+    return values.length > 0 && values.every((v) => looksLikeAmount(v) && !looksLikeDate(v));
+  };
+  return (
+    headers.find((h) => isNumeric(h) && columnSamples(samples, h).some(hasMoneySignal)) ??
+    headers.find(isNumeric)
+  );
+}
+
+function looksLikeAmount(value: string): boolean {
+  const cleaned = value.replace(/[$€£¥₽₹₱₴₫₦₩₪₿()\s]/g, "");
+  return /^[-+]?[\d.,]+$/.test(cleaned) && /\d/.test(cleaned);
+}
+
+function hasMoneySignal(value: string): boolean {
+  return /[$€£¥₽₹₱₴₫₦₩₪₿]/.test(value) || /[.,]\d{2}\b/.test(value) || /^\s*[-+(]/.test(value);
+}
+
+function todayIso(): string {
+  const now = new Date();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  return `${now.getFullYear()}-${month}-${day}`;
 }
 
 /** A `string`, `{ column }`, or `{ columns, separator }` → `ColumnRef`; else null. */

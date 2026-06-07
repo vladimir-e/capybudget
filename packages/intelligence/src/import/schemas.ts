@@ -32,24 +32,18 @@ import type { StagedRecord } from "@capybudget/core";
  * `normalizeMapping` in `normalize.ts` is the sole authority that turns it into
  * a valid `CsvMapping`. So this schema is a soft hint, never a rejection gate:
  * it carries NO enums (the model phrases values like `amountFormat` or `sign`
- * however it likes), leaves the metadata values untyped (`{}` accepts anything),
- * and sets no `additionalProperties` (an unexpected extra key can't reject). The
- * only client-side check that can fire is presence of the three irreducible
- * column roles — date column, description, amount — and even a missing one is
- * backstopped by a one-shot retry before it surfaces. Shape guidance for the
- * model lives in the prompt, not here.
+ * however it likes), leaves every value untyped (`{}` accepts anything), and
+ * sets no `additionalProperties` (an unexpected extra key can't reject). The
+ * only field required is `amount` — the one role we can't synthesize (no amount
+ * means it isn't a transaction file). Date and description default in code (an
+ * auto-detected column, else the import date / an empty string), so the mapping
+ * bends rather than breaks. A wholly missing amount is still backstopped by a
+ * one-shot retry before it surfaces. Shape guidance lives in the prompt.
  */
 export const CSV_MAPPING_SCHEMA: JsonSchema = {
   type: "object",
   properties: {
-    date: {
-      type: "object",
-      properties: {
-        column: { type: "string" },
-        format: { type: "string" },
-      },
-      required: ["column"],
-    },
+    date: {},
     description: {},
     amount: {},
     amountFormat: {},
@@ -58,7 +52,7 @@ export const CSV_MAPPING_SCHEMA: JsonSchema = {
     sourceCategory: {},
     skipRules: {},
   },
-  required: ["date", "description", "amount"],
+  required: ["amount"],
 };
 
 /**

@@ -96,11 +96,12 @@ export type ColumnRef = SingleColumnRef | MultiColumnRef;
 // ── Top-level mapping ───────────────────────────────────────────
 
 export interface CsvMapping {
-  /** Date column and its format string (e.g. "MM/DD/YYYY", "YYYY-MM-DD", "DD.MM.YYYY"). */
-  date: {
-    column: string;
-    format: string;
-  };
+  /**
+   * Where each row's date comes from: a column parsed with a format string
+   * (e.g. "MM/DD/YYYY", "YYYY-MM-DD", "DD.MM.YYYY"), or a literal `YYYY-MM-DD`
+   * date applied to every row when the source has no usable date column.
+   */
+  date: { column: string; format: string } | { literal: string };
 
   /** Which column(s) form the transaction description. */
   description: ColumnRef;

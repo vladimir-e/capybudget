@@ -183,6 +183,17 @@ describe("date format parsing", () => {
     expect(result.errors).toHaveLength(1);
     expect(result.errors[0].message).toContain("unsupported date format");
   });
+
+  it("a literal date applies to every row, with no date column read", () => {
+    const mapping = baseMapping({ date: { literal: "2026-06-07" } });
+    const rows = [
+      makeRow({ Description: "A", Amount: "10.00" }),
+      makeRow({ Description: "B", Amount: "20.00" }),
+    ];
+    const result = transformCsv(rows, mapping);
+    expect(result.errors).toHaveLength(0);
+    expect(result.transactions.map((t) => t.date)).toEqual(["2026-06-07", "2026-06-07"]);
+  });
 });
 
 // ── 5. Type detection ──────────────────────────────────────────────

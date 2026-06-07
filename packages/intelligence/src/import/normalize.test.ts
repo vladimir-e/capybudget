@@ -62,29 +62,13 @@ describe("normalizeCsv", () => {
     const { rows, mapping } = await normalizeCsv(session, { name: "checking.csv", content: csv });
 
     expect(session.calls).toHaveLength(1); // no retry — metadata is inferred, not demanded
-    expect(mapping.date.format).toBe("YYYY-MM-DD");
+    expect(mapping.date).toMatchObject({ column: "Date", format: "YYYY-MM-DD" });
     expect(mapping.amountFormat.format).toBe("plain");
     expect(mapping.typeDetection).toEqual({ method: "amount_sign" });
     expect(mapping.sourceAccount).toEqual({ literal: "checking" });
     expect(mapping.sourceCategory).toBeNull();
     expect(rows[0]).toMatchObject({ amount: -450, type: "expense" });
     expect(rows[1]).toMatchObject({ amount: 200000, type: "income" });
-  });
-
-  it("still surfaces an error when a core field stays missing after the retry", async () => {
-    // `description` is a core role the model must decide — inference can't recover
-    // it. A persistently omitted core field surfaces rather than being masked.
-    const csv = "Date,Description,Amount\n2026-01-05,COFFEE,-4.50";
-    const noDescription = {
-      date: { column: "Date", format: "YYYY-MM-DD" },
-      amount: { style: "single", column: "Amount", sign: "negative_expense" },
-    };
-    const session = new MockStructuredSession([() => noDescription, () => noDescription]);
-
-    await expect(normalizeCsv(session, { name: "f.csv", content: csv })).rejects.toBeInstanceOf(
-      SchemaValidationError,
-    );
-    expect(session.calls).toHaveLength(2); // one retry, then surfaced — not masked
   });
 
   it("succeeds when the model phrases amountFormat outside our vocabulary", async () => {
@@ -130,15 +114,52 @@ describe("normalizeCsv", () => {
     expect(rows).toHaveLength(1);
   });
 
-  it("surfaces an error when the amount column is unidentifiable, even after the retry", async () => {
-    const csv = "Date,Description,Amount\n2026-01-05,COFFEE,-4.50";
-    const noAmount = { date: { column: "Date" }, description: { column: "Description" }, amount: {} };
+  it("surfaces an error when no amount column exists at all, even after the retry", async () => {
+    // No numeric column anywhere → not a transaction file. Auto-detect can't
+    // recover it, so it throws after one corrective retry rather than masking.
+    const csv = "Date,Memo\n2026-01-05,COFFEE\n2026-01-06,LUNCH";
+    const noAmount = { date: { column: "Date" }, description: { column: "Memo" }, amount: {} };
     const session = new MockStructuredSession([() => noAmount, () => noAmount]);
 
     await expect(normalizeCsv(session, { name: "f.csv", content: csv })).rejects.toBeInstanceOf(
       SchemaValidationError,
     );
     expect(session.calls).toHaveLength(2);
+  });
+
+  it("imports a CSV with no date column, dating every row to the import date", async () => {
+    const csv = "Description,Amount\nCOFFEE,-4.50\nSALARY,2000.00";
+    const mapping = {
+      description: { column: "Description" },
+      amount: { style: "single", column: "Amount", sign: "negative_expense" },
+    };
+    const session = new MockStructuredSession([() => mapping]);
+
+    const { rows, mapping: resolved } = await normalizeCsv(
+      session,
+      { name: "f.csv", content: csv },
+      { importDate: "2026-06-07" },
+    );
+
+    expect(session.calls).toHaveLength(1); // no throw, no retry
+    expect(resolved.date).toEqual({ literal: "2026-06-07" });
+    expect(rows.map((r) => r.date)).toEqual(["2026-06-07", "2026-06-07"]);
+    expect(rows[0]).toMatchObject({ amount: -450, type: "expense" });
+  });
+
+  it("imports with empty descriptions when there is no description column", async () => {
+    const csv = "Date,Amount\n2026-01-05,-4.50";
+    const mapping = {
+      date: { column: "Date" },
+      amount: { style: "single", column: "Amount", sign: "negative_expense" },
+    };
+    const session = new MockStructuredSession([() => mapping]);
+
+    const { rows } = await normalizeCsv(session, { name: "f.csv", content: csv });
+
+    expect(session.calls).toHaveLength(1);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].description).toBe("");
   });
 
   it("returns the transform errors for rows that don't parse (not silently dropped)", async () => {
@@ -165,6 +186,7 @@ describe("normalizeCsv", () => {
 });
 
 describe("normalizeMapping", () => {
+  const IMPORT_DATE = "2026-06-07";
   const ROLES = {
     date: { column: "Date" },
     description: { column: "Description" },
@@ -172,9 +194,15 @@ describe("normalizeMapping", () => {
   };
   const sampleWith = (overrides: Record<string, string>) => [{ Date: "2026-01-01", Description: "X", Amount: "1", ...overrides }];
 
+  /** Narrow the `date` union to its column form (most cases produce one). */
+  const columnDate = (date: { column: string; format: string } | { literal: string }) => {
+    if ("literal" in date) throw new Error(`expected a column date, got literal ${date.literal}`);
+    return date;
+  };
+
   it("fills every omitted metadata field, defaulting sourceCategory to null", () => {
-    const m = normalizeMapping(ROLES, sampleWith({ Date: "2026-01-05", Amount: "-4.50" }), "wells-fargo_2026.csv");
-    expect(m.date.format).toBe("YYYY-MM-DD");
+    const m = normalizeMapping(ROLES, sampleWith({ Date: "2026-01-05", Amount: "-4.50" }), "wells-fargo_2026.csv", IMPORT_DATE);
+    expect(columnDate(m.date).format).toBe("YYYY-MM-DD");
     expect(m.amountFormat.format).toBe("plain");
     expect(m.typeDetection).toEqual({ method: "amount_sign" });
     expect(m.sourceAccount).toEqual({ literal: "wells fargo 2026" });
@@ -186,8 +214,9 @@ describe("normalizeMapping", () => {
       { ...ROLES, date: { column: "Date", format: "DD/MM/YYYY" } },
       sampleWith({ Date: "01/05/2026" }),
       "f.csv",
+      IMPORT_DATE,
     );
-    expect(m.date.format).toBe("DD/MM/YYYY");
+    expect(columnDate(m.date).format).toBe("DD/MM/YYYY");
   });
 
   it("ignores an unsupported model-provided date.format and infers instead", () => {
@@ -195,8 +224,55 @@ describe("normalizeMapping", () => {
       { ...ROLES, date: { column: "Date", format: "the fifth of january" } },
       sampleWith({ Date: "2026-01-05" }),
       "f.csv",
+      IMPORT_DATE,
     );
-    expect(m.date.format).toBe("YYYY-MM-DD");
+    expect(columnDate(m.date).format).toBe("YYYY-MM-DD");
+  });
+
+  it("auto-detects a date column when the model named none", () => {
+    const m = normalizeMapping(
+      { description: { column: "Memo" }, amount: { column: "Amt", sign: "negative_expense" } },
+      [{ Posted: "2026-01-05", Memo: "X", Amt: "-1.00" }],
+      "f.csv",
+      IMPORT_DATE,
+    );
+    expect(columnDate(m.date)).toEqual({ column: "Posted", format: "YYYY-MM-DD" });
+  });
+
+  it("falls back to the import date when no date column exists", () => {
+    const m = normalizeMapping(
+      { description: { column: "Memo" }, amount: { column: "Amt", sign: "negative_expense" } },
+      [{ Memo: "X", Amt: "-1.00" }],
+      "f.csv",
+      IMPORT_DATE,
+    );
+    expect(m.date).toEqual({ literal: IMPORT_DATE });
+  });
+
+  it("defaults description to empty when the model named no description column", () => {
+    const m = normalizeMapping(
+      { amount: { column: "Amt", sign: "negative_expense" } },
+      [{ Memo: "X", Amt: "-1.00" }],
+      "f.csv",
+      IMPORT_DATE,
+    );
+    expect(m.description).toEqual({ columns: [], separator: " " });
+  });
+
+  it("throws only when no amount column can be identified", () => {
+    expect(() =>
+      normalizeMapping({ amount: {} }, [{ Memo: "X", Note: "Y" }], "f.csv", IMPORT_DATE),
+    ).toThrow(SchemaValidationError);
+  });
+
+  it("auto-detects an amount column when the model named none", () => {
+    const m = normalizeMapping(
+      { date: { column: "Date" }, description: { column: "Memo" } },
+      [{ Date: "2026-01-05", Memo: "X", Total: "-12.50" }],
+      "f.csv",
+      IMPORT_DATE,
+    );
+    expect(m.amount).toMatchObject({ style: "single", column: "Total" });
   });
 
   it("reads bare-string column refs", () => {
@@ -204,8 +280,9 @@ describe("normalizeMapping", () => {
       { date: "Date", description: "Memo", amount: { column: "Amt", sign: "negative_expense" } },
       [{ Date: "2026-01-05", Memo: "X", Amt: "-1.00" }],
       "f.csv",
+      IMPORT_DATE,
     );
-    expect(m.date.column).toBe("Date");
+    expect(columnDate(m.date).column).toBe("Date");
     expect(m.description).toEqual({ column: "Memo" });
     expect(m.amount).toMatchObject({ style: "single", column: "Amt" });
   });
@@ -215,6 +292,7 @@ describe("normalizeMapping", () => {
       { date: { column: "Date" }, description: { column: "Memo" }, amount: { debit: "Outflow", credit: "Inflow" } },
       [{ Date: "2026-01-05", Memo: "X", Outflow: "10.00", Inflow: "" }],
       "f.csv",
+      IMPORT_DATE,
     );
     expect(m.amount).toEqual({ style: "split", expenseColumn: "Outflow", incomeColumn: "Inflow" });
   });
@@ -225,6 +303,7 @@ describe("normalizeMapping", () => {
         { date: { column: "Date" }, description: { column: "Memo" }, amount: { column: "Amount", sign: rawSign } },
         [{ Date: "2026-01-05", Memo: "X", Amount: amountValue }],
         "f.csv",
+        IMPORT_DATE,
       ).amount as { sign: string }).sign;
 
     it("maps recognizable phrasings", () => {
@@ -238,7 +317,7 @@ describe("normalizeMapping", () => {
   });
 
   describe("amountFormat inference", () => {
-    const fmt = (amount: string) => normalizeMapping(ROLES, sampleWith({ Amount: amount }), "f.csv").amountFormat.format;
+    const fmt = (amount: string) => normalizeMapping(ROLES, sampleWith({ Amount: amount }), "f.csv", IMPORT_DATE).amountFormat.format;
     it("currency for a symbol or thousands grouping", () => {
       expect(fmt("$1,234.56")).toBe("currency");
       expect(fmt("1,234.56")).toBe("currency");
@@ -255,7 +334,7 @@ describe("normalizeMapping", () => {
   });
 
   describe("date.format inference", () => {
-    const df = (date: string) => normalizeMapping(ROLES, sampleWith({ Date: date }), "f.csv").date.format;
+    const df = (date: string) => columnDate(normalizeMapping(ROLES, sampleWith({ Date: date }), "f.csv", IMPORT_DATE).date).format;
     it("ISO and dotted forms", () => {
       expect(df("2026-01-05")).toBe("YYYY-MM-DD");
       expect(df("2026/01/05")).toBe("YYYY/MM/DD");
@@ -265,14 +344,10 @@ describe("normalizeMapping", () => {
       expect(df("01/05/2026")).toBe("MM/DD/YYYY");
     });
     it("picks DD/MM when a first component exceeds 12", () => {
-      expect(normalizeMapping(ROLES, [{ Date: "13/05/2026", Description: "X", Amount: "1" }], "f.csv").date.format).toBe(
-        "DD/MM/YYYY",
-      );
+      expect(df("13/05/2026")).toBe("DD/MM/YYYY");
     });
     it("picks MM/DD when a second component exceeds 12", () => {
-      expect(normalizeMapping(ROLES, [{ Date: "05/13/2026", Description: "X", Amount: "1" }], "f.csv").date.format).toBe(
-        "MM/DD/YYYY",
-      );
+      expect(df("05/13/2026")).toBe("MM/DD/YYYY");
     });
   });
 });

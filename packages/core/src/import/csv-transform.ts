@@ -99,7 +99,10 @@ function mapRowToRecord(
   rowNum: number,
   mapping: CsvMapping,
 ): StagedRecord {
-  const date = parseDate(getColumn(row, mapping.date.column, rowNum), mapping.date.format, rowNum);
+  const date =
+    "literal" in mapping.date
+      ? mapping.date.literal
+      : parseDate(getColumn(row, mapping.date.column, rowNum), mapping.date.format, rowNum);
   const description = resolveColumnRef(row, mapping.description, rowNum);
   const { amount, isExpense } = parseAmount(row, mapping.amount, mapping.amountFormat, rowNum);
   const type = detectType(row, description, isExpense, mapping.typeDetection);
