@@ -14,30 +14,21 @@
 import type { MessageContent } from "./types"
 
 /**
- * One role-tagged message in a structured-output request. `content` is
- * the same multimodal payload `CapySession.send` accepts — text plus
- * image / document blocks — so the extraction call (Unit 2) can pass a
- * receipt image and the enrich call can pass rows + history context
- * through the identical channel.
+ * A user or assistant turn. Only user turns may carry non-text content:
+ * Anthropic 400s on image/document blocks in an assistant turn, so the
+ * type forbids what the API would reject. Receipt images and document
+ * bytes ride the user channel (`MessageContent`); assistant turns (e.g.
+ * few-shot examples) are text-only.
  */
-export interface StructuredMessage {
-  role: "user" | "assistant"
-  content: MessageContent
-}
+export type StructuredMessage =
+  | { role: "user"; content: MessageContent }
+  | { role: "assistant"; content: string }
 
-/**
- * The stateless structured-output capability. Implemented by the
- * in-process API adapters (Anthropic, OpenAI); the orchestrator (Unit 2)
- * depends on this interface, not the concrete session classes, so the
- * provider stays swappable. The Claude CLI adapter does not implement it —
- * its structured-call path is deferred (see specs/IMPORT.md).
- */
 export interface StructuredSession {
   /**
-   * Make one constrained model call and return the parsed, schema-valid
-   * result. No agent loop, no tools. Rejects with `SchemaValidationError`
-   * if the response isn't valid JSON or doesn't satisfy `schema`, and with
-   * the provider's error otherwise.
+   * One constrained model call, parsed and schema-validated. No agent
+   * loop, no tools. Rejects with `SchemaValidationError` on invalid JSON
+   * or a schema mismatch, with the provider's error otherwise.
    */
   structured<T = unknown>(
     messages: readonly StructuredMessage[],
@@ -46,13 +37,11 @@ export interface StructuredSession {
 }
 
 /**
- * A JSON Schema describing the structured output. The same shape the tool
- * layer uses for `inputSchema` (a plain JSON Schema object), so callers
- * author one schema vocabulary across the package. The subset the
- * validator enforces is the subset structured-output schemas use:
- * objects, arrays, the scalar types, `enum`, `required`, nested
- * `properties`/`items`, and `anyOf` (for discriminated outcomes like
- * `{ rows }` vs `{ error, message }`).
+ * The JSON Schema subset structured-output schemas use. `additionalProperties`
+ * and other unlisted keywords are accepted in the payload (the index
+ * signature) but not enforced client-side — extras on validated values
+ * always pass, by design (the providers constrain the shape, this is the
+ * backstop). `anyOf` is assumed the sole keyword at its node.
  */
 export type JsonSchema = {
   readonly type?:
@@ -68,7 +57,6 @@ export type JsonSchema = {
   readonly items?: JsonSchema
   readonly enum?: ReadonlyArray<unknown>
   readonly anyOf?: ReadonlyArray<JsonSchema>
-  readonly additionalProperties?: boolean
   readonly [key: string]: unknown
 }
 
@@ -79,11 +67,6 @@ export class SchemaValidationError extends Error {
   }
 }
 
-/**
- * Parse `text` as JSON and validate it against `schema`. Returns the
- * typed value on success; throws `SchemaValidationError` on a parse
- * failure or schema mismatch.
- */
 export function parseStructured<T>(text: string, schema: JsonSchema): T {
   let parsed: unknown
   try {
@@ -99,11 +82,12 @@ export function parseStructured<T>(text: string, schema: JsonSchema): T {
 }
 
 function validate(value: unknown, schema: JsonSchema, path: string): string | null {
+  // anyOf is the sole keyword at its node — sibling type/required/etc. on
+  // the same node are not evaluated. True for every schema we emit; a node
+  // that combined them would need the early return removed.
   if (schema.anyOf) {
-    const failures = schema.anyOf.map((sub) => validate(value, sub, path))
-    if (failures.every((f) => f !== null)) {
-      return `${path}: value matched none of the anyOf alternatives`
-    }
+    const matched = schema.anyOf.some((sub) => validate(value, sub, path) === null)
+    if (!matched) return `${path}: value matched none of the anyOf alternatives`
     return null
   }
 

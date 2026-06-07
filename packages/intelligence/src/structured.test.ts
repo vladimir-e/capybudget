@@ -102,4 +102,15 @@ describe("parseStructured", () => {
     expect(parseStructured("42", {})).toBe(42)
     expect(parseStructured('"hi"', {})).toBe("hi")
   })
+
+  it("distinguishes integer from number", () => {
+    expect(() => parseStructured("1.5", { type: "integer" })).toThrowError(/integer/i)
+    expect(parseStructured("1.5", { type: "number" })).toBe(1.5)
+    expect(parseStructured("2", { type: "integer" })).toBe(2)
+  })
+
+  it("validates the null type", () => {
+    expect(parseStructured("null", { type: "null" })).toBeNull()
+    expect(() => parseStructured("0", { type: "null" })).toThrowError(/null/i)
+  })
 })

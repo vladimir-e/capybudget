@@ -1054,4 +1054,23 @@ describe("OpenAiSession.structured", () => {
       session.structured([{ role: "user", content: "x" }], SCHEMA),
     ).rejects.toThrowError(/boolean/i)
   })
+
+  it("passes an assistant turn through as plain text content (after the system message)", async () => {
+    queueStructured({ content: '{"ok": true}' })
+
+    const { session } = makeSession()
+    await session.structured(
+      [
+        { role: "user", content: "extract" },
+        { role: "assistant", content: '{"ok": false}' },
+        { role: "user", content: "redo it" },
+      ],
+      SCHEMA,
+    )
+
+    const call = lastCreateCall()
+    const messages = call.messages as Array<{ role: string; content: unknown }>
+    expect(messages.map((m) => m.role)).toEqual(["system", "user", "assistant", "user"])
+    expect(messages[2].content).toBe('{"ok": false}')
+  })
 })

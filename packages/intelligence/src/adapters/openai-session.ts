@@ -55,14 +55,6 @@ function toOpenAiUserContent(
   })
 }
 
-/** Assistant turns carry text only — flatten any blocks to their text. */
-function toOpenAiTextContent(content: MessageContent): string {
-  if (typeof content === "string") return content
-  return content
-    .map((block) => (block.type === "text" ? block.text : ""))
-    .join("")
-}
-
 interface ToolCallAccumulator {
   id: string
   name: string
@@ -159,7 +151,7 @@ export class OpenAiSession implements CapySession, StructuredSession {
       { role: "system", content: this.opts.systemPrompt },
       ...messages.map((m) =>
         m.role === "assistant"
-          ? { role: "assistant" as const, content: toOpenAiTextContent(m.content) }
+          ? { role: "assistant" as const, content: m.content }
           : { role: "user" as const, content: toOpenAiUserContent(m.content) },
       ),
     ]
