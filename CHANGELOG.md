@@ -11,6 +11,9 @@ CHANGELOG PHILOSOPHY:
 
 ## Unreleased
 
+- **Import** - Redesigned around a deterministic pipeline: imported transactions are matched against your own history (merchants, categories, duplicates) before AI categorizes only the leftovers, in batches — fewer tokens, more accurate the more you import.
+- **Import** - Live four-phase progress (Reading → Normalizing → History → Categorizing) with a read-only preview that fills in as it runs; interrupt and resume anytime, and re-running enrichment only touches rows you haven't already mapped.
+- **Import** - Share a file with Capy in chat and it starts an import for you to review in the Import tab, instead of adding transactions directly.
 - **Import** - Drop files anywhere on the import pane; Cancel Import now confirms before discarding extracted transactions.
 - **Capy** - New `search_transactions` tool: fuzzy free-text + money search across transactions (same matching as the app's list); `list_transactions` gains a compact row format. Retires `search_merchants` — chat and import enrichment now read merchant + category off matching rows.
 - **Capy** - New `group_transactions` aggregator (#57): group by merchant/category/account/type/month/week/dayOfMonth/amountBucket (multi-key) with count/sum/avg/min/max/median/distinct/cadence metrics; `list_transactions` gains an `ids` fetch param.
