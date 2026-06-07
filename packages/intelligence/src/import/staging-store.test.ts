@@ -94,6 +94,19 @@ describe("FileStagingStore", () => {
     expect(sources.find((s) => s.name === "receipt.png")?.mediaType).toBe("image/png");
   });
 
+  it("writeSource drops a file into sources/ that listSources reads back", async () => {
+    const store = new FileStagingStore(memoryFileAdapter(), "/budget");
+    await store.writeSource("apple-card.csv", "Date,Amount\n2026-01-01,-4.50");
+
+    const sources = await store.listSources();
+    expect(sources).toHaveLength(1);
+    expect(sources[0]).toMatchObject({
+      name: "apple-card.csv",
+      content: "Date,Amount\n2026-01-01,-4.50",
+      mediaType: "text/csv",
+    });
+  });
+
   it("returns null for transactions/context/state before they exist", async () => {
     const store = new FileStagingStore(memoryFileAdapter(), "/budget");
     expect(await store.readTransactions()).toBeNull();

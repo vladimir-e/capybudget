@@ -269,13 +269,46 @@ describe("useCapySession live cache invalidation", () => {
       },
     })
     const onDataChanged = vi.fn()
-    const { result } = renderHook(() => useCapySession({ ...baseOpts, onDataChanged }))
+    const onImportStarted = vi.fn()
+    const { result } = renderHook(() =>
+      useCapySession({ ...baseOpts, onDataChanged, onImportStarted }),
+    )
     act(() => {
       result.current.sendMessage("do the thing")
     })
     const session = createdSessions[0]
-    return { onDataChanged, emit: session.emit, result }
+    return { onDataChanged, onImportStarted, emit: session.emit, result }
   }
+
+  it("fires onImportStarted when a start_import tool-result lands", () => {
+    const { onImportStarted, onDataChanged, emit } = setup()
+
+    act(() => {
+      emit({ type: "tool-result", tool: "start_import", id: "tu_1", ok: true })
+    })
+    expect(onImportStarted).toHaveBeenCalledTimes(1)
+    // start_import is not a budget mutation — it stages files, it doesn't edit data.
+    expect(onDataChanged).not.toHaveBeenCalled()
+  })
+
+  it("does not fire onImportStarted when start_import reports failure", () => {
+    const { onImportStarted, emit } = setup()
+
+    act(() => {
+      emit({ type: "tool-result", tool: "start_import", id: "tu_1", ok: false })
+    })
+    expect(onImportStarted).not.toHaveBeenCalled()
+  })
+
+  it("dedups duplicate start_import tool-results for the same call id", () => {
+    const { onImportStarted, emit } = setup()
+
+    act(() => {
+      emit({ type: "tool-result", tool: "start_import", id: "tu_1", ok: true })
+      emit({ type: "tool-result", tool: "start_import", id: "tu_1", ok: true })
+    })
+    expect(onImportStarted).toHaveBeenCalledTimes(1)
+  })
 
   it("fires onDataChanged the moment a mutation tool-result lands", () => {
     const { onDataChanged, emit } = setup()

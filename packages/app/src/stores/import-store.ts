@@ -66,6 +66,14 @@ interface ImportStore extends ImportRunState {
   /** Whether the Import nav entry shows the "has data" dot. */
   hasImportData: boolean;
   setHasImportData: (v: boolean) => void;
+
+  // ── Chat on-ramp signal ─────────────────────────────────────
+  /** Bumped when Capy's `start_import` stages sources, so the Import screen
+   *  re-checks disk and auto-starts even when it's already mounted (the user
+   *  was on the Import tab when they shared the file — navigation alone wouldn't
+   *  remount it). The screen depends on this counter, not on a remount. */
+  chatImportSignal: number;
+  signalChatImport: () => void;
 }
 
 const IDLE_RUN: ImportRunState = {
@@ -109,6 +117,9 @@ export const useImportStore = create<ImportStore>((set) => ({
 
   hasImportData: false,
   setHasImportData: (hasImportData) => set({ hasImportData }),
+
+  chatImportSignal: 0,
+  signalChatImport: () => set((s) => ({ chatImportSignal: s.chatImportSignal + 1 })),
 }));
 
 /** Fold one orchestrator event into the run state. Pure — the store's `apply`

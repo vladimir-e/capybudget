@@ -5,7 +5,7 @@ import { runTool, getToolDefinitions, SESSION_TOOL_CALL_BUDGET } from "../tools"
 import type { ToolMode } from "../tools"
 import type { ApiAdapterOptions } from "../factory"
 import type { CapySession } from "../session"
-import type { ContentBlock, MessageContent } from "../types"
+import type { ContentBlock, FileAttachment, MessageContent } from "../types"
 import { parseStructured } from "../structured"
 import type { JsonSchema, StructuredMessage, StructuredSession } from "../structured"
 
@@ -76,6 +76,10 @@ export class AnthropicSession implements CapySession, StructuredSession {
   private killed = false
   private interrupted = false
   private toolCallCount = 0
+  /** Attachments on the current turn — staged by `start_import`, then cleared.
+   *  Held outside `messages` because the flattened message content can't be
+   *  turned back into files. */
+  private turnAttachments: readonly FileAttachment[] = []
 
   constructor(opts: ApiAdapterOptions) {
     this.opts = opts
@@ -90,10 +94,11 @@ export class AnthropicSession implements CapySession, StructuredSession {
     return this.alive
   }
 
-  async send(content: MessageContent): Promise<void> {
+  async send(content: MessageContent, attachments: readonly FileAttachment[] = []): Promise<void> {
     if (this.killed) return
 
     this.interrupted = false
+    this.turnAttachments = attachments
     this.appendUserContent(toAnthropicUserContent(content))
     this.alive = true
 
@@ -107,6 +112,7 @@ export class AnthropicSession implements CapySession, StructuredSession {
       const { message, status } = extractErrorMessage(err)
       this.opts.onEvent({ type: "error", message, status, provider: "anthropic" })
     } finally {
+      this.turnAttachments = []
       this.abortController = null
     }
   }
@@ -270,6 +276,8 @@ export class AnthropicSession implements CapySession, StructuredSession {
               repo: this.opts.repo,
               fileAdapter: this.opts.fileAdapter,
               budgetPath: this.opts.budgetPath,
+              attachments: [...this.turnAttachments],
+              importSupported: this.opts.importSupported,
             },
           )
         } catch (err) {

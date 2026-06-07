@@ -18,6 +18,7 @@ import {
   isImageAttachment,
   SYSTEM_PROMPT,
   MUTATION_TOOL_NAMES,
+  START_IMPORT_TOOL_NAME,
   type BudgetSnapshot,
   type FileAttachment,
   type MessageContent,
@@ -37,6 +38,10 @@ export interface UseCapySessionOptions {
    *  Called lazily at first-send time to read the freshest data. */
   getBudgetSnapshot?: () => BudgetSnapshot | undefined
   onDataChanged?: () => void
+  /** Fired when Capy's `start_import` lands — the chat staged the attachment(s)
+   *  into `.capy/import/`, so the app navigates to the Import tab, where the
+   *  screen auto-runs the orchestrator over the Capy-staged sources. */
+  onImportStarted?: () => void
   /** Required by API adapters (in-process tool dispatch); ignored by Claude CLI. */
   repo?: BudgetRepository
   /** Required by API adapters (in-process tool dispatch); ignored by Claude CLI. */
@@ -83,8 +88,13 @@ export function useCapySession(opts: UseCapySessionOptions): UseCapySessionRetur
 
         case "tool-result": {
           if (!event.ok) break
-          if (!MUTATION_TOOL_NAMES.has(event.tool)) break
           if (ackedToolCallsRef.current.has(event.id)) break
+          if (event.tool === START_IMPORT_TOOL_NAME) {
+            ackedToolCallsRef.current.add(event.id)
+            ctx.optsRef.current.onImportStarted?.()
+            break
+          }
+          if (!MUTATION_TOOL_NAMES.has(event.tool)) break
           ackedToolCallsRef.current.add(event.id)
           ctx.optsRef.current.onDataChanged?.()
           break
@@ -285,7 +295,10 @@ export function useCapySession(opts: UseCapySessionOptions): UseCapySessionRetur
         })
         return
       }
-      session.send(content).catch((err) => {
+      // Raw attachments ride alongside the flattened content so the in-process
+      // `start_import` tool can stage their bytes — the content itself inlines
+      // text files and base64-encodes images past reconstruction.
+      session.send(content, allFiles).catch((err) => {
         lifecycle.dispatchStreamEvent({
           type: "error",
           message: err instanceof Error ? err.message : "Failed to send message",

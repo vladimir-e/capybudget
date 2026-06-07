@@ -14,6 +14,7 @@
  *   - import tools (read/write/append/list_import_file)
  *   - csv tools (analyze_csv, preview_transform, transform_csv,
  *                auto_enrich, enrich_*)
+ *   - start_import (chat on-ramp: stage attachments → kick the orchestrator)
  *   - read_file (generic budget-folder text reader)
  *   - read_spec (bundled spec doc reader)
  *   - render tools (render_*)
@@ -56,11 +57,25 @@ import {
 } from "./handlers/csv"
 import { handleReadFile } from "./handlers/read-file"
 import { handleReadSpec } from "./handlers/spec"
+import { handleStartImport } from "./handlers/start-import"
+import type { FileAttachment } from "../types"
 
 export interface ToolContext {
   repo: BudgetRepository
   fileAdapter: FileAdapter
   budgetPath: string
+  /**
+   * Attachments on the in-flight chat turn — the bytes `start_import` stages.
+   * Threaded by the API adapters from the message that triggered the tool call;
+   * absent on the MCP / structured paths, which have no chat turn.
+   */
+  attachments?: FileAttachment[]
+  /**
+   * Whether the active provider can run the import pipeline (Anthropic / OpenAI).
+   * `start_import` reads this to gate cleanly — false (claude-cli / off / MCP)
+   * returns switch-provider guidance instead of staging. Mirrors `canImport`.
+   */
+  importSupported?: boolean
 }
 
 type ToolHandler = (
@@ -102,6 +117,10 @@ const HANDLERS: Record<string, ToolHandler> = {
   enrich_stats: (ctx) => handleEnrichStats(ctx),
   enrich_sample: (ctx, args) => handleEnrichSample(ctx, args),
   enrich_update: (ctx, args) => handleEnrichUpdate(ctx, args, ctx.repo),
+
+  // Chat on-ramp into the import pipeline (stages the turn's attachments;
+  // gated to Anthropic / OpenAI via ctx.importSupported)
+  start_import: (ctx) => handleStartImport(ctx),
 
   // Generic file reader (claude-cli has Read built-in; api adapters
   // get this so the import flow's text-file ingestion works)

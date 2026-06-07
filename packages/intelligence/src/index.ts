@@ -90,6 +90,7 @@ export {
   READ_SPEC_TOOL_DEF,
   RENDER_TOOL_DEFS,
   MUTATION_TOOL_NAMES,
+  START_IMPORT_TOOL_NAME,
   getToolDefinitions,
   // Dispatch
   runTool,

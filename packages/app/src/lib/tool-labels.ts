@@ -23,6 +23,7 @@ const TOOL_LABELS: Record<string, string> = {
   update_category: "Updating category",
   delete_category: "Deleting category",
   bulk_update_transactions: "Updating transactions",
+  start_import: "Starting import",
   render_chart: "Rendering chart",
 }
 

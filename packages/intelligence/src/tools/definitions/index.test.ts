@@ -22,6 +22,7 @@ const CHAT_TOOLS = [
   "bulk_update_transactions",
   "read_import_file",
   "list_import_files",
+  "start_import",
   "read_file",
   "read_spec",
   "render_table",
@@ -49,15 +50,15 @@ const IMPORT_TOOLS = [
 ]
 
 describe("getToolDefinitions", () => {
-  it("returns the full 31-tool surface with no mode (MCP server is ungated)", () => {
+  it("returns the full 32-tool surface with no mode (MCP server is ungated)", () => {
     const all = getToolDefinitions()
-    expect(all).toHaveLength(31)
+    expect(all).toHaveLength(32)
   })
 
-  it("gates chat mode to its 22 tools", () => {
+  it("gates chat mode to its 23 tools", () => {
     const names = getToolDefinitions("chat").map((t) => t.name)
     expect(new Set(names)).toEqual(new Set(CHAT_TOOLS))
-    expect(names).toHaveLength(22)
+    expect(names).toHaveLength(23)
   })
 
   it("gates import mode to its 16 tools", () => {

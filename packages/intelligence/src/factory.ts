@@ -20,6 +20,7 @@ import type { IntelligenceConfig } from "./config"
 import type { CapySession } from "./session"
 import type { StreamEvent } from "./types"
 import type { ToolMode } from "./tools"
+import { canImport } from "./import/session-factory"
 import type { BudgetRepository, FileAdapter } from "@capybudget/persistence"
 
 export interface ClaudeCliAdapterOptions {
@@ -51,6 +52,13 @@ export interface ApiAdapterOptions {
   onEvent: (event: StreamEvent) => void
   repo: BudgetRepository
   fileAdapter: FileAdapter
+  /**
+   * Whether the active provider can run the import pipeline — passed to
+   * `start_import` so it gates cleanly. Always true for the API adapters that
+   * support structured import; the field exists so the dispatch context carries
+   * the same `canImport` truth the Import tab uses.
+   */
+  importSupported?: boolean
 }
 
 /**
@@ -126,6 +134,7 @@ export function createIntelligenceSession(
         onEvent: options.onEvent,
         repo: options.repo,
         fileAdapter: options.fileAdapter,
+        importSupported: canImport(provider),
       })
     }
     case "openai": {
@@ -143,6 +152,7 @@ export function createIntelligenceSession(
         onEvent: options.onEvent,
         repo: options.repo,
         fileAdapter: options.fileAdapter,
+        importSupported: canImport(provider),
       })
     }
   }

@@ -138,6 +138,7 @@ describe("createIntelligenceSession", () => {
       onEvent: opts.onEvent,
       repo: opts.repo,
       fileAdapter: opts.fileAdapter,
+      importSupported: true,
     })
   })
 
@@ -163,6 +164,7 @@ describe("createIntelligenceSession", () => {
       onEvent: opts.onEvent,
       repo: opts.repo,
       fileAdapter: opts.fileAdapter,
+      importSupported: true,
     })
   })
 

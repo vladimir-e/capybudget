@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo } from "react";
-import { createFileRoute, Outlet } from "@tanstack/react-router";
+import { createFileRoute, Outlet, useNavigate } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { RepositoryProvider } from "@/contexts/repository-context";
 import { CapySessionProvider } from "@/components/capy/capy-session-provider";
@@ -10,6 +10,7 @@ import { createCsvRepository } from "@capybudget/persistence";
 import type { DisposableRepository } from "@capybudget/persistence";
 import { tauriFileAdapter } from "../../../../src/adapters/tauri-file-adapter";
 import { budgetKeys, useBudgetSnapshot } from "@/hooks/use-budget-data";
+import { useImportStore } from "@/stores/import-store";
 
 interface BudgetSearch {
   path: string;
@@ -28,6 +29,7 @@ export const Route = createFileRoute("/budget")({
 // chrome↔settings swap (disposed only when this layout unmounts).
 function BudgetLayout() {
   const { path, name } = Route.useSearch();
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const repo = useMemo(() => createCsvRepository(path, tauriFileAdapter), [path]);
 
@@ -50,6 +52,16 @@ function BudgetLayout() {
     });
   }, [queryClient, repo, provider]);
 
+  // Capy staged the chat attachment(s); send the user to the Import tab and
+  // signal it to (re-)check disk + auto-run the orchestrator. The signal covers
+  // the case where the user was already on the Import tab — navigation alone
+  // wouldn't remount the screen, so its mount effect wouldn't re-fire.
+  const signalChatImport = useImportStore((s) => s.signalChatImport);
+  const onImportStarted = useCallback(() => {
+    signalChatImport();
+    void navigate({ to: "/budget/import", search: { path, name } });
+  }, [signalChatImport, navigate, path, name]);
+
   const sessionOptions = useMemo(
     () => ({
       budgetPath: path,
@@ -58,10 +70,11 @@ function BudgetLayout() {
       customInstructions: customInstructions.instructions,
       getBudgetSnapshot,
       onDataChanged,
+      onImportStarted,
       repo,
       fileAdapter: tauriFileAdapter,
     }),
-    [path, name, customInstructions.instructions, getBudgetSnapshot, onDataChanged, repo],
+    [path, name, customInstructions.instructions, getBudgetSnapshot, onDataChanged, onImportStarted, repo],
   );
 
   return (

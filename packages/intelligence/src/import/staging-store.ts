@@ -37,6 +37,15 @@ export interface ImportState {
   rowCount?: number;
   /** ISO timestamp of the last state write. */
   updatedAt: string;
+  /**
+   * Who staged this run. `"chat"` marks a Capy-initiated import (the
+   * `start_import` tool dropped sources and wrote this before any phase ran),
+   * which the Import screen auto-starts on mount. A manual drop in the Import
+   * tab writes only `sources/` and never `state.json`, so its absence is the
+   * "waiting for the user to press Start" signal — the two on-ramps stay
+   * distinguishable by which artifacts exist, not a separate flag the UI tracks.
+   */
+  source?: "chat";
 }
 
 /**
@@ -47,6 +56,12 @@ export interface ImportState {
 export interface StagingStore {
   /** Source files to normalize, in order. */
   listSources(): Promise<SourceFile[]>;
+  /** Drop one file into `sources/`. `content` is the file's bytes the same way
+   *  {@link SourceFile.content} carries them — UTF-8 text for CSV, base64 for
+   *  image/PDF — so it round-trips through {@link listSources} unchanged. The
+   *  chat on-ramp uses this to stage an attachment; the Import tab writes
+   *  sources through its own disk hook. */
+  writeSource(name: string, content: string): Promise<void>;
 
   /** The staged rows, or `null` if `transactions.csv` doesn't exist yet. */
   readTransactions(): Promise<ImportTransaction[] | null>;
@@ -136,6 +151,12 @@ export class FileStagingStore implements StagingStore {
       files.push({ name: entry.name, content, mediaType: mediaTypeFor(entry.name) });
     }
     return files;
+  }
+
+  async writeSource(name: string, content: string): Promise<void> {
+    const sourcesDir = await this.fileAdapter.join(await this.dir(), "sources");
+    await this.fileAdapter.mkdir(sourcesDir, { recursive: true });
+    await this.fileAdapter.writeFile(await this.fileAdapter.join(sourcesDir, name), content);
   }
 
   async readTransactions(): Promise<ImportTransaction[] | null> {

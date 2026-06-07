@@ -94,26 +94,64 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
     return sources;
   }, [repository]);
 
-  // On mount: resume is a pure function of staging. Grounded rows on disk →
-  // preview (with whatever enrichment landed); none → file-attach.
-  useEffect(() => {
-    let cancelled = false;
-    async function init() {
-      const rows = await staging.readTransactions();
-      if (cancelled) return;
-      if (rows && rows.length > 0) {
-        setHasStagedRows(true);
-        setHasImportData(true);
-        setResumeBatch(resumeMeter(rows));
-      } else {
-        await refreshSourceFiles();
-        setHasImportData(false);
-      }
+  // Where we land is a pure function of staging:
+  //  - transactions.csv exists → preview (resume, with whatever enrichment landed).
+  //  - no transactions.csv but state.json says a chat staged the sources → this is
+  //    a Capy-initiated run; auto-run the orchestrator (the second on-ramp). A
+  //    manual drop never writes state.json, so it falls through to file-attach and
+  //    waits for the user to press Start.
+  // This runs on mount and again each time Capy stages a chat import (the user may
+  // already be on this tab, where navigation alone wouldn't remount the screen).
+  const mountedRef = useRef(true);
+  const checkStaging = useCallback(async (): Promise<void> => {
+    const rows = await staging.readTransactions();
+    if (!mountedRef.current) return;
+    if (rows && rows.length > 0) {
+      setHasStagedRows(true);
+      setHasImportData(true);
+      setResumeBatch(resumeMeter(rows));
       setDiskChecked(true);
+      return;
     }
-    void init();
-    return () => { cancelled = true; };
+    const state = await staging.readState();
+    if (!mountedRef.current) return;
+    // A run already in flight owns the staging — don't re-fire over it. The
+    // store's `running` flag survives navigation, so it's the authority here.
+    const runInFlight = useImportStore.getState().running;
+    if (state?.source === "chat" && !runInFlight) {
+      setHasImportData(true);
+      setDiskChecked(true);
+      // Drop the chat marker before the run progresses, so a re-check in the
+      // pre-History window doesn't spawn a second orchestrator over the same
+      // sources. The orchestrator overwrites state.json as it advances anyway.
+      await staging.writeState({ ...state, source: undefined });
+      if (!mountedRef.current) return;
+      // `start()` runs the plain staged sources — the chat on-ramp carries no
+      // per-run account/instruction hints (those are file-attach controls).
+      if (!start()) toast.error("Import needs Anthropic or OpenAI configured.");
+      return;
+    }
+    await refreshSourceFiles();
+    if (!mountedRef.current) return;
+    setHasImportData(false);
+    setDiskChecked(true);
+  }, [staging, start, refreshSourceFiles, setHasImportData]);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    void checkStaging();
+    return () => { mountedRef.current = false; };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps -- run once on mount
+
+  // Re-check when Capy stages a chat import. Skips the initial value so it
+  // doesn't double-run alongside the mount effect.
+  const chatImportSignal = useImportStore((s) => s.chatImportSignal);
+  const prevChatSignalRef = useRef(chatImportSignal);
+  useEffect(() => {
+    if (prevChatSignalRef.current === chatImportSignal) return;
+    prevChatSignalRef.current = chatImportSignal;
+    void checkStaging();
+  }, [chatImportSignal, checkStaging]);
 
   // A run's first staging write (after History) flips us into preview; mirror
   // the orchestrator's progress into the sidebar "has data" dot.

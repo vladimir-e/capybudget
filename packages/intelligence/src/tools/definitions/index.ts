@@ -19,7 +19,7 @@ import { RENDER_TOOL_DEFS } from "./render"
 
 export { DATA_TOOL_DEFS } from "./data"
 export { MUTATION_TOOL_DEFS } from "./mutation"
-export { IMPORT_TOOL_DEFS } from "./import"
+export { IMPORT_TOOL_DEFS, START_IMPORT_TOOL_NAME } from "./import"
 export { CSV_TOOL_DEFS } from "./csv"
 export { READ_FILE_TOOL_DEF } from "./read-file"
 export { READ_SPEC_TOOL_DEF } from "./spec"
@@ -95,6 +95,9 @@ const TOOL_MODES: Readonly<Record<string, readonly ToolMode[]>> = {
   write_import_file: ["import"],
   append_import_file: ["import"],
   list_import_files: ["chat", "import"],
+  // Chat on-ramp into the import pipeline (chat-only — the structured import
+  // session is what start_import kicks off, it never calls back into itself)
+  start_import: ["chat"],
   // CSV transform + enrichment
   analyze_csv: ["import"],
   preview_transform: ["import"],

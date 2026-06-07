@@ -29,6 +29,17 @@ export class MemoryStagingStore implements StagingStore {
   async listSources(): Promise<SourceFile[]> {
     return this.sources;
   }
+  async writeSource(name: string, content: string): Promise<void> {
+    const mediaType = /\.(png|jpe?g|webp|gif)$/i.test(name)
+      ? `image/${name.slice(name.lastIndexOf(".") + 1).toLowerCase()}`
+      : name.toLowerCase().endsWith(".pdf")
+        ? "application/pdf"
+        : "text/csv";
+    const file: SourceFile = { name, content, mediaType };
+    const existing = this.sources.findIndex((s) => s.name === name);
+    if (existing >= 0) this.sources[existing] = file;
+    else this.sources.push(file);
+  }
   async readTransactions(): Promise<ImportTransaction[] | null> {
     return this.transactions ? this.transactions.map((r) => ({ ...r })) : null;
   }

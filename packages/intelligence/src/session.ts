@@ -1,4 +1,4 @@
-import type { StreamEvent, MessageContent, ChatMessage } from "./types"
+import type { StreamEvent, MessageContent, ChatMessage, FileAttachment } from "./types"
 
 export interface CapySessionOptions {
   budgetPath: string
@@ -7,7 +7,14 @@ export interface CapySessionOptions {
 }
 
 export interface CapySession {
-  send(content: MessageContent): Promise<void>
+  /**
+   * Send a user turn. `attachments` carries the turn's raw files so the
+   * in-process `start_import` tool can stage their bytes — the message
+   * `content` flattens them (text inlined, images base64) past reconstruction,
+   * and the model can't echo them back through a tool argument. The Claude CLI
+   * adapter ignores it (file import routes through the Import tab there).
+   */
+  send(content: MessageContent, attachments?: readonly FileAttachment[]): Promise<void>
   stop(): Promise<void>
   restart(): Promise<void>
   kill(): Promise<void>
