@@ -102,13 +102,51 @@ export {
 // Import types
 export type {
   ImportTransaction,
+  StagedRecord,
   ImportAliases,
   ImportPhase,
   ImportLogEntry,
 } from "./import/import-types";
 
-// Import account matching
-export { matchAccountsByName } from "./import/import-matching";
+// Staging builder (shared sink for CSV + extraction paths)
+export type { BuildStagedOptions } from "./import/build-staged";
+export { buildStaged, DESCRIPTION_MAX_LENGTH } from "./import/build-staged";
+
+// Import entity matching (sourceAccount → account, sourceCategory → category)
+export { matchAccountsByName, matchSourceCategory } from "./import/import-matching";
+
+// History canonicalization + fuzzy index
+export {
+  canonicalizeMatchKey,
+  tokenize,
+  trigrams,
+} from "./import/import-canonicalize";
+export type {
+  HistoryMatch,
+  MatchSource,
+  MatchQuery,
+  HistoryIndexOptions,
+} from "./import/import-history-index";
+export { HistoryIndex, buildMatchQuery } from "./import/import-history-index";
+
+// Grounding (signal attach, fast-path, dedup folding)
+export type {
+  GroundingResult,
+  GroundingOutcome,
+  GroundingStats,
+  GroundingExample,
+  RowContext,
+  NameCount,
+  Resolution,
+  GroundImportInput,
+  GroundImportOptions,
+} from "./import/import-grounding";
+export {
+  groundImport,
+  FAST_PATH_MIN_MATCHES,
+  FAST_PATH_CATEGORY_AGREEMENT,
+  CONTEXT_EXAMPLE_COUNT,
+} from "./import/import-grounding";
 
 // Import merge operations
 export type { MergeInput, MergeOutput } from "./import/import-merge";

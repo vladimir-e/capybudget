@@ -69,7 +69,6 @@ describe("CSV import smoke", () => {
       typeDetection: { method: "amount_sign" },
       sourceAccount: { literal: "Cash" },
       sourceCategory: { column: "Category" },
-      memo: null,
     }
 
     const preview = JSON.parse(

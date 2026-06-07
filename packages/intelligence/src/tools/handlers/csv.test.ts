@@ -89,7 +89,6 @@ describe("handlePreviewTransform", () => {
           typeDetection: { method: "amount_sign" },
           sourceAccount: { literal: "Checking" },
           sourceCategory: null,
-          memo: null,
         },
         limit: 10,
       }),
@@ -122,7 +121,6 @@ describe("handleTransformCsv", () => {
           typeDetection: { method: "amount_sign" },
           sourceAccount: { literal: "Checking" },
           sourceCategory: null,
-          memo: null,
         },
       }),
     )
@@ -152,7 +150,6 @@ describe("handleTransformCsv", () => {
       typeDetection: { method: "amount_sign" as const },
       sourceAccount: { literal: "Checking" },
       sourceCategory: null,
-      memo: null,
     }
 
     await handleTransformCsv(ctx, { filename: "file1.csv", mapping })
@@ -176,11 +173,11 @@ describe("handleEnrichStats", () => {
     fs.files.set(
       `${IMPORT_DIR}/transactions.csv`,
       [
-        "id,date,description,amount,type,sourceAccount,sourceCategory,memo,merchant,accountId,targetAccountId,categoryId,categoryConfidence",
-        "imp-1,2024-01-01,Coffee,-450,expense,Cash,,,Coffee,acc-1,,cat-1,low",
-        "imp-2,2024-01-02,Pay,500000,income,Cash,,,,acc-1,,,",
-        "imp-3,2024-01-03,Move,10000,transfer,Cash,,,,acc-1,acc-2,,",
-        "imp-4,2024-01-04,Move,5000,transfer,Cash,,,,acc-1,,,",
+        "id,date,description,amount,type,sourceAccount,sourceCategory,merchant,accountId,targetAccountId,categoryId,categoryConfidence",
+        "imp-1,2024-01-01,Coffee,-450,expense,Cash,,Coffee,acc-1,,cat-1,low",
+        "imp-2,2024-01-02,Pay,500000,income,Cash,,,acc-1,,,",
+        "imp-3,2024-01-03,Move,10000,transfer,Cash,,,acc-1,acc-2,,",
+        "imp-4,2024-01-04,Move,5000,transfer,Cash,,,acc-1,,,",
       ].join("\n"),
     )
 
@@ -201,9 +198,9 @@ describe("handleEnrichSample", () => {
     fs.files.set(
       `${IMPORT_DIR}/transactions.csv`,
       [
-        "id,date,description,amount,type,sourceAccount,sourceCategory,memo,merchant,accountId,targetAccountId,categoryId,categoryConfidence",
-        "imp-1,2024-01-01,Coffee,-450,expense,,,,,,,,",
-        "imp-2,2024-01-02,Pay,500000,income,,,,Pay,,,cat-1,low",
+        "id,date,description,amount,type,sourceAccount,sourceCategory,merchant,accountId,targetAccountId,categoryId,categoryConfidence",
+        "imp-1,2024-01-01,Coffee,-450,expense,,,,,,,",
+        "imp-2,2024-01-02,Pay,500000,income,,,Pay,,,cat-1,low",
       ].join("\n"),
     )
 
@@ -220,9 +217,9 @@ describe("handleEnrichUpdate", () => {
     fs.files.set(
       `${IMPORT_DIR}/transactions.csv`,
       [
-        "id,date,description,amount,type,sourceAccount,sourceCategory,memo,merchant,accountId,targetAccountId,categoryId,categoryConfidence",
-        "imp-1,2024-01-01,STARBUCKS COFFEE,-450,expense,,,,,,,,",
-        "imp-2,2024-01-02,WHOLE FOODS,-3000,expense,,,,,,,,",
+        "id,date,description,amount,type,sourceAccount,sourceCategory,merchant,accountId,targetAccountId,categoryId,categoryConfidence",
+        "imp-1,2024-01-01,STARBUCKS COFFEE,-450,expense,,,,,,,",
+        "imp-2,2024-01-02,WHOLE FOODS,-3000,expense,,,,,,,",
       ].join("\n"),
     )
 
@@ -252,9 +249,9 @@ describe("handleEnrichUpdate", () => {
     fs.files.set(
       `${IMPORT_DIR}/transactions.csv`,
       [
-        "id,date,description,amount,type,sourceAccount,sourceCategory,memo,merchant,accountId,targetAccountId,categoryId,categoryConfidence",
+        "id,date,description,amount,type,sourceAccount,sourceCategory,merchant,accountId,targetAccountId,categoryId,categoryConfidence",
         // Row already has merchant set but no categoryId — model trying to set both
-        "imp-1,2024-01-01,STARBUCKS COFFEE,-450,expense,,,,Starbucks,,,,",
+        "imp-1,2024-01-01,STARBUCKS COFFEE,-450,expense,,,Starbucks,,,,",
       ].join("\n"),
     )
 
@@ -285,8 +282,8 @@ describe("handleEnrichUpdate", () => {
     fs.files.set(
       `${IMPORT_DIR}/transactions.csv`,
       [
-        "id,date,description,amount,type,sourceAccount,sourceCategory,memo,merchant,accountId,targetAccountId,categoryId,categoryConfidence",
-        "imp-1,2024-01-01,STARBUCKS COFFEE,-450,expense,,,,,,,,",
+        "id,date,description,amount,type,sourceAccount,sourceCategory,merchant,accountId,targetAccountId,categoryId,categoryConfidence",
+        "imp-1,2024-01-01,STARBUCKS COFFEE,-450,expense,,,,,,,",
       ].join("\n"),
     )
 
@@ -301,7 +298,7 @@ describe("handleEnrichUpdate", () => {
   it("rejects unknown fields", async () => {
     fs.files.set(
       `${IMPORT_DIR}/transactions.csv`,
-      "id,date,description,amount,type,sourceAccount,sourceCategory,memo,merchant,accountId,targetAccountId,categoryId,categoryConfidence\n",
+      "id,date,description,amount,type,sourceAccount,sourceCategory,merchant,accountId,targetAccountId,categoryId,categoryConfidence\n",
     )
 
     const result = await handleEnrichUpdate(ctx, {
@@ -315,8 +312,8 @@ describe("handleEnrichUpdate", () => {
     fs.files.set(
       `${IMPORT_DIR}/transactions.csv`,
       [
-        "id,date,description,amount,type,sourceAccount,sourceCategory,memo,merchant,accountId,targetAccountId,categoryId,categoryConfidence",
-        "imp-1,2024-01-01,STARBUCKS COFFEE,-450,expense,,,,,,,,",
+        "id,date,description,amount,type,sourceAccount,sourceCategory,merchant,accountId,targetAccountId,categoryId,categoryConfidence",
+        "imp-1,2024-01-01,STARBUCKS COFFEE,-450,expense,,,,,,,",
       ].join("\n"),
     )
 
@@ -346,8 +343,8 @@ describe("handleEnrichUpdate", () => {
     fs.files.set(
       `${IMPORT_DIR}/transactions.csv`,
       [
-        "id,date,description,amount,type,sourceAccount,sourceCategory,memo,merchant,accountId,targetAccountId,categoryId,categoryConfidence",
-        "imp-1,2024-01-01,STARBUCKS COFFEE,-450,expense,,,,,,,,",
+        "id,date,description,amount,type,sourceAccount,sourceCategory,merchant,accountId,targetAccountId,categoryId,categoryConfidence",
+        "imp-1,2024-01-01,STARBUCKS COFFEE,-450,expense,,,,,,,",
       ].join("\n"),
     )
 
@@ -378,8 +375,8 @@ describe("handleAutoEnrich", () => {
     fs.files.set(
       `${IMPORT_DIR}/transactions.csv`,
       [
-        "id,date,description,amount,type,sourceAccount,sourceCategory,memo,merchant,accountId,targetAccountId,categoryId,categoryConfidence",
-        "imp-1,2024-01-01,Whole Foods,-3000,expense,,Groceries,,,,,,",
+        "id,date,description,amount,type,sourceAccount,sourceCategory,merchant,accountId,targetAccountId,categoryId,categoryConfidence",
+        "imp-1,2024-01-01,Whole Foods,-3000,expense,,Groceries,,,,,",
       ].join("\n"),
     )
 
@@ -408,8 +405,8 @@ describe("handleAutoEnrich", () => {
     fs.files.set(
       `${IMPORT_DIR}/transactions.csv`,
       [
-        "id,date,description,amount,type,sourceAccount,sourceCategory,memo,merchant,accountId,targetAccountId,categoryId,categoryConfidence",
-        "imp-1,2024-01-01,CHECKCARD 0315 TRADER JOE'S #123 SEATTLE WA,-3000,expense,,,,,,,,",
+        "id,date,description,amount,type,sourceAccount,sourceCategory,merchant,accountId,targetAccountId,categoryId,categoryConfidence",
+        "imp-1,2024-01-01,CHECKCARD 0315 TRADER JOE'S #123 SEATTLE WA,-3000,expense,,,,,,,",
       ].join("\n"),
     )
 
@@ -422,7 +419,7 @@ describe("handleAutoEnrich", () => {
     // must be empty — most importantly `merchant`. If auto_enrich had
     // copied the description in we'd see CHECKCARD-prefixed text
     // showing up again in the trailing columns.
-    expect(csv).toMatch(/TRADER JOE'S #123 SEATTLE WA,-3000,expense,,,,,,,,/)
+    expect(csv).toMatch(/TRADER JOE'S #123 SEATTLE WA,-3000,expense,,,,,,,/)
     // Defense in depth: count how many times the raw description token
     // appears. Exactly once — in the description column itself.
     expect(csv.match(/CHECKCARD/g)?.length).toBe(1)

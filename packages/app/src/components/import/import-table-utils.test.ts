@@ -11,7 +11,6 @@ function txn(overrides: Partial<ImportTransaction> = {}): ImportTransaction {
     type: "expense",
     sourceAccount: "Checking",
     sourceCategory: "Food",
-    memo: "",
     merchant: "",
     accountId: "",
     targetAccountId: "",
@@ -70,7 +69,7 @@ describe("filterImportTransactions", () => {
   const txns = [
     txn({ id: "a", description: "Coffee Shop", merchant: "Coffee Shop", sourceAccount: "Checking", sourceCategory: "Food" }),
     txn({ id: "b", description: "Payroll", merchant: "Payroll", sourceAccount: "Savings", sourceCategory: "Income" }),
-    txn({ id: "c", description: "Transfer", merchant: "Transfer", sourceAccount: "Checking", sourceCategory: "", memo: "monthly" }),
+    txn({ id: "c", description: "Transfer", merchant: "Transfer", sourceAccount: "Checking", sourceCategory: "" }),
   ];
 
   it("returns all when search is empty", () => {
@@ -99,11 +98,6 @@ describe("filterImportTransactions", () => {
   it("filters by source category", () => {
     const result = filterImportTransactions(txns, "income");
     expect(result.map((t) => t.id)).toEqual(["b"]);
-  });
-
-  it("filters by memo", () => {
-    const result = filterImportTransactions(txns, "monthly");
-    expect(result.map((t) => t.id)).toEqual(["c"]);
   });
 
   it("is case-insensitive", () => {

@@ -73,7 +73,6 @@ describe("full budget-export-style transform", () => {
     typeDetection: { method: "rules", transferPatterns: ["Transfer :"] },
     sourceAccount: { column: "Account" },
     sourceCategory: { columns: ["Category Group", "Category"], separator: "/" },
-    memo: { column: "Memo" },
     skipRules: [{ column: "Cleared", equals: "uncleared" }],
   };
 
@@ -150,7 +149,6 @@ describe("full budget-export-style transform", () => {
     expect(t0.type).toBe("expense");
     expect(t0.sourceAccount).toBe("Checking");
     expect(t0.sourceCategory).toBe("Food/Groceries");
-    expect(t0.memo).toBe("weekly shop");
     expect(t0.merchant).toBe("");
     expect(t0.accountId).toBe("");
     expect(t0.categoryId).toBe("");
@@ -260,7 +258,6 @@ describe("bank-style CSV (single signed amount, MM/DD/YYYY, currency)", () => {
     typeDetection: { method: "rules", transferPatterns: ["transfer", "xfer"] },
     sourceAccount: { literal: "Chase Checking" },
     sourceCategory: null,
-    memo: null,
   });
 
   it("parses expense with negative currency amount", () => {
@@ -315,7 +312,6 @@ describe("European CSV (DD.MM.YYYY, european amounts)", () => {
     typeDetection: { method: "amount_sign" },
     sourceAccount: { literal: "Deutsche Bank" },
     sourceCategory: null,
-    memo: null,
   });
 
   it("parses European expense", () => {

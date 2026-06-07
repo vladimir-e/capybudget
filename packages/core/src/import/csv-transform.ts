@@ -6,7 +6,8 @@
  * Processes thousands of rows instantly — no AI in the loop.
  */
 
-import type { ImportTransaction } from "./import-types";
+import type { ImportTransaction, StagedRecord } from "./import-types";
+import { buildStaged } from "./build-staged";
 import type {
   CsvMapping,
   ColumnRef,
@@ -39,6 +40,10 @@ export interface TransformError {
 /**
  * Transform parsed CSV rows using a structured mapping.
  *
+ * The CSV path is: apply the mapping → intermediate {@link StagedRecord}s →
+ * {@link buildStaged}. The extraction path produces the same records and feeds
+ * the same builder, so staging invariants live in one place.
+ *
  * @param rows - Array of objects keyed by column header (e.g. from PapaParse)
  * @param mapping - The CsvMapping that defines how to interpret columns
  * @returns Transformed transactions + errors + stats
@@ -48,10 +53,9 @@ export function transformCsv(
   mapping: CsvMapping,
   options?: { startId?: number },
 ): TransformResult {
-  const transactions: ImportTransaction[] = [];
+  const records: StagedRecord[] = [];
   const errors: TransformError[] = [];
   let skipped = 0;
-  const idBase = options?.startId ?? 1;
 
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i];
@@ -64,8 +68,7 @@ export function transformCsv(
     }
 
     try {
-      const txn = transformRow(row, rowNum, mapping, idBase + transactions.length);
-      transactions.push(txn);
+      records.push(mapRowToRecord(row, rowNum, mapping));
     } catch (e) {
       errors.push({
         row: rowNum,
@@ -74,6 +77,8 @@ export function transformCsv(
       });
     }
   }
+
+  const transactions = buildStaged(records, { startId: options?.startId });
 
   return {
     transactions,
@@ -87,14 +92,13 @@ export function transformCsv(
   };
 }
 
-// ── Row transformation ──────────────────────────────────────────
+// ── Row → intermediate record ───────────────────────────────────
 
-function transformRow(
+function mapRowToRecord(
   row: Record<string, string>,
   rowNum: number,
   mapping: CsvMapping,
-  seqId: number,
-): ImportTransaction {
+): StagedRecord {
   const date = parseDate(getColumn(row, mapping.date.column, rowNum), mapping.date.format, rowNum);
   const description = resolveColumnRef(row, mapping.description, rowNum);
   const { amount, isExpense } = parseAmount(row, mapping.amount, mapping.amountFormat, rowNum);
@@ -103,26 +107,11 @@ function transformRow(
   const sourceCategory = mapping.sourceCategory
     ? resolveColumnRef(row, mapping.sourceCategory, rowNum)
     : "";
-  const memo = mapping.memo ? resolveColumnRef(row, mapping.memo, rowNum) : "";
 
   // Amount sign: outflow/expense negative, inflow/income positive (avoid -0)
   const signedAmount = amount === 0 ? 0 : isExpense ? -Math.abs(amount) : Math.abs(amount);
 
-  return {
-    id: `imp-${seqId}`,
-    date,
-    description,
-    amount: signedAmount,
-    type,
-    sourceAccount,
-    sourceCategory,
-    memo,
-    merchant: "",
-    accountId: "",
-    targetAccountId: "",
-    categoryId: "",
-    categoryConfidence: "",
-  };
+  return { date, amount: signedAmount, type, description, sourceAccount, sourceCategory };
 }
 
 // ── Column resolution ───────────────────────────────────────────
@@ -412,7 +401,7 @@ function shouldSkipRow(
 
 const IMPORT_COLUMNS = [
   "id", "date", "description", "amount", "type",
-  "sourceAccount", "sourceCategory", "memo",
+  "sourceAccount", "sourceCategory",
   "merchant", "accountId", "targetAccountId", "categoryId", "categoryConfidence",
 ] as const;
 

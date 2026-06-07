@@ -13,18 +13,17 @@ describe("serializeImportCsv", () => {
 
     const lines = csv.split("\n");
     expect(lines[0]).toBe(
-      "id,date,description,amount,type,sourceAccount,sourceCategory,memo,merchant,accountId,targetAccountId,categoryId,categoryConfidence",
+      "id,date,description,amount,type,sourceAccount,sourceCategory,merchant,accountId,targetAccountId,categoryId,categoryConfidence",
     );
   });
 
   it("round-trip: transform then serialize preserves data", () => {
     const mapping = baseMapping({
       sourceCategory: { column: "Category" },
-      memo: { column: "Memo" },
     });
     const rows = [
-      makeRow({ Date: "2025-06-15", Description: "Coffee Shop", Amount: "-4.50", Category: "Food", Memo: "morning latte" }),
-      makeRow({ Date: "2025-06-16", Description: "Paycheck", Amount: "3000.00", Category: "Income", Memo: "" }),
+      makeRow({ Date: "2025-06-15", Description: "Coffee Shop", Amount: "-4.50", Category: "Food" }),
+      makeRow({ Date: "2025-06-16", Description: "Paycheck", Amount: "3000.00", Category: "Income" }),
     ];
     const result = transformCsv(rows, mapping);
     const csv = serializeImportCsv(result.transactions);
@@ -41,7 +40,6 @@ describe("serializeImportCsv", () => {
     expect(row1[4]).toBe("expense"); // type
     expect(row1[5]).toBe("Test Account"); // sourceAccount
     expect(row1[6]).toBe("Food"); // sourceCategory
-    expect(row1[7]).toBe("morning latte"); // memo
 
     const row2 = lines[2].split(",");
     expect(row2[0]).toBe("imp-2");
@@ -50,14 +48,12 @@ describe("serializeImportCsv", () => {
   });
 
   it("escapes values containing commas", () => {
-    const mapping = baseMapping({
-      memo: { column: "Memo" },
-    });
-    const rows = [makeRow({ Date: "2025-01-01", Description: "Test", Amount: "-10.00", Memo: "one, two, three" })];
+    const mapping = baseMapping();
+    const rows = [makeRow({ Date: "2025-01-01", Description: "Test, with commas", Amount: "-10.00" })];
     const result = transformCsv(rows, mapping);
     const csv = serializeImportCsv(result.transactions);
 
-    expect(csv).toContain('"one, two, three"');
+    expect(csv).toContain('"Test, with commas"');
   });
 
   it("escapes values containing double quotes", () => {

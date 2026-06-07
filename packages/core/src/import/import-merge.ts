@@ -123,7 +123,7 @@ export function prepareMerge(
       const targetId = resolveTargetAccount(t);
       const fromId = crypto.randomUUID();
       const toId = crypto.randomUUID();
-      const note = [t.description, t.memo].filter(Boolean).join(" — ");
+      const note = t.description;
 
       if (t.amount < 0) {
         // Outflow: money leaves accountId, arrives at targetId
@@ -149,7 +149,7 @@ export function prepareMerge(
         accountId,
         transferPairId: "",
         merchant: t.type === "transfer" ? "" : (t.merchant || ""),
-        note: [t.description, t.memo].filter(Boolean).join(" — "),
+        note: t.description,
         createdAt,
       });
     }

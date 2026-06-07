@@ -22,7 +22,7 @@ interface FakeTurn {
 const { mockCreate, queueTurn, queueStructured, lastCreateCall, allCreateCalls, abortSignals } = vi.hoisted(
   () => {
     const queue: FakeTurn[] = []
-    const calls: Array<{ messages: unknown; tools: unknown }> = []
+    const calls: Array<{ messages: unknown; tools: unknown; response_format?: unknown }> = []
     const signals: AbortSignal[] = []
 
     // Non-streaming completions for the structured() path, keyed off the

@@ -242,7 +242,6 @@ const IMPORT_CSV_COLUMNS = [
   "type",
   "sourceAccount",
   "sourceCategory",
-  "memo",
   "merchant",
   "accountId",
   "targetAccountId",

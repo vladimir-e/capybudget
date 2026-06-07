@@ -1,4 +1,5 @@
 import type { Account, Category, Transaction } from "./entities/types";
+import type { ImportTransaction } from "./import/import-types";
 
 /** Create a test account with sensible defaults. Override any field. */
 export function makeAccount(overrides: Partial<Account> = {}): Account {
@@ -42,6 +43,27 @@ export function makeTransaction(
     merchant: "Store",
     note: "",
     createdAt: "2026-01-15T00:00:00.000Z",
+    ...overrides,
+  };
+}
+
+/** Create a staged import transaction with sensible defaults. Override any field. */
+export function makeImportTransaction(
+  overrides: Partial<ImportTransaction> = {},
+): ImportTransaction {
+  return {
+    id: crypto.randomUUID(),
+    date: "2026-01-15",
+    description: "GROCERY STORE #123",
+    amount: -2500,
+    type: "expense",
+    sourceAccount: "",
+    sourceCategory: "",
+    merchant: "",
+    accountId: "",
+    targetAccountId: "",
+    categoryId: "",
+    categoryConfidence: "",
     ...overrides,
   };
 }

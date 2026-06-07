@@ -11,7 +11,6 @@ function makeRow(overrides: Partial<ImportTransaction> = {}): ImportTransaction 
     type: "expense",
     sourceAccount: "Checking",
     sourceCategory: "",
-    memo: "",
     merchant: "Starbucks",
     accountId: "",
     targetAccountId: "",

@@ -12,7 +12,6 @@ function makeImport(overrides: Partial<ImportTransaction> = {}): ImportTransacti
     type: "expense",
     sourceAccount: "Chase Checking",
     sourceCategory: "",
-    memo: "",
     merchant: "",
     accountId: "",
     targetAccountId: "",
@@ -192,5 +191,52 @@ describe("detectDuplicates", () => {
 
     expect(result.size).toBe(1);
     expect(result.get(imp.id)!.confidence).toBe("high");
+  });
+
+  it("carries the matched transaction's merchant and category", () => {
+    const imp = makeImport();
+    const ex = makeExisting({ merchant: "Whole Foods", categoryId: "cat-groceries" });
+    const result = detectDuplicates([imp], [ex], MAPPING);
+
+    const match = result.get(imp.id)!;
+    expect(match.matchedMerchant).toBe("Whole Foods");
+    expect(match.matchedCategoryId).toBe("cat-groceries");
+  });
+
+  describe("resolved-merchant rule", () => {
+    it("high confidence on merchant + account even when descriptions diverge", () => {
+      // Raw descriptions differ (ref-number noise), but grounding resolved both
+      // to the same canonical merchant.
+      const imp = makeImport({ description: "CHECKCARD GINGER 0421 99887", merchant: "" });
+      const ex = makeExisting({
+        note: "GINGER 0315 11122",
+        merchant: "Ginger",
+      });
+      const result = detectDuplicates(
+        [imp],
+        [ex],
+        MAPPING,
+        () => "Ginger", // grounding-resolved merchant
+      );
+
+      expect(result.size).toBe(1);
+      expect(result.get(imp.id)!.confidence).toBe("high");
+    });
+
+    it("uses the row's own merchant field when no resolver is given", () => {
+      const imp = makeImport({ description: "DIFFERENT", merchant: "Ginger" });
+      const ex = makeExisting({ note: "SOMETHING ELSE", merchant: "Ginger" });
+      const result = detectDuplicates([imp], [ex], MAPPING);
+
+      expect(result.get(imp.id)!.confidence).toBe("high");
+    });
+
+    it("does not match merchant across different accounts", () => {
+      const imp = makeImport({ sourceAccount: "Other", merchant: "Ginger" });
+      const ex = makeExisting({ accountId: "acct-1", merchant: "Ginger" });
+      const result = detectDuplicates([imp], [ex], { Other: "acct-2" });
+
+      expect(result.size).toBe(0);
+    });
   });
 });

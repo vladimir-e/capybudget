@@ -13,7 +13,6 @@ function makeImportTxn(overrides: Partial<ImportTransaction> = {}): ImportTransa
     type: "expense",
     sourceAccount: "Chase Checking",
     sourceCategory: "Groceries",
-    memo: "",
     merchant: "Grocery Store",
     accountId: "",
     targetAccountId: "",
@@ -124,11 +123,8 @@ describe("prepareMerge", () => {
     expect(result.transactions[0].accountId).toBe(result.transactions[1].accountId);
   });
 
-  it("concatenates description and memo into note", () => {
-    const txn = makeImportTxn({
-      description: "GROCERY STORE #123",
-      memo: "Online purchase",
-    });
+  it("sets note from the trimmed description", () => {
+    const txn = makeImportTxn({ description: "GROCERY STORE #123" });
 
     const result = prepareMerge(
       {
@@ -140,43 +136,11 @@ describe("prepareMerge", () => {
       [],
     );
 
-    expect(result.transactions[0].note).toBe("GROCERY STORE #123 — Online purchase");
+    expect(result.transactions[0].note).toBe("GROCERY STORE #123");
   });
 
-  it("uses description only when memo is empty", () => {
-    const txn = makeImportTxn({ description: "PAYMENT", memo: "" });
-
-    const result = prepareMerge(
-      {
-        transactions: [txn],
-        selectedIds: new Set([txn.id]),
-        accountMapping: { "Chase Checking": "acct-1" },
-      },
-      [],
-      [],
-    );
-
-    expect(result.transactions[0].note).toBe("PAYMENT");
-  });
-
-  it("uses memo only when description is empty", () => {
-    const txn = makeImportTxn({ description: "", memo: "Ref #456" });
-
-    const result = prepareMerge(
-      {
-        transactions: [txn],
-        selectedIds: new Set([txn.id]),
-        accountMapping: { "Chase Checking": "acct-1" },
-      },
-      [],
-      [],
-    );
-
-    expect(result.transactions[0].note).toBe("Ref #456");
-  });
-
-  it("produces empty note when both description and memo are empty", () => {
-    const txn = makeImportTxn({ description: "", memo: "" });
+  it("produces empty note when description is empty", () => {
+    const txn = makeImportTxn({ description: "" });
 
     const result = prepareMerge(
       {
@@ -599,14 +563,13 @@ describe("prepareMerge", () => {
       expect(outflow.transferPairId).toBe(inflow.id);
     });
 
-    it("sets note from description and memo on paired transactions", () => {
+    it("sets note from the description on paired transactions", () => {
       const txn = makeImportTxn({
         type: "transfer",
         amount: -1000,
         sourceAccount: "Chase Checking",
         targetAccountId: "acct-savings",
         description: "ONLINE TRANSFER",
-        memo: "Monthly savings",
       });
 
       const result = prepareMerge(
@@ -620,7 +583,7 @@ describe("prepareMerge", () => {
       );
 
       for (const t of result.transactions) {
-        expect(t.note).toBe("ONLINE TRANSFER — Monthly savings");
+        expect(t.note).toBe("ONLINE TRANSFER");
       }
     });
 

@@ -402,22 +402,6 @@ describe("column references", () => {
     const result = transformCsv(rows, mapping);
     expect(result.transactions[0].sourceCategory).toBe("");
   });
-
-  it("memo resolves when provided", () => {
-    const mapping = baseMapping({
-      memo: { column: "Memo" },
-    });
-    const rows = [makeRow({ Date: "2025-01-01", Description: "Test", Amount: "-5.00", Memo: "My note" })];
-    const result = transformCsv(rows, mapping);
-    expect(result.transactions[0].memo).toBe("My note");
-  });
-
-  it("memo is empty string when null in mapping", () => {
-    const mapping = baseMapping({ memo: null });
-    const rows = [makeRow({ Date: "2025-01-01", Description: "Test", Amount: "-5.00" })];
-    const result = transformCsv(rows, mapping);
-    expect(result.transactions[0].memo).toBe("");
-  });
 });
 
 // ── Column-based type detection ───────────────────────────────────

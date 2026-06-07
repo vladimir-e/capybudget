@@ -10,7 +10,6 @@ export function baseMapping(overrides: Partial<CsvMapping> = {}): CsvMapping {
     typeDetection: { method: "amount_sign" },
     sourceAccount: { literal: "Test Account" },
     sourceCategory: null,
-    memo: null,
     ...overrides,
   };
 }

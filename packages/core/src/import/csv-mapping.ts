@@ -120,9 +120,6 @@ export interface CsvMapping {
   /** Source category column, if the source has category data. Null if not available. */
   sourceCategory: ColumnRef | null;
 
-  /** Memo column. Null if not available. */
-  memo: ColumnRef | null;
-
   /** Rows to skip based on column values. */
   skipRules?: SkipRule[];
 }

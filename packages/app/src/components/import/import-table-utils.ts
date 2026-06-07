@@ -67,7 +67,6 @@ export function filterImportTransactions(
       (t.merchant && t.merchant.toLowerCase().includes(q)) ||
       t.sourceAccount.toLowerCase().includes(q) ||
       t.sourceCategory.toLowerCase().includes(q) ||
-      t.memo.toLowerCase().includes(q) ||
       t.type.includes(q) ||
       formatMoney(t.amount).toLowerCase().includes(q),
   );

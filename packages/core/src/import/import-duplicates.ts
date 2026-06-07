@@ -8,23 +8,33 @@ export interface DuplicateMatch {
   existingTransactionId: string;
   matchedDate: string;
   matchedAmount: number;
+  /** The matched transaction's merchant — carried so a deduped row can show
+   *  what it duplicates without re-querying. */
+  matchedMerchant: string;
+  /** The matched transaction's categoryId — carried for the same reason. */
+  matchedCategoryId: string;
 }
 
 /**
  * Detect import transactions that likely already exist in the budget.
  *
  * Matching rules (checked in order, first match wins):
- * 1. High — date + amount + description (non-empty) + same resolved account
- * 2. High — date + amount + description (non-empty), no account info on import side
- * 3. Low  — date + amount + same resolved account (description empty or different)
- * 4. Low  — date ±1 day + amount + same resolved account
+ * 1. High — date + amount + same resolved merchant + same resolved account
+ * 2. High — date + amount + description (non-empty) + same resolved account
+ * 3. High — date + amount + description (non-empty), no account info on import side
+ * 4. Low  — date + amount + same resolved account (description empty or different)
+ * 5. Low  — date ±1 day + amount + same resolved account
  *
- * Account resolution uses accountMapping (sourceAccount → accountId).
+ * Account resolution uses accountMapping (sourceAccount → accountId). Merchant
+ * resolution comes from grounding via the optional `resolveMerchant` accessor —
+ * a fast-pathed row carries a canonical merchant that nails the dup even when
+ * the raw descriptions diverge.
  */
 export function detectDuplicates(
   importTxns: ImportTransaction[],
   existingTxns: Transaction[],
   accountMapping: Record<string, string>,
+  resolveMerchant?: (imp: ImportTransaction) => string,
 ): Map<string, DuplicateMatch> {
   const result = new Map<string, DuplicateMatch>();
   if (existingTxns.length === 0) return result;
@@ -48,6 +58,8 @@ export function detectDuplicates(
     const resolvedAccount = resolveAccount(imp, accountMapping);
     const hasAccount = resolvedAccount !== "";
     const hasDescription = imp.description.trim() !== "";
+    const resolvedMerchant = (resolveMerchant?.(imp) ?? imp.merchant).trim();
+    const hasMerchant = resolvedMerchant !== "";
 
     // Collect candidate dates: exact date + ±1 day neighbors
     const exactCandidates = byDate.get(imp.date) ?? [];
@@ -58,15 +70,24 @@ export function detectDuplicates(
 
     let match: DuplicateMatch | null = null;
 
-    // Rule 1: High — date + amount + description + same account
-    if (hasDescription && hasAccount) {
+    // Rule 1: High — date + amount + resolved merchant + same account
+    if (hasMerchant && hasAccount) {
+      match = findMatch(exactCandidates, claimed, imp.amount, (ex) =>
+        ex.accountId === resolvedAccount &&
+        ex.merchant.trim().toLowerCase() === resolvedMerchant.toLowerCase(),
+      );
+      if (match) { match.confidence = "high"; }
+    }
+
+    // Rule 2: High — date + amount + description + same account
+    if (!match && hasDescription && hasAccount) {
       match = findMatch(exactCandidates, claimed, imp.amount, (ex) =>
         ex.accountId === resolvedAccount && matchDescription(imp.description, ex),
       );
       if (match) { match.confidence = "high"; }
     }
 
-    // Rule 2: High — date + amount + description, no account on import side
+    // Rule 3: High — date + amount + description, no account on import side
     if (!match && hasDescription && !hasAccount) {
       match = findMatch(exactCandidates, claimed, imp.amount, (ex) =>
         matchDescription(imp.description, ex),
@@ -74,7 +95,7 @@ export function detectDuplicates(
       if (match) { match.confidence = "high"; }
     }
 
-    // Rule 3: Low — date + amount + same account (no description match)
+    // Rule 4: Low — date + amount + same account (no description match)
     if (!match && hasAccount) {
       match = findMatch(exactCandidates, claimed, imp.amount, (ex) =>
         ex.accountId === resolvedAccount,
@@ -82,7 +103,7 @@ export function detectDuplicates(
       if (match) { match.confidence = "low"; }
     }
 
-    // Rule 4: Low — date ±1 day + amount + same account
+    // Rule 5: Low — date ±1 day + amount + same account
     if (!match && hasAccount) {
       const neighbors = [...prevCandidates, ...nextCandidates];
       match = findMatch(neighbors, claimed, imp.amount, (ex) =>
@@ -130,6 +151,8 @@ function findMatch(
       existingTransactionId: ex.id,
       matchedDate: ex.datetime.slice(0, 10),
       matchedAmount: ex.amount,
+      matchedMerchant: ex.merchant,
+      matchedCategoryId: ex.categoryId,
     };
   }
   return null;
