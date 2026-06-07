@@ -8,7 +8,7 @@
  * the retry.
  */
 
-import type { Category, ImportTransaction, RowContext } from "@capybudget/core";
+import type { Category, CategoryGroup, ImportTransaction, RowContext } from "@capybudget/core";
 import type { MessageContent } from "../types";
 import type { StructuredSession } from "../structured";
 import { ENRICH_BATCH_SCHEMA, type EnrichBatchResult, type EnrichedRow } from "./schemas";
@@ -44,11 +44,24 @@ export function batchRows<T>(rows: T[], size = ENRICH_BATCH_SIZE): T[][] {
   return batches;
 }
 
+/** A category is an income category iff it lives in the "Income" group; the
+ *  other four groups are expense categories. */
+function isIncomeCategory(group: CategoryGroup): boolean {
+  return group === "Income";
+}
+
 /**
  * One enrichment batch — a single constrained call. Returns the classifier's
- * `{ id, merchant, categoryId, confidence }[]`, filtered to ids that are in the
- * batch and categoryIds that are valid budget categories (the model is
- * constrained to the list, but a stray id is dropped rather than written).
+ * `{ id, merchant, categoryId, confidence }[]`, restricted to ids that are in
+ * the batch (a stray id is dropped entirely).
+ *
+ * A row's categoryId is kept only if it names a real budget category whose
+ * *group* matches the row's `type`: an `income` row may take only an
+ * Income-group category, an `expense` row only a non-Income one. An unknown id
+ * or a type-mismatched one is cleared to empty — never written — so the row
+ * keeps its cleaned merchant, stays uncategorized, and remains re-enrichable.
+ * This makes writing an income category onto an expense structurally
+ * impossible. (Transfers never reach here — `needsEnrich` exempts them.)
  *
  * Throws on a model/parse failure — the caller catches per-batch.
  */
@@ -58,16 +71,20 @@ export async function enrichBatch(
   context: Record<string, RowContext>,
   categories: Category[],
 ): Promise<EnrichedRow[]> {
-  const validCategoryIds = new Set(categories.map((c) => c.id));
+  const categoryGroup = new Map(categories.map((c) => [c.id, c.group]));
+  const rowType = new Map(batch.map((r) => [r.id, r.type]));
   const prompt = buildEnrichPrompt(batch, context, categories);
   const messages: { role: "user"; content: MessageContent }[] = [{ role: "user", content: prompt }];
 
   const result = await session.structured<EnrichBatchResult>(messages, ENRICH_BATCH_SCHEMA);
 
-  const batchIds = new Set(batch.map((r) => r.id));
-  return result.rows.filter(
-    (r) => batchIds.has(r.id) && (!r.categoryId || validCategoryIds.has(r.categoryId)),
-  );
+  return result.rows
+    .filter((r) => rowType.has(r.id))
+    .map((r) => {
+      const group = r.categoryId ? categoryGroup.get(r.categoryId) : undefined;
+      const valid = group !== undefined && isIncomeCategory(group) === (rowType.get(r.id) === "income");
+      return valid ? r : { ...r, categoryId: "" };
+    });
 }
 
 function buildEnrichPrompt(
@@ -75,9 +92,9 @@ function buildEnrichPrompt(
   context: Record<string, RowContext>,
   categories: Category[],
 ): string {
-  const categoryList = categories
-    .map((c) => `${c.id}\t${c.name} (${c.group})`)
-    .join("\n");
+  const formatCategory = (c: Category) => `${c.id}\t${c.name} (${c.group})`;
+  const incomeCategories = categories.filter((c) => isIncomeCategory(c.group)).map(formatCategory).join("\n");
+  const expenseCategories = categories.filter((c) => !isIncomeCategory(c.group)).map(formatCategory).join("\n");
 
   const categoryName = new Map(categories.map((c) => [c.id, c.name]));
   const rows = batch.map((row) => {
@@ -95,8 +112,13 @@ function buildEnrichPrompt(
   return [
     `Assign a clean merchant name and a budget category to each transaction below.`,
     ``,
-    `Categories (id, name, group) — categoryId MUST be one of these ids:`,
-    categoryList,
+    `categoryId's group MUST match the transaction type: an \`income\` transaction takes an "Income"-group category; an \`expense\` takes a category from any non-Income group. Never put an Income-group category on an expense. The categories are split below by which type they apply to — pick from the matching list.`,
+    ``,
+    `Income categories (id, name, group) — use ONLY for \`income\` rows:`,
+    incomeCategories,
+    ``,
+    `Expense categories (id, name, group) — use ONLY for \`expense\` rows:`,
+    expenseCategories,
     ``,
     `Each row carries its raw description, and where available a "history" block: the user's own past transactions matching this description, plus how often each merchant/category appeared. When the history agrees, reuse that merchant name and categoryId — the user already settled on it. Otherwise clean the description into a merchant name (strip card prefixes, store numbers, city/state, reference numbers) and pick the best-fitting category.`,
     ``,

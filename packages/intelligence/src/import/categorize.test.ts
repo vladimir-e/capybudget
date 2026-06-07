@@ -44,7 +44,11 @@ describe("batchRows", () => {
 });
 
 describe("enrichBatch", () => {
-  const categories = [makeCategory({ id: "cat-1", name: "Groceries" }), makeCategory({ id: "cat-2", name: "Dining" })];
+  const categories = [
+    makeCategory({ id: "cat-1", name: "Groceries", group: "Daily Living" }),
+    makeCategory({ id: "cat-2", name: "Dining", group: "Personal" }),
+    makeCategory({ id: "inc-1", name: "Paycheck", group: "Income" }),
+  ];
 
   it("returns the classifier's rows, validated against the batch ids + categories", async () => {
     const batch = [makeImportTransaction({ id: "imp-1" }), makeImportTransaction({ id: "imp-2" })];
@@ -53,16 +57,73 @@ describe("enrichBatch", () => {
         rows: [
           { id: "imp-1", merchant: "A", categoryId: "cat-1", confidence: "high" },
           { id: "imp-2", merchant: "B", categoryId: "cat-2", confidence: "low" },
-          { id: "imp-99", merchant: "Ghost", categoryId: "cat-1", confidence: "low" }, // not in batch
-          { id: "imp-1", merchant: "C", categoryId: "cat-bad", confidence: "low" }, // bad category
+          { id: "imp-99", merchant: "Ghost", categoryId: "cat-1", confidence: "low" }, // not in batch — dropped
+          { id: "imp-1", merchant: "C", categoryId: "cat-bad", confidence: "low" }, // unknown id — categoryId cleared
         ],
       }),
     ]);
 
     const result = await enrichBatch(session, batch, {}, categories);
 
-    expect(result.map((r) => r.id)).toEqual(["imp-1", "imp-2"]);
+    expect(result.map((r) => r.id)).toEqual(["imp-1", "imp-2", "imp-1"]);
+    expect(result.map((r) => r.categoryId)).toEqual(["cat-1", "cat-2", ""]);
     expect(session.calls[0].schema).toBe(ENRICH_BATCH_SCHEMA);
+  });
+
+  it("drops an Income-group category the model put on an expense row, leaving it uncategorized", async () => {
+    const batch = [makeImportTransaction({ id: "imp-1", type: "expense" })];
+    const session = new MockStructuredSession([
+      () => ({ rows: [{ id: "imp-1", merchant: "A", categoryId: "inc-1", confidence: "low" }] }),
+    ]);
+
+    const result = await enrichBatch(session, batch, {}, categories);
+
+    expect(result).toEqual([{ id: "imp-1", merchant: "A", categoryId: "", confidence: "low" }]);
+  });
+
+  it("drops an expense-group category the model put on an income row", async () => {
+    const batch = [makeImportTransaction({ id: "imp-1", type: "income" })];
+    const session = new MockStructuredSession([
+      () => ({ rows: [{ id: "imp-1", merchant: "A", categoryId: "cat-1", confidence: "low" }] }),
+    ]);
+
+    const result = await enrichBatch(session, batch, {}, categories);
+
+    expect(result[0].categoryId).toBe("");
+  });
+
+  it("keeps a valid Income category on an income row", async () => {
+    const batch = [makeImportTransaction({ id: "imp-1", type: "income" })];
+    const session = new MockStructuredSession([
+      () => ({ rows: [{ id: "imp-1", merchant: "Employer", categoryId: "inc-1", confidence: "high" }] }),
+    ]);
+
+    const result = await enrichBatch(session, batch, {}, categories);
+
+    expect(result[0].categoryId).toBe("inc-1");
+  });
+
+  it("keeps a valid expense-group category on an expense row", async () => {
+    const batch = [makeImportTransaction({ id: "imp-1", type: "expense" })];
+    const session = new MockStructuredSession([
+      () => ({ rows: [{ id: "imp-1", merchant: "Store", categoryId: "cat-1", confidence: "high" }] }),
+    ]);
+
+    const result = await enrichBatch(session, batch, {}, categories);
+
+    expect(result[0].categoryId).toBe("cat-1");
+  });
+
+  it("splits the presented category list into income and expense groups", async () => {
+    const batch = [makeImportTransaction({ id: "imp-1" })];
+    const session = new MockStructuredSession([() => ({ rows: [] })]);
+
+    await enrichBatch(session, batch, {}, categories);
+
+    const text = JSON.stringify(session.calls[0].messages);
+    expect(text).toContain("Income categories");
+    expect(text).toContain("Expense categories");
+    expect(text).toContain("inc-1");
   });
 
   it("embeds row context and the category list in the prompt", async () => {
