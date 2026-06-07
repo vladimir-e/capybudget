@@ -109,7 +109,7 @@ export {
   handleReadFile,
   handleReadSpec,
 } from "./tools"
-export type { ToolDefinition, ToolMode, ToolContext } from "./tools"
+export type { ToolDefinition, ToolContext } from "./tools"
 
 // Import orchestrator — state machine, event stream, injected seams, schemas
 export {

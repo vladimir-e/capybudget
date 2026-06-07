@@ -2,7 +2,6 @@ import OpenAI from "openai"
 import { buildRenderToolMap, RENDER_FOLLOWUPS_TOOL_NAME } from "../render-map"
 import { extractErrorMessage } from "../error-message"
 import { runTool, getToolDefinitions, SESSION_TOOL_CALL_BUDGET } from "../tools"
-import type { ToolMode } from "../tools"
 import type { ApiAdapterOptions } from "../factory"
 import type { CapySession } from "../session"
 import type { ContentBlock, FileAttachment, MessageContent } from "../types"
@@ -11,16 +10,16 @@ import type { JsonSchema, StructuredMessage, StructuredSession } from "../struct
 
 const MAX_TOKENS = 8192
 
-function getOpenAiTools(mode: ToolMode): OpenAI.Chat.Completions.ChatCompletionTool[] {
-  return getToolDefinitions(mode).map((t) => ({
+const OPENAI_TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = getToolDefinitions().map(
+  (t) => ({
     type: "function",
     function: {
       name: t.name,
       description: t.description,
       parameters: t.inputSchema as Record<string, unknown>,
     },
-  }))
-}
+  }),
+)
 
 const RENDER_TOOL_MAP = buildRenderToolMap()
 
@@ -180,7 +179,7 @@ export class OpenAiSession implements CapySession, StructuredSession {
   }
 
   private async runAgenticLoop(): Promise<void> {
-    const tools = getOpenAiTools(this.opts.mode)
+    const tools = OPENAI_TOOLS
 
     const completedBlocks: ContentBlock[] = []
     const emitContent = () => {

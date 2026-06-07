@@ -41,8 +41,8 @@ export interface StructuredImportSessionDeps {
  * uses the import system prompt and the provider's configured model.
  *
  * The API adapter implements both interfaces; only `structured()` is exercised
- * here. `onEvent` is a no-op and `mode` is unused by the structured path, but
- * the adapter ctor requires the full options bag — so they're supplied inert.
+ * here. `onEvent` is a no-op — the adapter ctor requires it for its agent-loop
+ * path, which the structured calls never take.
  */
 export function createStructuredImportSession(
   deps: StructuredImportSessionDeps,
@@ -59,7 +59,6 @@ export function createStructuredImportSession(
   const session = ctor({
     budgetPath: options.budgetPath,
     systemPrompt: options.systemPrompt,
-    mode: "import",
     apiKey: providerConfig.apiKey,
     model: providerConfig.model,
     onEvent: () => {},

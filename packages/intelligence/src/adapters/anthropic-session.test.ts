@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest"
 import type { StreamEvent } from "@capybudget/intelligence"
 import type { BudgetRepository, FileAdapter } from "@capybudget/persistence"
+import { getToolDefinitions } from "../tools"
 
 interface FakeBlock {
   type: "text" | "tool_use"
@@ -198,12 +199,11 @@ vi.mock("../tools", async (importOriginal) => {
 
 import { AnthropicSession } from "./anthropic-session"
 
-function makeSession(mode: "chat" | "import" = "chat") {
+function makeSession() {
   const events: StreamEvent[] = []
   const session = new AnthropicSession({
     budgetPath: "/budget",
     systemPrompt: "you are capy",
-    mode,
     apiKey: "sk-ant-test",
     model: "claude-sonnet-4-6",
     onEvent: (e) => events.push(e),
@@ -821,26 +821,21 @@ describe("AnthropicSession", () => {
   })
 })
 
-describe("AnthropicSession tool gating", () => {
-  async function toolNamesFor(mode: "chat" | "import" = "chat"): Promise<string[]> {
-    const { session } = makeSession(mode)
+describe("AnthropicSession tool surface", () => {
+  async function loopToolNames(): Promise<string[]> {
+    const { session } = makeSession()
     queueTurn({ textDeltas: ["ok"], stop_reason: "end_turn" })
     await session.send("hi")
     const tools = lastStreamCall().tools as Array<{ name: string }>
     return tools.map((t) => t.name)
   }
 
-  it("chat sends its full tool surface — render + data + the import on-ramp", async () => {
-    const names = await toolNamesFor("chat")
+  it("the agent loop sends the full tool surface, byte-identical to the MCP surface", async () => {
+    const names = await loopToolNames()
+    expect(new Set(names)).toEqual(new Set(getToolDefinitions().map((t) => t.name)))
     expect(names).toContain("render_table")
-    expect(names).toContain("render_chart")
-    expect(names).toContain("render_followups")
-    expect(names).toContain("list_transactions")
-    expect(names).toContain("search_transactions")
-    expect(names).toContain("group_transactions")
     expect(names).toContain("create_transaction")
     expect(names).toContain("start_import")
-    expect(names).toHaveLength(21)
   })
 })
 
@@ -854,7 +849,7 @@ describe("AnthropicSession.structured", () => {
   it("makes one constrained, tool-free call and returns the parsed result", async () => {
     queueStructured({ content: '{"ok": true}' })
 
-    const { session } = makeSession("import")
+    const { session } = makeSession()
     const result = await session.structured<{ ok: boolean }>(
       [{ role: "user", content: "extract" }],
       SCHEMA,

@@ -10,7 +10,7 @@ export {
   START_IMPORT_TOOL_NAME,
   getToolDefinitions,
 } from "./definitions"
-export type { ToolDefinition, ToolMode } from "./definitions"
+export type { ToolDefinition } from "./definitions"
 
 // Dispatch
 export { runTool, isDispatchTool } from "./dispatch"

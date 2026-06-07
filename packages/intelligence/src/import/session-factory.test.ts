@@ -40,7 +40,7 @@ describe("canImport", () => {
 });
 
 describe("createStructuredImportSession", () => {
-  it("builds an Anthropic session in import mode with the API model + prompt", () => {
+  it("builds an Anthropic structured session with the API model + prompt", () => {
     const adapterSet = adapters();
     const session = createStructuredImportSession({
       config: config({ provider: "anthropic" }),
@@ -50,7 +50,7 @@ describe("createStructuredImportSession", () => {
 
     expect(session).not.toBeNull();
     expect(adapterSet.anthropic).toHaveBeenCalledWith(
-      expect.objectContaining({ mode: "import", model: "claude", apiKey: "sk-ant", systemPrompt: "P" }),
+      expect.objectContaining({ model: "claude", apiKey: "sk-ant", systemPrompt: "P" }),
     );
   });
 

@@ -19,7 +19,6 @@
 import type { IntelligenceConfig } from "./config"
 import type { CapySession } from "./session"
 import type { StreamEvent } from "./types"
-import type { ToolMode } from "./tools"
 import { canImport } from "./import/session-factory"
 import type { BudgetRepository, FileAdapter } from "@capybudget/persistence"
 
@@ -45,8 +44,6 @@ export interface ClaudeCliAdapterOptions {
 export interface ApiAdapterOptions {
   budgetPath: string
   systemPrompt: string
-  /** Gates the in-process tool surface to this mode's tools. */
-  mode: ToolMode
   apiKey: string
   model: string
   onEvent: (event: StreamEvent) => void
@@ -73,12 +70,6 @@ export interface SessionOptions {
   budgetPath: string
   mcpServerPath: string
   systemPrompt: string
-  /**
-   * Gates the in-process tool surface for the API adapters. The Claude
-   * CLI adapter ignores it — it routes tools through the full-surface
-   * MCP server, which external agents share.
-   */
-  mode: ToolMode
   onEvent: (event: StreamEvent) => void
   onExit?: () => void
   repo?: BudgetRepository
@@ -128,7 +119,6 @@ export function createIntelligenceSession(
       return ctor({
         budgetPath: options.budgetPath,
         systemPrompt: options.systemPrompt,
-        mode: options.mode,
         apiKey,
         model,
         onEvent: options.onEvent,
@@ -146,7 +136,6 @@ export function createIntelligenceSession(
       return ctor({
         budgetPath: options.budgetPath,
         systemPrompt: options.systemPrompt,
-        mode: options.mode,
         apiKey,
         model,
         onEvent: options.onEvent,

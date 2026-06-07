@@ -2,7 +2,6 @@ import Anthropic from "@anthropic-ai/sdk"
 import { buildRenderToolMap, RENDER_FOLLOWUPS_TOOL_NAME } from "../render-map"
 import { extractErrorMessage } from "../error-message"
 import { runTool, getToolDefinitions, SESSION_TOOL_CALL_BUDGET } from "../tools"
-import type { ToolMode } from "../tools"
 import type { ApiAdapterOptions } from "../factory"
 import type { CapySession } from "../session"
 import type { ContentBlock, FileAttachment, MessageContent } from "../types"
@@ -11,13 +10,11 @@ import type { JsonSchema, StructuredMessage, StructuredSession } from "../struct
 
 const MAX_TOKENS = 8192
 
-function getAnthropicTools(mode: ToolMode): Anthropic.Tool[] {
-  return getToolDefinitions(mode).map((t) => ({
-    name: t.name,
-    description: t.description,
-    input_schema: t.inputSchema as Anthropic.Tool.InputSchema,
-  }))
-}
+const ANTHROPIC_TOOLS: Anthropic.Tool[] = getToolDefinitions().map((t) => ({
+  name: t.name,
+  description: t.description,
+  input_schema: t.inputSchema as Anthropic.Tool.InputSchema,
+}))
 
 const RENDER_TOOL_MAP = buildRenderToolMap()
 
@@ -165,7 +162,7 @@ export class AnthropicSession implements CapySession, StructuredSession {
   }
 
   private async runAgenticLoop(): Promise<void> {
-    const tools = getAnthropicTools(this.opts.mode)
+    const tools = ANTHROPIC_TOOLS
 
     const completedBlocks: ContentBlock[] = []
     const emitContent = () => {

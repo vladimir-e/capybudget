@@ -125,7 +125,6 @@ export function useSessionLifecycle<TOpts extends SessionLifecycleOptions>(
         budgetPath: o.budgetPath,
         mcpServerPath: o.mcpServerPath,
         systemPrompt,
-        mode: "chat",
         onEvent: handleStreamEvent,
         onExit: handleExit,
         repo: o.repo,

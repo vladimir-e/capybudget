@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest"
 import type { StreamEvent } from "@capybudget/intelligence"
 import type { BudgetRepository, FileAdapter } from "@capybudget/persistence"
+import { getToolDefinitions } from "../tools"
 
 interface FakeToolCallDelta {
   index: number
@@ -213,12 +214,11 @@ vi.mock("../tools", async (importOriginal) => {
 
 import { OpenAiSession } from "./openai-session"
 
-function makeSession(mode: "chat" | "import" = "chat") {
+function makeSession() {
   const events: StreamEvent[] = []
   const session = new OpenAiSession({
     budgetPath: "/budget",
     systemPrompt: "you are capy",
-    mode,
     apiKey: "sk-openai-test",
     model: "gpt-4o",
     onEvent: (e) => events.push(e),
@@ -923,26 +923,21 @@ describe("OpenAiSession", () => {
   })
 })
 
-describe("OpenAiSession tool gating", () => {
-  async function toolNamesFor(mode: "chat" | "import" = "chat"): Promise<string[]> {
+describe("OpenAiSession tool surface", () => {
+  async function loopToolNames(): Promise<string[]> {
     queueTurn({ textDeltas: ["ok"], finish_reason: "stop" })
-    const { session } = makeSession(mode)
+    const { session } = makeSession()
     await session.send("hi")
     const tools = lastCreateCall().tools as Array<{ function: { name: string } }>
     return tools.map((t) => t.function.name)
   }
 
-  it("chat sends its full tool surface — render + data + the import on-ramp", async () => {
-    const names = await toolNamesFor("chat")
+  it("the agent loop sends the full tool surface, byte-identical to the MCP surface", async () => {
+    const names = await loopToolNames()
+    expect(new Set(names)).toEqual(new Set(getToolDefinitions().map((t) => t.name)))
     expect(names).toContain("render_table")
-    expect(names).toContain("render_chart")
-    expect(names).toContain("render_followups")
-    expect(names).toContain("list_transactions")
-    expect(names).toContain("search_transactions")
-    expect(names).toContain("group_transactions")
     expect(names).toContain("create_transaction")
     expect(names).toContain("start_import")
-    expect(names).toHaveLength(21)
   })
 })
 
@@ -956,7 +951,7 @@ describe("OpenAiSession.structured", () => {
   it("makes one constrained, tool-free call and returns the parsed result", async () => {
     queueStructured({ content: '{"ok": true}' })
 
-    const { session } = makeSession("import")
+    const { session } = makeSession()
     const result = await session.structured<{ ok: boolean }>(
       [{ role: "user", content: "extract" }],
       SCHEMA,
