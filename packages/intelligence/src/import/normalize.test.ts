@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { normalizeCsv, normalizeImage, isImageOrPdf } from "./normalize";
 import { CSV_MAPPING_SCHEMA, EXTRACTION_SCHEMA } from "./schemas";
+import { SchemaValidationError } from "../structured";
 import { MockStructuredSession } from "./test-doubles";
 
 const MAPPING = {
@@ -45,6 +46,31 @@ describe("normalizeCsv", () => {
     const session = new MockStructuredSession([() => MAPPING]);
     await normalizeCsv(session, { name: "f.csv", content: csv });
     expect(session.calls).toHaveLength(1);
+  });
+
+  it("retries the mapping when the first response omits a required field", async () => {
+    const csv = "Date,Description,Amount\n2026-01-05,COFFEE,-4.50";
+    const incomplete = { ...MAPPING, date: { column: "Date" } }; // date.format missing → schema-rejected
+    const session = new MockStructuredSession([() => incomplete, () => MAPPING]);
+
+    const { rows, mapping } = await normalizeCsv(session, { name: "f.csv", content: csv });
+
+    expect(session.calls).toHaveLength(2);
+    // The retry carries the validator's complaint so the model can self-correct.
+    expect(JSON.stringify(session.calls[1].messages)).toContain("rejected by validation");
+    expect(mapping.date.format).toBe("YYYY-MM-DD");
+    expect(rows).toHaveLength(1);
+  });
+
+  it("throws when the omission persists across the retry", async () => {
+    const csv = "Date,Description,Amount\n2026-01-05,COFFEE,-4.50";
+    const incomplete = { ...MAPPING, date: { column: "Date" } };
+    const session = new MockStructuredSession([() => incomplete, () => incomplete]);
+
+    await expect(normalizeCsv(session, { name: "f.csv", content: csv })).rejects.toBeInstanceOf(
+      SchemaValidationError,
+    );
+    expect(session.calls).toHaveLength(2); // one retry, no more — a broken response isn't masked
   });
 
   it("continues ids from startId for multi-file appends", async () => {

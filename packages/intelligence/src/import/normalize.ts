@@ -20,7 +20,7 @@ import {
   type StagedRecord,
 } from "@capybudget/core";
 import type { MessageContent } from "../types";
-import type { StructuredSession } from "../structured";
+import { SchemaValidationError, type StructuredSession } from "../structured";
 import {
   CSV_MAPPING_SCHEMA,
   EXTRACTION_SCHEMA,
@@ -102,9 +102,23 @@ async function requestMapping(
     `Sample rows (first ${sample.length}):`,
     JSON.stringify(sample, null, 2),
     `Return a mapping describing the date column + format, the description column(s), how amounts are structured (single signed column or split debit/credit) and formatted, how to detect expense/income/transfer, the source account (a column or a literal inferred from the filename), and the source category column (or null if absent). Add skipRules for non-transaction rows (opening balances, voids) when present.`,
+    `ALWAYS include date.format as a date pattern matching the sample dates (e.g. MM/DD/YYYY, YYYY-MM-DD, DD.MM.YYYY) — never omit it. Every field the schema marks required must be present in your response.`,
     errorNote,
   ].join("\n");
 
+  try {
+    return await callMapper(session, prompt);
+  } catch (err) {
+    // CSV_MAPPING_SCHEMA is non-strict (its open typeMap can't be expressed in
+    // OpenAI strict), so the model can drop a required field and parseStructured
+    // rejects it. Retry once with the validator's complaint attached.
+    if (!(err instanceof SchemaValidationError)) throw err;
+    const retryPrompt = `${prompt}\n\nYour previous response was rejected by validation: ${err.message}. Return the COMPLETE mapping with every required field present.`;
+    return callMapper(session, retryPrompt);
+  }
+}
+
+function callMapper(session: StructuredSession, prompt: string): Promise<CsvMappingResult> {
   const messages: { role: "user"; content: MessageContent }[] = [{ role: "user", content: prompt }];
   return session.structured<CsvMappingResult>(messages, CSV_MAPPING_SCHEMA);
 }

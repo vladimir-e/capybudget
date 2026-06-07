@@ -6,6 +6,7 @@
  */
 
 import type { Account, Category, ImportTransaction, RowContext, Transaction } from "@capybudget/core";
+import { parseStructured } from "../structured";
 import type { JsonSchema, StructuredMessage, StructuredSession } from "../structured";
 import type { BudgetDataProvider } from "./budget-data";
 import type { ImportState, SourceFile, StagingStore } from "./staging-store";
@@ -91,6 +92,11 @@ export class MemoryBudgetData implements BudgetDataProvider {
  * (to exercise batch-failure isolation). An async responder lets a test gate a
  * batch's completion to drive in-flight ordering (the cancel race). Records
  * every call for assertions; runs out → throws so an over-call is loud.
+ *
+ * The responder's value is run through `parseStructured` against the call's
+ * schema, exactly as the real session validates a provider response — so an
+ * off-schema value (e.g. a mapping missing `date.format`) throws
+ * `SchemaValidationError` here too, letting tests exercise that path.
  */
 export class MockStructuredSession implements StructuredSession {
   readonly calls: { messages: readonly StructuredMessage[]; schema: JsonSchema }[] = [];
@@ -109,6 +115,6 @@ export class MockStructuredSession implements StructuredSession {
     if (!responder) throw new Error("MockStructuredSession: no responder left for call");
     const value = await responder(messages);
     if (value instanceof Error) throw value;
-    return value as T;
+    return parseStructured<T>(JSON.stringify(value), schema);
   }
 }
