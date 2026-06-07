@@ -6,7 +6,7 @@ Capy is an AI financial assistant. The intelligence layer is **provider-pluggabl
 
 ```
 ┌──────────────────────────────────────────────┐
-│  Capy Overlay  +  Import Screen              │
+│  Capy Overlay                                │
 │  Messages, input, multimodal attachments     │
 └──────────────┬───────────────────────────────┘
                │ CapySession interface
@@ -22,8 +22,8 @@ Capy is an AI financial assistant. The intelligence layer is **provider-pluggabl
             ▼                    ▼                   ▼
 ┌──────────────────────┐  ┌─────────────────────────────────────┐
 │ MCP server           │  │ In-process tool dispatch            │
-│ stdio + node fs      │  │ data + mutation + import + csv +    │
-│                      │  │ read_file + render handlers         │
+│ stdio + node fs      │  │ data + mutation + start_import +    │
+│                      │  │ read_file + read_spec + render      │
 └──────────┬───────────┘  └──────────┬──────────────────────────┘
            │                         │
            ▼                         ▼
@@ -41,6 +41,8 @@ Two transport models share a single tool layer:
 - **API adapters** run the agentic loop in the renderer and dispatch tool calls **in-process**. They use the Tauri `fs` adapter for the same handlers — same `ToolContext` shape, different `FileAdapter` implementation.
 
 The tool handlers don't know which transport called them.
+
+Smart Import does not run through the agent loop. It's a code-orchestrated pipeline (see `IMPORT.md`) that calls the model statelessly through the `structured()` primitive — no tools, no accumulated context. The chat surface's only connection to import is the `start_import` tool: the chat on-ramp that stages an attachment and hands it to that pipeline.
 
 ## Session Interface
 
@@ -88,6 +90,14 @@ Adapters emit `StreamEvent`s directly (`content` / `tool-result` / `done` / `err
 
 Adapters surface `done` off the model's terminal event (Anthropic `message` / OpenAI `finish_reason` / CLI assistant `stop_reason`) and abort the transport early rather than waiting for SSE or subprocess drain — gating on the transport adds seconds of post-content latency. The Claude CLI parser keeps the trailing `result` line as a safety-net `done` emitter for the case where no `stop_reason` arrives, so the UI never hangs.
 
+## Structured Output
+
+Alongside the agentic `CapySession`, the in-process API adapters expose a second, stateless primitive: `StructuredSession.structured(messages, schema) → T`. One constrained model call returns a value the caller's JSON Schema describes — no agent loop, no tools, no accumulated context. Smart Import is built on this; the agent loop is for chat.
+
+Both providers constrain generation to the schema server-side (Anthropic `output_config.format`, OpenAI `response_format` json_schema). `parseStructured` is the client-side enforcement layer: it parses the returned text and validates it against the same schema, so a malformed or off-schema response throws (`SchemaValidationError`) at the call site rather than landing as a silently-wrong object downstream. User turns may carry multimodal content (receipt images, PDF bytes); assistant turns are text-only, because the API rejects image/document blocks in an assistant turn.
+
+The Anthropic and OpenAI adapters implement both `CapySession` and `StructuredSession`. The Claude Code CLI adapter implements only `CapySession` — its structured-call path is not available, which is why import is gated to the API providers (see **Settings** and `IMPORT.md`).
+
 ## Adapters
 
 ### Claude Code adapter
@@ -132,27 +142,17 @@ All three adapters share `buildRenderToolMap()` from `@capybudget/intelligence` 
 
 Single source of truth shared between transports:
 
-- **Definitions** — tool descriptors (name, description, JSON-Schema input), 31 in all. `getToolDefinitions(mode?)` is the single source: no argument returns the full surface (what the MCP server exposes); a `mode` (`"chat"` | `"import"`) filters to that mode's tools (see **Mode gating** below).
-- **Dispatch** — `runTool(name, input, ctx) → string`. The MCP server and the API adapters call this with the same signature. `ToolContext` is `{ repo, fileAdapter, budgetPath }`.
+- **Definitions** — tool descriptors (name, description, JSON-Schema input). `getToolDefinitions()` is the single source: no argument, one surface. The MCP server, the in-process chat agent loop, and external agents all see the same set. The structured import session calls the model with no tools, so it never draws from here.
+- **Dispatch** — `runTool(name, input, ctx) → string`. The MCP server and the API adapters call this with the same signature. `ToolContext` is `{ repo, fileAdapter, budgetPath, attachments?, importSupported? }` — the last two ride only the chat path, for `start_import`.
 - **Handlers** — per-tool implementations:
   - **Data tools** — `list_accounts`, `list_transactions` (filters + `sort` + `offset` + `format: "compact" | "full"`, plus `ids` to fetch exact rows after a scan), `search_transactions` (fuzzy cross-field + money query and structured filters → compact rows), `group_transactions` (the universal aggregator: same filters as search, then `groupBy` one or more dimensions — merchant/category/account/type/month/week/dayOfMonth/amountBucket — and request `metrics` over signed cents, including per-group `cadence` for recurrence; subsumes spending-by-category, merchant rollups, duplicate clusters, and interval analysis), `list_categories`
   - **Mutation tools** — full CRUD for transactions / accounts / categories, plus `bulk_update_transactions` (category/account/date/merchant across many rows; skips transfers for category/account/merchant). `update_account` carries `archived` (archiving fails on a non-zero balance) and `excludeFromNetWorth`. `update_category` carries `archived` and `budgetCents` (the explicit `assigned` budget — `null` untracked, `0` tracked-at-zero, omitted unchanged; a category without one still has an implicit target derived from its spending history).
-  - **Import tools** — `read_import_file`, `write_import_file`, `append_import_file`, `list_import_files` (over `.capy/import/`)
-  - **CSV tools** — `analyze_csv`, `preview_transform`, `transform_csv`, `auto_enrich`, `enrich_stats`, `enrich_sample`, `enrich_update`
+  - **start_import** — the chat on-ramp into Smart Import. Takes no arguments: it stages the files attached to the in-flight chat turn into `.capy/import/sources/` and marks the run so the Import screen auto-starts the orchestrator. Capy calls this for any uploaded file instead of reading it and creating transactions itself. See **Import On-Ramp** below.
   - **read_file** — generic budget-folder text reader; mirrors what Claude CLI's built-in `Read` provides natively
   - **read_spec** — reads one of the app's design docs (`specs/*.md`). Content is bundled at build time into `specs.generated.ts` — no filesystem access, no path resolution surface. Use when capy needs implementation detail beyond what the system prompt already embeds.
   - **Render tools** — no-op on dispatch (return `"Rendered."`); the frontend intercepts the `tool_use` event and emits the corresponding ContentBlock
 
-All filesystem access goes through the `FileAdapter` on the context, so the same handler runs against node fs (MCP server) and Tauri fs (API adapters in the renderer). The `FileAdapter` interface covers core CSV repo ops (read/write/rename/join) plus the import-handler ops (`mkdir`, `exists`, `readDir`, `appendFile`, `remove`, `stat`).
-
-### Mode gating
-
-An in-process API session sees only the tools its system prompt can use, so a chat asking "what did I spend on coffee" isn't handed the CSV/enrich pipeline (and doesn't pay to re-send those schemas every turn). The factory threads a `mode` into the API adapters, which pass it to `getToolDefinitions(mode)`:
-
-- **chat** (22 tools) — reads, full CRUD, render tools, `read_file`/`read_spec`, plus `search_transactions` (fuzzy "find all my Apple charges" → compact rows; the prompt also reaches for it on "how much did I spend at X?"), `group_transactions` (spending breakdowns, rollups, recurrence — the prompt steers all aggregation here rather than hand-summing rows), and read-only import visibility (`read_import_file` / `list_import_files`) for staged-import questions. No CSV/enrich/write tools.
-- **import** (16 tools) — the CSV transform + enrich pipeline, the import working-directory writers, `search_transactions` (look up a cryptic description in budget history and inherit the matching rows' merchant + category), `list_accounts`/`list_categories` (transfer-target and category UUIDs), and `read_file`/`read_spec`. Covers both Smart Import sessions (normalize and enrich). No render or live-budget mutation tools.
-
-The membership map lives next to the definitions (`tools/definitions/index.ts`), and its source of truth is the prompts: a tool is in a mode iff that mode's prompt tells the model to call it. The **Claude CLI adapter is not gated** — it routes tools through the MCP server, which stays full-surface. So does the MCP server for external agents.
+All filesystem access goes through the `FileAdapter` on the context, so the same handler runs against node fs (MCP server) and Tauri fs (API adapters in the renderer). The `FileAdapter` interface covers core CSV repo ops (read/write/rename/join) plus the staging-handler ops (`mkdir`, `exists`, `readDir`, `appendFile`, `remove`, `stat`) the import pipeline and `start_import` use.
 
 ### Prompt caching
 
@@ -181,7 +181,7 @@ No-ops on the dispatch side — they carry structured data from AI to frontend v
 
 ## MCP Server (External Agents)
 
-The MCP server is a thin transport: it wires the tool definitions to ListTools and `runTool()` to CallTool. It exposes the **full surface** (`getToolDefinitions()` with no mode) — external agents (Claude Desktop / Cursor / VS Code Copilot) drive their own flows and aren't constrained to a single chat/import mode. The in-process API adapters are mode-gated (see **Mode gating**); dispatch behavior is identical across both.
+The MCP server is a thin transport: it wires the tool definitions to ListTools and `runTool()` to CallTool. It exposes `getToolDefinitions()` — the one shared surface — to external agents (Claude Desktop / Cursor / VS Code Copilot). The in-process chat agent loop sees the same surface; dispatch behavior is identical across both. (`start_import` is a no-op from MCP — it needs the chat turn's attachments, which an external agent's call doesn't carry, so it returns guidance rather than staging.)
 
 ```json
 {
@@ -219,6 +219,8 @@ Every provider uses one shared model picker: a curated dropdown plus a "Use a cu
 - **Claude Code** — Default (empty, the CLI decides), plus the `opus` / `sonnet` / `haiku` aliases. A non-empty value passes through as the CLI's `--model` flag at spawn; empty omits the flag.
 
 When `provider === null`, the Capy overlay shows an empty-state CTA instead of the chat UI.
+
+Smart Import needs the structured-output primitive, which only the Anthropic and OpenAI adapters implement. `canImport(provider)` is the single gate — true for `anthropic` and `openai`, false for `claude-cli` and `null`. The Import tab shows an offline CTA when it's false, and the chat `start_import` tool returns switch-provider guidance.
 
 The Intelligence section also hosts a chat-instructions editor for `capy-instructions.md` (see Custom Instructions). The same file is editable from the Capy overlay; edits apply to the next conversation. The web demo can't store an AI provider, so it renders the provider list disabled behind a desktop-only notice and omits the per-provider config and the chat-instructions editor; Categories management stays fully functional.
 
@@ -273,38 +275,24 @@ Establishes Capy's personality:
 - Concise, direct answers
 - Confirms destructive actions before executing
 
-All three prompts open with a shared **app-knowledge brief** (`specs/APP_KNOWLEDGE.md`, factored through `prompts/app-knowledge.ts`) so chat, import, and enrich each understand the same working model — the transaction log, accounts, categories, derived budgets, the analytics surface, who the user is, and what Capy's job is. It's a tight, purpose-built doc, not a spec dump: ~1.3K tokens of always-on common ground rather than the full schema and feature inventory.
+The chat prompt opens with a shared **app-knowledge brief** (`specs/APP_KNOWLEDGE.md`, factored through `prompts/app-knowledge.ts`) — the transaction log, accounts, categories, derived budgets, the analytics surface, who the user is, and what Capy's job is. It's a tight, purpose-built doc, not a spec dump: ~1.3K tokens of always-on common ground rather than the full schema and feature inventory.
 
 The brief is sourced from `packages/intelligence/src/specs.generated.ts`, regenerated on every build by `scripts/generate-specs.ts`. For detail beyond the brief — the exact CSV schemas in `DATA_MODEL.md`, the full feature inventory in `PRODUCT.md`, the architecture, the import pipeline, the intelligence layer itself — capy calls `read_spec`.
 
 ## Import Sessions
 
-Smart Import uses two sequential AI sessions, each with a focused prompt. Both work on every provider.
+Smart Import is a code-orchestrated pipeline (`IMPORT.md`), not an agent session. It calls the model through `structured()` at two points, each a single constrained call with no tools and no accumulated context:
 
-### Normalize
+- **Mapping / extraction** (Normalizing) — a CSV's headers + samples become a `CsvMapping`; an image or PDF's bytes become the same intermediate transaction records directly. Receipt images ride as base64 `image` content, PDFs as base64 `document` content, on the user turn the structured call sends.
+- **Categorizing** — batches of ~25 rows, each carrying its distilled history context and the category list, return `{ id, merchant, categoryId, confidence }[]`. Batches are bounded-parallel and fail in isolation.
 
-Takes dropped files, detects format, extracts transactions into a uniform CSV. Leaves enrichment columns empty.
-
-- **Text sources (CSV / OFX / etc.)** are listed by name in the initial message; the agent calls `analyze_csv` → `preview_transform` → `transform_csv` to process them in code.
-- **Images and PDFs** ride into the **initial user message as multimodal blocks** — image bytes become `image` content (rendered as `image_url` for OpenAI), PDF bytes become `document` content. The agent reads them directly from the message and calls `write_import_file` / `append_import_file` to record extracted rows. Provider-specific handling (e.g. OpenAI replacing PDF blocks with a text note) lives in each adapter; the import screen stays provider-agnostic.
-
-### Enrich
-
-Reads the normalized CSV, identifies merchants, matches accounts, and categorizes transactions using a mix of code-driven helpers (`auto_enrich` does fuzzy category and account matching in one pass — it intentionally does NOT touch `merchant`, since the raw description is the wrong value for the cleaned-name slot) and bulk SQL-UPDATE-style calls (`enrich_update`). Runs automatically after normalization; can be re-triggered manually.
-
-`enrich_update` returns **per-field counts** of what landed (set vs skipped-as-already-populated). The model uses this signal to know when to stop pattern-matching instead of guessing from a single "Updated N rows" total. It validates `categoryId` against real budget category UUIDs — invented or stale IDs are rejected with a clear error pointing back at `list_categories`.
-
-**Idempotency.** Enrich begins with `enrich_stats`. If coverage is already complete (merchant + category on every non-transfer row), the session reports the work is done and stops without further calls. Pressing enrich on already-enriched data is a fast no-op. Stop conditions are explicit: full coverage, or two consecutive `enrich_update` calls produce zero actual changes, or the per-session tool-call budget is approaching exhaustion.
-
-The `categoryConfidence` field coordinates between AI and user: enrichment writes `"high"` (merchant history match) or `"low"` (keyword inference), and skips rows where confidence is `"high"` (user-confirmed). The UI shows a confidence dot indicator next to each category.
-
-Both sessions use the same `CapySession` interface, run in `import` mode (the same gated tool surface), and open with the shared app-knowledge brief — only the entry-point-specific instructions layered on top change.
+All these calls share one short import system prompt (`import/system-prompt.ts`): it sets the role and two invariants — extract only what the source contains, and answer with the requested structure — while each call's task and schema ride in the request itself. The per-run hints and `import-instructions.md` from the Import tab compose onto this prompt. There is no per-call tool surface, no agent loop, and no `categoryConfidence` REPL between AI and tools; confidence is just a field each Categorizing row returns (`high` / `low`), which the preview renders as a dot.
 
 ## Session Tool-Call Budget
 
 Every `CapySession` enforces a per-session cap of **100 tool calls** as a runaway-loop backstop. When exceeded, the session emits a `StreamEvent.error` describing the budget exhaustion and terminates that turn cleanly. The user sees the error and can run again; the budget resets per session.
 
-This is a hard backstop, not the normal path. Idempotent enrichment and well-formed prompts converge in tens of calls even on multi-year imports. The cap exists to bound the failure mode when something goes wrong.
+This is a hard backstop on the chat agent loop, not the normal path. A well-formed answer converges in a handful of calls. The cap exists to bound the failure mode when something goes wrong. (Smart Import is not an agent loop — its stateless `structured()` calls make no tool calls and don't draw on this budget.)
 
 Enforcement varies by adapter:
 

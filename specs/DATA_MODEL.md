@@ -137,3 +137,87 @@ Each migration `n → n+1` is a pure-ish function on the budget folder, idempote
 |-----------|--------|
 | 1 → 2     | Add `excludeFromNetWorth` column to accounts.csv (default `false`). |
 | 2 → 3     | Add `assigned` column to categories.csv (empty cell = `null` = untracked). |
+
+## Import Staging
+
+Smart Import works in a scratch area under the budget folder, `.capy/import/`. None of it is budget data — it's intermediate state that exists only between dropping files and merging, and is cleared on merge or cancel. The pipeline that produces it is specified in `IMPORT.md`; this is its data shape.
+
+```
+.capy/import/
+  sources/          # original files (CSV, image, PDF)
+  transactions.csv  # the staged rows
+  context.json      # per-row history signals
+  state.json        # phase + run metadata
+```
+
+### Staged record
+
+Both normalization paths (a `CsvMapping` applied to a CSV, or a model reading an image/PDF) converge on one intermediate record before it's built into a staged row:
+
+| Field           | Type    | Notes                                                        |
+|-----------------|---------|--------------------------------------------------------------|
+| `date`          | string  | `YYYY-MM-DD`                                                 |
+| `amount`        | integer | **Signed** cents (negative = outflow) — sign already resolved |
+| `type`          | enum    | `expense · income · transfer`                                |
+| `description`   | string  | Raw merchant text, untrimmed at this stage                   |
+| `sourceAccount` | string  | Raw account string from the source                           |
+| `sourceCategory`| string  | Raw category string from the source (empty when none)        |
+
+`buildStaged` is the single sink: it assigns ids and trims `description` to produce the staged row.
+
+### Staged row (`transactions.csv`)
+
+| Field               | Type    | Notes                                                                                  |
+|---------------------|---------|----------------------------------------------------------------------------------------|
+| `id`                | string  | Sequential `imp-N`, continuing across multi-file imports                                |
+| `date`              | string  | `YYYY-MM-DD`                                                                            |
+| `description`       | string  | **Raw text trimmed to 45 chars** — the canonical form for both history matching and `note` at merge. Truncation drops trailing reference-number noise; there is no separate full-raw field. |
+| `amount`            | integer | Signed cents (negative = expense, positive = income)                                   |
+| `type`              | enum    | `expense · income · transfer`                                                           |
+| `sourceAccount`     | string  | Raw account string — resolved to `accountId` during grounding                          |
+| `sourceCategory`    | string  | Raw category string — resolved to `categoryId` during grounding                        |
+| `merchant`          | string  | Cleaned merchant name. Empty until grounding or the classifier fills it                 |
+| `accountId`         | string  | Resolved budget account UUID (may be empty)                                             |
+| `targetAccountId`   | string  | For transfers: the other account (empty = unmatched)                                    |
+| `categoryId`        | string  | Resolved budget category UUID. Empty until grounding or the classifier fills it         |
+| `categoryConfidence`| string  | `high` · `low` · `""` — set alongside `categoryId`                                       |
+| `duplicate`         | boolean | True when the row matches an existing budget transaction — skipped by enrichment, unselected at merge |
+
+There is no `memo` field. At merge, `note` is the trimmed `description` and nothing else; `merchant` on `Transaction` is reserved for the cleaned name.
+
+### History context (`context.json`)
+
+Ephemeral classifier input written during grounding, keyed by row id. It feeds the Categorizing call and is never a `transactions.csv` column or persisted to `Transaction`. Rows with no historical match carry no entry.
+
+```ts
+Record<string /* row id */, {
+  examples: {            // top-3 most-recent matching transactions
+    date: string
+    merchant: string
+    note: string
+    categoryId: string
+    amount: number
+  }[]
+  merchantStats: { name: string; count: number }[]   // merchant frequency among matches
+  categoryStats: { name: string; count: number }[]   // categoryId frequency among matches
+}>
+```
+
+### Run state (`state.json`)
+
+```ts
+{
+  phase: ImportPhase           // reading · normalizing · history · categorizing · done · error · idle
+  rowCount?: number            // set once staging is written
+  updatedAt: string            // ISO timestamp of the last write
+  source?: "chat"              // present when the chat on-ramp staged the run; its absence marks a manual Import-tab drop
+}
+```
+
+### Aliases (`.capy/aliases.json`)
+
+Survives across imports, so returning users don't re-map the same accounts. Persisted at merge.
+
+```ts
+{ accounts: Record<string /* sourceAccount */, string /* accountId | "__create__" */> }
+```
