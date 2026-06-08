@@ -9,6 +9,9 @@
  *  2. extraction  — image/PDF bytes → `{ result: { rows } | { error: "no_data", … } }`.
  *  3. enrichBatch — ~25 rows + context → `{ id, merchant, category, … }[]`
  *                   (`category` is a name; `enrichBatch` maps it to an id).
+ *  4. transfers   — transfer rows + direction-aware transfer context →
+ *                   `{ id, account, confidence }[]` (`account` is a name the
+ *                   model picks for the counterpart; mapped to an id).
  *
  * Schemas mirror the `core` types they parse into (`CsvMapping`, `StagedRecord`)
  * — the validators live in `@capybudget/core`; these only describe the wire
@@ -277,4 +280,56 @@ export const ENRICH_BATCH_SCHEMA: JsonSchema = {
 
 export interface EnrichBatchResult {
   rows: EnrichedRowRaw[];
+}
+
+// ── 4. Transfer counterpart ──────────────────────────────────────
+
+/**
+ * The wire shape the transfer-counterpart call returns — a heterogeneous task
+ * kept separate from `ENRICH_BATCH_SCHEMA` (transfers carry no merchant/category;
+ * they only need their "From"/"To" account picked). The model reasons over
+ * account *names*, never ids: `account` is a budget account name it chooses from
+ * the row's transfer context, or `""` when unsure. `enrichTransfers` maps that
+ * name → an `accountId`, validated against current accounts and never the row's
+ * own — so the model never touches an opaque UUID.
+ */
+export interface TransferEnrichRaw {
+  id: string;
+  account: string;
+  confidence: "high" | "low";
+}
+
+/** One resolved transfer counterpart `enrichTransfers` returns, post name→id
+ *  mapping. `targetAccountId` is "" when the name didn't resolve to a valid,
+ *  non-own account (or the model returned ""). */
+export interface TransferEnriched {
+  id: string;
+  targetAccountId: string;
+  confidence: "high" | "low";
+}
+
+export const ENRICH_TRANSFER_SCHEMA: JsonSchema = {
+  type: "object",
+  additionalProperties: false,
+  strict: true,
+  properties: {
+    rows: {
+      type: "array",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          id: { type: "string" },
+          account: { type: "string" },
+          confidence: { type: "string", enum: ["high", "low"] },
+        },
+        required: ["id", "account", "confidence"],
+      },
+    },
+  },
+  required: ["rows"],
+};
+
+export interface TransferEnrichResult {
+  rows: TransferEnrichRaw[];
 }

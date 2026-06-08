@@ -154,7 +154,9 @@ describe("ImportOrchestrator — rows that skip Categorizing", () => {
     expect(wholeFoods.merchant).toBe("Whole Foods");
   });
 
-  it("a transfer row never reaches the classifier", async () => {
+  it("a transfer row never reaches the category classifier", async () => {
+    // With no transfer context, the transfer also skips the counterpart call —
+    // only the unknown expense reaches the (single, category) batch.
     const rows = [
       makeImportTransaction({ id: "imp-1", type: "transfer", description: "XFER" }),
       makeImportTransaction({ id: "imp-2", description: "UNKNOWN", merchant: "", categoryId: "" }),
@@ -168,6 +170,47 @@ describe("ImportOrchestrator — rows that skip Categorizing", () => {
     const text = JSON.stringify(session.calls[0].messages);
     expect(text).toContain("imp-2");
     expect(text).not.toContain("imp-1");
+  });
+
+  it("resolves a transfer counterpart in Categorizing when it has context", async () => {
+    // A transfer with transfer-context but no counterpart yet → the transfer
+    // call runs alongside the category batch and writes targetAccountId.
+    const savings = makeAccount({ id: "acct-savings", name: "Ally Savings" });
+    const rows = [
+      makeImportTransaction({ id: "imp-1", type: "transfer", description: "ACH SAVINGS", amount: 50000, accountId: "acct-checking", targetAccountId: "" }),
+      makeImportTransaction({ id: "imp-2", description: "UNKNOWN", merchant: "", categoryId: "" }),
+    ];
+    const staging = new MemoryStagingStore({
+      transactions: rows,
+      transferContext: {
+        "imp-1": { recentTransfers: [{ account: "Ally Savings", amount: 50000 }], topAccounts: [{ account: "Ally Savings", count: 5 }] },
+      },
+    });
+    // Category batch (imp-2) + transfer batch (imp-1). The transfer responder
+    // picks Ally Savings by name; enrichResponder handles the category row.
+    const transferResponder = () => ({ rows: [{ id: "imp-1", account: "Ally Savings", confidence: "high" as const }] });
+    const session = new MockStructuredSession([enrichResponder(), transferResponder]);
+    const budget = new MemoryBudgetData([], CATEGORIES, [makeAccount({ id: "acct-checking", name: "Checking" }), savings]);
+
+    await new ImportOrchestrator({ session, staging, budget, onEvent: () => {}, concurrency: 1 }).enrich();
+
+    expect(session.calls).toHaveLength(2);
+    expect(staging.transactions!.find((r) => r.id === "imp-1")!.targetAccountId).toBe("acct-savings");
+  });
+
+  it("a transfer without transfer context resolves no counterpart", async () => {
+    const rows = [
+      makeImportTransaction({ id: "imp-1", type: "transfer", description: "XFER", amount: 50000, accountId: "acct-checking", targetAccountId: "" }),
+    ];
+    const staging = new MemoryStagingStore({ transactions: rows }); // no transferContext
+    const session = new MockStructuredSession([]); // no calls expected
+    const { events, onEvent } = collect();
+
+    await new ImportOrchestrator({ session, staging, budget: emptyBudget(), onEvent, concurrency: 1 }).enrich();
+
+    expect(session.calls).toHaveLength(0);
+    expect(staging.transactions!.find((r) => r.id === "imp-1")!.targetAccountId).toBe("");
+    expect(phases(events)).toEqual(["categorizing", "done"]);
   });
 
   it("skips Categorizing entirely when nothing needs enrichment", async () => {
@@ -347,20 +390,23 @@ describe("ImportOrchestrator — CSV transform errors", () => {
 // ── Crash-safe write order: context before transactions ──────────
 
 describe("ImportOrchestrator — History write order", () => {
-  it("writes context.json before transactions.csv so the resume gate stays correct", async () => {
+  it("writes both context sidecars before transactions.csv so the resume gate stays correct", async () => {
     // Resume gates on transactions.csv existing; writing it last guarantees
-    // "transactions.csv exists ⟹ context.json exists" — no Categorizing resume
-    // with empty context after a crash mid-History.
+    // "transactions.csv exists ⟹ context exists" — no Categorizing resume with
+    // empty context (history or transfer) after a crash mid-History.
     const staging = new MemoryStagingStore({ sources: [csvSource(csvWithRows(3))] });
     const session = new MockStructuredSession([mapResponder, enrichResponder()]);
     const ctxSpy = vi.spyOn(staging, "writeContext");
+    const transferCtxSpy = vi.spyOn(staging, "writeTransferContext");
     const txnSpy = vi.spyOn(staging, "writeTransactions");
 
     await new ImportOrchestrator({ session, staging, budget: emptyBudget(), onEvent: () => {}, concurrency: 1 }).start();
 
     expect(ctxSpy).toHaveBeenCalled();
+    expect(transferCtxSpy).toHaveBeenCalled();
     expect(txnSpy).toHaveBeenCalled();
     expect(ctxSpy.mock.invocationCallOrder[0]).toBeLessThan(txnSpy.mock.invocationCallOrder[0]);
+    expect(transferCtxSpy.mock.invocationCallOrder[0]).toBeLessThan(txnSpy.mock.invocationCallOrder[0]);
   });
 });
 

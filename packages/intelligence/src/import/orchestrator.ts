@@ -14,6 +14,7 @@ import {
   type GroundingResult,
   type ImportTransaction,
   type RowContext,
+  type TransferContext,
   type TransformError,
 } from "@capybudget/core";
 import type { StructuredSession } from "../structured";
@@ -21,9 +22,12 @@ import type { BudgetDataProvider } from "./budget-data";
 import {
   batchRows,
   enrichBatch,
+  enrichTransfers,
   needsEnrich,
+  needsTransferEnrich,
   ENRICH_CONCURRENCY,
 } from "./categorize";
+import type { TransferEnriched } from "./schemas";
 import {
   PIPELINE_PHASES,
   type ImportEvent,
@@ -223,14 +227,18 @@ export class ImportOrchestrator {
     // result onto each row's `accountId` — no need to recompute the mapping here.
     const outcome = groundImport({ rows, history, accounts, categories });
 
-    // Write context.json *before* transactions.csv: resume gates on
+    // Write the context sidecars *before* transactions.csv: resume gates on
     // transactions.csv existing, so this ordering makes "transactions.csv exists
-    // ⟹ context.json exists" hold. A crash between the two writes then leaves no
+    // ⟹ context exists" hold. A crash between writes then leaves no
     // transactions.csv → file-attach, never a Categorizing resume with empty
-    // context (which would degrade AI categorization for ambiguous rows).
+    // context (which would degrade AI categorization or counterpart-picking).
     const context: Record<string, RowContext> = {};
     for (const [id, ctx] of outcome.context) context[id] = ctx;
     await this.deps.staging.writeContext(context);
+
+    const transferContext: Record<string, TransferContext> = {};
+    for (const [id, ctx] of outcome.transferContext) transferContext[id] = ctx;
+    await this.deps.staging.writeTransferContext(transferContext);
 
     const grounded = rows.map((row) => applyGrounding(row, outcome.results.get(row.id)));
     await this.deps.staging.writeTransactions(grounded);
@@ -253,33 +261,48 @@ export class ImportOrchestrator {
   }
 
   /**
-   * The only model batch work. Selects rows that still fail `needsEnrich`,
-   * batches them, and runs the batches bounded-parallel. Each landed batch is
-   * written back to staging immediately (resume keeps landed batches). A batch
-   * that throws is logged and skipped — its rows stay incomplete, no retry.
+   * The model batch work. Two heterogeneous jobs share one bounded-parallel
+   * worker pool: category batches enrich the rows that fail `needsEnrich`, and
+   * transfer batches resolve the counterpart account for transfers that fail
+   * `needsTransferEnrich`. Each landed batch is written back to staging
+   * immediately (resume keeps landed batches). A batch that throws is logged and
+   * skipped — its rows stay incomplete, no retry.
    */
   private async runCategorizing(rows: ImportTransaction[]): Promise<void> {
     this.enterPhase("categorizing");
 
-    const pending = rows.filter(needsEnrich);
-    if (pending.length === 0) {
+    const [context, transferContext, categories, accounts] = await Promise.all([
+      this.deps.staging.readContext().then((c) => c ?? {}),
+      this.deps.staging.readTransferContext().then((c) => c ?? {}),
+      this.deps.budget.getCategories().then((cats) => cats.filter((c) => !c.archived)),
+      this.deps.budget.getAccounts().then((accts) => accts.filter((a) => !a.archived)),
+    ]);
+
+    const pendingCategory = rows.filter(needsEnrich);
+    const pendingTransfer = rows.filter((r) => needsTransferEnrich(r, r.id in transferContext));
+    const total = pendingCategory.length + pendingTransfer.length;
+    if (total === 0) {
       this.log("info", "categorizing", "Nothing to categorize — all rows resolved.");
       this.finish();
       return;
     }
-
-    const [context, categories] = await Promise.all([
-      this.deps.staging.readContext().then((c) => c ?? {}),
-      this.deps.budget.getCategories().then((cats) => cats.filter((c) => !c.archived)),
-    ]);
 
     // `byId` is the authoritative in-memory state for the run; staging is its
     // durable mirror. Landed batches mutate it synchronously (no await between
     // read and modify), and persistence is serialized through a tail-chained
     // promise — so concurrent batches can't lose each other's writes.
     const byId = new Map(rows.map((r) => [r.id, { ...r }]));
-    const batches = batchRows(pending);
-    const total = pending.length;
+
+    // Heterogeneous job queue: category batches + (usually one) transfer batch,
+    // drained by the same worker pool so transfers run alongside categories.
+    type Job =
+      | { kind: "category"; rows: ImportTransaction[] }
+      | { kind: "transfer"; rows: ImportTransaction[] };
+    const jobs: Job[] = [
+      ...batchRows(pendingCategory).map((b): Job => ({ kind: "category", rows: b })),
+      ...batchRows(pendingTransfer).map((b): Job => ({ kind: "transfer", rows: b })),
+    ];
+
     let done = 0;
     this.emit({ type: "batch-progress", progress: { done, total } });
     this.status("categorizing", `Categorizing ${done} of ${total}…`);
@@ -298,21 +321,26 @@ export class ImportOrchestrator {
       while (true) {
         if (this.stopRequested) return;
         const index = cursor++;
-        if (index >= batches.length) return;
-        const batch = batches[index];
+        if (index >= jobs.length) return;
+        const job = jobs[index];
         try {
-          const enriched = await enrichBatch(this.deps.session, batch, context, categories);
-          applyEnrichmentInto(byId, enriched);
+          if (job.kind === "category") {
+            const enriched = await enrichBatch(this.deps.session, job.rows, context, categories);
+            applyEnrichmentInto(byId, enriched);
+          } else {
+            const enriched = await enrichTransfers(this.deps.session, job.rows, transferContext, accounts);
+            applyTransferEnrichmentInto(byId, enriched);
+          }
           await persistSnapshot();
           // `done` counts landed rows only — a failed batch leaves its rows
-          // uncategorized, so the meter must not advance for it.
-          done += batch.length;
+          // incomplete, so the meter must not advance for it.
+          done += job.rows.length;
           this.emit({ type: "rows-changed" });
         } catch (err) {
           this.log(
             "warn",
             "categorizing",
-            `Batch ${index + 1} failed (${batch.length} rows left for re-run): ${
+            `${job.kind === "transfer" ? "Transfer batch" : `Batch ${index + 1}`} failed (${job.rows.length} rows left for re-run): ${
               err instanceof Error ? err.message : String(err)
             }`,
           );
@@ -322,7 +350,11 @@ export class ImportOrchestrator {
       }
     };
 
-    const workers = Array.from({ length: Math.min(concurrency, batches.length) }, runNext);
+    if (pendingTransfer.length > 0) {
+      this.log("info", "categorizing", `Resolving ${pendingTransfer.length} transfer ${pendingTransfer.length === 1 ? "counterpart" : "counterparts"}…`);
+    }
+
+    const workers = Array.from({ length: Math.min(concurrency, jobs.length) }, runNext);
     await Promise.all(workers);
     await persistChain;
 
@@ -408,7 +440,6 @@ function applyGrounding(
     categoryId: result.categoryId || row.categoryId,
     categoryConfidence: result.categoryConfidence || row.categoryConfidence,
     accountId: result.accountId || row.accountId,
-    targetAccountId: result.targetAccountId || row.targetAccountId,
     duplicate: result.duplicate,
   };
 }
@@ -429,6 +460,22 @@ function applyEnrichmentInto(
       categoryId: row.categoryId || e.categoryId,
       categoryConfidence: row.categoryId ? row.categoryConfidence : e.confidence,
     });
+  }
+}
+
+/** Merge a landed transfer batch's counterpart picks into the row map. Only
+ *  fills an empty `targetAccountId` (a model "" or unresolved name is already
+ *  ""), so a re-run never clobbers a hand-set or already-landed counterpart —
+ *  the same idempotency `applyEnrichmentInto` guarantees for categories. */
+function applyTransferEnrichmentInto(
+  byId: Map<string, ImportTransaction>,
+  enriched: TransferEnriched[],
+): void {
+  for (const e of enriched) {
+    if (!e.targetAccountId) continue;
+    const row = byId.get(e.id);
+    if (!row || row.targetAccountId) continue;
+    byId.set(e.id, { ...row, targetAccountId: e.targetAccountId });
   }
 }
 

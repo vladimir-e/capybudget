@@ -77,6 +77,35 @@ export interface RowContext {
   categoryStats: NameCount[];
 }
 
+/** One recent transfer leg surfaced to the model, by counterpart account name. */
+export interface TransferLeg {
+  account: string;
+  amount: number;
+}
+
+/** A counterpart account with how often it appeared, by name. */
+export interface AccountCount {
+  account: string;
+  count: number;
+}
+
+/**
+ * Per-transfer-row context — the imported account's own direction-aware
+ * transfer history, so the model can pick this row's counterpart. The
+ * counterpart is a property of the *accounts*, not the row's words: the
+ * description (e.g. "ACH BOFA SAV 123") only disambiguates which of the
+ * account's transfer partners this leg belongs to. Everything is by account
+ * NAME — the model never sees an id. Parallel to {@link RowContext} but for
+ * transfers; the orchestrator persists it to `transfer-context.json`.
+ */
+export interface TransferContext {
+  /** Matching-direction legs from the last 2 months, chronological, capped at
+   *  10 — so a periodic transfer's cadence is visible. */
+  recentTransfers: TransferLeg[];
+  /** Top-3 counterpart accounts by transfer count in this direction. */
+  topAccounts: AccountCount[];
+}
+
 export type Resolution = "fast-path" | "duplicate" | "ambiguous";
 
 /**
@@ -97,9 +126,6 @@ export interface GroundingResult {
   categoryConfidence: "high" | "low" | "";
   /** Resolved budget accountId (sourceAccount match), else "". */
   accountId: string;
-  /** For a transfer: the suggested counterpart ("From account"), resolved from
-   *  matching historical transfer legs. "" for non-transfers or no signal. */
-  targetAccountId: string;
   /** True when the row duplicates an existing budget transaction. */
   duplicate: boolean;
   /** The dup it matched, when `duplicate`. */
@@ -118,6 +144,9 @@ export interface GroundingOutcome {
   results: Map<string, GroundingResult>;
   /** Context sidecar, keyed by row id. */
   context: Map<string, RowContext>;
+  /** Transfer-context sidecar, keyed by row id — only transfer rows with
+   *  matching-direction history have an entry. */
+  transferContext: Map<string, TransferContext>;
   stats: GroundingStats;
 }
 
@@ -148,7 +177,6 @@ export function groundImport(
   const activeCategories = categories.filter((c) => !c.archived);
   const activeAccounts = accounts.filter((a) => !a.archived);
   const validCategoryIds = new Set(activeCategories.map((c) => c.id));
-  const validAccountIds = new Set(activeAccounts.map((a) => a.id));
   // Income-group category ids — used to keep deterministic assignments
   // type-correct: an expense row never inherits an income category (and vice
   // versa), even when its history is dominated by a miscategorized one.
@@ -172,22 +200,26 @@ export function groundImport(
 
   const index = new HistoryIndex(history, options);
   const rowById = new Map(rows.map((r) => [r.id, r]));
-  // For transfer counterpart resolution: a historical transfer leg points at its
-  // paired leg via transferPairId; the pair's accountId is the "other side".
-  const historyById = new Map(history.map((t) => [t.id, t]));
+  // Transfer context keys off the imported account's own transfer legs, by
+  // direction — built once per account from history, indexed for fast reuse.
+  const transferIndex = new TransferHistoryIndex(history, activeAccounts);
 
   const results = new Map<string, GroundingResult>();
   const context = new Map<string, RowContext>();
+  const transferContext = new Map<string, TransferContext>();
 
-  // First pass: history match + signal + fast-path (non-transfers) or
-  // counterpart resolution (transfers).
+  // First pass: history match + signal + fast-path (non-transfers) or the
+  // direction-aware transfer-context sidecar (transfers — the model decides the
+  // counterpart during Categorizing).
   for (const row of rows) {
-    const matches = index.match(buildMatchQuery(row.description));
     const accountId = resolveAccountId(row.sourceAccount);
 
     if (row.type === "transfer") {
-      // Transfers skip merchant/category enrichment; grounding only resolves the
-      // "From account" from matching historical transfer legs.
+      // Transfers skip merchant/category enrichment; grounding only attaches the
+      // account's own direction-matching transfer history so the model can pick
+      // the counterpart. No targetAccountId is set here — that's the model's job.
+      const ctx = transferIndex.contextFor(accountId, row.amount);
+      if (ctx) transferContext.set(row.id, ctx);
       results.set(row.id, {
         rowId: row.id,
         resolution: "ambiguous",
@@ -195,12 +227,12 @@ export function groundImport(
         categoryId: "",
         categoryConfidence: "",
         accountId,
-        targetAccountId: resolveTransferCounterpart(matches, historyById, accountId, validAccountIds),
         duplicate: false,
       });
       continue;
     }
 
+    const matches = index.match(buildMatchQuery(row.description));
     const ctx = buildContext(matches, validCategoryIds);
     if (ctx.examples.length > 0) context.set(row.id, ctx);
 
@@ -214,7 +246,6 @@ export function groundImport(
         categoryId: fastPath.categoryId,
         categoryConfidence: "high",
         accountId,
-        targetAccountId: "",
         duplicate: false,
       });
       continue;
@@ -227,7 +258,6 @@ export function groundImport(
       categoryId: "",
       categoryConfidence: "",
       accountId,
-      targetAccountId: "",
       duplicate: false,
     });
   }
@@ -261,7 +291,7 @@ export function groundImport(
     });
   }
 
-  return { results, context, stats: tallyStats(results) };
+  return { results, context, transferContext, stats: tallyStats(results) };
 }
 
 // ── Type guard ───────────────────────────────────────────────────
@@ -340,50 +370,120 @@ function pickCanonicalMerchant(matches: HistoryMatch[]): string {
   return counts[0]?.name ?? "";
 }
 
-// ── Transfer counterpart resolver ────────────────────────────────
+// ── Transfer context ─────────────────────────────────────────────
+
+/** How far back `recentTransfers` reaches, anchored to the account's most-recent
+ *  matching-direction leg (not wall-clock) so the window holds whether the
+ *  import runs the day after the last transfer or a year later. */
+const RECENT_TRANSFER_WINDOW_MONTHS = 2;
+/** Cap on `recentTransfers` legs — a periodic transfer's cadence shows within a
+ *  handful; more is noise in the prompt. */
+const RECENT_TRANSFER_CAP = 10;
+/** How many counterpart accounts `topAccounts` ranks. */
+const TOP_ACCOUNT_COUNT = 3;
+
+/** One counterpart-resolved historical transfer leg on the imported account. */
+interface CounterpartLeg {
+  datetime: string;
+  /** The leg's own signed amount (sign = direction on the imported account). */
+  amount: number;
+  /** The paired account's current name. */
+  counterpart: string;
+}
 
 /**
- * Suggest a transfer's "From account" from history. Among matching historical
- * transfer legs, each one's *paired* leg (via `transferPairId`) sits on the
- * counterpart account — that account is the suggestion. Picks the most-frequent
- * counterpart across matches, tie-broken by the most-recent supporting leg.
+ * The imported account's own transfer history, grouped by account and direction.
  *
- * Two are never suggested: the row's own resolved account (From ≠ the row's
- * account) and any account that isn't a current non-archived one (stale leg).
- * Returns "" when no usable counterpart is found.
+ * A transfer leg's counterpart is a property of the *accounts* — the row's
+ * description only disambiguates which partner this leg belongs to. So for a
+ * transfer row we hand the model the imported account's matching-direction legs
+ * (inflow row → the account's *incoming* legs, outflow → its *outgoing* legs),
+ * each resolved to its counterpart account NAME via `transferPairId`. A leg
+ * whose counterpart is archived/gone, is the account itself, or has no current
+ * name is dropped (the model can't pick an id it won't see in the dropdown).
+ *
+ * Built once per run; `contextFor` is O(legs) per row.
  */
-function resolveTransferCounterpart(
-  matches: HistoryMatch[],
-  historyById: Map<string, Transaction>,
-  ownAccountId: string,
-  validAccountIds: Set<string>,
-): string {
-  const counts = new Map<string, number>();
-  const latest = new Map<string, string>();
-  for (const m of matches) {
-    if (m.txn.type !== "transfer" || !m.txn.transferPairId) continue;
-    const pair = historyById.get(m.txn.transferPairId);
-    if (!pair) continue;
-    const counterpart = pair.accountId;
-    if (!counterpart || counterpart === ownAccountId) continue;
-    if (!validAccountIds.has(counterpart)) continue;
-    counts.set(counterpart, (counts.get(counterpart) ?? 0) + 1);
-    const prev = latest.get(counterpart);
-    if (!prev || m.txn.datetime.localeCompare(prev) > 0) latest.set(counterpart, m.txn.datetime);
-  }
+class TransferHistoryIndex {
+  /** accountId → that account's counterpart-resolved transfer legs. */
+  private readonly byAccount = new Map<string, CounterpartLeg[]>();
 
-  let best = "";
-  let bestCount = 0;
-  let bestDate = "";
-  for (const [id, count] of counts) {
-    const date = latest.get(id) ?? "";
-    if (count > bestCount || (count === bestCount && date.localeCompare(bestDate) > 0)) {
-      best = id;
-      bestCount = count;
-      bestDate = date;
+  constructor(history: Transaction[], activeAccounts: Account[]) {
+    const nameById = new Map(activeAccounts.map((a) => [a.id, a.name]));
+    const byId = new Map(history.map((t) => [t.id, t]));
+    for (const txn of history) {
+      if (txn.type !== "transfer" || !txn.transferPairId) continue;
+      const pair = byId.get(txn.transferPairId);
+      if (!pair) continue;
+      const counterpart = nameById.get(pair.accountId);
+      // Drop a counterpart that's archived/gone or is the account itself.
+      if (!counterpart || pair.accountId === txn.accountId) continue;
+      const legs = this.byAccount.get(txn.accountId);
+      const leg: CounterpartLeg = { datetime: txn.datetime, amount: txn.amount, counterpart };
+      if (legs) legs.push(leg);
+      else this.byAccount.set(txn.accountId, [leg]);
     }
   }
-  return best;
+
+  /**
+   * The transfer context for an imported account + a row's amount, or null when
+   * the account has no matching-direction transfer history (the model leaves the
+   * counterpart blank). Direction is by the row's sign: inflow (> 0) needs a
+   * "from" account → the account's incoming legs; outflow (< 0) needs a "to"
+   * account → its outgoing legs. A zero-amount row has no direction → null.
+   */
+  contextFor(accountId: string, rowAmount: number): TransferContext | null {
+    if (!accountId || rowAmount === 0) return null;
+    const all = this.byAccount.get(accountId);
+    if (!all) return null;
+    const wantInflow = rowAmount > 0;
+    const matching = all.filter((leg) => leg.amount > 0 === wantInflow);
+    if (matching.length === 0) return null;
+
+    return {
+      recentTransfers: recentLegs(matching),
+      topAccounts: topCounterparts(matching),
+    };
+  }
+}
+
+/** The matching-direction legs from the last {@link RECENT_TRANSFER_WINDOW_MONTHS}
+ *  months (anchored to the most-recent leg), chronological, capped. The window
+ *  is computed on the date portion only — months, not hours — so it's free of
+ *  the timezone skew that mixing `Z` and local ISO datetimes in a lexical
+ *  compare would introduce. */
+function recentLegs(matching: CounterpartLeg[]): TransferLeg[] {
+  const sorted = [...matching].sort((a, b) => a.datetime.localeCompare(b.datetime));
+  const newestDate = sorted[sorted.length - 1].datetime.slice(0, 10);
+  const cutoff = monthsBefore(newestDate, RECENT_TRANSFER_WINDOW_MONTHS);
+  return sorted
+    .filter((leg) => leg.datetime.slice(0, 10) >= cutoff)
+    .slice(-RECENT_TRANSFER_CAP)
+    .map((leg) => ({ account: leg.counterpart, amount: leg.amount }));
+}
+
+/** The top-{@link TOP_ACCOUNT_COUNT} counterpart accounts by leg count, count
+ *  desc then name asc for a stable order. */
+function topCounterparts(matching: CounterpartLeg[]): AccountCount[] {
+  const counts = new Map<string, number>();
+  for (const leg of matching) counts.set(leg.counterpart, (counts.get(leg.counterpart) ?? 0) + 1);
+  return [...counts.entries()]
+    .map(([account, count]) => ({ account, count }))
+    .sort((a, b) => b.count - a.count || a.account.localeCompare(b.account))
+    .slice(0, TOP_ACCOUNT_COUNT);
+}
+
+/** A `YYYY-MM-DD` date `months` before `date` (also `YYYY-MM-DD`), clamping the
+ *  day so it stays a real date (e.g. Mar 31 − 1mo → Feb 28/29). Pure calendar
+ *  arithmetic on the parts — no `Date`, no timezone. */
+function monthsBefore(date: string, months: number): string {
+  const [y, m, d] = date.split("-").map(Number);
+  const target = (y * 12 + (m - 1)) - months;
+  const ty = Math.floor(target / 12);
+  const tm = target % 12; // 0-indexed month
+  const lastDay = new Date(Date.UTC(ty, tm + 1, 0)).getUTCDate();
+  const day = Math.min(d, lastDay);
+  return `${ty}-${String(tm + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 }
 
 // ── Context sidecar ──────────────────────────────────────────────

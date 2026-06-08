@@ -30,25 +30,26 @@ function input(over: Partial<GroundImportInput> = {}): GroundImportInput {
   };
 }
 
-/** A historical transfer: two paired legs on the given accounts, sharing one
- *  note (the description that future imports match against). */
+/** A historical transfer: two paired legs moving `amount` (cents) from
+ *  `fromAccountId` to `toAccountId`. The outflow leg sits on the source
+ *  (negative), the inflow on the destination (positive). */
 function transferLegs(
-  note: string,
   fromAccountId: string,
   toAccountId: string,
   datetime: string,
   idPrefix: string,
+  amount = 50000,
 ): Transaction[] {
   const fromId = `${idPrefix}-from`;
   const toId = `${idPrefix}-to`;
   return [
     makeTransaction({
-      id: fromId, type: "transfer", merchant: "", note, categoryId: "",
-      accountId: fromAccountId, transferPairId: toId, amount: -50000, datetime,
+      id: fromId, type: "transfer", merchant: "", note: "", categoryId: "",
+      accountId: fromAccountId, transferPairId: toId, amount: -amount, datetime,
     }),
     makeTransaction({
-      id: toId, type: "transfer", merchant: "", note, categoryId: "",
-      accountId: toAccountId, transferPairId: fromId, amount: 50000, datetime,
+      id: toId, type: "transfer", merchant: "", note: "", categoryId: "",
+      accountId: toAccountId, transferPairId: fromId, amount, datetime,
     }),
   ];
 }
@@ -272,125 +273,163 @@ describe("groundImport — sourceAccount resolution", () => {
   });
 });
 
-// ── Transfer counterpart resolution (the "From account") ─────────
+// ── Transfer context: the imported account's direction-aware history ──
 
-describe("groundImport — transfer counterpart resolution", () => {
+describe("groundImport — transfer context sidecar", () => {
   const accounts = [CHECKING, SAVINGS, BROKERAGE];
 
-  it("suggests the counterpart account from a matching historical transfer", () => {
-    // Past transfer: Checking → Savings, noted "MONTHLY TRANSFER TO SAVINGS".
-    const history = transferLegs(
-      "MONTHLY TRANSFER TO SAVINGS", "acct-checking", "acct-savings",
-      "2025-12-15T00:00:00.000", "t1",
-    );
-    const row = makeImportTransaction({
-      id: "r1", type: "transfer", description: "MONTHLY TRANSFER TO SAVINGS",
-      sourceAccount: "Chase Checking",
-    });
-    const { results } = groundImport(input({ rows: [row], history, accounts }));
-
-    const r = results.get("r1")!;
-    expect(r.accountId).toBe("acct-checking"); // the row's own ("To") side
-    expect(r.targetAccountId).toBe("acct-savings"); // the counterpart ("From")
+  /** An inflow transfer row landing on the imported account (needs a "from"). */
+  const inflowRow = makeImportTransaction({
+    id: "r1", type: "transfer", description: "ACH BOFA SAV 123",
+    amount: 50000, sourceAccount: "Chase Checking",
+  });
+  /** An outflow transfer row leaving the imported account (needs a "to"). */
+  const outflowRow = makeImportTransaction({
+    id: "r1", type: "transfer", description: "ONLINE TRANSFER",
+    amount: -50000, sourceAccount: "Chase Checking",
   });
 
-  it("never suggests the row's own resolved account as the counterpart", () => {
-    const history = transferLegs(
-      "TRANSFER SAVINGS", "acct-checking", "acct-savings",
-      "2025-12-15T00:00:00.000", "t1",
-    );
-    const row = makeImportTransaction({
-      id: "r1", type: "transfer", description: "TRANSFER SAVINGS",
-      sourceAccount: "Chase Checking",
-    });
-    const { results } = groundImport(input({ rows: [row], history, accounts }));
+  it("an inflow row carries the account's incoming legs by counterpart NAME", () => {
+    // Two past transfers INTO Checking, from Savings then Brokerage.
+    const history = [
+      ...transferLegs("acct-savings", "acct-checking", "2025-12-10T00:00:00.000", "a", 30000),
+      ...transferLegs("acct-brokerage", "acct-checking", "2025-12-20T00:00:00.000", "b", 40000),
+    ];
+    const { transferContext } = groundImport(input({ rows: [inflowRow], history, accounts }));
 
-    const r = results.get("r1")!;
-    expect(r.targetAccountId).not.toBe(r.accountId);
-    expect(r.targetAccountId).toBe("acct-savings");
+    const ctx = transferContext.get("r1")!;
+    expect(ctx.recentTransfers).toEqual([
+      { account: "Ally Savings", amount: 30000 },
+      { account: "Fidelity Brokerage", amount: 40000 },
+    ]);
+    expect(ctx.topAccounts).toEqual([
+      { account: "Ally Savings", count: 1 },
+      { account: "Fidelity Brokerage", count: 1 },
+    ]);
   });
 
-  it("leaves targetAccountId empty when no historical transfer matches", () => {
-    const row = makeImportTransaction({
-      id: "r1", type: "transfer", description: "BRAND NEW TRANSFER LABEL",
-      sourceAccount: "Chase Checking",
-    });
-    const { results } = groundImport(
-      input({ rows: [row], history: transferLegs(
-        "SOMETHING UNRELATED", "acct-checking", "acct-savings",
-        "2025-12-15T00:00:00.000", "t1",
-      ), accounts }),
-    );
-    expect(results.get("r1")!.targetAccountId).toBe("");
+  it("an outflow row uses the account's outgoing legs", () => {
+    // A transfer OUT of Checking → Savings; the incoming leg below is ignored.
+    const history = [
+      ...transferLegs("acct-checking", "acct-savings", "2025-12-15T00:00:00.000", "out"),
+      ...transferLegs("acct-brokerage", "acct-checking", "2025-12-16T00:00:00.000", "in"),
+    ];
+    const { transferContext } = groundImport(input({ rows: [outflowRow], history, accounts }));
+
+    const ctx = transferContext.get("r1")!;
+    expect(ctx.recentTransfers).toEqual([{ account: "Ally Savings", amount: -50000 }]);
+    expect(ctx.topAccounts).toEqual([{ account: "Ally Savings", count: 1 }]);
   });
 
-  it("does not draw a counterpart from non-transfer history matches", () => {
-    // A plain expense whose description happens to match — never a counterpart.
+  it("recentTransfers are chronological, windowed to 2 months, capped at 10", () => {
+    // 14 weekly inflows from Savings spanning ~3.5 months (amount encodes order),
+    // plus one stale Brokerage leg well before the window. The window anchors to
+    // the newest leg (2026-06-18): only legs on/after 2026-04-18 survive, the cap
+    // keeps the last 10, and order is chronological (ascending date).
+    const weekly = Array.from({ length: 14 }, (_, i) => {
+      const day = new Date("2026-03-12T00:00:00.000");
+      day.setDate(day.getDate() + i * 7);
+      return transferLegs("acct-savings", "acct-checking", day.toISOString(), `w${i}`, 1000 + i);
+    }).flat();
+    const stale = transferLegs("acct-brokerage", "acct-checking", "2026-01-01T00:00:00.000", "stale", 77000);
+    const { transferContext } = groundImport(
+      input({ rows: [inflowRow], history: [...weekly, ...stale], accounts }),
+    );
+
+    const ctx = transferContext.get("r1")!;
+    expect(ctx.recentTransfers.length).toBeLessThanOrEqual(10); // capped
+    // The stale Brokerage leg is outside the 2-month window; survivors are Savings.
+    expect(ctx.recentTransfers.every((t) => t.account === "Ally Savings")).toBe(true);
+    // Chronological: amounts encode insertion order, so they're strictly ascending.
+    const amounts = ctx.recentTransfers.map((t) => t.amount);
+    expect([...amounts].sort((a, b) => a - b)).toEqual(amounts);
+    expect(amounts[amounts.length - 1]).toBe(1013); // the newest (14th) leg
+  });
+
+  it("caps recentTransfers at 10, keeping the most recent", () => {
+    // 15 daily inflows within one month — all in-window, so the cap (10) bites
+    // and keeps the newest 10 (amounts 1005..1014), chronological.
+    const daily = Array.from({ length: 15 }, (_, i) => {
+      const day = new Date("2026-06-01T00:00:00.000");
+      day.setDate(day.getDate() + i);
+      return transferLegs("acct-savings", "acct-checking", day.toISOString(), `d${i}`, 1000 + i);
+    }).flat();
+    const { transferContext } = groundImport(input({ rows: [inflowRow], history: daily, accounts }));
+
+    const amounts = transferContext.get("r1")!.recentTransfers.map((t) => t.amount);
+    expect(amounts).toEqual([1005, 1006, 1007, 1008, 1009, 1010, 1011, 1012, 1013, 1014]);
+  });
+
+  it("topAccounts ranks the top-3 counterparts by count, names not ids", () => {
+    // Four counterparts (Checking → Savings ×3, Brokerage ×2, Cash ×1, Loan ×1):
+    // only the top 3 by count survive, count desc then name asc.
+    const cash = makeAccount({ id: "acct-cash", name: "Wallet Cash", type: "cash" });
+    const loan = makeAccount({ id: "acct-loan", name: "Car Loan", type: "loan" });
+    const history = [
+      ...transferLegs("acct-checking", "acct-savings", "2026-06-01T00:00:00.000", "s1"),
+      ...transferLegs("acct-checking", "acct-savings", "2026-06-02T00:00:00.000", "s2"),
+      ...transferLegs("acct-checking", "acct-savings", "2026-06-03T00:00:00.000", "s3"),
+      ...transferLegs("acct-checking", "acct-brokerage", "2026-06-04T00:00:00.000", "b1"),
+      ...transferLegs("acct-checking", "acct-brokerage", "2026-06-05T00:00:00.000", "b2"),
+      ...transferLegs("acct-checking", "acct-cash", "2026-06-06T00:00:00.000", "c1"),
+      ...transferLegs("acct-checking", "acct-loan", "2026-06-07T00:00:00.000", "l1"),
+    ];
+    const { transferContext } = groundImport(
+      input({ rows: [outflowRow], history, accounts: [...accounts, cash, loan] }),
+    );
+
+    expect(transferContext.get("r1")!.topAccounts).toEqual([
+      { account: "Ally Savings", count: 3 },
+      { account: "Fidelity Brokerage", count: 2 },
+      { account: "Car Loan", count: 1 }, // tie at 1 broken by name asc (Car < Wallet)
+    ]);
+  });
+
+  it("attaches no context when the account has no matching-direction history", () => {
+    // Only OUTGOING legs exist, but the row is an INFLOW → no incoming legs.
+    const history = transferLegs("acct-checking", "acct-savings", "2026-06-01T00:00:00.000", "out");
+    const { transferContext } = groundImport(input({ rows: [inflowRow], history, accounts }));
+    expect(transferContext.has("r1")).toBe(false);
+  });
+
+  it("attaches no context when the account has no transfer history at all", () => {
+    const { transferContext } = groundImport(input({ rows: [inflowRow], history: [], accounts }));
+    expect(transferContext.has("r1")).toBe(false);
+  });
+
+  it("drops a leg whose counterpart account is archived or gone", () => {
+    // The paired leg lives on acct-gone, absent from the active accounts list.
+    const history = transferLegs("acct-gone", "acct-checking", "2026-06-01T00:00:00.000", "g");
+    const { transferContext } = groundImport(input({ rows: [inflowRow], history, accounts }));
+    expect(transferContext.has("r1")).toBe(false);
+  });
+
+  it("ignores non-transfer history when building transfer context", () => {
     const history = [
       makeTransaction({
-        id: "e1", type: "expense", merchant: "Acme", note: "VENMO PAYMENT",
-        accountId: "acct-savings", categoryId: "cat-groceries",
-        datetime: "2025-12-15T00:00:00.000",
+        id: "e1", type: "income", merchant: "Acme", note: "DEPOSIT",
+        accountId: "acct-checking", categoryId: "", amount: 50000,
+        datetime: "2026-06-01T00:00:00.000",
       }),
     ];
-    const row = makeImportTransaction({
-      id: "r1", type: "transfer", description: "VENMO PAYMENT",
-      sourceAccount: "Chase Checking",
-    });
-    const { results } = groundImport(input({ rows: [row], history, accounts }));
-    expect(results.get("r1")!.targetAccountId).toBe("");
+    const { transferContext } = groundImport(input({ rows: [inflowRow], history, accounts }));
+    expect(transferContext.has("r1")).toBe(false);
   });
 
-  it("picks the most-frequent counterpart across matches", () => {
-    // Two past transfers Checking→Savings, one Checking→Brokerage: Savings wins.
-    const history = [
-      ...transferLegs("WIRE OUT", "acct-checking", "acct-savings", "2025-10-15T00:00:00.000", "a"),
-      ...transferLegs("WIRE OUT", "acct-checking", "acct-savings", "2025-11-15T00:00:00.000", "b"),
-      ...transferLegs("WIRE OUT", "acct-checking", "acct-brokerage", "2025-12-15T00:00:00.000", "c"),
-    ];
-    const row = makeImportTransaction({
-      id: "r1", type: "transfer", description: "WIRE OUT",
-      sourceAccount: "Chase Checking",
-    });
-    const { results } = groundImport(input({ rows: [row], history, accounts }));
-    expect(results.get("r1")!.targetAccountId).toBe("acct-savings");
-  });
-
-  it("breaks a frequency tie by the most-recent supporting leg", () => {
-    // One transfer to each of Savings / Brokerage; Brokerage is more recent.
-    const history = [
-      ...transferLegs("EQUAL SPLIT", "acct-checking", "acct-savings", "2025-06-15T00:00:00.000", "a"),
-      ...transferLegs("EQUAL SPLIT", "acct-checking", "acct-brokerage", "2025-12-15T00:00:00.000", "b"),
-    ];
-    const row = makeImportTransaction({
-      id: "r1", type: "transfer", description: "EQUAL SPLIT",
-      sourceAccount: "Chase Checking",
-    });
-    const { results } = groundImport(input({ rows: [row], history, accounts }));
-    expect(results.get("r1")!.targetAccountId).toBe("acct-brokerage");
-  });
-
-  it("skips a counterpart that is no longer a current non-archived account", () => {
-    // The paired leg lives on an account that has since been deleted/archived.
-    const history = transferLegs(
-      "OLD TRANSFER", "acct-checking", "acct-gone",
-      "2025-12-15T00:00:00.000", "t1",
-    );
-    const row = makeImportTransaction({
-      id: "r1", type: "transfer", description: "OLD TRANSFER",
-      sourceAccount: "Chase Checking",
-    });
-    // acct-gone is not in the accounts list → not a valid counterpart.
-    const { results } = groundImport(input({ rows: [row], history, accounts }));
-    expect(results.get("r1")!.targetAccountId).toBe("");
-  });
-
-  it("non-transfer rows always have an empty targetAccountId", () => {
+  it("non-transfer rows never get transfer context", () => {
     const row = makeImportTransaction({ id: "r1", type: "expense", description: "WHOLE FOODS" });
-    const { results } = groundImport(
+    const { transferContext } = groundImport(
       input({ rows: [row], history: historyFor("Whole Foods", "cat-groceries", 5), accounts }),
     );
-    expect(results.get("r1")!.targetAccountId).toBe("");
+    expect(transferContext.has("r1")).toBe(false);
+  });
+
+  it("grounding no longer sets targetAccountId — the model decides it", () => {
+    const history = transferLegs("acct-savings", "acct-checking", "2026-06-01T00:00:00.000", "a");
+    const { results } = groundImport(input({ rows: [inflowRow], history, accounts }));
+    // The result type no longer carries targetAccountId at all; applyGrounding
+    // therefore leaves the staged row's value untouched (the enrichment writes it).
+    expect("targetAccountId" in results.get("r1")!).toBe(false);
   });
 });
 

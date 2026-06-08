@@ -144,10 +144,11 @@ Smart Import works in a scratch area under the budget folder, `.capy/import/`. N
 
 ```
 .capy/import/
-  sources/          # original files (CSV, image, PDF)
-  transactions.csv  # the staged rows
-  context.json      # per-row history signals
-  state.json        # phase + run metadata
+  sources/              # original files (CSV, image, PDF)
+  transactions.csv      # the staged rows
+  context.json          # per-row history signals
+  transfer-context.json # per-transfer-row direction-aware history
+  state.json            # phase + run metadata
 ```
 
 ### Staged record
@@ -178,7 +179,7 @@ Both normalization paths (a `CsvMapping` applied to a CSV, or a model reading an
 | `sourceCategory`    | string  | Raw category string from the source — a weak hint to the classifier, never resolved to a category in code |
 | `merchant`          | string  | Cleaned merchant name. Empty until grounding or the classifier fills it                 |
 | `accountId`         | string  | Resolved budget account UUID (may be empty)                                             |
-| `targetAccountId`   | string  | For transfers: the other account (empty = unmatched)                                    |
+| `targetAccountId`   | string  | For transfers: the counterpart account UUID. Empty until the model picks it in Categorizing (or the user sets it); empty = unmatched |
 | `categoryId`        | string  | Resolved budget category UUID. Empty until grounding or the classifier fills it         |
 | `categoryConfidence`| string  | `high` · `low` · `""` — set alongside `categoryId`                                       |
 | `duplicate`         | boolean | True when the row matches an existing budget transaction — skipped by enrichment, unselected at merge |
@@ -200,6 +201,17 @@ Record<string /* row id */, {
   }[]
   merchantStats: { name: string; count: number }[]   // merchant frequency among matches
   categoryStats: { name: string; count: number }[]   // categoryId frequency among matches
+}>
+```
+
+### Transfer context (`transfer-context.json`)
+
+Ephemeral input for the transfer-counterpart call, written during grounding, keyed by row id — transfer rows only, and only those whose imported account has matching-direction transfer history. The counterpart is a property of the *accounts*, so this carries the account's own legs in the row's direction (inflow → incoming legs, outflow → outgoing), each by counterpart account **name**. Like `context.json`, it never becomes a `transactions.csv` column or touches `Transaction`.
+
+```ts
+Record<string /* row id */, {
+  recentTransfers: { account: string; amount: number }[]  // last 2 months, chronological, ≤10
+  topAccounts: { account: string; count: number }[]       // top-3 counterparts by count in this direction
 }>
 ```
 

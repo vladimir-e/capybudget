@@ -8,10 +8,24 @@
  * the retry.
  */
 
-import type { Category, CategoryGroup, ImportTransaction, RowContext } from "@capybudget/core";
+import type {
+  Account,
+  Category,
+  CategoryGroup,
+  ImportTransaction,
+  RowContext,
+  TransferContext,
+} from "@capybudget/core";
 import type { MessageContent } from "../types";
 import type { StructuredSession } from "../structured";
-import { ENRICH_BATCH_SCHEMA, type EnrichBatchResult, type EnrichedRow } from "./schemas";
+import {
+  ENRICH_BATCH_SCHEMA,
+  ENRICH_TRANSFER_SCHEMA,
+  type EnrichBatchResult,
+  type EnrichedRow,
+  type TransferEnriched,
+  type TransferEnrichResult,
+} from "./schemas";
 
 /** Rows per enrichment batch. Bounded so each `structured()` call stays small —
  *  the token blowout the redesign kills came from unbounded row shuttling. */
@@ -33,6 +47,26 @@ export function needsEnrich(row: ImportTransaction): boolean {
   if (row.type === "transfer") return false;
   if (row.duplicate) return false;
   return !row.merchant || !row.categoryId;
+}
+
+/**
+ * The transfer-enrichment gate. A transfer participates in enrichment *only* to
+ * resolve its counterpart, and only when it (a) isn't a duplicate, (b) has no
+ * counterpart yet (`targetAccountId` empty), and (c) carries transfer context to
+ * pick from. No context → the model has nothing to ground a pick on, so the row
+ * is left blank for the user. Idempotent like {@link needsEnrich}: once the
+ * counterpart is set (by the model or by hand), the row drops out, so a re-run
+ * never re-asks. `hasContext` is the orchestrator's "this row has a
+ * `transfer-context.json` entry" check.
+ */
+export function needsTransferEnrich(
+  row: ImportTransaction,
+  hasContext: boolean,
+): boolean {
+  if (row.type !== "transfer") return false;
+  if (row.duplicate) return false;
+  if (row.targetAccountId) return false;
+  return hasContext;
 }
 
 /** Split rows into fixed-size batches. */
@@ -173,4 +207,91 @@ function summarizeContext(ctx: RowContext, categoryName: Map<string, string>) {
       .filter((c): c is { name: string; count: number } => c.name !== undefined)
       .map((c) => `${c.name} (x${c.count})`),
   };
+}
+
+// ── Transfer counterpart enrichment ──────────────────────────────
+
+/**
+ * One transfer-counterpart call — a single constrained call over the run's
+ * transfer rows (transfers are few, almost always one batch). The model reasons
+ * over account *names*, picking each row's counterpart from its direction-aware
+ * transfer context (recent + periodic legs, top partners). This maps each
+ * returned `account` name back to an `accountId`, then writes it as
+ * `targetAccountId` — validated three ways:
+ *
+ *   - it resolves to a current non-archived account (case-insensitive exact
+ *     name match), else "";
+ *   - it is never the row's *own* account (a transfer's two legs differ), else "";
+ *   - an unknown/hallucinated name or an empty pick → "".
+ *
+ * So a wrong or blank model answer degrades to "leave it for the user", never a
+ * bad pairing. Rows are restricted to ids in this batch (a stray id is dropped).
+ * Throws on a model/parse failure — the caller catches per-batch.
+ */
+export async function enrichTransfers(
+  session: StructuredSession,
+  batch: ImportTransaction[],
+  context: Record<string, TransferContext>,
+  accounts: Account[],
+): Promise<TransferEnriched[]> {
+  const idByName = accountNameToId(accounts);
+  const ownAccountById = new Map(batch.map((r) => [r.id, r.accountId]));
+  const prompt = buildTransferPrompt(batch, context);
+  const messages: { role: "user"; content: MessageContent }[] = [{ role: "user", content: prompt }];
+
+  const result = await session.structured<TransferEnrichResult>(messages, ENRICH_TRANSFER_SCHEMA);
+
+  return result.rows
+    .filter((r) => ownAccountById.has(r.id))
+    .map((r) => {
+      const resolved = idByName.get(r.account.trim().toLowerCase()) ?? "";
+      const targetAccountId = resolved && resolved !== ownAccountById.get(r.id) ? resolved : "";
+      return { id: r.id, targetAccountId, confidence: r.confidence };
+    });
+}
+
+/** Case-insensitive name → id over current non-archived accounts. A duplicate
+ *  name keeps the first (account names are unique in practice). */
+function accountNameToId(accounts: Account[]): Map<string, string> {
+  const byName = new Map<string, string>();
+  for (const a of accounts) {
+    if (a.archived) continue;
+    const key = a.name.trim().toLowerCase();
+    if (!byName.has(key)) byName.set(key, a.id);
+  }
+  return byName;
+}
+
+function buildTransferPrompt(
+  batch: ImportTransaction[],
+  context: Record<string, TransferContext>,
+): string {
+  const rows = batch.map((row) => {
+    const ctx = context[row.id];
+    return {
+      id: row.id,
+      description: row.description,
+      amount: row.amount,
+      // Inflow needs the account money came FROM; outflow, where it went TO.
+      need: row.amount < 0 ? "to-account" : "from-account",
+      recentTransfers: ctx?.recentTransfers,
+      topAccounts: ctx?.topAccounts,
+    };
+  });
+
+  return [
+    `Each row below is a transfer between two of the user's own accounts. One side is already known (the account this statement is for); pick the OTHER account — the counterpart — by NAME.`,
+    ``,
+    `A positive amount is money coming IN, so you pick the account it came FROM ("from-account"). A negative amount is money going OUT, so you pick the account it went TO ("to-account"). The \`need\` field states which for each row.`,
+    ``,
+    `Use the row's own transfer history to decide:`,
+    `- \`topAccounts\` — the accounts this account most often transfers with in this direction, by count. Frequency is the prior.`,
+    `- \`recentTransfers\` — the most recent legs in chronological order, so a periodic transfer's cadence is visible.`,
+    `- the \`description\` disambiguates which partner this leg is — e.g. "ACH BOFA SAV 123" points at a savings account even when checking is the more frequent partner. The words pick among the candidates; they don't invent a new one.`,
+    ``,
+    `Return \`account\` as the EXACT name of one of the accounts that appears in that row's \`topAccounts\` / \`recentTransfers\`. If the context is empty or you can't tell which counterpart this is, return an empty string "" — a blank is better than a wrong pairing. Set confidence "high" for a clear pick, "low" for a reasonable inference.`,
+    ``,
+    `Rows:`,
+    JSON.stringify(rows, null, 2),
+  ].join("\n");
 }

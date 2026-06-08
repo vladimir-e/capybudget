@@ -325,7 +325,15 @@ export function ImportTable({
               {/* Account — selector for transfers, display for others */}
               <TableCell className="text-[13px] text-muted-foreground py-1" onClick={(e) => e.stopPropagation()}>
                 {txn.type === "transfer" ? (
-                  <div className="[&>div]:w-full [&_button:first-of-type]:w-full [&_button:first-of-type]:min-w-0">
+                  <div
+                    className={`[&>div]:w-full [&_button:first-of-type]:w-full [&_button:first-of-type]:min-w-0 ${
+                      // Unset counterpart → outline the dropdown so it's easy to
+                      // spot in the preview that it still needs an account.
+                      txn.targetAccountId
+                        ? ""
+                        : "[&_button:first-of-type]:border-amber-500/60 [&_button:first-of-type]:ring-1 [&_button:first-of-type]:ring-amber-500/40"
+                    }`}
+                  >
                     <AccountSelector
                       accounts={accounts}
                       value={txn.targetAccountId || ""}

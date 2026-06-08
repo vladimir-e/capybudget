@@ -5,7 +5,7 @@
  * STRUCTURE.md's test-factory rule.
  */
 
-import type { Account, Category, ImportTransaction, RowContext, Transaction } from "@capybudget/core";
+import type { Account, Category, ImportTransaction, RowContext, TransferContext, Transaction } from "@capybudget/core";
 import { parseStructured } from "../structured";
 import type { JsonSchema, StructuredMessage, StructuredSession } from "../structured";
 import type { BudgetDataProvider } from "./budget-data";
@@ -16,14 +16,16 @@ export class MemoryStagingStore implements StagingStore {
   sources: SourceFile[] = [];
   transactions: ImportTransaction[] | null = null;
   context: Record<string, RowContext> | null = null;
+  transferContext: Record<string, TransferContext> | null = null;
   state: ImportState | null = null;
   /** How many times transactions were written — asserts per-batch persistence. */
   writeCount = 0;
 
-  constructor(init: Partial<Pick<MemoryStagingStore, "sources" | "transactions" | "context" | "state">> = {}) {
+  constructor(init: Partial<Pick<MemoryStagingStore, "sources" | "transactions" | "context" | "transferContext" | "state">> = {}) {
     if (init.sources) this.sources = init.sources;
     if (init.transactions) this.transactions = init.transactions;
     if (init.context) this.context = init.context;
+    if (init.transferContext) this.transferContext = init.transferContext;
     if (init.state) this.state = init.state;
   }
 
@@ -54,6 +56,12 @@ export class MemoryStagingStore implements StagingStore {
   async writeContext(context: Record<string, RowContext>): Promise<void> {
     this.context = context;
   }
+  async readTransferContext(): Promise<Record<string, TransferContext> | null> {
+    return this.transferContext;
+  }
+  async writeTransferContext(context: Record<string, TransferContext>): Promise<void> {
+    this.transferContext = context;
+  }
   async readState(): Promise<ImportState | null> {
     return this.state;
   }
@@ -63,6 +71,7 @@ export class MemoryStagingStore implements StagingStore {
   async clear(): Promise<void> {
     this.transactions = null;
     this.context = null;
+    this.transferContext = null;
     this.state = null;
     this.sources = [];
   }

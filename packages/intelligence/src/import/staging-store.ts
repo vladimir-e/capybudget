@@ -9,10 +9,11 @@
  *
  * ```
  * .capy/import/
- *   sources/          # original files (read-only to the engine)
- *   transactions.csv  # normalized staging (written during Normalizing)
- *   context.json      # per-row history signals (written during History)
- *   state.json        # phase + metadata
+ *   sources/              # original files (read-only to the engine)
+ *   transactions.csv      # normalized staging (written during Normalizing)
+ *   context.json          # per-row history signals (written during History)
+ *   transfer-context.json # per-transfer-row direction-aware history (History)
+ *   state.json            # phase + metadata
  * ```
  */
 
@@ -22,6 +23,7 @@ import {
   validateImportTransactions,
   type ImportTransaction,
   type RowContext,
+  type TransferContext,
 } from "@capybudget/core";
 import type { FileAdapter } from "@capybudget/persistence";
 import type { ImportPhase } from "./events";
@@ -78,14 +80,19 @@ export interface StagingStore {
   /** Overwrite `context.json`. */
   writeContext(context: Record<string, RowContext>): Promise<void>;
 
+  /** The per-transfer-row transfer context, or `null` if the file is absent. */
+  readTransferContext(): Promise<Record<string, TransferContext> | null>;
+  /** Overwrite `transfer-context.json`. */
+  writeTransferContext(context: Record<string, TransferContext>): Promise<void>;
+
   /** The run state, or `null` if `state.json` doesn't exist. */
   readState(): Promise<ImportState | null>;
   /** Overwrite `state.json`. */
   writeState(state: ImportState): Promise<void>;
 
-  /** Remove `transactions.csv`, `context.json`, `state.json`, and `sources/`.
-   *  Used when a run dies before staging exists — clears stale artifacts so
-   *  reopen lands cleanly on file-attach. */
+  /** Remove `transactions.csv`, `context.json`, `transfer-context.json`,
+   *  `state.json`, and `sources/`. Used when a run dies before staging exists —
+   *  clears stale artifacts so reopen lands cleanly on file-attach. */
   clear(): Promise<void>;
 }
 
@@ -200,6 +207,16 @@ export class FileStagingStore implements StagingStore {
     await this.fileAdapter.writeFile(await this.path("context.json"), JSON.stringify(context));
   }
 
+  async readTransferContext(): Promise<Record<string, TransferContext> | null> {
+    const p = await this.path("transfer-context.json");
+    if (!(await this.fileAdapter.exists(p))) return null;
+    return JSON.parse(await this.fileAdapter.readFile(p));
+  }
+
+  async writeTransferContext(context: Record<string, TransferContext>): Promise<void> {
+    await this.fileAdapter.writeFile(await this.path("transfer-context.json"), JSON.stringify(context));
+  }
+
   async readState(): Promise<ImportState | null> {
     const p = await this.path("state.json");
     if (!(await this.fileAdapter.exists(p))) return null;
@@ -212,7 +229,7 @@ export class FileStagingStore implements StagingStore {
 
   async clear(): Promise<void> {
     const dir = await this.dir();
-    for (const name of ["transactions.csv", "context.json", "state.json"]) {
+    for (const name of ["transactions.csv", "context.json", "transfer-context.json", "state.json"]) {
       const p = await this.fileAdapter.join(dir, name);
       if (await this.fileAdapter.exists(p)) await this.fileAdapter.remove(p);
     }

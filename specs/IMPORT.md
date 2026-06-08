@@ -6,10 +6,11 @@ Import requires the Anthropic or OpenAI provider. Both run the structured model 
 
 ## Architecture: code orchestrates, the model is a stateless function
 
-There is no import agent. **Code runs the pipeline as a deterministic state machine** and emits every status line itself. The model is called **statelessly**, at exactly two points, each returning structured output — no tools, no loop, no accumulated context:
+There is no import agent. **Code runs the pipeline as a deterministic state machine** and emits every status line itself. The model is called **statelessly**, each call returning structured output — no tools, no loop, no accumulated context:
 
 1. **Mapping / extraction** (Normalizing) — CSV: headers + samples in → a `CsvMapping` out (one call; one bounded re-call when a code-side preview surfaces transform errors). Image/PDF: the bytes in → the same intermediate records a mapping would produce.
 2. **Categorizing batch** — ~25 rows + their pre-attached history context in → `{ id, merchant, category, confidence }[]` out, where `category` is a budget category *name* (the model reasons over names, never ids; code maps the name back to a `categoryId`). Batches are independent, run bounded-parallel, and fail in isolation.
+3. **Transfer batch** — the transfer rows + each one's direction-aware transfer context in → `{ id, account, confidence }[]` out, where `account` is a budget account *name* the model picks for the counterpart (or `""` when unsure; code maps the name back to an `accountId`). A heterogeneous sibling of the Categorizing batch — transfers carry no merchant/category, only a "From"/"To" account to resolve — run in the same phase.
 
 Stateless calls never accumulate: mapping is tiny, each batch is bounded. The progress surface is therefore state, not prose — code always knows where the run is.
 
@@ -58,6 +59,13 @@ Code pre-computes every groundable signal so the model handles only the ambiguou
 4. **Fast-path** — a row whose history is strong **and** near-unanimous (≥3 matches with ≥80% agreeing on one category) gets its merchant + categoryId assigned in code at `high` confidence. Everything else is left ambiguous for the classifier.
 5. **Duplicate detection** — folded in after the steps above, so it can use the merchant each row just resolved. A row is a duplicate when it matches an existing budget transaction on amount + account + relaxed dates + resolved merchant/description. Duplicates are marked complete (carrying the matched transaction's merchant, and its category when type-correct, for display) and skipped by enrichment.
 
+For each **transfer** row, History attaches a separate sidecar instead — the imported account's own **direction-aware transfer context**, written to `transfer-context.json` keyed by row id. The counterpart is a property of the *accounts*, not the row's words, so this carries the account's matching-direction legs (an inflow row → the account's *incoming* legs, an outflow → its *outgoing*), each resolved to its counterpart account **name** via `transferPairId`:
+
+- **`recentTransfers`** — the matching-direction legs from the last 2 months (anchored to the newest leg so a periodic cadence stays visible regardless of when the import runs), chronological, condensed to `{ account, amount }`, capped at 10.
+- **`topAccounts`** — the top-3 counterpart accounts by transfer count in that direction, with counts.
+
+A counterpart that's archived, gone, or the account itself is dropped (the model can't pick an id it won't see in the dropdown). An account with no matching-direction history gets no entry — the model leaves the counterpart blank. Grounding sets no `targetAccountId`; the model picks it in Categorizing.
+
 History reports the payoff: *"47 of 77 resolved from your history · 4 duplicates."*
 
 ### Categorizing — a batched classifier
@@ -71,6 +79,8 @@ The only model batch work, over the rows that still fail the `needsEnrich` predi
 The prompt leads with the user's own history as the **primary** signal: when the merchant appears in history, the model strongly prefers the category they've used for it (weighing recency, frequency, amount). `sourceCategory` is demoted to a weak hint, and a coarse value like "Other" is explicitly framed as *not* a category — never mapped to "Other Income." Each row comes back with a merchant, a category name, and a confidence (`high` for an obvious match, `low` for a reasonable inference).
 
 Code maps each returned name → a `categoryId` within the row's **type-appropriate** categories (case-insensitive exact match; income names resolve only against income categories, expense only against expense — so an income category can't land on an expense). Results are filtered to ids in that batch; a name that matches no type-appropriate category leaves the row uncategorized (it keeps its cleaned merchant and stays re-enrichable). Resolved rows are merged into staging — filling only empty fields, so a re-run never clobbers a hand-mapped or already-landed value. Each landed batch is persisted to `transactions.csv` immediately, not buffered to the end. There is **no auto-retry**: a batch that throws is logged and skipped, its rows left incomplete; the user-initiated re-run is the retry.
+
+**Transfers** participate here too, but only to resolve their counterpart, and only when they carry transfer context and have no counterpart yet. Their batch is a separate call with its own small schema (a heterogeneous task — they get no merchant or category): the transfer rows plus each one's `recentTransfers` / `topAccounts` go in, and `{ id, account, confidence }` comes back per row, where `account` is a counterpart account **name** the model picks from the context (using the description + amount + the recent/periodic pattern) or `""` when unsure. Code maps that name → an `accountId` (case-insensitive against current non-archived accounts), validates it isn't the row's own account, and writes it to `targetAccountId`. An unknown name, an empty pick, or the row's own account leaves the counterpart blank — a wrong or blank answer degrades to "leave it for the user", never a bad pairing. Transfers are few, so this is typically one batch; it runs in the same bounded-parallel pool as the category batches.
 
 ## Data model
 
@@ -88,10 +98,11 @@ The staging row (`ImportTransaction`) and the intermediate `StagedRecord` it's b
 
 ```
 .capy/import/
-  sources/          # original files (read-only to the engine)
-  transactions.csv  # normalized staging (written from History on)
-  context.json      # per-row history signals (written during History)
-  state.json        # phase + metadata
+  sources/              # original files (read-only to the engine)
+  transactions.csv      # normalized staging (written from History on)
+  context.json          # per-row history signals (written during History)
+  transfer-context.json # per-transfer-row direction-aware history (written during History)
+  state.json            # phase + metadata
 ```
 
 - **No `transactions.csv`** (the run died during Reading / Normalizing / History) → file-attach screen; stale `sources/` is cleared. Those phases are seconds of code — nothing to recover.
@@ -99,7 +110,7 @@ The staging row (`ImportTransaction`) and the intermediate `StagedRecord` it's b
 
 **Interrupt, crash-recovery, and resume are one code path.** Stop is a crash you chose — all three leave identical persisted state and resume by re-running idempotent enrichment.
 
-**One predicate gates enrichment:** `needsEnrich = !duplicate && (!merchant || !categoryId)` (transfers are always exempt). It covers fast-pathed rows, duplicates, hand-mapped rows, batches that already landed, and re-runs after a partial — no special cases. The "import 1000, do it myself" flow falls straight out: map rows in the UI, those rows fail the predicate, Enrich does only what's left.
+**One predicate gates category enrichment:** `needsEnrich = !duplicate && (!merchant || !categoryId)` (transfers are exempt — they get no merchant/category). It covers fast-pathed rows, duplicates, hand-mapped rows, batches that already landed, and re-runs after a partial — no special cases. The "import 1000, do it myself" flow falls straight out: map rows in the UI, those rows fail the predicate, Enrich does only what's left. **Transfers have a sibling gate** for the counterpart: `needsTransferEnrich = transfer && !duplicate && !targetAccountId && hasTransferContext` — idempotent the same way, so once the counterpart is set (by the model or by hand) the row drops out and a re-run never re-asks.
 
 **Stop** (awaitable) requests a clean stop: no new batches dispatch, the in-flight one finishes its write, and the returned promise resolves once no further write is pending — which is what lets **Cancel** safely discard staging afterward. **Cancel** = stop + clear `.capy/import/`. Re-running on staged data is idempotent.
 
@@ -116,6 +127,7 @@ A self-contained module operating on staging only — no budget-data dependency 
 - **Live during a run, read-only.** Rows render beneath the progress bar as soon as they exist and fill in live as batches land; the table is read-only and the action bar shows **Stop** while a run is in flight. Once the run settles, the table is editable and the bar shows **Enrich** (over the incomplete remainder) and **Merge**.
 - **Account mapping** at the top lists the source accounts discovered; each maps to an existing budget account or is marked for creation (the default). Aliases stored in `.capy/aliases.json` survive across imports and pre-populate the mapping; they're persisted at merge.
 - **Duplicates** are unselected with a banner showing the count; low-confidence and uncategorized rows are flagged once the run settles.
+- **Transfers** show an account dropdown for the counterpart, pre-filled with the model's pick. The dropdown stays the standard account list (never reranked — account ordering is consistent app-wide); a row whose counterpart is still unset gets an outline on the dropdown so it's easy to spot in the preview, with the placeholder ("From account" for an inflow, "To account" for an outflow) as the only wording.
 - **Transaction table** — full CRUD, multi-select (unselect to skip), search, inline editing; the same interaction patterns as the main transactions view. Edits write back to staging.
 - **Merge** converts the selected rows into budget transactions: creates unmapped source accounts, links transfer pairs (same date, opposite amounts, different accounts), and bulk-inserts. The field mapping:
 

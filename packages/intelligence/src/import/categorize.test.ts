@@ -1,8 +1,15 @@
 import { describe, it, expect } from "vitest";
-import { makeCategory, makeImportTransaction } from "@capybudget/core/test-factories";
-import type { RowContext } from "@capybudget/core";
-import { batchRows, enrichBatch, needsEnrich, ENRICH_BATCH_SIZE } from "./categorize";
-import { ENRICH_BATCH_SCHEMA } from "./schemas";
+import { makeAccount, makeCategory, makeImportTransaction } from "@capybudget/core/test-factories";
+import type { RowContext, TransferContext } from "@capybudget/core";
+import {
+  batchRows,
+  enrichBatch,
+  enrichTransfers,
+  needsEnrich,
+  needsTransferEnrich,
+  ENRICH_BATCH_SIZE,
+} from "./categorize";
+import { ENRICH_BATCH_SCHEMA, ENRICH_TRANSFER_SCHEMA } from "./schemas";
 import { MockStructuredSession } from "./test-doubles";
 
 describe("needsEnrich", () => {
@@ -229,5 +236,161 @@ describe("enrichBatch", () => {
   it("propagates a thrown call so the caller can isolate the failure", async () => {
     const session = new MockStructuredSession([() => new Error("boom")]);
     await expect(enrichBatch(session, [makeImportTransaction({ id: "imp-1" })], {}, categories)).rejects.toThrow("boom");
+  });
+});
+
+describe("needsTransferEnrich", () => {
+  const ctxRow = makeImportTransaction({ type: "transfer", targetAccountId: "" });
+
+  it("is true for a transfer with context and no counterpart yet", () => {
+    expect(needsTransferEnrich(ctxRow, true)).toBe(true);
+  });
+
+  it("is false without transfer context (nothing to ground a pick on)", () => {
+    expect(needsTransferEnrich(ctxRow, false)).toBe(false);
+  });
+
+  it("is false once a counterpart is set (idempotent — never re-asks)", () => {
+    expect(needsTransferEnrich(makeImportTransaction({ type: "transfer", targetAccountId: "acct-1" }), true)).toBe(false);
+  });
+
+  it("is false for a duplicate transfer", () => {
+    expect(needsTransferEnrich(makeImportTransaction({ type: "transfer", duplicate: true }), true)).toBe(false);
+  });
+
+  it("is false for non-transfer rows", () => {
+    expect(needsTransferEnrich(makeImportTransaction({ type: "expense" }), true)).toBe(false);
+    expect(needsTransferEnrich(makeImportTransaction({ type: "income" }), true)).toBe(false);
+  });
+});
+
+describe("enrichTransfers", () => {
+  const CHECKING = makeAccount({ id: "acct-checking", name: "BofA Checking", type: "checking" });
+  const SAVINGS = makeAccount({ id: "acct-savings", name: "BofA Savings", type: "savings" });
+  const BROKERAGE = makeAccount({ id: "acct-brokerage", name: "Fidelity Brokerage", type: "asset" });
+  const accounts = [CHECKING, SAVINGS, BROKERAGE];
+
+  /** A transfer row already resolved to its own account (Checking), needing a
+   *  counterpart. Inflow → the model picks the "from" account. */
+  const row = makeImportTransaction({
+    id: "imp-1", type: "transfer", description: "ACH BOFA SAV 123",
+    amount: 50000, accountId: "acct-checking",
+  });
+  const context: Record<string, TransferContext> = {
+    "imp-1": {
+      recentTransfers: [
+        { account: "BofA Checking", amount: 50000 },
+        { account: "BofA Savings", amount: 50000 },
+      ],
+      topAccounts: [
+        { account: "BofA Checking", count: 28 },
+        { account: "BofA Savings", count: 3 },
+      ],
+    },
+  };
+
+  it("maps a returned account name → targetAccountId, restricted to batch ids", async () => {
+    const session = new MockStructuredSession([
+      () => ({
+        rows: [
+          { id: "imp-1", account: "BofA Savings", confidence: "high" },
+          { id: "imp-99", account: "BofA Savings", confidence: "low" }, // not in batch — dropped
+        ],
+      }),
+    ]);
+
+    const result = await enrichTransfers(session, [row], context, accounts);
+
+    expect(result).toEqual([{ id: "imp-1", targetAccountId: "acct-savings", confidence: "high" }]);
+    expect(session.calls[0].schema).toBe(ENRICH_TRANSFER_SCHEMA);
+  });
+
+  it("resolves the name case-insensitively", async () => {
+    const session = new MockStructuredSession([
+      () => ({ rows: [{ id: "imp-1", account: "  bofa savings ", confidence: "high" }] }),
+    ]);
+    const result = await enrichTransfers(session, [row], context, accounts);
+    expect(result[0].targetAccountId).toBe("acct-savings");
+  });
+
+  it("can pick a non-top counterpart — the occasional-savings case", async () => {
+    // Checking is the far more frequent partner (28 vs 3), but the description
+    // "ACH BOFA SAV 123" names savings. The model, reading the description over
+    // raw frequency, picks BofA Savings — and the mapping honors it.
+    const session = new MockStructuredSession([
+      () => ({ rows: [{ id: "imp-1", account: "BofA Savings", confidence: "high" }] }),
+    ]);
+    const result = await enrichTransfers(session, [row], context, accounts);
+    expect(result[0].targetAccountId).toBe("acct-savings");
+    expect(result[0].targetAccountId).not.toBe("acct-checking"); // not the frequency prior
+  });
+
+  it("returns blank for an empty pick (model unsure)", async () => {
+    const session = new MockStructuredSession([
+      () => ({ rows: [{ id: "imp-1", account: "", confidence: "low" }] }),
+    ]);
+    const result = await enrichTransfers(session, [row], context, accounts);
+    expect(result[0].targetAccountId).toBe("");
+  });
+
+  it("returns blank for an unknown/hallucinated account name", async () => {
+    const session = new MockStructuredSession([
+      () => ({ rows: [{ id: "imp-1", account: "Imaginary Vault", confidence: "low" }] }),
+    ]);
+    const result = await enrichTransfers(session, [row], context, accounts);
+    expect(result[0].targetAccountId).toBe("");
+  });
+
+  it("never returns the row's own account as the counterpart", async () => {
+    // The model wrongly echoes the statement's own account — blocked.
+    const session = new MockStructuredSession([
+      () => ({ rows: [{ id: "imp-1", account: "BofA Checking", confidence: "high" }] }),
+    ]);
+    const result = await enrichTransfers(session, [row], context, accounts);
+    expect(result[0].targetAccountId).toBe("");
+  });
+
+  it("won't resolve to an archived account", async () => {
+    const archived = makeAccount({ id: "acct-old", name: "Closed Account", archived: true });
+    const session = new MockStructuredSession([
+      () => ({ rows: [{ id: "imp-1", account: "Closed Account", confidence: "high" }] }),
+    ]);
+    const result = await enrichTransfers(session, [row], context, [...accounts, archived]);
+    expect(result[0].targetAccountId).toBe("");
+  });
+
+  it("hands the model the row's context by account name, with the direction need", async () => {
+    const session = new MockStructuredSession([() => ({ rows: [] })]);
+    await enrichTransfers(session, [row], context, accounts);
+
+    const text = JSON.stringify(session.calls[0].messages);
+    expect(text).toContain("ACH BOFA SAV 123");
+    expect(text).toContain("BofA Savings");
+    expect(text).toContain("topAccounts");
+    expect(text).toContain("recentTransfers");
+    expect(text).toContain("from-account"); // inflow → pick where money came FROM
+  });
+
+  it("marks an outflow row as needing a to-account", async () => {
+    const outflow = makeImportTransaction({
+      id: "imp-2", type: "transfer", description: "ONLINE XFER", amount: -25000, accountId: "acct-checking",
+    });
+    const session = new MockStructuredSession([() => ({ rows: [] })]);
+    await enrichTransfers(session, [outflow], { "imp-2": context["imp-1"] }, accounts);
+
+    expect(JSON.stringify(session.calls[0].messages)).toContain("to-account");
+  });
+
+  it("the rendered prompt contains no UUID-looking strings (account ids hidden)", async () => {
+    const session = new MockStructuredSession([() => ({ rows: [] })]);
+    await enrichTransfers(session, [row], context, accounts);
+
+    const prompt = (session.calls[0].messages[0].content as string).replace(/imp-\d+/g, "");
+    expect(prompt).not.toMatch(/acct-/);
+  });
+
+  it("propagates a thrown call so the caller can isolate the failure", async () => {
+    const session = new MockStructuredSession([() => new Error("kaboom")]);
+    await expect(enrichTransfers(session, [row], context, accounts)).rejects.toThrow("kaboom");
   });
 });

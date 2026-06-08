@@ -34,8 +34,10 @@ export { normalizeCsv, normalizeImage, isImageOrPdf } from "./normalize";
 export type { NormalizeCsvResult, NormalizeImageResult } from "./normalize";
 export {
   enrichBatch,
+  enrichTransfers,
   batchRows,
   needsEnrich,
+  needsTransferEnrich,
   ENRICH_BATCH_SIZE,
   ENRICH_CONCURRENCY,
 } from "./categorize";
@@ -45,12 +47,15 @@ export {
   CSV_MAPPING_SCHEMA,
   EXTRACTION_SCHEMA,
   ENRICH_BATCH_SCHEMA,
+  ENRICH_TRANSFER_SCHEMA,
 } from "./schemas";
 export type {
   CsvMappingResult,
   ExtractionResult,
   EnrichBatchResult,
   EnrichedRow,
+  TransferEnrichResult,
+  TransferEnriched,
 } from "./schemas";
 
 // Structured session factory + capability gate
