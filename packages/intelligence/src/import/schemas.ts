@@ -7,7 +7,8 @@
  *
  *  1. mapping     — CSV headers + samples → a `CsvMapping`.
  *  2. extraction  — image/PDF bytes → `{ result: { rows } | { error: "no_data", … } }`.
- *  3. enrichBatch — ~25 rows + context → `{ id, merchant, categoryId, … }[]`.
+ *  3. enrichBatch — ~25 rows + context → `{ id, merchant, category, … }[]`
+ *                   (`category` is a name; `enrichBatch` maps it to an id).
  *
  * Schemas mirror the `core` types they parse into (`CsvMapping`, `StagedRecord`)
  * — the validators live in `@capybudget/core`; these only describe the wire
@@ -233,8 +234,23 @@ export interface ExtractionEnvelope {
 
 // ── 3. Enrichment batch ──────────────────────────────────────────
 
-/** One enriched row the classifier returns. `id` ties it back to the staging
- *  row; `categoryId` must be one of the ids handed to the model. */
+/**
+ * The wire shape the classifier returns. The model reasons over category
+ * *names*, never ids — `category` is a budget category name it picks from the
+ * list in the prompt. `enrichBatch` maps that name → a `categoryId` (within the
+ * row's type-appropriate categories) before handing back an `EnrichedRow`, so
+ * the model never touches an opaque UUID.
+ */
+export interface EnrichedRowRaw {
+  id: string;
+  merchant: string;
+  category: string;
+  confidence: "high" | "low";
+}
+
+/** One enriched row `enrichBatch` returns, post name→id mapping. `id` ties it
+ *  back to the staging row; `categoryId` is a resolved budget category id (or
+ *  "" when the returned name didn't match a type-appropriate category). */
 export interface EnrichedRow {
   id: string;
   merchant: string;
@@ -255,10 +271,10 @@ export const ENRICH_BATCH_SCHEMA: JsonSchema = {
         properties: {
           id: { type: "string" },
           merchant: { type: "string" },
-          categoryId: { type: "string" },
+          category: { type: "string" },
           confidence: { type: "string", enum: ["high", "low"] },
         },
-        required: ["id", "merchant", "categoryId", "confidence"],
+        required: ["id", "merchant", "category", "confidence"],
       },
     },
   },
@@ -266,5 +282,5 @@ export const ENRICH_BATCH_SCHEMA: JsonSchema = {
 };
 
 export interface EnrichBatchResult {
-  rows: EnrichedRow[];
+  rows: EnrichedRowRaw[];
 }

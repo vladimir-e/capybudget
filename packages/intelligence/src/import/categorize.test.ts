@@ -47,18 +47,20 @@ describe("enrichBatch", () => {
   const categories = [
     makeCategory({ id: "cat-1", name: "Groceries", group: "Daily Living" }),
     makeCategory({ id: "cat-2", name: "Dining", group: "Personal" }),
+    makeCategory({ id: "cat-subs", name: "Subscriptions", group: "Fixed" }),
     makeCategory({ id: "inc-1", name: "Paycheck", group: "Income" }),
+    makeCategory({ id: "inc-2", name: "Other Income", group: "Income" }),
   ];
 
-  it("returns the classifier's rows, validated against the batch ids + categories", async () => {
+  it("maps returned category names → ids, restricted to batch ids", async () => {
     const batch = [makeImportTransaction({ id: "imp-1" }), makeImportTransaction({ id: "imp-2" })];
     const session = new MockStructuredSession([
       () => ({
         rows: [
-          { id: "imp-1", merchant: "A", categoryId: "cat-1", confidence: "high" },
-          { id: "imp-2", merchant: "B", categoryId: "cat-2", confidence: "low" },
-          { id: "imp-99", merchant: "Ghost", categoryId: "cat-1", confidence: "low" }, // not in batch — dropped
-          { id: "imp-1", merchant: "C", categoryId: "cat-bad", confidence: "low" }, // unknown id — categoryId cleared
+          { id: "imp-1", merchant: "A", category: "Groceries", confidence: "high" },
+          { id: "imp-2", merchant: "B", category: "Dining", confidence: "low" },
+          { id: "imp-99", merchant: "Ghost", category: "Groceries", confidence: "low" }, // not in batch — dropped
+          { id: "imp-1", merchant: "C", category: "Nonexistent", confidence: "low" }, // unknown name — left uncategorized
         ],
       }),
     ]);
@@ -70,43 +72,10 @@ describe("enrichBatch", () => {
     expect(session.calls[0].schema).toBe(ENRICH_BATCH_SCHEMA);
   });
 
-  it("drops an Income-group category the model put on an expense row, leaving it uncategorized", async () => {
+  it("resolves a returned name case-insensitively", async () => {
     const batch = [makeImportTransaction({ id: "imp-1", type: "expense" })];
     const session = new MockStructuredSession([
-      () => ({ rows: [{ id: "imp-1", merchant: "A", categoryId: "inc-1", confidence: "low" }] }),
-    ]);
-
-    const result = await enrichBatch(session, batch, {}, categories);
-
-    expect(result).toEqual([{ id: "imp-1", merchant: "A", categoryId: "", confidence: "low" }]);
-  });
-
-  it("drops an expense-group category the model put on an income row", async () => {
-    const batch = [makeImportTransaction({ id: "imp-1", type: "income" })];
-    const session = new MockStructuredSession([
-      () => ({ rows: [{ id: "imp-1", merchant: "A", categoryId: "cat-1", confidence: "low" }] }),
-    ]);
-
-    const result = await enrichBatch(session, batch, {}, categories);
-
-    expect(result[0].categoryId).toBe("");
-  });
-
-  it("keeps a valid Income category on an income row", async () => {
-    const batch = [makeImportTransaction({ id: "imp-1", type: "income" })];
-    const session = new MockStructuredSession([
-      () => ({ rows: [{ id: "imp-1", merchant: "Employer", categoryId: "inc-1", confidence: "high" }] }),
-    ]);
-
-    const result = await enrichBatch(session, batch, {}, categories);
-
-    expect(result[0].categoryId).toBe("inc-1");
-  });
-
-  it("keeps a valid expense-group category on an expense row", async () => {
-    const batch = [makeImportTransaction({ id: "imp-1", type: "expense" })];
-    const session = new MockStructuredSession([
-      () => ({ rows: [{ id: "imp-1", merchant: "Store", categoryId: "cat-1", confidence: "high" }] }),
+      () => ({ rows: [{ id: "imp-1", merchant: "A", category: "  groceries ", confidence: "high" }] }),
     ]);
 
     const result = await enrichBatch(session, batch, {}, categories);
@@ -114,7 +83,98 @@ describe("enrichBatch", () => {
     expect(result[0].categoryId).toBe("cat-1");
   });
 
-  it("splits the presented category list into income and expense groups", async () => {
+  it("leaves the row uncategorized for an unknown/hallucinated name", async () => {
+    const batch = [makeImportTransaction({ id: "imp-1", type: "expense" })];
+    const session = new MockStructuredSession([
+      () => ({ rows: [{ id: "imp-1", merchant: "A", category: "Magic Beans", confidence: "low" }] }),
+    ]);
+
+    const result = await enrichBatch(session, batch, {}, categories);
+
+    expect(result).toEqual([{ id: "imp-1", merchant: "A", categoryId: "", confidence: "low" }]);
+  });
+
+  it("won't resolve an Income-group name on an expense row (cross-type blocked)", async () => {
+    const batch = [makeImportTransaction({ id: "imp-1", type: "expense" })];
+    const session = new MockStructuredSession([
+      () => ({ rows: [{ id: "imp-1", merchant: "A", category: "Paycheck", confidence: "low" }] }),
+    ]);
+
+    const result = await enrichBatch(session, batch, {}, categories);
+
+    expect(result[0].categoryId).toBe("");
+  });
+
+  it("won't resolve an expense-group name on an income row (cross-type blocked)", async () => {
+    const batch = [makeImportTransaction({ id: "imp-1", type: "income" })];
+    const session = new MockStructuredSession([
+      () => ({ rows: [{ id: "imp-1", merchant: "A", category: "Groceries", confidence: "low" }] }),
+    ]);
+
+    const result = await enrichBatch(session, batch, {}, categories);
+
+    expect(result[0].categoryId).toBe("");
+  });
+
+  it("keeps a valid Income name on an income row", async () => {
+    const batch = [makeImportTransaction({ id: "imp-1", type: "income" })];
+    const session = new MockStructuredSession([
+      () => ({ rows: [{ id: "imp-1", merchant: "Employer", category: "Paycheck", confidence: "high" }] }),
+    ]);
+
+    const result = await enrichBatch(session, batch, {}, categories);
+
+    expect(result[0].categoryId).toBe("inc-1");
+  });
+
+  it("keeps a valid expense name on an expense row", async () => {
+    const batch = [makeImportTransaction({ id: "imp-1", type: "expense" })];
+    const session = new MockStructuredSession([
+      () => ({ rows: [{ id: "imp-1", merchant: "Store", category: "Groceries", confidence: "high" }] }),
+    ]);
+
+    const result = await enrichBatch(session, batch, {}, categories);
+
+    expect(result[0].categoryId).toBe("cat-1");
+  });
+
+  it("an Apple-Services-style row resolves to its history category, not the bank's coarse label", async () => {
+    // sourceCategory "Other" + history dominated by Subscriptions: the model is
+    // handed names + a history-leads prompt and must pick the history category,
+    // never mapping "Other" → "Other Income".
+    const batch = [
+      makeImportTransaction({
+        id: "imp-1",
+        type: "expense",
+        description: "APPLE.COM/BILL",
+        sourceCategory: "Other",
+      }),
+    ];
+    const context: Record<string, RowContext> = {
+      "imp-1": {
+        examples: [{ date: "2026-05-01", merchant: "Apple", categoryId: "cat-subs", amount: -999 }],
+        merchantStats: [{ name: "Apple", count: 218 }],
+        categoryStats: [{ name: "cat-subs", count: 218 }],
+      },
+    };
+    // A correct model, reading names + history-leads, returns the history category.
+    const session = new MockStructuredSession([
+      () => ({ rows: [{ id: "imp-1", merchant: "Apple", category: "Subscriptions", confidence: "high" }] }),
+    ]);
+
+    const result = await enrichBatch(session, batch, context, categories);
+
+    expect(result[0].categoryId).toBe("cat-subs");
+
+    // The prompt must lead with history and frame "Other" as a non-category.
+    const text = JSON.stringify(session.calls[0].messages);
+    expect(text).toContain("PRIMARY SIGNAL");
+    expect(text).toContain("Subscriptions");
+    expect(text).toContain("(x218)");
+    expect(text).toMatch(/"Other" is NOT a category|never let it override/);
+  });
+
+  it("presents categories by name + group, never by id", async () => {
     const batch = [makeImportTransaction({ id: "imp-1" })];
     const session = new MockStructuredSession([() => ({ rows: [] })]);
 
@@ -123,16 +183,17 @@ describe("enrichBatch", () => {
     const text = JSON.stringify(session.calls[0].messages);
     expect(text).toContain("Income categories");
     expect(text).toContain("Expense categories");
-    expect(text).toContain("inc-1");
+    expect(text).toContain("Paycheck (Income)");
+    expect(text).toContain("Groceries (Daily Living)");
   });
 
-  it("embeds row context and the category list in the prompt", async () => {
+  it("renders history examples + counts by category name, with no dead-id 'unknown'", async () => {
     const batch = [makeImportTransaction({ id: "imp-1", description: "WF MARKET" })];
     const context: Record<string, RowContext> = {
       "imp-1": {
         examples: [{ date: "2026-01-01", merchant: "Whole Foods", note: "WF", categoryId: "cat-1", amount: -100 }],
         merchantStats: [{ name: "Whole Foods", count: 3 }],
-        categoryStats: [{ name: "Groceries", count: 3 }],
+        categoryStats: [{ name: "cat-1", count: 3 }],
       },
     };
     const session = new MockStructuredSession([() => ({ rows: [] })]);
@@ -140,10 +201,29 @@ describe("enrichBatch", () => {
     await enrichBatch(session, batch, context, categories);
 
     const text = JSON.stringify(session.calls[0].messages);
-    expect(text).toContain("cat-1");
     expect(text).toContain("Groceries");
     expect(text).toContain("Whole Foods");
     expect(text).toContain("WF MARKET");
+    expect(text).not.toContain("unknown");
+  });
+
+  it("the rendered prompt contains no UUID-looking strings", async () => {
+    const batch = [makeImportTransaction({ id: "imp-1", description: "WF MARKET" })];
+    const context: Record<string, RowContext> = {
+      "imp-1": {
+        examples: [{ date: "2026-01-01", merchant: "Whole Foods", categoryId: "cat-1", amount: -100 }],
+        merchantStats: [{ name: "Whole Foods", count: 3 }],
+        categoryStats: [{ name: "cat-1", count: 3 }],
+      },
+    };
+    const session = new MockStructuredSession([() => ({ rows: [] })]);
+
+    await enrichBatch(session, batch, context, categories);
+
+    // Only the row `id` (a UUID-shaped staging id) may appear — strip it, then
+    // assert nothing UUID-shaped survives in what describes categories/history.
+    const prompt = (session.calls[0].messages[0].content as string).replace(/imp-1/g, "");
+    expect(prompt).not.toMatch(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i);
   });
 
   it("propagates a thrown call so the caller can isolate the failure", async () => {

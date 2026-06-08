@@ -51,17 +51,20 @@ function isIncomeCategory(group: CategoryGroup): boolean {
 }
 
 /**
- * One enrichment batch — a single constrained call. Returns the classifier's
- * `{ id, merchant, categoryId, confidence }[]`, restricted to ids that are in
- * the batch (a stray id is dropped entirely).
+ * One enrichment batch — a single constrained call. The model reasons over
+ * category *names* (it never sees a UUID); this function maps each returned
+ * `category` name back to a `categoryId` and returns the
+ * `{ id, merchant, categoryId, confidence }[]` the orchestrator expects,
+ * restricted to ids that are in the batch (a stray id is dropped entirely).
  *
- * A row's categoryId is kept only if it names a real budget category whose
- * *group* matches the row's `type`: an `income` row may take only an
- * Income-group category, an `expense` row only a non-Income one. An unknown id
- * or a type-mismatched one is cleared to empty — never written — so the row
- * keeps its cleaned merchant, stays uncategorized, and remains re-enrichable.
- * This makes writing an income category onto an expense structurally
- * impossible. (Transfers never reach here — `needsEnrich` exempts them.)
+ * Name→id resolution is scoped to the row's *type-appropriate* categories: an
+ * `income` row resolves only against Income-group names, an `expense` row only
+ * against non-Income ones, matched case-insensitively and exactly. An unknown
+ * or hallucinated name — or one that only exists in the wrong type — finds no id
+ * and the row is left uncategorized (categoryId ""), so it keeps its cleaned
+ * merchant and stays re-enrichable. Resolving within the type partition makes
+ * writing an income category onto an expense structurally impossible.
+ * (Transfers never reach here — `needsEnrich` exempts them.)
  *
  * Throws on a model/parse failure — the caller catches per-batch.
  */
@@ -71,8 +74,8 @@ export async function enrichBatch(
   context: Record<string, RowContext>,
   categories: Category[],
 ): Promise<EnrichedRow[]> {
-  const categoryGroup = new Map(categories.map((c) => [c.id, c.group]));
   const rowType = new Map(batch.map((r) => [r.id, r.type]));
+  const idByName = nameToIdIndex(categories);
   const prompt = buildEnrichPrompt(batch, context, categories);
   const messages: { role: "user"; content: MessageContent }[] = [{ role: "user", content: prompt }];
 
@@ -81,10 +84,24 @@ export async function enrichBatch(
   return result.rows
     .filter((r) => rowType.has(r.id))
     .map((r) => {
-      const group = r.categoryId ? categoryGroup.get(r.categoryId) : undefined;
-      const valid = group !== undefined && isIncomeCategory(group) === (rowType.get(r.id) === "income");
-      return valid ? r : { ...r, categoryId: "" };
+      const income = rowType.get(r.id) === "income";
+      const categoryId = idByName[income ? "income" : "expense"].get(r.category.trim().toLowerCase()) ?? "";
+      return { id: r.id, merchant: r.merchant, categoryId, confidence: r.confidence };
     });
+}
+
+/** Case-insensitive name → id lookup, partitioned by type so a name can only
+ *  resolve within the matching type. A duplicate name within a partition keeps
+ *  the first (categories carry unique names in practice). */
+function nameToIdIndex(categories: Category[]): { income: Map<string, string>; expense: Map<string, string> } {
+  const income = new Map<string, string>();
+  const expense = new Map<string, string>();
+  for (const c of categories) {
+    const target = isIncomeCategory(c.group) ? income : expense;
+    const key = c.name.trim().toLowerCase();
+    if (!target.has(key)) target.set(key, c.id);
+  }
+  return { income, expense };
 }
 
 function buildEnrichPrompt(
@@ -92,7 +109,7 @@ function buildEnrichPrompt(
   context: Record<string, RowContext>,
   categories: Category[],
 ): string {
-  const formatCategory = (c: Category) => `${c.id}\t${c.name} (${c.group})`;
+  const formatCategory = (c: Category) => `${c.name} (${c.group})`;
   const incomeCategories = categories.filter((c) => isIncomeCategory(c.group)).map(formatCategory).join("\n");
   const expenseCategories = categories.filter((c) => !isIncomeCategory(c.group)).map(formatCategory).join("\n");
 
@@ -110,19 +127,23 @@ function buildEnrichPrompt(
   });
 
   return [
-    `Assign a clean merchant name and a budget category to each transaction below.`,
+    `Assign a clean merchant name and a budget category to each transaction below. Return the category by its exact NAME from the lists below.`,
     ``,
-    `categoryId's group MUST match the transaction type: an \`income\` transaction takes an "Income"-group category; an \`expense\` takes a category from any non-Income group. Never put an Income-group category on an expense. The categories are split below by which type they apply to — pick from the matching list.`,
+    `The category's type MUST match the transaction type: an \`income\` transaction takes an "Income"-group category; an \`expense\` takes a category from any non-Income group. The categories are split below by which type they apply to — pick from the matching list.`,
     ``,
-    `Income categories (id, name, group) — use ONLY for \`income\` rows:`,
+    `Income categories (name, group) — use ONLY for \`income\` rows:`,
     incomeCategories,
     ``,
-    `Expense categories (id, name, group) — use ONLY for \`expense\` rows:`,
+    `Expense categories (name, group) — use ONLY for \`expense\` rows:`,
     expenseCategories,
     ``,
-    `Each row carries its raw description, and where available a "history" block: the user's own past transactions matching this description, plus how often each merchant/category appeared. When the history agrees, reuse that merchant name and categoryId — the user already settled on it. Otherwise clean the description into a merchant name (strip card prefixes, store numbers, city/state, reference numbers) and pick the best-fitting category.`,
+    `PRIMARY SIGNAL — the user's own history. Each row may carry a "history" block: the user's past transactions matching this description, with each example's category and how often each merchant/category appeared. When the merchant appears in history, STRONGLY PREFER the category the user has used for it — weigh recency, frequency, and amount across the examples and counts. The user already settled on these; trust them over any other hint.`,
     ``,
-    `Set confidence "high" for an obvious match, "low" for a reasonable inference. Never leave categoryId empty — a low-confidence guess beats uncategorized.`,
+    `\`sourceCategory\` is the bank's own coarse label. Treat it as a WEAK hint only — never let it override the user's history. A vague value like "Other" is NOT a category: do not map "Other" to "Other Income" or any category; ignore it and rely on history (or the description) instead.`,
+    ``,
+    `When history is absent or doesn't agree, clean the description into a merchant name (strip card prefixes, store numbers, city/state, reference numbers) and pick the best-fitting category by name.`,
+    ``,
+    `Set confidence "high" for an obvious match, "low" for a reasonable inference. Always return a category name from the matching list — a low-confidence guess beats leaving it blank.`,
     ``,
     `Rows:`,
     JSON.stringify(rows, null, 2),
@@ -130,21 +151,26 @@ function buildEnrichPrompt(
 }
 
 /** Distill a row's history context into compact prompt text — the top examples
- *  plus merchant/category frequency counts. Trims the sidecar to what the model
- *  needs without re-sending full transaction objects. `categoryStats[].name`
- *  carries a categoryId (grounding counts by id); resolve it to its category
- *  name for the prompt, keeping the id so the model can reuse it directly. */
+ *  plus merchant/category frequency counts. Everything the model sees is by
+ *  NAME: each example's and each stat's categoryId is resolved to its current
+ *  category name, and any id with no current category (dead/archived) is dropped
+ *  rather than rendered as "unknown", so the dominant signal stays a real,
+ *  usable category. Empty example fields are already omitted upstream. */
 function summarizeContext(ctx: RowContext, categoryName: Map<string, string>) {
   return {
-    examples: ctx.examples.map((e) => ({
-      date: e.date,
-      merchant: e.merchant,
-      note: e.note,
-      categoryId: e.categoryId,
-    })),
+    examples: ctx.examples.map((e) => {
+      const name = e.categoryId ? categoryName.get(e.categoryId) : undefined;
+      return {
+        date: e.date,
+        ...(e.merchant ? { merchant: e.merchant } : {}),
+        ...(e.note ? { note: e.note } : {}),
+        ...(name ? { category: name } : {}),
+      };
+    }),
     merchants: ctx.merchantStats.map((m) => `${m.name} (x${m.count})`),
-    categoryCounts: ctx.categoryStats.map(
-      (c) => `${categoryName.get(c.name) ?? "unknown"} [${c.name}] (x${c.count})`,
-    ),
+    categoryCounts: ctx.categoryStats
+      .map((c) => ({ name: categoryName.get(c.name), count: c.count }))
+      .filter((c): c is { name: string; count: number } => c.name !== undefined)
+      .map((c) => `${c.name} (x${c.count})`),
   };
 }

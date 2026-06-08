@@ -201,6 +201,31 @@ describe("groundImport — context sidecar", () => {
     const { context } = groundImport(input({ rows: [row], history: historyFor("Whole Foods", "cat-groceries", 3) }));
     expect(context.has("r1")).toBe(false);
   });
+
+  it("omits empty example fields rather than carrying them as empty strings", () => {
+    const history = [
+      makeTransaction({ id: "1", merchant: "", note: "ACME", categoryId: "cat-rent" }),
+    ];
+    const row = makeImportTransaction({ id: "r1", description: "ACME" });
+    const { context } = groundImport(input({ rows: [row], history }));
+
+    const example = context.get("r1")!.examples[0];
+    expect(example).not.toHaveProperty("merchant");
+    expect(example.note).toBe("ACME");
+    expect(example.categoryId).toBe("cat-rent");
+  });
+
+  it("drops a dead/archived category id from an example (never shown as unknown)", () => {
+    const history = [
+      makeTransaction({ id: "1", merchant: "Acme", note: "ACME", categoryId: "deleted-cat" }),
+    ];
+    const row = makeImportTransaction({ id: "r1", description: "ACME" });
+    const { context } = groundImport(input({ rows: [row], history }));
+
+    const example = context.get("r1")!.examples[0];
+    expect(example).not.toHaveProperty("categoryId");
+    expect(example.merchant).toBe("Acme");
+  });
 });
 
 // ── sourceCategory / sourceAccount folding ───────────────────────

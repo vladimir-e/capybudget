@@ -62,12 +62,13 @@ const MAPPING = {
 /** Responder that returns the CSV mapping. */
 const mapResponder = () => MAPPING;
 
-/** Responder that enriches every row in the batch as Dining Out. */
-function enrichResponder(merchant = "Cleaned", categoryId = "cat-dining") {
+/** Responder that enriches every row in the batch as Dining Out. The model
+ *  returns a category *name* (`enrichBatch` maps it back to `cat-dining`). */
+function enrichResponder(merchant = "Cleaned", category = "Dining Out") {
   return (messages: readonly { content: unknown }[]) => {
     const text = JSON.stringify(messages);
     const ids = [...new Set([...text.matchAll(/(imp-\d+)/g)].map((m) => m[1]))];
-    return { rows: ids.map((id) => ({ id, merchant, categoryId, confidence: "low" })) };
+    return { rows: ids.map((id) => ({ id, merchant, category, confidence: "low" })) };
   };
 }
 
@@ -597,7 +598,7 @@ describe("ImportOrchestrator — stop", () => {
           await batchGate;
           const text = JSON.stringify(messages);
           const ids = [...new Set([...text.matchAll(/(imp-\d+)/g)].map((m) => m[1]))];
-          return { rows: ids.map((id) => ({ id, merchant: "C", categoryId: "cat-dining", confidence: "low" })) };
+          return { rows: ids.map((id) => ({ id, merchant: "C", category: "Dining Out", confidence: "low" })) };
         },
       ]),
       staging,
@@ -637,7 +638,7 @@ describe("ImportOrchestrator — stop", () => {
           if (calls === 1) orch.stop(); // stop after the first batch is in-flight
           const text = JSON.stringify(messages);
           const ids = [...new Set([...text.matchAll(/(imp-\d+)/g)].map((m) => m[1]))];
-          return { rows: ids.map((id) => ({ id, merchant: "C", categoryId: "cat-dining", confidence: "low" })) };
+          return { rows: ids.map((id) => ({ id, merchant: "C", category: "Dining Out", confidence: "low" })) };
         }),
       ),
       staging,

@@ -41,12 +41,15 @@ export const CONTEXT_EXAMPLE_COUNT = 3;
 
 // ── Output types ─────────────────────────────────────────────────
 
-/** One historical example surfaced to the classifier for a row. */
+/** One historical example surfaced to the classifier for a row. Empty
+ *  fields are omitted at the source (`buildContext`) rather than carried as
+ *  `""` — an absent field means "not set", which keeps `context.json` and the
+ *  enrichment prompt lean and stops the model over-reading empty strings. */
 export interface GroundingExample {
   date: string;
-  merchant: string;
-  note: string;
-  categoryId: string;
+  merchant?: string;
+  note?: string;
+  categoryId?: string;
   amount: number;
 }
 
@@ -307,13 +310,17 @@ function buildContext(
   matches: HistoryMatch[],
   validCategoryIds: Set<string>,
 ): RowContext {
-  const examples: GroundingExample[] = topRecent(matches, CONTEXT_EXAMPLE_COUNT).map((m) => ({
-    date: m.txn.datetime.slice(0, 10),
-    merchant: m.txn.merchant,
-    note: m.txn.note,
-    categoryId: m.txn.categoryId,
-    amount: m.txn.amount,
-  }));
+  const examples: GroundingExample[] = topRecent(matches, CONTEXT_EXAMPLE_COUNT).map((m) => {
+    const merchant = m.txn.merchant.trim();
+    const note = m.txn.note.trim();
+    const example: GroundingExample = { date: m.txn.datetime.slice(0, 10), amount: m.txn.amount };
+    if (merchant) example.merchant = merchant;
+    if (note) example.note = note;
+    // A dead/archived category is dropped so the model never sees an
+    // unresolvable id — the dominant signal stays a usable category.
+    if (validCategoryIds.has(m.txn.categoryId)) example.categoryId = m.txn.categoryId;
+    return example;
+  });
 
   const merchantStats = countNames(matches.map((m) => m.txn.merchant));
   const categoryStats = countNames(

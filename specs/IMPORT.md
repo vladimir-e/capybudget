@@ -9,7 +9,7 @@ Import requires the Anthropic or OpenAI provider. Both run the structured model 
 There is no import agent. **Code runs the pipeline as a deterministic state machine** and emits every status line itself. The model is called **statelessly**, at exactly two points, each returning structured output — no tools, no loop, no accumulated context:
 
 1. **Mapping / extraction** (Normalizing) — CSV: headers + samples in → a `CsvMapping` out (one call; one bounded re-call when a code-side preview surfaces transform errors). Image/PDF: the bytes in → the same intermediate records a mapping would produce.
-2. **Categorizing batch** — ~25 rows + their pre-attached history context in → `{ id, merchant, categoryId, confidence }[]` out. Batches are independent, run bounded-parallel, and fail in isolation.
+2. **Categorizing batch** — ~25 rows + their pre-attached history context in → `{ id, merchant, category, confidence }[]` out, where `category` is a budget category *name* (the model reasons over names, never ids; code maps the name back to a `categoryId`). Batches are independent, run bounded-parallel, and fail in isolation.
 
 Stateless calls never accumulate: mapping is tiny, each batch is bounded. The progress surface is therefore state, not prose — code always knows where the run is.
 
@@ -62,15 +62,15 @@ History reports the payoff: *"47 of 77 resolved from your history · 4 duplicate
 
 ### Categorizing — a batched classifier
 
-The only model batch work, over the rows that still fail the `needsEnrich` predicate (see **Staging & resume**). Rows are split into batches of ~25 and run with bounded parallelism (4 at a time). Each batch is one tool-less structured call whose prompt embeds:
+The only model batch work, over the rows that still fail the `needsEnrich` predicate (see **Staging & resume**). Rows are split into batches of ~25 and run with bounded parallelism (4 at a time). **The model reasons over category names, never ids** — opaque UUIDs were the easy-wrong signal that let coarse bank labels beat rich history. Each batch is one tool-less structured call whose prompt embeds:
 
-- the full active category list (id + name + group) — the model can only return a valid id,
+- the active category list **by name + group**, split into income vs expense, no ids,
 - each row's raw description, amount, type, and `sourceCategory`,
-- each row's distilled history context (the examples + frequency stats from `context.json`).
+- each row's distilled history context — examples and frequency stats **by category name**, with any dead/archived id dropped rather than shown (the dominant signal stays a real, usable category).
 
-When the history agrees, the model reuses that merchant name and categoryId; otherwise it cleans the description into a merchant name and picks the best-fitting category. Each row comes back with a merchant, a categoryId, and a confidence (`high` for an obvious match, `low` for a reasonable inference); a categoryId is never left empty.
+The prompt leads with the user's own history as the **primary** signal: when the merchant appears in history, the model strongly prefers the category they've used for it (weighing recency, frequency, amount). `sourceCategory` is demoted to a weak hint, and a coarse value like "Other" is explicitly framed as *not* a category — never mapped to "Other Income." Each row comes back with a merchant, a category name, and a confidence (`high` for an obvious match, `low` for a reasonable inference).
 
-Results returned by a batch are filtered to ids in that batch and categoryIds that are real budget categories, then merged into staging — filling only empty fields, so a re-run never clobbers a hand-mapped or already-landed value. Each landed batch is persisted to `transactions.csv` immediately, not buffered to the end. There is **no auto-retry**: a batch that throws is logged and skipped, its rows left incomplete; the user-initiated re-run is the retry.
+Code maps each returned name → a `categoryId` within the row's **type-appropriate** categories (case-insensitive exact match; income names resolve only against income categories, expense only against expense — so an income category can't land on an expense). Results are filtered to ids in that batch; a name that matches no type-appropriate category leaves the row uncategorized (it keeps its cleaned merchant and stays re-enrichable). Resolved rows are merged into staging — filling only empty fields, so a re-run never clobbers a hand-mapped or already-landed value. Each landed batch is persisted to `transactions.csv` immediately, not buffered to the end. There is **no auto-retry**: a batch that throws is logged and skipped, its rows left incomplete; the user-initiated re-run is the retry.
 
 ## Data model
 
