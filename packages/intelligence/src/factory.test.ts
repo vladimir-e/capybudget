@@ -137,6 +137,7 @@ describe("createIntelligenceSession", () => {
       repo: opts.repo,
       fileAdapter: opts.fileAdapter,
       importSupported: true,
+      pdfSupported: true,
     })
   })
 
@@ -162,6 +163,7 @@ describe("createIntelligenceSession", () => {
       repo: opts.repo,
       fileAdapter: opts.fileAdapter,
       importSupported: true,
+      pdfSupported: false,
     })
   })
 })

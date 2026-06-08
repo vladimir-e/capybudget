@@ -346,6 +346,7 @@ export class OpenAiSession implements CapySession, StructuredSession {
             budgetPath: this.opts.budgetPath,
             attachments: [...this.turnAttachments],
             importSupported: this.opts.importSupported,
+            pdfSupported: this.opts.pdfSupported,
           })
         } catch (err) {
           ok = false

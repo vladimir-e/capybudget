@@ -15,16 +15,25 @@
  * `ctx.attachments` — the raw attachments the adapter threads through for the
  * in-flight turn — and ignores any file content the model put in `args`.
  *
- * Two gates return guidance instead of staging, so the model relays a clear next
- * step rather than failing opaquely:
+ * Three gates return guidance instead of staging, so the model relays a clear
+ * next step rather than failing opaquely:
  *   - `importSupported` is false (provider is claude-cli / off) → tell the user
  *     to switch to Anthropic or OpenAI.
  *   - no attachments on the turn → tell the user to attach the file (or use the
  *     Import tab for bulk).
+ *   - a PDF attachment under a provider that can't read PDFs → tell the user to
+ *     switch to Anthropic. OpenAI's adapter swaps a PDF for a placeholder note,
+ *     so staging it would start a run the model is blind to. Mirrors the Import
+ *     tab's PDF-drop gate (`canReadPdf`).
  */
 
 import { FileStagingStore } from "../../import/staging-store"
+import type { FileAttachment } from "../../types"
 import type { ToolContext } from "../dispatch"
+
+function isPdf(file: FileAttachment): boolean {
+  return file.mediaType === "application/pdf" || file.name.toLowerCase().endsWith(".pdf")
+}
 
 export async function handleStartImport(ctx: ToolContext): Promise<string> {
   if (!ctx.importSupported) {
@@ -43,6 +52,15 @@ export async function handleStartImport(ctx: ToolContext): Promise<string> {
       reason: "no_attachment",
       message:
         "No file was attached to this message. Ask the user to attach the file (the paperclip), or to use the Import tab for a bulk export.",
+    })
+  }
+
+  if (!ctx.pdfSupported && attachments.some(isPdf)) {
+    return JSON.stringify({
+      started: false,
+      reason: "pdf_unsupported",
+      message:
+        "PDF import needs the Anthropic provider — this provider can't read PDFs. Tell the user to switch to Anthropic in Settings and re-share, or to export the statement to CSV.",
     })
   }
 

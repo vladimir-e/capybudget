@@ -58,6 +58,13 @@ export interface ToolContext {
    * returns switch-provider guidance instead of staging. Mirrors `canImport`.
    */
   importSupported?: boolean
+  /**
+   * Whether the active provider can read PDF attachments (Anthropic only).
+   * `start_import` reads this to reject a PDF shared in chat under a provider
+   * that can't see it (OpenAI swaps PDFs for a placeholder note), mirroring the
+   * Import tab's PDF-drop gate. Mirrors `canReadPdf`.
+   */
+  pdfSupported?: boolean
 }
 
 type ToolHandler = (

@@ -19,7 +19,7 @@
 import type { IntelligenceConfig } from "./config"
 import type { CapySession } from "./session"
 import type { StreamEvent } from "./types"
-import { canImport } from "./import/session-factory"
+import { canImport, canReadPdf } from "./import/session-factory"
 import type { BudgetRepository, FileAdapter } from "@capybudget/persistence"
 
 export interface ClaudeCliAdapterOptions {
@@ -56,6 +56,14 @@ export interface ApiAdapterOptions {
    * the same `canImport` truth the Import tab uses.
    */
   importSupported?: boolean
+  /**
+   * Whether the active provider can read PDF attachments — passed to
+   * `start_import` so a PDF shared in chat is gated the same way the Import tab
+   * gates a PDF drop. False for OpenAI, whose adapter swaps a PDF for a
+   * placeholder note (the model would be blind to the document). Mirrors
+   * `canReadPdf`.
+   */
+  pdfSupported?: boolean
 }
 
 /**
@@ -125,6 +133,7 @@ export function createIntelligenceSession(
         repo: options.repo,
         fileAdapter: options.fileAdapter,
         importSupported: canImport(provider),
+        pdfSupported: canReadPdf(provider),
       })
     }
     case "openai": {
@@ -142,6 +151,7 @@ export function createIntelligenceSession(
         repo: options.repo,
         fileAdapter: options.fileAdapter,
         importSupported: canImport(provider),
+        pdfSupported: canReadPdf(provider),
       })
     }
   }

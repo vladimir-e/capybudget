@@ -175,7 +175,7 @@ Both normalization paths (a `CsvMapping` applied to a CSV, or a model reading an
 | `amount`            | integer | Signed cents (negative = expense, positive = income)                                   |
 | `type`              | enum    | `expense · income · transfer`                                                           |
 | `sourceAccount`     | string  | Raw account string — resolved to `accountId` during grounding                          |
-| `sourceCategory`    | string  | Raw category string — resolved to `categoryId` during grounding                        |
+| `sourceCategory`    | string  | Raw category string from the source — a weak hint to the classifier, never resolved to a category in code |
 | `merchant`          | string  | Cleaned merchant name. Empty until grounding or the classifier fills it                 |
 | `accountId`         | string  | Resolved budget account UUID (may be empty)                                             |
 | `targetAccountId`   | string  | For transfers: the other account (empty = unmatched)                                    |

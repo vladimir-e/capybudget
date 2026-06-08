@@ -53,8 +53,8 @@ const COLUMN_REF_SCHEMA: JsonSchema = {
  * The mapping the model returns is ADVISORY, not authoritative —
  * `normalizeMapping` in `normalize.ts` is the sole authority that turns it into
  * a valid `CsvMapping`. Tolerance lives in two places that this schema keeps
- * intact: it carries NO enums (the model phrases `sign`, `amountFormat.format`,
- * and `typeDetection.method` however it likes — they are plain strings the code
+ * intact: it carries NO enums (the model phrases `sign` and
+ * `typeDetection.method` however it likes — they are plain strings the code
  * coerces) and requires only `amount` (the one role we can't synthesize — no
  * amount means it isn't a transaction file; date and description default in
  * code, so the mapping bends rather than breaks).
@@ -107,12 +107,6 @@ export const CSV_MAPPING_SCHEMA: JsonSchema = {
           required: ["expenseColumn", "incomeColumn"],
         },
       ],
-    },
-    amountFormat: {
-      type: "object",
-      additionalProperties: false,
-      properties: { format: { type: "string" } },
-      required: ["format"],
     },
     typeDetection: {
       type: "object",

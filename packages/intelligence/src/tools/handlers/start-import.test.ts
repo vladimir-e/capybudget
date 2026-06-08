@@ -2,8 +2,8 @@
  * `start_import` — the chat on-ramp. Verified through `runTool` dispatch (the
  * production path the API adapters take) so the wiring is covered alongside the
  * handler: a configured turn stages the attachments + marks the run Capy-staged;
- * the two gates (unsupported provider, no attachment) return guidance and stage
- * nothing.
+ * the three gates (unsupported provider, no attachment, PDF under a provider that
+ * can't read PDFs) return guidance and stage nothing.
  */
 
 import { describe, it, expect, beforeEach } from "vitest"
@@ -29,6 +29,10 @@ function csv(name: string, content: string): FileAttachment {
   return { name, content, size: content.length, mediaType: "text/csv" }
 }
 
+function pdf(name: string, content: string): FileAttachment {
+  return { name, content, size: content.length, mediaType: "application/pdf" }
+}
+
 let fs: MemoryFs
 let ctx: ToolContext
 
@@ -39,6 +43,7 @@ beforeEach(() => {
     fileAdapter: makeFileAdapter(fs),
     budgetPath: BUDGET_PATH,
     importSupported: true,
+    pdfSupported: true,
     attachments: [],
   }
 })
@@ -97,5 +102,26 @@ describe("start_import", () => {
     expect(result.started).toBe(false)
     expect(result.reason).toBe("no_attachment")
     expect(fs.files.has(STATE_PATH)).toBe(false)
+  })
+
+  it("gates a PDF under a provider that can't read PDFs without staging", async () => {
+    ctx.pdfSupported = false
+    ctx.attachments = [pdf("statement.pdf", "%PDF-1.4 …")]
+
+    const result = JSON.parse(await runTool("start_import", {}, ctx))
+    expect(result.started).toBe(false)
+    expect(result.reason).toBe("pdf_unsupported")
+    expect(result.message).toMatch(/Anthropic/)
+    expect(fs.files.has(STATE_PATH)).toBe(false)
+  })
+
+  it("stages a PDF when the provider can read PDFs", async () => {
+    ctx.pdfSupported = true
+    ctx.attachments = [pdf("statement.pdf", "%PDF-1.4 …")]
+
+    const result = JSON.parse(await runTool("start_import", {}, ctx))
+    expect(result.started).toBe(true)
+    expect(result.files).toEqual(["statement.pdf"])
+    expect(fs.files.get(`${SOURCES_DIR}/statement.pdf`)).toBe("%PDF-1.4 …")
   })
 })

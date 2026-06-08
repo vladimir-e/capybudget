@@ -165,7 +165,11 @@ export function useImportOrchestrator(budgetPath: string) {
   /** Cancel = stop + discard. Detaches the orchestrator first so its trailing
    *  events (the in-flight batch's `rows-changed`) can't re-flip the store after
    *  the caller clears staging, then awaits the in-flight batch so the clear
-   *  races nothing. The caller clears staging once this resolves. */
+   *  races nothing. The caller clears staging once this resolves.
+   *
+   *  The merge flow reuses this purely for its stop+detach — merge owns the clear
+   *  (it writes the chosen rows through, then clears), so the "caller clears
+   *  staging" contract holds there too, just via `merge()` rather than discard. */
   const cancel = useCallback(async () => {
     const orchestrator = activeOrchestrator;
     if (!orchestrator) return;
