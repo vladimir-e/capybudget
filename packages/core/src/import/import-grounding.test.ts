@@ -11,9 +11,10 @@ import type { ImportTransaction } from "./import-types";
 
 // ── Shared fixtures ──────────────────────────────────────────────
 
-const GROCERIES = makeCategory({ id: "cat-groceries", name: "Groceries" });
-const RENT = makeCategory({ id: "cat-rent", name: "Housing" });
-const DINING = makeCategory({ id: "cat-dining", name: "Dining Out" });
+const GROCERIES = makeCategory({ id: "cat-groceries", name: "Groceries", group: "Daily Living" });
+const RENT = makeCategory({ id: "cat-rent", name: "Housing", group: "Fixed" });
+const DINING = makeCategory({ id: "cat-dining", name: "Dining Out", group: "Daily Living" });
+const OTHER_INCOME = makeCategory({ id: "cat-income", name: "Other Income", group: "Income" });
 
 const CHECKING = makeAccount({ id: "acct-checking", name: "Chase Checking" });
 
@@ -22,7 +23,7 @@ function input(over: Partial<GroundImportInput> = {}): GroundImportInput {
     rows: [],
     history: [],
     accounts: [CHECKING],
-    categories: [GROCERIES, RENT, DINING],
+    categories: [GROCERIES, RENT, DINING, OTHER_INCOME],
     ...over,
   };
 }
@@ -228,9 +229,9 @@ describe("groundImport — context sidecar", () => {
   });
 });
 
-// ── sourceCategory / sourceAccount folding ───────────────────────
+// ── sourceAccount resolution + sourceCategory non-backfill ───────
 
-describe("groundImport — sourceCategory / sourceAccount folding", () => {
+describe("groundImport — sourceAccount resolution", () => {
   it("resolves sourceAccount to a budget account by name", () => {
     const row = makeImportTransaction({ id: "r1", sourceAccount: "Chase Checking" });
     const { results } = groundImport(input({ rows: [row] }));
@@ -244,8 +245,25 @@ describe("groundImport — sourceCategory / sourceAccount folding", () => {
     );
     expect(results.get("r1")!.accountId).toBe("acct-checking");
   });
+});
 
-  it("falls back to sourceCategory matching (low confidence, no merchant)", () => {
+describe("groundImport — sourceCategory is never backfilled", () => {
+  it('does NOT assign "Other Income" from the bank\'s coarse "Other" label', () => {
+    const row = makeImportTransaction({
+      id: "r1",
+      description: "UNKNOWN MERCHANT XYZ",
+      type: "expense",
+      sourceCategory: "Other",
+    });
+    const { results } = groundImport(input({ rows: [row] }));
+
+    const r = results.get("r1")!;
+    expect(r.resolution).toBe("ambiguous");
+    expect(r.categoryId).toBe("");
+    expect(r.categoryConfidence).toBe("");
+  });
+
+  it("leaves a row with a specific sourceCategory ambiguous (the model decides)", () => {
     const row = makeImportTransaction({
       id: "r1",
       description: "UNKNOWN MERCHANT XYZ",
@@ -254,30 +272,68 @@ describe("groundImport — sourceCategory / sourceAccount folding", () => {
     const { results } = groundImport(input({ rows: [row] }));
 
     const r = results.get("r1")!;
-    expect(r.resolution).toBe("source-category");
-    expect(r.categoryId).toBe("cat-groceries");
-    expect(r.categoryConfidence).toBe("low");
+    expect(r.resolution).toBe("ambiguous");
+    expect(r.categoryId).toBe("");
     expect(r.merchant).toBe("");
-  });
-
-  it("fast-path wins over sourceCategory when history is strong", () => {
-    const row = makeImportTransaction({
-      id: "r1",
-      description: "WHOLE FOODS",
-      sourceCategory: "Dining Out", // would map to cat-dining
-    });
-    const { results } = groundImport(
-      input({ rows: [row], history: historyFor("Whole Foods", "cat-groceries", 4) }),
-    );
-    const r = results.get("r1")!;
-    expect(r.resolution).toBe("fast-path");
-    expect(r.categoryId).toBe("cat-groceries"); // history beats sourceCategory
   });
 
   it("leaves a truly ambiguous row ambiguous", () => {
     const row = makeImportTransaction({ id: "r1", description: "MYSTERY CHARGE", sourceCategory: "" });
     const { results } = groundImport(input({ rows: [row] }));
     expect(results.get("r1")!.resolution).toBe("ambiguous");
+  });
+});
+
+// ── Type guard on deterministic assignments ──────────────────────
+
+describe("groundImport — type guard", () => {
+  it("does NOT fast-path an expense into an Income-group category, even with dominant history", () => {
+    // A TurboTax refund the user once filed as income shouldn't pull a TurboTax
+    // expense into Other Income — the row goes to the model instead.
+    const row = makeImportTransaction({ id: "r1", description: "TURBOTAX", type: "expense" });
+    const { results } = groundImport(
+      input({ rows: [row], history: historyFor("TurboTax", "cat-income", 5) }),
+    );
+    const r = results.get("r1")!;
+    expect(r.resolution).toBe("ambiguous");
+    expect(r.categoryId).toBe("");
+  });
+
+  it("fast-paths an income row into an Income-group category", () => {
+    const row = makeImportTransaction({ id: "r1", description: "ACME PAYROLL", type: "income" });
+    const { results } = groundImport(
+      input({ rows: [row], history: historyFor("Acme Payroll", "cat-income", 5) }),
+    );
+    const r = results.get("r1")!;
+    expect(r.resolution).toBe("fast-path");
+    expect(r.categoryId).toBe("cat-income");
+  });
+
+  it("does NOT fast-path an income row into an expense category", () => {
+    const row = makeImportTransaction({ id: "r1", description: "ACME DEPOSIT", type: "income" });
+    const { results } = groundImport(
+      input({ rows: [row], history: historyFor("Acme Deposit", "cat-groceries", 5) }),
+    );
+    expect(results.get("r1")!.resolution).toBe("ambiguous");
+  });
+
+  it("ignores wrong-type history but still fast-paths on a type-correct majority", () => {
+    // 4 expense-category matches + 1 income-category dissenter = 4/5 = 80%.
+    const history = [
+      ...historyFor("Whole Foods", "cat-groceries", 4),
+      makeTransaction({
+        id: "wf-income",
+        merchant: "Whole Foods",
+        note: "WHOLE FOODS",
+        categoryId: "cat-income",
+        datetime: "2025-02-15T00:00:00.000",
+      }),
+    ];
+    const row = makeImportTransaction({ id: "r1", description: "WHOLE FOODS", type: "expense" });
+    const { results } = groundImport(input({ rows: [row], history }));
+    const r = results.get("r1")!;
+    expect(r.resolution).toBe("fast-path");
+    expect(r.categoryId).toBe("cat-groceries");
   });
 });
 
@@ -390,6 +446,37 @@ describe("groundImport — duplicate folding", () => {
     expect(r.categoryConfidence).toBe("high"); // and its confidence
     expect(r.merchant).toBe("Ginger");
   });
+
+  it("does NOT carry a wrong-type category from a matched dup (keeps the merchant)", () => {
+    // The existing txn this expense duplicates was miscategorized as income —
+    // carry its merchant for display, but never its income category.
+    const existing = makeTransaction({
+      id: "ex-1",
+      merchant: "TurboTax",
+      note: "TURBOTAX FEE",
+      categoryId: "cat-income", // wrong type for an expense
+      accountId: "acct-checking",
+      amount: -8900,
+      datetime: "2026-01-15T00:00:00.000",
+    });
+    const row = makeImportTransaction({
+      id: "r1",
+      description: "TURBOTAX FEE",
+      type: "expense",
+      amount: -8900,
+      date: "2026-01-15",
+      sourceAccount: "Chase Checking",
+    });
+    const { results } = groundImport(
+      input({ rows: [row], history: [existing] }),
+    );
+
+    const r = results.get("r1")!;
+    expect(r.duplicate).toBe(true);
+    expect(r.merchant).toBe("TurboTax"); // merchant carried for display
+    expect(r.categoryId).toBe(""); // income category NOT carried
+    expect(r.categoryConfidence).toBe(""); // and no high confidence on it
+  });
 });
 
 // ── Stats ────────────────────────────────────────────────────────
@@ -406,7 +493,8 @@ describe("groundImport — stats", () => {
     );
     expect(stats.total).toBe(3);
     expect(stats.fastPathed).toBe(1);
-    // sourceCategory-only and mystery rows both still need the classifier.
+    // The sourceCategory hint is no longer backfilled — both non-fast-path rows
+    // are ambiguous and go to the classifier.
     expect(stats.ambiguous).toBe(2);
     expect(stats.resolved).toBe(1);
   });

@@ -7,11 +7,17 @@
  *      history (pre-indexed once per run),
  *   2. attaches the top-3 most-recent examples + distilled merchant/category
  *      stats (the context sidecar),
- *   3. folds in `sourceCategory`→category and `sourceAccount`→account matching,
+ *   3. folds in `sourceAccount`→account matching,
  *   4. fast-paths rows whose history signal is strong + near-unanimous (assigns
  *      merchant + categoryId in code, confidence `high`),
  *   5. folds in duplicate detection — accurate dups are marked complete and
  *      flagged to skip enrichment.
+ *
+ * The bank's coarse `sourceCategory` is never turned into a category here — it
+ * survives only as a weak hint in the enrichment prompt, so the model decides.
+ * Deterministic history assignments (fast-path, dup-carry) are type-guarded:
+ * an expense never inherits an Income-group category, even from miscategorized
+ * history, and vice versa.
  *
  * Pure: callers pass history/accounts/categories in; nothing here touches files.
  */
@@ -24,7 +30,7 @@ import {
   type HistoryMatch,
   type HistoryIndexOptions,
 } from "./import-history-index";
-import { matchAccountsByName, matchSourceCategory } from "./import-matching";
+import { matchAccountsByName } from "./import-matching";
 import {
   detectDuplicates,
   type DuplicateMatch,
@@ -71,15 +77,14 @@ export interface RowContext {
   categoryStats: NameCount[];
 }
 
-export type Resolution = "fast-path" | "duplicate" | "source-category" | "ambiguous";
+export type Resolution = "fast-path" | "duplicate" | "ambiguous";
 
 /**
  * Per-row grounding result. Carries the fields the orchestrator writes back to
  * staging. `resolution` discriminates how far code got:
- *   - `duplicate`     — matches an existing budget txn; skip enrichment.
- *   - `fast-path`     — strong, near-unanimous history → merchant + category set.
- *   - `source-category` — only the sourceCategory→category mapping landed.
- *   - `ambiguous`     — needs the classifier; `RowContext` carries the signal.
+ *   - `duplicate`  — matches an existing budget txn; skip enrichment.
+ *   - `fast-path`  — strong, near-unanimous history → merchant + category set.
+ *   - `ambiguous`  — needs the classifier; `RowContext` carries the signal.
  */
 export interface GroundingResult {
   rowId: string;
@@ -88,7 +93,7 @@ export interface GroundingResult {
   merchant: string;
   /** Resolved categoryId, else "". */
   categoryId: string;
-  /** "high" when fast-pathed or deduped, "low" when only sourceCategory matched, else "". */
+  /** "high" when fast-pathed or deduped with a category, else "". */
   categoryConfidence: "high" | "low" | "";
   /** Resolved budget accountId (sourceAccount match), else "". */
   accountId: string;
@@ -140,6 +145,12 @@ export function groundImport(
   const activeCategories = categories.filter((c) => !c.archived);
   const activeAccounts = accounts.filter((a) => !a.archived);
   const validCategoryIds = new Set(activeCategories.map((c) => c.id));
+  // Income-group category ids — used to keep deterministic assignments
+  // type-correct: an expense row never inherits an income category (and vice
+  // versa), even when its history is dominated by a miscategorized one.
+  const incomeCategoryIds = new Set(
+    activeCategories.filter((c) => c.group === "Income").map((c) => c.id),
+  );
 
   // Account resolution: aliases first, then name matching, merged.
   const accountMapping = {
@@ -155,22 +166,13 @@ export function groundImport(
     return mapped && mapped !== "__create__" ? mapped : "";
   };
 
-  // sourceCategory → category, cached per distinct source string.
-  const sourceCatCache = new Map<string, Category | null>();
-  const resolveSourceCategory = (sourceCategory: string): Category | null => {
-    if (!sourceCategory) return null;
-    if (!sourceCatCache.has(sourceCategory)) {
-      sourceCatCache.set(sourceCategory, matchSourceCategory(sourceCategory, activeCategories));
-    }
-    return sourceCatCache.get(sourceCategory) ?? null;
-  };
-
   const index = new HistoryIndex(history, options);
+  const rowById = new Map(rows.map((r) => [r.id, r]));
 
   const results = new Map<string, GroundingResult>();
   const context = new Map<string, RowContext>();
 
-  // First pass: history match + signal + fast-path + sourceCategory.
+  // First pass: history match + signal + fast-path.
   for (const row of rows) {
     const matches = row.type === "transfer" ? [] : index.match(buildMatchQuery(row.description));
     const ctx = buildContext(matches, validCategoryIds);
@@ -178,7 +180,9 @@ export function groundImport(
 
     const accountId = resolveAccountId(row.sourceAccount);
     const fastPath =
-      row.type !== "transfer" ? tryFastPath(matches, validCategoryIds, minMatches, categoryAgreement) : null;
+      row.type !== "transfer"
+        ? tryFastPath(matches, validCategoryIds, incomeCategoryIds, row.type, minMatches, categoryAgreement)
+        : null;
 
     if (fastPath) {
       results.set(row.id, {
@@ -187,21 +191,6 @@ export function groundImport(
         merchant: fastPath.merchant,
         categoryId: fastPath.categoryId,
         categoryConfidence: "high",
-        accountId,
-        duplicate: false,
-      });
-      continue;
-    }
-
-    // sourceCategory fallback — categorize only, low confidence, no merchant.
-    const sourceCat = row.type !== "transfer" ? resolveSourceCategory(row.sourceCategory) : null;
-    if (sourceCat) {
-      results.set(row.id, {
-        rowId: row.id,
-        resolution: "source-category",
-        merchant: "",
-        categoryId: sourceCat.id,
-        categoryConfidence: "low",
         accountId,
         duplicate: false,
       });
@@ -229,21 +218,39 @@ export function groundImport(
   for (const [rowId, dup] of dupMatches) {
     const existing = results.get(rowId);
     if (!existing) continue;
+    const row = rowById.get(rowId);
+    // Only carry the dup's category if it's type-correct for this row — a past
+    // refund miscategorized as income must not pull an expense into income.
+    const carryCategory =
+      dup.matchedCategoryId &&
+      row !== undefined &&
+      categoryMatchesType(dup.matchedCategoryId, row.type, incomeCategoryIds);
     results.set(rowId, {
       ...existing,
       resolution: "duplicate",
       duplicate: true,
       duplicateMatch: dup,
-      // Carry the original txn's merchant + category for display.
+      // Carry the original txn's merchant always; its category only when type-correct.
       merchant: dup.matchedMerchant || existing.merchant,
-      categoryId: dup.matchedCategoryId || existing.categoryId,
-      categoryConfidence: dup.matchedCategoryId
-        ? "high"
-        : existing.categoryConfidence,
+      categoryId: carryCategory ? dup.matchedCategoryId : existing.categoryId,
+      categoryConfidence: carryCategory ? "high" : existing.categoryConfidence,
     });
   }
 
   return { results, context, stats: tallyStats(results) };
+}
+
+// ── Type guard ───────────────────────────────────────────────────
+
+/** Whether a category is valid for a row's type: income rows take only
+ *  Income-group categories; expense rows take only non-Income ones. (Transfers
+ *  never reach the deterministic category assignments.) */
+function categoryMatchesType(
+  categoryId: string,
+  rowType: ImportTransaction["type"],
+  incomeCategoryIds: Set<string>,
+): boolean {
+  return incomeCategoryIds.has(categoryId) === (rowType === "income");
 }
 
 // ── Fast-path resolver ───────────────────────────────────────────
@@ -256,21 +263,25 @@ interface FastPathAssignment {
 function tryFastPath(
   matches: HistoryMatch[],
   validCategoryIds: Set<string>,
+  incomeCategoryIds: Set<string>,
+  rowType: ImportTransaction["type"],
   minMatches: number,
   categoryAgreement: number,
 ): FastPathAssignment | null {
   if (matches.length < minMatches) return null;
 
-  // Category agreement over matches that carry a *valid* category.
-  const categorized = matches.filter(
-    (m) => m.txn.categoryId && validCategoryIds.has(m.txn.categoryId),
-  );
-  if (categorized.length === 0) return null;
-
+  // Only type-correct, valid categories are candidates — a history dominated by
+  // a wrong-type category yields no winner here, so the row can't fast-path
+  // into it (agreement below still votes the wrong-type matches against it).
   const counts = new Map<string, number>();
-  for (const m of categorized) {
-    counts.set(m.txn.categoryId, (counts.get(m.txn.categoryId) ?? 0) + 1);
+  for (const m of matches) {
+    const id = m.txn.categoryId;
+    if (!id || !validCategoryIds.has(id)) continue;
+    if (!categoryMatchesType(id, rowType, incomeCategoryIds)) continue;
+    counts.set(id, (counts.get(id) ?? 0) + 1);
   }
+  if (counts.size === 0) return null;
+
   let topCategory = "";
   let topCount = 0;
   for (const [id, count] of counts) {
@@ -280,8 +291,9 @@ function tryFastPath(
     }
   }
 
-  // Agreement is over all matches (an uncategorized historical match is a vote
-  // against unanimity), so a thin signal can't fast-path on a single example.
+  // Agreement is over all matches — an uncategorized OR wrong-type historical
+  // match is a vote against unanimity, so a thin or type-conflicted signal
+  // can't fast-path.
   if (topCount / matches.length < categoryAgreement) return null;
 
   return { merchant: pickCanonicalMerchant(matches), categoryId: topCategory };
@@ -362,7 +374,7 @@ function tallyStats(results: Map<string, GroundingResult>): GroundingStats {
     if (r.resolution === "fast-path") fastPathed++;
     // "resolved" = won't need the classifier (dup, or has both merchant+category).
     if (r.duplicate || (r.merchant && r.categoryId)) resolved++;
-    else if (r.resolution === "ambiguous" || r.resolution === "source-category") ambiguous++;
+    else if (r.resolution === "ambiguous") ambiguous++;
   }
   return { total: results.size, resolved, duplicates, fastPathed, ambiguous };
 }

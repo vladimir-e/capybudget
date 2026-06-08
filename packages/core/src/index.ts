@@ -111,8 +111,8 @@ export type {
 export type { BuildStagedOptions } from "./import/build-staged";
 export { buildStaged, DESCRIPTION_MAX_LENGTH } from "./import/build-staged";
 
-// Import entity matching (sourceAccount → account, sourceCategory → category)
-export { matchAccountsByName, matchSourceCategory } from "./import/import-matching";
+// Import entity matching (sourceAccount → account)
+export { matchAccountsByName } from "./import/import-matching";
 
 // History canonicalization + fuzzy index
 export {

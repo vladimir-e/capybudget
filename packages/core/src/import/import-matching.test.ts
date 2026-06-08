@@ -1,6 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { matchAccountsByName, matchSourceCategory } from "./import-matching";
-import { makeCategory } from "../test-factories";
+import { matchAccountsByName } from "./import-matching";
 import type { Account } from "../entities/types";
 
 function acct(id: string, name: string): Account {
@@ -93,43 +92,5 @@ describe("matchAccountsByName", () => {
     const emojiAccounts = [acct("a1", "🏦💳 Premium Card")];
     const result = matchAccountsByName(["Premium Card"], emojiAccounts);
     expect(result).toEqual({ "Premium Card": "a1" });
-  });
-});
-
-describe("matchSourceCategory", () => {
-  const categories = [
-    makeCategory({ id: "c-groceries", name: "Groceries" }),
-    makeCategory({ id: "c-dining", name: "Dining Out" }),
-    makeCategory({ id: "c-income", name: "Other Income" }),
-  ];
-
-  it("matches an exact category name", () => {
-    expect(matchSourceCategory("Groceries", categories)?.id).toBe("c-groceries");
-  });
-
-  it("matches case-insensitively", () => {
-    expect(matchSourceCategory("groceries", categories)?.id).toBe("c-groceries");
-  });
-
-  it("matches on the trailing segment of a colon-grouped source", () => {
-    expect(
-      matchSourceCategory("Immediate Obligations: Groceries", categories)?.id,
-    ).toBe("c-groceries");
-  });
-
-  it("strips emoji from the source category", () => {
-    expect(matchSourceCategory("🛒 Groceries", categories)?.id).toBe("c-groceries");
-  });
-
-  it("matches via word overlap", () => {
-    expect(matchSourceCategory("Restaurant Dining", categories)?.id).toBe("c-dining");
-  });
-
-  it("returns null for an empty source", () => {
-    expect(matchSourceCategory("", categories)).toBeNull();
-  });
-
-  it("returns null when nothing is similar enough", () => {
-    expect(matchSourceCategory("Cryptocurrency", categories)).toBeNull();
   });
 });
