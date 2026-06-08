@@ -3,6 +3,13 @@ import type { ImportTransaction } from "./import-types";
 
 export type DuplicateConfidence = "high" | "low";
 
+/** Rule-5 relaxed window: how many days on each side of the import date to scan
+ *  for an amount+account match when the description doesn't line up. Wide enough
+ *  to catch a cross-statement transfer leg whose two accounts post a few days
+ *  apart, narrow enough that two unrelated same-amount charges in the same
+ *  account don't collide. */
+export const RELAXED_DATE_WINDOW_DAYS = 3;
+
 export interface DuplicateMatch {
   confidence: DuplicateConfidence;
   existingTransactionId: string;
@@ -23,7 +30,7 @@ export interface DuplicateMatch {
  * 2. High — date + amount + description (non-empty) + same resolved account
  * 3. High — date + amount + description (non-empty), no account info on import side
  * 4. Low  — date + amount + same resolved account (description empty or different)
- * 5. Low  — date ±1 day + amount + same resolved account
+ * 5. Low  — date ±RELAXED_DATE_WINDOW_DAYS + amount + same resolved account
  *
  * Account resolution uses accountMapping (sourceAccount → accountId). Merchant
  * resolution comes from grounding via the optional `resolveMerchant` accessor —
@@ -61,12 +68,10 @@ export function detectDuplicates(
     const resolvedMerchant = (resolveMerchant?.(imp) ?? imp.merchant).trim();
     const hasMerchant = resolvedMerchant !== "";
 
-    // Collect candidate dates: exact date + ±1 day neighbors
+    // Exact-date candidates drive rules 1-4; the relaxed ±window neighbors
+    // (closest day first, so rule 5 prefers the nearest match) drive rule 5.
     const exactCandidates = byDate.get(imp.date) ?? [];
-    const prevDay = offsetDate(imp.date, -1);
-    const nextDay = offsetDate(imp.date, 1);
-    const prevCandidates = byDate.get(prevDay) ?? [];
-    const nextCandidates = byDate.get(nextDay) ?? [];
+    const neighbors = relaxedNeighbors(imp.date, byDate);
 
     let match: DuplicateMatch | null = null;
 
@@ -103,9 +108,8 @@ export function detectDuplicates(
       if (match) { match.confidence = "low"; }
     }
 
-    // Rule 5: Low — date ±1 day + amount + same account
+    // Rule 5: Low — date ±RELAXED_DATE_WINDOW_DAYS + amount + same account
     if (!match && hasAccount) {
-      const neighbors = [...prevCandidates, ...nextCandidates];
       match = findMatch(neighbors, claimed, imp.amount, (ex) =>
         ex.accountId === resolvedAccount,
       );
@@ -156,6 +160,22 @@ function findMatch(
     };
   }
   return null;
+}
+
+/** Existing transactions within ±RELAXED_DATE_WINDOW_DAYS of `date`, excluding
+ *  the exact day (rules 1-4 own that), ordered by increasing day-distance so a
+ *  greedy claim takes the closest candidate first. Within one day-distance the
+ *  earlier (negative) offset comes first. */
+function relaxedNeighbors(
+  date: string,
+  byDate: Map<string, Transaction[]>,
+): Transaction[] {
+  const neighbors: Transaction[] = [];
+  for (let d = 1; d <= RELAXED_DATE_WINDOW_DAYS; d++) {
+    neighbors.push(...(byDate.get(offsetDate(date, -d)) ?? []));
+    neighbors.push(...(byDate.get(offsetDate(date, d)) ?? []));
+  }
+  return neighbors;
 }
 
 function offsetDate(dateStr: string, days: number): string {

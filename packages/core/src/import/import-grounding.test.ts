@@ -17,6 +17,8 @@ const DINING = makeCategory({ id: "cat-dining", name: "Dining Out", group: "Dail
 const OTHER_INCOME = makeCategory({ id: "cat-income", name: "Other Income", group: "Income" });
 
 const CHECKING = makeAccount({ id: "acct-checking", name: "Chase Checking" });
+const SAVINGS = makeAccount({ id: "acct-savings", name: "Ally Savings" });
+const BROKERAGE = makeAccount({ id: "acct-brokerage", name: "Fidelity Brokerage" });
 
 function input(over: Partial<GroundImportInput> = {}): GroundImportInput {
   return {
@@ -26,6 +28,29 @@ function input(over: Partial<GroundImportInput> = {}): GroundImportInput {
     categories: [GROCERIES, RENT, DINING, OTHER_INCOME],
     ...over,
   };
+}
+
+/** A historical transfer: two paired legs on the given accounts, sharing one
+ *  note (the description that future imports match against). */
+function transferLegs(
+  note: string,
+  fromAccountId: string,
+  toAccountId: string,
+  datetime: string,
+  idPrefix: string,
+): Transaction[] {
+  const fromId = `${idPrefix}-from`;
+  const toId = `${idPrefix}-to`;
+  return [
+    makeTransaction({
+      id: fromId, type: "transfer", merchant: "", note, categoryId: "",
+      accountId: fromAccountId, transferPairId: toId, amount: -50000, datetime,
+    }),
+    makeTransaction({
+      id: toId, type: "transfer", merchant: "", note, categoryId: "",
+      accountId: toAccountId, transferPairId: fromId, amount: 50000, datetime,
+    }),
+  ];
 }
 
 /** N historical txns for one merchant, all in one category, recent-ish dates. */
@@ -244,6 +269,128 @@ describe("groundImport — sourceAccount resolution", () => {
       input({ rows: [row], accountMapping: { "CHK-9988": "acct-checking" } }),
     );
     expect(results.get("r1")!.accountId).toBe("acct-checking");
+  });
+});
+
+// ── Transfer counterpart resolution (the "From account") ─────────
+
+describe("groundImport — transfer counterpart resolution", () => {
+  const accounts = [CHECKING, SAVINGS, BROKERAGE];
+
+  it("suggests the counterpart account from a matching historical transfer", () => {
+    // Past transfer: Checking → Savings, noted "MONTHLY TRANSFER TO SAVINGS".
+    const history = transferLegs(
+      "MONTHLY TRANSFER TO SAVINGS", "acct-checking", "acct-savings",
+      "2025-12-15T00:00:00.000", "t1",
+    );
+    const row = makeImportTransaction({
+      id: "r1", type: "transfer", description: "MONTHLY TRANSFER TO SAVINGS",
+      sourceAccount: "Chase Checking",
+    });
+    const { results } = groundImport(input({ rows: [row], history, accounts }));
+
+    const r = results.get("r1")!;
+    expect(r.accountId).toBe("acct-checking"); // the row's own ("To") side
+    expect(r.targetAccountId).toBe("acct-savings"); // the counterpart ("From")
+  });
+
+  it("never suggests the row's own resolved account as the counterpart", () => {
+    const history = transferLegs(
+      "TRANSFER SAVINGS", "acct-checking", "acct-savings",
+      "2025-12-15T00:00:00.000", "t1",
+    );
+    const row = makeImportTransaction({
+      id: "r1", type: "transfer", description: "TRANSFER SAVINGS",
+      sourceAccount: "Chase Checking",
+    });
+    const { results } = groundImport(input({ rows: [row], history, accounts }));
+
+    const r = results.get("r1")!;
+    expect(r.targetAccountId).not.toBe(r.accountId);
+    expect(r.targetAccountId).toBe("acct-savings");
+  });
+
+  it("leaves targetAccountId empty when no historical transfer matches", () => {
+    const row = makeImportTransaction({
+      id: "r1", type: "transfer", description: "BRAND NEW TRANSFER LABEL",
+      sourceAccount: "Chase Checking",
+    });
+    const { results } = groundImport(
+      input({ rows: [row], history: transferLegs(
+        "SOMETHING UNRELATED", "acct-checking", "acct-savings",
+        "2025-12-15T00:00:00.000", "t1",
+      ), accounts }),
+    );
+    expect(results.get("r1")!.targetAccountId).toBe("");
+  });
+
+  it("does not draw a counterpart from non-transfer history matches", () => {
+    // A plain expense whose description happens to match — never a counterpart.
+    const history = [
+      makeTransaction({
+        id: "e1", type: "expense", merchant: "Acme", note: "VENMO PAYMENT",
+        accountId: "acct-savings", categoryId: "cat-groceries",
+        datetime: "2025-12-15T00:00:00.000",
+      }),
+    ];
+    const row = makeImportTransaction({
+      id: "r1", type: "transfer", description: "VENMO PAYMENT",
+      sourceAccount: "Chase Checking",
+    });
+    const { results } = groundImport(input({ rows: [row], history, accounts }));
+    expect(results.get("r1")!.targetAccountId).toBe("");
+  });
+
+  it("picks the most-frequent counterpart across matches", () => {
+    // Two past transfers Checking→Savings, one Checking→Brokerage: Savings wins.
+    const history = [
+      ...transferLegs("WIRE OUT", "acct-checking", "acct-savings", "2025-10-15T00:00:00.000", "a"),
+      ...transferLegs("WIRE OUT", "acct-checking", "acct-savings", "2025-11-15T00:00:00.000", "b"),
+      ...transferLegs("WIRE OUT", "acct-checking", "acct-brokerage", "2025-12-15T00:00:00.000", "c"),
+    ];
+    const row = makeImportTransaction({
+      id: "r1", type: "transfer", description: "WIRE OUT",
+      sourceAccount: "Chase Checking",
+    });
+    const { results } = groundImport(input({ rows: [row], history, accounts }));
+    expect(results.get("r1")!.targetAccountId).toBe("acct-savings");
+  });
+
+  it("breaks a frequency tie by the most-recent supporting leg", () => {
+    // One transfer to each of Savings / Brokerage; Brokerage is more recent.
+    const history = [
+      ...transferLegs("EQUAL SPLIT", "acct-checking", "acct-savings", "2025-06-15T00:00:00.000", "a"),
+      ...transferLegs("EQUAL SPLIT", "acct-checking", "acct-brokerage", "2025-12-15T00:00:00.000", "b"),
+    ];
+    const row = makeImportTransaction({
+      id: "r1", type: "transfer", description: "EQUAL SPLIT",
+      sourceAccount: "Chase Checking",
+    });
+    const { results } = groundImport(input({ rows: [row], history, accounts }));
+    expect(results.get("r1")!.targetAccountId).toBe("acct-brokerage");
+  });
+
+  it("skips a counterpart that is no longer a current non-archived account", () => {
+    // The paired leg lives on an account that has since been deleted/archived.
+    const history = transferLegs(
+      "OLD TRANSFER", "acct-checking", "acct-gone",
+      "2025-12-15T00:00:00.000", "t1",
+    );
+    const row = makeImportTransaction({
+      id: "r1", type: "transfer", description: "OLD TRANSFER",
+      sourceAccount: "Chase Checking",
+    });
+    // acct-gone is not in the accounts list → not a valid counterpart.
+    const { results } = groundImport(input({ rows: [row], history, accounts }));
+    expect(results.get("r1")!.targetAccountId).toBe("");
+  });
+
+  it("non-transfer rows always have an empty targetAccountId", () => {
+    const row = makeImportTransaction({ id: "r1", type: "expense", description: "WHOLE FOODS" });
+    const { results } = groundImport(
+      input({ rows: [row], history: historyFor("Whole Foods", "cat-groceries", 5), accounts }),
+    );
+    expect(results.get("r1")!.targetAccountId).toBe("");
   });
 });
 

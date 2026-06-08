@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { detectDuplicates } from "./import-duplicates";
+import { detectDuplicates, RELAXED_DATE_WINDOW_DAYS } from "./import-duplicates";
 import type { ImportTransaction } from "./import-types";
 import type { Transaction } from "../entities/types";
 
@@ -86,7 +86,7 @@ describe("detectDuplicates", () => {
     expect(result.get(imp.id)!.confidence).toBe("low");
   });
 
-  it("low confidence: date ±1 day + amount + same account", () => {
+  it("low confidence: date within the relaxed window + amount + same account", () => {
     const imp = makeImport({ date: "2026-01-16", description: "OTHER" });
     const ex = makeExisting(); // date: 2026-01-15
     const result = detectDuplicates([imp], [ex], MAPPING);
@@ -95,7 +95,7 @@ describe("detectDuplicates", () => {
     expect(result.get(imp.id)!.confidence).toBe("low");
   });
 
-  it("date ±1 day works in the other direction too", () => {
+  it("relaxed window works in the other direction too", () => {
     const imp = makeImport({ date: "2026-01-14", description: "OTHER" });
     const ex = makeExisting(); // date: 2026-01-15
     const result = detectDuplicates([imp], [ex], MAPPING);
@@ -112,8 +112,8 @@ describe("detectDuplicates", () => {
     expect(result.size).toBe(0);
   });
 
-  it("no match: same amount, date >1 day apart", () => {
-    const imp = makeImport({ date: "2026-01-18" });
+  it("no match: same amount, date beyond the relaxed window", () => {
+    const imp = makeImport({ date: "2026-01-22" }); // 7 days off, window is 3
     const ex = makeExisting(); // date: 2026-01-15
     const result = detectDuplicates([imp], [ex], MAPPING);
 
@@ -240,4 +240,111 @@ describe("detectDuplicates", () => {
       expect(result.size).toBe(0);
     });
   });
+
+  describe("rule 5 — relaxed date window (cross-import transfer legs)", () => {
+    // A transfer leg created in account B (from a prior account-A import) is the
+    // existing txn; B's own CSV is now imported and the same leg appears a few
+    // days off, with a divergent description. Rule 5 catches it: amount + same
+    // account within ±RELAXED_DATE_WINDOW_DAYS, low confidence (auto-unselect).
+    const legImport = (date: string): ImportTransaction =>
+      makeImport({
+        type: "transfer", description: "TRANSFER FROM CHECKING",
+        amount: 50000, date, sourceAccount: "Chase Checking",
+      });
+    const legExisting = (date: string): Transaction =>
+      makeExisting({
+        type: "transfer", transferPairId: "leg-a", note: "MONTHLY SAVINGS MOVE",
+        merchant: "", amount: 50000, accountId: "acct-1",
+        datetime: `${date}T00:00:00.000`,
+      });
+
+    it("matches a leg drifted by the full window (3 days) as a low-confidence dup", () => {
+      const imp = legImport("2026-01-18"); // existing leg is 2026-01-15
+      const ex = legExisting("2026-01-15");
+      const result = detectDuplicates([imp], [ex], MAPPING);
+
+      expect(result.size).toBe(1);
+      expect(result.get(imp.id)!.confidence).toBe("low");
+    });
+
+    it("matches a window drift in the other direction too", () => {
+      const imp = legImport("2026-01-12"); // existing leg is 2026-01-15
+      const ex = legExisting("2026-01-15");
+      const result = detectDuplicates([imp], [ex], MAPPING);
+
+      expect(result.size).toBe(1);
+      expect(result.get(imp.id)!.confidence).toBe("low");
+    });
+
+    it("does NOT match a drift beyond the window", () => {
+      const imp = legImport("2026-01-19"); // 4 days off, window is 3
+      const ex = legExisting("2026-01-15");
+      const result = detectDuplicates([imp], [ex], MAPPING);
+
+      expect(result.size).toBe(0);
+    });
+
+    it("window is exactly RELAXED_DATE_WINDOW_DAYS (boundary is inclusive)", () => {
+      const onEdge = offsetISODate("2026-01-15", RELAXED_DATE_WINDOW_DAYS);
+      const beyond = offsetISODate("2026-01-15", RELAXED_DATE_WINDOW_DAYS + 1);
+      const ex = legExisting("2026-01-15");
+
+      expect(detectDuplicates([legImport(onEdge)], [ex], MAPPING).size).toBe(1);
+      expect(detectDuplicates([legImport(beyond)], [ex], MAPPING).size).toBe(0);
+    });
+
+    it("does not match across different accounts even within the window", () => {
+      const imp = makeImport({
+        type: "transfer", description: "X", amount: 50000,
+        date: "2026-01-17", sourceAccount: "BofA",
+      });
+      const ex = legExisting("2026-01-15"); // accountId acct-1
+      const result = detectDuplicates([imp], [ex], { BofA: "acct-2" });
+
+      expect(result.size).toBe(0);
+    });
+
+    it("the exact-date high-confidence rules are unaffected by the wider window", () => {
+      // Same-day, description matches the note → rule 2 fires (high), not rule 5.
+      const imp = makeImport({ description: "WHOLE FOODS #10234" });
+      const ex = makeExisting({ note: "WHOLE FOODS #10234 weekly" });
+      const result = detectDuplicates([imp], [ex], MAPPING);
+
+      expect(result.get(imp.id)!.confidence).toBe("high");
+    });
+
+    it("greedy 1:1 still holds: two drifted imports claim two distinct legs", () => {
+      const imp1 = legImport("2026-01-16"); // id auto
+      const imp1b = { ...imp1, id: "imp-1" };
+      const imp2b = { ...legImport("2026-01-17"), id: "imp-2" };
+      const ex1 = legExisting("2026-01-15");
+      const ex2 = { ...legExisting("2026-01-15"), id: "ex-2" };
+      const result = detectDuplicates([imp1b, imp2b], [ex1, ex2], MAPPING);
+
+      expect(result.size).toBe(2);
+      expect(result.get("imp-1")!.existingTransactionId).not.toBe(
+        result.get("imp-2")!.existingTransactionId,
+      );
+    });
+
+    it("two imports compete for one in-window leg: only one claims it (greedy 1:1)", () => {
+      const imp1 = { ...legImport("2026-01-16"), id: "imp-1" };
+      const imp2 = { ...legImport("2026-01-17"), id: "imp-2" };
+      const ex = legExisting("2026-01-15");
+      const result = detectDuplicates([imp1, imp2], [ex], MAPPING);
+
+      expect(result.size).toBe(1);
+    });
+  });
 });
+
+/** Local date arithmetic mirroring the module's internal offsetDate, for
+ *  boundary assertions that key off RELAXED_DATE_WINDOW_DAYS. */
+function offsetISODate(dateStr: string, days: number): string {
+  const d = new Date(dateStr + "T12:00:00");
+  d.setDate(d.getDate() + days);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}

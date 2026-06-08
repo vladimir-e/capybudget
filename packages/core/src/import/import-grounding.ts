@@ -97,6 +97,9 @@ export interface GroundingResult {
   categoryConfidence: "high" | "low" | "";
   /** Resolved budget accountId (sourceAccount match), else "". */
   accountId: string;
+  /** For a transfer: the suggested counterpart ("From account"), resolved from
+   *  matching historical transfer legs. "" for non-transfers or no signal. */
+  targetAccountId: string;
   /** True when the row duplicates an existing budget transaction. */
   duplicate: boolean;
   /** The dup it matched, when `duplicate`. */
@@ -145,6 +148,7 @@ export function groundImport(
   const activeCategories = categories.filter((c) => !c.archived);
   const activeAccounts = accounts.filter((a) => !a.archived);
   const validCategoryIds = new Set(activeCategories.map((c) => c.id));
+  const validAccountIds = new Set(activeAccounts.map((a) => a.id));
   // Income-group category ids — used to keep deterministic assignments
   // type-correct: an expense row never inherits an income category (and vice
   // versa), even when its history is dominated by a miscategorized one.
@@ -168,21 +172,39 @@ export function groundImport(
 
   const index = new HistoryIndex(history, options);
   const rowById = new Map(rows.map((r) => [r.id, r]));
+  // For transfer counterpart resolution: a historical transfer leg points at its
+  // paired leg via transferPairId; the pair's accountId is the "other side".
+  const historyById = new Map(history.map((t) => [t.id, t]));
 
   const results = new Map<string, GroundingResult>();
   const context = new Map<string, RowContext>();
 
-  // First pass: history match + signal + fast-path.
+  // First pass: history match + signal + fast-path (non-transfers) or
+  // counterpart resolution (transfers).
   for (const row of rows) {
-    const matches = row.type === "transfer" ? [] : index.match(buildMatchQuery(row.description));
+    const matches = index.match(buildMatchQuery(row.description));
+    const accountId = resolveAccountId(row.sourceAccount);
+
+    if (row.type === "transfer") {
+      // Transfers skip merchant/category enrichment; grounding only resolves the
+      // "From account" from matching historical transfer legs.
+      results.set(row.id, {
+        rowId: row.id,
+        resolution: "ambiguous",
+        merchant: "",
+        categoryId: "",
+        categoryConfidence: "",
+        accountId,
+        targetAccountId: resolveTransferCounterpart(matches, historyById, accountId, validAccountIds),
+        duplicate: false,
+      });
+      continue;
+    }
+
     const ctx = buildContext(matches, validCategoryIds);
     if (ctx.examples.length > 0) context.set(row.id, ctx);
 
-    const accountId = resolveAccountId(row.sourceAccount);
-    const fastPath =
-      row.type !== "transfer"
-        ? tryFastPath(matches, validCategoryIds, incomeCategoryIds, row.type, minMatches, categoryAgreement)
-        : null;
+    const fastPath = tryFastPath(matches, validCategoryIds, incomeCategoryIds, row.type, minMatches, categoryAgreement);
 
     if (fastPath) {
       results.set(row.id, {
@@ -192,6 +214,7 @@ export function groundImport(
         categoryId: fastPath.categoryId,
         categoryConfidence: "high",
         accountId,
+        targetAccountId: "",
         duplicate: false,
       });
       continue;
@@ -204,6 +227,7 @@ export function groundImport(
       categoryId: "",
       categoryConfidence: "",
       accountId,
+      targetAccountId: "",
       duplicate: false,
     });
   }
@@ -314,6 +338,52 @@ function pickCanonicalMerchant(matches: HistoryMatch[]): string {
   // No merchant-source match — fall back to most-frequent merchant text.
   const counts = countNames(matches.map((m) => m.txn.merchant));
   return counts[0]?.name ?? "";
+}
+
+// ── Transfer counterpart resolver ────────────────────────────────
+
+/**
+ * Suggest a transfer's "From account" from history. Among matching historical
+ * transfer legs, each one's *paired* leg (via `transferPairId`) sits on the
+ * counterpart account — that account is the suggestion. Picks the most-frequent
+ * counterpart across matches, tie-broken by the most-recent supporting leg.
+ *
+ * Two are never suggested: the row's own resolved account (From ≠ the row's
+ * account) and any account that isn't a current non-archived one (stale leg).
+ * Returns "" when no usable counterpart is found.
+ */
+function resolveTransferCounterpart(
+  matches: HistoryMatch[],
+  historyById: Map<string, Transaction>,
+  ownAccountId: string,
+  validAccountIds: Set<string>,
+): string {
+  const counts = new Map<string, number>();
+  const latest = new Map<string, string>();
+  for (const m of matches) {
+    if (m.txn.type !== "transfer" || !m.txn.transferPairId) continue;
+    const pair = historyById.get(m.txn.transferPairId);
+    if (!pair) continue;
+    const counterpart = pair.accountId;
+    if (!counterpart || counterpart === ownAccountId) continue;
+    if (!validAccountIds.has(counterpart)) continue;
+    counts.set(counterpart, (counts.get(counterpart) ?? 0) + 1);
+    const prev = latest.get(counterpart);
+    if (!prev || m.txn.datetime.localeCompare(prev) > 0) latest.set(counterpart, m.txn.datetime);
+  }
+
+  let best = "";
+  let bestCount = 0;
+  let bestDate = "";
+  for (const [id, count] of counts) {
+    const date = latest.get(id) ?? "";
+    if (count > bestCount || (count === bestCount && date.localeCompare(bestDate) > 0)) {
+      best = id;
+      bestCount = count;
+      bestDate = date;
+    }
+  }
+  return best;
 }
 
 // ── Context sidecar ──────────────────────────────────────────────

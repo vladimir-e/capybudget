@@ -157,7 +157,7 @@ export { validateImportTransactions } from "./import/import-validation";
 
 // Import duplicate detection
 export type { DuplicateConfidence, DuplicateMatch } from "./import/import-duplicates";
-export { detectDuplicates } from "./import/import-duplicates";
+export { detectDuplicates, RELAXED_DATE_WINDOW_DAYS } from "./import/import-duplicates";
 
 // CSV mapping types
 export type {
