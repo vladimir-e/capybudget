@@ -37,11 +37,10 @@ const server = new Server(
 )
 
 server.setRequestHandler(ListToolsRequestSchema, async () => ({
-  // Single source of truth — `getToolDefinitions()` with no mode returns
-  // the full tool surface (data, mutation, import, csv, read_file,
-  // read_spec, render). External agents (Claude Desktop, Cursor) get the
-  // whole surface; the app's in-process API adapters dispatch the same
-  // tools but gate them per session mode.
+  // One ungated tool surface — `getToolDefinitions()` takes no argument and
+  // returns every tool. The MCP server, the in-process chat agent loop, and
+  // external agents (Claude Desktop, Cursor) all see the same set, consistent
+  // with specs/INTELLIGENCE.md § Tool Layer.
   tools: getToolDefinitions(),
 }))
 

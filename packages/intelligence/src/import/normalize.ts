@@ -50,10 +50,14 @@ export interface NormalizeCsvResult {
 }
 
 /**
- * CSV → staged rows. One mapping call, applied in code to every row. If a
- * preview of the first rows surfaces transform errors, the model gets one
- * correction round with the errors attached; whatever the second mapping
- * produces is final (no further loop).
+ * CSV → staged rows. A mapping call is applied in code to every row. Two
+ * bounded retry layers guard distinct failure modes: `resolveMapping` retries
+ * once on a malformed schema (the model named no usable amount column), and if
+ * a code-side preview of the first rows then surfaces *transform* errors (a bad
+ * column reference that still parsed as a schema), the model gets one more
+ * correction round with those errors attached. Worst case is 2×2 = 4 mapping
+ * calls; whatever the final round produces is final. Payloads are tiny (headers
+ * + samples), so the bound is on correctness, not cost.
  */
 export async function normalizeCsv(
   session: StructuredSession,
