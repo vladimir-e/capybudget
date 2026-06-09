@@ -63,6 +63,13 @@ export function useImportData(budgetPath: string, staging: StagingStore, rowsVer
   useEffect(() => () => { void flushWriteBack(); }, [flushWriteBack]);
 
   // ── Load staging ─────────────────────────────────────────────
+  // The row set is stable after Normalizing — reloads (a landed batch bumping
+  // `rowsVersion`) only fill merchant/category/counterpart on existing rows, and
+  // duplicate flags are set during History, before any enrichment. So we
+  // select-all-non-duplicates only on the FIRST load; subsequent reloads preserve
+  // the user's selection (an Enrich re-run happens over an already-interactive
+  // preview, where blowing away a manual unselect every batch would be visible).
+  const firstLoadRef = useRef(true);
   const loadCsv = useCallback(async () => {
     const [rows, transferCtx] = await Promise.all([
       staging.readTransactions().then((r) => r ?? []),
@@ -70,7 +77,15 @@ export function useImportData(budgetPath: string, staging: StagingStore, rowsVer
     ]);
     setTransactions(rows);
     setTransferCtxIds(new Set(Object.keys(transferCtx)));
-    setSelectedIds(new Set(rows.filter((r) => !r.duplicate).map((r) => r.id)));
+    if (firstLoadRef.current) {
+      firstLoadRef.current = false;
+      setSelectedIds(new Set(rows.filter((r) => !r.duplicate).map((r) => r.id)));
+    } else {
+      // Reconcile to current ids defensively — the set shouldn't change, but a row
+      // dropped between reads must not strand a phantom id in the selection.
+      const ids = new Set(rows.map((r) => r.id));
+      setSelectedIds((prev) => new Set([...prev].filter((id) => ids.has(id))));
+    }
     setLoading(false);
   }, [staging]);
 

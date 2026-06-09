@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { renderHook, waitFor } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import type { ImportTransaction } from "@capybudget/core";
 import type { StagingStore } from "@capybudget/intelligence";
 
@@ -93,6 +93,38 @@ describe("useImportData — category validation gating", () => {
     // Give the gated effect a chance to run; the valid id must survive.
     await waitFor(() => expect(result.current.transactions[0].categoryId).toBe("real-cat"));
     expect(result.current.transactions[0].categoryConfidence).toBe("high");
+  });
+});
+
+describe("useImportData — selection across reloads", () => {
+  beforeEach(() => {
+    hookState.accounts = { data: [{ id: "acc-1", name: "Checking" }] };
+    hookState.categories = { data: [{ id: "cat-1" }], isSuccess: true };
+  });
+
+  it("preserves a manual unselect when a landed batch reloads", async () => {
+    const staging = makeStaging([
+      makeTxn({ id: "imp-1" }),
+      makeTxn({ id: "imp-2" }),
+    ]);
+
+    const { result, rerender } = renderHook(
+      ({ version }: { version: number }) => useImportData("/b", staging, version),
+      { initialProps: { version: 0 } },
+    );
+
+    // First load selects all non-duplicates.
+    await waitFor(() => expect(result.current.selectedIds).toEqual(new Set(["imp-1", "imp-2"])));
+
+    // User unselects a row over the interactive preview.
+    act(() => {
+      result.current.setSelectedIds(new Set(["imp-1"]));
+    });
+
+    // A batch lands → rowsVersion bumps → loadCsv reruns. The unselect must survive.
+    rerender({ version: 1 });
+    await waitFor(() => expect(result.current.transactions).toHaveLength(2));
+    expect(result.current.selectedIds).toEqual(new Set(["imp-1"]));
   });
 });
 
