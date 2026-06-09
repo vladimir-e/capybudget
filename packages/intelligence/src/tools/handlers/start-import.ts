@@ -15,8 +15,8 @@
  * `ctx.attachments` — the raw attachments the adapter threads through for the
  * in-flight turn — and ignores any file content the model put in `args`.
  *
- * Three gates return guidance instead of staging, so the model relays a clear
- * next step rather than failing opaquely:
+ * Gates return guidance instead of staging, so the model relays a clear next
+ * step rather than failing opaquely:
  *   - `importSupported` is false (provider is claude-cli / off) → tell the user
  *     to switch to Anthropic or OpenAI.
  *   - no attachments on the turn → tell the user to attach the file (or use the
@@ -25,6 +25,10 @@
  *     switch to Anthropic. OpenAI's adapter swaps a PDF for a placeholder note,
  *     so staging it would start a run the model is blind to. Mirrors the Import
  *     tab's PDF-drop gate (`canReadPdf`).
+ *   - staging already holds an import — a run in flight or parked for review,
+ *     or files dropped in the Import tab but not started → point the user at
+ *     the Import tab. The only thing a chat share may replace is a prior chat
+ *     staging that never ran.
  */
 
 import { FileStagingStore } from "../../import/staging-store"
@@ -34,6 +38,13 @@ import type { ToolContext } from "../dispatch"
 function isPdf(file: FileAttachment): boolean {
   return file.mediaType === "application/pdf" || file.name.toLowerCase().endsWith(".pdf")
 }
+
+const IMPORT_IN_PROGRESS = JSON.stringify({
+  started: false,
+  reason: "import_in_progress",
+  message:
+    "An import is already in progress. Tell the user to open the Import tab to finish reviewing and merging it — or cancel it there — then re-share the file.",
+})
 
 export async function handleStartImport(ctx: ToolContext): Promise<string> {
   if (!ctx.importSupported) {
@@ -65,8 +76,32 @@ export async function handleStartImport(ctx: ToolContext): Promise<string> {
   }
 
   const staging = new FileStagingStore(ctx.fileAdapter, ctx.budgetPath)
-  // A fresh chat import owns the staging area — clear any prior run's artifacts
-  // so the orchestrator starts from these sources, not a stale resume.
+
+  // The staging area may already be owned by an import this handler must not
+  // clobber. Refuse unless staging is empty or holds only a chat-staged import
+  // that never ran (`state.json` marked "chat", no `transactions.csv`) — that's
+  // the user re-sharing a file, and replacing the stale staging is right.
+  // Accepted residual window: a manual run still in Reading/Normalizing has
+  // written neither state.json nor transactions.csv, so it reads as a parked
+  // drop here (refused, never clobbered) — those phases are seconds long.
+  if ((await staging.readTransactions()) !== null) {
+    return IMPORT_IN_PROGRESS
+  }
+  const state = await staging.readState()
+  if (state !== null && state.source !== "chat") {
+    return IMPORT_IN_PROGRESS
+  }
+  if (state === null && (await staging.listSources()).length > 0) {
+    return JSON.stringify({
+      started: false,
+      reason: "files_already_staged",
+      message:
+        "Files are already staged in the Import tab but the import hasn't started. Tell the user to start it — or remove the files — in the Import tab first.",
+    })
+  }
+
+  // Past the gates, any leftover is a stale chat staging — clear it so the
+  // orchestrator starts from this turn's sources alone.
   await staging.clear()
   for (const file of attachments) {
     await staging.writeSource(file.name, file.content)

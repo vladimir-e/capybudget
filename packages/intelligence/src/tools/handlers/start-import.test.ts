@@ -2,8 +2,10 @@
  * `start_import` — the chat on-ramp. Verified through `runTool` dispatch (the
  * production path the API adapters take) so the wiring is covered alongside the
  * handler: a configured turn stages the attachments + marks the run Capy-staged;
- * the three gates (unsupported provider, no attachment, PDF under a provider that
- * can't read PDFs) return guidance and stage nothing.
+ * the gates (unsupported provider, no attachment, PDF under a provider that
+ * can't read PDFs, staging already owned by another import) return guidance and
+ * stage nothing. The one replace case — a prior chat staging that never ran —
+ * is cleared and restaged.
  */
 
 import { describe, it, expect, beforeEach } from "vitest"
@@ -69,19 +71,70 @@ describe("start_import", () => {
     expect(state.source).toBe("chat")
   })
 
-  it("clears a prior run's staging before staging the new sources", async () => {
-    // A stale run sitting in staging — transactions + an old source file.
-    fs.files.set(`${BUDGET_PATH}/.capy/import/transactions.csv`, "id,date\nimp-1,2025-01-01")
+  it("replaces a prior chat-staged import that never ran", async () => {
+    // A stale chat staging — `state.json` marked "chat", no transactions.csv:
+    // the user shared a file earlier and the run never started.
     fs.dirs.add(SOURCES_DIR)
     fs.files.set(`${SOURCES_DIR}/old.csv`, "stale")
+    fs.files.set(
+      STATE_PATH,
+      JSON.stringify({ phase: "reading", source: "chat", updatedAt: "2026-03-01T00:00:00Z" }),
+    )
 
     ctx.attachments = [csv("new.csv", "Date,Amount\n2026-03-01,-5.00")]
     const result = JSON.parse(await runTool("start_import", {}, ctx))
     expect(result.started).toBe(true)
 
-    expect(fs.files.has(`${BUDGET_PATH}/.capy/import/transactions.csv`)).toBe(false)
     expect(fs.files.has(`${SOURCES_DIR}/old.csv`)).toBe(false)
     expect(fs.files.get(`${SOURCES_DIR}/new.csv`)).toBe("Date,Amount\n2026-03-01,-5.00")
+    expect(JSON.parse(fs.files.get(STATE_PATH)!).source).toBe("chat")
+  })
+
+  it("refuses when an import is in progress or parked (transactions.csv exists)", async () => {
+    const staged = "id,date,description,amount,type\nimp-1,2025-01-01,Coffee,-450,expense"
+    fs.files.set(`${BUDGET_PATH}/.capy/import/transactions.csv`, staged)
+
+    ctx.attachments = [csv("new.csv", "Date,Amount\n2026-03-01,-5.00")]
+    const result = JSON.parse(await runTool("start_import", {}, ctx))
+    expect(result.started).toBe(false)
+    expect(result.reason).toBe("import_in_progress")
+    expect(result.message).toMatch(/Import tab/)
+
+    // The existing run's staging is untouched and nothing new was staged.
+    expect(fs.files.get(`${BUDGET_PATH}/.capy/import/transactions.csv`)).toBe(staged)
+    expect(fs.files.has(`${SOURCES_DIR}/new.csv`)).toBe(false)
+  })
+
+  it("refuses when a run is in flight pre-History (state.json without the chat marker)", async () => {
+    // The Import screen strips the "chat" marker before auto-starting, so a
+    // marker-less state.json with no transactions.csv is a run mid-pipeline.
+    fs.dirs.add(SOURCES_DIR)
+    fs.files.set(`${SOURCES_DIR}/running.csv`, "Date,Amount\n2026-02-01,-3.00")
+    fs.files.set(STATE_PATH, JSON.stringify({ phase: "reading", updatedAt: "2026-03-01T00:00:00Z" }))
+
+    ctx.attachments = [csv("new.csv", "Date,Amount\n2026-03-01,-5.00")]
+    const result = JSON.parse(await runTool("start_import", {}, ctx))
+    expect(result.started).toBe(false)
+    expect(result.reason).toBe("import_in_progress")
+
+    expect(fs.files.get(`${SOURCES_DIR}/running.csv`)).toBe("Date,Amount\n2026-02-01,-3.00")
+    expect(fs.files.has(`${SOURCES_DIR}/new.csv`)).toBe(false)
+  })
+
+  it("refuses when files are staged in the Import tab but not started", async () => {
+    // A manual drop writes only sources/ — no state.json until the user starts.
+    fs.dirs.add(SOURCES_DIR)
+    fs.files.set(`${SOURCES_DIR}/dropped.csv`, "Date,Amount\n2026-02-01,-3.00")
+
+    ctx.attachments = [csv("new.csv", "Date,Amount\n2026-03-01,-5.00")]
+    const result = JSON.parse(await runTool("start_import", {}, ctx))
+    expect(result.started).toBe(false)
+    expect(result.reason).toBe("files_already_staged")
+    expect(result.message).toMatch(/Import tab/)
+
+    expect(fs.files.get(`${SOURCES_DIR}/dropped.csv`)).toBe("Date,Amount\n2026-02-01,-3.00")
+    expect(fs.files.has(`${SOURCES_DIR}/new.csv`)).toBe(false)
+    expect(fs.files.has(STATE_PATH)).toBe(false)
   })
 
   it("gates on an import-incapable provider without staging", async () => {
