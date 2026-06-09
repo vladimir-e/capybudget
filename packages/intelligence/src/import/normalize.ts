@@ -13,12 +13,17 @@
 
 import Papa from "papaparse";
 import {
+  buildCsvTable,
   buildStaged,
+  detectHeaderRow,
+  isViableHeaderRow,
   transformCsv,
+  HEADER_SCAN_ROWS,
   SUPPORTED_DATE_FORMATS,
   type AmountMapping,
   type ColumnRef,
   type CsvMapping,
+  type CsvTable,
   type ImportTransaction,
   type SingleAmountMapping,
   type SkipRule,
@@ -64,28 +69,28 @@ export async function normalizeCsv(
   source: { name: string; content: string },
   options: { startId?: number; importDate?: string } = {},
 ): Promise<NormalizeCsvResult> {
-  const parsed = Papa.parse<Record<string, string>>(source.content, {
-    header: true,
-    skipEmptyLines: true,
-    transformHeader: (h) => h.trim(),
-  });
-  const headers = parsed.meta.fields ?? [];
-  const allRows = parsed.data;
-  const sample = allRows.slice(0, MAPPING_SAMPLE_ROWS);
+  // One raw parse (header: false) is the shared frame of reference: the header
+  // detector, the prompt's numbered row listing, and the model's `headerRow`
+  // override all index into this same blank-line-stripped grid.
+  const grid = Papa.parse<string[]>(source.content, { header: false, skipEmptyLines: true }).data;
   const importDate = options.importDate ?? todayIso();
 
-  let mapping = await resolveMapping(session, source.name, headers, sample, importDate, null);
+  let resolved = await resolveMapping(session, source.name, grid, detectHeaderRow(grid), importDate, null);
 
   // Code-side preview: transform a slice, and if it errors (e.g. the model named
   // a column that isn't there), give the model one correction round. The preview
-  // is pure code — no model call to detect the problem, only to fix it.
-  const previewErrors = previewTransformErrors(allRows.slice(0, PREVIEW_ROWS), mapping);
+  // is pure code — no model call to detect the problem, only to fix it. The
+  // round-1 header pick is the correction round's baseline, so a mapping whose
+  // only good part was relocating the header doesn't lose that on retry.
+  const previewErrors = previewTransformErrors(resolved.table.rows.slice(0, PREVIEW_ROWS), resolved.mapping);
   if (previewErrors.length > 0) {
-    mapping = await resolveMapping(session, source.name, headers, sample, importDate, previewErrors);
+    resolved = await resolveMapping(session, source.name, grid, resolved.mapping.headerRow, importDate, previewErrors);
   }
 
-  const { transactions, errors } = transformCsv(allRows, mapping, { startId: options.startId });
-  return { rows: transactions, mapping, errors };
+  const { transactions, errors } = transformCsv(resolved.table.rows, resolved.mapping, {
+    startId: options.startId,
+  });
+  return { rows: transactions, mapping: resolved.mapping, errors };
 }
 
 function previewTransformErrors(rows: Record<string, string>[], mapping: CsvMapping): string[] {
@@ -98,8 +103,11 @@ function previewTransformErrors(rows: Record<string, string>[], mapping: CsvMapp
 }
 
 /**
- * One mapping call → a guaranteed-valid `CsvMapping`. The model's output is
- * advisory; `normalizeMapping` heals it. The only failure mode is an amount
+ * One mapping call → a guaranteed-valid `CsvMapping` plus the table it applies
+ * to. The model's output is advisory and healed in code: `headerRow` stands
+ * only when it survives `isViableHeaderRow` (else `headerPick` — code's
+ * current pick — holds), and `normalizeMapping` heals every column-level field
+ * against samples from the resulting table. The only failure mode is an amount
  * column that can't be identified at all (date and description default), which
  * `normalizeMapping` throws on — that gets one corrective retry before it
  * surfaces, so a transient bad response doesn't abort the import.
@@ -107,27 +115,42 @@ function previewTransformErrors(rows: Record<string, string>[], mapping: CsvMapp
 async function resolveMapping(
   session: StructuredSession,
   filename: string,
-  headers: string[],
-  sample: Record<string, string>[],
+  grid: string[][],
+  headerPick: number,
   importDate: string,
   priorErrors: string[] | null,
-): Promise<CsvMapping> {
-  const prompt = buildMappingPrompt(filename, headers, sample, priorErrors);
+): Promise<{ mapping: CsvMapping & { headerRow: number }; table: CsvTable }> {
+  const prompt = buildMappingPrompt(filename, grid, headerPick, priorErrors);
+  const heal = (raw: CsvMappingResult) => {
+    const headerRow =
+      typeof raw.headerRow === "number" && isViableHeaderRow(grid, raw.headerRow)
+        ? raw.headerRow
+        : headerPick;
+    const table = buildCsvTable(grid, headerRow);
+    const samples = table.rows.slice(0, MAPPING_SAMPLE_ROWS);
+    return { mapping: { ...normalizeMapping(raw, samples, filename, importDate), headerRow }, table };
+  };
   try {
-    return normalizeMapping(await callMapper(session, prompt), sample, filename, importDate);
+    return heal(await callMapper(session, prompt));
   } catch (err) {
     if (!(err instanceof SchemaValidationError)) throw err;
     const retryPrompt = `${prompt}\n\nYour previous response could not be used: ${err.message}. Return a mapping that clearly identifies the amount column(s).`;
-    return normalizeMapping(await callMapper(session, retryPrompt), sample, filename, importDate);
+    return heal(await callMapper(session, retryPrompt));
   }
 }
 
 function buildMappingPrompt(
   filename: string,
-  headers: string[],
-  sample: Record<string, string>[],
+  grid: string[][],
+  headerPick: number,
   priorErrors: string[] | null,
 ): string {
+  const { headers, rows } = buildCsvTable(grid, headerPick);
+  const sample = rows.slice(0, MAPPING_SAMPLE_ROWS);
+  const rawListing = grid
+    .slice(0, HEADER_SCAN_ROWS)
+    .map((cells, i) => `${i}: ${JSON.stringify(cells)}`)
+    .join("\n");
   const errorNote =
     priorErrors && priorErrors.length > 0
       ? `\n\nYour previous mapping produced these transform errors. Correct it:\n${priorErrors
@@ -138,7 +161,10 @@ function buildMappingPrompt(
   return [
     `Map this CSV's columns so a transform engine can convert every row into a uniform transaction record.`,
     `File: ${filename}`,
-    `Headers: ${headers.join(", ")}`,
+    `Raw parsed rows, listed as "index: fields" (0-based indices; blank lines already removed):`,
+    rawListing,
+    `The engine reads row ${headerPick} as the table header and every row after it as data; rows before the header (bank summary preambles) are discarded. If the real header is a different row in the listing above, return "headerRow" with that row's index. Otherwise omit headerRow.`,
+    `Headers (blank or duplicate cells renamed to stay addressable — use these names): ${headers.join(", ")}`,
     `Sample rows (first ${sample.length}):`,
     JSON.stringify(sample, null, 2),
     `Identify the date column, the description column(s), and how amounts are structured: a single signed column ({ style: "single", column, sign }) or split debit/credit ({ style: "split", expenseColumn, incomeColumn }). Optionally include date.format, the source account, the source category column, and skipRules for non-transaction rows (opening balances, voids).`,

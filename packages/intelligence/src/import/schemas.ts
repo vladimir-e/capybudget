@@ -77,6 +77,7 @@ export const CSV_MAPPING_SCHEMA: JsonSchema = {
   type: "object",
   additionalProperties: false,
   properties: {
+    headerRow: { type: "integer" },
     date: {
       type: "object",
       additionalProperties: false,

@@ -242,6 +242,116 @@ describe("normalizeCsv", () => {
     const { rows } = await normalizeCsv(session, { name: "f.csv", content: csv }, { startId: 10 });
     expect(rows[0].id).toBe("imp-10");
   });
+
+  describe("header row location", () => {
+    // A BofA-shaped export: a summary preamble, a blank line, then the real
+    // table whose first row is a zero-amount balance marker. Parsed naively,
+    // the preamble head becomes the header and the real description column
+    // gets an empty-string name.
+    const BOFA_CSV = [
+      "Description,,Summary Amt.",
+      'Beginning balance as of 02/03/2026,,"1,131.74"',
+      'Total credits,,"68,979.42"',
+      'Total debits,,"-64,737.00"',
+      'Ending balance as of 06/08/2026,,"5,374.16"',
+      "",
+      "Date,Description,Amount,Running Bal.",
+      '02/03/2026,"Beginning balance as of 02/03/2026",,"1,131.74"',
+      '02/05/2026,"PAYPAL DES:INST XFER ID:COFFEE","-120.54","1,011.20"',
+      '02/06/2026,"Zelle payment from ALICE","2,500.00","3,511.20"',
+      '02/07/2026,"GROCERY OUTLET 0042","-45.10","3,466.10"',
+    ].join("\n");
+
+    const BOFA_MAPPING = {
+      date: { column: "Date" },
+      description: { column: "Description" },
+      amount: { style: "single", column: "Amount", sign: "negative_expense" },
+      skipRules: [{ column: "Description", contains: "Beginning balance" }],
+    };
+
+    it("locates the real header past a bank summary preamble", async () => {
+      const session = new MockStructuredSession([() => BOFA_MAPPING]);
+
+      const { rows, mapping } = await normalizeCsv(session, { name: "stmt.csv", content: BOFA_CSV });
+
+      expect(session.calls).toHaveLength(1);
+      expect(mapping.headerRow).toBe(5); // blank line stripped, so the header is parsed row 5
+      expect(rows).toHaveLength(3); // balance marker skipped by the mapping's skipRule
+      expect(rows[0]).toMatchObject({ date: "2026-02-05", amount: -12054, type: "expense" });
+      expect(rows[1]).toMatchObject({ date: "2026-02-06", amount: 250000, type: "income" });
+      expect(rows.map((r) => r.description)).toEqual([
+        "PAYPAL DES:INST XFER ID:COFFEE",
+        "Zelle payment from ALICE",
+        "GROCERY OUTLET 0042",
+      ]);
+    });
+
+    it("shows the mapper the indexed raw rows so headerRow stays addressable", async () => {
+      const session = new MockStructuredSession([() => BOFA_MAPPING]);
+      await normalizeCsv(session, { name: "stmt.csv", content: BOFA_CSV });
+      const prompt = JSON.stringify(session.calls[0].messages);
+      expect(prompt).toContain("headerRow");
+      expect(prompt).toContain("reads row 5 as the table header");
+    });
+
+    it("renames blank header cells positionally so every column is addressable", async () => {
+      const csv = "Date,,Amount\n2026-01-05,COFFEE,-4.50\n2026-01-06,BAGEL,-3.25";
+      const mapping = {
+        date: { column: "Date" },
+        description: { column: "Column 2" },
+        amount: { style: "single", column: "Amount", sign: "negative_expense" },
+      };
+      const session = new MockStructuredSession([() => mapping]);
+
+      const { rows } = await normalizeCsv(session, { name: "f.csv", content: csv });
+
+      expect(session.calls).toHaveLength(1); // "Column 2" resolves — no preview error
+      expect(JSON.stringify(session.calls[0].messages)).toContain("Column 2"); // the mapper sees the renamed key
+      expect(rows.map((r) => r.description)).toEqual(["COFFEE", "BAGEL"]);
+    });
+
+    it("honors a model headerRow override when detection cannot tell", async () => {
+      // A metadata preamble with the same width as the table and no dated rows
+      // below it until the real data — the consistency scan picks row 0; the
+      // model relocates the header.
+      const csv = [
+        "Account,Number,Period,Currency",
+        "My Checking,1234,Feb 2026,USD",
+        "Statement,period,February,2026",
+        "Posted,Description,Amount,Balance",
+        "2026-02-05,COFFEE,-4.50,995.50",
+        "2026-02-06,SALARY,2000.00,2995.50",
+      ].join("\n");
+      const session = new MockStructuredSession([
+        () => ({
+          headerRow: 3,
+          date: { column: "Posted" },
+          description: { column: "Description" },
+          amount: { style: "single", column: "Amount", sign: "negative_expense" },
+        }),
+      ]);
+
+      const { rows, mapping } = await normalizeCsv(session, { name: "f.csv", content: csv });
+
+      expect(session.calls).toHaveLength(1);
+      expect(mapping.headerRow).toBe(3);
+      expect(rows).toHaveLength(2);
+      expect(rows[0]).toMatchObject({ date: "2026-02-05", description: "COFFEE", amount: -450 });
+      expect(rows[1]).toMatchObject({ description: "SALARY", amount: 200000, type: "income" });
+    });
+
+    it("rejects a nonsense headerRow and falls back to the detected pick", async () => {
+      const csv = "Date,Description,Amount\n2026-01-05,COFFEE,-4.50";
+      const session = new MockStructuredSession([() => ({ ...MAPPING, headerRow: 9999 })]);
+
+      const { rows, mapping } = await normalizeCsv(session, { name: "f.csv", content: csv });
+
+      expect(session.calls).toHaveLength(1);
+      expect(mapping.headerRow).toBe(0);
+      expect(rows).toHaveLength(1);
+      expect(rows[0]).toMatchObject({ description: "COFFEE", amount: -450 });
+    });
+  });
 });
 
 describe("normalizeMapping", () => {

@@ -97,6 +97,14 @@ export type ColumnRef = SingleColumnRef | MultiColumnRef;
 
 export interface CsvMapping {
   /**
+   * 0-based index — into the blank-line-stripped parsed row grid — of the row
+   * the table's headers were read from. Rows above it (bank summary preambles)
+   * are not part of the table. Detected by code; the model may override the
+   * pick when code chose wrong.
+   */
+  headerRow?: number;
+
+  /**
    * Where each row's date comes from: a column parsed with a format string
    * (e.g. "MM/DD/YYYY", "YYYY-MM-DD", "DD.MM.YYYY"), or a literal `YYYY-MM-DD`
    * date applied to every row when the source has no usable date column.

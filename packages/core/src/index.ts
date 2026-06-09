@@ -162,6 +162,15 @@ export { validateImportTransactions } from "./import/import-validation";
 export type { DuplicateConfidence, DuplicateMatch } from "./import/import-duplicates";
 export { detectDuplicates, RELAXED_DATE_WINDOW_DAYS } from "./import/import-duplicates";
 
+// CSV header location
+export type { CsvTable } from "./import/csv-header";
+export {
+  detectHeaderRow,
+  isViableHeaderRow,
+  buildCsvTable,
+  HEADER_SCAN_ROWS,
+} from "./import/csv-header";
+
 // CSV mapping types
 export type {
   CsvMapping,
