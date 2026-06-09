@@ -360,19 +360,43 @@ export function parseCurrencyToCents(
 
 // ── Type detection ──────────────────────────────────────────────
 
+/**
+ * High-confidence transfer phrases checked on every row, independent of the
+ * model-supplied `transferPatterns`. Each phrase pairs "transfer" with account
+ * context so a merchant that merely contains the word (e.g. "Transferwise",
+ * "Money Transfer Inc") does not false-match. The model's patterns are still
+ * checked additively to catch bank-specific phrasings these miss.
+ */
+export const DEFAULT_TRANSFER_PATTERNS: readonly string[] = [
+  "internet transfer",
+  "online transfer",
+  "mobile transfer",
+  "wire transfer",
+  "ach transfer",
+  "bank transfer",
+  "online banking transfer",
+  "transfer from account",
+  "transfer to account",
+  "transfer from checking",
+  "transfer from savings",
+  "transfer to checking",
+  "transfer to savings",
+];
+
 function detectType(
   row: Record<string, string>,
   description: string,
   isExpense: boolean,
   detection: TypeDetection,
 ): "expense" | "income" | "transfer" {
-  // Check transfer patterns first — cross-cutting concern for all methods
-  if (detection.transferPatterns && detection.transferPatterns.length > 0) {
-    const descLower = description.toLowerCase();
-    for (const pattern of detection.transferPatterns) {
-      if (descLower.includes(pattern.toLowerCase())) {
-        return "transfer";
-      }
+  // Check transfer patterns first — cross-cutting concern for all methods.
+  // Built-in defaults always run so unambiguous transfers don't depend on the
+  // model having supplied a matching pattern; the model's patterns are additive.
+  const descLower = description.toLowerCase();
+  const patterns = [...DEFAULT_TRANSFER_PATTERNS, ...(detection.transferPatterns ?? [])];
+  for (const pattern of patterns) {
+    if (descLower.includes(pattern.toLowerCase())) {
+      return "transfer";
     }
   }
 

@@ -1,5 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { transformCsv, parseCurrencyToCents } from "./csv-transform";
+import {
+  transformCsv,
+  parseCurrencyToCents,
+  DEFAULT_TRANSFER_PATTERNS,
+} from "./csv-transform";
 import { baseMapping, makeRow } from "./csv-transform.test-helpers";
 
 // ── 2. Single signed amount column ─────────────────────────────────
@@ -263,6 +267,64 @@ describe("type detection", () => {
       mapping,
     );
     expect(r1.transactions[0].type).toBe("transfer");
+  });
+});
+
+// ── 5b. Built-in default transfer patterns ─────────────────────────
+
+describe("default transfer patterns", () => {
+  it("classifies an ACH internet transfer when the model supplies no patterns", () => {
+    const mapping = baseMapping({ typeDetection: { method: "amount_sign" } });
+    const rows = [
+      makeRow({
+        Date: "2025-01-01",
+        Description: "Ach Deposit Internet Transfer From Account En",
+        Amount: "666.10",
+      }),
+    ];
+    const result = transformCsv(rows, mapping);
+    // Positive amount would otherwise be income — the default pattern wins.
+    expect(result.transactions[0].type).toBe("transfer");
+  });
+
+  it("does not false-match a merchant that merely contains 'transfer'", () => {
+    const mapping = baseMapping({ typeDetection: { method: "amount_sign" } });
+    const rows = [
+      makeRow({ Date: "2025-01-01", Description: "Transferwise Inc", Amount: "-50.00" }),
+      makeRow({ Date: "2025-01-02", Description: "Money Transfer Inc", Amount: "-25.00" }),
+    ];
+    const result = transformCsv(rows, mapping);
+    expect(result.transactions[0].type).toBe("expense");
+    expect(result.transactions[1].type).toBe("expense");
+  });
+
+  it("covers a wire transfer phrasing the model did not supply", () => {
+    const mapping = baseMapping({ typeDetection: { method: "amount_sign" } });
+    const rows = [
+      makeRow({ Date: "2025-01-01", Description: "Outgoing Wire Transfer Cc Payment", Amount: "-1200.00" }),
+    ];
+    const result = transformCsv(rows, mapping);
+    expect(result.transactions[0].type).toBe("transfer");
+  });
+
+  it("model-supplied patterns still classify additively", () => {
+    // "xfer" is not a default; only the model-supplied pattern can catch it.
+    const mapping = baseMapping({
+      typeDetection: { method: "amount_sign", transferPatterns: ["xfer"] },
+    });
+    const rows = [
+      makeRow({ Date: "2025-01-01", Description: "XFER from checking", Amount: "500.00" }),
+    ];
+    const result = transformCsv(rows, mapping);
+    expect(result.transactions[0].type).toBe("transfer");
+  });
+
+  it("every default phrase pairs 'transfer' with account context", () => {
+    // Guards against a bare/over-broad phrase sneaking into the set.
+    for (const pattern of DEFAULT_TRANSFER_PATTERNS) {
+      expect(pattern).toContain("transfer");
+      expect(pattern.split(/\s+/).length).toBeGreaterThan(1);
+    }
   });
 });
 
