@@ -167,6 +167,15 @@ export class FileStagingStore implements StagingStore {
     return this.fileAdapter.join(await this.dir(), name);
   }
 
+  /** Crash-atomic write: stage to `${path}.tmp`, then rename over the target.
+   *  Staging exists for crash-resume, so a torn half-written artifact would
+   *  defeat the whole point — rename is the atomic swap that prevents it. */
+  private async writeAtomic(path: string, content: string): Promise<void> {
+    const tmp = `${path}.tmp`;
+    await this.fileAdapter.writeFile(tmp, content);
+    await this.fileAdapter.rename(tmp, path);
+  }
+
   async listSources(): Promise<SourceFile[]> {
     const sourcesDir = await this.fileAdapter.join(await this.dir(), "sources");
     if (!(await this.fileAdapter.exists(sourcesDir))) return [];
@@ -194,37 +203,31 @@ export class FileStagingStore implements StagingStore {
   }
 
   async writeTransactions(rows: ImportTransaction[]): Promise<void> {
-    await this.fileAdapter.writeFile(await this.path("transactions.csv"), serializeImportCsv(rows));
+    await this.writeAtomic(await this.path("transactions.csv"), serializeImportCsv(rows));
   }
 
   async readContext(): Promise<Record<string, RowContext> | null> {
-    const p = await this.path("context.json");
-    if (!(await this.fileAdapter.exists(p))) return null;
-    return JSON.parse(await this.fileAdapter.readFile(p));
+    return readJsonOrNull(this.fileAdapter, await this.path("context.json"));
   }
 
   async writeContext(context: Record<string, RowContext>): Promise<void> {
-    await this.fileAdapter.writeFile(await this.path("context.json"), JSON.stringify(context));
+    await this.writeAtomic(await this.path("context.json"), JSON.stringify(context));
   }
 
   async readTransferContext(): Promise<Record<string, TransferContext> | null> {
-    const p = await this.path("transfer-context.json");
-    if (!(await this.fileAdapter.exists(p))) return null;
-    return JSON.parse(await this.fileAdapter.readFile(p));
+    return readJsonOrNull(this.fileAdapter, await this.path("transfer-context.json"));
   }
 
   async writeTransferContext(context: Record<string, TransferContext>): Promise<void> {
-    await this.fileAdapter.writeFile(await this.path("transfer-context.json"), JSON.stringify(context));
+    await this.writeAtomic(await this.path("transfer-context.json"), JSON.stringify(context));
   }
 
   async readState(): Promise<ImportState | null> {
-    const p = await this.path("state.json");
-    if (!(await this.fileAdapter.exists(p))) return null;
-    return JSON.parse(await this.fileAdapter.readFile(p));
+    return readJsonOrNull(this.fileAdapter, await this.path("state.json"));
   }
 
   async writeState(state: ImportState): Promise<void> {
-    await this.fileAdapter.writeFile(await this.path("state.json"), JSON.stringify(state));
+    await this.writeAtomic(await this.path("state.json"), JSON.stringify(state));
   }
 
   async clear(): Promise<void> {
@@ -237,6 +240,21 @@ export class FileStagingStore implements StagingStore {
     if (await this.fileAdapter.exists(sourcesDir)) {
       await this.fileAdapter.remove(sourcesDir, { recursive: true });
     }
+  }
+}
+
+/** Read + parse a JSON staging artifact, degrading to `null` on absence *or*
+ *  corruption. A torn `context.json`/`state.json` (crash mid-write before atomic
+ *  writes shipped, or a hand-edit) must read as "not there" rather than throw:
+ *  the orchestrator already treats `null` as "no signal yet" and lands the user
+ *  on preview with Enrich ready, instead of stranding them on a hard-error
+ *  screen over an unparseable cache file. */
+async function readJsonOrNull<T>(fileAdapter: FileAdapter, path: string): Promise<T | null> {
+  if (!(await fileAdapter.exists(path))) return null;
+  try {
+    return JSON.parse(await fileAdapter.readFile(path)) as T;
+  } catch {
+    return null;
   }
 }
 

@@ -162,4 +162,37 @@ describe("FileStagingStore", () => {
     expect(await store.readTransactions()).toBeNull();
     expect(await store.listSources()).toHaveLength(0);
   });
+
+  // Staging exists for crash-resume, so writes go through a tmp-then-rename swap.
+  // A torn JSON cache (a crash mid-write, or a hand-edit) must read as "no signal"
+  // rather than throw — null lands the user on preview with Enrich ready, never a
+  // hard-error screen.
+  it("reads a corrupt context.json as null instead of throwing", async () => {
+    const fa = memoryFileAdapter({ [`${BASE}/context.json`]: "{not valid json" });
+    const store = new FileStagingStore(fa, "/budget");
+    expect(await store.readContext()).toBeNull();
+  });
+
+  it("reads a corrupt state.json as null instead of throwing", async () => {
+    const fa = memoryFileAdapter({ [`${BASE}/state.json`]: "{not valid json" });
+    const store = new FileStagingStore(fa, "/budget");
+    expect(await store.readState()).toBeNull();
+  });
+
+  it("reads a corrupt transfer-context.json as null instead of throwing", async () => {
+    const fa = memoryFileAdapter({ [`${BASE}/transfer-context.json`]: "}{" });
+    const store = new FileStagingStore(fa, "/budget");
+    expect(await store.readTransferContext()).toBeNull();
+  });
+
+  it("leaves no .tmp artifact behind after an atomic write", async () => {
+    const fa = memoryFileAdapter();
+    const store = new FileStagingStore(fa, "/budget");
+    await store.writeTransactions([makeImportTransaction({ id: "imp-1" })]);
+    await store.writeState({ phase: "history", rowCount: 1, updatedAt: "2026-01-01T00:00:00Z" });
+
+    expect(await fa.exists(`${BASE}/transactions.csv.tmp`)).toBe(false);
+    expect(await fa.exists(`${BASE}/state.json.tmp`)).toBe(false);
+    expect((await store.readTransactions())![0].id).toBe("imp-1");
+  });
 });
