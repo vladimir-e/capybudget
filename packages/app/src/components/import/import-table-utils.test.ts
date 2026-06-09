@@ -17,6 +17,7 @@ function txn(overrides: Partial<ImportTransaction> = {}): ImportTransaction {
     categoryId: "",
     categoryConfidence: "",
     duplicate: false,
+    duplicateConfidence: "",
     ...overrides,
   };
 }

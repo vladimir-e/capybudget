@@ -16,13 +16,16 @@ const ACCOUNTS: Account[] = [CHECKING, SAVINGS, BROKERAGE];
 const sort: ImportSortConfig = { column: "date", direction: "desc" };
 
 /** Render ImportTable over the given rows with inert handlers. */
-function renderTable(transactions: ImportTransaction[]) {
+function renderTable(
+  transactions: ImportTransaction[],
+  opts: { selectedIds?: Set<string>; duplicateIds?: Set<string> } = {},
+) {
   return render(
     <ImportTable
       transactions={transactions}
       sort={sort}
       onSortChange={vi.fn()}
-      selectedIds={new Set(transactions.map((t) => t.id))}
+      selectedIds={opts.selectedIds ?? new Set(transactions.map((t) => t.id))}
       onToggleSelect={vi.fn()}
       onToggleAll={vi.fn()}
       allSelected
@@ -31,7 +34,7 @@ function renderTable(transactions: ImportTransaction[]) {
       categories={[makeCategory({ id: "cat-1", name: "Groceries", group: "Daily Living" })]}
       accounts={ACCOUNTS}
       accountMapping={{}}
-      duplicateIds={new Set()}
+      duplicateIds={opts.duplicateIds ?? new Set()}
     />,
   );
 }
@@ -47,6 +50,28 @@ function selectorWrapper(triggerName: RegExp): HTMLElement {
   if (!el) throw new Error("selector wrapper not found");
   return el;
 }
+
+describe("ImportTable — duplicate badge tiers", () => {
+  const dupRow = (duplicateConfidence: string) =>
+    makeImportTransaction({ id: "imp-1", duplicate: true, duplicateConfidence });
+  const dupOpts = { duplicateIds: new Set(["imp-1"]), selectedIds: new Set<string>() };
+
+  it("shows the blue badge for an exact-rule duplicate", () => {
+    renderTable([dupRow("high")], dupOpts);
+
+    const badge = screen.getByTitle("Duplicate of an existing transaction");
+    expect(badge.innerHTML).toContain("text-blue-500");
+    expect(badge.closest("tr")?.className).toContain("bg-blue-500/5");
+  });
+
+  it("shows the amber possible-duplicate badge for a relaxed-window match", () => {
+    renderTable([dupRow("low")], dupOpts);
+
+    const badge = screen.getByTitle("Possible duplicate (close date match)");
+    expect(badge.innerHTML).toContain("text-amber-500");
+    expect(badge.closest("tr")?.className).toContain("bg-amber-500/5");
+  });
+});
 
 describe("ImportTable — transfer counterpart dropdown", () => {
   it("outlines the dropdown when the transfer's account is unset", () => {

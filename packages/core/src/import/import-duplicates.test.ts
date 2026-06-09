@@ -18,6 +18,7 @@ function makeImport(overrides: Partial<ImportTransaction> = {}): ImportTransacti
     categoryId: "",
     categoryConfidence: "",
     duplicate: false,
+    duplicateConfidence: "",
     ...overrides,
   };
 }
@@ -334,6 +335,50 @@ describe("detectDuplicates", () => {
       const result = detectDuplicates([imp1, imp2], [ex], MAPPING);
 
       expect(result.size).toBe(1);
+    });
+  });
+
+  describe("two-pass precedence — a relaxed match can't steal an exact match's claim", () => {
+    it("Netflix/Spotify: a same-amount neighbor doesn't claim the other row's exact dup", () => {
+      // Budget has Netflix $9.99 on the 1st. The import has Spotify $9.99 on
+      // the 3rd (not a dup — subscriptions share price points) and the real
+      // Netflix $9.99 on the 1st. Spotify iterates first: a single greedy pass
+      // would let it claim the Netflix txn via rule 5 (false duplicate) and
+      // leave the real Netflix row with its exact match already taken (missed
+      // duplicate). The high-confidence pass must claim first.
+      const spotify = makeImport({
+        id: "imp-spotify", date: "2026-01-03",
+        description: "SPOTIFY USA", merchant: "Spotify", amount: -999,
+      });
+      const netflix = makeImport({
+        id: "imp-netflix", date: "2026-01-01",
+        description: "NETFLIX.COM", merchant: "Netflix", amount: -999,
+      });
+      const existingNetflix = makeExisting({
+        datetime: "2026-01-01T00:00:00.000", amount: -999,
+        merchant: "Netflix", note: "NETFLIX.COM",
+      });
+
+      const result = detectDuplicates([spotify, netflix], [existingNetflix], MAPPING);
+
+      expect(result.size).toBe(1);
+      expect(result.get("imp-netflix")!.confidence).toBe("high");
+      expect(result.has("imp-spotify")).toBe(false);
+    });
+
+    it("pass-1 claims win even when the weak-matching row comes first in file order", () => {
+      // Same day, amount, and account for both rows; only the second one's
+      // description matches the existing note. The rule-4 candidate row must
+      // not claim the txn the rule-2 row matches.
+      const weak = makeImport({ id: "imp-weak", description: "MYSTERY CHARGE" });
+      const strong = makeImport({ id: "imp-strong" }); // description matches the note
+      const ex = makeExisting();
+
+      const result = detectDuplicates([weak, strong], [ex], MAPPING);
+
+      expect(result.size).toBe(1);
+      expect(result.get("imp-strong")!.confidence).toBe("high");
+      expect(result.has("imp-weak")).toBe(false);
     });
   });
 });

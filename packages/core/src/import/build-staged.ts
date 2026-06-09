@@ -35,6 +35,7 @@ export function buildStaged(
     categoryId: "",
     categoryConfidence: "",
     duplicate: false,
+    duplicateConfidence: "",
   }));
 }
 

@@ -213,6 +213,13 @@ export function useImportData(budgetPath: string, staging: StagingStore, rowsVer
     [transactions],
   );
 
+  /** The subset of duplicates matched only through the relaxed ±day window
+   *  (`duplicateConfidence === "low"`) — speculative, surfaced for review. */
+  const possibleDuplicateCount = useMemo(
+    () => transactions.filter((t) => t.duplicate && t.duplicateConfidence === "low").length,
+    [transactions],
+  );
+
   const uncategorizedCount = useMemo(
     () => transactions.filter((t) => !t.categoryId && t.type !== "transfer" && !t.duplicate).length,
     [transactions],
@@ -247,6 +254,7 @@ export function useImportData(budgetPath: string, staging: StagingStore, rowsVer
     flushWriteBack,
     sourceAccounts,
     duplicateIds,
+    possibleDuplicateCount,
     uncategorizedCount,
     lowConfidenceCount,
     incompleteCount,

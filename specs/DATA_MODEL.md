@@ -183,6 +183,7 @@ Both normalization paths (a `CsvMapping` applied to a CSV, or a model reading an
 | `categoryId`        | string  | Resolved budget category UUID. Empty until grounding or the classifier fills it         |
 | `categoryConfidence`| string  | `high` · `low` · `""` — set alongside `categoryId`                                       |
 | `duplicate`         | boolean | True when the row matches an existing budget transaction — skipped by enrichment, unselected at merge |
+| `duplicateConfidence`| string | `high` · `low` · `""` — the dup match tier; `low` (relaxed date window) renders as a possible duplicate to review |
 
 There is no `memo` field. At merge, `note` is the trimmed `description` and nothing else; `merchant` on `Transaction` is reserved for the cleaned name.
 

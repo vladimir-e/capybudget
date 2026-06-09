@@ -211,11 +211,14 @@ export function ImportTable({
         {transactions.map((txn, i) => {
           const isSelected = selectedIds.has(txn.id);
           const isDuplicate = duplicateIds.has(txn.id);
+          // Low confidence = matched only through the relaxed ±day window — a
+          // possible duplicate the user should review, not a settled one.
+          const isPossibleDuplicate = isDuplicate && txn.duplicateConfidence === "low";
           const activeCol =
             editingCell?.rowId === txn.id ? editingCell.column : null;
 
           const rowBg = isDuplicate && !isSelected
-            ? "bg-blue-500/5 opacity-60"
+            ? `${isPossibleDuplicate ? "bg-amber-500/5" : "bg-blue-500/5"} opacity-60`
             : isSelected
               ? i % 2 === 0
                 ? "bg-transparent"
@@ -242,8 +245,16 @@ export function ImportTable({
                     aria-label="Include transaction"
                   />
                   {isDuplicate && (
-                    <span title="Duplicate of an existing transaction">
-                      <Copy className="h-3 w-3 shrink-0 text-blue-500" />
+                    <span
+                      title={
+                        isPossibleDuplicate
+                          ? "Possible duplicate (close date match)"
+                          : "Duplicate of an existing transaction"
+                      }
+                    >
+                      <Copy
+                        className={`h-3 w-3 shrink-0 ${isPossibleDuplicate ? "text-amber-500" : "text-blue-500"}`}
+                      />
                     </span>
                   )}
                 </div>

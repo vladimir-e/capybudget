@@ -128,6 +128,9 @@ export interface GroundingResult {
   accountId: string;
   /** True when the row duplicates an existing budget transaction. */
   duplicate: boolean;
+  /** The match's tier when `duplicate` — `low` is a relaxed ±day-window match
+   *  the preview flags as a possible duplicate. Else "". */
+  duplicateConfidence: "high" | "low" | "";
   /** The dup it matched, when `duplicate`. */
   duplicateMatch?: DuplicateMatch;
 }
@@ -228,6 +231,7 @@ export function groundImport(
         categoryConfidence: "",
         accountId,
         duplicate: false,
+        duplicateConfidence: "",
       });
       continue;
     }
@@ -247,6 +251,7 @@ export function groundImport(
         categoryConfidence: "high",
         accountId,
         duplicate: false,
+        duplicateConfidence: "",
       });
       continue;
     }
@@ -259,6 +264,7 @@ export function groundImport(
       categoryConfidence: "",
       accountId,
       duplicate: false,
+      duplicateConfidence: "",
     });
   }
 
@@ -283,6 +289,7 @@ export function groundImport(
       ...existing,
       resolution: "duplicate",
       duplicate: true,
+      duplicateConfidence: dup.confidence,
       duplicateMatch: dup,
       // Carry the original txn's merchant always; its category only when type-correct.
       merchant: dup.matchedMerchant || existing.merchant,

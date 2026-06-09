@@ -7,19 +7,24 @@ import { FileStagingStore, parseImportCsv } from "./staging-store";
 describe("parseImportCsv", () => {
   it("round-trips serialized staging back into typed rows", () => {
     const rows: ImportTransaction[] = [
-      makeImportTransaction({ id: "imp-1", amount: -2500, merchant: "Whole Foods", categoryId: "cat-1", categoryConfidence: "high", duplicate: true }),
+      makeImportTransaction({ id: "imp-1", amount: -2500, merchant: "Whole Foods", categoryId: "cat-1", categoryConfidence: "high", duplicate: true, duplicateConfidence: "low" }),
       makeImportTransaction({ id: "imp-2", amount: 200000, type: "income", description: 'WITH, COMMA "quote"' }),
     ];
     const parsed = parseImportCsv(serializeImportCsv(rows));
 
     expect(parsed).toHaveLength(2);
-    expect(parsed[0]).toMatchObject({ id: "imp-1", amount: -2500, merchant: "Whole Foods", categoryConfidence: "high", duplicate: true });
-    expect(parsed[1]).toMatchObject({ id: "imp-2", amount: 200000, type: "income", description: 'WITH, COMMA "quote"', duplicate: false });
+    expect(parsed[0]).toMatchObject({ id: "imp-1", amount: -2500, merchant: "Whole Foods", categoryConfidence: "high", duplicate: true, duplicateConfidence: "low" });
+    expect(parsed[1]).toMatchObject({ id: "imp-2", amount: 200000, type: "income", description: 'WITH, COMMA "quote"', duplicate: false, duplicateConfidence: "" });
   });
 
   it("defaults missing columns gracefully", () => {
     const parsed = parseImportCsv("id,date,amount\nimp-1,2026-01-01,-100");
-    expect(parsed[0]).toMatchObject({ id: "imp-1", amount: -100, merchant: "", categoryId: "", type: "expense", duplicate: false });
+    expect(parsed[0]).toMatchObject({ id: "imp-1", amount: -100, merchant: "", categoryId: "", type: "expense", duplicate: false, duplicateConfidence: "" });
+  });
+
+  it("degrades a garbage duplicateConfidence value to empty", () => {
+    const parsed = parseImportCsv("id,date,amount,duplicate,duplicateConfidence\nimp-1,2026-01-01,-100,true,maybe");
+    expect(parsed[0]).toMatchObject({ duplicate: true, duplicateConfidence: "" });
   });
 
   // The resume seam reads staging an earlier run, a crash, or a hand-edit

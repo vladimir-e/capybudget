@@ -32,6 +32,12 @@ export interface DuplicateMatch {
  * 4. Low  — date + amount + same resolved account (description empty or different)
  * 5. Low  — date ±RELAXED_DATE_WINDOW_DAYS + amount + same resolved account
  *
+ * Claiming is greedy 1:1 but runs in two passes sharing one claimed set: every
+ * row tries the high-confidence rules (1-3) before any row may claim through
+ * the relaxed rules (4-5). Otherwise a row earlier in file order could claim
+ * via the ±day window an existing transaction that a later row matches exactly
+ * — one stolen claim producing both a false duplicate and a missed one.
+ *
  * Account resolution uses accountMapping (sourceAccount → accountId). Merchant
  * resolution comes from grounding via the optional `resolveMerchant` accessor —
  * a fast-pathed row carries a canonical merchant that nails the dup even when
@@ -61,66 +67,65 @@ export function detectDuplicates(
   // Track which existing transactions have already been matched (greedy 1:1)
   const claimed = new Set<string>();
 
-  for (const imp of importTxns) {
+  const runPass = (findForRow: (imp: ImportTransaction) => DuplicateMatch | null): void => {
+    for (const imp of importTxns) {
+      if (result.has(imp.id)) continue;
+      const match = findForRow(imp);
+      if (!match) continue;
+      claimed.add(match.existingTransactionId);
+      result.set(imp.id, match);
+    }
+  };
+
+  // Pass 1: high-confidence rules (1-3) for every row.
+  runPass((imp) => {
     const resolvedAccount = resolveAccount(imp, accountMapping);
     const hasAccount = resolvedAccount !== "";
     const hasDescription = imp.description.trim() !== "";
     const resolvedMerchant = (resolveMerchant?.(imp) ?? imp.merchant).trim();
-    const hasMerchant = resolvedMerchant !== "";
-
-    // Exact-date candidates drive rules 1-4; the relaxed ±window neighbors
-    // (closest day first, so rule 5 prefers the nearest match) drive rule 5.
     const exactCandidates = byDate.get(imp.date) ?? [];
-    const neighbors = relaxedNeighbors(imp.date, byDate);
-
-    let match: DuplicateMatch | null = null;
 
     // Rule 1: High — date + amount + resolved merchant + same account
-    if (hasMerchant && hasAccount) {
-      match = findMatch(exactCandidates, claimed, imp.amount, (ex) =>
+    if (resolvedMerchant !== "" && hasAccount) {
+      const match = findMatch(exactCandidates, claimed, imp.amount, "high", (ex) =>
         ex.accountId === resolvedAccount &&
         ex.merchant.trim().toLowerCase() === resolvedMerchant.toLowerCase(),
       );
-      if (match) { match.confidence = "high"; }
+      if (match) return match;
     }
 
     // Rule 2: High — date + amount + description + same account
-    if (!match && hasDescription && hasAccount) {
-      match = findMatch(exactCandidates, claimed, imp.amount, (ex) =>
+    if (hasDescription && hasAccount) {
+      const match = findMatch(exactCandidates, claimed, imp.amount, "high", (ex) =>
         ex.accountId === resolvedAccount && matchDescription(imp.description, ex),
       );
-      if (match) { match.confidence = "high"; }
+      if (match) return match;
     }
 
     // Rule 3: High — date + amount + description, no account on import side
-    if (!match && hasDescription && !hasAccount) {
-      match = findMatch(exactCandidates, claimed, imp.amount, (ex) =>
+    if (hasDescription && !hasAccount) {
+      return findMatch(exactCandidates, claimed, imp.amount, "high", (ex) =>
         matchDescription(imp.description, ex),
       );
-      if (match) { match.confidence = "high"; }
     }
+
+    return null;
+  });
+
+  // Pass 2: relaxed rules (4-5) for the rows still unmatched.
+  runPass((imp) => {
+    const resolvedAccount = resolveAccount(imp, accountMapping);
+    if (resolvedAccount === "") return null;
+    const sameAccount = (ex: Transaction): boolean => ex.accountId === resolvedAccount;
 
     // Rule 4: Low — date + amount + same account (no description match)
-    if (!match && hasAccount) {
-      match = findMatch(exactCandidates, claimed, imp.amount, (ex) =>
-        ex.accountId === resolvedAccount,
-      );
-      if (match) { match.confidence = "low"; }
-    }
+    const match = findMatch(byDate.get(imp.date) ?? [], claimed, imp.amount, "low", sameAccount);
+    if (match) return match;
 
-    // Rule 5: Low — date ±RELAXED_DATE_WINDOW_DAYS + amount + same account
-    if (!match && hasAccount) {
-      match = findMatch(neighbors, claimed, imp.amount, (ex) =>
-        ex.accountId === resolvedAccount,
-      );
-      if (match) { match.confidence = "low"; }
-    }
-
-    if (match) {
-      claimed.add(match.existingTransactionId);
-      result.set(imp.id, match);
-    }
-  }
+    // Rule 5: Low — date ±RELAXED_DATE_WINDOW_DAYS + amount + same account.
+    // Neighbors are ordered closest day first, so rule 5 prefers the nearest match.
+    return findMatch(relaxedNeighbors(imp.date, byDate), claimed, imp.amount, "low", sameAccount);
+  });
 
   return result;
 }
@@ -144,6 +149,7 @@ function findMatch(
   candidates: Transaction[],
   claimed: Set<string>,
   amount: number,
+  confidence: DuplicateConfidence,
   predicate: (ex: Transaction) => boolean,
 ): DuplicateMatch | null {
   for (const ex of candidates) {
@@ -151,7 +157,7 @@ function findMatch(
     if (ex.amount !== amount) continue;
     if (!predicate(ex)) continue;
     return {
-      confidence: "low", // caller overrides
+      confidence,
       existingTransactionId: ex.id,
       matchedDate: ex.datetime.slice(0, 10),
       matchedAmount: ex.amount,

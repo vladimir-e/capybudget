@@ -132,6 +132,11 @@ export function parseImportCsv(content: string): ImportTransaction[] {
       categoryId: row.categoryId ?? "",
       categoryConfidence: row.categoryConfidence ?? "",
       duplicate: row.duplicate === "true",
+      // Constrained vocabulary — anything but "high"/"low" degrades to "".
+      duplicateConfidence:
+        row.duplicateConfidence === "high" || row.duplicateConfidence === "low"
+          ? row.duplicateConfidence
+          : "",
     };
   });
   const { valid, warnings } = validateImportTransactions(rows);

@@ -66,6 +66,7 @@ export function ImportPreview({
     flushWriteBack,
     sourceAccounts,
     duplicateIds,
+    possibleDuplicateCount,
     uncategorizedCount,
     lowConfidenceCount,
     incompleteCount,
@@ -136,6 +137,7 @@ export function ImportPreview({
   const selectedCount = selected.length;
   const totalCount = transactions.length;
   const selectedTotal = selected.reduce((sum, t) => sum + t.amount, 0);
+  const certainDuplicateCount = duplicateIds.size - possibleDuplicateCount;
 
   // ── Merge ──────────────────────────────────────────────────────
   const [showMergeDialog, setShowMergeDialog] = useState(false);
@@ -219,12 +221,20 @@ export function ImportPreview({
         </div>
       </div>
 
-      {/* Duplicates banner */}
+      {/* Duplicates banner — certain matches and the speculative (close-date)
+          tier read differently: the former are settled, the latter prompt review. */}
       {duplicateIds.size > 0 && (
         <div className="flex items-center gap-2.5 rounded-lg border border-blue-500/20 bg-blue-500/5 px-3.5 py-2 text-sm text-foreground/70">
           <Copy className="h-3.5 w-3.5 text-blue-500 shrink-0" />
           <span>
-            {duplicateIds.size} duplicate{duplicateIds.size !== 1 ? "s" : ""} detected — already unselected
+            {[
+              certainDuplicateCount > 0 &&
+                `${certainDuplicateCount} duplicate${certainDuplicateCount !== 1 ? "s" : ""} detected — already unselected`,
+              possibleDuplicateCount > 0 &&
+                `${possibleDuplicateCount} possible duplicate${possibleDuplicateCount !== 1 ? "s" : ""} (close date match) — review before merging`,
+            ]
+              .filter(Boolean)
+              .join(" · ")}
           </span>
         </div>
       )}

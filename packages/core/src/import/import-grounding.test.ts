@@ -561,6 +561,7 @@ describe("groundImport — duplicate folding", () => {
     const r = results.get("r1")!;
     expect(r.resolution).toBe("duplicate");
     expect(r.duplicate).toBe(true);
+    expect(r.duplicateConfidence).toBe("high");
     expect(r.merchant).toBe("Whole Foods");
     expect(r.categoryId).toBe("cat-groceries");
     expect(r.duplicateMatch?.existingTransactionId).toBe("ex-1");
@@ -570,6 +571,41 @@ describe("groundImport — duplicate folding", () => {
     const { stats } = groundImport(dupSetup());
     expect(stats.duplicates).toBe(1);
     expect(stats.resolved).toBe(1);
+  });
+
+  it("grounds a relaxed-window match at low duplicateConfidence", () => {
+    // Same amount + account, dates two days apart, descriptions diverge — only
+    // rule 5 fires, and the preview needs to know this dup is speculative.
+    const existing = makeTransaction({
+      id: "ex-1",
+      merchant: "",
+      note: "MONTHLY SAVINGS MOVE",
+      categoryId: "",
+      accountId: "acct-checking",
+      amount: -50000,
+      datetime: "2026-01-17T00:00:00.000",
+    });
+    const row = makeImportTransaction({
+      id: "r1",
+      description: "ACH WITHDRAWAL 9981",
+      amount: -50000,
+      date: "2026-01-15",
+      sourceAccount: "Chase Checking",
+    });
+    const { results } = groundImport(input({ rows: [row], history: [existing] }));
+
+    const r = results.get("r1")!;
+    expect(r.duplicate).toBe(true);
+    expect(r.duplicateConfidence).toBe("low");
+  });
+
+  it("leaves duplicateConfidence empty on a non-duplicate row", () => {
+    const row = makeImportTransaction({ id: "r1", description: "ZZZ MYSTERY" });
+    const { results } = groundImport(input({ rows: [row] }));
+
+    const r = results.get("r1")!;
+    expect(r.duplicate).toBe(false);
+    expect(r.duplicateConfidence).toBe("");
   });
 
   it("dedup leverages the fast-path-resolved merchant even when descriptions diverge", () => {

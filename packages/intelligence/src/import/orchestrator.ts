@@ -441,6 +441,7 @@ function applyGrounding(
     categoryConfidence: result.categoryConfidence || row.categoryConfidence,
     accountId: result.accountId || row.accountId,
     duplicate: result.duplicate,
+    duplicateConfidence: result.duplicateConfidence,
   };
 }
 

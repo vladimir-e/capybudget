@@ -34,6 +34,7 @@ const TXN: ImportTransaction = {
   categoryId: "cat-1",
   categoryConfidence: "high",
   duplicate: false,
+  duplicateConfidence: "",
 };
 
 beforeEach(() => {
@@ -49,11 +50,60 @@ beforeEach(() => {
     flushWriteBack,
     sourceAccounts: [],
     duplicateIds: new Set<string>(),
+    possibleDuplicateCount: 0,
     uncategorizedCount: 0,
     lowConfidenceCount: 0,
     incompleteCount: 0,
     accounts: [],
     categories: [],
+  });
+});
+
+describe("ImportPreview — duplicates banner", () => {
+  function renderPreview() {
+    return render(
+      <ImportPreview
+        budgetPath="/b"
+        staging={{} as StagingStore}
+        rowsVersion={0}
+        running={false}
+        onStop={vi.fn()}
+        onStopRun={vi.fn(async () => {})}
+        onEnrich={vi.fn()}
+        onMergeComplete={vi.fn()}
+      />,
+    );
+  }
+
+  it("splits the copy between certain and possible duplicates", () => {
+    Object.assign(dataReturn, {
+      duplicateIds: new Set(["a", "b", "c", "d", "e", "f"]),
+      possibleDuplicateCount: 2,
+    });
+    renderPreview();
+
+    expect(
+      screen.getByText(
+        "4 duplicates detected — already unselected · 2 possible duplicates (close date match) — review before merging",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("keeps the plain copy when every duplicate is certain", () => {
+    Object.assign(dataReturn, { duplicateIds: new Set(["a", "b"]), possibleDuplicateCount: 0 });
+    renderPreview();
+
+    expect(screen.getByText("2 duplicates detected — already unselected")).toBeInTheDocument();
+    expect(screen.queryByText(/possible duplicate/)).toBeNull();
+  });
+
+  it("shows only the review copy when every duplicate is speculative", () => {
+    Object.assign(dataReturn, { duplicateIds: new Set(["a"]), possibleDuplicateCount: 1 });
+    renderPreview();
+
+    expect(
+      screen.getByText("1 possible duplicate (close date match) — review before merging"),
+    ).toBeInTheDocument();
   });
 });
 

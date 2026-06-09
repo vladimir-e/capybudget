@@ -34,6 +34,7 @@ export interface ImportTransaction {
   categoryId: string; // budget category UUID (resolved, may be empty)
   categoryConfidence: string; // "high" | "low" | ""
   duplicate: boolean; // matches an existing budget txn — skip enrichment, unselect at merge
+  duplicateConfidence: string; // "high" | "low" | "" — low = relaxed ±day-window match, flagged for review
 }
 
 /** Stored in .capy/aliases.json — survives across imports. */

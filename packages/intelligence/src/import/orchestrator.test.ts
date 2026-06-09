@@ -527,11 +527,13 @@ describe("ImportOrchestrator — duplicate persistence", () => {
 
     const row = staging.transactions![0];
     expect(row.duplicate).toBe(true);
+    expect(row.duplicateConfidence).toBe("high"); // exact date + description + account
     // Dup with no carried category must still skip enrichment (the !duplicate term).
     expect(session.calls).toHaveLength(1); // mapping only — no enrich batch
     // Survives a serialize → parse round-trip (resume sees it).
     const reread = await staging.readTransactions();
     expect(reread![0].duplicate).toBe(true);
+    expect(reread![0].duplicateConfidence).toBe("high");
   });
 });
 
