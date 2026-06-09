@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAccounts, useCategories } from "@/hooks/use-budget-data";
 import { useImportRepository } from "@/hooks/use-import-repository";
 import { matchAccountsByName } from "@capybudget/core";
-import { needsEnrich, type StagingStore } from "@capybudget/intelligence";
+import { needsEnrich, needsTransferEnrich, type StagingStore } from "@capybudget/intelligence";
 import type { ImportTransaction, ImportAliases } from "@capybudget/core";
 import type { EntityMapping } from "@/components/import/import-mapping";
 
@@ -24,6 +24,7 @@ import type { EntityMapping } from "@/components/import/import-mapping";
  */
 export function useImportData(budgetPath: string, staging: StagingStore, rowsVersion: number) {
   const [transactions, setTransactions] = useState<ImportTransaction[]>([]);
+  const [transferCtxIds, setTransferCtxIds] = useState<Set<string>>(new Set());
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [accountMapping, setAccountMapping] = useState<EntityMapping>({});
   const [loading, setLoading] = useState(true);
@@ -63,8 +64,12 @@ export function useImportData(budgetPath: string, staging: StagingStore, rowsVer
 
   // ── Load staging ─────────────────────────────────────────────
   const loadCsv = useCallback(async () => {
-    const rows = (await staging.readTransactions()) ?? [];
+    const [rows, transferCtx] = await Promise.all([
+      staging.readTransactions().then((r) => r ?? []),
+      staging.readTransferContext().then((c) => c ?? {}),
+    ]);
     setTransactions(rows);
+    setTransferCtxIds(new Set(Object.keys(transferCtx)));
     setSelectedIds(new Set(rows.filter((r) => !r.duplicate).map((r) => r.id)));
     setLoading(false);
   }, [staging]);
@@ -204,10 +209,16 @@ export function useImportData(budgetPath: string, staging: StagingStore, rowsVer
   );
 
   /** Rows still needing the classifier — gates the Enrich button. Mirrors the
-   *  orchestrator's own predicate so the UI agrees with what a re-run would do. */
+   *  orchestrator's `pendingCategory + pendingTransfer`: income/expense rows that
+   *  fail `needsEnrich`, plus transfers whose counterpart is still unresolved and
+   *  that carry transfer context to pick from. A contextless transfer can never be
+   *  auto-resolved, so it must not count — else Enrich stays enabled doing nothing. */
   const incompleteCount = useMemo(
-    () => transactions.filter(needsEnrich).length,
-    [transactions],
+    () =>
+      transactions.filter(
+        (r) => needsEnrich(r) || needsTransferEnrich(r, transferCtxIds.has(r.id)),
+      ).length,
+    [transactions, transferCtxIds],
   );
 
   return {

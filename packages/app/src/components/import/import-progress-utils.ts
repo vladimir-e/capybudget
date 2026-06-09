@@ -1,4 +1,4 @@
-import { needsEnrich, type ImportPhase } from "@capybudget/intelligence";
+import { needsEnrich, needsTransferEnrich, type ImportPhase } from "@capybudget/intelligence";
 import type { ImportTransaction } from "@capybudget/core";
 
 /** The four pipeline phases with their section-bar labels, in order. The
@@ -33,18 +33,32 @@ export function segmentState(index: number, phase: ImportPhase): SegmentState {
  * Without it, a resumed partial import renders Categorizing full + checked while
  * the Enrich button still offers "Enrich N" — the bar contradicting reality.
  *
- * The meter is over the categorizable population (non-transfer, non-duplicate
- * rows); `done` is how many already carry a category, `total` is all of them. So
- * whenever rows still need the classifier, `done < total` and the segment reads
- * partly-filled, never falsely complete. Returns null when nothing is
- * categorizable (a fully fast-pathed / all-duplicate import), so the segment
- * falls back to its plain done state rather than faking a meter.
+ * The meter mirrors the orchestrator's `pendingCategory + pendingTransfer` total:
+ * income/expense rows enrich against `needsEnrich`, and a transfer counts only
+ * when it carries transfer context (its id in `transferCtxIds`) — a contextless
+ * transfer can't be auto-resolved, so it never inflates the denominator. `done`
+ * is the rows that no longer need enrich; whenever any remain, `done < total` and
+ * the segment reads partly-filled, never falsely complete. Returns null when
+ * nothing is categorizable (a fully fast-pathed / all-duplicate import), so the
+ * segment falls back to its plain done state rather than faking a meter.
  */
-export function resumeMeter(rows: ImportTransaction[]): { done: number; total: number } | null {
+export function resumeMeter(
+  rows: ImportTransaction[],
+  transferCtxIds: Set<string>,
+): { done: number; total: number } | null {
   let total = 0;
   let done = 0;
   for (const row of rows) {
-    if (row.type === "transfer" || row.duplicate) continue;
+    if (row.duplicate) continue;
+    if (row.type === "transfer") {
+      // In-population iff context-bearing (a resolved one stays counted so the
+      // denominator is stable as counterparts land); done once the counterpart is
+      // set. Contextless transfers can't be auto-resolved — they never count.
+      if (!transferCtxIds.has(row.id)) continue;
+      total++;
+      if (!needsTransferEnrich(row, true)) done++;
+      continue;
+    }
     total++;
     if (!needsEnrich(row)) done++;
   }

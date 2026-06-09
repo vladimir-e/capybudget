@@ -42,13 +42,18 @@ function makeTxn(overrides: Partial<ImportTransaction>): ImportTransaction {
   };
 }
 
-function makeStaging(initial: ImportTransaction[]): StagingStore {
+function makeStaging(
+  initial: ImportTransaction[],
+  transferCtxIds: string[] = [],
+): StagingStore {
   let rows = initial;
+  const transferContext = Object.fromEntries(transferCtxIds.map((id) => [id, {}]));
   return {
     readTransactions: async () => rows.map((r) => ({ ...r })),
     writeTransactions: async (next: ImportTransaction[]) => {
       rows = next;
     },
+    readTransferContext: async () => transferContext,
   } as unknown as StagingStore;
 }
 
@@ -88,5 +93,46 @@ describe("useImportData — category validation gating", () => {
     // Give the gated effect a chance to run; the valid id must survive.
     await waitFor(() => expect(result.current.transactions[0].categoryId).toBe("real-cat"));
     expect(result.current.transactions[0].categoryConfidence).toBe("high");
+  });
+});
+
+describe("useImportData — incompleteCount (Enrich gate)", () => {
+  beforeEach(() => {
+    hookState.accounts = { data: [{ id: "acc-1", name: "Checking" }] };
+    hookState.categories = { data: [{ id: "cat-1" }], isSuccess: true };
+  });
+
+  const resolved = (id: string): Partial<ImportTransaction> => ({
+    id,
+    merchant: "Coffee",
+    categoryId: "cat-1",
+    categoryConfidence: "high",
+  });
+
+  it("enables Enrich when a context-bearing transfer lacks a counterpart and all category rows are resolved", async () => {
+    const staging = makeStaging(
+      [
+        makeTxn(resolved("imp-1")),
+        makeTxn({ id: "imp-2", type: "transfer", merchant: "", categoryId: "", targetAccountId: "" }),
+      ],
+      ["imp-2"], // imp-2 carries transfer context
+    );
+
+    const { result } = renderHook(() => useImportData("/b", staging, 0));
+
+    await waitFor(() => expect(result.current.transactions).toHaveLength(2));
+    expect(result.current.incompleteCount).toBe(1);
+  });
+
+  it("does not keep Enrich enabled for a contextless transfer with no counterpart", async () => {
+    const staging = makeStaging([
+      makeTxn(resolved("imp-1")),
+      makeTxn({ id: "imp-2", type: "transfer", merchant: "", categoryId: "", targetAccountId: "" }),
+    ]); // no transfer context for imp-2 → can't be auto-resolved
+
+    const { result } = renderHook(() => useImportData("/b", staging, 0));
+
+    await waitFor(() => expect(result.current.transactions).toHaveLength(2));
+    expect(result.current.incompleteCount).toBe(0);
   });
 });

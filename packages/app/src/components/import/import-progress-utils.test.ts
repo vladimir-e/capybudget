@@ -87,10 +87,11 @@ describe("resumeMeter", () => {
   const done = (id: string) =>
     makeImportTransaction({ id, merchant: "X", categoryId: "cat-1", categoryConfidence: "low" });
   const pending = (id: string) => makeImportTransaction({ id, merchant: "", categoryId: "" });
+  const noCtx = new Set<string>();
 
   it("reconstructs a partial-categorize meter from disk rows", () => {
     // A resumed import: 2 categorized, 1 still pending → 2 of 3, not complete.
-    const meter = resumeMeter([done("a"), done("b"), pending("c")]);
+    const meter = resumeMeter([done("a"), done("b"), pending("c")], noCtx);
     expect(meter).toEqual({ done: 2, total: 3 });
     // The bar then renders Categorizing partly-filled, never falsely checked,
     // even though a from-disk phase reads `done`.
@@ -98,17 +99,17 @@ describe("resumeMeter", () => {
   });
 
   it("reads complete when every categorizable row landed", () => {
-    expect(resumeMeter([done("a"), done("b")])).toEqual({ done: 2, total: 2 });
+    expect(resumeMeter([done("a"), done("b")], noCtx)).toEqual({ done: 2, total: 2 });
   });
 
-  it("excludes transfers and duplicates from the categorizable population", () => {
+  it("excludes contextless transfers and duplicates from the categorizable population", () => {
     const rows = [
       done("a"),
       pending("b"),
       makeImportTransaction({ id: "c", type: "transfer" }),
       makeImportTransaction({ id: "d", duplicate: true }),
     ];
-    expect(resumeMeter(rows)).toEqual({ done: 1, total: 2 });
+    expect(resumeMeter(rows, noCtx)).toEqual({ done: 1, total: 2 });
   });
 
   it("returns null when nothing is categorizable (all fast-pathed / duplicate)", () => {
@@ -116,6 +117,35 @@ describe("resumeMeter", () => {
       makeImportTransaction({ id: "a", type: "transfer" }),
       makeImportTransaction({ id: "b", duplicate: true }),
     ];
-    expect(resumeMeter(rows)).toBeNull();
+    expect(resumeMeter(rows, noCtx)).toBeNull();
+  });
+
+  it("is not falsely complete when only a context-bearing transfer remains", () => {
+    // Every category row landed; one transfer carries context but no counterpart.
+    const rows = [
+      done("a"),
+      makeImportTransaction({ id: "t", type: "transfer", targetAccountId: "" }),
+    ];
+    const meter = resumeMeter(rows, new Set(["t"]));
+    expect(meter).toEqual({ done: 1, total: 2 });
+    expect(meterView("done", meter).complete).toBe(false);
+  });
+
+  it("counts a resolved context-bearing transfer as done (stable denominator)", () => {
+    const rows = [
+      done("a"),
+      makeImportTransaction({ id: "t", type: "transfer", targetAccountId: "acc-2" }),
+    ];
+    expect(resumeMeter(rows, new Set(["t"]))).toEqual({ done: 2, total: 2 });
+  });
+
+  it("does not let a contextless transfer inflate the denominator", () => {
+    // A transfer with no transfer-context entry can't be auto-resolved, so it
+    // must not appear in the meter even though it lacks a counterpart.
+    const rows = [
+      done("a"),
+      makeImportTransaction({ id: "t", type: "transfer", targetAccountId: "" }),
+    ];
+    expect(resumeMeter(rows, noCtx)).toEqual({ done: 1, total: 1 });
   });
 });
