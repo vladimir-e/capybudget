@@ -18,7 +18,7 @@ import { Building2, ChevronDown, Plus } from "lucide-react";
 /** Maps a source string → existing entity ID, or "__create__" for new */
 export type EntityMapping = Record<string, string>;
 
-interface ImportMappingProps {
+interface ImportMappingRowsProps {
   sourceAccounts: string[];
   accounts: Account[];
   accountMapping: EntityMapping;
@@ -27,50 +27,41 @@ interface ImportMappingProps {
 
 // ── Component ───────────────────────────────────────────────────
 
-export function ImportMapping({
+/** One row per imported account: the imported name → a target-account
+ *  selector (an existing account, or create-on-merge — the default). Rendered
+ *  inside the merge confirmation dialog so the mapping is confirmed at the
+ *  moment it takes effect. */
+export function ImportMappingRows({
   sourceAccounts,
   accounts,
   accountMapping,
   onAccountMappingChange,
-}: ImportMappingProps) {
-  if (sourceAccounts.length === 0) return null;
-
+}: ImportMappingRowsProps) {
   return (
-    <div className="rounded-xl border border-border/40 bg-card/30 overflow-hidden">
-      <div className="px-4 py-3 border-b border-border/30 bg-muted/20">
-        <h3 className="text-sm font-semibold text-foreground">
-          Map accounts
-        </h3>
-        <p className="text-xs text-muted-foreground mt-0.5">
-          Match imported accounts to existing ones, or create new entries on merge.
-        </p>
-      </div>
-
-      <div className="p-4 space-y-2.5">
-        {sourceAccounts.map((source) => (
-          <div key={source} className="flex items-center gap-3">
-            <div className="flex items-center gap-2 flex-1 min-w-0">
-              <Building2 className="h-3.5 w-3.5 text-muted-foreground/50 shrink-0" />
-              <span className="truncate text-sm text-foreground/80">
-                {source}
-              </span>
-            </div>
-            <div className="w-52 shrink-0 [&_button:first-of-type]:w-full [&_button:first-of-type]:min-w-0">
-              <AccountMappingSelector
-                accounts={accounts}
-                value={accountMapping[source]}
-                sourceLabel={source}
-                onChange={(v) =>
-                  onAccountMappingChange({
-                    ...accountMapping,
-                    [source]: v,
-                  })
-                }
-              />
-            </div>
+    <div className="space-y-2.5">
+      {sourceAccounts.map((source) => (
+        <div key={source} className="flex items-center gap-3">
+          <div className="flex items-center gap-2 flex-1 min-w-0">
+            <Building2 className="h-3.5 w-3.5 text-muted-foreground/50 shrink-0" />
+            <span className="truncate text-sm text-foreground/80">
+              {source}
+            </span>
           </div>
-        ))}
-      </div>
+          <div className="w-52 shrink-0 [&_button:first-of-type]:w-full [&_button:first-of-type]:min-w-0">
+            <AccountMappingSelector
+              accounts={accounts}
+              value={accountMapping[source]}
+              sourceLabel={source}
+              onChange={(v) =>
+                onAccountMappingChange({
+                  ...accountMapping,
+                  [source]: v,
+                })
+              }
+            />
+          </div>
+        </div>
+      ))}
     </div>
   );
 }

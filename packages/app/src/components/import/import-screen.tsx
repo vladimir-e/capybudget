@@ -31,7 +31,7 @@ import {
   isPdfFilename,
   readFileAsBase64,
 } from "@/lib/file-attachments";
-import { ImportDropZone } from "./import-drop-zone";
+import { ImportDropZone, ProviderUnsupportedBanner } from "./import-drop-zone";
 import { ImportProgress } from "./import-progress";
 import { resumeMeter } from "./import-progress-utils";
 import { ImportPreview } from "./import-preview";
@@ -57,6 +57,7 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
   const phase = useImportStore((s) => s.phase);
   const status = useImportStore((s) => s.status);
   const log = useImportStore((s) => s.log);
+  const normalizeProgress = useImportStore((s) => s.normalizeProgress);
   const batchProgress = useImportStore((s) => s.batchProgress);
   const grounded = useImportStore((s) => s.grounded);
   const error = useImportStore((s) => s.error);
@@ -76,6 +77,9 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
   const [fileDuplicates, setFileDuplicates] = useState<Record<string, string>>({});
   const [isDragging, setIsDragging] = useState(false);
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
+  // The preview's live enrichable count + flush-then-enrich trigger, surfaced
+  // up so the progress section's control can render it.
+  const [enrichControl, setEnrichControl] = useState<{ count: number; run: () => void } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dragCounterRef = useRef(0);
 
@@ -359,7 +363,10 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
   }, [reset, setHasImportData]);
 
   // ── Render ────────────────────────────────────────────────────
-  const showDropZone = viewState === "file-attach";
+  // Without a configured AI provider the screen is just the setup nudge — no
+  // drop zone, no file handling, no drop-anywhere drag surface.
+  const showDropZone = viewState === "file-attach" && supported;
+  const showUnsupported = viewState === "file-attach" && !supported;
   const showRun = viewState === "run";
   // The section bar persists through a run and stays as a done-from-state header
   // above a resumed or finished preview — staged rows mean Reading/Normalizing/
@@ -373,7 +380,9 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
     ? "Importing your transactions…"
     : showRun
       ? "Review and edit imported transactions"
-      : "Drop files to import transactions";
+      : showUnsupported
+        ? "Set up your AI assistant to import transactions"
+        : "Drop files to import transactions";
 
   if (viewState === "loading") {
     return (
@@ -426,12 +435,16 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
 
       <div className="flex-1 overflow-auto p-6">
         <div className={`mx-auto space-y-6 ${showRun ? "max-w-6xl" : "max-w-2xl"}`}>
-          {showDropZone && (
-            <ImportDropZone
-              importSupported={supported}
+          {showUnsupported && (
+            <ProviderUnsupportedBanner
               onOpenSettings={() =>
                 navigate({ to: "/budget/settings", search: { path: budgetPath, name: budgetName } })
               }
+            />
+          )}
+
+          {showDropZone && (
+            <ImportDropZone
               fileInputRef={fileInputRef}
               onFileSelect={handleFileSelect}
               dragging={isDragging}
@@ -458,7 +471,10 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
                   running={running}
                   status={status}
                   log={log}
+                  normalizeProgress={normalizeProgress}
                   batchProgress={batchProgress ?? resumeBatch}
+                  onStop={() => void stop()}
+                  enrich={enrichControl}
                 />
               )}
               {hasStagedRows && (
@@ -467,9 +483,9 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
                   staging={staging}
                   rowsVersion={rowsVersion}
                   running={running}
-                  onStop={stop}
                   onStopRun={cancel}
                   onEnrich={handleEnrich}
+                  onEnrichControl={setEnrichControl}
                   onMergeComplete={handleMergeComplete}
                 />
               )}

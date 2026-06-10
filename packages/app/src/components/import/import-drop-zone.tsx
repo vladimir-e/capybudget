@@ -17,8 +17,6 @@ import { formatFileSize } from "@capybudget/intelligence";
 import { formatDateLabel, type Account } from "@capybudget/core";
 
 interface ImportDropZoneProps {
-  importSupported: boolean;
-  onOpenSettings: () => void;
   fileInputRef: RefObject<HTMLInputElement | null>;
   onFileSelect: (e: ChangeEvent<HTMLInputElement>) => void;
   dragging: boolean;
@@ -37,8 +35,6 @@ interface ImportDropZoneProps {
 }
 
 export function ImportDropZone({
-  importSupported,
-  onOpenSettings,
   fileInputRef,
   onFileSelect,
   dragging,
@@ -57,9 +53,6 @@ export function ImportDropZone({
 }: ImportDropZoneProps) {
   return (
     <>
-      {!importSupported && (
-        <ProviderUnsupportedBanner onOpenSettings={onOpenSettings} />
-      )}
       <input
         ref={fileInputRef}
         type="file"
@@ -183,7 +176,7 @@ export function ImportDropZone({
             />
             <Button
               onClick={onStart}
-              disabled={uploadingFiles.size > 0 || !importSupported}
+              disabled={uploadingFiles.size > 0}
               className="gap-2 rounded-xl px-6 py-5 text-base font-semibold shadow-lg shadow-brand/20"
             >
               <Sparkles className="h-4.5 w-4.5" />
@@ -199,9 +192,10 @@ export function ImportDropZone({
 /**
  * Shown when no AI provider is configured — same nudge the empty Capy
  * overlay surfaces. Import needs intelligence; this is the single
- * provider-agnostic gate.
+ * provider-agnostic gate, and the only thing the screen renders then —
+ * no drop zone, no drag handling.
  */
-function ProviderUnsupportedBanner({
+export function ProviderUnsupportedBanner({
   onOpenSettings,
 }: {
   onOpenSettings: () => void;

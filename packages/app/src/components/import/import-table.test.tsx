@@ -18,7 +18,11 @@ const sort: ImportSortConfig = { column: "date", direction: "desc" };
 /** Render ImportTable over the given rows with inert handlers. */
 function renderTable(
   transactions: ImportTransaction[],
-  opts: { selectedIds?: Set<string>; duplicateIds?: Set<string> } = {},
+  opts: {
+    selectedIds?: Set<string>;
+    duplicateIds?: Set<string>;
+    accountMapping?: Record<string, string>;
+  } = {},
 ) {
   return render(
     <ImportTable
@@ -33,7 +37,7 @@ function renderTable(
       onUpdateTransaction={vi.fn()}
       categories={[makeCategory({ id: "cat-1", name: "Groceries", group: "Daily Living" })]}
       accounts={ACCOUNTS}
-      accountMapping={{}}
+      accountMapping={opts.accountMapping ?? {}}
       duplicateIds={opts.duplicateIds ?? new Set()}
     />,
   );
@@ -70,6 +74,41 @@ describe("ImportTable — duplicate badge tiers", () => {
     const badge = screen.getByTitle("Possible duplicate (close date match)");
     expect(badge.innerHTML).toContain("text-amber-500");
     expect(badge.closest("tr")?.className).toContain("bg-amber-500/5");
+  });
+});
+
+describe("ImportTable — mapped account column", () => {
+  it("shows the mapped target account's name with the raw import as a secondary line", () => {
+    renderTable([makeImportTransaction({ id: "imp-1", sourceAccount: "BOFA CHK 1234" })], {
+      accountMapping: { "BOFA CHK 1234": "acct-checking" },
+    });
+
+    expect(screen.getByText("BofA Checking")).toBeInTheDocument();
+    expect(screen.getByText("BOFA CHK 1234")).toBeInTheDocument();
+    expect(screen.queryByText("new")).toBeNull();
+  });
+
+  it("keeps the imported name and tags it 'new' when merge would create the account", () => {
+    renderTable([makeImportTransaction({ id: "imp-1", sourceAccount: "Monzo" })], {
+      accountMapping: { Monzo: "__create__" },
+    });
+
+    expect(screen.getByText("Monzo")).toBeInTheDocument();
+    expect(screen.getByText("new")).toBeInTheDocument();
+    expect(screen.getByTitle('"Monzo" will be created on merge')).toBeInTheDocument();
+  });
+
+  it("treats a missing mapping entry as create-on-merge too", () => {
+    renderTable([makeImportTransaction({ id: "imp-1", sourceAccount: "Monzo" })]);
+    expect(screen.getByText("new")).toBeInTheDocument();
+  });
+
+  it("shows no secondary line when the target name equals the imported one", () => {
+    renderTable([makeImportTransaction({ id: "imp-1", sourceAccount: "BofA Checking" })], {
+      accountMapping: { "BofA Checking": "acct-checking" },
+    });
+
+    expect(screen.getAllByText("BofA Checking")).toHaveLength(1);
   });
 });
 

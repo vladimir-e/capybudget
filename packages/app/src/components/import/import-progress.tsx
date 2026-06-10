@@ -1,11 +1,18 @@
 import { useEffect, useRef } from "react";
-import { Check, Loader2 } from "lucide-react";
-import type { ImportPhase, TerminalLogEntry } from "@capybudget/intelligence";
+import { Check, Loader2, Sparkles, Square } from "lucide-react";
+import type {
+  BatchProgress,
+  ImportPhase,
+  NormalizeProgress,
+  TerminalLogEntry,
+} from "@capybudget/intelligence";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
 import {
   PROGRESS_SEGMENTS,
   meterView,
   segmentState,
+  type SegmentMeter,
   type SegmentState,
 } from "./import-progress-utils";
 
@@ -18,32 +25,78 @@ interface ImportProgressProps {
   status: string;
   /** Accumulated terminal log, oldest first. */
   log: TerminalLogEntry[];
-  /** Categorizing batch meter, or null before it ticks. */
-  batchProgress: { done: number; total: number } | null;
+  /** Normalizing row counter, or null before it ticks. */
+  normalizeProgress: NormalizeProgress | null;
+  /** Enhancing (categorizing) batch meter, or null before it ticks. */
+  batchProgress: BatchProgress | null;
+  /** Stop the in-flight run (keeps staging — resumable). */
+  onStop: () => void;
+  /** The idle-state enrichable remainder + its trigger; null (or a zero count)
+   *  hides the Enrich control. */
+  enrich: { count: number; run: () => void } | null;
 }
 
 /**
- * The import progress showcase: a persistent section bar (Reading → Normalizing
- * → History → Categorizing), a current-status line, and a terminal-style log.
+ * The import progress showcase: a persistent two-segment section bar
+ * (Normalizing → Enhancing), a current-status line, and a terminal-style log.
  *
- * The first three segments are near-instant; the Categorizing segment doubles
- * as the batch meter — its fill tracks landed batches and it carries a live
- * "Categorizing X of N" count over the remaining rows. Completed segments fill
- * and check; the active one animates.
+ * The Normalizing segment meters streamed extraction rows / CSV row counts;
+ * the Enhancing segment doubles as the batch meter — its fill tracks landed
+ * batches with a live "X of N" count over the remaining rows. Completed
+ * segments fill and check; the active one animates. The run control lives on
+ * the bar's right edge: Stop while in flight, "Enrich N" when idle rows still
+ * need the classifier.
  */
-export function ImportProgress({ phase, running, status, log, batchProgress }: ImportProgressProps) {
+export function ImportProgress({
+  phase,
+  running,
+  status,
+  log,
+  normalizeProgress,
+  batchProgress,
+  onStop,
+  enrich,
+}: ImportProgressProps) {
+  const showEnrich = !running && !!enrich && enrich.count > 0;
   return (
     <div className="space-y-4">
-      <div className="flex items-stretch gap-2">
-        {PROGRESS_SEGMENTS.map((seg, i) => (
-          <Segment
-            key={seg.phase}
-            label={seg.label}
-            state={segmentState(i, phase)}
-            running={running}
-            meter={seg.phase === "categorizing" ? batchProgress : null}
-          />
-        ))}
+      <div className="flex items-center gap-3">
+        <div className="flex flex-1 items-stretch gap-2 min-w-0">
+          {PROGRESS_SEGMENTS.map((seg, i) => {
+            const state = segmentState(i, phase);
+            // The Normalizing meter only speaks for the live phase — once the
+            // pipeline moves on, the segment is simply done (its totals were
+            // estimates). The Enhancing meter stays attached even at `done` so
+            // an interrupted run reads partly-filled, not falsely checked.
+            const meter: SegmentMeter | null =
+              seg.key === "normalizing"
+                ? state === "active" && normalizeProgress
+                  ? { done: normalizeProgress.rows, total: normalizeProgress.total }
+                  : null
+                : batchProgress;
+            return <Segment key={seg.key} label={seg.label} state={state} running={running} meter={meter} />;
+          })}
+        </div>
+        {(running || showEnrich) && (
+          <Button
+            size="sm"
+            variant="outline"
+            className="gap-1.5 shrink-0"
+            onClick={running ? onStop : enrich?.run}
+          >
+            {running ? (
+              <>
+                <Square className="h-3.5 w-3.5" />
+                Stop
+              </>
+            ) : (
+              <>
+                <Sparkles className="h-3.5 w-3.5" />
+                Enrich {enrich?.count}
+              </>
+            )}
+          </Button>
+        )}
       </div>
 
       {status && (
@@ -69,10 +122,10 @@ function Segment({
   label: string;
   state: SegmentState;
   running: boolean;
-  meter: { done: number; total: number } | null;
+  meter: SegmentMeter | null;
 }) {
   const { fillPct, complete, countLabel } = meterView(state, meter);
-  const hasMeter = !!meter && meter.total > 0;
+  const proportional = !!meter && meter.total !== null && meter.total > 0;
 
   return (
     <div className="flex-1 min-w-0 space-y-1.5">
@@ -109,9 +162,9 @@ function Segment({
           className={cn(
             "h-full rounded-full transition-[width] duration-500 ease-out",
             complete ? "bg-amount-income" : "bg-brand",
-            // The active non-meter segments (Reading/Normalizing/History) are
-            // near-instant, so a soft pulse reads better than a frozen full bar.
-            state === "active" && !hasMeter && running && "animate-pulse",
+            // An active segment without a proportional meter renders full-width
+            // — a soft pulse reads better there than a frozen bar.
+            state === "active" && !proportional && running && "animate-pulse",
           )}
           style={{ width: `${fillPct}%` }}
         />

@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -20,8 +20,8 @@ import {
   filterImportTransactions,
   type ImportSortConfig,
 } from "@/components/import/import-table-utils";
-import { ImportMapping } from "./import-mapping";
-import { Search, X, GitMerge, AlertTriangle, Copy, Sparkles, Loader2, Square } from "lucide-react";
+import { ImportMappingRows } from "./import-mapping";
+import { Search, X, GitMerge, AlertTriangle, Copy, Loader2 } from "lucide-react";
 
 interface ImportPreviewProps {
   budgetPath: string;
@@ -29,16 +29,18 @@ interface ImportPreviewProps {
   staging: StagingStore;
   /** Bumped each time a batch lands; triggers a staging reload. */
   rowsVersion: number;
-  /** True while a run is in flight — the table is read-only and Stop replaces Enrich. */
+  /** True while a run is in flight — the table is read-only and Merge is gated. */
   running: boolean;
-  /** Interrupt the in-flight run (Stop) — keeps staging, stays resumable. */
-  onStop: () => void;
   /** Fully stop + detach the in-flight run. Called before a merge so no batch
    *  can write `transactions.csv` after the merge clears staging (the same race
    *  class as Cancel). Resolves once nothing is in flight; no-op when idle. */
   onStopRun: () => Promise<void>;
   /** Re-run Categorizing over the incomplete remainder (Enrich). */
   onEnrich: () => void;
+  /** Reports the live enrichable remainder + a flush-then-enrich trigger, for
+   *  the progress section's Enrich control (the preview owns the data, the
+   *  control renders above it). Called with null on unmount. */
+  onEnrichControl: (control: { count: number; run: () => void } | null) => void;
   onMergeComplete: () => void;
 }
 
@@ -47,9 +49,9 @@ export function ImportPreview({
   staging,
   rowsVersion,
   running,
-  onStop,
   onStopRun,
   onEnrich,
+  onEnrichControl,
   onMergeComplete,
 }: ImportPreviewProps) {
   const [sort, setSort] = useState<ImportSortConfig>({ column: "date", direction: "asc" });
@@ -74,10 +76,17 @@ export function ImportPreview({
     categories,
   } = useImportData(budgetPath, staging, rowsVersion);
 
+  // A pending hand-edit must reach staging before the orchestrator re-reads it
+  // — enrich snapshots staging, so an unflushed edit would be clobbered.
   const handleEnrich = useCallback(async () => {
     await flushWriteBack();
     onEnrich();
   }, [flushWriteBack, onEnrich]);
+
+  useEffect(() => {
+    onEnrichControl({ count: incompleteCount, run: () => void handleEnrich() });
+    return () => onEnrichControl(null);
+  }, [incompleteCount, handleEnrich, onEnrichControl]);
 
   // ── Filtering / sorting ────────────────────────────────────────
   const filtered = useMemo(
@@ -180,30 +189,58 @@ export function ImportPreview({
     );
   }
 
+  const showDuplicatesNote = duplicateIds.size > 0;
+  // Issue counts are still settling while a run is in flight.
+  const showIssuesNote = !running && (uncategorizedCount > 0 || lowConfidenceCount > 0);
+
   return (
     <div className="space-y-5 pb-20">
-      {/* Selection summary */}
-      <div className="flex items-center justify-between">
+      {/* Run notes — one compact panel, a line per note. Certain duplicate
+          matches and the speculative (close-date) tier read differently: the
+          former are settled, the latter prompt review. */}
+      {(showDuplicatesNote || showIssuesNote) && (
+        <div className="w-fit max-w-full space-y-1.5 rounded-xl border border-border/40 bg-card/30 px-3.5 py-2.5">
+          {showDuplicatesNote && (
+            <div className="flex items-center gap-2.5 text-sm text-foreground/70">
+              <Copy className="h-3.5 w-3.5 text-blue-500 shrink-0" />
+              <span>
+                {[
+                  certainDuplicateCount > 0 &&
+                    `${certainDuplicateCount} duplicate${certainDuplicateCount !== 1 ? "s" : ""} detected — already unselected`,
+                  possibleDuplicateCount > 0 &&
+                    `${possibleDuplicateCount} possible duplicate${possibleDuplicateCount !== 1 ? "s" : ""} (close date match) — review before merging`,
+                ]
+                  .filter(Boolean)
+                  .join(" · ")}
+              </span>
+            </div>
+          )}
+          {showIssuesNote && (
+            <div className="flex items-center gap-2.5 text-sm text-foreground/70">
+              <AlertTriangle className="h-3.5 w-3.5 text-amber-500 shrink-0" />
+              <span>
+                {[
+                  uncategorizedCount > 0 && `${uncategorizedCount} uncategorized`,
+                  lowConfidenceCount > 0 && `${lowConfidenceCount} low confidence`,
+                ]
+                  .filter(Boolean)
+                  .join(", ")}
+              </span>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Selection summary + search, directly above the table */}
+      <div className="flex items-center justify-between gap-3">
         <p className="text-sm text-muted-foreground">
           <span className="font-medium text-foreground tabular-nums">{selectedCount}</span> of{" "}
           <span className="tabular-nums">{totalCount}</span> transactions selected for import
         </p>
-      </div>
-
-      {/* Account mapping */}
-      <ImportMapping
-        sourceAccounts={sourceAccounts}
-        accounts={accounts}
-        accountMapping={accountMapping}
-        onAccountMappingChange={handleAccountMappingChange}
-      />
-
-      {/* Search */}
-      <div className="flex items-center gap-2">
-        <div className={`relative flex-1 min-w-0 ${search ? "ring-1 ring-brand/30 rounded-lg" : ""}`}>
+        <div className={`relative w-72 max-w-[50%] ${search ? "ring-1 ring-brand/30 rounded-lg" : ""}`}>
           <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground/60" />
           <Input
-            placeholder="Search imported transactions..."
+            placeholder="Search transactions…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="pl-8 pr-8"
@@ -220,39 +257,6 @@ export function ImportPreview({
           )}
         </div>
       </div>
-
-      {/* Duplicates banner — certain matches and the speculative (close-date)
-          tier read differently: the former are settled, the latter prompt review. */}
-      {duplicateIds.size > 0 && (
-        <div className="flex items-center gap-2.5 rounded-lg border border-blue-500/20 bg-blue-500/5 px-3.5 py-2 text-sm text-foreground/70">
-          <Copy className="h-3.5 w-3.5 text-blue-500 shrink-0" />
-          <span>
-            {[
-              certainDuplicateCount > 0 &&
-                `${certainDuplicateCount} duplicate${certainDuplicateCount !== 1 ? "s" : ""} detected — already unselected`,
-              possibleDuplicateCount > 0 &&
-                `${possibleDuplicateCount} possible duplicate${possibleDuplicateCount !== 1 ? "s" : ""} (close date match) — review before merging`,
-            ]
-              .filter(Boolean)
-              .join(" · ")}
-          </span>
-        </div>
-      )}
-
-      {/* Issues banner (hidden during a run — counts are still settling) */}
-      {!running && (uncategorizedCount > 0 || lowConfidenceCount > 0) && (
-        <div className="flex items-center gap-2.5 rounded-lg border border-amber-500/20 bg-amber-500/5 px-3.5 py-2 text-sm text-foreground/70">
-          <AlertTriangle className="h-3.5 w-3.5 text-amber-500 shrink-0" />
-          <span>
-            {[
-              uncategorizedCount > 0 && `${uncategorizedCount} uncategorized`,
-              lowConfidenceCount > 0 && `${lowConfidenceCount} low confidence`,
-            ]
-              .filter(Boolean)
-              .join(", ")}
-          </span>
-        </div>
-      )}
 
       {/* Table — read-only while a run is in flight (rows are filling in live) */}
       <div className={`rounded-xl border border-border/40 overflow-hidden ${running ? "pointer-events-none opacity-90" : ""}`}>
@@ -273,7 +277,8 @@ export function ImportPreview({
         />
       </div>
 
-      {/* Floating action bar — always present; Merge gates on selection */}
+      {/* Floating action bar — always present; Merge gates on selection and
+          waits out a run (rows and categories are still settling). */}
       <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 animate-in slide-in-from-bottom-4 fade-in duration-200">
         <div className="flex items-center gap-3 rounded-xl border border-border/60 bg-background/95 backdrop-blur-sm shadow-overlay px-4 py-2.5">
           <div className="flex items-center gap-3 border-r border-border/40 pr-3">
@@ -283,28 +288,10 @@ export function ImportPreview({
             </span>
           </div>
 
-          {running ? (
-            <Button size="sm" variant="outline" className="gap-1.5" onClick={onStop}>
-              <Square className="h-3.5 w-3.5" />
-              Stop
-            </Button>
-          ) : (
-            <Button
-              size="sm"
-              variant="outline"
-              className="gap-1.5"
-              disabled={incompleteCount === 0}
-              onClick={handleEnrich}
-            >
-              <Sparkles className="h-3.5 w-3.5" />
-              Enrich{incompleteCount > 0 ? ` ${incompleteCount}` : ""}
-            </Button>
-          )}
-
           <Button
             size="sm"
             className="gap-1.5"
-            disabled={merging || selectedCount === 0}
+            disabled={merging || running || selectedCount === 0}
             onClick={() => setShowMergeDialog(true)}
           >
             {merging ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <GitMerge className="h-3.5 w-3.5" />}
@@ -313,10 +300,11 @@ export function ImportPreview({
         </div>
       </div>
 
-      {/* Merge confirmation */}
+      {/* Merge confirmation — the account mapping is confirmed here, at the
+          moment it takes effect, so it can't be forgotten on a separate panel. */}
       {showMergeDialog && (
         <Dialog open onOpenChange={(open) => { if (!open) setShowMergeDialog(false); }}>
-          <DialogContent className="sm:max-w-md">
+          <DialogContent className={sourceAccounts.length > 0 ? "sm:max-w-lg" : "sm:max-w-md"}>
             <DialogHeader>
               <DialogTitle>Merge {selectedCount} transactions?</DialogTitle>
               <DialogDescription>
@@ -336,6 +324,19 @@ export function ImportPreview({
                 </span>
               </DialogDescription>
             </DialogHeader>
+            {sourceAccounts.length > 0 && (
+              <div className="space-y-2">
+                <div className="text-xs font-medium uppercase tracking-wider text-muted-foreground/70">
+                  Account mapping
+                </div>
+                <ImportMappingRows
+                  sourceAccounts={sourceAccounts}
+                  accounts={accounts}
+                  accountMapping={accountMapping}
+                  onAccountMappingChange={handleAccountMappingChange}
+                />
+              </div>
+            )}
             <DialogFooter>
               <Button variant="outline" onClick={() => setShowMergeDialog(false)}>
                 Cancel

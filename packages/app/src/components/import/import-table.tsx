@@ -357,9 +357,11 @@ export function ImportTable({
                     />
                   </div>
                 ) : (
-                  <span className="truncate block">
-                    {txn.sourceAccount || <span className="text-muted-foreground/40 italic">none</span>}
-                  </span>
+                  <MappedAccountCell
+                    sourceAccount={txn.sourceAccount}
+                    accounts={accounts}
+                    accountMapping={accountMapping}
+                  />
                 )}
               </TableCell>
 
@@ -386,6 +388,54 @@ export function ImportTable({
         })}
       </TableBody>
     </Table>
+  );
+}
+
+// ── Mapped Account Cell ──────────────────────────────────────────
+
+/**
+ * The ACCOUNT column shows where the row will actually land: the mapped target
+ * account's name, or the imported name with a "new" tag when merge would
+ * create it. The raw imported string survives as a secondary line (and title)
+ * when it differs from the target — the same pattern as merchant/description.
+ */
+function MappedAccountCell({
+  sourceAccount,
+  accounts,
+  accountMapping,
+}: {
+  sourceAccount: string;
+  accounts: Account[];
+  accountMapping: Record<string, string>;
+}) {
+  if (!sourceAccount) {
+    return <span className="text-muted-foreground/40 italic">none</span>;
+  }
+  const targetId = accountMapping[sourceAccount];
+  const target =
+    targetId && targetId !== "__create__" ? accounts.find((a) => a.id === targetId) : undefined;
+
+  if (!target) {
+    return (
+      <span
+        className="flex items-center gap-1.5 min-w-0"
+        title={`"${sourceAccount}" will be created on merge`}
+      >
+        <span className="truncate">{sourceAccount}</span>
+        <span className="shrink-0 rounded bg-brand/10 px-1 py-px text-[10px] font-medium text-brand">
+          new
+        </span>
+      </span>
+    );
+  }
+  const renamed = target.name !== sourceAccount;
+  return (
+    <span className="block min-w-0" title={renamed ? `Imported as "${sourceAccount}"` : undefined}>
+      <span className="truncate block">{target.name}</span>
+      {renamed && (
+        <span className="truncate block text-[11px] text-muted-foreground/50">{sourceAccount}</span>
+      )}
+    </span>
   );
 }
 

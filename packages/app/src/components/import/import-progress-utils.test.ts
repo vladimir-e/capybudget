@@ -9,11 +9,12 @@ import {
 } from "./import-progress-utils";
 
 describe("activeIndex", () => {
-  it("maps each pipeline phase to its segment index", () => {
+  it("maps the four pipeline phases onto the two segments", () => {
+    // Normalizing covers reading + normalizing; Enhancing covers history + categorizing.
     expect(activeIndex("reading")).toBe(0);
-    expect(activeIndex("normalizing")).toBe(1);
-    expect(activeIndex("history")).toBe(2);
-    expect(activeIndex("categorizing")).toBe(3);
+    expect(activeIndex("normalizing")).toBe(0);
+    expect(activeIndex("history")).toBe(1);
+    expect(activeIndex("categorizing")).toBe(1);
   });
 
   it("treats done as past the last segment and idle/error as before the bar", () => {
@@ -25,11 +26,12 @@ describe("activeIndex", () => {
 
 describe("segmentState", () => {
   it("marks earlier segments done, the current active, later pending", () => {
-    // Active phase = History (index 2).
+    // Active phase = history → the Enhancing segment (index 1).
     expect(segmentState(0, "history")).toBe("done");
-    expect(segmentState(1, "history")).toBe("done");
-    expect(segmentState(2, "history")).toBe("active");
-    expect(segmentState(3, "history")).toBe("pending");
+    expect(segmentState(1, "history")).toBe("active");
+    // Both internal phases of a segment read as the same active segment.
+    expect(segmentState(0, "reading")).toBe("active");
+    expect(segmentState(1, "reading")).toBe("pending");
   });
 
   it("marks every segment done on a terminal done phase", () => {
@@ -74,6 +76,19 @@ describe("meterView", () => {
     });
   });
 
+  it("clamps the fill when the total was an estimate the rows overran", () => {
+    expect(meterView("active", { done: 160, total: 150 }).fillPct).toBe(100);
+  });
+
+  it("counts without filling while the total is unknown (extraction pre-count)", () => {
+    expect(meterView("active", { done: 42, total: null })).toEqual({
+      fillPct: 100, // binary active fill — the pulse carries the motion
+      complete: false,
+      countLabel: "42 rows",
+    });
+    expect(meterView("active", { done: 0, total: null }).countLabel).toBeNull();
+  });
+
   it("ignores an empty meter (total 0) and falls back to phase state", () => {
     expect(meterView("done", { done: 0, total: 0 })).toEqual({
       fillPct: 100,
@@ -93,7 +108,7 @@ describe("resumeMeter", () => {
     // A resumed import: 2 categorized, 1 still pending → 2 of 3, not complete.
     const meter = resumeMeter([done("a"), done("b"), pending("c")], noCtx);
     expect(meter).toEqual({ done: 2, total: 3 });
-    // The bar then renders Categorizing partly-filled, never falsely checked,
+    // The bar then renders Enhancing partly-filled, never falsely checked,
     // even though a from-disk phase reads `done`.
     expect(meterView("done", meter)).toEqual({ fillPct: 67, complete: false, countLabel: "2 of 3" });
   });
