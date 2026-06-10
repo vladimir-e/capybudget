@@ -7,7 +7,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { EmptyState } from "@/components/ui/empty-state";
 import { CategorySelector } from "@/components/budget/category-selector";
@@ -402,9 +401,9 @@ export function ImportTable({
  * The ACCOUNT column for non-transfer rows shows where the row will actually
  * land: the mapped target account's name, or the imported name with a "new"
  * tag when merge would create it. The cell is the Map-accounts dialog's
- * trigger — the same outline-button affordance as the column's transfer
- * selectors and the CATEGORY cell. The raw imported → target relationship
- * lives in the dialog, not the cell.
+ * trigger, but reads as quiet text — mapping is rarely what the user is here
+ * for, and a button shape would impersonate the transfer rows' dropdowns. The
+ * raw imported → target relationship lives in the dialog, not the cell.
  */
 function MappedAccountCell({
   sourceAccount,
@@ -425,19 +424,20 @@ function MappedAccountCell({
     targetId && targetId !== "__create__" ? accounts.find((a) => a.id === targetId) : undefined;
 
   return (
-    <Button
-      variant="outline"
-      size="sm"
+    <button
+      type="button"
       onClick={onOpenMapping}
-      className="h-8 w-full min-w-0 justify-start gap-1.5 font-normal"
+      className="group flex w-full min-w-0 cursor-pointer items-center gap-1.5 text-left hover:text-foreground transition-colors"
     >
-      <span className="truncate">{target ? target.name : sourceAccount}</span>
+      <span className="truncate underline-offset-2 group-hover:underline">
+        {target ? target.name : sourceAccount}
+      </span>
       {!target && (
         <span className="shrink-0 rounded bg-brand/10 px-1 py-px text-[10px] font-medium text-brand">
           new
         </span>
       )}
-    </Button>
+    </button>
   );
 }
 
