@@ -238,13 +238,12 @@ export const noStress: DemoProfile = {
       dayOfMonth: 16,
       note: "Brokerage contribution",
     },
-    // Funds the cash-account spending above; without it, Cash drifts below
-    // zero — impossible for physical cash.
+    // Funds the cash spending above; sized over its worst-case month ($200).
     {
       fromAccountId: CHECKING,
       toAccountId: CASH,
       cadence: "monthly",
-      amount: 15_000,
+      amount: 25_000,
       dayOfMonth: 10,
       note: "ATM withdrawal",
     },

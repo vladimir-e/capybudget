@@ -218,13 +218,12 @@ export const underwater: DemoProfile = {
       dayOfMonth: 27,
       note: "Student loan payment",
     },
-    // Funds the cash-account spending above; without it, Cash drifts below
-    // zero — impossible for physical cash.
+    // Funds the cash spending above; sized over its worst-case month ($240).
     {
       fromAccountId: CHECKING,
       toAccountId: CASH,
       cadence: "biweekly",
-      amount: 8_000,
+      amount: 13_000,
       note: "ATM withdrawal",
     },
   ],

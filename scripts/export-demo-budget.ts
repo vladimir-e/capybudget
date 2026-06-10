@@ -14,12 +14,10 @@
  *   --name <name>    budget name (default: output folder name)
  */
 import { createHash } from "node:crypto";
-import { mkdir, writeFile } from "node:fs/promises";
 import { basename, join, resolve } from "node:path";
 import { parseArgs } from "node:util";
 import type {
   Account,
-  BudgetBasis,
   BudgetMeta,
   Category,
   Transaction,
@@ -33,9 +31,29 @@ import {
 import { PROFILES } from "../apps/demo/src/data/profiles";
 import { seedFromString } from "../apps/demo/src/data/rng";
 
+const USAGE =
+  "Usage: npx tsx scripts/export-demo-budget.ts <output-dir> [--profile id] [--end YYYY-MM-DD] [--years n] [--seed n] [--name name]";
+
 function fail(message: string): never {
   console.error(message);
   process.exit(1);
+}
+
+function parseCliArgs() {
+  try {
+    return parseArgs({
+      allowPositionals: true,
+      options: {
+        profile: { type: "string", default: "no-stress" },
+        end: { type: "string" },
+        years: { type: "string", default: "3" },
+        seed: { type: "string" },
+        name: { type: "string" },
+      } as const,
+    });
+  } catch (error) {
+    fail(`${error instanceof Error ? error.message : String(error)}\n${USAGE}`);
+  }
 }
 
 function parseEndDate(value: string): Date {
@@ -131,19 +149,10 @@ function assertRoundTrip(label: string, written: unknown[], read: unknown[]): vo
   }
 }
 
-const { values, positionals } = parseArgs({
-  allowPositionals: true,
-  options: {
-    profile: { type: "string", default: "no-stress" },
-    end: { type: "string" },
-    years: { type: "string", default: "3" },
-    seed: { type: "string" },
-    name: { type: "string" },
-  },
-});
+const { values, positionals } = parseCliArgs();
 
 if (positionals.length !== 1) {
-  fail("Usage: npx tsx scripts/export-demo-budget.ts <output-dir> [--profile id] [--end YYYY-MM-DD] [--years n] [--seed n] [--name name]");
+  fail(USAGE);
 }
 
 const profile = PROFILES[values.profile];
@@ -158,8 +167,11 @@ const yearsBack = Number(values.years);
 if (!Number.isInteger(yearsBack) || yearsBack < 1) {
   fail(`Invalid --years "${values.years}" — expected a positive integer.`);
 }
-const seed = values.seed ? Number(values.seed) : seedFromString(profile.id);
-if (!Number.isFinite(seed)) fail(`Invalid --seed "${values.seed}" — expected a number.`);
+const seed =
+  values.seed === undefined ? seedFromString(profile.id) : Number(values.seed);
+if (values.seed?.trim() === "" || !Number.isInteger(seed)) {
+  fail(`Invalid --seed "${values.seed}" — expected an integer.`);
+}
 
 const BUDGET_FILES = ["budget.json", "accounts.csv", "categories.csv", "transactions.csv"];
 for (const file of BUDGET_FILES) {
@@ -167,7 +179,7 @@ for (const file of BUDGET_FILES) {
     fail(`"${file}" already exists in ${outDir} — refusing to overwrite a budget folder.`);
   }
 }
-await mkdir(outDir, { recursive: true });
+await nodeFileAdapter.mkdir(outDir, { recursive: true });
 
 const data = toBudgetFolderData(
   generateScenarioData(profile, { now: end, yearsBack, seed }),
@@ -175,15 +187,14 @@ const data = toBudgetFolderData(
 );
 
 const nowIso = new Date().toISOString();
-const meta = {
+const meta: BudgetMeta = {
   schemaVersion: 3,
   name,
   currency: "USD",
   createdAt: nowIso,
   lastModified: nowIso,
-  basis: "sameMonthLastYear",
-} satisfies BudgetMeta & { basis: BudgetBasis };
-await writeFile(join(outDir, "budget.json"), JSON.stringify(meta, null, 2), "utf-8");
+};
+await nodeFileAdapter.writeFile(join(outDir, "budget.json"), JSON.stringify(meta, null, 2));
 
 const writer = createCsvRepository(outDir, nodeFileAdapter, { immediate: true });
 await writer.saveAccounts(data.accounts);

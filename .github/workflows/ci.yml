@@ -28,7 +28,10 @@ jobs:
         run: npm run lint
 
       - name: Type Check
-        run: npx tsc --noEmit
+        run: |
+          npx tsc --noEmit
+          npx tsc -p apps/demo --noEmit
+          npx tsc -p scripts --noEmit
 
       - name: Test
         run: npm test
