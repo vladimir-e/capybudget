@@ -154,6 +154,29 @@ describe("ImportOrchestrator — rows that skip Categorizing", () => {
     expect(wholeFoods.merchant).toBe("Whole Foods");
   });
 
+  it("stages a recognized card payment as a transfer with the counterpart prefilled — no model call", async () => {
+    // Normalizing types the row as an expense (amount sign); History's
+    // payment-leg recognition retypes it and fills the counterpart, so neither
+    // the category batch nor the transfer batch runs — mapping is the only call.
+    const csv = "Date,Description,Amount\n2026-03-01,APPLECARD GSBANK DES:PAYMENT ID:M1234,-500.00";
+    const staging = new MemoryStagingStore({ sources: [csvSource(csv)] });
+    const session = new MockStructuredSession([mapResponder]);
+    const budget = new MemoryBudgetData([], CATEGORIES, [
+      makeAccount({ id: "acct-checking", name: "Checking" }),
+      makeAccount({ id: "acct-apple", name: "🍏 Apple Card", type: "credit" }),
+    ]);
+
+    await new ImportOrchestrator({ session, staging, budget, onEvent: () => {}, concurrency: 1 }).start();
+
+    expect(session.calls).toHaveLength(1); // mapping only
+    const row = staging.transactions![0];
+    expect(row.type).toBe("transfer");
+    expect(row.targetAccountId).toBe("acct-apple");
+    expect(row.accountId).toBe("acct-checking");
+    expect(row.merchant).toBe("");
+    expect(row.categoryId).toBe("");
+  });
+
   it("a transfer row never reaches the category classifier", async () => {
     // With no transfer context, the transfer also skips the counterpart call —
     // only the unknown expense reaches the (single, category) batch.

@@ -8,9 +8,12 @@
  *   2. attaches the top-3 most-recent examples + distilled merchant/category
  *      stats (the context sidecar),
  *   3. folds in `sourceAccount`→account matching,
- *   4. fast-paths rows whose history signal is strong + near-unanimous (assigns
+ *   4. recognizes card-payment transfer legs — an outflow expense whose
+ *      description both payment-keywords and unambiguously names one other
+ *      budget account is retyped to `transfer` with the counterpart prefilled,
+ *   5. fast-paths rows whose history signal is strong + near-unanimous (assigns
  *      merchant + categoryId in code, confidence `high`),
- *   5. folds in duplicate detection — accurate dups are marked complete and
+ *   6. folds in duplicate detection — accurate dups are marked complete and
  *      flagged to skip enrichment.
  *
  * The bank's coarse `sourceCategory` is never turned into a category here — it
@@ -31,6 +34,7 @@ import {
   type HistoryIndexOptions,
 } from "./import-history-index";
 import { matchAccountsByName } from "./import-matching";
+import { PaymentLegMatcher } from "./import-payment-legs";
 import {
   detectDuplicates,
   type DuplicateMatch,
@@ -106,14 +110,16 @@ export interface TransferContext {
   topAccounts: AccountCount[];
 }
 
-export type Resolution = "fast-path" | "duplicate" | "ambiguous";
+export type Resolution = "fast-path" | "duplicate" | "payment-leg" | "ambiguous";
 
 /**
  * Per-row grounding result. Carries the fields the orchestrator writes back to
  * staging. `resolution` discriminates how far code got:
- *   - `duplicate`  — matches an existing budget txn; skip enrichment.
- *   - `fast-path`  — strong, near-unanimous history → merchant + category set.
- *   - `ambiguous`  — needs the classifier; `RowContext` carries the signal.
+ *   - `duplicate`   — matches an existing budget txn; skip enrichment.
+ *   - `fast-path`   — strong, near-unanimous history → merchant + category set.
+ *   - `payment-leg` — an outflow expense recognized as a card-payment transfer
+ *                     leg; retyped with the counterpart prefilled.
+ *   - `ambiguous`   — needs the classifier; `RowContext` carries the signal.
  */
 export interface GroundingResult {
   rowId: string;
@@ -133,6 +139,13 @@ export interface GroundingResult {
   duplicateConfidence: "high" | "low" | "";
   /** The dup it matched, when `duplicate`. */
   duplicateMatch?: DuplicateMatch;
+  /** Retype applied by payment-leg recognition: an outflow expense whose
+   *  description both payment-keywords and unambiguously names one other
+   *  budget account is one leg of a transfer. Unset otherwise. */
+  type?: "transfer";
+  /** The recognized counterpart account id, set with `type`. Unset otherwise
+   *  — for ordinary transfer rows the model picks it in Categorizing. */
+  targetAccountId?: string;
 }
 
 export interface GroundingStats {
@@ -206,6 +219,7 @@ export function groundImport(
   // Transfer context keys off the imported account's own transfer legs, by
   // direction — built once per account from history, indexed for fast reuse.
   const transferIndex = new TransferHistoryIndex(history, activeAccounts);
+  const paymentMatcher = new PaymentLegMatcher(activeAccounts);
 
   const results = new Map<string, GroundingResult>();
   const context = new Map<string, RowContext>();
@@ -217,21 +231,33 @@ export function groundImport(
   for (const row of rows) {
     const accountId = resolveAccountId(row.sourceAccount);
 
-    if (row.type === "transfer") {
+    // Payment-leg recognition: an outflow expense whose description both
+    // payment-keywords and unambiguously names one other budget account is a
+    // card payment — one leg of a transfer between the user's own accounts.
+    // Retyped here so it takes the transfer path below (no merchant/category),
+    // with the counterpart prefilled — no model involvement.
+    const paymentTarget =
+      row.type === "expense" && row.amount < 0
+        ? paymentMatcher.match(row.description, accountId)
+        : null;
+
+    if (row.type === "transfer" || paymentTarget) {
       // Transfers skip merchant/category enrichment; grounding only attaches the
       // account's own direction-matching transfer history so the model can pick
-      // the counterpart. No targetAccountId is set here — that's the model's job.
+      // the counterpart. No targetAccountId is set here (payment legs aside) —
+      // that's the model's job.
       const ctx = transferIndex.contextFor(accountId, row.amount);
       if (ctx) transferContext.set(row.id, ctx);
       results.set(row.id, {
         rowId: row.id,
-        resolution: "ambiguous",
+        resolution: paymentTarget ? "payment-leg" : "ambiguous",
         merchant: "",
         categoryId: "",
         categoryConfidence: "",
         accountId,
         duplicate: false,
         duplicateConfidence: "",
+        ...(paymentTarget && { type: "transfer" as const, targetAccountId: paymentTarget }),
       });
       continue;
     }
@@ -279,20 +305,24 @@ export function groundImport(
     const existing = results.get(rowId);
     if (!existing) continue;
     const row = rowById.get(rowId);
+    // The row's effective type — a payment-leg retype made it a transfer.
+    const rowType = existing.type ?? row?.type;
+    const isTransfer = rowType === "transfer";
     // Only carry the dup's category if it's type-correct for this row — a past
     // refund miscategorized as income must not pull an expense into income.
     const carryCategory =
       dup.matchedCategoryId &&
-      row !== undefined &&
-      categoryMatchesType(dup.matchedCategoryId, row.type, incomeCategoryIds);
+      rowType !== undefined &&
+      categoryMatchesType(dup.matchedCategoryId, rowType, incomeCategoryIds);
     results.set(rowId, {
       ...existing,
       resolution: "duplicate",
       duplicate: true,
       duplicateConfidence: dup.confidence,
       duplicateMatch: dup,
-      // Carry the original txn's merchant always; its category only when type-correct.
-      merchant: dup.matchedMerchant || existing.merchant,
+      // Carry the original txn's merchant (except onto a transfer — transfers
+      // carry no merchant); its category only when type-correct.
+      merchant: isTransfer ? existing.merchant : dup.matchedMerchant || existing.merchant,
       categoryId: carryCategory ? dup.matchedCategoryId : existing.categoryId,
       categoryConfidence: carryCategory ? "high" : existing.categoryConfidence,
     });
@@ -304,13 +334,14 @@ export function groundImport(
 // ── Type guard ───────────────────────────────────────────────────
 
 /** Whether a category is valid for a row's type: income rows take only
- *  Income-group categories; expense rows take only non-Income ones. (Transfers
- *  never reach the deterministic category assignments.) */
+ *  Income-group categories, expense rows only non-Income ones, and transfers
+ *  take none at all. */
 function categoryMatchesType(
   categoryId: string,
   rowType: ImportTransaction["type"],
   incomeCategoryIds: Set<string>,
 ): boolean {
+  if (rowType === "transfer") return false;
   return incomeCategoryIds.has(categoryId) === (rowType === "income");
 }
 
@@ -549,8 +580,9 @@ function tallyStats(results: Map<string, GroundingResult>): GroundingStats {
   for (const r of results.values()) {
     if (r.duplicate) duplicates++;
     if (r.resolution === "fast-path") fastPathed++;
-    // "resolved" = won't need the classifier (dup, or has both merchant+category).
-    if (r.duplicate || (r.merchant && r.categoryId)) resolved++;
+    // "resolved" = won't need the classifier (dup, merchant+category set, or a
+    // payment leg with its counterpart prefilled).
+    if (r.duplicate || (r.merchant && r.categoryId) || r.targetAccountId) resolved++;
     else if (r.resolution === "ambiguous") ambiguous++;
   }
   return { total: results.size, resolved, duplicates, fastPathed, ambiguous };

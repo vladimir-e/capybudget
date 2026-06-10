@@ -243,6 +243,75 @@ describe("normalizeCsv", () => {
     expect(rows[0].id).toBe("imp-10");
   });
 
+  describe("mapping sample diversity", () => {
+    /** A CSV whose row i carries the unique marker "MERCHANT i". */
+    function csvOf(amounts: number[]): string {
+      const lines = ["Date,Description,Amount"];
+      amounts.forEach((amount, i) => {
+        lines.push(`2026-01-${String((i % 28) + 1).padStart(2, "0")},MERCHANT ${i},${amount.toFixed(2)}`);
+      });
+      return lines.join("\n");
+    }
+
+    /** The prompt's "Sample rows" JSON block (the raw-row head listing above it
+     *  always shows the first HEADER_SCAN_ROWS rows and would alias markers). */
+    function sampleBlock(session: MockStructuredSession): string {
+      const content = session.calls[0].messages[0].content as string;
+      return content.slice(content.indexOf("Sample rows"));
+    }
+
+    it("samples the head plus rows spread to the end of a long table", async () => {
+      // 60 rows — a head-only sample would never show the model anything past
+      // row 19, hiding the monthly payment/transfer rows. The spread half must
+      // reach the last row; rows just past the head are the ones traded away.
+      const csv = csvOf(Array.from({ length: 60 }, () => -5));
+      const session = new MockStructuredSession([() => MAPPING]);
+      await normalizeCsv(session, { name: "f.csv", content: csv });
+
+      const sample = sampleBlock(session);
+      expect(sample).toContain('"MERCHANT 0"');
+      expect(sample).toContain('"MERCHANT 9"');
+      expect(sample).toContain('"MERCHANT 59"');
+      expect(sample).not.toContain('"MERCHANT 10"');
+    });
+
+    it("is deterministic — the same file always yields the same prompt", async () => {
+      const csv = csvOf(Array.from({ length: 47 }, () => -5));
+      const a = new MockStructuredSession([() => MAPPING]);
+      const b = new MockStructuredSession([() => MAPPING]);
+      await normalizeCsv(a, { name: "f.csv", content: csv });
+      await normalizeCsv(b, { name: "f.csv", content: csv });
+      expect(JSON.stringify(a.calls[0].messages)).toBe(JSON.stringify(b.calls[0].messages));
+    });
+
+    it("a short table is passed whole, in order", async () => {
+      const csv = csvOf([-1, -2, -3, -4, -5]);
+      const session = new MockStructuredSession([() => MAPPING]);
+      await normalizeCsv(session, { name: "f.csv", content: csv });
+
+      const sample = sampleBlock(session);
+      for (let i = 0; i < 5; i++) expect(sample).toContain(`"MERCHANT ${i}"`);
+      expect(sample.indexOf('"MERCHANT 0"')).toBeLessThan(sample.indexOf('"MERCHANT 4"'));
+    });
+
+    it("the data heuristics read the diversified sample (sign inferred from a late negative)", async () => {
+      // All-positive head, negatives only in the back half — the shape of a
+      // statement whose payments cluster late. With no model-supplied sign, the
+      // heuristic must see a spread row to land on negative_expense.
+      const csv = csvOf(Array.from({ length: 60 }, (_, i) => (i < 40 ? 5 : -5)));
+      const rolesOnly = {
+        date: { column: "Date" },
+        description: { column: "Description" },
+        amount: { style: "single", column: "Amount" },
+      };
+      const session = new MockStructuredSession([() => rolesOnly]);
+
+      const { mapping } = await normalizeCsv(session, { name: "f.csv", content: csv });
+
+      expect(mapping.amount).toMatchObject({ sign: "negative_expense" });
+    });
+  });
+
   describe("header row location", () => {
     // A BofA-shaped export: a summary preamble, a blank line, then the real
     // table whose first row is a zero-amount balance marker. Parsed naively,

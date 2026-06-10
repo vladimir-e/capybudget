@@ -40,10 +40,30 @@ import {
   type ExtractionEnvelope,
 } from "./schemas";
 
-/** Rows sampled from the source CSV head and shown to the mapper. */
+/** Rows sampled from the source CSV and shown to the mapper. */
 const MAPPING_SAMPLE_ROWS = 20;
 /** Rows the code-side preview transforms to surface mapping errors. */
 const PREVIEW_ROWS = 15;
+
+/**
+ * Deterministic mapping sample: the table head plus rows evenly spaced across
+ * the remainder (always including the last row). A head-only sample hides the
+ * file's rarer shapes — the monthly card-payment/transfer row, a sign flip
+ * later in the statement — so the model would write no `transferPatterns` for
+ * them and the data heuristics would read a skewed slice. No randomness: the
+ * same file always yields the same sample.
+ */
+function sampleRows<T>(rows: T[], count = MAPPING_SAMPLE_ROWS): T[] {
+  if (rows.length <= count) return [...rows];
+  const headCount = Math.floor(count / 2);
+  const spreadCount = count - headCount;
+  const span = rows.length - headCount;
+  const spread = Array.from(
+    { length: spreadCount },
+    (_, i) => rows[headCount + Math.floor(((i + 1) * span) / spreadCount) - 1],
+  );
+  return [...rows.slice(0, headCount), ...spread];
+}
 
 export interface NormalizeCsvResult {
   rows: ImportTransaction[];
@@ -127,7 +147,7 @@ async function resolveMapping(
         ? raw.headerRow
         : headerPick;
     const table = buildCsvTable(grid, headerRow);
-    const samples = table.rows.slice(0, MAPPING_SAMPLE_ROWS);
+    const samples = sampleRows(table.rows);
     return { mapping: { ...normalizeMapping(raw, samples, filename, importDate), headerRow }, table };
   };
   try {
@@ -146,7 +166,7 @@ function buildMappingPrompt(
   priorErrors: string[] | null,
 ): string {
   const { headers, rows } = buildCsvTable(grid, headerPick);
-  const sample = rows.slice(0, MAPPING_SAMPLE_ROWS);
+  const sample = sampleRows(rows);
   const rawListing = grid
     .slice(0, HEADER_SCAN_ROWS)
     .map((cells, i) => `${i}: ${JSON.stringify(cells)}`)
@@ -165,7 +185,7 @@ function buildMappingPrompt(
     rawListing,
     `The engine reads row ${headerPick} as the table header and every row after it as data; rows before the header (bank summary preambles) are discarded. If the real header is a different row in the listing above, return "headerRow" with that row's index. Otherwise omit headerRow.`,
     `Headers (blank or duplicate cells renamed to stay addressable — use these names): ${headers.join(", ")}`,
-    `Sample rows (first ${sample.length}):`,
+    `Sample rows (${sample.length} of ${rows.length} data rows — the head plus rows spread across the file):`,
     JSON.stringify(sample, null, 2),
     `Identify the date column, the description column(s), and how amounts are structured: a single signed column ({ style: "single", column, sign }) or split debit/credit ({ style: "split", expenseColumn, incomeColumn }). Optionally include date.format, the source account, the source category column, and skipRules for non-transaction rows (opening balances, voids).`,
     `Determine the sign convention from the account type and the merchant context, not from a default. "sign" says which polarity is an expense: "negative_expense" (negatives are spending, positives are income — typical of bank/checking exports) or "positive_expense" (positives are spending — typical of CREDIT-CARD statements). On a credit-card statement such as Apple Card, purchases are POSITIVE and represent expenses, while NEGATIVE amounts are payments toward the card — treat those as transfers, not income. For split debit/credit columns, the outflow/debit column is expenses. Add transferPatterns for descriptions that name a card payment or account-to-account move (e.g. "Payment", "ACH Pmt", "Transfer") so they classify as transfers.`,

@@ -15,6 +15,7 @@ CHANGELOG PHILOSOPHY:
 - **Import** - Live four-phase progress (Reading → Normalizing → History → Categorizing) with a read-only preview that fills in as it runs; interrupt and resume anytime, and re-running enrichment only touches rows you haven't already mapped.
 - **Import** - Share a file with Capy in chat and it starts an import for you to review in the Import tab, instead of adding transactions directly.
 - **Import** - Drop files anywhere on the import pane; Cancel Import now confirms before discarding extracted transactions.
+- **Import** - Credit-card payments that name one of your accounts stage as transfers with the counterpart pre-filled, instead of inflating spending as expenses.
 - **Capy** - New `search_transactions` tool: fuzzy free-text + money search across transactions (same matching as the app's list); `list_transactions` gains a compact row format. Retires `search_merchants` — chat and import enrichment now read merchant + category off matching rows.
 - **Capy** - New `group_transactions` aggregator (#57): group by merchant/category/account/type/month/week/dayOfMonth/amountBucket (multi-key) with count/sum/avg/min/max/median/distinct/cadence metrics; `list_transactions` gains an `ids` fetch param.
 - **Capy** - Fix OpenAI sessions dying after a tool-only turn — an empty terminal completion poisoned the replayed history, so every later message failed.

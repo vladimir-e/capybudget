@@ -273,6 +273,121 @@ describe("groundImport — sourceAccount resolution", () => {
   });
 });
 
+// ── Payment-leg recognition (deterministic retype) ───────────────
+
+describe("groundImport — payment-leg recognition", () => {
+  const APPLE_CARD = makeAccount({ id: "acct-apple", name: "🍏 Apple Card", type: "credit" });
+  const CAPITAL_ONE = makeAccount({ id: "acct-capone", name: "🛒 Capital One BJ's", type: "credit" });
+  const BOFA_CHECKING = makeAccount({ id: "acct-bofa-chk", name: "🏦 BofA Checking" });
+  const accounts = [APPLE_CARD, CAPITAL_ONE, BOFA_CHECKING];
+
+  it("retypes an outflow card payment to transfer with the counterpart prefilled", () => {
+    const row = makeImportTransaction({
+      id: "r1",
+      description: "APPLECARD GSBANK DES:PAYMENT ID:M1234",
+      amount: -50000,
+      type: "expense",
+      sourceAccount: "BofA Checking",
+    });
+    const { results, stats } = groundImport(input({ rows: [row], accounts }));
+
+    const r = results.get("r1")!;
+    expect(r.resolution).toBe("payment-leg");
+    expect(r.type).toBe("transfer");
+    expect(r.targetAccountId).toBe("acct-apple");
+    expect(r.accountId).toBe("acct-bofa-chk");
+    // Transfer treatment: no merchant, no category.
+    expect(r.merchant).toBe("");
+    expect(r.categoryId).toBe("");
+    // Counterpart prefilled = no classifier needed → counts as resolved.
+    expect(stats.resolved).toBe(1);
+    expect(stats.ambiguous).toBe(0);
+  });
+
+  it("leaves an inflow untouched (a card refund is not a payment leg)", () => {
+    const row = makeImportTransaction({
+      id: "r1",
+      description: "CAPITAL ONE DES:MOBILE PMT ID:X99887",
+      amount: 50000,
+      type: "income",
+      sourceAccount: "BofA Checking",
+    });
+    const { results } = groundImport(input({ rows: [row], accounts }));
+
+    const r = results.get("r1")!;
+    expect(r.type).toBeUndefined();
+    expect(r.targetAccountId).toBeUndefined();
+  });
+
+  it("leaves a keyword-only outflow untouched (no account named)", () => {
+    const row = makeImportTransaction({
+      id: "r1",
+      description: "Zelle payment to Dima Evdokimov",
+      amount: -20000,
+      type: "expense",
+      sourceAccount: "BofA Checking",
+    });
+    const { results } = groundImport(input({ rows: [row], accounts }));
+
+    const r = results.get("r1")!;
+    expect(r.resolution).toBe("ambiguous");
+    expect(r.type).toBeUndefined();
+  });
+
+  it("composes with dedup: a payment row duplicating an existing transfer leg stays a transfer", () => {
+    // The card payment was already merged once — its outflow leg exists on the
+    // checking account. A re-import must stage as transfer + duplicate with the
+    // counterpart filled, so a user override-merging it creates a proper pair.
+    const history = transferLegs("acct-bofa-chk", "acct-capone", "2026-03-01T00:00:00.000", "pay");
+    history[0].note = "CAPITAL ONE DES:MOBILE PMT";
+    const row = makeImportTransaction({
+      id: "r1",
+      description: "CAPITAL ONE DES:MOBILE PMT",
+      amount: -50000,
+      date: "2026-03-01",
+      type: "expense",
+      sourceAccount: "BofA Checking",
+    });
+    const { results } = groundImport(input({ rows: [row], history, accounts }));
+
+    const r = results.get("r1")!;
+    expect(r.duplicate).toBe(true);
+    expect(r.duplicateConfidence).toBe("high");
+    expect(r.type).toBe("transfer");
+    expect(r.targetAccountId).toBe("acct-capone");
+  });
+
+  it("a dup match never writes merchant/category onto a retyped transfer", () => {
+    // The user once hand-logged this payment as a categorized expense. The dup
+    // flag carries, but a transfer takes neither the merchant nor the category.
+    const existing = makeTransaction({
+      id: "ex-1",
+      merchant: "Capital One",
+      note: "Card payment (manual)",
+      categoryId: "cat-dining",
+      accountId: "acct-bofa-chk",
+      amount: -50000,
+      datetime: "2026-03-01T00:00:00.000",
+    });
+    const row = makeImportTransaction({
+      id: "r1",
+      description: "CAPITAL ONE DES:MOBILE PMT",
+      amount: -50000,
+      date: "2026-03-01",
+      type: "expense",
+      sourceAccount: "BofA Checking",
+    });
+    const { results } = groundImport(input({ rows: [row], history: [existing], accounts }));
+
+    const r = results.get("r1")!;
+    expect(r.duplicate).toBe(true);
+    expect(r.type).toBe("transfer");
+    expect(r.targetAccountId).toBe("acct-capone");
+    expect(r.merchant).toBe("");
+    expect(r.categoryId).toBe("");
+  });
+});
+
 // ── Transfer context: the imported account's direction-aware history ──
 
 describe("groundImport — transfer context sidecar", () => {

@@ -428,7 +428,10 @@ function describeSkippedRows(name: string, errors: TransformError[]): string {
 // ── Pure row transforms ──────────────────────────────────────────
 
 /** Write grounding's resolved fields onto a staged row. `groundImport` already
- *  resolved the account, so `result.accountId` is authoritative. */
+ *  resolved the account, so `result.accountId` is authoritative. `type` and
+ *  `targetAccountId` are set only by payment-leg recognition — a recognized
+ *  row stages as a transfer with its counterpart prefilled, so it never needs
+ *  the transfer-enrich call. */
 function applyGrounding(
   row: ImportTransaction,
   result: GroundingResult | undefined,
@@ -436,10 +439,12 @@ function applyGrounding(
   if (!result) return row;
   return {
     ...row,
+    type: result.type ?? row.type,
     merchant: result.merchant || row.merchant,
     categoryId: result.categoryId || row.categoryId,
     categoryConfidence: result.categoryConfidence || row.categoryConfidence,
     accountId: result.accountId || row.accountId,
+    targetAccountId: result.targetAccountId || row.targetAccountId,
     duplicate: result.duplicate,
     duplicateConfidence: result.duplicateConfidence,
   };

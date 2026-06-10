@@ -319,10 +319,23 @@ describe("default transfer patterns", () => {
     expect(result.transactions[0].type).toBe("transfer");
   });
 
-  it("every default phrase pairs 'transfer' with account context", () => {
-    // Guards against a bare/over-broad phrase sneaking into the set.
+  it("classifies BofA's intra-bank card-payment phrasing", () => {
+    const mapping = baseMapping({ typeDetection: { method: "amount_sign" } });
+    const rows = [
+      makeRow({
+        Date: "2025-01-01",
+        Description: "Mobile Banking payment to CRD 9044 Confirmation# 2241",
+        Amount: "-1424.96",
+      }),
+    ];
+    const result = transformCsv(rows, mapping);
+    expect(result.transactions[0].type).toBe("transfer");
+  });
+
+  it("every default phrase is multi-word and anchored, never a bare keyword", () => {
+    // Guards against a bare/over-broad phrase ("transfer", "payment") sneaking
+    // into the set — each pattern must carry its own context.
     for (const pattern of DEFAULT_TRANSFER_PATTERNS) {
-      expect(pattern).toContain("transfer");
       expect(pattern.split(/\s+/).length).toBeGreaterThan(1);
     }
   });

@@ -362,10 +362,12 @@ export function parseCurrencyToCents(
 
 /**
  * High-confidence transfer phrases checked on every row, independent of the
- * model-supplied `transferPatterns`. Each phrase pairs "transfer" with account
- * context so a merchant that merely contains the word (e.g. "Transferwise",
- * "Money Transfer Inc") does not false-match. The model's patterns are still
- * checked additively to catch bank-specific phrasings these miss.
+ * model-supplied `transferPatterns`. Each phrase is multi-word and anchored —
+ * "transfer" paired with account context, so a merchant that merely contains
+ * the word (e.g. "Transferwise", "Money Transfer Inc") does not false-match,
+ * or a bank's fixed payment phrasing ("payment to crd" is BofA's wording for
+ * intra-bank card payments). The model's patterns are still checked additively
+ * to catch bank-specific phrasings these miss.
  */
 export const DEFAULT_TRANSFER_PATTERNS: readonly string[] = [
   "internet transfer",
@@ -381,6 +383,7 @@ export const DEFAULT_TRANSFER_PATTERNS: readonly string[] = [
   "transfer from savings",
   "transfer to checking",
   "transfer to savings",
+  "payment to crd",
 ];
 
 function detectType(

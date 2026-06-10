@@ -101,10 +101,19 @@ function stripTrailingReferenceNoise(s: string): string {
   return out;
 }
 
+/**
+ * Normalize a display name (e.g. an account name like "🍏 Apple Card") for
+ * matching: emoji stripped, lowercased, whitespace collapsed. Unlike
+ * {@link canonicalizeMatchKey} there is no noise stripping — names legitimately
+ * end in words ("Card") the description canonicalizer treats as reference noise.
+ */
+export function canonicalizeName(raw: string): string {
+  return raw.replace(EMOJI_RE, "").toLowerCase().replace(/\s+/g, " ").trim();
+}
+
 /** Derive the normalized match key from a stored/historical description. */
 export function canonicalizeMatchKey(raw: string): string {
-  const lowered = raw.replace(EMOJI_RE, "").toLowerCase();
-  const collapsed = lowered.replace(/\s+/g, " ").trim();
+  const collapsed = canonicalizeName(raw);
 
   const deprefixed = stripLeadingProcessorPrefix(collapsed);
   // If a prefix strip empties the string, the whole thing was a prefix — keep
