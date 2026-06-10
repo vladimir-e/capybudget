@@ -190,10 +190,8 @@ export function ImportDropZone({
 }
 
 /**
- * Shown when no AI provider is configured — same nudge the empty Capy
- * overlay surfaces. Import needs intelligence; this is the single
- * provider-agnostic gate, and the only thing the screen renders then —
- * no drop zone, no drag handling.
+ * The set-up-your-AI-provider nudge — same one the empty Capy overlay
+ * surfaces. Exported for the screen's unsupported state.
  */
 export function ProviderUnsupportedBanner({
   onOpenSettings,

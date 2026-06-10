@@ -112,6 +112,7 @@ export const useImportStore = create<ImportStore>((set) => ({
             error: null,
             phase: "categorizing",
             status: "",
+            normalizeProgress: null,
             batchProgress: null,
             rowsVersion: s.rowsVersion,
           },

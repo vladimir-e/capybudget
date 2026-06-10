@@ -157,14 +157,20 @@ function Segment({
         )}
       </div>
 
-      <div className="h-1.5 overflow-hidden rounded-full bg-muted">
+      <div
+        className={cn(
+          "h-1.5 overflow-hidden rounded-full bg-muted",
+          // An active segment without a proportional meter renders full-width,
+          // and one whose meter hasn't ticked yet renders empty (the wait on
+          // the first model response) — a soft pulse reads better in both than
+          // a frozen bar. It rides on the track so the empty case stays visible.
+          state === "active" && (!proportional || fillPct === 0) && running && "animate-pulse",
+        )}
+      >
         <div
           className={cn(
             "h-full rounded-full transition-[width] duration-500 ease-out",
             complete ? "bg-amount-income" : "bg-brand",
-            // An active segment without a proportional meter renders full-width
-            // — a soft pulse reads better there than a frozen bar.
-            state === "active" && !proportional && running && "animate-pulse",
           )}
           style={{ width: `${fillPct}%` }}
         />

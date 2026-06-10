@@ -39,7 +39,9 @@ const TXN: ImportTransaction = {
 
 beforeEach(() => {
   merge.mockReset();
-  flushWriteBack.mockClear();
+  // mockReset (not mockClear) — it drops any per-test mockImplementation and
+  // restores the original async no-op, so tests can't leak into each other.
+  flushWriteBack.mockReset();
   Object.assign(dataReturn, {
     transactions: [TXN],
     selectedIds: new Set(["imp-1"]),

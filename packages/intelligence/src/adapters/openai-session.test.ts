@@ -1060,4 +1060,69 @@ describe("OpenAiSession.structured", () => {
     expect(messages.map((m) => m.role)).toEqual(["system", "user", "assistant", "user"])
     expect(messages[2].content).toBe('{"ok": false}')
   })
+
+  it("streams when onText is set, surfacing accumulated (not per-delta) text", async () => {
+    queueTurn({ textDeltas: ['{"ok"', ": true}"], finish_reason: "stop" })
+    const onText = vi.fn()
+
+    const { session } = makeSession()
+    const result = await session.structured<{ ok: boolean }>(
+      [{ role: "user", content: "extract" }],
+      SCHEMA,
+      { onText },
+    )
+
+    expect(result).toEqual({ ok: true })
+    expect(onText.mock.calls.map((c) => c[0])).toEqual(['{"ok"', '{"ok": true}'])
+    // The streaming request carries the same schema constraint.
+    const params = mockCreate.mock.lastCall?.[0] as Record<string, unknown>
+    expect(params.stream).toBe(true)
+    expect(params.response_format).toEqual({
+      type: "json_schema",
+      json_schema: { name: "structured_output", schema: SCHEMA },
+    })
+  })
+
+  it("resolves the streaming call to the same value as the non-streaming path", async () => {
+    const { session } = makeSession()
+
+    queueTurn({ textDeltas: ['{"ok":', " true}"], finish_reason: "stop" })
+    const streamed = await session.structured<{ ok: boolean }>(
+      [{ role: "user", content: "extract" }],
+      SCHEMA,
+      { onText: () => {} },
+    )
+
+    queueStructured({ content: '{"ok": true}' })
+    const plain = await session.structured<{ ok: boolean }>(
+      [{ role: "user", content: "extract" }],
+      SCHEMA,
+    )
+
+    expect(streamed).toEqual(plain)
+  })
+
+  it("rejects the streaming call when the request errors", async () => {
+    queueTurn({ finish_reason: "stop", error: new Error("rate limited") })
+
+    const { session } = makeSession()
+    await expect(
+      session.structured([{ role: "user", content: "x" }], SCHEMA, { onText: () => {} }),
+    ).rejects.toThrow("rate limited")
+  })
+
+  it("rejects the streaming call when the stream aborts mid-iteration", async () => {
+    queueTurn({ textDeltas: ['{"ok"', ": true}"], finish_reason: "stop" })
+
+    const { session } = makeSession()
+    const promise = session.structured([{ role: "user", content: "x" }], SCHEMA, {
+      onText: () => {},
+    })
+    // The mock's create() resolves to a stream whose controller forces the
+    // chunk iterator to throw AbortError on its next step.
+    const results = mockCreate.mock.results
+    const stream = (await results[results.length - 1].value) as { controller: AbortController }
+    stream.controller.abort()
+    await expect(promise).rejects.toThrow(/aborted/i)
+  })
 })

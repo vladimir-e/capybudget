@@ -944,4 +944,65 @@ describe("AnthropicSession.structured", () => {
     expect(messages.map((m) => m.role)).toEqual(["user", "assistant", "user"])
     expect(messages[1].content).toBe('{"ok": false}')
   })
+
+  it("streams when onText is set, surfacing accumulated (not per-delta) text", async () => {
+    queueTurn({ textDeltas: ['{"ok"', ": true}"], stop_reason: "end_turn" })
+    const onText = vi.fn()
+
+    const { session } = makeSession()
+    const result = await session.structured<{ ok: boolean }>(
+      [{ role: "user", content: "extract" }],
+      SCHEMA,
+      { onText },
+    )
+
+    expect(result).toEqual({ ok: true })
+    expect(mockCreate).not.toHaveBeenCalled()
+    expect(onText.mock.calls.map((c) => c[0])).toEqual(['{"ok"', '{"ok": true}'])
+    // The streaming request carries the same schema constraint.
+    const params = mockStream.mock.lastCall?.[0] as Record<string, unknown>
+    expect(params.output_config).toEqual({
+      format: { type: "json_schema", schema: SCHEMA },
+    })
+  })
+
+  it("resolves the streaming call to the same value as the non-streaming path", async () => {
+    const { session } = makeSession()
+
+    queueTurn({ textDeltas: ['{"ok":', " true}"], stop_reason: "end_turn" })
+    const streamed = await session.structured<{ ok: boolean }>(
+      [{ role: "user", content: "extract" }],
+      SCHEMA,
+      { onText: () => {} },
+    )
+
+    queueStructured({ content: '{"ok": true}' })
+    const plain = await session.structured<{ ok: boolean }>(
+      [{ role: "user", content: "extract" }],
+      SCHEMA,
+    )
+
+    expect(streamed).toEqual(plain)
+  })
+
+  it("rejects the streaming call when the stream errors", async () => {
+    queueTurn({ stop_reason: "end_turn", error: new Error("rate limited") })
+
+    const { session } = makeSession()
+    await expect(
+      session.structured([{ role: "user", content: "x" }], SCHEMA, { onText: () => {} }),
+    ).rejects.toThrow("rate limited")
+  })
+
+  it("rejects the streaming call when the stream aborts mid-generation", async () => {
+    queueTurn({ textDeltas: ['{"ok"', ": true}"], stop_reason: "end_turn" })
+
+    const { session } = makeSession()
+    const promise = session.structured([{ role: "user", content: "x" }], SCHEMA, {
+      onText: () => {},
+    })
+    // The stream stub exists synchronously; abort before its deferred emits run.
+    streamStubs[streamStubs.length - 1].controller.abort()
+    await expect(promise).rejects.toThrow(/aborted/i)
+  })
 })

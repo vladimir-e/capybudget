@@ -93,10 +93,13 @@ export interface MeterView {
 /**
  * Resolve a segment's bar appearance. A metered segment fills proportionally
  * (clamped — totals can be estimates) and is `complete` only when every row
- * landed, so an interrupted run shows Enhancing partly filled, not falsely
- * checked, even though its phase index reads `done`. A meter with a null total
- * counts without filling — the segment keeps its binary fill and shows the live
- * row count. Meter-less segments are binary (done = full, active = full).
+ * landed AND the segment's phase has moved past it — a full meter on the
+ * active segment is a between-steps moment (next file, next batch), not the
+ * segment finishing, so it never flashes the check early. An interrupted run
+ * shows Enhancing partly filled, not falsely checked, even though its phase
+ * index reads `done`. A meter with a null total counts without filling — the
+ * segment keeps its binary fill and shows the live row count. Meter-less
+ * segments are binary (done = full, active = full).
  */
 export function meterView(state: SegmentState, meter: SegmentMeter | null): MeterView {
   const binary = {
@@ -109,7 +112,7 @@ export function meterView(state: SegmentState, meter: SegmentMeter | null): Mete
   }
   return {
     fillPct: Math.min(100, Math.round((meter.done / meter.total) * 100)),
-    complete: meter.done >= meter.total,
+    complete: meter.done >= meter.total && state !== "active",
     countLabel: state !== "pending" ? `${meter.done} of ${meter.total}` : null,
   };
 }

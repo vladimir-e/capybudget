@@ -92,7 +92,7 @@ Adapters surface `done` off the model's terminal event (Anthropic `message` / Op
 
 ## Structured Output
 
-Alongside the agentic `CapySession`, the in-process API adapters expose a second, stateless primitive: `StructuredSession.structured(messages, schema) → T`. One constrained model call returns a value the caller's JSON Schema describes — no agent loop, no tools, no accumulated context. Smart Import is built on this; the agent loop is for chat.
+Alongside the agentic `CapySession`, the in-process API adapters expose a second, stateless primitive: `StructuredSession.structured(messages, schema, options?) → T`. One constrained model call returns a value the caller's JSON Schema describes — no agent loop, no tools, no accumulated context. An optional `onText` callback switches the call to a streaming request and surfaces the accumulated raw response text per delta — a partial JSON prefix the caller can derive live progress from; the resolved value is identical either way. Smart Import is built on this; the agent loop is for chat.
 
 Both providers constrain generation to the schema server-side (Anthropic `output_config.format`, OpenAI `response_format` json_schema). `parseStructured` is the client-side enforcement layer: it parses the returned text and validates it against the same schema, so a malformed or off-schema response throws (`SchemaValidationError`) at the call site rather than landing as a silently-wrong object downstream. User turns may carry multimodal content (receipt images, PDF bytes); assistant turns are text-only, because the API rejects image/document blocks in an assistant turn.
 

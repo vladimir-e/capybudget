@@ -80,6 +80,16 @@ describe("meterView", () => {
     expect(meterView("active", { done: 160, total: 150 }).fillPct).toBe(100);
   });
 
+  it("does not check a full meter while the segment is still active", () => {
+    // Between files (or after the last batch, before the phase event) the
+    // active meter momentarily reads done === total — full bar, no check.
+    expect(meterView("active", { done: 30, total: 30 })).toEqual({
+      fillPct: 100,
+      complete: false,
+      countLabel: "30 of 30",
+    });
+  });
+
   it("counts without filling while the total is unknown (extraction pre-count)", () => {
     expect(meterView("active", { done: 42, total: null })).toEqual({
       fillPct: 100, // binary active fill — the pulse carries the motion
