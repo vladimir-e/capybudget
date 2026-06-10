@@ -2,7 +2,12 @@ import { exists, readTextFile, writeTextFile, readDir } from "@tauri-apps/plugin
 import { join } from "@tauri-apps/api/path";
 import type { BudgetMeta, Category } from "@capybudget/core";
 import { DEFAULT_CATEGORIES } from "@capybudget/core";
-import Papa from "papaparse";
+import {
+  unparseCsv,
+  ACCOUNT_COLUMNS,
+  CATEGORY_COLUMNS,
+  TRANSACTION_COLUMNS,
+} from "@capybudget/persistence";
 import { migrateBudgetFolder } from "./budget-migrations";
 
 export const SCHEMA_VERSION = 3;
@@ -99,19 +104,17 @@ export async function bootstrapBudget(folderPath: string, name: string): Promise
     ...c,
     id: crypto.randomUUID(),
   }));
-  const categoriesCsv = Papa.unparse(categories, {
-    columns: ["id", "name", "group", "archived", "sortOrder", "assigned"],
-  });
+  const categoriesCsv = unparseCsv(categories, CATEGORY_COLUMNS);
   const categoriesPath = await join(folderPath, "categories.csv");
   await writeTextFile(categoriesPath, categoriesCsv);
 
   // Write empty accounts.csv
   const accountsPath = await join(folderPath, "accounts.csv");
-  await writeTextFile(accountsPath, "id,name,type,archived,excludeFromNetWorth,sortOrder,createdAt");
+  await writeTextFile(accountsPath, ACCOUNT_COLUMNS.join(","));
 
   // Write empty transactions.csv
   const transactionsPath = await join(folderPath, "transactions.csv");
-  await writeTextFile(transactionsPath, "id,datetime,type,amount,categoryId,accountId,transferPairId,merchant,note,createdAt");
+  await writeTextFile(transactionsPath, TRANSACTION_COLUMNS.join(","));
 
   return meta;
 }

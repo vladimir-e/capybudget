@@ -6,6 +6,9 @@ import {
   ACCOUNT_COERCE,
   CATEGORY_COERCE,
   TRANSACTION_COERCE,
+  ACCOUNT_COLUMNS,
+  CATEGORY_COLUMNS,
+  TRANSACTION_COLUMNS,
   type CoercionMap,
 } from "./csv-parse";
 
@@ -211,7 +214,7 @@ describe("parseCsv", () => {
 describe("unparseCsv", () => {
   it("converts array of objects to CSV string with headers", () => {
     const data = [{ id: "1", name: "Alice" }];
-    const csv = unparseCsv(data);
+    const csv = unparseCsv(data, ["id", "name"]);
 
     expect(csv).toBe("id,name\r\n1,Alice");
   });
@@ -221,7 +224,7 @@ describe("unparseCsv", () => {
       { id: "1", name: "Alice" },
       { id: "2", name: "Bob" },
     ];
-    const csv = unparseCsv(data);
+    const csv = unparseCsv(data, ["id", "name"]);
     const lines = csv.split("\r\n");
 
     expect(lines).toHaveLength(3);
@@ -230,36 +233,43 @@ describe("unparseCsv", () => {
     expect(lines[2]).toBe("2,Bob");
   });
 
+  it("writes columns in the given order regardless of object key order", () => {
+    const data = [{ name: "Alice", id: "1" }];
+    const csv = unparseCsv(data, ["id", "name"]);
+
+    expect(csv).toBe("id,name\r\n1,Alice");
+  });
+
   it("returns empty string for empty array", () => {
-    const csv = unparseCsv([]);
+    const csv = unparseCsv([], ["id", "name"]);
 
     expect(csv).toBe("");
   });
 
   it("escapes fields containing commas", () => {
     const data = [{ id: "1", name: "Doe, Jane" }];
-    const csv = unparseCsv(data);
+    const csv = unparseCsv(data, ["id", "name"]);
 
     expect(csv).toContain('"Doe, Jane"');
   });
 
   it("escapes fields containing double quotes", () => {
     const data = [{ id: "1", name: 'Say "hello"' }];
-    const csv = unparseCsv(data);
+    const csv = unparseCsv(data, ["id", "name"]);
 
     expect(csv).toContain('"Say ""hello"""');
   });
 
   it("escapes fields containing newlines", () => {
     const data = [{ id: "1", note: "line1\nline2" }];
-    const csv = unparseCsv(data);
+    const csv = unparseCsv(data, ["id", "note"]);
 
     expect(csv).toContain('"line1\nline2"');
   });
 
   it("handles boolean and number values", () => {
     const data = [{ id: "acc-1", archived: false, sortOrder: 3 }];
-    const csv = unparseCsv(data);
+    const csv = unparseCsv(data, ["id", "archived", "sortOrder"]);
     const lines = csv.split("\r\n");
 
     expect(lines[1]).toBe("acc-1,false,3");
@@ -289,7 +299,7 @@ describe("round-trip: parseCsv(unparseCsv(data))", () => {
       },
     ];
 
-    const csv = unparseCsv(accounts);
+    const csv = unparseCsv(accounts, ACCOUNT_COLUMNS);
     const restored = parseCsv<Account>(csv, ACCOUNT_COERCE);
 
     expect(restored).toEqual(accounts);
@@ -301,7 +311,7 @@ describe("round-trip: parseCsv(unparseCsv(data))", () => {
       { id: "cat-2", name: "Mortgage", group: "Fixed", archived: false, sortOrder: 2, assigned: 350000 },
     ];
 
-    const csv = unparseCsv(categories);
+    const csv = unparseCsv(categories, CATEGORY_COLUMNS);
     const restored = parseCsv<Category>(csv, CATEGORY_COERCE);
 
     expect(restored).toEqual(categories);
@@ -323,7 +333,7 @@ describe("round-trip: parseCsv(unparseCsv(data))", () => {
       },
     ];
 
-    const csv = unparseCsv(transactions);
+    const csv = unparseCsv(transactions, TRANSACTION_COLUMNS);
     const restored = parseCsv<Transaction>(csv, TRANSACTION_COERCE);
 
     expect(restored).toEqual(transactions);
@@ -334,7 +344,7 @@ describe("round-trip: parseCsv(unparseCsv(data))", () => {
       { id: "cat-1", name: 'Food, "Drink" & More', group: "Daily Living", archived: false, sortOrder: 1, assigned: null },
     ];
 
-    const csv = unparseCsv(categories);
+    const csv = unparseCsv(categories, CATEGORY_COLUMNS);
     const restored = parseCsv<Category>(csv, CATEGORY_COERCE);
 
     expect(restored[0].name).toBe('Food, "Drink" & More');

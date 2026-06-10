@@ -85,10 +85,9 @@ function deterministicUuid(input: string): string {
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
 }
 
-/** Rewrite generator output into the exact shape the app persists: UUID ids,
- *  millisecond datetimes, and object keys in canonical column order (the
- *  repository serializes with Papa.unparse, which derives CSV columns from
- *  the first object's keys). */
+/** Rewrite generator output into the exact shape the app persists: UUID ids
+ *  and millisecond datetimes. Column order is the repository's concern — it
+ *  serializes with the canonical column constants from @capybudget/persistence. */
 function toBudgetFolderData(data: ScenarioData, idNamespace: string): ScenarioData {
   const ids = new Map<string, string>();
   const mapId = (id: string): string => {

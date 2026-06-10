@@ -16,6 +16,9 @@ export {
   ACCOUNT_COERCE,
   CATEGORY_COERCE,
   TRANSACTION_COERCE,
+  ACCOUNT_COLUMNS,
+  CATEGORY_COLUMNS,
+  TRANSACTION_COLUMNS,
 } from "./csv-parse";
 
 // Debounced writer

@@ -10,6 +10,45 @@ export type Coerce = (v: string | undefined) => unknown;
  *  absent — that's how new fields get their default for older CSVs. */
 export type CoercionMap<T> = Partial<Record<keyof T, Coerce>>;
 
+/** Build a readonly column tuple for T. Compile error if a key is unknown or
+ *  missing — adding a field to the model forces a column-order decision here. */
+function columns<T>() {
+  return <const C extends readonly (keyof T)[]>(
+    cols: C & ([Exclude<keyof T, C[number]>] extends [never] ? unknown : never),
+  ): C => cols;
+}
+
+/** Canonical CSV column order — the single source of truth for every writer. */
+export const ACCOUNT_COLUMNS = columns<Account>()([
+  "id",
+  "name",
+  "type",
+  "archived",
+  "excludeFromNetWorth",
+  "sortOrder",
+  "createdAt",
+]);
+export const CATEGORY_COLUMNS = columns<Category>()([
+  "id",
+  "name",
+  "group",
+  "archived",
+  "sortOrder",
+  "assigned",
+]);
+export const TRANSACTION_COLUMNS = columns<Transaction>()([
+  "id",
+  "datetime",
+  "type",
+  "amount",
+  "categoryId",
+  "accountId",
+  "transferPairId",
+  "merchant",
+  "note",
+  "createdAt",
+]);
+
 const toBool: Coerce = (v) => v === "true";
 const toInt: Coerce = (v) => (v === undefined || v === "" ? 0 : parseInt(v, 10));
 /** Tracked-or-not integer: `null` for missing/empty, otherwise parsed int.
@@ -45,7 +84,8 @@ export function parseCsv<T>(content: string, coerce: CoercionMap<T>): T[] {
   });
 }
 
-/** Serialize data to CSV string. */
-export function unparseCsv(data: unknown[]): string {
-  return Papa.unparse(data);
+/** Serialize data to CSV with an explicit column order, so output never
+ *  depends on object key order. */
+export function unparseCsv(data: unknown[], columns: readonly string[]): string {
+  return Papa.unparse(data, { columns: [...columns] });
 }

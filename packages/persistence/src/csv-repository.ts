@@ -7,6 +7,9 @@ import {
   ACCOUNT_COERCE,
   CATEGORY_COERCE,
   TRANSACTION_COERCE,
+  ACCOUNT_COLUMNS,
+  CATEGORY_COLUMNS,
+  TRANSACTION_COLUMNS,
 } from "./csv-parse";
 import { createDebouncedWriter } from "./debounced-writer";
 
@@ -20,9 +23,10 @@ export interface DisposableRepository extends BudgetRepository {
 async function writeCsvAtomic(
   filePath: string,
   data: unknown[],
+  columns: readonly string[],
   fileAdapter: FileAdapter,
 ): Promise<void> {
-  const csv = unparseCsv(data);
+  const csv = unparseCsv(data, columns);
   const tmpPath = `${filePath}.tmp`;
   await fileAdapter.writeFile(tmpPath, csv);
   await fileAdapter.rename(tmpPath, filePath);
@@ -54,13 +58,13 @@ export function createCsvRepository(
   // Debounced writers — created lazily after first save
   const writers = {
     accounts: createDebouncedWriter(async () => {
-      if (accounts) await writeCsvAtomic(await getPath("accounts"), accounts, fileAdapter);
+      if (accounts) await writeCsvAtomic(await getPath("accounts"), accounts, ACCOUNT_COLUMNS, fileAdapter);
     }),
     categories: createDebouncedWriter(async () => {
-      if (categories) await writeCsvAtomic(await getPath("categories"), categories, fileAdapter);
+      if (categories) await writeCsvAtomic(await getPath("categories"), categories, CATEGORY_COLUMNS, fileAdapter);
     }),
     transactions: createDebouncedWriter(async () => {
-      if (transactions) await writeCsvAtomic(await getPath("transactions"), transactions, fileAdapter);
+      if (transactions) await writeCsvAtomic(await getPath("transactions"), transactions, TRANSACTION_COLUMNS, fileAdapter);
     }),
   };
 
