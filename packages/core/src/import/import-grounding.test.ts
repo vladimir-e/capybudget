@@ -276,8 +276,8 @@ describe("groundImport — sourceAccount resolution", () => {
 // ── Payment-leg recognition (deterministic retype) ───────────────
 
 describe("groundImport — payment-leg recognition", () => {
-  const APPLE_CARD = makeAccount({ id: "acct-apple", name: "🍏 Apple Card", type: "credit" });
-  const CAPITAL_ONE = makeAccount({ id: "acct-capone", name: "🛒 Capital One BJ's", type: "credit" });
+  const APPLE_CARD = makeAccount({ id: "acct-apple", name: "🍏 Apple Card", type: "credit_card" });
+  const CAPITAL_ONE = makeAccount({ id: "acct-capone", name: "🛒 Capital One BJ's", type: "credit_card" });
   const BOFA_CHECKING = makeAccount({ id: "acct-bofa-chk", name: "🏦 BofA Checking" });
   const accounts = [APPLE_CARD, CAPITAL_ONE, BOFA_CHECKING];
 

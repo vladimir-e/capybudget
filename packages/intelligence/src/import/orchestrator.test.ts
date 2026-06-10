@@ -163,7 +163,7 @@ describe("ImportOrchestrator — rows that skip Categorizing", () => {
     const session = new MockStructuredSession([mapResponder]);
     const budget = new MemoryBudgetData([], CATEGORIES, [
       makeAccount({ id: "acct-checking", name: "Checking" }),
-      makeAccount({ id: "acct-apple", name: "🍏 Apple Card", type: "credit" }),
+      makeAccount({ id: "acct-apple", name: "🍏 Apple Card", type: "credit_card" }),
     ]);
 
     await new ImportOrchestrator({ session, staging, budget, onEvent: () => {}, concurrency: 1 }).start();

@@ -4,13 +4,13 @@ import { PaymentLegMatcher, PAYMENT_KEYWORDS } from "./import-payment-legs";
 
 // The account set the recognizer was calibrated against — a real budget's
 // shape: emoji-prefixed names, two short-named cards, a one-word Cash account.
-const APPLE_CARD = makeAccount({ id: "acct-apple", name: "🍏 Apple Card", type: "credit" });
-const CHASE_PRIME = makeAccount({ id: "acct-chase", name: "📦 Chase Prime Rewards", type: "credit" });
-const CAPITAL_ONE = makeAccount({ id: "acct-capone", name: "🛒 Capital One BJ's", type: "credit" });
+const APPLE_CARD = makeAccount({ id: "acct-apple", name: "🍏 Apple Card", type: "credit_card" });
+const CHASE_PRIME = makeAccount({ id: "acct-chase", name: "📦 Chase Prime Rewards", type: "credit_card" });
+const CAPITAL_ONE = makeAccount({ id: "acct-capone", name: "🛒 Capital One BJ's", type: "credit_card" });
 const CASH = makeAccount({ id: "acct-cash", name: "💵 Cash", type: "cash" });
 const BOFA_CHECKING = makeAccount({ id: "acct-bofa-chk", name: "🏦 BofA Checking" });
 const BOFA_SAVINGS = makeAccount({ id: "acct-bofa-sav", name: "💰 BofA Savings", type: "savings" });
-const BOFA_VISA = makeAccount({ id: "acct-bofa-visa", name: "💳 BofA Rewards Visa", type: "credit" });
+const BOFA_VISA = makeAccount({ id: "acct-bofa-visa", name: "💳 BofA Rewards Visa", type: "credit_card" });
 
 const ACCOUNTS = [APPLE_CARD, CHASE_PRIME, CAPITAL_ONE, CASH, BOFA_CHECKING, BOFA_SAVINGS, BOFA_VISA];
 
