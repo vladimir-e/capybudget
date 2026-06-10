@@ -9,6 +9,10 @@ CHANGELOG PHILOSOPHY:
 - Resist the urge to be thorough here. Thoroughness goes in specs, not changelog.
 -->
 
+## Unreleased
+
+- **Demo** - Export script (#64): write a generated demo scenario as a real budget folder for testers; cash accounts no longer drift below zero.
+
 ## 1.0.0 — 2026-06-09
 
 - **Import** - Redesigned around a deterministic pipeline: imported transactions are matched against your own history (merchants, categories, duplicates) before AI categorizes only the leftovers, in batches — fewer tokens, more accurate the more you import.
