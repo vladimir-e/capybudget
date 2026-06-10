@@ -29,8 +29,8 @@ interface ImportMappingRowsProps {
 
 /** One row per imported account: the imported name → a target-account
  *  selector (an existing account, or create-on-merge — the default). Rendered
- *  inside the merge confirmation dialog so the mapping is confirmed at the
- *  moment it takes effect. */
+ *  inside the Map-accounts dialog the preview table's ACCOUNT cells open;
+ *  edits apply live. */
 export function ImportMappingRows({
   sourceAccounts,
   accounts,

@@ -150,6 +150,7 @@ export function ImportPreview({
 
   // ── Merge ──────────────────────────────────────────────────────
   const [showMergeDialog, setShowMergeDialog] = useState(false);
+  const [showMappingDialog, setShowMappingDialog] = useState(false);
   const [merging, setMerging] = useState(false);
   const { merge } = useImportMerge(budgetPath);
 
@@ -273,6 +274,7 @@ export function ImportPreview({
           categories={categories}
           accounts={accounts}
           accountMapping={accountMapping}
+          onOpenAccountMapping={() => setShowMappingDialog(true)}
           duplicateIds={duplicateIds}
         />
       </div>
@@ -300,11 +302,35 @@ export function ImportPreview({
         </div>
       </div>
 
-      {/* Merge confirmation — the account mapping is confirmed here, at the
-          moment it takes effect, so it can't be forgotten on a separate panel. */}
+      {/* Account mapping — opened from the table's ACCOUNT cells. Edits apply
+          live, so the table reflects the new targets as they're picked. */}
+      {showMappingDialog && (
+        <Dialog open onOpenChange={(open) => { if (!open) setShowMappingDialog(false); }}>
+          <DialogContent className="sm:max-w-lg">
+            <DialogHeader>
+              <DialogTitle>Map accounts</DialogTitle>
+              <DialogDescription>
+                Where each imported account&rsquo;s transactions land — an existing
+                account, or one created on merge.
+              </DialogDescription>
+            </DialogHeader>
+            <ImportMappingRows
+              sourceAccounts={sourceAccounts}
+              accounts={accounts}
+              accountMapping={accountMapping}
+              onAccountMappingChange={handleAccountMappingChange}
+            />
+            <DialogFooter>
+              <Button onClick={() => setShowMappingDialog(false)}>Done</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {/* Merge confirmation */}
       {showMergeDialog && (
         <Dialog open onOpenChange={(open) => { if (!open) setShowMergeDialog(false); }}>
-          <DialogContent className={sourceAccounts.length > 0 ? "sm:max-w-lg" : "sm:max-w-md"}>
+          <DialogContent className="sm:max-w-md">
             <DialogHeader>
               <DialogTitle>Merge {selectedCount} transactions?</DialogTitle>
               <DialogDescription>
@@ -324,19 +350,6 @@ export function ImportPreview({
                 </span>
               </DialogDescription>
             </DialogHeader>
-            {sourceAccounts.length > 0 && (
-              <div className="space-y-2">
-                <div className="text-xs font-medium uppercase tracking-wider text-muted-foreground/70">
-                  Account mapping
-                </div>
-                <ImportMappingRows
-                  sourceAccounts={sourceAccounts}
-                  accounts={accounts}
-                  accountMapping={accountMapping}
-                  onAccountMappingChange={handleAccountMappingChange}
-                />
-              </div>
-            )}
             <DialogFooter>
               <Button variant="outline" onClick={() => setShowMergeDialog(false)}>
                 Cancel

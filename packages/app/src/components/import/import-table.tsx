@@ -7,6 +7,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { EmptyState } from "@/components/ui/empty-state";
 import { CategorySelector } from "@/components/budget/category-selector";
@@ -48,6 +49,8 @@ interface ImportTableProps {
   categories: Category[];
   accounts: Account[];
   accountMapping: Record<string, string>;
+  /** Opens the Map-accounts dialog (the ACCOUNT cell is its trigger). */
+  onOpenAccountMapping: () => void;
   duplicateIds: Set<string>;
 }
 
@@ -128,6 +131,7 @@ export function ImportTable({
   categories,
   accounts,
   accountMapping,
+  onOpenAccountMapping,
   duplicateIds,
 }: ImportTableProps) {
   const [editingCell, setEditingCell] = useState<{
@@ -361,6 +365,7 @@ export function ImportTable({
                     sourceAccount={txn.sourceAccount}
                     accounts={accounts}
                     accountMapping={accountMapping}
+                    onOpenMapping={onOpenAccountMapping}
                   />
                 )}
               </TableCell>
@@ -394,19 +399,23 @@ export function ImportTable({
 // ── Mapped Account Cell ──────────────────────────────────────────
 
 /**
- * The ACCOUNT column shows where the row will actually land: the mapped target
- * account's name, or the imported name with a "new" tag when merge would
- * create it. The raw imported string survives as a secondary line (and title)
- * when it differs from the target — the same pattern as merchant/description.
+ * The ACCOUNT column for non-transfer rows shows where the row will actually
+ * land: the mapped target account's name, or the imported name with a "new"
+ * tag when merge would create it. The cell is the Map-accounts dialog's
+ * trigger — the same outline-button affordance as the column's transfer
+ * selectors and the CATEGORY cell. The raw imported → target relationship
+ * lives in the dialog, not the cell.
  */
 function MappedAccountCell({
   sourceAccount,
   accounts,
   accountMapping,
+  onOpenMapping,
 }: {
   sourceAccount: string;
   accounts: Account[];
   accountMapping: Record<string, string>;
+  onOpenMapping: () => void;
 }) {
   if (!sourceAccount) {
     return <span className="text-muted-foreground/40 italic">none</span>;
@@ -415,27 +424,20 @@ function MappedAccountCell({
   const target =
     targetId && targetId !== "__create__" ? accounts.find((a) => a.id === targetId) : undefined;
 
-  if (!target) {
-    return (
-      <span
-        className="flex items-center gap-1.5 min-w-0"
-        title={`"${sourceAccount}" will be created on merge`}
-      >
-        <span className="truncate">{sourceAccount}</span>
+  return (
+    <Button
+      variant="outline"
+      size="sm"
+      onClick={onOpenMapping}
+      className="h-8 w-full min-w-0 justify-start gap-1.5 font-normal"
+    >
+      <span className="truncate">{target ? target.name : sourceAccount}</span>
+      {!target && (
         <span className="shrink-0 rounded bg-brand/10 px-1 py-px text-[10px] font-medium text-brand">
           new
         </span>
-      </span>
-    );
-  }
-  const renamed = target.name !== sourceAccount;
-  return (
-    <span className="block min-w-0" title={renamed ? `Imported as "${sourceAccount}"` : undefined}>
-      <span className="truncate block">{target.name}</span>
-      {renamed && (
-        <span className="truncate block text-[11px] text-muted-foreground/50">{sourceAccount}</span>
       )}
-    </span>
+    </Button>
   );
 }
 

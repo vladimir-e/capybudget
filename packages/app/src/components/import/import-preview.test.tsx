@@ -5,9 +5,16 @@ import type { ImportTransaction } from "@capybudget/core";
 import type { StagingStore } from "@capybudget/intelligence";
 
 // The heavy table/mapping subtrees (CategorySelector, AccountSelector, …) aren't
-// what this test exercises — the merge race wiring is.
-vi.mock("./import-table", () => ({ ImportTable: () => null }));
-vi.mock("./import-mapping", () => ({ ImportMappingRows: () => null }));
+// what this test exercises — the merge race and dialog wiring are. The table
+// mock exposes its Map-accounts trigger so the dialog plumbing is reachable.
+vi.mock("./import-table", () => ({
+  ImportTable: ({ onOpenAccountMapping }: { onOpenAccountMapping: () => void }) => (
+    <button onClick={onOpenAccountMapping}>open account mapping</button>
+  ),
+}));
+vi.mock("./import-mapping", () => ({
+  ImportMappingRows: () => <div data-testid="mapping-rows" />,
+}));
 
 const { merge, flushWriteBack, dataReturn } = vi.hoisted(() => ({
   merge: vi.fn(),
@@ -153,6 +160,31 @@ describe("ImportPreview — enrich control", () => {
 
     unmount();
     expect(onEnrichControl).toHaveBeenLastCalledWith(null);
+  });
+});
+
+describe("ImportPreview — account mapping dialog", () => {
+  it("opens the Map-accounts dialog from the table's ACCOUNT-cell trigger", async () => {
+    Object.assign(dataReturn, { sourceAccounts: ["BOFA CHK 1234"] });
+    renderPreview();
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "open account mapping" }));
+
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByText("Map accounts")).toBeInTheDocument();
+    expect(within(dialog).getByTestId("mapping-rows")).toBeInTheDocument();
+  });
+
+  it("keeps the merge dialog confirmation-only — no mapping rows", async () => {
+    Object.assign(dataReturn, { sourceAccounts: ["BOFA CHK 1234"] });
+    renderPreview();
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "Merge" }));
+
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).queryByTestId("mapping-rows")).toBeNull();
   });
 });
 

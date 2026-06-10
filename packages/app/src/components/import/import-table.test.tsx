@@ -22,6 +22,7 @@ function renderTable(
     selectedIds?: Set<string>;
     duplicateIds?: Set<string>;
     accountMapping?: Record<string, string>;
+    onOpenAccountMapping?: () => void;
   } = {},
 ) {
   return render(
@@ -38,6 +39,7 @@ function renderTable(
       categories={[makeCategory({ id: "cat-1", name: "Groceries", group: "Daily Living" })]}
       accounts={ACCOUNTS}
       accountMapping={opts.accountMapping ?? {}}
+      onOpenAccountMapping={opts.onOpenAccountMapping ?? vi.fn()}
       duplicateIds={opts.duplicateIds ?? new Set()}
     />,
   );
@@ -78,13 +80,13 @@ describe("ImportTable — duplicate badge tiers", () => {
 });
 
 describe("ImportTable — mapped account column", () => {
-  it("shows the mapped target account's name with the raw import as a secondary line", () => {
+  it("shows only the mapped target's name — the raw import lives in the mapping dialog", () => {
     renderTable([makeImportTransaction({ id: "imp-1", sourceAccount: "BOFA CHK 1234" })], {
       accountMapping: { "BOFA CHK 1234": "acct-checking" },
     });
 
     expect(screen.getByText("BofA Checking")).toBeInTheDocument();
-    expect(screen.getByText("BOFA CHK 1234")).toBeInTheDocument();
+    expect(screen.queryByText("BOFA CHK 1234")).toBeNull();
     expect(screen.queryByText("new")).toBeNull();
   });
 
@@ -95,7 +97,6 @@ describe("ImportTable — mapped account column", () => {
 
     expect(screen.getByText("Monzo")).toBeInTheDocument();
     expect(screen.getByText("new")).toBeInTheDocument();
-    expect(screen.getByTitle('"Monzo" will be created on merge')).toBeInTheDocument();
   });
 
   it("treats a missing mapping entry as create-on-merge too", () => {
@@ -103,12 +104,23 @@ describe("ImportTable — mapped account column", () => {
     expect(screen.getByText("new")).toBeInTheDocument();
   });
 
-  it("shows no secondary line when the target name equals the imported one", () => {
-    renderTable([makeImportTransaction({ id: "imp-1", sourceAccount: "BofA Checking" })], {
-      accountMapping: { "BofA Checking": "acct-checking" },
+  it("opens the Map-accounts dialog when the cell is clicked", async () => {
+    const user = userEvent.setup();
+    const onOpenAccountMapping = vi.fn();
+    renderTable([makeImportTransaction({ id: "imp-1", sourceAccount: "BOFA CHK 1234" })], {
+      accountMapping: { "BOFA CHK 1234": "acct-checking" },
+      onOpenAccountMapping,
     });
 
-    expect(screen.getAllByText("BofA Checking")).toHaveLength(1);
+    await user.click(screen.getByRole("button", { name: "BofA Checking" }));
+    expect(onOpenAccountMapping).toHaveBeenCalledTimes(1);
+  });
+
+  it("renders a plain 'none' (no trigger) for a row without a source account", () => {
+    renderTable([makeImportTransaction({ id: "imp-1", sourceAccount: "" })]);
+
+    expect(screen.getByText("none")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "none" })).toBeNull();
   });
 });
 
