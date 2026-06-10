@@ -25,7 +25,7 @@ export const underwater: DemoProfile = {
     [CHECKING]: 50_000,
     [CREDIT]: -420_000,
     [LOAN]: -2_650_000,
-    [CASH]: 5_000,
+    [CASH]: 20_000,
   },
 
   incomeStreams: [
@@ -153,7 +153,7 @@ export const underwater: DemoProfile = {
     {
       category: "Allowances",
       accountId: CASH,
-      merchants: ["Cash Withdrawal"],
+      merchants: ["Laundromat", "Barber Shop"],
       amountRange: [2_000, 4_000],
       probabilityPerMonth: 0.6,
     },
@@ -217,6 +217,15 @@ export const underwater: DemoProfile = {
       amount: 25_000,
       dayOfMonth: 27,
       note: "Student loan payment",
+    },
+    // Funds the cash-account spending above; without it, Cash drifts below
+    // zero — impossible for physical cash.
+    {
+      fromAccountId: CHECKING,
+      toAccountId: CASH,
+      cadence: "biweekly",
+      amount: 8_000,
+      note: "ATM withdrawal",
     },
   ],
 };

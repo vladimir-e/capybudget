@@ -10,24 +10,13 @@ import { budgetKeys } from "@/hooks/use-budget-data";
 import { createInMemoryRepository } from "@capybudget/persistence";
 import { PROFILES } from "../data/profiles";
 import { generateScenarioData } from "../data/generator";
+import { seedFromString } from "../data/rng";
 import { DemoSeedingScreen } from "../components/demo-seeding-screen";
 import { hasEnteredScenario } from "../session-entry";
 
 interface BudgetSearch {
   path: string;
   name: string;
-}
-
-/** Stable per-scenario seed so a scenario's random texture is identical across
- *  visitors and screenshots; dates still track today. Derived from the profile
- *  id (FNV-1a) so the three scenarios stay distinct from one another. */
-function seedFor(profileId: string): number {
-  let hash = 0x811c9dc5;
-  for (let i = 0; i < profileId.length; i++) {
-    hash ^= profileId.charCodeAt(i);
-    hash = Math.imul(hash, 0x01000193);
-  }
-  return hash >>> 0;
 }
 
 export const Route = createFileRoute("/budget")({
@@ -72,7 +61,9 @@ function DemoBudgetLayout() {
     const data = generateScenarioData(profile, {
       now: new Date(),
       yearsBack: 3,
-      seed: seedFor(profile.id),
+      // Per-scenario seed: a scenario's random texture is identical across
+      // visitors and screenshots, and distinct from the other scenarios.
+      seed: seedFromString(profile.id),
     });
     return createInMemoryRepository(data);
   }, [profile]);

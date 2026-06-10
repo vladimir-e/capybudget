@@ -127,6 +127,29 @@ describe("generateScenarioData", () => {
         expect(Number.isInteger(t.amount)).toBe(true);
       }
     });
+
+    // Physical cash can't go negative. Checked at each day's close because
+    // intra-day ordering of a same-day withdrawal and spend is arbitrary.
+    it("keeps cash accounts non-negative at every day's close", () => {
+      const { accounts, transactions } = generateScenarioData(profile, {
+        now: NOW,
+        yearsBack: 3,
+        seed: 5,
+      });
+      for (const account of accounts.filter((a) => a.type === "cash")) {
+        const rows = transactions.filter((t) => t.accountId === account.id);
+        let balance = 0;
+        let minClose = 0;
+        for (let i = 0; i < rows.length; i++) {
+          balance += rows[i].amount;
+          const lastOfDay =
+            i === rows.length - 1 ||
+            rows[i + 1].datetime.slice(0, 10) !== rows[i].datetime.slice(0, 10);
+          if (lastOfDay) minClose = Math.min(minClose, balance);
+        }
+        expect(minClose).toBeGreaterThanOrEqual(0);
+      }
+    });
   });
 
   it("fixed bills recur monthly at a stable amount", () => {

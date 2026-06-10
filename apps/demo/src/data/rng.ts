@@ -1,3 +1,15 @@
+/** FNV-1a hash of a string as an unsigned 32-bit Rng seed. Distinct inputs
+ *  (e.g. profile ids) get distinct, stable seeds — the same input always
+ *  reproduces the same random texture. */
+export function seedFromString(input: string): number {
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < input.length; i++) {
+    hash ^= input.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193);
+  }
+  return hash >>> 0;
+}
+
 /** Seeded PRNG (mulberry32): same seed → same sequence, which is what keeps the
  *  generator deterministic. */
 export class Rng {
