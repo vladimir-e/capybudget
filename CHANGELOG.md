@@ -13,7 +13,7 @@ CHANGELOG PHILOSOPHY:
 
 - **Import** - Redesigned around a deterministic pipeline: imported transactions are matched against your own history (merchants, categories, duplicates) before AI categorizes only the leftovers, in batches — fewer tokens, more accurate the more you import.
 - **Import** - Live two-stage progress (Normalizing → Enhancing) with real row-level meters — extraction streams its rows so long files visibly advance — and a read-only preview that fills in as it runs; interrupt and resume anytime, and re-running enrichment only touches rows you haven't already mapped.
-- **Import** - Simpler review screen: account mapping moved into the merge confirmation (the table shows where each row will land), run notes share one compact panel, Stop/Enrich live on the progress bar, and without an AI provider the tab shows just the setup nudge.
+- **Import** - Simpler review screen: the table shows where each row will land (click an account to remap), run notes share one compact panel, Stop/Enrich live on the progress bar, and without an AI provider the tab shows just the setup nudge.
 - **Import** - Share a file with Capy in chat and it starts an import for you to review in the Import tab, instead of adding transactions directly.
 - **Import** - Drop files anywhere on the import pane; Cancel Import now confirms before discarding extracted transactions.
 - **Import** - Credit-card payments that name one of your accounts stage as transfers with the counterpart pre-filled, instead of inflating spending as expenses.
