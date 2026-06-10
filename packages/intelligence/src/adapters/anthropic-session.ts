@@ -6,7 +6,7 @@ import type { ApiAdapterOptions } from "../factory"
 import type { CapySession } from "../session"
 import type { ContentBlock, FileAttachment, MessageContent } from "../types"
 import { parseStructured, schemaBody } from "../structured"
-import type { JsonSchema, StructuredMessage, StructuredSession } from "../structured"
+import type { JsonSchema, StructuredCallOptions, StructuredMessage, StructuredSession } from "../structured"
 
 const MAX_TOKENS = 8192
 
@@ -139,8 +139,9 @@ export class AnthropicSession implements CapySession, StructuredSession {
   async structured<T = unknown>(
     messages: readonly StructuredMessage[],
     schema: JsonSchema,
+    options?: StructuredCallOptions,
   ): Promise<T> {
-    const message = await this.client.messages.create({
+    const params: Anthropic.MessageCreateParamsNonStreaming = {
       model: this.opts.model,
       system: this.opts.systemPrompt,
       messages: messages.map((m) => ({
@@ -153,7 +154,11 @@ export class AnthropicSession implements CapySession, StructuredSession {
       output_config: {
         format: { type: "json_schema", schema: schemaBody(schema) },
       },
-    })
+    }
+
+    const message = options?.onText
+      ? await this.streamStructured(params, options.onText)
+      : await this.client.messages.create(params)
 
     const text = message.content
       .filter((block): block is Anthropic.TextBlock => block.type === "text")
@@ -161,6 +166,26 @@ export class AnthropicSession implements CapySession, StructuredSession {
       .join("")
 
     return parseStructured<T>(text, schema)
+  }
+
+  /** The streaming form of a structured call, surfacing accumulated text per
+   *  delta. Resolves on `message` (message_stop) like the agentic loop — see
+   *  the note there on `finalMessage()`/abort under WKWebView. */
+  private streamStructured(
+    params: Anthropic.MessageCreateParamsNonStreaming,
+    onText: (text: string) => void,
+  ): Promise<Anthropic.Message> {
+    const stream = this.client.messages.stream(params)
+    let accumulated = ""
+    stream.on("text", (delta) => {
+      accumulated += delta
+      onText(accumulated)
+    })
+    return new Promise<Anthropic.Message>((resolve, reject) => {
+      stream.once("message", resolve)
+      stream.once("abort", reject)
+      stream.once("error", reject)
+    })
   }
 
   private async runAgenticLoop(): Promise<void> {

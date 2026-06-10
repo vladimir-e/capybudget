@@ -6,6 +6,7 @@ const IDLE = {
   phase: "idle" as const,
   status: "",
   log: [] as TerminalLogEntry[],
+  normalizeProgress: null,
   batchProgress: null,
   grounded: false,
   error: null,
@@ -58,6 +59,11 @@ describe("import-store reduce", () => {
 
     const batch = reduce(IDLE, { type: "batch-progress", progress: { done: 12, total: 30 } });
     expect(batch.batchProgress).toEqual({ done: 12, total: 30 });
+  });
+
+  it("records normalize progress, total-less ticks included", () => {
+    expect(reduce(IDLE, { type: "normalize-progress", progress: { rows: 12, total: 150 } }).normalizeProgress).toEqual({ rows: 12, total: 150 });
+    expect(reduce(IDLE, { type: "normalize-progress", progress: { rows: 3, total: null } }).normalizeProgress).toEqual({ rows: 3, total: null });
   });
 
   it("bumps rowsVersion on rows-changed without touching other state", () => {

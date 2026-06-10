@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { normalizeCsv, normalizeImage, isImageOrPdf, normalizeMapping } from "./normalize";
+import { countStreamedRows, normalizeCsv, normalizeImage, isImageOrPdf, normalizeMapping } from "./normalize";
+import type { NormalizeProgress } from "./events";
 import { CSV_MAPPING_SCHEMA, EXTRACTION_SCHEMA } from "./schemas";
 import { SchemaValidationError } from "../structured";
 import type { JsonSchema } from "../structured";
@@ -81,6 +82,22 @@ describe("normalizeCsv", () => {
     const session = new MockStructuredSession([() => MAPPING]);
     await normalizeCsv(session, { name: "f.csv", content: csv });
     expect(session.calls).toHaveLength(1);
+  });
+
+  it("reports the data-row count as the progress total before the mapping call", async () => {
+    const csv = "Date,Description,Amount\n2026-01-05,COFFEE,-4.50\n2026-01-06,SALARY,2000.00";
+    const ticks: NormalizeProgress[] = [];
+    const session = new MockStructuredSession([
+      () => {
+        // The denominator must already be known while the slow call runs.
+        expect(ticks).toEqual([{ rows: 0, total: 2 }]);
+        return MAPPING;
+      },
+    ]);
+
+    await normalizeCsv(session, { name: "f.csv", content: csv }, { onProgress: (p) => ticks.push(p) });
+
+    expect(ticks).toEqual([{ rows: 0, total: 2 }]);
   });
 
   it("completes omitted metadata from the data and transforms without a retry", async () => {
@@ -604,6 +621,7 @@ describe("normalizeImage", () => {
     const session = new MockStructuredSession([
       () => ({
         result: {
+          count: 1,
           rows: [
             { date: "2026-01-05", amount: -1599, type: "expense", description: "Netflix", sourceAccount: "Visa", sourceCategory: "Entertainment" },
           ],
@@ -620,11 +638,11 @@ describe("normalizeImage", () => {
   });
 
   it("sends an image block for an image and a document block for a PDF", async () => {
-    const imgSession = new MockStructuredSession([() => ({ result: { rows: [{ date: "2026-01-01", amount: -1, type: "expense", description: "x", sourceAccount: "", sourceCategory: "" }] } })]);
+    const imgSession = new MockStructuredSession([() => ({ result: { count: 1, rows: [{ date: "2026-01-01", amount: -1, type: "expense", description: "x", sourceAccount: "", sourceCategory: "" }] } })]);
     await normalizeImage(imgSession, { name: "r.png", content: "B64", mediaType: "image/png" });
     expect(JSON.stringify(imgSession.calls[0].messages)).toContain('"type":"image"');
 
-    const pdfSession = new MockStructuredSession([() => ({ result: { rows: [{ date: "2026-01-01", amount: -1, type: "expense", description: "x", sourceAccount: "", sourceCategory: "" }] } })]);
+    const pdfSession = new MockStructuredSession([() => ({ result: { count: 1, rows: [{ date: "2026-01-01", amount: -1, type: "expense", description: "x", sourceAccount: "", sourceCategory: "" }] } })]);
     await normalizeImage(pdfSession, { name: "r.pdf", content: "B64", mediaType: "application/pdf" });
     expect(JSON.stringify(pdfSession.calls[0].messages)).toContain('"type":"document"');
   });
@@ -637,9 +655,47 @@ describe("normalizeImage", () => {
   });
 
   it("treats an empty extraction as noData", async () => {
-    const session = new MockStructuredSession([() => ({ result: { rows: [] } })]);
+    const session = new MockStructuredSession([() => ({ result: { count: 0, rows: [] } })]);
     const { noData } = await normalizeImage(session, { name: "s.png", content: "B64", mediaType: "image/png" });
     expect(noData).toBeDefined();
+  });
+
+  it("reports streamed progress with the model-declared count as the total", async () => {
+    const session = new MockStructuredSession([
+      () => ({
+        result: {
+          count: 2,
+          rows: [
+            { date: "2026-01-01", amount: -1, type: "expense", description: "a", sourceAccount: "", sourceCategory: "" },
+            { date: "2026-01-02", amount: -2, type: "expense", description: "b", sourceAccount: "", sourceCategory: "" },
+          ],
+        },
+      }),
+    ]);
+    const ticks: NormalizeProgress[] = [];
+
+    await normalizeImage(session, { name: "r.png", content: "B64", mediaType: "image/png" }, {
+      onProgress: (p) => ticks.push(p),
+    });
+
+    // The mock streams the whole response as one delta.
+    expect(ticks).toEqual([{ rows: 2, total: 2 }]);
+  });
+});
+
+describe("countStreamedRows", () => {
+  it("counts rows by their date keys and reads the declared count", () => {
+    const text = '{"result":{"count":47,"rows":[{"date":"2026-01-01","amount":-1},{"date":"2026-01-02"';
+    expect(countStreamedRows(text)).toEqual({ rows: 2, total: 47 });
+  });
+
+  it("leaves the total null before the count streams", () => {
+    expect(countStreamedRows('{"result":{"co')).toEqual({ rows: 0, total: null });
+  });
+
+  it("declares count before rows in the schema, so the denominator streams first", () => {
+    const rowsAlternative = EXTRACTION_SCHEMA.properties!.result.anyOf![0];
+    expect(Object.keys(rowsAlternative.properties!)).toEqual(["count", "rows"]);
   });
 });
 

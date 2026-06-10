@@ -21,6 +21,7 @@ export type {
   ImportErrorReason,
   LogLevel,
   BatchProgress,
+  NormalizeProgress,
   GroundingEventStats,
 } from "./events";
 

@@ -4,6 +4,7 @@ import type {
   ImportErrorReason,
   ImportEvent,
   ImportPhase,
+  NormalizeProgress,
   TerminalLogEntry,
 } from "@capybudget/intelligence";
 
@@ -35,6 +36,8 @@ interface ImportRunState {
   status: string;
   /** Timestamped terminal log, oldest first. */
   log: TerminalLogEntry[];
+  /** Normalizing row counter (streamed extraction rows, CSV counts); null until it ticks. */
+  normalizeProgress: NormalizeProgress | null;
   /** Categorizing meter over the remaining incomplete rows; null until it ticks. */
   batchProgress: BatchProgress | null;
   /** True once History has grounded — keeps the section bar up for the brief
@@ -80,6 +83,7 @@ const IDLE_RUN: ImportRunState = {
   phase: "idle",
   status: "",
   log: [],
+  normalizeProgress: null,
   batchProgress: null,
   grounded: false,
   error: null,
@@ -137,6 +141,8 @@ export function reduce(s: ImportRunState, event: ImportEvent): Partial<ImportRun
       return { log: appendLog(s.log, event.entry) };
     case "grounding":
       return { grounded: true };
+    case "normalize-progress":
+      return { normalizeProgress: event.progress };
     case "batch-progress":
       return { batchProgress: event.progress };
     case "rows-changed":

@@ -6,7 +6,7 @@ import type { ApiAdapterOptions } from "../factory"
 import type { CapySession } from "../session"
 import type { ContentBlock, FileAttachment, MessageContent } from "../types"
 import { parseStructured, schemaBody } from "../structured"
-import type { JsonSchema, StructuredMessage, StructuredSession } from "../structured"
+import type { JsonSchema, StructuredCallOptions, StructuredMessage, StructuredSession } from "../structured"
 
 const MAX_TOKENS = 8192
 
@@ -151,6 +151,7 @@ export class OpenAiSession implements CapySession, StructuredSession {
   async structured<T = unknown>(
     messages: readonly StructuredMessage[],
     schema: JsonSchema,
+    options?: StructuredCallOptions,
   ): Promise<T> {
     const requestMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
       { role: "system", content: this.opts.systemPrompt },
@@ -163,7 +164,7 @@ export class OpenAiSession implements CapySession, StructuredSession {
 
     // `strict` is our own marker on the schema, not a JSON-schema keyword;
     // it rides on the json_schema wrapper, not inside the schema OpenAI sees.
-    const completion = await this.client.chat.completions.create({
+    const params: OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming = {
       model: this.opts.model,
       messages: requestMessages,
       max_completion_tokens: MAX_TOKENS,
@@ -175,9 +176,26 @@ export class OpenAiSession implements CapySession, StructuredSession {
           ...(schema.strict === true ? { strict: true } : {}),
         },
       },
-    })
+    }
 
-    const text = completion.choices[0]?.message.content ?? ""
+    if (!options?.onText) {
+      const completion = await this.client.chat.completions.create(params)
+      return parseStructured<T>(completion.choices[0]?.message.content ?? "", schema)
+    }
+
+    const stream = await this.client.chat.completions.create({ ...params, stream: true })
+    let text = ""
+    for await (const chunk of stream) {
+      const choice = chunk.choices[0]
+      if (!choice) continue
+      if (typeof choice.delta?.content === "string" && choice.delta.content.length > 0) {
+        text += choice.delta.content
+        options.onText(text)
+      }
+      // Same early break as the agentic loop — the terminal usage chunk
+      // isn't needed and `return()` lets the SDK clean up.
+      if (choice.finish_reason) break
+    }
     return parseStructured<T>(text, schema)
   }
 

@@ -183,12 +183,19 @@ const STAGED_RECORD_SCHEMA: JsonSchema = {
 };
 
 /**
- * Discriminated extraction outcome, wrapped in a `result` object. `{ rows }`
- * carries the same intermediate records the CSV mapper produces; `{ error:
- * "no_data" }` is the selfie case — the source has no transaction data. The
- * `anyOf` is wrapped because OpenAI strict rejects a bare top-level `anyOf`
- * root; the call site in `normalize.ts` unwraps `result`. Anthropic accepts a
- * root `anyOf` too, but the object-root form validates identically for it.
+ * Discriminated extraction outcome, wrapped in a `result` object. `{ count,
+ * rows }` carries the same intermediate records the CSV mapper produces;
+ * `{ error: "no_data" }` is the selfie case — the source has no transaction
+ * data. The `anyOf` is wrapped because OpenAI strict rejects a bare top-level
+ * `anyOf` root; the call site in `normalize.ts` unwraps `result`. Anthropic
+ * accepts a root `anyOf` too, but the object-root form validates identically
+ * for it.
+ *
+ * `count` is declared (and prompted) *before* `rows` so it streams first: the
+ * model reads the whole document before emitting anything, so its declared
+ * total gives the live extraction meter a denominator while rows stream. It's
+ * advisory — the meter clamps, and completion comes from the phase, never
+ * from `count` agreeing with `rows.length`.
  */
 export const EXTRACTION_SCHEMA: JsonSchema = {
   type: "object",
@@ -201,9 +208,10 @@ export const EXTRACTION_SCHEMA: JsonSchema = {
           type: "object",
           additionalProperties: false,
           properties: {
+            count: { type: "integer" },
             rows: { type: "array", items: STAGED_RECORD_SCHEMA },
           },
-          required: ["rows"],
+          required: ["count", "rows"],
         },
         {
           type: "object",
@@ -221,7 +229,7 @@ export const EXTRACTION_SCHEMA: JsonSchema = {
 };
 
 export type ExtractionResult =
-  | { rows: StagedRecord[] }
+  | { count: number; rows: StagedRecord[] }
   | { error: "no_data"; message: string };
 
 /** What `EXTRACTION_SCHEMA` parses into — the discriminated outcome under the

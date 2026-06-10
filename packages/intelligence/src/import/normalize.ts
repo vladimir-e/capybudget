@@ -33,6 +33,7 @@ import {
 } from "@capybudget/core";
 import type { MessageContent } from "../types";
 import { SchemaValidationError, type StructuredSession } from "../structured";
+import type { NormalizeProgress } from "./events";
 import {
   CSV_MAPPING_SCHEMA,
   EXTRACTION_SCHEMA,
@@ -87,7 +88,14 @@ export interface NormalizeCsvResult {
 export async function normalizeCsv(
   session: StructuredSession,
   source: { name: string; content: string },
-  options: { startId?: number; importDate?: string } = {},
+  options: {
+    startId?: number;
+    importDate?: string;
+    /** Live progress for this file. The data-row count is known the moment the
+     *  grid parses, so the meter gets its denominator while the mapping call
+     *  (the slow part) runs; rows land all at once when the transform applies. */
+    onProgress?: (progress: NormalizeProgress) => void;
+  } = {},
 ): Promise<NormalizeCsvResult> {
   // One raw parse (header: false) is the shared frame of reference: the header
   // detector, the prompt's numbered row listing, and the model's `headerRow`
@@ -95,7 +103,10 @@ export async function normalizeCsv(
   const grid = Papa.parse<string[]>(source.content, { header: false, skipEmptyLines: true }).data;
   const importDate = options.importDate ?? todayIso();
 
-  let resolved = await resolveMapping(session, source.name, grid, detectHeaderRow(grid), importDate, null);
+  const headerPick = detectHeaderRow(grid);
+  options.onProgress?.({ rows: 0, total: Math.max(grid.length - headerPick - 1, 0) });
+
+  let resolved = await resolveMapping(session, source.name, grid, headerPick, importDate, null);
 
   // Code-side preview: transform a slice, and if it errors (e.g. the model named
   // a column that isn't there), give the model one correction round. The preview
@@ -518,10 +529,18 @@ export interface NormalizeImageResult {
 export async function normalizeImage(
   session: StructuredSession,
   source: { name: string; content: string; mediaType: string },
-  options: { startId?: number } = {},
+  options: {
+    startId?: number;
+    /** Live progress for this file, derived from the streamed response text:
+     *  rows tick as records arrive, the total comes from the model-declared
+     *  `count` once it streams (null before). Setting it makes the extraction
+     *  call stream. */
+    onProgress?: (progress: NormalizeProgress) => void;
+  } = {},
 ): Promise<NormalizeImageResult> {
   const prompt = [
     `Read every transaction from this ${describeKind(source.mediaType)} (a receipt, bank screenshot, or statement scan) and return them as records.`,
+    `Return "count" first — the total number of transactions you see — then the rows themselves.`,
     `For each transaction: date as YYYY-MM-DD, amount as signed integer cents (negative = money out, positive = money in), type (expense/income/transfer), the merchant or payee as "description", an inferred category as "sourceCategory" (empty string if none), and the account name as "sourceAccount" (empty string if none).`,
     `Never invent transactions — extract only what is visible. If the file contains no transaction data (e.g. a photo of a person, a logo, an unrelated document), return the no_data outcome with a short message.`,
   ].join("\n");
@@ -533,9 +552,11 @@ export async function normalizeImage(
 
   // EXTRACTION_SCHEMA wraps the discriminated outcome in `result` so its root is
   // an object (OpenAI strict rejects a bare top-level anyOf) — unwrap it here.
+  const { onProgress } = options;
   const { result } = await session.structured<ExtractionEnvelope>(
     [{ role: "user", content }],
     EXTRACTION_SCHEMA,
+    onProgress && { onText: (text) => onProgress(countStreamedRows(text)) },
   );
 
   if ("error" in result) {
@@ -558,6 +579,20 @@ export async function normalizeImage(
     sourceCategory: r.sourceCategory,
   }));
   return { rows: buildStaged(records, { startId: options.startId }) };
+}
+
+/**
+ * Live meter signal parsed from the extraction call's streaming text. Rows are
+ * counted by their `"date"` keys (one per record — no other schema field uses
+ * the name); the denominator is the model-declared `count`, which the schema
+ * orders before `rows` precisely so it streams first. Both reads tolerate a
+ * half-written JSON prefix — this feeds a meter, not a parser, so a partial
+ * `count` digit or a `"date"` mid-string merely flickers and self-corrects.
+ */
+export function countStreamedRows(text: string): NormalizeProgress {
+  const rows = (text.match(/"date"\s*:/g) ?? []).length;
+  const count = /"count"\s*:\s*(\d+)/.exec(text);
+  return { rows, total: count ? Number(count[1]) : null };
 }
 
 function sourceBlock(source: { content: string; mediaType: string }) {

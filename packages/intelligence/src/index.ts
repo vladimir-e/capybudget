@@ -31,6 +31,7 @@ export type { CapySessionOptions, CapySession } from "./session"
 export { parseStructured, SchemaValidationError } from "./structured"
 export type {
   JsonSchema,
+  StructuredCallOptions,
   StructuredMessage,
   StructuredSession,
 } from "./structured"
@@ -145,6 +146,7 @@ export type {
   ImportErrorReason,
   LogLevel,
   BatchProgress,
+  NormalizeProgress,
   GroundingEventStats,
   StagingStore,
   SourceFile,

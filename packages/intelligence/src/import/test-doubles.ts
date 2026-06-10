@@ -7,7 +7,7 @@
 
 import type { Account, Category, ImportTransaction, RowContext, TransferContext, Transaction } from "@capybudget/core";
 import { parseStructured } from "../structured";
-import type { JsonSchema, StructuredMessage, StructuredSession } from "../structured";
+import type { JsonSchema, StructuredCallOptions, StructuredMessage, StructuredSession } from "../structured";
 import type { BudgetDataProvider } from "./budget-data";
 import type { ImportState, SourceFile, StagingStore } from "./staging-store";
 
@@ -118,12 +118,17 @@ export class MockStructuredSession implements StructuredSession {
   async structured<T = unknown>(
     messages: readonly StructuredMessage[],
     schema: JsonSchema,
+    options?: StructuredCallOptions,
   ): Promise<T> {
     this.calls.push({ messages, schema });
     const responder = this.responders.shift();
     if (!responder) throw new Error("MockStructuredSession: no responder left for call");
     const value = await responder(messages);
     if (value instanceof Error) throw value;
-    return parseStructured<T>(JSON.stringify(value), schema);
+    const text = JSON.stringify(value);
+    // Simulated streaming: the whole response arrives as one delta, before
+    // validation — exactly when a real adapter would have surfaced it.
+    options?.onText?.(text);
+    return parseStructured<T>(text, schema);
   }
 }

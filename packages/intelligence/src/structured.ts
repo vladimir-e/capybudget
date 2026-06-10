@@ -24,6 +24,18 @@ export type StructuredMessage =
   | { role: "user"; content: MessageContent }
   | { role: "assistant"; content: string }
 
+/** Per-call options for {@link StructuredSession.structured}. */
+export interface StructuredCallOptions {
+  /**
+   * Called with the accumulated raw response text after each streamed delta.
+   * Setting it makes the adapter issue a streaming request; the resolved
+   * value is identical either way. Consumers use it to derive live progress
+   * (e.g. counting extraction rows as they arrive) — the text is a partial
+   * JSON prefix, not a parseable value.
+   */
+  onText?: (text: string) => void
+}
+
 export interface StructuredSession {
   /**
    * One constrained model call, parsed and schema-validated. No agent
@@ -33,6 +45,7 @@ export interface StructuredSession {
   structured<T = unknown>(
     messages: readonly StructuredMessage[],
     schema: JsonSchema,
+    options?: StructuredCallOptions,
   ): Promise<T>
 }
 

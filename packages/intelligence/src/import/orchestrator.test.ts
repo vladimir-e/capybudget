@@ -128,6 +128,28 @@ describe("ImportOrchestrator — phase progression", () => {
     expect(session.calls[0].schema).toBe(CSV_MAPPING_SCHEMA);
     expect(session.calls[1].schema).toBe(ENRICH_BATCH_SCHEMA);
   });
+
+  it("emits normalize-progress per file, rebased on earlier files, settling on the landed count", async () => {
+    // Two CSVs of 2 and 3 rows: each file reports its data-row count as it
+    // parses (the second rebased onto the first's landed rows), and the phase
+    // closes by settling the meter on the actual total.
+    const staging = new MemoryStagingStore({
+      sources: [csvSource(csvWithRows(2), "a.csv"), csvSource(csvWithRows(3), "b.csv")],
+    });
+    const session = new MockStructuredSession([mapResponder, mapResponder, enrichResponder()]);
+    const { events, onEvent } = collect();
+
+    await new ImportOrchestrator({ session, staging, budget: emptyBudget(), onEvent, concurrency: 1 }).start();
+
+    const ticks = events
+      .filter((e): e is { type: "normalize-progress"; progress: { rows: number; total: number | null } } => e.type === "normalize-progress")
+      .map((e) => e.progress);
+    expect(ticks).toEqual([
+      { rows: 0, total: 2 },
+      { rows: 2, total: 5 },
+      { rows: 5, total: 5 },
+    ]);
+  });
 });
 
 // ── Fast-path / duplicate rows skip Categorizing ─────────────────
@@ -329,7 +351,7 @@ describe("ImportOrchestrator — no_data", () => {
     const staging = new MemoryStagingStore({
       sources: [{ name: "blank.png", content: "BASE64", mediaType: "image/png" }],
     });
-    const session = new MockStructuredSession([() => ({ result: { rows: [] } })]);
+    const session = new MockStructuredSession([() => ({ result: { count: 0, rows: [] } })]);
     const { events, onEvent } = collect();
 
     await new ImportOrchestrator({ session, staging, budget: emptyBudget(), onEvent, concurrency: 1 }).start();
@@ -345,6 +367,7 @@ describe("ImportOrchestrator — no_data", () => {
     const session = new MockStructuredSession([
       () => ({
         result: {
+          count: 2,
           rows: [
             { date: "2026-01-05", amount: -1599, type: "expense", description: "Netflix", sourceAccount: "Checking", sourceCategory: "" },
             { date: "2026-01-06", amount: -4200, type: "expense", description: "Shell", sourceAccount: "Checking", sourceCategory: "" },

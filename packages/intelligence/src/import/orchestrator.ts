@@ -35,6 +35,7 @@ import {
   type ImportErrorReason,
   type ImportPhase,
   type LogLevel,
+  type NormalizeProgress,
   type TerminalLogEntry,
 } from "./events";
 import { isImageOrPdf, normalizeCsv, normalizeImage } from "./normalize";
@@ -184,19 +185,32 @@ export class ImportOrchestrator {
     sources: Awaited<ReturnType<StagingStore["listSources"]>>,
   ): Promise<ImportTransaction[] | null> {
     const all: ImportTransaction[] = [];
+    // The active file's progress, rebased onto the rows earlier files landed.
+    // `total` covers only the files seen so far — it grows (and the consumer's
+    // meter recalibrates) as each file reports its count.
+    const fileProgress = (p: NormalizeProgress): void => {
+      this.emit({
+        type: "normalize-progress",
+        progress: {
+          rows: all.length + p.rows,
+          total: p.total === null ? null : all.length + p.total,
+        },
+      });
+    };
     for (const source of sources) {
       if (this.stopRequested) break;
       const startId = all.length + 1;
-      this.status("normalizing", `Reading ${source.name}…`);
       if (isImageOrPdf(source.mediaType)) {
-        const result = await normalizeImage(this.deps.session, source, { startId });
+        this.status("normalizing", `Extracting transactions from ${source.name}…`);
+        const result = await normalizeImage(this.deps.session, source, { startId, onProgress: fileProgress });
         if (result.noData) {
           this.log("warn", "normalizing", `Skipped ${source.name} — no transaction data found.`);
           continue;
         }
         all.push(...result.rows);
       } else {
-        const result = await normalizeCsv(this.deps.session, source, { startId });
+        this.status("normalizing", `Mapping columns in ${source.name}…`);
+        const result = await normalizeCsv(this.deps.session, source, { startId, onProgress: fileProgress });
         if (result.errors.length > 0) {
           this.log("warn", "normalizing", describeSkippedRows(source.name, result.errors));
         }
@@ -208,6 +222,11 @@ export class ImportOrchestrator {
       await this.deps.staging.clear();
       this.fail("no_data", "No transaction data found in the uploaded file(s).", true);
       return null;
+    }
+    // Settle the meter on the actual landed count — per-file totals were
+    // estimates (pre-skip-rule row counts, the model's declared count).
+    if (all.length > 0) {
+      this.emit({ type: "normalize-progress", progress: { rows: all.length, total: all.length } });
     }
     return all;
   }
