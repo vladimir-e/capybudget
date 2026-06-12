@@ -76,13 +76,46 @@ describe("isDispatchTool", () => {
 })
 
 describe("runTool", () => {
-  it("returns 'Rendered.' for render tools without dispatching", async () => {
-    expect(await runTool("render_table", { headers: [], rows: [] }, makeCtx())).toBe(
-      "Rendered.",
-    )
+  it("returns 'Rendered.' for valid render input without dispatching", async () => {
     expect(
-      await runTool("render_chart", { title: "x", type: "donut", data: [] }, makeCtx()),
+      await runTool("render_table", { headers: ["A"], rows: [["1"]] }, makeCtx()),
     ).toBe("Rendered.")
+    expect(
+      await runTool(
+        "render_chart",
+        { title: "x", type: "donut", data: [{ label: "a", value: 1 }] },
+        makeCtx(),
+      ),
+    ).toBe("Rendered.")
+    expect(
+      await runTool(
+        "render_followups",
+        { chips: [{ label: "More", prompt: "Tell me more" }] },
+        makeCtx(),
+      ),
+    ).toBe("Rendered.")
+  })
+
+  it("rejects empty-data render_table with an error naming the expected shape", async () => {
+    await expect(
+      runTool("render_table", { headers: [], rows: [] }, makeCtx()),
+    ).rejects.toThrow("render_table expects {headers: [...], rows: [[...], ...]}")
+  })
+
+  it("rejects empty-data render_chart", async () => {
+    await expect(
+      runTool("render_chart", { title: "x", type: "donut", data: [] }, makeCtx()),
+    ).rejects.toThrow("render_chart expects")
+  })
+
+  it("rejects malformed render_followups input (invented payload)", async () => {
+    await expect(
+      runTool(
+        "render_followups",
+        { followups: '[{"label":"a","prompt":"b"}]' },
+        makeCtx(),
+      ),
+    ).rejects.toThrow("render_followups expects {chips: [{label, prompt}, ...]}")
   })
 
   it("dispatches data tools to their handlers", async () => {

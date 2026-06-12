@@ -55,13 +55,8 @@ export function parseStreamLine(
             toolUseRegistry.set(toolUseId, baseName)
           }
 
-          const renderFn = RENDER_TOOL_MAP[baseName]
-          if (renderFn) {
-            const rendered = renderFn(input)
-            if (rendered) blocks.push(rendered)
-          } else {
-            blocks.push({ type: "tool-activity", tool: baseName })
-          }
+          const rendered = RENDER_TOOL_MAP[baseName]?.(input) ?? null
+          blocks.push(rendered ?? { type: "tool-activity", tool: baseName })
         }
       }
 

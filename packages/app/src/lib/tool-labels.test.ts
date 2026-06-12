@@ -7,6 +7,10 @@ describe("getToolLabel", () => {
     expect(getToolLabel("create_transaction")).toBe("Creating transaction")
   })
 
+  it("labels the ToolSearch CLI built-in", () => {
+    expect(getToolLabel("ToolSearch")).toBe("Looking up tools")
+  })
+
   it("returns raw name for unknown tools", () => {
     expect(getToolLabel("some_custom_tool")).toBe("some_custom_tool")
   })

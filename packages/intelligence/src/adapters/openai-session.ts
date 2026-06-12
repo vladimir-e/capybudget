@@ -23,10 +23,9 @@ const OPENAI_TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = getToolDefini
 
 const RENDER_TOOL_MAP = buildRenderToolMap()
 
-function toolUseToContentBlock(name: string, input: Record<string, unknown>): ContentBlock | null {
-  const renderFn = RENDER_TOOL_MAP[name]
-  if (renderFn) return renderFn(input)
-  return { type: "tool-activity", tool: name }
+function toolUseToContentBlock(name: string, input: Record<string, unknown>): ContentBlock {
+  const rendered = RENDER_TOOL_MAP[name]?.(input) ?? null
+  return rendered ?? { type: "tool-activity", tool: name }
 }
 
 function toOpenAiUserContent(
@@ -299,8 +298,7 @@ export class OpenAiSession implements CapySession, StructuredSession {
         // Malformed args degrade to {} so the tool block still renders;
         // the JSON error surfaces in the tool result below.
         const inputForRender = parsed instanceof Error ? {} : parsed
-        const cb = toolUseToContentBlock(acc.name, inputForRender)
-        if (cb) completedBlocks.push(cb)
+        completedBlocks.push(toolUseToContentBlock(acc.name, inputForRender))
       }
 
       if (assistantToolCalls.length > 0) {

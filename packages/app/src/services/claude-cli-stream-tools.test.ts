@@ -144,6 +144,28 @@ describe("parseStreamLine", () => {
         },
       ])
     })
+
+    it("falls back to a tool-activity block with the unprefixed name when the render payload is empty", () => {
+      const line = JSON.stringify({
+        type: "assistant",
+        message: {
+          content: [
+            {
+              type: "tool_use",
+              name: "mcp__capy__render_table",
+              input: { headers: [], rows: [] },
+            },
+          ],
+        },
+      })
+
+      expect(parseStreamLine(line)).toEqual([
+        {
+          type: "content",
+          blocks: [{ type: "tool-activity", tool: "render_table" }],
+        },
+      ])
+    })
   })
 
   describe("non-render tool_use → tool-activity block", () => {

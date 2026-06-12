@@ -25,6 +25,8 @@ const TOOL_LABELS: Record<string, string> = {
   bulk_update_transactions: "Updating transactions",
   start_import: "Starting import",
   render_chart: "Rendering chart",
+  // Claude CLI built-in — surfaces when the CLI defers MCP tool schemas.
+  ToolSearch: "Looking up tools",
 }
 
 export function getToolLabel(tool: string): string {

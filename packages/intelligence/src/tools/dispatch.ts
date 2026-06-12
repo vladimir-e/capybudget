@@ -4,9 +4,11 @@
  * a string result — which is the same string the model would have seen
  * had the call gone through MCP.
  *
- * Render tools (`render_*`) return "Rendered." here; the frontend
- * intercepts the `tool_use` event before dispatch sees it and renders
- * the corresponding ContentBlock.
+ * Render tools (`render_*`) are validated against the render-map
+ * builders and return "Rendered."; the frontend intercepts the
+ * `tool_use` event before dispatch sees it and renders the
+ * corresponding ContentBlock. Invalid render input throws, so the
+ * model sees an error tool result and can retry with the right shape.
  *
  * Tools this dispatch knows about:
  *   - data tools  (list_*, search_transactions, group_transactions)
@@ -37,6 +39,7 @@ import {
   handleDeleteCategory,
   handleBulkUpdateTransactions,
 } from "./handlers/mutation"
+import { validateRenderInput } from "../render-map"
 import { handleReadFile } from "./handlers/read-file"
 import { handleReadSpec } from "./handlers/spec"
 import { handleStartImport } from "./handlers/start-import"
@@ -115,7 +118,13 @@ export async function runTool(
   ctx: ToolContext,
 ): Promise<string> {
   // Render tools are no-ops on dispatch — the frontend renders them.
-  if (name.startsWith("render_")) return "Rendered."
+  // Still validate the input: a malformed call must fail loudly for the
+  // model to retry, not "succeed" while nothing renders.
+  if (name.startsWith("render_")) {
+    const invalid = validateRenderInput(name, input)
+    if (invalid) throw new Error(invalid)
+    return "Rendered."
+  }
 
   const handler = HANDLERS[name]
   if (!handler) {
