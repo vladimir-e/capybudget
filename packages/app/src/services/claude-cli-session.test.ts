@@ -158,6 +158,17 @@ describe("ClaudeCliSession", () => {
     expect(args[idx + 1]).toBe(String(SESSION_TOOL_CALL_BUDGET))
   })
 
+  it("spawns the CLI with ENABLE_TOOL_SEARCH=false so MCP schemas load upfront", async () => {
+    const { Command } = await import("@tauri-apps/plugin-shell")
+    const create = Command.create as ReturnType<typeof vi.fn>
+    create.mockClear()
+    const { session } = makeSession()
+    await session.send("hi")
+
+    const options = create.mock.calls[0][2] as { env?: Record<string, string> }
+    expect(options.env).toMatchObject({ ENABLE_TOOL_SEARCH: "false" })
+  })
+
   it("omits --model when no model is configured (CLI default)", async () => {
     const { Command } = await import("@tauri-apps/plugin-shell")
     const create = Command.create as ReturnType<typeof vi.fn>
@@ -505,7 +516,8 @@ describe("ClaudeCliSession", () => {
       )
       handlers.stdout!(JSON.stringify({ type: "result" }))
 
-      await session.send("second turn")
+      // Stale result lands after `done` but BEFORE the next send() — only the
+      // clear-on-done in the stdout handler can stop it (send() also clears).
       handlers.stdout!(
         JSON.stringify({
           type: "user",
@@ -517,8 +529,8 @@ describe("ClaudeCliSession", () => {
         }),
       )
 
-      // Registry was cleared after turn 1's `done`, so the reused id in turn 2
-      // must not re-emit (no assistant turn re-registered it).
+      // Registry was cleared on turn 1's `done`, so the reused id must not
+      // re-emit (no assistant turn re-registered it).
       const toolResults = events.filter((e) => e.type === "tool-result")
       expect(toolResults).toHaveLength(1)
       expect(toolResults[0]).toEqual({

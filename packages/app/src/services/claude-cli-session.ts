@@ -3,13 +3,13 @@ import { writeTextFile } from "@tauri-apps/plugin-fs"
 import { tempDir, join as joinPath } from "@tauri-apps/api/path"
 import {
   SESSION_TOOL_CALL_BUDGET,
-  type ContentBlock,
   type StreamEvent,
   type ClaudeCliAdapterOptions,
   type MessageContent,
   type CapySession,
   type ChatMessage,
 } from "@capybudget/intelligence"
+import { CycleAccumulator } from "./claude-cli-accumulator"
 import { parseStreamLine, type CycleState } from "./claude-cli-stream"
 import { serializeConversation } from "./serialize-conversation"
 
@@ -28,10 +28,7 @@ export class ClaudeCliSession implements CapySession {
   private readonly onExit?: () => void
   private killed = false
   private interruptedMessages: readonly ChatMessage[] | null = null
-  private finishedTurns: ContentBlock[] = []
-  private currentTurnId: string | null = null
-  private currentTurnBlocks: ContentBlock[] = []
-  private inProgressTextIndex: number | null = null
+  private readonly accumulator = new CycleAccumulator()
   private toolUseRegistry: Map<string, string> = new Map()
   private cycleState: CycleState = { doneEmitted: false }
 
@@ -99,7 +96,13 @@ export class ClaudeCliSession implements CapySession {
       // Runaway-loop backstop; the CLI exits with `error_max_turns` when tripped.
       "--max-turns",
       String(SESSION_TOOL_CALL_BUDGET),
-    ])
+    ], {
+      // Undocumented CLI switch: since 2.1.69 the CLI defers MCP tool
+      // schemas behind a ToolSearch lookup, and the model sometimes calls
+      // render tools blind with invented payloads. Disabling deferral
+      // loads all mcp__capy__ schemas upfront.
+      env: { ENABLE_TOOL_SEARCH: "false" },
+    })
 
     command.stdout.on("data", (line: string) => {
       for (const event of parseStreamLine(line, this.toolUseRegistry, this.cycleState)) {
@@ -116,7 +119,10 @@ export class ClaudeCliSession implements CapySession {
           this.onEvent({ ...event, provider: "claude-cli" })
           continue
         }
-        this.onEvent(this.accumulateCycleEvent(event))
+        // Turn over — a reused tool_use id in the next turn must not
+        // false-hit the registry.
+        if (event.type === "done") this.toolUseRegistry.clear()
+        this.onEvent(this.accumulator.accumulate(event))
       }
     })
 
@@ -143,7 +149,11 @@ export class ClaudeCliSession implements CapySession {
       await this.spawn()
     }
 
-    this.resetCycleAccumulator()
+    this.accumulator.reset()
+    this.toolUseRegistry.clear()
+    // doneEmitted is only re-armed here, per send-cycle — re-arming on each
+    // in-cycle done/error would let the trailing `result` line re-emit
+    // `done` after the assistant turn already did.
     this.cycleState.doneEmitted = false
 
     const payload = JSON.stringify({
@@ -214,49 +224,5 @@ export class ClaudeCliSession implements CapySession {
       }
       this.child = null
     }
-  }
-
-  private accumulateCycleEvent(event: StreamEvent): StreamEvent {
-    if (event.type === "done" || event.type === "error") {
-      this.resetCycleAccumulator()
-      return event
-    }
-    if (event.type !== "content") return event
-
-    const incomingId = event.messageId
-    if (incomingId !== undefined && incomingId !== this.currentTurnId) {
-      if (this.currentTurnBlocks.length > 0) {
-        this.finishedTurns.push(...this.currentTurnBlocks)
-      }
-      this.currentTurnId = incomingId
-      this.currentTurnBlocks = []
-      this.inProgressTextIndex = null
-    }
-
-    for (const block of event.blocks) {
-      if (block.type === "text" && this.inProgressTextIndex !== null) {
-        this.currentTurnBlocks[this.inProgressTextIndex] = block
-      } else {
-        this.currentTurnBlocks.push(block)
-        this.inProgressTextIndex =
-          block.type === "text" ? this.currentTurnBlocks.length - 1 : null
-      }
-    }
-
-    return {
-      type: "content",
-      blocks: [...this.finishedTurns, ...this.currentTurnBlocks],
-    }
-  }
-
-  private resetCycleAccumulator(): void {
-    this.finishedTurns = []
-    this.currentTurnId = null
-    this.currentTurnBlocks = []
-    this.inProgressTextIndex = null
-    this.toolUseRegistry.clear()
-    // Do NOT reset cycleState.doneEmitted here — send() resets it per cycle.
-    // Resetting on each in-cycle done/error would let the trailing `result`
-    // line re-emit `done` after the assistant turn already did.
   }
 }

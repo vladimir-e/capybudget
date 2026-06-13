@@ -19,26 +19,40 @@ describe("parseStreamLine", () => {
       ])
     })
 
-    it("cumulative text replaces — parser just relays full blocks", () => {
+    it("relays each per-block assistant event as-is — replace-vs-append is the CycleAccumulator's call", () => {
       const first = JSON.stringify({
         type: "assistant",
         message: {
+          id: "msg_a",
           content: [{ type: "text", text: "Hel" }],
         },
       })
       const second = JSON.stringify({
         type: "assistant",
         message: {
+          id: "msg_a",
           content: [{ type: "text", text: "Hello world" }],
         },
       })
 
       expect(parseStreamLine(first)).toEqual([
-        { type: "content", blocks: [{ type: "text", content: "Hel" }] },
+        { type: "content", blocks: [{ type: "text", content: "Hel" }], messageId: "msg_a" },
       ])
       expect(parseStreamLine(second)).toEqual([
-        { type: "content", blocks: [{ type: "text", content: "Hello world" }] },
+        { type: "content", blocks: [{ type: "text", content: "Hello world" }], messageId: "msg_a" },
       ])
+    })
+
+    it("emits no content event for a thinking-only assistant line", () => {
+      const line = JSON.stringify({
+        type: "assistant",
+        message: {
+          id: "msg_a",
+          content: [{ type: "thinking", thinking: "hmm", signature: "sig" }],
+        },
+      })
+
+      expect(parseStreamLine(line)).toEqual([])
     })
   })
 
