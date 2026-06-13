@@ -49,6 +49,15 @@ describe("CycleAccumulator", () => {
       expect(blocks).toEqual([text("First point."), text("Second, unrelated point.")])
     })
 
+    it("appends prefix-extending text across a messageId boundary (promotion resets the index)", () => {
+      const acc = new CycleAccumulator()
+      const blocks = lastBlocks(acc, [
+        content([text("Numbers:")], "msg_a"),
+        content([text("Numbers: none this month.")], "msg_b"),
+      ])
+      expect(blocks).toEqual([text("Numbers:"), text("Numbers: none this month.")])
+    })
+
     it("handles id-less cumulative snapshots (no messageId at all)", () => {
       const acc = new CycleAccumulator()
       const blocks = lastBlocks(acc, [
@@ -86,6 +95,18 @@ describe("CycleAccumulator", () => {
         { type: "tool-activity", tool: "list_accounts" },
         text("Done — all set."),
       ])
+    })
+
+    it("drops text following followups within a single multi-block event", () => {
+      const acc = new CycleAccumulator()
+      const chips = [{ label: "More", prompt: "Tell me more" }]
+      const blocks = lastBlocks(acc, [
+        content(
+          [{ type: "followups", chips }, text("Trailing text in the same event.")],
+          "msg_a",
+        ),
+      ])
+      expect(blocks).toEqual([{ type: "followups", chips }])
     })
 
     it("clears the followups latch on done so the next cycle's text renders", () => {

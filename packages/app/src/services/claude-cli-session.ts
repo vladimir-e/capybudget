@@ -113,16 +113,13 @@ export class ClaudeCliSession implements CapySession {
           this.onEvent(event)
           continue
         }
-        // CLI emits already-clean error strings via the `result` line;
-        // stamp the provider so the UI can render a consistent bubble.
-        if (event.type === "error") {
-          this.onEvent({ ...event, provider: "claude-cli" })
-          continue
-        }
         // Turn over — a reused tool_use id in the next turn must not
         // false-hit the registry.
         if (event.type === "done") this.toolUseRegistry.clear()
-        this.onEvent(this.accumulator.accumulate(event))
+        const out = this.accumulator.accumulate(event)
+        // CLI emits already-clean error strings via the `result` line;
+        // stamp the provider so the UI can render a consistent bubble.
+        this.onEvent(out.type === "error" ? { ...out, provider: "claude-cli" } : out)
       }
     })
 
