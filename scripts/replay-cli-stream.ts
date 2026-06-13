@@ -63,6 +63,16 @@ function printCycle(closedBy: string): void {
   toolResults = []
 }
 
+function isResultLine(line: string): boolean {
+  const trimmed = line.trim()
+  if (!trimmed) return false
+  try {
+    return (JSON.parse(trimmed) as { type?: string }).type === "result"
+  } catch {
+    return false
+  }
+}
+
 for (const line of readFileSync(capturePath, "utf8").split("\n")) {
   for (const event of parseStreamLine(line, registry, cycleState)) {
     const out = accumulator.accumulate(event)
@@ -71,9 +81,13 @@ for (const line of readFileSync(capturePath, "utf8").split("\n")) {
     if (out.type === "done" || out.type === "error") {
       printCycle(out.type)
       registry.clear()
-      cycleState.doneEmitted = false // simulate the next send() arming the cycle
     }
   }
+  // The app re-arms doneEmitted only in send(), which can't happen before the
+  // CLI's `result` line closes the cycle. Re-arming earlier (e.g. on each
+  // done/error) would let a trailing `result` line emit a second done and
+  // print a spurious empty cycle the app would never show.
+  if (isResultLine(line)) cycleState.doneEmitted = false
 }
 
 if (lastBlocks.length > 0 || toolResults.length > 0) printCycle("EOF — cycle never closed!")

@@ -744,6 +744,57 @@ describe("AnthropicSession", () => {
     expect(toolResultPresent).toBe(true)
   })
 
+  it("continues the loop when render_followups fails validation, so the model can recover", async () => {
+    queueTurn({
+      toolUses: [
+        { id: "tu_bad_followups", name: "render_followups", input: { chips: [] } },
+      ],
+      stop_reason: "tool_use",
+    })
+    // The retry turn — if the failed call were treated as terminal, the loop
+    // would exit without requesting it and the user would see nothing.
+    queueTurn({
+      textDeltas: ["Here's a recap instead."],
+      stop_reason: "end_turn",
+    })
+    mockRunTool.mockRejectedValueOnce(
+      new Error("Invalid input: render_followups expects {chips: [{label, prompt}, ...]} with at least one chip. Nothing was rendered."),
+    )
+
+    const { session, events } = makeSession()
+    await session.send("How much did I spend?")
+
+    expect(mockStream).toHaveBeenCalledTimes(2)
+    expect(events).toContainEqual({
+      type: "tool-result",
+      tool: "render_followups",
+      id: "tu_bad_followups",
+      ok: false,
+    })
+
+    // The error tool_result reached the model on the retry request.
+    const second = lastStreamCall()
+    const messages = second.messages as Array<{ role: string; content: unknown }>
+    const errorResultSent = messages.some(
+      (m) =>
+        m.role === "user" &&
+        Array.isArray(m.content) &&
+        (m.content as Array<{ type: string; content?: string }>).some(
+          (b) => b.type === "tool_result" && b.content?.includes("Invalid input"),
+        ),
+    )
+    expect(errorResultSent).toBe(true)
+
+    // The model's recovery text rendered.
+    const lastContent = [...events].reverse().find((e) => e.type === "content")
+    if (lastContent?.type !== "content") throw new Error("expected content event")
+    expect(lastContent.blocks).toContainEqual({
+      type: "text",
+      content: "Here's a recap instead.",
+    })
+    expect(events[events.length - 1]).toEqual({ type: "done" })
+  })
+
   it("runs an action tool bundled with render_followups in the same turn, then exits once", async () => {
     queueTurn({
       toolUses: [

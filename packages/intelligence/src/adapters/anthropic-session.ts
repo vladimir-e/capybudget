@@ -277,7 +277,6 @@ export class AnthropicSession implements CapySession, StructuredSession {
       let terminalToolSeen = false
       for (const block of finalMessage.content) {
         if (block.type !== "tool_use") continue
-        if (block.name === RENDER_FOLLOWUPS_TOOL_NAME) terminalToolSeen = true
         this.toolCallCount++
         if (this.toolCallCount > SESSION_TOOL_CALL_BUDGET) {
           budgetExhausted = true
@@ -307,6 +306,9 @@ export class AnthropicSession implements CapySession, StructuredSession {
           ok = false
           resultText = `Error: ${err instanceof Error ? err.message : String(err)}`
         }
+        // A failed followups call is not terminal — the loop must continue so
+        // the model sees the error result and recovers.
+        if (ok && block.name === RENDER_FOLLOWUPS_TOOL_NAME) terminalToolSeen = true
         this.opts.onEvent({ type: "tool-result", tool: block.name, id: block.id, ok })
         toolResults.push({
           type: "tool_result",

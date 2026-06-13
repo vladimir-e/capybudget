@@ -892,6 +892,54 @@ describe("OpenAiSession", () => {
     expect(events.filter((e) => e.type === "done")).toHaveLength(1)
   })
 
+  it("continues the loop when render_followups fails validation, so the model can recover", async () => {
+    queueTurn({
+      toolCallDeltas: [
+        {
+          index: 0,
+          id: "call_bad_followups",
+          name: "render_followups",
+          argFragments: ['{"chips":[]}'],
+        },
+      ],
+      finish_reason: "tool_calls",
+    })
+    // The retry turn — if the failed call were treated as terminal, the loop
+    // would exit without requesting it and the user would see nothing.
+    queueTurn({ textDeltas: ["Here's a recap instead."], finish_reason: "stop" })
+    mockRunTool.mockRejectedValueOnce(
+      new Error("Invalid input: render_followups expects {chips: [{label, prompt}, ...]} with at least one chip. Nothing was rendered."),
+    )
+
+    const { session, events } = makeSession()
+    await session.send("Quick answer please")
+
+    expect(mockCreate).toHaveBeenCalledTimes(2)
+    expect(events).toContainEqual({
+      type: "tool-result",
+      tool: "render_followups",
+      id: "call_bad_followups",
+      ok: false,
+    })
+
+    // The error tool message reached the model on the retry request.
+    const second = lastCreateCall()
+    const messages = second.messages as Array<{ role: string; content?: string }>
+    const errorResultSent = messages.some(
+      (m) => m.role === "tool" && m.content?.includes("Invalid input"),
+    )
+    expect(errorResultSent).toBe(true)
+
+    // The model's recovery text rendered.
+    const lastContent = [...events].reverse().find((e) => e.type === "content")
+    if (lastContent?.type !== "content") throw new Error("expected content event")
+    expect(lastContent.blocks).toContainEqual({
+      type: "text",
+      content: "Here's a recap instead.",
+    })
+    expect(events[events.length - 1]).toEqual({ type: "done" })
+  })
+
   it("emits tool-result with ok=false when tool_call arguments are malformed JSON", async () => {
     queueTurn({
       toolCallDeltas: [

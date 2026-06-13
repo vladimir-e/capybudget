@@ -412,6 +412,45 @@ describe("ClaudeCliSession", () => {
         { type: "text", content: "second reply" },
       ])
     })
+
+    it("discards mid-cycle blocks when the stream is killed before done and a new send starts", async () => {
+      const { session, events } = makeSession()
+      await session.send("first")
+
+      const firstHandlers = latestHandlers.current!
+      // Two message ids land mid-cycle: the first turn moves into the
+      // accumulator's finishedTurns, the second is in progress. Then the
+      // stream dies — no done/error ever arrives to self-reset.
+      firstHandlers.stdout!(
+        JSON.stringify({
+          type: "assistant",
+          message: { id: "msg_t1", content: [{ type: "text", text: "stale finished turn" }] },
+        }),
+      )
+      firstHandlers.stdout!(
+        JSON.stringify({
+          type: "assistant",
+          message: { id: "msg_t2", content: [{ type: "text", text: "stale current turn" }] },
+        }),
+      )
+      await session.stop()
+
+      events.length = 0
+      await session.send("second")
+      const secondHandlers = latestHandlers.current!
+      secondHandlers.stdout!(
+        JSON.stringify({
+          type: "assistant",
+          message: { id: "msg_t3", content: [{ type: "text", text: "fresh reply" }] },
+        }),
+      )
+
+      // send()'s accumulator.reset() is the only guard here — the very first
+      // content event of the new cycle must not drag stale turns along.
+      const firstContent = events.find((e) => e.type === "content")
+      if (firstContent?.type !== "content") throw new Error("expected content event")
+      expect(firstContent.blocks).toEqual([{ type: "text", content: "fresh reply" }])
+    })
   })
 
   it("surfaces an error_max_turns result as an error event and suppresses onExit", async () => {
@@ -516,8 +555,9 @@ describe("ClaudeCliSession", () => {
       )
       handlers.stdout!(JSON.stringify({ type: "result" }))
 
-      // Stale result lands after `done` but BEFORE the next send() — only the
-      // clear-on-done in the stdout handler can stop it (send() also clears).
+      // Stale result lands after `done` but BEFORE the next send() — send()'s
+      // own registry.clear() hasn't run yet, so the stdout handler's
+      // clear-on-done is the only guard in this window.
       handlers.stdout!(
         JSON.stringify({
           type: "user",

@@ -151,7 +151,7 @@ Single source of truth shared between transports:
   - **start_import** — the chat on-ramp into Smart Import. Takes no arguments: it stages the files attached to the in-flight chat turn into `.capy/import/sources/` and marks the run so the Import screen auto-starts the orchestrator. Capy calls this for any uploaded file instead of reading it and creating transactions itself. See **Import On-Ramp** below.
   - **read_file** — generic budget-folder text reader; mirrors what Claude CLI's built-in `Read` provides natively
   - **read_spec** — reads one of the app's design docs (`specs/*.md`). Content is bundled at build time into `specs.generated.ts` — no filesystem access, no path resolution surface. Use when capy needs implementation detail beyond what the system prompt already embeds.
-  - **Render tools** — no-op on dispatch (return `"Rendered."`); the frontend intercepts the `tool_use` event and emits the corresponding ContentBlock
+  - **Render tools** — dispatch validates the payload against the render-map builders: valid calls return `"Rendered."`, malformed or empty-data input returns an error result. The frontend intercepts the `tool_use` event and emits the corresponding ContentBlock. See **Render tools** below.
 
 All filesystem access goes through the `FileAdapter` on the context, so the same handler runs against node fs (MCP server) and Tauri fs (API adapters in the renderer). The `FileAdapter` interface covers core CSV repo ops (read/write/rename/join) plus the staging-handler ops (`mkdir`, `exists`, `readDir`, `appendFile`, `remove`, `stat`) the import pipeline and `start_import` use.
 
@@ -178,7 +178,7 @@ The app invalidates caches per mutation tool call (not per turn) so the UI refle
 
 Dispatch validates the payload with the same rules the frontend renderer applies — malformed or empty-data input returns an error result so the model corrects itself and retries. Valid calls are otherwise no-ops on the dispatch side; they carry structured data from AI to frontend via `tool_use` events.
 
-`render_followups` is a **terminal-signal tool**: when the model calls it, the assistant turn is over. The API adapters dispatch the call (so the UI gets the chips) and push the tool_result to history, then exit the agentic loop without making another request. Skipping the ack round-trip saves a full stream per turn. The Claude CLI runs the loop in-subprocess; the prompt tells the model to stay silent after calling `render_followups`, and the accumulator drops any text it still emits for the rest of the cycle. The drop latch arms only on a successfully rendered followups block — after a failed render the model's recovery text still shows.
+`render_followups` is a **terminal-signal tool**: when the model calls it successfully, the assistant turn is over. The API adapters dispatch the call (so the UI gets the chips) and push the tool_result to history, then exit the agentic loop without making another request. A followups call that fails validation is not terminal — the loop continues so the model sees the error result and recovers. Skipping the ack round-trip saves a full stream per turn. The Claude CLI runs the loop in-subprocess; the prompt tells the model to stay silent after calling `render_followups`, and the accumulator drops any text it still emits for the rest of the cycle. The drop latch arms only on a successfully rendered followups block — after a failed render the model's recovery text still shows.
 
 ## MCP Server (External Agents)
 

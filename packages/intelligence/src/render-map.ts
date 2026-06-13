@@ -28,7 +28,7 @@ export const RENDER_FOLLOWUPS_TOOL_NAME = "render_followups"
 
 type RenderBuilder = (input: Record<string, unknown>) => ContentBlock | null
 
-const BUILDERS: Record<string, RenderBuilder> = {
+const BUILDERS = {
   render_table: (input) => {
     if (!Array.isArray(input.headers) || !Array.isArray(input.rows)) return null
     if (input.headers.length === 0 || input.rows.length === 0) return null
@@ -52,14 +52,19 @@ const BUILDERS: Record<string, RenderBuilder> = {
     if (chips === null) return null
     return { type: "followups", chips } satisfies FollowupsBlock
   },
-}
+} satisfies Record<string, RenderBuilder>
+
+type RenderToolName = keyof typeof BUILDERS
 
 // Fresh copy so adapters can't mutate the shared definition.
 export function buildRenderToolMap(): Record<string, RenderBuilder> {
   return { ...BUILDERS }
 }
 
-const EXPECTED_INPUTS: Record<string, string> = {
+// Keyed against the builder map: adding a builder without its expected-shape
+// message is a compile error, so the validation message can't degrade to
+// "expects undefined".
+const EXPECTED_INPUTS: Record<RenderToolName, string> = {
   render_table: "{headers: [...], rows: [[...], ...]} with at least one header and one row",
   render_chart: '{title, type: "bar" | "donut", data: [{label, value}, ...]} with non-empty data',
   [RENDER_FOLLOWUPS_TOOL_NAME]: "{chips: [{label, prompt}, ...]} with at least one chip",
@@ -75,9 +80,12 @@ export function validateRenderInput(
   name: string,
   input: Record<string, unknown>,
 ): string | null {
-  const builder = BUILDERS[name]
-  if (!builder || builder(input) !== null) return null
+  if (!isRenderToolName(name) || BUILDERS[name](input) !== null) return null
   return `Invalid input: ${name} expects ${EXPECTED_INPUTS[name]}. Nothing was rendered.`
+}
+
+function isRenderToolName(name: string): name is RenderToolName {
+  return name in BUILDERS
 }
 
 function sanitizeFollowupChips(raw: unknown): FollowupChip[] | null {
