@@ -210,54 +210,110 @@ describe("getIncomeByCategory", () => {
 // ── getNetWorthOverTime ─────
 
 describe("getNetWorthOverTime", () => {
-  it("returns one point per month plus end date", () => {
+  it("returns one point per month-end within the range", () => {
     const result = getNetWorthOverTime(ACCOUNTS, TRANSACTIONS, {
-      start: new Date("2026-01-01T00:00:00.000Z"),
-      end: new Date("2026-04-01T00:00:00.000Z"),
+      start: new Date(2026, 0, 1),
+      end: new Date(2026, 3, 1),
     });
-    // Month boundaries: Jan 1, Feb 1, Mar 1, Apr 1 (which is also end)
-    // Since start is exactly Jan 1 and end is Apr 1, we get: Feb 1, Mar 1, Apr 1
-    // Actually start IS a month boundary, so cursor starts at Jan 1, advances to Feb 1
-    // Dates: Feb 1, Mar 1, Apr 1 (end date)
-    // Wait — cursor starts at Jan 1 (first of month of start). Jan 1 >= Jan 1? No, not <.
-    // cursor = Jan 1, start = Jan 1. cursor < start? No (equal). So no advance.
-    // cursor < end? Jan 1 < Apr 1 → yes. Push Jan 1, advance to Feb 1.
-    // Feb 1 < Apr 1 → push Feb 1, advance to Mar 1.
-    // Mar 1 < Apr 1 → push Mar 1, advance to Apr 1.
-    // Apr 1 < Apr 1 → no. Push end = Apr 1 → dedup removes it since already not pushed.
-    // Actually Apr 1 was NOT pushed in the loop, so end adds it. Total: Jan 1, Feb 1, Mar 1, Apr 1.
-    expect(result.length).toBe(4);
+    // One point per month whose first day is < end (Apr 1): Jan, Feb, Mar.
+    expect(result.length).toBe(3);
+    expect(result.map((p) => new Date(p.date).getMonth())).toEqual([0, 1, 2]);
   });
 
-  it("calculates cumulative balances up to each point", () => {
+  it("labels each point by the month it closes, reflecting that month's transactions", () => {
     const result = getNetWorthOverTime(ACCOUNTS, TRANSACTIONS, {
-      start: new Date("2026-01-01T00:00:00.000Z"),
-      end: new Date("2026-04-01T00:00:00.000Z"),
+      start: new Date(2026, 0, 1),
+      end: new Date(2026, 3, 1),
     });
 
-    // At Jan 1: no transactions before Jan 1 → net worth 0
-    expect(result[0].netWorth).toBe(0);
-
-    // At Feb 1: all Jan transactions included
+    // Jan (Jan 31): all January transactions included.
     // acc-checking: 500000 - 120000 - 15000 = 365000
-    // acc-savings: 0
-    // (acc-archived has no transactions in the shared fixture)
-    expect(result[1].byAccount["acc-checking"]).toBe(365000);
-    expect(result[1].byAccount["acc-savings"]).toBe(0);
-    expect(result[1].netWorth).toBe(365000);
+    expect(new Date(result[0].date).getMonth()).toBe(0);
+    expect(result[0].byAccount["acc-checking"]).toBe(365000);
+    expect(result[0].byAccount["acc-savings"]).toBe(0);
+    expect(result[0].netWorth).toBe(365000);
 
-    // At Mar 1: Jan + Feb transactions
+    // Feb (Feb 28): Jan + Feb transactions.
     // acc-checking: 365000 + 500000 + 50000 - 120000 - 22000 - 5000 - 100000 = 668000
     // acc-savings: 100000
-    expect(result[2].byAccount["acc-checking"]).toBe(668000);
-    expect(result[2].byAccount["acc-savings"]).toBe(100000);
-    expect(result[2].netWorth).toBe(768000);
+    expect(new Date(result[1].date).getMonth()).toBe(1);
+    expect(result[1].byAccount["acc-checking"]).toBe(668000);
+    expect(result[1].byAccount["acc-savings"]).toBe(100000);
+    expect(result[1].netWorth).toBe(768000);
 
-    // At Apr 1: Jan + Feb + Mar transactions
+    // Mar (Mar 31): Jan + Feb + Mar transactions.
     // acc-checking: 668000 (no new checking txns in March)
     // acc-savings: 100000 - 8000 = 92000
-    expect(result[3].byAccount["acc-savings"]).toBe(92000);
-    expect(result[3].netWorth).toBe(668000 + 92000);
+    expect(new Date(result[2].date).getMonth()).toBe(2);
+    expect(result[2].byAccount["acc-savings"]).toBe(92000);
+    expect(result[2].netWorth).toBe(668000 + 92000);
+  });
+
+  // The whole point of the month-end fix: a transaction in month M lands on M's
+  // bar, never on M+1's.
+  it("reflects a transaction in the SAME month's point, not the next month's", () => {
+    const accounts: Account[] = [
+      { id: "acc-checking", name: "Checking", type: "checking", archived: false, excludeFromNetWorth: false, sortOrder: 0, createdAt: "2023-01-01T00:00:00.000Z" },
+    ];
+    // A single deposit in August 2023.
+    const transactions: Transaction[] = [
+      txn({ id: "aug", type: "income", amount: 250000, accountId: "acc-checking", datetime: "2023-08-12T10:00:00.000Z" }),
+    ];
+    const result = getNetWorthOverTime(accounts, transactions, {
+      start: new Date(2023, 6, 1), // Jul 2023
+      end: new Date(2023, 9, 1), // Oct 2023 (exclusive)
+    });
+    // Points: Jul, Aug, Sep.
+    const jul = result.find((p) => new Date(p.date).getMonth() === 6)!;
+    const aug = result.find((p) => new Date(p.date).getMonth() === 7)!;
+    const sep = result.find((p) => new Date(p.date).getMonth() === 8)!;
+
+    // July (before the deposit) is still 0 — the deposit must NOT bleed back.
+    expect(jul.netWorth).toBe(0);
+    // August's own bar carries the deposit.
+    expect(aug.netWorth).toBe(250000);
+    // September simply carries it forward (no double-count, no shift).
+    expect(sep.netWorth).toBe(250000);
+  });
+
+  // For an All-Time range (end = first-of-month-after-latest, mirroring
+  // computeBounds), the final point is the latest month WITH data and carries
+  // the full cumulative total — no phantom trailing future-month bar.
+  it("ends on the latest data month with the full total, no trailing future-month point", () => {
+    const accounts: Account[] = [
+      { id: "acc-checking", name: "Checking", type: "checking", archived: false, excludeFromNetWorth: false, sortOrder: 0, createdAt: "2024-01-01T00:00:00.000Z" },
+    ];
+    const transactions: Transaction[] = [
+      txn({ id: "p1", type: "income", amount: 100000, accountId: "acc-checking", datetime: "2024-05-10T10:00:00.000Z" }),
+      txn({ id: "p2", type: "income", amount: 40000, accountId: "acc-checking", datetime: "2024-06-20T10:00:00.000Z" }),
+    ];
+    // computeBounds: start = first of earliest month, end = first-of-month-after-latest.
+    const latest = new Date(2024, 5, 20); // June 2024
+    const range = {
+      start: new Date(2024, 4, 1), // May 2024
+      end: new Date(latest.getFullYear(), latest.getMonth() + 1, 1), // Jul 1, 2024
+    };
+    const result = getNetWorthOverTime(accounts, transactions, range);
+
+    // Last point is June (the latest month with data), NOT July.
+    const last = result[result.length - 1];
+    expect(new Date(last.date).getMonth()).toBe(5); // June
+    // and it carries the full cumulative total.
+    expect(last.netWorth).toBe(140000);
+    // No point labeled a month after June.
+    expect(result.every((p) => new Date(p.date).getMonth() <= 5)).toBe(true);
+  });
+
+  it("produces points monotonically increasing in date", () => {
+    const result = getNetWorthOverTime(ACCOUNTS, TRANSACTIONS, {
+      start: new Date(2026, 0, 1),
+      end: new Date(2026, 3, 1),
+    });
+    for (let i = 1; i < result.length; i++) {
+      expect(new Date(result[i].date).getTime()).toBeGreaterThan(
+        new Date(result[i - 1].date).getTime(),
+      );
+    }
   });
 
   // Archiving requires a zero derived balance (DATA_MODEL referential integrity),
@@ -279,19 +335,24 @@ describe("getNetWorthOverTime", () => {
       txn({ id: "k1", type: "income", amount: 200000, accountId: "acc-checking", datetime: "2019-01-05T10:00:00.000Z" }),
     ];
     const result = getNetWorthOverTime(accounts, transactions, {
-      start: new Date("2019-01-01T00:00:00.000Z"),
-      end: new Date("2019-04-01T00:00:00.000Z"),
+      start: new Date(2019, 0, 1),
+      end: new Date(2019, 3, 1),
     });
-    // Points: Jan 1, Feb 1, Mar 1, Apr 1 (end).
-    const [, feb, , apr] = result;
+    // Month-end points: Jan, Feb, Mar.
+    const jan = result.find((p) => new Date(p.date).getMonth() === 0)!;
+    const feb = result.find((p) => new Date(p.date).getMonth() === 1)!;
+    const mar = result.find((p) => new Date(p.date).getMonth() === 2)!;
 
-    // Feb 1 — card debt is live: 200000 checking - 500000 card = -300000, net negative.
+    // Jan-end — both Jan transactions already applied: card is live at -500000.
+    // 200000 checking - 500000 card = -300000.
+    expect(jan.byAccount["acc-card"]).toBe(-500000);
+    expect(jan.netWorth).toBe(-300000);
+    // Feb-end — nothing changed in February, still live.
     expect(feb.byAccount["acc-card"]).toBe(-500000);
     expect(feb.netWorth).toBe(-300000);
-
-    // Apr 1 — card paid off (balance $0) before being archived; total is just checking.
-    expect(apr.byAccount["acc-card"]).toBe(0);
-    expect(apr.netWorth).toBe(200000);
+    // Mar-end — card paid off (balance $0) before being archived; total is just checking.
+    expect(mar.byAccount["acc-card"]).toBe(0);
+    expect(mar.netWorth).toBe(200000);
   });
 
   it("excludes accounts with excludeFromNetWorth=true", () => {
@@ -299,30 +360,29 @@ describe("getNetWorthOverTime", () => {
       a.id === "acc-savings" ? { ...a, excludeFromNetWorth: true } : a,
     );
     const result = getNetWorthOverTime(accounts, TRANSACTIONS, {
-      start: new Date("2026-01-01T00:00:00.000Z"),
-      end: new Date("2026-04-01T00:00:00.000Z"),
+      start: new Date(2026, 0, 1),
+      end: new Date(2026, 3, 1),
     });
     const lastPoint = result[result.length - 1];
     expect(lastPoint.byAccount["acc-savings"]).toBeUndefined();
-    // Without savings, net worth at Apr 1 is just checking's balance: 668000
+    // Without savings, net worth at March-end is just checking's balance: 668000
     expect(lastPoint.netWorth).toBe(668000);
   });
 
-  it("returns single point for very short range", () => {
+  it("returns no points for a sub-monthly range with no qualifying month", () => {
     const result = getNetWorthOverTime(ACCOUNTS, TRANSACTIONS, {
-      start: new Date("2026-02-15T00:00:00.000Z"),
-      end: new Date("2026-02-16T00:00:00.000Z"),
+      start: new Date(2026, 1, 15),
+      end: new Date(2026, 1, 16),
     });
-    // No month boundaries between Feb 15 and Feb 16. Just the end date.
-    // cursor = Feb 1, which is < start (Feb 15), so advance to Mar 1.
-    // Mar 1 < Feb 16? No. So only end date point.
-    expect(result.length).toBe(1);
+    // cursor = Feb 1 < start (Feb 15) → advances to Mar 1, which is not < Feb 16.
+    // No month qualifies → no points.
+    expect(result.length).toBe(0);
   });
 
   it("handles empty transactions", () => {
     const result = getNetWorthOverTime(ACCOUNTS, [], {
-      start: new Date("2026-01-01T00:00:00.000Z"),
-      end: new Date("2026-03-01T00:00:00.000Z"),
+      start: new Date(2026, 0, 1),
+      end: new Date(2026, 2, 1),
     });
     expect(result.length).toBeGreaterThan(0);
     for (const point of result) {
