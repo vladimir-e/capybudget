@@ -37,7 +37,7 @@ Every financial entity is an account.
 | `id`                   | string  | UUID, client-generated                                            |
 | `name`                 | string  | User-defined label (e.g. "BofA Checking", "Cash Wallet")          |
 | `type`                 | enum    | `cash · checking · savings · credit_card · loan · asset · crypto` |
-| `archived`             | boolean | Excluded from sidebar and net worth when true                     |
+| `archived`             | boolean | Hidden from the sidebar when true. Archiving requires a zero derived balance (see Referential Integrity), so it has no effect on current net worth, but the account's transactions still count toward the historical net-worth series at the points where it carried a balance. |
 | `excludeFromNetWorth`  | boolean | Excluded from Net Worth calculations when true                    |
 | `sortOrder`            | integer | Display ordering                                                  |
 | `createdAt`            | string  | ISO 8601                                                          |

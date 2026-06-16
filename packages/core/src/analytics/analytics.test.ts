@@ -63,8 +63,6 @@ const TRANSACTIONS: Transaction[] = [
   txn({ id: "t10", type: "transfer", amount: 100000, accountId: "acc-savings", transferPairId: "t9", datetime: "2026-02-25T10:00:00.000Z" }),
   // March expense
   txn({ id: "t11", amount: -8000, accountId: "acc-savings", categoryId: "cat-food", datetime: "2026-03-05T10:00:00.000Z" }),
-  // Transaction on archived account (for net worth test)
-  txn({ id: "t12", type: "income", amount: 99999, accountId: "acc-archived", categoryId: "cat-salary", datetime: "2026-01-01T10:00:00.000Z" }),
 ];
 
 // ── ensureMinMonths ─────
@@ -189,17 +187,17 @@ describe("getIncomeByCategory", () => {
     const result = getIncomeByCategory(TRANSACTIONS, CATEGORIES);
     const salary = result.find((r) => r.categoryId === "cat-salary");
     expect(salary).toBeDefined();
-    // Three salary txns: 500000 + 500000 + 99999
-    expect(salary!.total).toBe(1099999);
-    expect(salary!.count).toBe(3);
+    // Two salary txns: 500000 + 500000
+    expect(salary!.total).toBe(1000000);
+    expect(salary!.count).toBe(2);
   });
 
   it("excludes transfers from income", () => {
     const result = getIncomeByCategory(TRANSACTIONS, CATEGORIES);
     // Transfer t10 has positive amount but type "transfer" — should not appear
     const totalCount = result.reduce((s, r) => s + r.count, 0);
-    // Only income transactions: t1, t4, t5, t12 = 4
-    expect(totalCount).toBe(4);
+    // Only income transactions: t1, t4, t5 = 3
+    expect(totalCount).toBe(3);
   });
 
   it("returns empty for no income", () => {
@@ -243,7 +241,7 @@ describe("getNetWorthOverTime", () => {
     // At Feb 1: all Jan transactions included
     // acc-checking: 500000 - 120000 - 15000 = 365000
     // acc-savings: 0
-    // (acc-archived excluded because archived)
+    // (acc-archived has no transactions in the shared fixture)
     expect(result[1].byAccount["acc-checking"]).toBe(365000);
     expect(result[1].byAccount["acc-savings"]).toBe(0);
     expect(result[1].netWorth).toBe(365000);
@@ -262,14 +260,38 @@ describe("getNetWorthOverTime", () => {
     expect(result[3].netWorth).toBe(668000 + 92000);
   });
 
-  it("excludes archived accounts from net worth", () => {
-    const result = getNetWorthOverTime(ACCOUNTS, TRANSACTIONS, {
-      start: new Date("2026-01-01T00:00:00.000Z"),
-      end: new Date("2026-02-01T00:00:00.000Z"),
+  // Archiving requires a zero derived balance (DATA_MODEL referential integrity),
+  // so an archived account can only ever sum to $0 across its whole history. That
+  // makes it safe to include in the historical series: it shifts past points where
+  // it carried a balance, but contributes nothing to the latest point. This mirrors
+  // Vlad's real budget — a credit card that ran negative years ago, was paid off,
+  // and then closed should pull early net worth down without touching today's total.
+  it("counts an archived account's historical balance while leaving the latest point unchanged", () => {
+    const accounts: Account[] = [
+      { id: "acc-checking", name: "Checking", type: "checking", archived: false, excludeFromNetWorth: false, sortOrder: 0, createdAt: "2019-01-01T00:00:00.000Z" },
+      { id: "acc-card", name: "Old Credit Card", type: "credit_card", archived: true, excludeFromNetWorth: false, sortOrder: 1, createdAt: "2019-01-01T00:00:00.000Z" },
+    ];
+    const transactions: Transaction[] = [
+      // Card runs -500000 in January, then is paid back to zero in March.
+      txn({ id: "c1", type: "expense", amount: -500000, accountId: "acc-card", datetime: "2019-01-10T10:00:00.000Z" }),
+      txn({ id: "c2", type: "income", amount: 500000, accountId: "acc-card", datetime: "2019-03-10T10:00:00.000Z" }),
+      // A little checking income so the latest point is non-trivially positive.
+      txn({ id: "k1", type: "income", amount: 200000, accountId: "acc-checking", datetime: "2019-01-05T10:00:00.000Z" }),
+    ];
+    const result = getNetWorthOverTime(accounts, transactions, {
+      start: new Date("2019-01-01T00:00:00.000Z"),
+      end: new Date("2019-04-01T00:00:00.000Z"),
     });
-    // Archived account should not appear in byAccount
-    const lastPoint = result[result.length - 1];
-    expect(lastPoint.byAccount["acc-archived"]).toBeUndefined();
+    // Points: Jan 1, Feb 1, Mar 1, Apr 1 (end).
+    const [, feb, , apr] = result;
+
+    // Feb 1 — card debt is live: 200000 checking - 500000 card = -300000, net negative.
+    expect(feb.byAccount["acc-card"]).toBe(-500000);
+    expect(feb.netWorth).toBe(-300000);
+
+    // Apr 1 — card paid off (balance $0) before being archived; total is just checking.
+    expect(apr.byAccount["acc-card"]).toBe(0);
+    expect(apr.netWorth).toBe(200000);
   });
 
   it("excludes accounts with excludeFromNetWorth=true", () => {
@@ -314,11 +336,11 @@ describe("getNetWorthOverTime", () => {
 describe("getPeriodSummary", () => {
   it("sums income and expenses separately", () => {
     const result = getPeriodSummary(TRANSACTIONS);
-    // Income: 500000 + 500000 + 50000 + 99999 = 1149999
-    expect(result.totalIncome).toBe(1149999);
+    // Income: 500000 + 500000 + 50000 = 1050000
+    expect(result.totalIncome).toBe(1050000);
     // Expenses: -120000 - 15000 - 120000 - 22000 - 5000 - 8000 = -290000
     expect(result.totalExpenses).toBe(-290000);
-    expect(result.net).toBe(1149999 + -290000);
+    expect(result.net).toBe(1050000 + -290000);
   });
 
   it("excludes transfers", () => {
@@ -364,12 +386,12 @@ describe("getCashFlow", () => {
     // Should have Jan, Feb, Mar
     expect(result.length).toBe(3);
 
-    // January (t1: salary 500000, t12: salary 99999 on archived account)
+    // January (t1: salary 500000)
     const jan = result.find((p) => p.month === "Jan 2026")!;
     expect(jan).toBeDefined();
-    expect(jan.income).toBe(599999); // t1: 500000 + t12: 99999
+    expect(jan.income).toBe(500000); // t1: 500000
     expect(jan.expenses).toBe(135000); // t2: 120000 + t3: 15000
-    expect(jan.net).toBe(599999 - 135000);
+    expect(jan.net).toBe(500000 - 135000);
 
     // February (excludes transfers)
     const feb = result.find((p) => p.month === "Feb 2026")!;
@@ -604,8 +626,8 @@ describe("getCategoryTrends", () => {
     const result = getCategoryTrends(TRANSACTIONS, CATEGORIES, range, { type: "income" });
     const salary = result.series.find((s) => s.categoryId === "cat-salary")!;
     expect(salary).toBeDefined();
-    // Salary income within range: t1 (500000) + t4 (500000) + t12 (99999) = 1099999
-    expect(salary.total).toBe(1099999);
+    // Salary income within range: t1 (500000) + t4 (500000) = 1000000
+    expect(salary.total).toBe(1000000);
   });
 
   it("returns empty series for periods with no matching transactions", () => {

@@ -100,7 +100,13 @@ function breakdownByCategory(
 }
 
 /** Calculate net worth at each month boundary within the range, plus the end date.
- *  Single-pass O(transactions log transactions + points) algorithm. */
+ *  Single-pass O(transactions log transactions + points) algorithm.
+ *
+ *  Archived accounts ARE counted: archiving requires a zero derived balance, so an
+ *  archived account contributes $0 to the latest point but correctly restores the
+ *  running balance at past points (e.g. a credit card that ran negative in 2019
+ *  before being paid off and closed). Only `excludeFromNetWorth` accounts — which
+ *  may hold a non-zero balance and are never part of net worth — are dropped. */
 export function getNetWorthOverTime(
   accounts: Account[],
   transactions: Transaction[],
@@ -108,7 +114,7 @@ export function getNetWorthOverTime(
 ): NetWorthPoint[] {
   const activeAccountIds = new Set(
     accounts
-      .filter((a) => !a.archived && !a.excludeFromNetWorth)
+      .filter((a) => !a.excludeFromNetWorth)
       .map((a) => a.id),
   );
 
