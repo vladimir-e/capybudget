@@ -139,8 +139,7 @@ export function getNetWorthOverTime(
   let txIdx = 0;
   const points: NetWorthPoint[] = [];
 
-  // First month to emit: the month containing/after range.start (matches the
-  // prior behavior — a start aligned to first-of-month yields that month).
+  // First month to emit: the month containing/after range.start.
   const cursor = new Date(range.start.getFullYear(), range.start.getMonth(), 1);
   if (cursor < range.start) {
     cursor.setMonth(cursor.getMonth() + 1);
@@ -163,10 +162,8 @@ export function getNetWorthOverTime(
       txIdx++;
     }
 
-    // Display date = last day of M, clamped to range.end. The clamp keeps a
-    // partial current month honest; because we only enter M when its first day
-    // is < range.end, the clamped date always still falls within M, so the UI
-    // label resolves to M.
+    // Display date = last day of M, clamped to range.end so a partial current
+    // month stays honest. The clamp never escapes M, so the UI still labels M.
     const lastDayOfMonth = new Date(year, month + 1, 0).getTime();
     const displayMs = Math.min(lastDayOfMonth, endMs);
 

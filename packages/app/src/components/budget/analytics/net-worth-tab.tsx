@@ -116,29 +116,6 @@ export function NetWorthTab({ accounts, transactions, dateRange, hasAnyTransacti
 
   const noAccountsSelected = includedIds.size === 0;
 
-  if (chartData.length === 0 && !noAccountsSelected) {
-    return (
-      <EmptyState title={hasAnyTransactions ? "No data available" : NO_DATA_YET} />
-    );
-  }
-
-  if (chartData.length === 1 && !noAccountsSelected) {
-    return (
-      <div className="flex items-center justify-center h-[280px]">
-        <div className="text-center">
-          <div
-            className="mx-auto h-4 w-4 rounded-full mb-2"
-            style={{ backgroundColor: brandColor }}
-          />
-          <p className="text-lg font-semibold tabular-nums">
-            {formatMoney(chartData[0].netWorth)}
-          </p>
-          <p className="text-xs text-muted-foreground">{chartData[0].label}</p>
-        </div>
-      </div>
-    );
-  }
-
   const header = (
     <div className="flex justify-between">
       <NetWorthAccountFilter
@@ -158,6 +135,35 @@ export function NetWorthTab({ accounts, transactions, dateRange, hasAnyTransacti
           title="No accounts selected"
           description="Select at least one account to chart your net worth."
         />
+      </div>
+    );
+  }
+
+  if (chartData.length === 0) {
+    return (
+      <div className="space-y-4">
+        {header}
+        <EmptyState title={hasAnyTransactions ? "No data available" : NO_DATA_YET} />
+      </div>
+    );
+  }
+
+  if (chartData.length === 1) {
+    return (
+      <div className="space-y-4">
+        {header}
+        <div className="flex items-center justify-center h-[280px]">
+          <div className="text-center">
+            <div
+              className="mx-auto h-4 w-4 rounded-full mb-2"
+              style={{ backgroundColor: brandColor }}
+            />
+            <p className="text-lg font-semibold tabular-nums">
+              {formatMoney(chartData[0].netWorth)}
+            </p>
+            <p className="text-xs text-muted-foreground">{chartData[0].label}</p>
+          </div>
+        </div>
       </div>
     );
   }
