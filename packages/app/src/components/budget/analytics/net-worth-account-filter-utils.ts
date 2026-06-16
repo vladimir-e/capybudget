@@ -10,7 +10,7 @@ export interface AccountGroup {
   accounts: Account[];
 }
 
-export const ARCHIVED_GROUP_KEY = "__archived__";
+const ARCHIVED_GROUP_KEY = "__archived__";
 
 function byTypeThenSortOrder(a: Account, b: Account): number {
   const ai = ACCOUNT_TYPE_ORDER.indexOf(a.type);
