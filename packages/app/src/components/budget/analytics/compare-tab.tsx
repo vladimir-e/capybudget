@@ -20,6 +20,12 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { ChartSwitcher } from "./chart-switcher";
 import { EmptyState } from "@/components/ui/empty-state";
 import { NO_DATA_YET } from "./empty-copy";
+import { TransactionsModal } from "@/components/budget/transactions-modal";
+import { getRechartsPayload } from "./recharts-payload";
+import {
+  filterForCompareDrilldown,
+  type CompareDrilldown,
+} from "./compare-drilldown";
 
 // ── Constants ──
 
@@ -328,18 +334,60 @@ function CompareTabBody({ transactions, categories, dateRange, viewMode, hasAnyT
     });
   }, [seriesData.series, pick.colorMap]);
 
-  // Chart data shape: { month, [categoryName]: cents, ... }
+  // Chart data shape: { month, __start, __end, [categoryName]: cents, ... }.
+  // `__start`/`__end` carry the bucket's own transaction window so a click
+  // maps deterministically back to its date range — never re-parsing the
+  // X-axis label. The window is clamped to the period so the last (possibly
+  // partial) bucket doesn't reach past `dateRange.end`. The `__`-prefixed
+  // keys never render as lines (only `seriesWithColor` keys do).
   const chartData = useMemo(() => {
     const nameById = new Map(seriesData.series.map((s) => [s.categoryId, s.categoryName]));
+    const rangeEndMs = dateRange.end.getTime();
+    const rangeStartMs = dateRange.start.getTime();
     return seriesData.points.map((point) => {
-      const row: Record<string, string | number> = { month: point.month };
+      const periodStart = new Date(point.date);
+      const periodEnd =
+        granularity === "week"
+          ? new Date(periodStart.getFullYear(), periodStart.getMonth(), periodStart.getDate() + 7)
+          : new Date(periodStart.getFullYear(), periodStart.getMonth() + 1, 1);
+      const startMs = Math.max(periodStart.getTime(), rangeStartMs);
+      const endMs = Math.min(periodEnd.getTime(), rangeEndMs);
+      const row: Record<string, string | number> = {
+        month: point.month,
+        __start: new Date(startMs).toISOString(),
+        __end: new Date(endMs).toISOString(),
+      };
       for (const [catId, amt] of Object.entries(point.byCategory)) {
         const name = nameById.get(catId) ?? "Uncategorized";
         row[name] = amt;
       }
       return row;
     });
-  }, [seriesData]);
+  }, [seriesData, granularity, dateRange]);
+
+  const [drilldown, setDrilldown] = useState<CompareDrilldown | null>(null);
+
+  const drilldownTransactions = useMemo(
+    () => (drilldown ? filterForCompareDrilldown(transactions, drilldown) : []),
+    [drilldown, transactions],
+  );
+
+  // Map a click on the chart back to its bucket's date window. Recharts hands
+  // us `activeLabel` (the month string) plus `activePayload`, whose entries
+  // carry the underlying data row — including the `__start`/`__end` we threaded
+  // through. No active bucket or no selected categories → no-op.
+  function handleChartClick(state: unknown) {
+    if (!anySelected) return;
+    const payload = (state as { activePayload?: Array<unknown> } | null)?.activePayload?.[0];
+    const row = getRechartsPayload<{ month?: string; __start?: string; __end?: string }>(payload);
+    if (!row?.__start || !row.__end) return;
+    setDrilldown({
+      label: row.month ?? "",
+      range: { from: new Date(row.__start), to: new Date(row.__end) },
+      categoryIds: selectedIdsForCore,
+      mode: viewMode,
+    });
+  }
 
   if (!periodHasData) {
     return (
@@ -447,7 +495,12 @@ function CompareTabBody({ transactions, categories, dateRange, viewMode, hasAnyT
           </p>
         ) : (
           <ResponsiveContainer width="100%" height={400}>
-            <LineChart data={chartData} margin={{ top: 5, right: 20, bottom: 5, left: 10 }}>
+            <LineChart
+              data={chartData}
+              margin={{ top: 5, right: 20, bottom: 5, left: 10 }}
+              onClick={handleChartClick}
+              className="cursor-pointer"
+            >
               <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
               <XAxis
                 dataKey="month"
@@ -460,7 +513,14 @@ function CompareTabBody({ transactions, categories, dateRange, viewMode, hasAnyT
                 className="text-muted-foreground"
                 width={65}
               />
-              <Tooltip content={<CompareTooltipContent />} />
+              <Tooltip
+                content={<CompareTooltipContent />}
+                cursor={{
+                  stroke: "var(--brand)",
+                  strokeWidth: 1.5,
+                  strokeDasharray: "4 3",
+                }}
+              />
               <Legend wrapperStyle={{ fontSize: "12px" }} />
               {seriesWithColor.map((s) => (
                 <Line
@@ -476,6 +536,30 @@ function CompareTabBody({ transactions, categories, dateRange, viewMode, hasAnyT
           </ResponsiveContainer>
         )}
       </div>
+
+      <TransactionsModal
+        open={drilldown !== null}
+        onOpenChange={(open) => !open && setDrilldown(null)}
+        transactions={drilldownTransactions}
+        lockedFilters={
+          drilldown
+            ? { dateRange: { from: drilldown.range.from, to: drilldown.range.to } }
+            : {}
+        }
+        title={drilldown?.label ?? ""}
+        subtitle={drilldown ? formatCompareSubtitle(drilldownTransactions) : undefined}
+      />
     </div>
   );
+}
+
+/** Subtitle for the Compare drilldown modal: transaction count plus the
+ *  abs-summed total when there's more than one. The bucket's date label is
+ *  already the modal title, so it isn't repeated here. */
+function formatCompareSubtitle(transactions: Transaction[]): string {
+  const count = transactions.length;
+  const base = `${count} transaction${count === 1 ? "" : "s"}`;
+  if (count <= 1) return base;
+  const total = transactions.reduce((sum, t) => sum + Math.abs(t.amount), 0);
+  return `${base} · ${formatMoney(total)}`;
 }
