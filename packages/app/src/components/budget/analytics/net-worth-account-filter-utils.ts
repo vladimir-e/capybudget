@@ -12,6 +12,8 @@ export interface AccountGroup {
 
 const ARCHIVED_GROUP_KEY = "__archived__";
 
+/** The archived group mixes account types, so it needs the type tiebreaker that
+ *  the per-type active groups don't (those are already type-homogeneous). */
 function byTypeThenSortOrder(a: Account, b: Account): number {
   const ai = ACCOUNT_TYPE_ORDER.indexOf(a.type);
   const bi = ACCOUNT_TYPE_ORDER.indexOf(b.type);
