@@ -14,6 +14,8 @@ interface AnalyticsState {
   activeTab: TabId;
   tabs: Record<TabId, TabState>;
   dataBounds: DateRange | null; // earliest/latest transaction dates
+  netWorthExcludedIds: Set<string>;
+  setNetWorthExcludedIds: (ids: Set<string>) => void;
   setActiveTab: (tab: TabId) => void;
   setPeriod: (type: PeriodType, range?: DateRange) => void;
   navigateForward: () => void;
@@ -131,6 +133,9 @@ export const useAnalyticsStore = create<AnalyticsState>((set, get) => ({
   activeTab: "spending",
   tabs: { ...DEFAULT_TABS },
   dataBounds: null,
+  netWorthExcludedIds: new Set(),
+
+  setNetWorthExcludedIds: (ids) => set({ netWorthExcludedIds: ids }),
 
   setActiveTab: (tab) => set({ activeTab: tab }),
 

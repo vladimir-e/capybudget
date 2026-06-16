@@ -20,8 +20,11 @@ import {
 import type { Account, Transaction, DateRange } from "@capybudget/core";
 import { ChartSwitcher } from "./chart-switcher";
 import { useThemeColors } from "./use-theme-colors";
+import { NetWorthAccountFilter } from "./net-worth-account-filter";
+import { computeIncludedIds } from "./net-worth-account-filter-utils";
 import { EmptyState } from "@/components/ui/empty-state";
 import { NO_DATA_YET } from "./empty-copy";
+import { useAnalyticsStore } from "@/stores/analytics-store";
 
 const SHORT_MONTHS = [
   "Jan", "Feb", "Mar", "Apr", "May", "Jun",
@@ -66,15 +69,32 @@ const CHART_OPTIONS: Array<{ value: ChartMode; label: string }> = [
 
 export function NetWorthTab({ accounts, transactions, dateRange, hasAnyTransactions }: NetWorthTabProps) {
   const [chartMode, setChartMode] = useState<ChartMode>("bar");
+  const netWorthExcludedIds = useAnalyticsStore((s) => s.netWorthExcludedIds);
+  const setNetWorthExcludedIds = useAnalyticsStore((s) => s.setNetWorthExcludedIds);
+
+  const includedIds = useMemo(
+    () => computeIncludedIds(accounts, netWorthExcludedIds),
+    [accounts, netWorthExcludedIds],
+  );
 
   // Defer heavy inputs so the tab shell renders immediately
   const deferredTransactions = useDeferredValue(transactions);
   const deferredRange = useDeferredValue(dateRange);
-  const isStale = deferredTransactions !== transactions || deferredRange !== dateRange;
+  const deferredIncludedIds = useDeferredValue(includedIds);
+  const isStale =
+    deferredTransactions !== transactions ||
+    deferredRange !== dateRange ||
+    deferredIncludedIds !== includedIds;
 
   const netWorthData = useMemo(
-    () => getNetWorthOverTime(accounts, deferredTransactions, ensureMinMonths(deferredRange, 12)),
-    [accounts, deferredTransactions, deferredRange],
+    () =>
+      getNetWorthOverTime(
+        accounts,
+        deferredTransactions,
+        ensureMinMonths(deferredRange, 12),
+        deferredIncludedIds,
+      ),
+    [accounts, deferredTransactions, deferredRange, deferredIncludedIds],
   );
 
   const chartData = useMemo(
@@ -94,13 +114,15 @@ export function NetWorthTab({ accounts, transactions, dateRange, hasAnyTransacti
     expenseColor: ["--amount-expense", "#ef4444"],
   });
 
-  if (chartData.length === 0) {
+  const noAccountsSelected = includedIds.size === 0;
+
+  if (chartData.length === 0 && !noAccountsSelected) {
     return (
       <EmptyState title={hasAnyTransactions ? "No data available" : NO_DATA_YET} />
     );
   }
 
-  if (chartData.length === 1) {
+  if (chartData.length === 1 && !noAccountsSelected) {
     return (
       <div className="flex items-center justify-center h-[280px]">
         <div className="text-center">
@@ -117,11 +139,32 @@ export function NetWorthTab({ accounts, transactions, dateRange, hasAnyTransacti
     );
   }
 
+  const header = (
+    <div className="flex justify-between">
+      <NetWorthAccountFilter
+        accounts={accounts}
+        excludedIds={netWorthExcludedIds}
+        onChange={setNetWorthExcludedIds}
+      />
+      <ChartSwitcher options={CHART_OPTIONS} value={chartMode} onChange={setChartMode} />
+    </div>
+  );
+
+  if (noAccountsSelected) {
+    return (
+      <div className="space-y-4">
+        {header}
+        <EmptyState
+          title="No accounts selected"
+          description="Select at least one account to chart your net worth."
+        />
+      </div>
+    );
+  }
+
   return (
     <div className={`space-y-4 transition-opacity duration-150 ${isStale ? "opacity-60" : ""}`}>
-      <div className="flex justify-end">
-        <ChartSwitcher options={CHART_OPTIONS} value={chartMode} onChange={setChartMode} />
-      </div>
+      {header}
 
       <ResponsiveContainer width="100%" height={320}>
         {chartMode === "bar" ? (

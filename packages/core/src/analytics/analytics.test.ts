@@ -369,6 +369,51 @@ describe("getNetWorthOverTime", () => {
     expect(lastPoint.netWorth).toBe(668000);
   });
 
+  // The transient analytics filter passes an explicit include-set that is the
+  // sole source of truth: an account the caller chose to count is counted even
+  // when it carries excludeFromNetWorth.
+  it("counts an excludeFromNetWorth account when it is in the include set", () => {
+    const accounts: Account[] = [
+      { id: "acc-checking", name: "Checking", type: "checking", archived: false, excludeFromNetWorth: false, sortOrder: 0, createdAt: "2026-01-01T00:00:00.000Z" },
+      { id: "acc-vault", name: "Vault", type: "asset", archived: false, excludeFromNetWorth: true, sortOrder: 1, createdAt: "2026-01-01T00:00:00.000Z" },
+    ];
+    const transactions: Transaction[] = [
+      txn({ id: "k1", type: "income", amount: 200000, accountId: "acc-checking", datetime: "2026-01-05T10:00:00.000Z" }),
+      txn({ id: "v1", type: "income", amount: 50000, accountId: "acc-vault", datetime: "2026-01-10T10:00:00.000Z" }),
+    ];
+    const result = getNetWorthOverTime(
+      accounts,
+      transactions,
+      { start: new Date(2026, 0, 1), end: new Date(2026, 1, 1) },
+      new Set(["acc-checking", "acc-vault"]),
+    );
+    const jan = result[result.length - 1];
+    expect(jan.byAccount["acc-vault"]).toBe(50000);
+    expect(jan.netWorth).toBe(250000);
+  });
+
+  // The include-set also subtracts: an account that would otherwise be counted
+  // is dropped when the caller leaves it out of the set.
+  it("drops an otherwise-includable account when it is absent from the include set", () => {
+    const accounts: Account[] = [
+      { id: "acc-checking", name: "Checking", type: "checking", archived: false, excludeFromNetWorth: false, sortOrder: 0, createdAt: "2026-01-01T00:00:00.000Z" },
+      { id: "acc-savings", name: "Savings", type: "savings", archived: false, excludeFromNetWorth: false, sortOrder: 1, createdAt: "2026-01-01T00:00:00.000Z" },
+    ];
+    const transactions: Transaction[] = [
+      txn({ id: "k1", type: "income", amount: 200000, accountId: "acc-checking", datetime: "2026-01-05T10:00:00.000Z" }),
+      txn({ id: "s1", type: "income", amount: 80000, accountId: "acc-savings", datetime: "2026-01-10T10:00:00.000Z" }),
+    ];
+    const result = getNetWorthOverTime(
+      accounts,
+      transactions,
+      { start: new Date(2026, 0, 1), end: new Date(2026, 1, 1) },
+      new Set(["acc-checking"]),
+    );
+    const jan = result[result.length - 1];
+    expect(jan.byAccount["acc-savings"]).toBeUndefined();
+    expect(jan.netWorth).toBe(200000);
+  });
+
   it("returns no points for a sub-monthly range with no qualifying month", () => {
     const result = getNetWorthOverTime(ACCOUNTS, TRANSACTIONS, {
       start: new Date(2026, 1, 15),

@@ -107,17 +107,20 @@ function breakdownByCategory(
  *  archived account contributes $0 to the latest point but correctly restores the
  *  running balance at past points (e.g. a credit card that ran negative in 2019
  *  before being paid off and closed). Only `excludeFromNetWorth` accounts — which
- *  may hold a non-zero balance and are never part of net worth — are dropped. */
+ *  may hold a non-zero balance and are never part of net worth — are dropped.
+ *
+ *  `includeAccountIds`, when provided, is the source of truth for which accounts
+ *  to count — `archived`/`excludeFromNetWorth` are ignored, since the caller has
+ *  already decided. */
 export function getNetWorthOverTime(
   accounts: Account[],
   transactions: Transaction[],
   range: DateRange,
+  includeAccountIds?: Set<string>,
 ): NetWorthPoint[] {
-  const activeAccountIds = new Set(
-    accounts
-      .filter((a) => !a.excludeFromNetWorth)
-      .map((a) => a.id),
-  );
+  const activeAccountIds =
+    includeAccountIds ??
+    new Set(accounts.filter((a) => !a.excludeFromNetWorth).map((a) => a.id));
 
   // Sort transactions by datetime once
   const sorted = [...transactions].sort(
