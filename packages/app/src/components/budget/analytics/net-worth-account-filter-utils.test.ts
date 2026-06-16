@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import type { Account } from "@capybudget/core";
 import {
   computeIncludedIds,
+  groupAccounts,
   toggleAccountInclusion,
   setInclusionForIds,
 } from "./net-worth-account-filter-utils";
@@ -72,9 +73,46 @@ describe("setInclusionForIds", () => {
     );
   });
 
+  it("clear-all scoped to visible ids leaves out-of-scope accounts untouched", () => {
+    // A search narrows the list to ["a"]; clear-all must only exclude "a" and
+    // never silently drop the hidden "b"/"c".
+    expect(setInclusionForIds(["a"], false, new Set())).toEqual(new Set(["a"]));
+  });
+
   it("does not mutate the input set", () => {
     const excluded = new Set(["c"]);
     setInclusionForIds(["a", "b"], false, excluded);
     expect(excluded).toEqual(new Set(["c"]));
+  });
+});
+
+describe("groupAccounts", () => {
+  it("groups active accounts by type in ACCOUNT_TYPE_ORDER", () => {
+    const groups = groupAccounts([
+      makeAccount({ id: "card", type: "credit_card" }),
+      makeAccount({ id: "cash", type: "cash" }),
+      makeAccount({ id: "check", type: "checking" }),
+    ]);
+    expect(groups.map((g) => g.key)).toEqual(["cash", "checking", "credit_card"]);
+  });
+
+  it("collects archived accounts into a single trailing Archived group", () => {
+    const groups = groupAccounts([
+      makeAccount({ id: "check", type: "checking" }),
+      makeAccount({ id: "old", type: "savings", archived: true }),
+    ]);
+    expect(groups.map((g) => g.label)).toEqual(["Checking", "Archived"]);
+    expect(groups[groups.length - 1].accounts.map((a) => a.id)).toEqual(["old"]);
+  });
+
+  it("never duplicates an archived account into its type group", () => {
+    const groups = groupAccounts([
+      makeAccount({ id: "active-savings", type: "savings" }),
+      makeAccount({ id: "old-savings", type: "savings", archived: true }),
+    ]);
+    const savings = groups.find((g) => g.key === "savings");
+    expect(savings?.accounts.map((a) => a.id)).toEqual(["active-savings"]);
+    const archived = groups.find((g) => g.label === "Archived");
+    expect(archived?.accounts.map((a) => a.id)).toEqual(["old-savings"]);
   });
 });

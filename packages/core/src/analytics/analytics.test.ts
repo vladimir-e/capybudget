@@ -414,6 +414,20 @@ describe("getNetWorthOverTime", () => {
     expect(jan.netWorth).toBe(200000);
   });
 
+  // An empty include-set is "count NOTHING" — distinct from omitting the arg,
+  // which is "count the default accounts". Points still emit across the range.
+  it("treats an empty include set as including nothing, not as a default", () => {
+    const result = getNetWorthOverTime(ACCOUNTS, TRANSACTIONS, {
+      start: new Date(2026, 0, 1),
+      end: new Date(2026, 3, 1),
+    }, new Set());
+    expect(result.length).toBe(3);
+    for (const point of result) {
+      expect(point.netWorth).toBe(0);
+      expect(point.byAccount).toEqual({});
+    }
+  });
+
   it("returns no points for a sub-monthly range with no qualifying month", () => {
     const result = getNetWorthOverTime(ACCOUNTS, TRANSACTIONS, {
       start: new Date(2026, 1, 15),

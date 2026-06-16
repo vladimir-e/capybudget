@@ -1,7 +1,6 @@
 import { useMemo, useState } from "react";
 import { ChevronDown } from "lucide-react";
 import type { Account } from "@capybudget/core";
-import { ACCOUNT_TYPE_LABELS, ACCOUNT_TYPE_ORDER } from "@capybudget/core";
 import {
   Popover,
   PopoverContent,
@@ -11,56 +10,16 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
+  groupAccounts,
   setInclusionForIds,
   toggleAccountInclusion,
+  type AccountGroup,
 } from "./net-worth-account-filter-utils";
 
 interface NetWorthAccountFilterProps {
   accounts: Account[];
   excludedIds: Set<string>;
   onChange: (next: Set<string>) => void;
-}
-
-interface AccountGroup {
-  key: string;
-  label: string;
-  accounts: Account[];
-}
-
-const ARCHIVED_GROUP_KEY = "__archived__";
-
-function byTypeThenSortOrder(a: Account, b: Account): number {
-  const ai = ACCOUNT_TYPE_ORDER.indexOf(a.type);
-  const bi = ACCOUNT_TYPE_ORDER.indexOf(b.type);
-  if (ai !== bi) return ai - bi;
-  return a.sortOrder - b.sortOrder;
-}
-
-/** Group by type in ACCOUNT_TYPE_ORDER, archived accounts collected into a single
- *  trailing "Archived" section (never duplicated into their type group). */
-function groupAccounts(accounts: Account[]): AccountGroup[] {
-  const active = accounts.filter((a) => !a.archived);
-  const archived = accounts.filter((a) => a.archived);
-
-  const groups: AccountGroup[] = [];
-  for (const type of ACCOUNT_TYPE_ORDER) {
-    const inType = active
-      .filter((a) => a.type === type)
-      .sort((a, b) => a.sortOrder - b.sortOrder);
-    if (inType.length > 0) {
-      groups.push({ key: type, label: ACCOUNT_TYPE_LABELS[type], accounts: inType });
-    }
-  }
-
-  if (archived.length > 0) {
-    groups.push({
-      key: ARCHIVED_GROUP_KEY,
-      label: "Archived",
-      accounts: [...archived].sort(byTypeThenSortOrder),
-    });
-  }
-
-  return groups;
 }
 
 /** Controlled popover + checklist over the TRANSIENT excluded-id set. Dumb:
@@ -95,7 +54,14 @@ export function NetWorthAccountFilter({
       .filter((g) => g.accounts.length > 0);
   }, [groups, query]);
 
-  const allIds = useMemo(() => accounts.map((a) => a.id), [accounts]);
+  const visibleIds = useMemo(
+    () => visibleGroups.flatMap((g) => g.accounts.map((a) => a.id)),
+    [visibleGroups],
+  );
+  const visibleIncludedCount = visibleIds.reduce(
+    (n, id) => (excludedIds.has(id) ? n : n + 1),
+    0,
+  );
 
   function setGroupInclusion(group: AccountGroup, nextIncluded: boolean) {
     onChange(
@@ -136,16 +102,16 @@ export function NetWorthAccountFilter({
             <Button
               variant="ghost"
               size="xs"
-              onClick={() => onChange(new Set())}
-              disabled={excludedIds.size === 0}
+              onClick={() => onChange(setInclusionForIds(visibleIds, true, excludedIds))}
+              disabled={visibleIncludedCount === visibleIds.length}
             >
               Select all
             </Button>
             <Button
               variant="ghost"
               size="xs"
-              onClick={() => onChange(new Set(allIds))}
-              disabled={includedCount === 0}
+              onClick={() => onChange(setInclusionForIds(visibleIds, false, excludedIds))}
+              disabled={visibleIncludedCount === 0}
             >
               Clear all
             </Button>

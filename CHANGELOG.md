@@ -13,6 +13,7 @@ CHANGELOG PHILOSOPHY:
 
 - **Capy** - Fixed the Claude Code provider dropping answer text, losing follow-up chips, and showing empty bubbles after Claude CLI 2.1.x stream changes; render tools now reject malformed payloads so the model self-corrects.
 - **Demo** - Export script (#64): write a generated demo scenario as a real budget folder for testers; cash accounts no longer drift below zero.
+- **Analytics** - Net Worth tab gains a transient per-account filter to include/exclude accounts from the chart without changing saved Net Worth settings.
 
 ## 1.0.0 — 2026-06-09
 

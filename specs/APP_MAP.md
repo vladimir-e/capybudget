@@ -30,7 +30,9 @@ Tracking toward / Over budget). What each shows:
 - **Spending** — donut of spend by category; Expenses/Income toggle.
 - **Cash Flow** — paired income-vs-expenses bars per period; hover a period for its
   income, expenses, and net.
-- **Net Worth** — total value over time, switchable Bar / Area.
+- **Net Worth** — total value over time, switchable Bar / Area; a per-account
+  filter popover narrows which accounts feed the chart, without changing your
+  saved Net Worth settings.
 - **Compare** — pick categories from a left-hand checklist; their trends draw as
   overlaid lines to compare; Expenses/Income toggle.
 - **Merchants** — horizontal bars of top merchants by amount, with a ranked table
