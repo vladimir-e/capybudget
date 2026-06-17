@@ -25,6 +25,12 @@ import {
  *  subtracts one day internally so the displayed range is inclusive. */
 export interface LockedFilters {
   categoryId?: string;
+  /** A set of category ids the drilldown spans (`""` = Uncategorized) — used
+   *  when no single category applies, e.g. the Compare tab's multi-category
+   *  drilldown. Rendered as one chip per category, collapsing to an
+   *  "N categories" chip past `CATEGORY_CHIP_LIMIT`. Independent of the
+   *  single-`categoryId` path, which Spending/Merchants keep using. */
+  categoryIds?: string[];
   merchant?: string;
   dateRange?: { from: Date; to: Date };
 }
@@ -41,6 +47,10 @@ interface TransactionsBrowserProps {
 /** Below this row count, the search field adds clutter without value. */
 const SEARCH_THRESHOLD = 10;
 
+/** Past this many categories in a multi-category lock, collapse to a single
+ *  "N categories" chip rather than papering the row with name chips. */
+const CATEGORY_CHIP_LIMIT = 4;
+
 // ---------------------------------------------------------------------------
 // Chips
 // ---------------------------------------------------------------------------
@@ -53,6 +63,10 @@ function formatDateLabel(d: Date): string {
   });
 }
 
+function categoryName(id: string, categories: Category[]): string {
+  return categories.find((c) => c.id === id)?.name ?? "Uncategorized";
+}
+
 function FilterChips({
   locked,
   categories,
@@ -63,8 +77,17 @@ function FilterChips({
   const chips: string[] = [];
 
   if (locked.categoryId !== undefined) {
-    const cat = categories.find((c) => c.id === locked.categoryId);
-    chips.push(cat?.name ?? "Uncategorized");
+    chips.push(categoryName(locked.categoryId, categories));
+  }
+
+  if (locked.categoryIds !== undefined) {
+    if (locked.categoryIds.length > CATEGORY_CHIP_LIMIT) {
+      chips.push(`${locked.categoryIds.length} categories`);
+    } else {
+      for (const id of locked.categoryIds) {
+        chips.push(categoryName(id, categories));
+      }
+    }
   }
 
   if (locked.merchant !== undefined) {
@@ -87,9 +110,9 @@ function FilterChips({
 
   return (
     <div className="flex flex-wrap gap-1.5">
-      {chips.map((label) => (
+      {chips.map((label, i) => (
         <span
-          key={label}
+          key={i}
           className="inline-flex items-center gap-1 rounded-full bg-muted px-2.5 py-0.5 text-xs text-muted-foreground"
         >
           {label}

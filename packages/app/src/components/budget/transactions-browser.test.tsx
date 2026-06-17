@@ -111,6 +111,65 @@ describe("TransactionsBrowser", () => {
     expect(screen.queryByText(/Jun 1, 2026/)).not.toBeInTheDocument();
   });
 
+  it("renders one chip per category for a multi-category lock, including Uncategorized", () => {
+    const dining = makeCategory({ id: "cat-dining", name: "Dining" });
+    mockCategories = [groceries, housing, dining];
+
+    renderWithProviders(
+      <TransactionsBrowser
+        transactions={makeTxns(1)}
+        // Mixed set incl. the synthetic Uncategorized id ("").
+        lockedFilters={{ categoryIds: [housing.id, dining.id, ""] }}
+        title="Jan 2026"
+      />,
+    );
+
+    // None of these names is the rows' category (rows are Groceries), so each
+    // appears exactly once — as its chip.
+    expect(screen.getByText("Housing")).toBeInTheDocument();
+    expect(screen.getByText("Dining")).toBeInTheDocument();
+    expect(screen.getByText("Uncategorized")).toBeInTheDocument();
+    // Not collapsed: the "N categories" summary chip must be absent at/below
+    // the threshold.
+    expect(screen.queryByText(/\d+ categories/)).not.toBeInTheDocument();
+  });
+
+  it("collapses a multi-category lock to an 'N categories' chip past the threshold", () => {
+    renderWithProviders(
+      <TransactionsBrowser
+        transactions={makeTxns(1)}
+        // Five ids > CATEGORY_CHIP_LIMIT (4) → one summary chip.
+        lockedFilters={{ categoryIds: ["a", "b", "c", "d", "e"] }}
+        title="Jan 2026"
+      />,
+    );
+
+    expect(screen.getByText("5 categories")).toBeInTheDocument();
+    // No per-category chip leaked through (unknown ids would resolve to
+    // "Uncategorized" individually if the collapse failed).
+    expect(screen.queryByText("Uncategorized")).not.toBeInTheDocument();
+  });
+
+  it("renders exactly the threshold count as individual chips (no collapse at the boundary)", () => {
+    const dining = makeCategory({ id: "cat-dining", name: "Dining" });
+    const travel = makeCategory({ id: "cat-travel", name: "Travel" });
+    mockCategories = [groceries, housing, dining, travel];
+
+    renderWithProviders(
+      <TransactionsBrowser
+        transactions={makeTxns(1)}
+        // Exactly 4 (== CATEGORY_CHIP_LIMIT) → still individual chips.
+        lockedFilters={{ categoryIds: [groceries.id, housing.id, dining.id, travel.id] }}
+        title="Jan 2026"
+      />,
+    );
+
+    expect(screen.getByText("Housing")).toBeInTheDocument();
+    expect(screen.getByText("Dining")).toBeInTheDocument();
+    expect(screen.getByText("Travel")).toBeInTheDocument();
+    expect(screen.queryByText(/\d+ categories/)).not.toBeInTheDocument();
+  });
+
   it("renders the merchant chip for a merchant filter, and falls back to 'Unknown' for empty", () => {
     const { rerender } = renderWithProviders(
       <TransactionsBrowser

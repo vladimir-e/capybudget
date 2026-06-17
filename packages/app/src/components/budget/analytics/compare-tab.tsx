@@ -535,7 +535,10 @@ function CompareTabBody({ transactions, categories, dateRange, viewMode, hasAnyT
         transactions={drilldownTransactions}
         lockedFilters={
           drilldown
-            ? { dateRange: { from: drilldown.range.from, to: drilldown.range.to } }
+            ? {
+                categoryIds: drilldown.categoryIds,
+                dateRange: { from: drilldown.range.from, to: drilldown.range.to },
+              }
             : {}
         }
         title={drilldown?.label ?? ""}
