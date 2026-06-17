@@ -21,10 +21,13 @@ import { ChartSwitcher } from "./chart-switcher";
 import { EmptyState } from "@/components/ui/empty-state";
 import { NO_DATA_YET } from "./empty-copy";
 import { TransactionsModal } from "@/components/budget/transactions-modal";
+import { formatCountAndTotal } from "./format-range";
 import { getRechartsPayload } from "./recharts-payload";
 import {
+  bucketWindow,
   filterForCompareDrilldown,
   type CompareDrilldown,
+  type CompareViewMode,
 } from "./compare-drilldown";
 
 // ── Constants ──
@@ -48,7 +51,7 @@ const STORAGE_KEY_PREFIX = "capybudget:compare-selected-";
 
 // ── Types ──
 
-type ViewMode = "expense" | "income";
+type ViewMode = CompareViewMode;
 
 const VIEW_OPTIONS: Array<{ value: ViewMode; label: string }> = [
   { value: "expense", label: "Expenses" },
@@ -335,27 +338,17 @@ function CompareTabBody({ transactions, categories, dateRange, viewMode, hasAnyT
   }, [seriesData.series, pick.colorMap]);
 
   // Chart data shape: { month, __start, __end, [categoryName]: cents, ... }.
-  // `__start`/`__end` carry the bucket's own transaction window so a click
-  // maps deterministically back to its date range — never re-parsing the
-  // X-axis label. The window is clamped to the period so the last (possibly
-  // partial) bucket doesn't reach past `dateRange.end`. The `__`-prefixed
-  // keys never render as lines (only `seriesWithColor` keys do).
+  // Each row carries its bucket's own transaction window so a click maps
+  // deterministically back to a date range. The `__`-prefixed keys never
+  // render as lines — only `seriesWithColor` keys do.
   const chartData = useMemo(() => {
     const nameById = new Map(seriesData.series.map((s) => [s.categoryId, s.categoryName]));
-    const rangeEndMs = dateRange.end.getTime();
-    const rangeStartMs = dateRange.start.getTime();
     return seriesData.points.map((point) => {
-      const periodStart = new Date(point.date);
-      const periodEnd =
-        granularity === "week"
-          ? new Date(periodStart.getFullYear(), periodStart.getMonth(), periodStart.getDate() + 7)
-          : new Date(periodStart.getFullYear(), periodStart.getMonth() + 1, 1);
-      const startMs = Math.max(periodStart.getTime(), rangeStartMs);
-      const endMs = Math.min(periodEnd.getTime(), rangeEndMs);
+      const win = bucketWindow(point.date, granularity, dateRange);
       const row: Record<string, string | number> = {
         month: point.month,
-        __start: new Date(startMs).toISOString(),
-        __end: new Date(endMs).toISOString(),
+        __start: win.start.toISOString(),
+        __end: win.end.toISOString(),
       };
       for (const [catId, amt] of Object.entries(point.byCategory)) {
         const name = nameById.get(catId) ?? "Uncategorized";
@@ -372,10 +365,9 @@ function CompareTabBody({ transactions, categories, dateRange, viewMode, hasAnyT
     [drilldown, transactions],
   );
 
-  // Map a click on the chart back to its bucket's date window. Recharts hands
-  // us `activeLabel` (the month string) plus `activePayload`, whose entries
-  // carry the underlying data row — including the `__start`/`__end` we threaded
-  // through. No active bucket or no selected categories → no-op.
+  // Recharts' click state exposes `activePayload`, whose entries carry the
+  // underlying data row — including the bucket window we threaded onto it.
+  // No active bucket or no selected categories → no-op.
   function handleChartClick(state: unknown) {
     if (!anySelected) return;
     const payload = (state as { activePayload?: Array<unknown> } | null)?.activePayload?.[0];
@@ -547,19 +539,10 @@ function CompareTabBody({ transactions, categories, dateRange, viewMode, hasAnyT
             : {}
         }
         title={drilldown?.label ?? ""}
-        subtitle={drilldown ? formatCompareSubtitle(drilldownTransactions) : undefined}
+        // The bucket's date label is already the modal title, so the subtitle
+        // is just count/total — no range label prefix.
+        subtitle={drilldown ? formatCountAndTotal(drilldownTransactions) : undefined}
       />
     </div>
   );
-}
-
-/** Subtitle for the Compare drilldown modal: transaction count plus the
- *  abs-summed total when there's more than one. The bucket's date label is
- *  already the modal title, so it isn't repeated here. */
-function formatCompareSubtitle(transactions: Transaction[]): string {
-  const count = transactions.length;
-  const base = `${count} transaction${count === 1 ? "" : "s"}`;
-  if (count <= 1) return base;
-  const total = transactions.reduce((sum, t) => sum + Math.abs(t.amount), 0);
-  return `${base} · ${formatMoney(total)}`;
 }

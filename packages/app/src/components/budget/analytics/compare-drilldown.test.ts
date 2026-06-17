@@ -1,7 +1,43 @@
 import { describe, it, expect } from "vitest";
 import type { Transaction } from "@capybudget/core";
-import { filterForCompareDrilldown } from "./compare-drilldown";
+import { bucketWindow, filterForCompareDrilldown } from "./compare-drilldown";
 import { makeTransaction } from "@/test/factories";
+
+describe("bucketWindow", () => {
+  it("monthly bucket: window spans the calendar month [first, next-first)", () => {
+    const range = { start: new Date(2024, 0, 1), end: new Date(2024, 3, 1) };
+    // Feb point — first-of-month ISO, as getCategoryTrends emits.
+    const win = bucketWindow(new Date(2024, 1, 1).toISOString(), "month", range);
+    expect(win.start).toEqual(new Date(2024, 1, 1));
+    expect(win.end).toEqual(new Date(2024, 2, 1));
+  });
+
+  it("weekly bucket: window spans the Mon-anchored week [Mon, Mon+7)", () => {
+    const range = { start: new Date(2024, 0, 1), end: new Date(2024, 2, 1) };
+    // Mon Jan 8 → through Mon Jan 15 exclusive.
+    const win = bucketWindow(new Date(2024, 0, 8).toISOString(), "week", range);
+    expect(win.start).toEqual(new Date(2024, 0, 8));
+    expect(win.end).toEqual(new Date(2024, 0, 15));
+  });
+
+  it("partial leading week: start clamps up to range.start when the range opens mid-week", () => {
+    // Range opens Wed Jan 3. The week's Monday anchor is Jan 1 (before the
+    // range), so the bucket's window must start at range.start, not Jan 1.
+    const range = { start: new Date(2024, 0, 3), end: new Date(2024, 2, 1) };
+    const win = bucketWindow(new Date(2024, 0, 1).toISOString(), "week", range);
+    expect(win.start).toEqual(new Date(2024, 0, 3));
+    expect(win.end).toEqual(new Date(2024, 0, 8));
+  });
+
+  it("partial trailing bucket: end clamps down to range.end", () => {
+    // Range ends mid-February. The Feb monthly bucket's window must stop at
+    // range.end, never reaching Mar 1.
+    const range = { start: new Date(2024, 0, 1), end: new Date(2024, 1, 15) };
+    const win = bucketWindow(new Date(2024, 1, 1).toISOString(), "month", range);
+    expect(win.start).toEqual(new Date(2024, 1, 1));
+    expect(win.end).toEqual(new Date(2024, 1, 15));
+  });
+});
 
 describe("filterForCompareDrilldown", () => {
   // January window: [Jan 1, Feb 1)

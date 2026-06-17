@@ -53,19 +53,23 @@ export function formatRangeLabel(range: DateRange, periodType: PeriodType): stri
   return `${SHORT_MONTHS[startMonth]} ${startYear} – ${SHORT_MONTHS[endMonth]} ${endYear}`;
 }
 
-/** Subtitle for the transactions drilldown modal: range label + transaction
- *  count, plus the abs-summed total when there's more than one transaction.
- *  The per-transaction `Math.abs` keeps the total reconciled with the
- *  pie-slice / merchant-row / KPI figure that opened the modal. */
+/** Transaction count plus the abs-summed total when there's more than one,
+ *  e.g. "3 transactions · $128.40". The per-transaction `Math.abs` keeps the
+ *  total reconciled with the pie-slice / merchant-row / chart figure that
+ *  opened the modal. Shared by every drilldown subtitle. */
+export function formatCountAndTotal(transactions: Transaction[]): string {
+  const count = transactions.length;
+  const base = `${count} transaction${count === 1 ? "" : "s"}`;
+  if (count <= 1) return base;
+  const total = transactions.reduce((sum, t) => sum + Math.abs(t.amount), 0);
+  return `${base} · ${formatMoney(total)}`;
+}
+
+/** Subtitle for the transactions drilldown modal: range label + count/total. */
 export function formatDrilldownSubtitle(
   range: DateRange,
   periodType: PeriodType,
   transactions: Transaction[],
 ): string {
-  const label = formatRangeLabel(range, periodType);
-  const count = transactions.length;
-  const base = `${label} · ${count} transaction${count === 1 ? "" : "s"}`;
-  if (count <= 1) return base;
-  const total = transactions.reduce((sum, t) => sum + Math.abs(t.amount), 0);
-  return `${base} · ${formatMoney(total)}`;
+  return `${formatRangeLabel(range, periodType)} · ${formatCountAndTotal(transactions)}`;
 }

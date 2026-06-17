@@ -82,7 +82,7 @@ Keyboard-first workflow for the majority of user actions. Controls are intuitive
 
 ### Transactions Browser (Drilldown)
 
-Analytics surfaces — Monthly Budget, Spending, Merchants — each render aggregate numbers. Every meaningful aggregate is a drilldown into the underlying transactions: clicking opens a **read-only, pre-filtered transactions popup** (modal, portalled, ESC + click-outside close) showing exactly the rows that produced that number.
+Analytics surfaces — Monthly Budget, Spending, Merchants, Compare — each render aggregate numbers. Every meaningful aggregate is a drilldown into the underlying transactions: clicking opens a **read-only, pre-filtered transactions popup** (modal, portalled, ESC + click-outside close) showing exactly the rows that produced that number.
 
 - **Read-only.** No inline editing, deletion, selection, or bulk actions in the popup. Editing remains the job of the account-detail view.
 - **Pre-filtered, locked context.** The caller filters the transactions array and passes locked-filter chips for display (category, merchant, date range). Chips are not removable — to broaden, the user closes the modal.
@@ -96,6 +96,7 @@ Drilldown points wired this pass:
 | Monthly Budget | "Spent" cell on a category row (when > $0) | category + month |
 | Spending | Pie slice (current view mode: expenses or income) | category + period |
 | Merchants | Merchant name in the ranked list, or its bar in the chart | merchant + period |
+| Compare | A month/week point on the trend chart | selected categories + bucket window |
 
 The same component is shaped to render later as a Capy-chat block (no modal chrome) and behind a `/transactions` deeplink route. Modal-only this pass.
 
