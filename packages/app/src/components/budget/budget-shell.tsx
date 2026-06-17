@@ -21,6 +21,7 @@ import {
 import { useUndoRedo } from "@/hooks/use-undo-redo";
 import { useReorderAccounts } from "@/hooks/use-account-mutations";
 import { useAccounts } from "@/hooks/use-budget-data";
+import { useStartupUpdateCheck } from "@/hooks/use-startup-update-check";
 import { useCustomInstructions } from "@/hooks/use-custom-instructions";
 import { useCustomCommands } from "@/hooks/use-custom-commands";
 import { useImportStore } from "@/stores/import-store";
@@ -57,6 +58,8 @@ export function BudgetShell() {
   const reorderAccounts = useReorderAccounts();
   const { data: accounts = [] } = useAccounts();
   const hasAccounts = accounts.some((a) => !a.archived);
+
+  useStartupUpdateCheck({ path, name, navigate });
 
   // Determine active section from current route
   const matches = useMatches();

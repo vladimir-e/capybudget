@@ -1,14 +1,15 @@
 import { useCallback, useEffect, useState } from "react"
 import { useNavigate, useSearch } from "@tanstack/react-router"
-import { ArrowLeft, Shapes, Sparkles } from "lucide-react"
+import { ArrowLeft, RefreshCw, Shapes, Sparkles } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { ProviderSection } from "./provider-section"
 import { ChatInstructionsSection } from "./chat-instructions-section"
 import { CategoriesSection } from "./categories-section"
+import { UpdatesSection } from "./updates-section"
 
 declare const __IS_DEMO__: boolean
 
-type SettingsSection = "intelligence" | "categories"
+type SettingsSection = "intelligence" | "categories" | "updates"
 
 const SECTIONS: {
   id: SettingsSection
@@ -28,12 +29,30 @@ const SECTIONS: {
     description: "Organize spending",
     icon: Shapes,
   },
+  {
+    id: "updates",
+    label: "Updates",
+    description: "App version",
+    icon: RefreshCw,
+  },
 ]
+
+const SECTION_IDS = new Set(SECTIONS.map((s) => s.id))
+
+function resolveSection(section: string | undefined): SettingsSection {
+  if (section && SECTION_IDS.has(section as SettingsSection)) {
+    if (section === "updates" && __IS_DEMO__) return "intelligence"
+    return section as SettingsSection
+  }
+  return "intelligence"
+}
 
 export function SettingsScreen() {
   const navigate = useNavigate()
-  const { path, name } = useSearch({ from: "/budget" })
-  const [active, setActive] = useState<SettingsSection>("intelligence")
+  const { path, name, section } = useSearch({ from: "/budget" })
+  const [active, setActive] = useState<SettingsSection>(() => resolveSection(section))
+
+  const visibleSections = SECTIONS.filter((s) => s.id !== "updates" || !__IS_DEMO__)
 
   const handleBack = useCallback(() => {
     navigate({ to: "/budget", search: { path, name } })
@@ -76,12 +95,12 @@ export function SettingsScreen() {
           <h2 className="text-base font-bold tracking-tight">Settings</h2>
         </div>
         <div className="flex flex-col gap-0.5 px-2">
-          {SECTIONS.map((section) => (
+          {visibleSections.map((s) => (
             <SectionItem
-              key={section.id}
-              {...section}
-              active={active === section.id}
-              onSelect={() => setActive(section.id)}
+              key={s.id}
+              {...s}
+              active={active === s.id}
+              onSelect={() => setActive(s.id)}
             />
           ))}
         </div>
@@ -97,6 +116,7 @@ export function SettingsScreen() {
             </>
           )}
           {active === "categories" && <CategoriesSection />}
+          {!__IS_DEMO__ && active === "updates" && <UpdatesSection />}
         </div>
       </main>
     </div>

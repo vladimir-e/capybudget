@@ -15,12 +15,14 @@ import { useImportStore } from "@/stores/import-store";
 interface BudgetSearch {
   path: string;
   name: string;
+  section?: string;
 }
 
 export const Route = createFileRoute("/budget")({
   validateSearch: (search: Record<string, unknown>): BudgetSearch => ({
     path: (search.path as string) ?? "",
     name: (search.name as string) ?? "Budget",
+    section: search.section as string | undefined,
   }),
   component: BudgetLayout,
 });

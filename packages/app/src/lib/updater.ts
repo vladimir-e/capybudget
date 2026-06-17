@@ -1,42 +1,38 @@
 import { check, type Update } from "@tauri-apps/plugin-updater";
 import { relaunch } from "@tauri-apps/plugin-process";
-import { ask } from "@tauri-apps/plugin-dialog";
 
-// Single-flight guard: a stray double-call (HMR, double mount in
-// StrictMode dev) shouldn't kick off two parallel downloads.
-let inFlight: Promise<void> | null = null;
+// Granular updater primitives for the Settings updates panel and the
+// startup toast check. Errors propagate to the caller (the panel surfaces
+// them); the boot check swallows them on its own.
 
-export function checkForUpdates(): Promise<void> {
-  if (inFlight) return inFlight;
-  inFlight = run().finally(() => {
-    inFlight = null;
-  });
-  return inFlight;
+export async function checkForUpdate(): Promise<Update | null> {
+  return check();
 }
 
-async function run(): Promise<void> {
-  let update: Update | null;
-  try {
-    update = await check();
-  } catch (err) {
-    // Network down, GitHub rate-limited, malformed manifest — none of
-    // those should bother the user. Silent failure is correct here;
-    // they'll be offered the update on the next launch.
-    console.warn("update check failed:", err);
-    return;
-  }
-  if (!update) return;
+let installing = false;
 
-  const confirmed = await ask(
-    `Capy Budget ${update.version} is available. Install and restart now?`,
-    { title: "Update available", kind: "info", okLabel: "Install", cancelLabel: "Later" },
-  );
-  if (!confirmed) return;
-
+export async function installUpdate(
+  update: Update,
+  onProgress?: (p: { downloaded: number; total: number | null }) => void,
+): Promise<void> {
+  if (installing) return;
+  installing = true;
   try {
-    await update.downloadAndInstall();
+    let downloaded = 0;
+    let total: number | null = null;
+    await update.downloadAndInstall((event) => {
+      switch (event.event) {
+        case "Started":
+          total = event.data.contentLength ?? null;
+          break;
+        case "Progress":
+          downloaded += event.data.chunkLength;
+          onProgress?.({ downloaded, total });
+          break;
+      }
+    });
     await relaunch();
-  } catch (err) {
-    console.error("update install failed:", err);
+  } finally {
+    installing = false;
   }
 }

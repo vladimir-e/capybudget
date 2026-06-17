@@ -31,6 +31,17 @@ vi.mock("@/services/claude-cli-detect", () => ({
   _resetClaudeCliCacheForTests: () => {},
 }))
 
+// The Updates section mounts in this (non-demo) env; keep its Tauri-only
+// imports inert so the screen renders without a Tauri shell.
+vi.mock("@/lib/updater", () => ({
+  checkForUpdate: vi.fn().mockResolvedValue(null),
+  installUpdate: vi.fn().mockResolvedValue(undefined),
+}))
+
+vi.mock("@tauri-apps/api/app", () => ({
+  getVersion: vi.fn().mockResolvedValue("1.0.0"),
+}))
+
 import { SettingsScreen } from "./settings-screen"
 import {
   useIntelligenceStore,
