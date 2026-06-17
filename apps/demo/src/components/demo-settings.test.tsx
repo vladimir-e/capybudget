@@ -1,10 +1,46 @@
 import { afterEach, describe, expect, it } from "vitest"
 import { cleanup, render, screen } from "@testing-library/react"
+import {
+  createMemoryHistory,
+  createRootRoute,
+  createRoute,
+  createRouter,
+  Outlet,
+  RouterProvider,
+} from "@tanstack/react-router"
 import { ProviderSection } from "@/components/settings/provider-section"
+import { SettingsScreen } from "@/components/settings/settings-screen"
 
 // Runs under the demo vite config, so __IS_DEMO__ is true here.
 
 afterEach(cleanup)
+
+async function renderSettings() {
+  const rootRoute = createRootRoute()
+  const budgetRoute = createRoute({
+    getParentRoute: () => rootRoute,
+    path: "/budget",
+    validateSearch: (search: Record<string, unknown>) => ({
+      path: (search.path as string) ?? "",
+      name: (search.name as string) ?? "Budget",
+      section: search.section as string | undefined,
+    }),
+    component: () => <Outlet />,
+  })
+  const settingsRoute = createRoute({
+    getParentRoute: () => budgetRoute,
+    path: "/settings",
+    component: SettingsScreen,
+  })
+  const router = createRouter({
+    routeTree: rootRoute.addChildren([budgetRoute.addChildren([settingsRoute])]),
+    history: createMemoryHistory({
+      initialEntries: ["/budget/settings?path=/test&name=Test"],
+    }),
+  })
+  await router.load()
+  return render(<RouterProvider router={router} />)
+}
 
 describe("ProviderSection in the demo", () => {
   it("shows the desktop-only notice", () => {
@@ -28,5 +64,14 @@ describe("ProviderSection in the demo", () => {
   it("does not render any per-provider config (no API key field)", () => {
     render(<ProviderSection />)
     expect(screen.queryByText("API key")).not.toBeInTheDocument()
+  })
+})
+
+describe("SettingsScreen in the demo", () => {
+  it("omits the Updates nav item — updates are desktop-only", async () => {
+    await renderSettings()
+    expect(
+      screen.queryByRole("button", { name: /updates/i }),
+    ).not.toBeInTheDocument()
   })
 })

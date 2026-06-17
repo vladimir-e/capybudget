@@ -17,6 +17,13 @@ const DEFER_MS = 1500
 export function useStartupUpdateCheck({ path, name, navigate }: StartupUpdateCheckArgs) {
   const ran = useRef(false)
 
+  // The check fires once, but the toast's deep-link must point at whatever
+  // budget is open when the user clicks it — not the one open at first mount.
+  const latest = useRef({ path, name, navigate })
+  useEffect(() => {
+    latest.current = { path, name, navigate }
+  })
+
   useEffect(() => {
     if (!("__TAURI_INTERNALS__" in window)) return
     if (ran.current) return
@@ -29,11 +36,13 @@ export function useStartupUpdateCheck({ path, name, navigate }: StartupUpdateChe
           toast(`Capy ${update.version} available`, {
             action: {
               label: "Update",
-              onClick: () =>
+              onClick: () => {
+                const { path, name, navigate } = latest.current
                 navigate({
                   to: "/budget/settings",
                   search: { path, name, section: "updates" },
-                }),
+                })
+              },
             },
           })
         })
@@ -41,5 +50,5 @@ export function useStartupUpdateCheck({ path, name, navigate }: StartupUpdateChe
     }, DEFER_MS)
 
     return () => clearTimeout(timer)
-  }, [path, name, navigate])
+  }, [])
 }

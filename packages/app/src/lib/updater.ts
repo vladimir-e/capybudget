@@ -9,30 +9,22 @@ export async function checkForUpdate(): Promise<Update | null> {
   return check();
 }
 
-let installing = false;
-
 export async function installUpdate(
   update: Update,
   onProgress?: (p: { downloaded: number; total: number | null }) => void,
 ): Promise<void> {
-  if (installing) return;
-  installing = true;
-  try {
-    let downloaded = 0;
-    let total: number | null = null;
-    await update.downloadAndInstall((event) => {
-      switch (event.event) {
-        case "Started":
-          total = event.data.contentLength ?? null;
-          break;
-        case "Progress":
-          downloaded += event.data.chunkLength;
-          onProgress?.({ downloaded, total });
-          break;
-      }
-    });
-    await relaunch();
-  } finally {
-    installing = false;
-  }
+  let downloaded = 0;
+  let total: number | null = null;
+  await update.downloadAndInstall((event) => {
+    switch (event.event) {
+      case "Started":
+        total = event.data.contentLength ?? null;
+        break;
+      case "Progress":
+        downloaded += event.data.chunkLength;
+        onProgress?.({ downloaded, total });
+        break;
+    }
+  });
+  await relaunch();
 }
