@@ -1,7 +1,64 @@
 import { describe, it, expect } from "vitest";
 import type { Transaction } from "@capybudget/core";
-import { bucketWindow, filterForCompareDrilldown } from "./compare-drilldown";
+import {
+  bucketWindow,
+  filterForCompareDrilldown,
+  resolveClickedRow,
+  type CompareChartRow,
+} from "./compare-drilldown";
 import { makeTransaction } from "@/test/factories";
+
+describe("resolveClickedRow", () => {
+  const rows: CompareChartRow[] = [
+    { month: "Jan 2024", __start: "2024-01-01T00:00:00.000Z", __end: "2024-02-01T00:00:00.000Z", Groceries: 1500 },
+    { month: "Feb 2024", __start: "2024-02-01T00:00:00.000Z", __end: "2024-03-01T00:00:00.000Z", Groceries: 1300 },
+    { month: "Mar 2024", __start: "2024-03-01T00:00:00.000Z", __end: "2024-04-01T00:00:00.000Z", Groceries: 900 },
+  ];
+
+  // The shape a Recharts 3.8 LineChart wrapper onClick actually passes
+  // (MouseHandlerDataParam) — no activePayload, just the index + label.
+  function state(index: number, label: string) {
+    return {
+      activeTooltipIndex: index,
+      activeIndex: index,
+      activeLabel: label,
+      isTooltipActive: true,
+      activeDataKey: "Groceries",
+      activeCoordinate: { x: 120, y: 80 },
+    };
+  }
+
+  it("resolves the clicked row by activeTooltipIndex", () => {
+    const s = state(1, "Feb 2024");
+    expect(resolveClickedRow(rows, s.activeTooltipIndex, s.activeLabel)).toBe(rows[1]);
+  });
+
+  it("falls back to activeLabel when the index is missing", () => {
+    expect(resolveClickedRow(rows, undefined, "Mar 2024")).toBe(rows[2]);
+  });
+
+  it("accepts a string-form tooltip index (TooltipIndex is string | null)", () => {
+    // Recharts types activeTooltipIndex as `number | string | undefined`.
+    expect(resolveClickedRow(rows, "0", "Jan 2024")).toBe(rows[0]);
+  });
+
+  it("returns null when neither index nor label resolves a row", () => {
+    expect(resolveClickedRow(rows, 9, undefined)).toBeNull();
+    expect(resolveClickedRow(rows, undefined, "Dec 2024")).toBeNull();
+    expect(resolveClickedRow(rows, undefined, undefined)).toBeNull();
+  });
+
+  it("ignores an out-of-range index and uses the label fallback instead", () => {
+    expect(resolveClickedRow(rows, 99, "Feb 2024")).toBe(rows[1]);
+  });
+
+  it("does not let null / empty-string indices coerce to row 0", () => {
+    // `TooltipIndex` is `string | null`; Number(null) and Number("") are both
+    // 0, which must NOT silently select the first bucket on an empty click.
+    expect(resolveClickedRow(rows, null, undefined)).toBeNull();
+    expect(resolveClickedRow(rows, "", undefined)).toBeNull();
+  });
+});
 
 describe("bucketWindow", () => {
   it("monthly bucket: window spans the calendar month [first, next-first)", () => {

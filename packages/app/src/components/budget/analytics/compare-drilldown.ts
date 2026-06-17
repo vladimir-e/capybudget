@@ -26,6 +26,42 @@ export function bucketWindow(
   return { start: new Date(startMs), end: new Date(endMs) };
 }
 
+/** One row of the Compare line chart. `month` is the X label; `__start`/`__end`
+ *  are the bucket's ISO window (see `bucketWindow`). The remaining keys are
+ *  dynamic per-category amounts, keyed by category name. */
+export type CompareChartRow = {
+  month: string;
+  __start: string;
+  __end: string;
+} & Record<string, string | number>;
+
+/** Resolve the chart row a Recharts `LineChart` `onClick` refers to.
+ *
+ *  The 3.x wrapper `onClick` passes a `MouseHandlerDataParam` with no
+ *  `activePayload` — only `activeTooltipIndex` (a number for a categorical
+ *  chart) and `activeLabel` (the X value). We index our own `chartData`:
+ *  the tooltip index first, then a `month`-label match as a fallback so a
+ *  future Recharts change to the index field can't silently break the click.
+ *  Returns `null` when neither resolves to a valid row. */
+export function resolveClickedRow(
+  rows: CompareChartRow[],
+  activeTooltipIndex: unknown,
+  activeLabel: unknown,
+): CompareChartRow | null {
+  // Only coerce a real number or a numeric string — `Number(null)`/`Number("")`
+  // are `0` and would wrongly resolve to the first bucket on an empty click.
+  if (typeof activeTooltipIndex === "number" || typeof activeTooltipIndex === "string") {
+    const idx = Number(activeTooltipIndex);
+    if (activeTooltipIndex !== "" && Number.isInteger(idx) && idx >= 0 && idx < rows.length) {
+      return rows[idx];
+    }
+  }
+  if (typeof activeLabel === "string") {
+    return rows.find((r) => r.month === activeLabel) ?? null;
+  }
+  return null;
+}
+
 /** A click target for the Compare line-chart drilldown.
  *
  *  `range` is the clicked bucket's own date window (see `bucketWindow`).

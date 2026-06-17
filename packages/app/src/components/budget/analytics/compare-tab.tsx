@@ -22,10 +22,11 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { NO_DATA_YET } from "./empty-copy";
 import { TransactionsModal } from "@/components/budget/transactions-modal";
 import { formatCountAndTotal } from "./format-range";
-import { getRechartsPayload } from "./recharts-payload";
 import {
   bucketWindow,
   filterForCompareDrilldown,
+  resolveClickedRow,
+  type CompareChartRow,
   type CompareDrilldown,
   type CompareViewMode,
 } from "./compare-drilldown";
@@ -343,9 +344,9 @@ function CompareTabBody({ transactions, categories, dateRange, viewMode, hasAnyT
   // render as lines — only `seriesWithColor` keys do.
   const chartData = useMemo(() => {
     const nameById = new Map(seriesData.series.map((s) => [s.categoryId, s.categoryName]));
-    return seriesData.points.map((point) => {
+    return seriesData.points.map((point): CompareChartRow => {
       const win = bucketWindow(point.date, granularity, dateRange);
-      const row: Record<string, string | number> = {
+      const row: CompareChartRow = {
         month: point.month,
         __start: win.start.toISOString(),
         __end: win.end.toISOString(),
@@ -365,16 +366,20 @@ function CompareTabBody({ transactions, categories, dateRange, viewMode, hasAnyT
     [drilldown, transactions],
   );
 
-  // Recharts' click state exposes `activePayload`, whose entries carry the
-  // underlying data row — including the bucket window we threaded onto it.
-  // No active bucket or no selected categories → no-op.
+  // A LineChart wrapper `onClick` in Recharts 3.x hands back a
+  // `MouseHandlerDataParam` (see recharts/types/synchronisation/types) — it
+  // has NO `activePayload`. It carries the active bucket's `activeTooltipIndex`
+  // (a number for a categorical chart) and `activeLabel` (the X value). We own
+  // `chartData`, so resolve the clicked row from the index, falling back to a
+  // label match if a future Recharts tweak stops populating the index. No
+  // active bucket or no selected categories → no-op.
   function handleChartClick(state: unknown) {
     if (!anySelected) return;
-    const payload = (state as { activePayload?: Array<unknown> } | null)?.activePayload?.[0];
-    const row = getRechartsPayload<{ month?: string; __start?: string; __end?: string }>(payload);
-    if (!row?.__start || !row.__end) return;
+    const s = state as { activeTooltipIndex?: unknown; activeLabel?: unknown } | null;
+    const row = resolveClickedRow(chartData, s?.activeTooltipIndex, s?.activeLabel);
+    if (!row) return;
     setDrilldown({
-      label: row.month ?? "",
+      label: row.month,
       range: { from: new Date(row.__start), to: new Date(row.__end) },
       categoryIds: selectedIdsForCore,
       mode: viewMode,
