@@ -514,8 +514,9 @@ function CompareTabBody({ transactions, categories, dateRange, viewMode, hasAnyT
                 content={<CompareTooltipContent />}
                 // A tall tooltip (many categories selected) can reach down into
                 // the legend band; the legend is an HTML overlay with no z-index,
-                // so the tooltip must claim one to render above it.
-                wrapperStyle={{ zIndex: 50 }}
+                // so the tooltip just needs to claim a positive one to sit above
+                // it. Kept low — well under the portalled dialog's z-50.
+                wrapperStyle={{ zIndex: 10 }}
                 cursor={{
                   stroke: "var(--brand)",
                   strokeWidth: 1.5,
