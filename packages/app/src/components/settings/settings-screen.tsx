@@ -52,6 +52,13 @@ export function SettingsScreen() {
   const { path, name, section } = useSearch({ from: "/budget" })
   const [active, setActive] = useState<SettingsSection>(() => resolveSection(section))
 
+  // Re-sync when a deep-link changes the param on an already-mounted screen
+  // (e.g. the boot update toast navigating to ?section=updates). Sidebar
+  // clicks call setActive without touching the URL, so they don't trip this.
+  useEffect(() => {
+    setActive(resolveSection(section))
+  }, [section])
+
   const visibleSections = SECTIONS.filter((s) => s.id !== "updates" || !__IS_DEMO__)
 
   const handleBack = useCallback(() => {

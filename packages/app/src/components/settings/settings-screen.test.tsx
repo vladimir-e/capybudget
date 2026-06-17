@@ -372,4 +372,32 @@ describe("SettingsScreen", () => {
       screen.getByRole("button", { name: "Back to budget" }),
     ).toBeInTheDocument()
   })
+
+  it("switches to Updates when the section param changes after mount", async () => {
+    const { router } = await renderSettings()
+
+    // Default mount lands on Intelligence, not the Updates section.
+    expect(screen.getByText("AI Provider")).toBeInTheDocument()
+    expect(screen.queryByText("Keep Capy up to date.")).not.toBeInTheDocument()
+
+    await router.navigate({
+      to: "/budget/settings",
+      search: { path: "/test", name: "Test", section: "updates" },
+    })
+
+    await waitFor(() => {
+      expect(screen.getByText("Keep Capy up to date.")).toBeInTheDocument()
+    })
+  })
+
+  it("lets a sidebar click switch sections without a URL change", async () => {
+    const user = userEvent.setup()
+    const { router } = await renderSettings()
+
+    await user.click(screen.getByRole("button", { name: /Updates/i }))
+
+    expect(await screen.findByText("Keep Capy up to date.")).toBeInTheDocument()
+    // The click drives local state only — the deep-link param stays unset.
+    expect(router.state.location.search).not.toHaveProperty("section")
+  })
 })
