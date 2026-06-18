@@ -34,7 +34,6 @@ const baseOptions = {
   repo,
   fileAdapter,
   currency: "USD",
-  format: { decimals: 2, symbolPosition: "before" } as const,
 };
 
 describe("canImport", () => {

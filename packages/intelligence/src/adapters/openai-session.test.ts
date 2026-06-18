@@ -225,7 +225,6 @@ function makeSession() {
     repo: {} as BudgetRepository,
     fileAdapter: {} as FileAdapter,
     currency: "USD",
-    format: { decimals: 2, symbolPosition: "before" },
   })
   return { session, events }
 }

@@ -56,9 +56,7 @@ describe("prompt/surface coherence", () => {
   }
 
   it("every tool the chat prompt cites is in the tool surface", () => {
-    const advertised = advertisedTools(
-      buildSystemPrompt("USD", { decimals: 2, symbolPosition: "before" }),
-    )
+    const advertised = advertisedTools(buildSystemPrompt("USD"))
     expect(advertised.length).toBeGreaterThan(0)
     for (const name of advertised) {
       expect(ALL_TOOL_NAMES, `chat prompt cites \`${name}\` but it isn't in the surface`).toContain(

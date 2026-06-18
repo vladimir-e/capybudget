@@ -40,14 +40,6 @@ export function useCurrency(): string {
   return useContext(CurrencyContext).currency;
 }
 
-/** The active money-format config (decimals + symbol position). For threading
- *  into the Capy/import session tool dispatch so AI-rendered money matches.
- *  Memoized so callers can list it as a stable hook dependency. */
-export function useMoneyFormat(): MoneyFormat {
-  const { decimals, symbolPosition } = useContext(CurrencyContext);
-  return useMemo(() => ({ decimals, symbolPosition }), [decimals, symbolPosition]);
-}
-
 export interface CurrencyFormatters {
   /** Format signed cents as a display string, bound to the active currency. */
   format: (cents: number) => string;

@@ -26,14 +26,12 @@ import {
   bulkChangeMerchant,
   formatMoney,
   type AccountType,
-  type MoneyFormat,
   type TransactionType,
 } from "@capybudget/core"
 
 export async function handleCreateTransaction(
   repo: BudgetRepository,
   currency: string,
-  format: MoneyFormat,
   args: Record<string, unknown>,
 ): Promise<string> {
   const type = args.type as TransactionType
@@ -63,7 +61,7 @@ export async function handleCreateTransaction(
     created: created.map((t) => ({
       id: t.id,
       type: t.type,
-      amount: formatMoney(t.amount, currency, format),
+      amount: formatMoney(t.amount, currency),
       accountId: t.accountId,
     })),
   })

@@ -14,8 +14,6 @@ import {
   handleGroupTransactions,
 } from "./data"
 
-const USD_FORMAT = { decimals: 2, symbolPosition: "before" } as const
-
 function createMockRepo(data: {
   accounts?: Account[]
   categories?: Category[]
@@ -47,7 +45,7 @@ describe("handleListAccounts", () => {
       ],
     })
 
-    const result = JSON.parse(await handleListAccounts(repo, "USD", USD_FORMAT))
+    const result = JSON.parse(await handleListAccounts(repo, "USD"))
 
     expect(result).toHaveLength(2)
 
@@ -72,7 +70,7 @@ describe("handleListAccounts", () => {
 
   it("returns empty array when no accounts exist", async () => {
     const repo = createMockRepo({ accounts: [], transactions: [] })
-    const result = JSON.parse(await handleListAccounts(repo, "USD", USD_FORMAT))
+    const result = JSON.parse(await handleListAccounts(repo, "USD"))
     expect(result).toEqual([])
   })
 
@@ -82,7 +80,7 @@ describe("handleListAccounts", () => {
       transactions: [],
     })
 
-    const result = JSON.parse(await handleListAccounts(repo, "USD", USD_FORMAT))
+    const result = JSON.parse(await handleListAccounts(repo, "USD"))
     expect(result[0].balance).toBe("$0.00")
     expect(result[0].balanceCents).toBe(0)
   })
@@ -150,7 +148,7 @@ describe("handleListTransactions", () => {
       ],
     })
 
-    const result = JSON.parse(await handleListTransactions(repo, "USD", USD_FORMAT, {}))
+    const result = JSON.parse(await handleListTransactions(repo, "USD", {}))
 
     expect(result).toHaveLength(2)
     expect(result[0].id).toBe("txn-new")
@@ -166,7 +164,7 @@ describe("handleListTransactions", () => {
       ],
     })
 
-    const result = JSON.parse(await handleListTransactions(repo, "USD", USD_FORMAT, {}))
+    const result = JSON.parse(await handleListTransactions(repo, "USD", {}))
     expect(result[0].account).toBe("Checking")
     expect(result[0].category).toBe("Rent")
     expect(result[0].amount).toBe("-$1,500.00")
@@ -182,7 +180,7 @@ describe("handleListTransactions", () => {
       ],
     })
 
-    const result = JSON.parse(await handleListTransactions(repo, "USD", USD_FORMAT, {}))
+    const result = JSON.parse(await handleListTransactions(repo, "USD", {}))
     expect(result[0].account).toBe("acc-unknown")
     expect(result[0].category).toBe("cat-unknown")
   })
@@ -194,7 +192,7 @@ describe("handleListTransactions", () => {
       transactions: [makeTxn({ categoryId: "" })],
     })
 
-    const result = JSON.parse(await handleListTransactions(repo, "USD", USD_FORMAT, {}))
+    const result = JSON.parse(await handleListTransactions(repo, "USD", {}))
     expect(result[0].category).toBe("Uncategorized")
   })
 
@@ -205,7 +203,7 @@ describe("handleListTransactions", () => {
       transactions: [makeTxn({ merchant: "" })],
     })
 
-    const result = JSON.parse(await handleListTransactions(repo, "USD", USD_FORMAT, {}))
+    const result = JSON.parse(await handleListTransactions(repo, "USD", {}))
     expect(result[0].merchant).toBe("(none)")
   })
 
@@ -219,7 +217,7 @@ describe("handleListTransactions", () => {
       transactions,
     })
 
-    const result = JSON.parse(await handleListTransactions(repo, "USD", USD_FORMAT, {}))
+    const result = JSON.parse(await handleListTransactions(repo, "USD", {}))
     expect(result).toHaveLength(50)
   })
 
@@ -233,7 +231,7 @@ describe("handleListTransactions", () => {
       transactions,
     })
 
-    const result = JSON.parse(await handleListTransactions(repo, "USD", USD_FORMAT, { limit: 3 }))
+    const result = JSON.parse(await handleListTransactions(repo, "USD", { limit: 3 }))
     expect(result).toHaveLength(3)
   })
 
@@ -248,7 +246,7 @@ describe("handleListTransactions", () => {
       ],
     })
 
-    const result = JSON.parse(await handleListTransactions(repo, "USD", USD_FORMAT, { accountId: "acc-2" }))
+    const result = JSON.parse(await handleListTransactions(repo, "USD", { accountId: "acc-2" }))
     expect(result).toHaveLength(1)
     expect(result[0].id).toBe("txn-2")
   })
@@ -263,7 +261,7 @@ describe("handleListTransactions", () => {
       ],
     })
 
-    const result = JSON.parse(await handleListTransactions(repo, "USD", USD_FORMAT, { categoryId: "cat-1" }))
+    const result = JSON.parse(await handleListTransactions(repo, "USD", { categoryId: "cat-1" }))
     expect(result).toHaveLength(1)
     expect(result[0].id).toBe("txn-1")
   })
@@ -279,7 +277,7 @@ describe("handleListTransactions", () => {
       ],
     })
 
-    const result = JSON.parse(await handleListTransactions(repo, "USD", USD_FORMAT, { merchant: "whole foods" }))
+    const result = JSON.parse(await handleListTransactions(repo, "USD", { merchant: "whole foods" }))
     expect(result).toHaveLength(2)
     expect(result.map((t: { id: string }) => t.id).sort()).toEqual(["txn-1", "txn-3"])
   })
@@ -295,7 +293,7 @@ describe("handleListTransactions", () => {
       ],
     })
 
-    const result = JSON.parse(await handleListTransactions(repo, "USD", USD_FORMAT, { startDate: "2026-01-15" }))
+    const result = JSON.parse(await handleListTransactions(repo, "USD", { startDate: "2026-01-15" }))
     expect(result).toHaveLength(2)
     expect(result.map((t: { id: string }) => t.id).sort()).toEqual(["txn-2", "txn-3"])
   })
@@ -311,7 +309,7 @@ describe("handleListTransactions", () => {
       ],
     })
 
-    const result = JSON.parse(await handleListTransactions(repo, "USD", USD_FORMAT, { endDate: "2026-01-15" }))
+    const result = JSON.parse(await handleListTransactions(repo, "USD", { endDate: "2026-01-15" }))
     expect(result).toHaveLength(2)
     expect(result.map((t: { id: string }) => t.id).sort()).toEqual(["txn-1", "txn-2"])
   })
@@ -328,7 +326,7 @@ describe("handleListTransactions", () => {
     })
 
     const result = JSON.parse(
-      await handleListTransactions(repo, "USD", USD_FORMAT, {
+      await handleListTransactions(repo, "USD", {
         accountId: "acc-1",
         startDate: "2026-01-15",
       }),
@@ -344,7 +342,7 @@ describe("handleListTransactions", () => {
       transactions: [],
     })
 
-    const result = JSON.parse(await handleListTransactions(repo, "USD", USD_FORMAT, {}))
+    const result = JSON.parse(await handleListTransactions(repo, "USD", {}))
     expect(result).toEqual([])
   })
 
@@ -355,7 +353,7 @@ describe("handleListTransactions", () => {
       transactions: [makeTxn({ datetime: "2026-03-14T18:30:00.000Z" })],
     })
 
-    const result = JSON.parse(await handleListTransactions(repo, "USD", USD_FORMAT, {}))
+    const result = JSON.parse(await handleListTransactions(repo, "USD", {}))
     expect(result[0].date).toBe("2026-03-14")
   })
 })
@@ -381,7 +379,7 @@ describe("handleListTransactions sort + offset", () => {
 
   it("default sort is newest first (no `sort` arg)", async () => {
     const repo = buildRepo()
-    const result = JSON.parse(await handleListTransactions(repo, "USD", USD_FORMAT, {}))
+    const result = JSON.parse(await handleListTransactions(repo, "USD", {}))
     expect(result.map((t: { id: string }) => t.id)).toEqual([
       "txn-newest-small",
       "txn-new-income",
@@ -392,7 +390,7 @@ describe("handleListTransactions sort + offset", () => {
 
   it("`sort: \"oldest\"` returns earliest first", async () => {
     const repo = buildRepo()
-    const result = JSON.parse(await handleListTransactions(repo, "USD", USD_FORMAT, { sort: "oldest" }))
+    const result = JSON.parse(await handleListTransactions(repo, "USD", { sort: "oldest" }))
     expect(result.map((t: { id: string }) => t.id)).toEqual([
       "txn-old-small",
       "txn-mid-big-exp",
@@ -404,7 +402,7 @@ describe("handleListTransactions sort + offset", () => {
   it("`sort: \"oldest\"` with `limit: 1` answers 'find my first transaction' in one call", async () => {
     const repo = buildRepo()
     const result = JSON.parse(
-      await handleListTransactions(repo, "USD", USD_FORMAT, { sort: "oldest", limit: 1 }),
+      await handleListTransactions(repo, "USD", { sort: "oldest", limit: 1 }),
     )
     expect(result).toHaveLength(1)
     expect(result[0].id).toBe("txn-old-small")
@@ -412,7 +410,7 @@ describe("handleListTransactions sort + offset", () => {
 
   it("`sort: \"amount_asc\"` puts the largest expenses (most-negative) first", async () => {
     const repo = buildRepo()
-    const result = JSON.parse(await handleListTransactions(repo, "USD", USD_FORMAT, { sort: "amount_asc" }))
+    const result = JSON.parse(await handleListTransactions(repo, "USD", { sort: "amount_asc" }))
     expect(result.map((t: { id: string }) => t.id)).toEqual([
       "txn-mid-big-exp",
       "txn-old-small",
@@ -423,7 +421,7 @@ describe("handleListTransactions sort + offset", () => {
 
   it("`sort: \"amount_desc\"` puts the largest income (most-positive) first", async () => {
     const repo = buildRepo()
-    const result = JSON.parse(await handleListTransactions(repo, "USD", USD_FORMAT, { sort: "amount_desc" }))
+    const result = JSON.parse(await handleListTransactions(repo, "USD", { sort: "amount_desc" }))
     expect(result.map((t: { id: string }) => t.id)).toEqual([
       "txn-new-income",
       "txn-newest-small",
@@ -435,7 +433,7 @@ describe("handleListTransactions sort + offset", () => {
   it("`offset` skips rows after the sort and before the limit", async () => {
     const repo = buildRepo()
     const result = JSON.parse(
-      await handleListTransactions(repo, "USD", USD_FORMAT, { sort: "oldest", offset: 2, limit: 1 }),
+      await handleListTransactions(repo, "USD", { sort: "oldest", offset: 2, limit: 1 }),
     )
     expect(result).toHaveLength(1)
     expect(result[0].id).toBe("txn-new-income")
@@ -443,14 +441,14 @@ describe("handleListTransactions sort + offset", () => {
 
   it("`offset` past the end returns an empty array", async () => {
     const repo = buildRepo()
-    const result = JSON.parse(await handleListTransactions(repo, "USD", USD_FORMAT, { offset: 100 }))
+    const result = JSON.parse(await handleListTransactions(repo, "USD", { offset: 100 }))
     expect(result).toEqual([])
   })
 
   it("negative `offset` is treated as 0", async () => {
     const repo = buildRepo()
     const result = JSON.parse(
-      await handleListTransactions(repo, "USD", USD_FORMAT, { offset: -5, limit: 1 }),
+      await handleListTransactions(repo, "USD", { offset: -5, limit: 1 }),
     )
     expect(result).toHaveLength(1)
     expect(result[0].id).toBe("txn-newest-small") // default sort: newest first
@@ -471,7 +469,7 @@ describe("handleListTransactions format", () => {
         makeTxn({ id: "t1", accountId: "acc-1", categoryId: "cat-1", amount: -1250 }),
       ],
     })
-    const result = JSON.parse(await handleListTransactions(repo, "USD", USD_FORMAT, {}))
+    const result = JSON.parse(await handleListTransactions(repo, "USD", {}))
     expect(result[0]).toMatchObject({
       account: "Checking",
       category: "Groceries",
@@ -498,7 +496,7 @@ describe("handleListTransactions format", () => {
         }),
       ],
     })
-    const result = JSON.parse(await handleListTransactions(repo, "USD", USD_FORMAT, { format: "compact" }))
+    const result = JSON.parse(await handleListTransactions(repo, "USD", { format: "compact" }))
     expect(result[0]).toEqual({
       id: "t1",
       date: "2026-02-03",
@@ -535,14 +533,14 @@ describe("handleListTransactions ids", () => {
 
   it("returns exactly the requested rows in the order asked", async () => {
     const result = JSON.parse(
-      await handleListTransactions(buildRepo(), "USD", USD_FORMAT, { ids: ["t-3", "t-1"] }),
+      await handleListTransactions(buildRepo(), "USD", { ids: ["t-3", "t-1"] }),
     )
     expect(result.map((t: { id: string }) => t.id)).toEqual(["t-3", "t-1"])
   })
 
   it("works with format:'compact'", async () => {
     const result = JSON.parse(
-      await handleListTransactions(buildRepo(), "USD", USD_FORMAT, { ids: ["t-2"], format: "compact" }),
+      await handleListTransactions(buildRepo(), "USD", { ids: ["t-2"], format: "compact" }),
     )
     expect(result[0]).toMatchObject({ id: "t-2", accountId: "acc-1" })
     expect(result[0]).not.toHaveProperty("account")
@@ -550,14 +548,14 @@ describe("handleListTransactions ids", () => {
 
   it("silently drops ids that don't exist", async () => {
     const result = JSON.parse(
-      await handleListTransactions(buildRepo(), "USD", USD_FORMAT, { ids: ["t-2", "nope"] }),
+      await handleListTransactions(buildRepo(), "USD", { ids: ["t-2", "nope"] }),
     )
     expect(result.map((t: { id: string }) => t.id)).toEqual(["t-2"])
   })
 
   it("ignores other filters/sort/pagination when ids is given", async () => {
     const result = JSON.parse(
-      await handleListTransactions(buildRepo(), "USD", USD_FORMAT, {
+      await handleListTransactions(buildRepo(), "USD", {
         ids: ["t-1", "t-3"],
         accountId: "acc-nope",
         sort: "oldest",
@@ -568,7 +566,7 @@ describe("handleListTransactions ids", () => {
   })
 
   it("returns an empty array for an empty ids list", async () => {
-    const result = JSON.parse(await handleListTransactions(buildRepo(), "USD", USD_FORMAT, { ids: [] }))
+    const result = JSON.parse(await handleListTransactions(buildRepo(), "USD", { ids: [] }))
     expect(result).toEqual([])
   })
 })
@@ -708,7 +706,7 @@ describe("read handlers do not reorder the source array", () => {
   it("handleListTransactions leaves the cached array untouched (bare {})", async () => {
     const txns = source()
     const repo = sharedRefRepo(txns)
-    await handleListTransactions(repo, "USD", USD_FORMAT, {})
+    await handleListTransactions(repo, "USD", {})
     expect(txns.map((t) => t.id)).toEqual(["t-a", "t-c", "t-b"])
   })
 

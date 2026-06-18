@@ -47,12 +47,18 @@ function compose(sign: string, num: string, symbol: string, position: SymbolPosi
   return `${sign}${symbol}${num}`;
 }
 
-/** Format signed cents as a display string under an explicit format:
+/** Format signed cents as a display string. With an explicit format:
  *  `formatMoney(-10000, "USD", { decimals: 2, symbolPosition: "before" })`
  *  → "-$100.00"; `formatMoney(12345600, "RUB", { decimals: 0,
- *  symbolPosition: "after" })` → "123,456 ₽". Money stays integer cents;
- *  precision only rounds the display. */
-export function formatMoney(cents: number, currency: string, format: MoneyFormat): string {
+ *  symbolPosition: "after" })` → "123,456 ₽". Omit `format` to render in the
+ *  currency's default convention — the form the intelligence layer uses, which
+ *  reasons in the currency code, not the user's UI overrides. Money stays
+ *  integer cents; precision only rounds the display. */
+export function formatMoney(
+  cents: number,
+  currency: string,
+  format: MoneyFormat = formatDefaultsFor(currency),
+): string {
   const sign = cents < 0 ? "-" : "";
   const num = decimalFormatter(format.decimals).format(Math.abs(cents) / 100);
   return compose(sign, num, currencySymbol(currency), format.symbolPosition);
@@ -60,8 +66,13 @@ export function formatMoney(cents: number, currency: string, format: MoneyFormat
 
 /** Like `formatMoney`, but drops the fractional part for large amounts
  *  (|cents| >= 100_000) — "$1,234" instead of "$1,234.56" — while keeping the
- *  chosen symbol composition. Below the threshold it defers to `formatMoney`. */
-export function formatMoneyCompact(cents: number, currency: string, format: MoneyFormat): string {
+ *  chosen symbol composition. Below the threshold it defers to `formatMoney`.
+ *  `format` is optional with the same currency-default fallback as `formatMoney`. */
+export function formatMoneyCompact(
+  cents: number,
+  currency: string,
+  format: MoneyFormat = formatDefaultsFor(currency),
+): string {
   if (Math.abs(cents) >= 100_000 && format.decimals > 0) {
     return formatMoney(cents, currency, { ...format, decimals: 0 });
   }

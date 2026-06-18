@@ -13,7 +13,6 @@
  * app-injected {@link AdapterConstructors} so the package stays platform-free.
  */
 
-import type { MoneyFormat } from "@capybudget/core";
 import type { IntelligenceConfig } from "../config";
 import type { AdapterConstructors } from "../factory";
 import type { StructuredSession } from "../structured";
@@ -45,8 +44,6 @@ export interface StructuredImportSessionDeps {
     fileAdapter: FileAdapter;
     /** The budget's display currency (ISO 4217). */
     currency: string;
-    /** The budget's money-format config (decimals + symbol position). */
-    format: MoneyFormat;
   };
 }
 
@@ -80,7 +77,6 @@ export function createStructuredImportSession(
     repo: options.repo,
     fileAdapter: options.fileAdapter,
     currency: options.currency,
-    format: options.format,
   });
 
   // The API adapters implement StructuredSession; verify the surface is

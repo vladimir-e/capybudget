@@ -43,7 +43,6 @@ function makeCtx(repo: BudgetRepository = makeRepo({})): ToolContext {
     fileAdapter: makeFileAdapter(),
     budgetPath: "/budget",
     currency: "USD",
-    format: { decimals: 2, symbolPosition: "before" },
   }
 }
 
@@ -128,7 +127,7 @@ describe("runTool", () => {
     const ctx = makeCtx(repo)
 
     const dispatchedResult = await runTool("list_accounts", {}, ctx)
-    const directResult = await handleListAccounts(repo, ctx.currency, ctx.format)
+    const directResult = await handleListAccounts(repo, ctx.currency)
 
     // Dispatch returns the same string the direct handler would have.
     expect(JSON.parse(dispatchedResult)).toEqual(JSON.parse(directResult))

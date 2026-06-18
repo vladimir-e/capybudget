@@ -15,7 +15,6 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createSession } from "@/services/create-session";
-import type { MoneyFormat } from "@capybudget/core";
 import type {
   CapySession,
   StreamEvent,
@@ -28,10 +27,6 @@ export interface SessionLifecycleOptions {
   /** Budget's display currency (ISO 4217); threaded into the adapter's tool
    *  dispatch so the model reasons in the user's currency. */
   currency: string;
-  /** Budget's money-format config (decimals + symbol position); threaded into
-   *  the adapter's tool dispatch so money in tool results renders the way the
-   *  user sees it. */
-  format: MoneyFormat;
   /** Required by API adapters (in-process tool dispatch); ignored by Claude CLI. */
   repo?: BudgetRepository;
   /** Required by API adapters (in-process tool dispatch); ignored by Claude CLI. */
@@ -134,7 +129,6 @@ export function useSessionLifecycle<TOpts extends SessionLifecycleOptions>(
         mcpServerPath: o.mcpServerPath,
         systemPrompt,
         currency: o.currency,
-        format: o.format,
         onEvent: handleStreamEvent,
         onExit: handleExit,
         repo: o.repo,

@@ -249,7 +249,7 @@ Categories:
 What did I spend on food this month?
 ```
 
-The budget's currency is display-only (money stays integer minor units everywhere — see `DATA_MODEL.md`). It threads three ways: into the snapshot above, into the chat system prompt's money examples (so Capy formats amounts with the right symbol and precision), and into the `ToolContext` (so money in tool results — account balances, transaction amounts — is rendered in the budget's currency). The tool handlers receive currency on the context, not from the repository, which exposes only entities.
+The budget's currency is display-only (money stays integer minor units everywhere — see `DATA_MODEL.md`). Only the currency code reaches the model — the user's UI format overrides (decimals, symbol position) stay in the app and never thread into Capy. It threads three ways: into the snapshot above, into the chat system prompt's money examples, and into the `ToolContext` (so money in tool results — account balances, transaction amounts — is rendered in the budget's currency). Tool-result amounts use the currency's default convention, not the user's overrides. The tool handlers receive currency on the context, not from the repository, which exposes only entities.
 
 ## Custom Instructions
 

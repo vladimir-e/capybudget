@@ -19,7 +19,6 @@
  *   - render tools (render_*)
  */
 
-import type { MoneyFormat } from "@capybudget/core"
 import type { BudgetRepository, FileAdapter } from "@capybudget/persistence"
 import {
   handleListAccounts,
@@ -52,16 +51,11 @@ export interface ToolContext {
   budgetPath: string
   /**
    * The budget's display currency (ISO 4217, e.g. "EUR"). The code the model
-   * reasons with; the symbol comes from it. Set once per session from
+   * reasons with; the symbol comes from it. Tool-result money is formatted in
+   * this currency's default convention. Set once per session from
    * `BudgetMeta.currency`.
    */
   currency: string
-  /**
-   * The budget's money-format config (decimals + symbol position). Money in
-   * tool results is rendered with it so the model sees amounts the way the user
-   * does. Set once per session from `BudgetMeta`.
-   */
-  format: MoneyFormat
   /**
    * Attachments on the in-flight chat turn — the bytes `start_import` stages.
    * Threaded by the API adapters from the message that triggered the tool call;
@@ -90,16 +84,16 @@ type ToolHandler = (
 
 const HANDLERS: Record<string, ToolHandler> = {
   // Data
-  list_accounts: ({ repo, currency, format }) => handleListAccounts(repo, currency, format),
-  list_transactions: ({ repo, currency, format }, args) =>
-    handleListTransactions(repo, currency, format, args),
+  list_accounts: ({ repo, currency }) => handleListAccounts(repo, currency),
+  list_transactions: ({ repo, currency }, args) =>
+    handleListTransactions(repo, currency, args),
   search_transactions: ({ repo }, args) => handleSearchTransactions(repo, args),
   group_transactions: ({ repo }, args) => handleGroupTransactions(repo, args),
   list_categories: ({ repo }) => handleListCategories(repo),
 
   // Mutations
-  create_transaction: ({ repo, currency, format }, args) =>
-    handleCreateTransaction(repo, currency, format, args),
+  create_transaction: ({ repo, currency }, args) =>
+    handleCreateTransaction(repo, currency, args),
   update_transaction: ({ repo }, args) => handleUpdateTransaction(repo, args),
   delete_transactions: ({ repo }, args) => handleDeleteTransactions(repo, args),
   create_account: ({ repo }, args) => handleCreateAccount(repo, args),

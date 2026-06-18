@@ -48,10 +48,6 @@ function BudgetLayout() {
   const customInstructions = useCustomInstructions(path);
   const { data: meta } = useBudgetMeta(path);
   const currency = meta.currency;
-  const format = useMemo(
-    () => ({ decimals: meta.currencyDecimals, symbolPosition: meta.currencySymbolPosition }),
-    [meta.currencyDecimals, meta.currencySymbolPosition],
-  );
   const getBudgetSnapshot = useBudgetSnapshot(currency);
 
   const onDataChanged = useCallback(() => {
@@ -80,13 +76,12 @@ function BudgetLayout() {
       customInstructions: customInstructions.instructions,
       getBudgetSnapshot,
       currency,
-      format,
       onDataChanged,
       onImportStarted,
       repo,
       fileAdapter: tauriFileAdapter,
     }),
-    [path, name, customInstructions.instructions, getBudgetSnapshot, currency, format, onDataChanged, onImportStarted, repo],
+    [path, name, customInstructions.instructions, getBudgetSnapshot, currency, onDataChanged, onImportStarted, repo],
   );
 
   return (

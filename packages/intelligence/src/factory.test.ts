@@ -27,7 +27,6 @@ function makeOptions(): SessionOptions {
     repo: {} as BudgetRepository,
     fileAdapter: {} as FileAdapter,
     currency: "USD",
-    format: { decimals: 2, symbolPosition: "before" },
   }
 }
 
@@ -139,7 +138,6 @@ describe("createIntelligenceSession", () => {
       repo: opts.repo,
       fileAdapter: opts.fileAdapter,
       currency: opts.currency,
-      format: opts.format,
       importSupported: true,
       pdfSupported: true,
     })
@@ -167,7 +165,6 @@ describe("createIntelligenceSession", () => {
       repo: opts.repo,
       fileAdapter: opts.fileAdapter,
       currency: opts.currency,
-      format: opts.format,
       importSupported: true,
       pdfSupported: false,
     })

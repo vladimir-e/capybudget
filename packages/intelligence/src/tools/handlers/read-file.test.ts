@@ -18,7 +18,6 @@ beforeEach(() => {
     fileAdapter: makeFileAdapter(fs),
     budgetPath: BUDGET_PATH,
     currency: "USD",
-    format: { decimals: 2, symbolPosition: "before" },
   }
 })
 

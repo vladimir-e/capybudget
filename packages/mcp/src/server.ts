@@ -5,7 +5,7 @@ import {
   ListToolsRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js"
 import { createCsvRepository } from "@capybudget/persistence"
-import { DEFAULT_CURRENCY, formatDefaultsFor, resolveBudgetFormat, type MoneyFormat } from "@capybudget/core"
+import { DEFAULT_CURRENCY } from "@capybudget/core"
 import {
   getToolDefinitions,
   runTool,
@@ -20,26 +20,19 @@ if (!BUDGET_PATH) {
   throw new Error("BUDGET_PATH environment variable is required")
 }
 
-// ── Currency + format ────────────────────────────────────────────
+// ── Currency ─────────────────────────────────────────────────────
 
-// Money in tool results is rendered with the budget's currency, decimals, and
-// symbol position. Missing fields fall back to the currency's curated defaults,
-// the same backfill the app applies for a budget.json predating them.
-async function readBudgetFormat(
-  budgetPath: string,
-): Promise<{ currency: string; format: MoneyFormat }> {
+// Tool-result money is rendered in the budget's currency using its default
+// convention. A missing or unreadable budget.json falls back to the default
+// currency.
+async function readBudgetCurrency(budgetPath: string): Promise<string> {
   try {
     const metaPath = await nodeFileAdapter.join(budgetPath, "budget.json")
     const text = await nodeFileAdapter.readFile(metaPath)
-    const raw = JSON.parse(text) as {
-      currency?: string
-      currencyDecimals?: number
-      currencySymbolPosition?: MoneyFormat["symbolPosition"]
-    }
-    const { currency, decimals, symbolPosition } = resolveBudgetFormat(raw)
-    return { currency, format: { decimals, symbolPosition } }
+    const raw = JSON.parse(text) as { currency?: string }
+    return raw.currency ?? DEFAULT_CURRENCY
   } catch {
-    return { currency: DEFAULT_CURRENCY, format: formatDefaultsFor(DEFAULT_CURRENCY) }
+    return DEFAULT_CURRENCY
   }
 }
 
@@ -47,13 +40,12 @@ async function readBudgetFormat(
 
 const repo = createCsvRepository(BUDGET_PATH, nodeFileAdapter, { immediate: true })
 
-const { currency, format } = await readBudgetFormat(BUDGET_PATH)
+const currency = await readBudgetCurrency(BUDGET_PATH)
 const dispatchCtx: ToolContext = {
   repo,
   fileAdapter: nodeFileAdapter,
   budgetPath: BUDGET_PATH,
   currency,
-  format,
 }
 
 // ── Server setup ─────────────────────────────────────────────────

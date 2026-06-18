@@ -8,7 +8,7 @@ import { invalidateAfterCapyMutation } from "@/components/budget/capy-invalidati
 import { useIntelligenceStore } from "@/stores/intelligence-store";
 import { budgetKeys } from "@/hooks/use-budget-data";
 import { createInMemoryRepository } from "@capybudget/persistence";
-import { DEFAULT_CURRENCY, formatDefaultsFor } from "@capybudget/core";
+import { DEFAULT_CURRENCY } from "@capybudget/core";
 import { PROFILES } from "../data/profiles";
 import { generateScenarioData } from "../data/generator";
 import { seedFromString } from "../data/rng";
@@ -95,7 +95,6 @@ function DemoBudgetLayout() {
       mcpServerPath: "packages/mcp/src/server.ts",
       customInstructions: customInstructions.instructions,
       currency: DEFAULT_CURRENCY,
-      format: formatDefaultsFor(DEFAULT_CURRENCY),
       onDataChanged,
       repo: repo ?? undefined,
     }),
