@@ -210,6 +210,10 @@ describe("resolveBudgetFormat", () => {
       resolveBudgetFormat({ currency: "RUB", currencyDecimals: 2, currencySymbolPosition: "off" }),
     ).toEqual({ currency: "RUB", decimals: 2, symbolPosition: "off" });
   });
+
+  it("clamps a stored decimals above the integer-cents ceiling down to 2", () => {
+    expect(resolveBudgetFormat({ currency: "USD", currencyDecimals: 3 }).decimals).toBe(2);
+  });
 });
 
 describe("getAmountClass", () => {

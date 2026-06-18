@@ -31,7 +31,7 @@ export interface BudgetMeta {
   schemaVersion: number;
   name: string;
   currency: string;
-  /** Minor-unit precision for display, 0–3. Money stays integer cents
+  /** Minor-unit precision for display, 0–2. Money stays integer cents
    *  regardless; this only rounds the rendered figure. */
   currencyDecimals: number;
   /** Where the currency symbol sits relative to the amount, or `off`. */

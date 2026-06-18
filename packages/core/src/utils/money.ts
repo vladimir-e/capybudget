@@ -16,7 +16,7 @@ export type SymbolPosition = "before" | "after" | "off";
  *  can tune them to match their real-world convention (RUB as "100 ₽",
  *  zero-decimal IDR, no symbol at all). Currency supplies only the symbol. */
 export interface MoneyFormat {
-  /** Minor-unit precision, 0–3. A 0-decimal display still stores ×100 cents. */
+  /** Minor-unit precision, 0–2. A 0-decimal display still stores ×100 cents. */
   decimals: number;
   symbolPosition: SymbolPosition;
 }
@@ -146,6 +146,11 @@ export interface BudgetFormatFields {
   currencySymbolPosition?: SymbolPosition;
 }
 
+/** The display-decimals ceiling. Money is stored as integer ×100, so the
+ *  hundredths place is the last digit the data can carry — a third decimal
+ *  would always render zero. */
+const MAX_DISPLAY_DECIMALS = 2;
+
 /** Resolve a budget's effective currency + format from its raw `budget.json`
  *  fields, backfilling each missing piece from the currency's curated defaults.
  *  The single source of truth for the no-schema-bump backfill, shared by every
@@ -156,11 +161,18 @@ export function resolveBudgetFormat(
 ): { currency: string; decimals: number; symbolPosition: SymbolPosition } {
   const currency = raw.currency ?? DEFAULT_CURRENCY;
   const defaults = formatDefaultsFor(currency);
+  const decimals = raw.currencyDecimals ?? defaults.decimals;
   return {
     currency,
-    decimals: raw.currencyDecimals ?? defaults.decimals,
+    decimals: clampDecimals(decimals),
     symbolPosition: raw.currencySymbolPosition ?? defaults.symbolPosition,
   };
+}
+
+/** Clamp a decimals value to the renderable range. A budget saved at 3 (before
+ *  the option was removed) renders at 2 rather than a phantom always-zero digit. */
+function clampDecimals(decimals: number): number {
+  return Math.max(0, Math.min(MAX_DISPLAY_DECIMALS, decimals));
 }
 
 /** The minor-unit precision Intl resolves for a currency (2 for USD, 0 for

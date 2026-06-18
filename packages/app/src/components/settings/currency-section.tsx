@@ -41,7 +41,7 @@ const SYMBOL_POSITIONS: { value: SymbolPosition; label: string }[] = [
   { value: "off", label: "Off" },
 ]
 
-const PRECISIONS = [0, 1, 2, 3]
+const PRECISIONS = [0, 1, 2]
 
 // A positive (income) and a negative (expense) sample, each a few thousand
 // major units with cents, so the preview shows grouping, symbol placement, and

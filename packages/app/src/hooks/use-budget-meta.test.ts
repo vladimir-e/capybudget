@@ -116,7 +116,7 @@ describe("useBudgetMeta", () => {
     await act(async () => {
       await Promise.all([
         result.current.setCurrency("EUR"),
-        result.current.setBudgetFormat({ decimals: 3, symbolPosition: "off" }),
+        result.current.setBudgetFormat({ decimals: 1, symbolPosition: "off" }),
       ]);
     });
 
@@ -125,13 +125,13 @@ describe("useBudgetMeta", () => {
     const lastCall = mockWriteTextFile.mock.calls.at(-1) as [string, string];
     const persisted = JSON.parse(lastCall[1]);
     expect(persisted.currency).toBe("EUR");
-    expect(persisted.currencyDecimals).toBe(3);
+    expect(persisted.currencyDecimals).toBe(1);
     expect(persisted.currencySymbolPosition).toBe("off");
 
     // The cache converges on the same combined value.
     await waitFor(() => {
       expect(result.current.data.currency).toBe("EUR");
-      expect(result.current.data.currencyDecimals).toBe(3);
+      expect(result.current.data.currencyDecimals).toBe(1);
       expect(result.current.data.currencySymbolPosition).toBe("off");
     });
   });
