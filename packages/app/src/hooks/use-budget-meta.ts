@@ -74,33 +74,34 @@ export function useBudgetMeta(budgetPath: string): UseBudgetMetaReturn {
   );
 
   const setName = useCallback(
-    (name: string) => save({ ...data, name, lastModified: new Date().toISOString() }),
-    [data, save],
+    (name: string) =>
+      save((prev) => ({ ...prev, name, lastModified: new Date().toISOString() })),
+    [save],
   );
 
   const setCurrency = useCallback(
     (currency: string) => {
       const format = formatDefaultsFor(currency);
-      return save({
-        ...data,
+      return save((prev) => ({
+        ...prev,
         currency,
         currencyDecimals: format.decimals,
         currencySymbolPosition: format.symbolPosition,
         lastModified: new Date().toISOString(),
-      });
+      }));
     },
-    [data, save],
+    [save],
   );
 
   const setBudgetFormat = useCallback(
     (format: MoneyFormat) =>
-      save({
-        ...data,
+      save((prev) => ({
+        ...prev,
         currencyDecimals: format.decimals,
         currencySymbolPosition: format.symbolPosition,
         lastModified: new Date().toISOString(),
-      }),
-    [data, save],
+      })),
+    [save],
   );
 
   return { data, isLoading, setName, setCurrency, setBudgetFormat, save };

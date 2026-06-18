@@ -104,6 +104,38 @@ describe("useBudgetMeta", () => {
     expect(written.currencyDecimals).toBe(2);
   });
 
+  it("composes back-to-back field edits from the latest value, not a stale snapshot", async () => {
+    mockReadTextFile.mockResolvedValue(JSON.stringify(STORED_META));
+
+    const { result } = renderHook(() => useBudgetMeta("/b"), { wrapper });
+    await waitFor(() => expect(result.current.data.name).toBe("My Budget"));
+
+    // Fire two different field setters back-to-back without an intervening
+    // re-render. The second composes from the just-cached value, so the first's
+    // change survives instead of being clobbered by a stale `data` snapshot.
+    await act(async () => {
+      await Promise.all([
+        result.current.setCurrency("EUR"),
+        result.current.setBudgetFormat({ decimals: 3, symbolPosition: "off" }),
+      ]);
+    });
+
+    // Last write wins on disk, and the chain serializes so the file carries
+    // both edits — currency from the first, format from the second.
+    const lastCall = mockWriteTextFile.mock.calls.at(-1) as [string, string];
+    const persisted = JSON.parse(lastCall[1]);
+    expect(persisted.currency).toBe("EUR");
+    expect(persisted.currencyDecimals).toBe(3);
+    expect(persisted.currencySymbolPosition).toBe("off");
+
+    // The cache converges on the same combined value.
+    await waitFor(() => {
+      expect(result.current.data.currency).toBe("EUR");
+      expect(result.current.data.currencyDecimals).toBe(3);
+      expect(result.current.data.currencySymbolPosition).toBe("off");
+    });
+  });
+
   it("backfills format and currency for a pre-format budget.json without crashing", async () => {
     mockReadTextFile.mockResolvedValue(
       JSON.stringify({
