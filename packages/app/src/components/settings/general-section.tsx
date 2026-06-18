@@ -38,9 +38,11 @@ const SYMBOL_POSITIONS: { value: SymbolPosition; label: string }[] = [
 
 const PRECISIONS = [0, 1, 2, 3]
 
-// A large amount with cents, so the preview shows grouping, symbol placement,
-// and precision at once.
-const PREVIEW_CENTS = 123456789
+// A positive (income) and a negative (expense) sample, each a few thousand
+// major units with cents, so the preview shows grouping, symbol placement, and
+// precision at once — and mirrors the transaction table's green/red amounts.
+const PREVIEW_INCOME_CENTS = 421550
+const PREVIEW_EXPENSE_CENTS = -128900
 
 export function GeneralSection({ budgetPath }: { budgetPath: string }) {
   const { data, setName, setCurrency, setBudgetFormat } = useBudgetMeta(budgetPath)
@@ -160,19 +162,26 @@ export function GeneralSection({ budgetPath }: { budgetPath: string }) {
           </div>
         </div>
 
-        {!isDefaultFormat && (
-          <button
-            type="button"
-            className="text-xs text-muted-foreground underline hover:text-foreground transition-colors"
-            onClick={() => void setBudgetFormat(defaultFormat)}
-          >
-            Reset to {data.currency} defaults
-          </button>
-        )}
-
-        <p className="text-xs text-muted-foreground">
-          Preview: <span className="text-foreground">{formatPreview(PREVIEW_CENTS)}</span>
-        </p>
+        <div className="space-y-2">
+          {/* Header row is always rendered so the reset link can toggle inside
+              it without reflowing the preview below. */}
+          <div className="flex h-4 items-center justify-between">
+            <Label className="text-xs text-muted-foreground">Preview</Label>
+            {!isDefaultFormat && (
+              <button
+                type="button"
+                className="text-xs text-muted-foreground underline hover:text-foreground transition-colors"
+                onClick={() => void setBudgetFormat(defaultFormat)}
+              >
+                Reset to {data.currency} defaults
+              </button>
+            )}
+          </div>
+          <div className="flex items-center gap-6 rounded-md border bg-muted/30 px-3 py-2 text-sm font-semibold tabular-nums">
+            <span className="text-amount-income">{formatPreview(PREVIEW_INCOME_CENTS)}</span>
+            <span className="text-amount-expense">{formatPreview(PREVIEW_EXPENSE_CENTS)}</span>
+          </div>
+        </div>
       </CardContent>
     </Card>
   )

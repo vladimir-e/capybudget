@@ -98,14 +98,17 @@ describe("GeneralSection", () => {
     expect(screen.getByText(/no symbol/i)).toBeInTheDocument()
   })
 
-  it("renders a live preview reflecting the current format", () => {
+  it("renders a live preview with a positive and a negative sample", () => {
     meta = metaWith({ currency: "USD", currencyDecimals: 2, currencySymbolPosition: "before" })
     render(<GeneralSection budgetPath="/b" />)
 
     // The preview reads from the CurrencyContext (USD default outside a provider),
-    // so it shows the default-currency formatting of the sample amount.
-    expect(screen.getByText(/Preview:/)).toBeInTheDocument()
-    expect(screen.getByText("$1,234,567.89")).toBeInTheDocument()
+    // so it shows the default-currency formatting of the income/expense samples.
+    expect(screen.getByText("Preview")).toBeInTheDocument()
+    const income = screen.getByText("$4,215.50")
+    const expense = screen.getByText("-$1,289.00")
+    expect(income).toHaveClass("text-amount-income")
+    expect(expense).toHaveClass("text-amount-expense")
   })
 
   it("hides the reset link when the format already matches the currency's defaults", () => {
