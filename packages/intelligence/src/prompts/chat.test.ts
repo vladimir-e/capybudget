@@ -54,8 +54,10 @@ describe("buildContext", () => {
   });
 });
 
+const BEFORE_2 = { decimals: 2, symbolPosition: "before" } as const;
+
 describe("buildSystemPrompt", () => {
-  const SYSTEM_PROMPT = buildSystemPrompt("USD");
+  const SYSTEM_PROMPT = buildSystemPrompt("USD", BEFORE_2);
 
   it("embeds the shared app-knowledge brief", () => {
     expect(SYSTEM_PROMPT).toContain(APP_KNOWLEDGE);
@@ -93,10 +95,20 @@ describe("buildSystemPrompt", () => {
   });
 
   it("formats the money examples in the budget's currency", () => {
-    expect(buildSystemPrompt("USD")).toContain("$12.50");
-    const eur = buildSystemPrompt("EUR");
+    expect(buildSystemPrompt("USD", BEFORE_2)).toContain("$12.50");
+    const eur = buildSystemPrompt("EUR", BEFORE_2);
     expect(eur).toContain("€12.50");
     expect(eur).toContain("The budget's currency is EUR");
     expect(eur).not.toContain("$12.50");
+  });
+
+  it("honors the chosen symbol position and precision in the example", () => {
+    const rub = buildSystemPrompt("RUB", { decimals: 0, symbolPosition: "after" });
+    expect(rub).toContain("13 ₽"); // 1250 cents → 12.5 → 13 at 0 decimals, symbol after
+    expect(rub).not.toContain("₽12");
+
+    const off = buildSystemPrompt("USD", { decimals: 2, symbolPosition: "off" });
+    expect(off).toContain('"12.50"');
+    expect(off).not.toContain("$12.50");
   });
 });

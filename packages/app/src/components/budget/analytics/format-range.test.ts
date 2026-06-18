@@ -7,7 +7,8 @@ import { formatDrilldownSubtitle } from "./format-range";
 const txn = (amount: number) => ({ amount }) as Transaction;
 
 // Stand-in for the currency-bound formatter the app threads from useFormatMoney.
-const format = (cents: number) => formatMoney(cents, "USD");
+const format = (cents: number) =>
+  formatMoney(cents, "USD", { decimals: 2, symbolPosition: "before" });
 
 const MAY_2026: DateRange = {
   start: new Date(2026, 4, 1),

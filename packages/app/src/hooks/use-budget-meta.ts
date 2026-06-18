@@ -1,38 +1,65 @@
 /**
  * Reads and writes the full `BudgetMeta` from `budget.json`, the single owner
- * of parse/format for the `budget.json` cache key. `useBudgetCurrency` and
- * `CurrencyProvider` read currency through this, and `setCurrency` does a
- * read-modify-write so a currency change never clobbers name/schemaVersion/
- * timestamps. Backed by `useBudgetFile`, so a write re-renders every consumer
- * (UI tree + Capy session) at once.
+ * of parse/format for the `budget.json` cache key. `CurrencyProvider` and the
+ * `/budget` layout read currency and format through this, and every updater
+ * does a read-modify-write so a single-field change never clobbers
+ * name/schemaVersion/timestamps. Backed by `useBudgetFile`, so a write
+ * re-renders every consumer (UI tree + Capy session) at once.
  */
 
 import { useCallback } from "react";
-import { DEFAULT_CURRENCY, type BudgetMeta } from "@capybudget/core";
+import {
+  DEFAULT_CURRENCY,
+  formatDefaultsFor,
+  type BudgetMeta,
+  type MoneyFormat,
+} from "@capybudget/core";
 import { useBudgetFile } from "@/hooks/use-budget-file";
 import { SCHEMA_VERSION } from "../../../../src/services/budget";
+
+const DEFAULT_FORMAT = formatDefaultsFor(DEFAULT_CURRENCY);
 
 const DEFAULT_META: BudgetMeta = {
   schemaVersion: SCHEMA_VERSION,
   name: "",
   currency: DEFAULT_CURRENCY,
+  currencyDecimals: DEFAULT_FORMAT.decimals,
+  currencySymbolPosition: DEFAULT_FORMAT.symbolPosition,
   createdAt: "",
   lastModified: "",
 };
 
 /** Parse `budget.json` into a full `BudgetMeta`, filling any missing field
- *  from the defaults so a pre-currency budget.json doesn't crash. */
+ *  from the defaults. Currency and the two format fields predate each other,
+ *  so a pre-format budget.json backfills decimals + symbol position from the
+ *  currency's curated defaults — the same values the in-app schema migration
+ *  would have written. */
 function parseMeta(text: string): BudgetMeta {
   const raw = JSON.parse(text) as Partial<BudgetMeta>;
-  return { ...DEFAULT_META, ...raw, currency: raw.currency ?? DEFAULT_CURRENCY };
+  const currency = raw.currency ?? DEFAULT_CURRENCY;
+  const defaults = formatDefaultsFor(currency);
+  return {
+    ...DEFAULT_META,
+    ...raw,
+    currency,
+    currencyDecimals: raw.currencyDecimals ?? defaults.decimals,
+    currencySymbolPosition: raw.currencySymbolPosition ?? defaults.symbolPosition,
+  };
 }
 
 interface UseBudgetMetaReturn {
   data: BudgetMeta;
   isLoading: boolean;
-  /** Read-modify-write: persists `currency` and refreshes `lastModified`,
-   *  preserving every other meta field. */
+  /** Read-modify-write: persists `name` and refreshes `lastModified`.
+   *  Renames the budget's display name in `budget.json`, not the folder. */
+  setName: (name: string) => Promise<void>;
+  /** Read-modify-write: persists `currency` and **resets** decimals + symbol
+   *  position to the new currency's defaults, so switching currency lands on
+   *  its conventional formatting rather than carrying the old one over. */
   setCurrency: (currency: string) => Promise<void>;
+  /** Read-modify-write: persists a format override (decimals + symbol
+   *  position) without touching the currency. */
+  setBudgetFormat: (format: MoneyFormat) => Promise<void>;
   save: (meta: BudgetMeta) => Promise<void>;
 }
 
@@ -45,11 +72,35 @@ export function useBudgetMeta(budgetPath: string): UseBudgetMetaReturn {
     (meta) => JSON.stringify(meta, null, 2),
   );
 
-  const setCurrency = useCallback(
-    (currency: string) =>
-      save({ ...data, currency, lastModified: new Date().toISOString() }),
+  const setName = useCallback(
+    (name: string) => save({ ...data, name, lastModified: new Date().toISOString() }),
     [data, save],
   );
 
-  return { data, isLoading, setCurrency, save };
+  const setCurrency = useCallback(
+    (currency: string) => {
+      const defaults = formatDefaultsFor(currency);
+      return save({
+        ...data,
+        currency,
+        currencyDecimals: defaults.decimals,
+        currencySymbolPosition: defaults.symbolPosition,
+        lastModified: new Date().toISOString(),
+      });
+    },
+    [data, save],
+  );
+
+  const setBudgetFormat = useCallback(
+    (format: MoneyFormat) =>
+      save({
+        ...data,
+        currencyDecimals: format.decimals,
+        currencySymbolPosition: format.symbolPosition,
+        lastModified: new Date().toISOString(),
+      }),
+    [data, save],
+  );
+
+  return { data, isLoading, setName, setCurrency, setBudgetFormat, save };
 }

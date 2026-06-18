@@ -45,6 +45,7 @@ beforeEach(() => {
     fileAdapter: makeFileAdapter(fs),
     budgetPath: BUDGET_PATH,
     currency: "USD",
+    format: { decimals: 2, symbolPosition: "before" },
     importSupported: true,
     pdfSupported: true,
     attachments: [],

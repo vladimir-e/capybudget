@@ -69,6 +69,7 @@ const baseOpts = {
   budgetName: "personal",
   mcpServerPath: "mcp/server.js",
   currency: "USD",
+  format: { decimals: 2, symbolPosition: "before" } as const,
 }
 
 beforeEach(() => {

@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest"
 import { render } from "@testing-library/react"
+import { formatDefaultsFor } from "@capybudget/core"
 import { CurrencyContext } from "@/contexts/currency-context"
 import type { TableBlock } from "@capybudget/intelligence"
 import { BlockRenderer } from "./capy-block-renderer"
@@ -25,7 +26,7 @@ function cell(container: HTMLElement, content: string): HTMLElement {
 describe("Capy chat table — currency-aware amount coloring", () => {
   it("colors income/expense cells by the budget symbol, not a hardcoded $", () => {
     const { container } = render(
-      <CurrencyContext.Provider value="EUR">
+      <CurrencyContext.Provider value={{ currency: "EUR", ...formatDefaultsFor("EUR") }}>
         <BlockRenderer block={table} isUser={false} />
       </CurrencyContext.Provider>,
     )

@@ -1,74 +1,143 @@
-// Fixed display locale; only the currency symbol and minor-unit precision vary
-// by the budget's chosen currency. Locale detection is deferred.
+// Fixed display locale; grouping and decimal style come from it, while the
+// currency symbol, its position, and precision are explicit, user-tunable
+// inputs (see MoneyFormat). Locale detection is deferred.
 const LOCALE = "en-US";
 
 /** Fallback currency for budgets without one set (e.g. a pre-currency
  *  budget.json) and the default for newly created budgets. */
 export const DEFAULT_CURRENCY = "USD";
 
-const formatters = new Map<string, Intl.NumberFormat>();
+/** Where the currency symbol sits relative to the number — or nowhere.
+ *  `off` drops the symbol entirely (bare number); the same result a
+ *  symbol-less currency (CHF, AED…) collapses to under `before`/`after`. */
+export type SymbolPosition = "before" | "after" | "off";
 
-function formatter(currency: string, compact: boolean): Intl.NumberFormat {
-  const key = compact ? `${currency}:compact` : currency;
-  let fmt = formatters.get(key);
+/** A budget's money-formatting choices, decoupled from the currency so a user
+ *  can tune them to match their real-world convention (RUB as "100 ₽",
+ *  zero-decimal IDR, no symbol at all). Currency supplies only the symbol. */
+export interface MoneyFormat {
+  /** Minor-unit precision, 0–3. A 0-decimal display still stores ×100 cents. */
+  decimals: number;
+  symbolPosition: SymbolPosition;
+}
+
+const decimalFormatters = new Map<number, Intl.NumberFormat>();
+
+/** Cached `decimal`-style formatter for a fixed precision: grouping + rounding,
+ *  no currency styling. Keyed by `decimals` since that's its only variable. */
+function decimalFormatter(decimals: number): Intl.NumberFormat {
+  let fmt = decimalFormatters.get(decimals);
+  if (!fmt) {
+    fmt = new Intl.NumberFormat(LOCALE, {
+      style: "decimal",
+      minimumFractionDigits: decimals,
+      maximumFractionDigits: decimals,
+    });
+    decimalFormatters.set(decimals, fmt);
+  }
+  return fmt;
+}
+
+/** Compose the symbol around a formatted, unsigned number, then prepend the
+ *  sign. A symbol-less currency or `off` yields the bare number — no stray
+ *  space. `before` hugs the number; `after` takes one separating space. */
+function compose(sign: string, num: string, symbol: string, position: SymbolPosition): string {
+  if (position === "off" || symbol === "") return `${sign}${num}`;
+  if (position === "after") return `${sign}${num} ${symbol}`;
+  return `${sign}${symbol}${num}`;
+}
+
+/** Format signed cents as a display string under an explicit format:
+ *  `formatMoney(-10000, "USD", { decimals: 2, symbolPosition: "before" })`
+ *  → "-$100.00"; `formatMoney(12345600, "RUB", { decimals: 0,
+ *  symbolPosition: "after" })` → "123,456 ₽". Money stays integer cents;
+ *  precision only rounds the display. */
+export function formatMoney(cents: number, currency: string, format: MoneyFormat): string {
+  const sign = cents < 0 ? "-" : "";
+  const num = decimalFormatter(format.decimals).format(Math.abs(cents) / 100);
+  return compose(sign, num, currencySymbol(currency), format.symbolPosition);
+}
+
+/** Like `formatMoney`, but drops the fractional part for large amounts
+ *  (|cents| >= 100_000) — "$1,234" instead of "$1,234.56" — while keeping the
+ *  chosen symbol composition. Below the threshold it defers to `formatMoney`. */
+export function formatMoneyCompact(cents: number, currency: string, format: MoneyFormat): string {
+  if (Math.abs(cents) >= 100_000 && format.decimals > 0) {
+    return formatMoney(cents, currency, { ...format, decimals: 0 });
+  }
+  return formatMoney(cents, currency, format);
+}
+
+const symbolFormatters = new Map<string, Intl.NumberFormat>();
+
+/** The currency symbol alone: "USD" → "$", "EUR" → "€", "JPY" → "¥".
+ *  Returns "" for currencies with no symbol (CHF, AED…) — the ISO code is
+ *  never used as a stand-in. `narrowSymbol` returns the code unchanged for
+ *  symbol-less currencies, which is how we detect them. */
+export function currencySymbol(currency: string): string {
+  let fmt = symbolFormatters.get(currency);
   if (!fmt) {
     fmt = new Intl.NumberFormat(LOCALE, {
       style: "currency",
       currency,
       currencyDisplay: "narrowSymbol",
-      ...(compact ? { maximumFractionDigits: 0 } : {}),
     });
-    formatters.set(key, fmt);
+    symbolFormatters.set(currency, fmt);
   }
-  return fmt;
-}
-
-/** Join formatted parts, dropping the currency part (and its adjacent space)
- *  when no real symbol exists. `narrowSymbol` returns the ISO code unchanged
- *  for currencies with no symbol (CHF, AED…); a single-currency budget shows
- *  bare numbers there rather than banking-statement codes. */
-function joinParts(parts: Intl.NumberFormatPart[], currency: string): string {
-  const hasSymbol = !parts.some(
-    (p) => p.type === "currency" && p.value === currency,
-  );
-  if (hasSymbol) return parts.map((p) => p.value).join("");
-
-  return parts
-    .filter((p, i) => {
-      if (p.type === "currency") return false;
-      const prev = parts[i - 1];
-      if (prev?.type === "currency" && p.type === "literal" && p.value.trim() === "") {
-        return false;
-      }
-      return true;
-    })
-    .map((p) => p.value)
-    .join("");
-}
-
-/** Format cents as a display string: 1250 → "$12.50" (USD), 1000 → "¥10" (JPY),
- *  123450 → "1,234.50" (CHF — no symbol, so the code is omitted) */
-export function formatMoney(cents: number, currency: string): string {
-  return joinParts(formatter(currency, false).formatToParts(cents / 100), currency);
-}
-
-/** Format cents compactly: drop the fractional part when |amount| >= 100_000 cents.
- *  123456 → "$1,234", 999 → "$9.99". Currency-aware. */
-export function formatMoneyCompact(cents: number, currency: string): string {
-  if (Math.abs(cents) >= 100_000) {
-    return joinParts(formatter(currency, true).formatToParts(cents / 100), currency);
-  }
-  return formatMoney(cents, currency);
-}
-
-/** The currency symbol alone: "USD" → "$", "EUR" → "€", "JPY" → "¥".
- *  Returns "" for currencies with no symbol (CHF, AED…) — the ISO code is
- *  never used as a stand-in. */
-export function currencySymbol(currency: string): string {
-  const symbol = formatter(currency, false).formatToParts(0).find(
-    (p) => p.type === "currency",
-  )?.value;
+  const symbol = fmt.formatToParts(0).find((p) => p.type === "currency")?.value;
   return symbol && symbol !== currency ? symbol : "";
+}
+
+/** Currencies whose conventional symbol trails the amount ("100 ₽", "1 234 zł).
+ *  The rest default to a leading symbol. */
+const SYMBOL_AFTER = new Set([
+  "RUB", "UAH", "KZT", "GEL", "AMD", "AZN", "UZS",
+  "PLN", "CZK", "HUF", "RON", "SEK", "NOK", "DKK", "VND",
+]);
+
+/** Currencies with no minor unit in everyday use — displaying cents blows up
+ *  the figure ("Rp 13,900,000.00"). The rest default to 2 decimals. */
+const ZERO_DECIMAL = new Set([
+  "JPY", "KRW", "IDR", "VND", "CLP", "COP", "HUF", "RUB", "UZS",
+]);
+
+/** Curated default formatting per currency, overlaid on the Intl baseline.
+ *  Materialized once so it can be reused as the backfill for budgets created
+ *  before formatting was tunable, and as the reset target when currency
+ *  changes. */
+export const CURRENCY_FORMAT_DEFAULTS: Record<string, MoneyFormat> = Object.fromEntries(
+  [...new Set([...SYMBOL_AFTER, ...ZERO_DECIMAL])].map((code) => [
+    code,
+    {
+      decimals: ZERO_DECIMAL.has(code) ? 0 : 2,
+      symbolPosition: SYMBOL_AFTER.has(code) ? "after" : "before",
+    } satisfies MoneyFormat,
+  ]),
+);
+
+/** The default `MoneyFormat` for a currency: the curated entry when one
+ *  exists, otherwise a sensible baseline — `before` symbol with the currency's
+ *  Intl-resolved minor-unit precision (2 for most, 0 for JPY-likes). Used to
+ *  backfill budgets predating tunable formatting and to reset on a currency
+ *  change. */
+export function formatDefaultsFor(currency: string): MoneyFormat {
+  const curated = CURRENCY_FORMAT_DEFAULTS[currency];
+  if (curated) return { ...curated };
+  return { decimals: resolvedDecimals(currency), symbolPosition: "before" };
+}
+
+/** The minor-unit precision Intl resolves for a currency (2 for USD, 0 for
+ *  JPY). Falls back to 2 if the code is unknown to the runtime. */
+function resolvedDecimals(currency: string): number {
+  try {
+    const opts = new Intl.NumberFormat(LOCALE, {
+      style: "currency",
+      currency,
+    }).resolvedOptions();
+    return opts.maximumFractionDigits ?? 2;
+  } catch {
+    return 2;
+  }
 }
 
 /** CSS class for amount coloring based on transaction type */

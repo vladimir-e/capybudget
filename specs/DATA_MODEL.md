@@ -6,7 +6,7 @@ All data lives in a user-chosen folder as plain CSV files. A `budget.json` metad
 
 ```
 ~/MyBudget/
-  budget.json            ← metadata: schema version, name, currency
+  budget.json            ← metadata: schema version, name, currency, formatting
   accounts.csv
   categories.csv
   transactions.csv
@@ -19,6 +19,8 @@ All data lives in a user-chosen folder as plain CSV files. A `budget.json` metad
   "schemaVersion": 3,
   "name": "My Budget",
   "currency": "USD",
+  "currencyDecimals": 2,
+  "currencySymbolPosition": "before",
   "createdAt": "2026-03-07T12:00:00.000Z",
   "lastModified": "2026-03-07T12:00:00.000Z"
 }
@@ -26,7 +28,7 @@ All data lives in a user-chosen folder as plain CSV files. A `budget.json` metad
 
 The schema version enables future migrations. On load, the app checks the version and runs any necessary transformations before proceeding.
 
-The `currency` field determines minor-unit precision for display (2 for USD/EUR, 0 for JPY, etc.). All amounts are integers in the minor unit.
+The `currency` field selects the display symbol; all amounts are integers in the minor unit regardless. `currencyDecimals` (0–3) and `currencySymbolPosition` (`before` · `after` · `off`) are user-tunable display knobs, seeded from the currency's curated defaults — `{ 0, after }` for RUB, `{ 2, before }` for USD — so a user whose exact currency isn't listed can pick a near one and match their real formatting. Decimals only rounds the rendered figure; money on disk stays ×100. Changing currency resets both knobs to the new currency's defaults. `currency`, `currencyDecimals`, and `currencySymbolPosition` are additive `budget.json` fields with no schema bump; a budget written before they existed backfills from the currency's defaults on load.
 
 ## Accounts
 

@@ -4,7 +4,8 @@ import { sortImportTransactions, filterImportTransactions } from "@/components/i
 import type { ImportTransaction } from "@capybudget/core";
 
 // Stand-in for the currency-bound formatter the app threads from useFormatMoney.
-const format = (cents: number) => formatMoney(cents, "USD");
+const format = (cents: number) =>
+  formatMoney(cents, "USD", { decimals: 2, symbolPosition: "before" });
 
 function txn(overrides: Partial<ImportTransaction> = {}): ImportTransaction {
   return {

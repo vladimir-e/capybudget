@@ -16,6 +16,7 @@
  * UI; for now callers fall back to "no session, no chat" behavior.
  */
 
+import type { MoneyFormat } from "@capybudget/core"
 import type { IntelligenceConfig } from "./config"
 import type { CapySession } from "./session"
 import type { StreamEvent } from "./types"
@@ -50,9 +51,13 @@ export interface ApiAdapterOptions {
   repo: BudgetRepository
   fileAdapter: FileAdapter
   /** The budget's display currency (ISO 4217), threaded into the tool
-   *  dispatch context so money in tool results formats in the user's
-   *  currency. From `BudgetMeta.currency`. */
+   *  dispatch context so the model reasons in the user's currency.
+   *  From `BudgetMeta.currency`. */
   currency: string
+  /** The budget's money-format config (decimals + symbol position), threaded
+   *  into tool dispatch so money in tool results renders the way the user sees
+   *  it. From `BudgetMeta`. */
+  format: MoneyFormat
   /**
    * Whether the active provider can run the import pipeline — passed to
    * `start_import` so it gates cleanly. Always true for the API adapters that
@@ -89,6 +94,9 @@ export interface SessionOptions {
   /** Budget's display currency (ISO 4217). Consumed by the API adapters'
    *  tool dispatch; the Claude CLI reads it from `budget.json` via MCP. */
   currency: string
+  /** Budget's money-format config. Consumed by the API adapters' tool dispatch;
+   *  the Claude CLI reads it from `budget.json` via MCP. */
+  format: MoneyFormat
   /** Claude-CLI-only `--model` value; ignored by API adapters. */
   claudeCliModel?: string
 }
@@ -140,6 +148,7 @@ export function createIntelligenceSession(
         repo: options.repo,
         fileAdapter: options.fileAdapter,
         currency: options.currency,
+        format: options.format,
         importSupported: canImport(provider),
         pdfSupported: canReadPdf(provider),
       })
@@ -159,6 +168,7 @@ export function createIntelligenceSession(
         repo: options.repo,
         fileAdapter: options.fileAdapter,
         currency: options.currency,
+        format: options.format,
         importSupported: canImport(provider),
         pdfSupported: canReadPdf(provider),
       })

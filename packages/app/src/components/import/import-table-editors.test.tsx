@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
+import { formatDefaultsFor } from "@capybudget/core";
 import { CurrencyContext } from "@/contexts/currency-context";
 import { makeImportTransaction } from "@capybudget/core/test-factories";
 import { AmountEdit } from "./import-table-editors";
@@ -7,7 +8,7 @@ import { AmountEdit } from "./import-table-editors";
 /** Render the import amount editor for a row under the given budget currency. */
 function renderAmountEdit(currency: string, amount: number) {
   return render(
-    <CurrencyContext.Provider value={currency}>
+    <CurrencyContext.Provider value={{ currency, ...formatDefaultsFor(currency) }}>
       <AmountEdit
         txn={makeImportTransaction({ amount, type: amount < 0 ? "expense" : "income" })}
         onSave={vi.fn()}

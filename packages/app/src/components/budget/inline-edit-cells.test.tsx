@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
+import { formatDefaultsFor } from "@capybudget/core";
 import { CurrencyContext } from "@/contexts/currency-context";
 import { makeTransaction } from "@/test/factories";
 import { InlineEditCell } from "./inline-edit-cells";
@@ -7,7 +8,7 @@ import { InlineEditCell } from "./inline-edit-cells";
 /** Render the amount editor for a transaction under the given budget currency. */
 function renderAmountEdit(currency: string, amount: number) {
   return render(
-    <CurrencyContext.Provider value={currency}>
+    <CurrencyContext.Provider value={{ currency, ...formatDefaultsFor(currency) }}>
       <InlineEditCell
         txn={makeTransaction({ amount, type: amount < 0 ? "expense" : "income" })}
         column="amount"

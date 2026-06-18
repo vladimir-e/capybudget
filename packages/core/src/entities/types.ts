@@ -1,3 +1,5 @@
+import type { SymbolPosition } from "../utils/money";
+
 /** The comparison bases the Monthly Budget tab can average implicit targets
  *  over. Source of truth for both the `BudgetBasis` type and the runtime
  *  list the basis picker enumerates. */
@@ -29,6 +31,11 @@ export interface BudgetMeta {
   schemaVersion: number;
   name: string;
   currency: string;
+  /** Minor-unit precision for display, 0–3. Money stays integer cents
+   *  regardless; this only rounds the rendered figure. */
+  currencyDecimals: number;
+  /** Where the currency symbol sits relative to the amount, or `off`. */
+  currencySymbolPosition: SymbolPosition;
   createdAt: string;
   lastModified: string;
 }

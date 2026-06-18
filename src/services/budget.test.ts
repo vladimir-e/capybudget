@@ -35,6 +35,8 @@ describe("detectBudget", () => {
       schemaVersion: 3,
       name: "Test Budget",
       currency: "USD",
+      currencyDecimals: 2,
+      currencySymbolPosition: "before",
       createdAt: "2026-01-01T00:00:00.000Z",
       lastModified: "2026-01-01T00:00:00.000Z",
     };
@@ -44,6 +46,25 @@ describe("detectBudget", () => {
     const result = await detectBudget("/budgets/test");
     expect(result).toEqual(meta);
     expect(mockReadTextFile).toHaveBeenCalledWith("/budgets/test/budget.json");
+  });
+
+  it("backfills format fields from the currency for a pre-format budget.json", async () => {
+    // A budget.json written before the format fields shipped is at the current
+    // schema version but lacks decimals + symbol position. detectBudget backfills
+    // them from the currency's defaults (RUB → 0 decimals, symbol after).
+    const preFormat = {
+      schemaVersion: 3,
+      name: "Pre-format",
+      currency: "RUB",
+      createdAt: "2026-01-01T00:00:00.000Z",
+      lastModified: "2026-01-01T00:00:00.000Z",
+    };
+    mockExists.mockResolvedValue(true);
+    mockReadTextFile.mockResolvedValue(JSON.stringify(preFormat));
+
+    const result = await detectBudget("/budgets/preformat");
+    expect(result?.currencyDecimals).toBe(0);
+    expect(result?.currencySymbolPosition).toBe("after");
   });
 
   it("defaults currency to USD for a current-version, pre-currency budget.json", async () => {
@@ -269,8 +290,16 @@ describe("bootstrapBudget", () => {
     expect(result.schemaVersion).toBe(3);
     expect(result.name).toBe("My Budget");
     expect(result.currency).toBe("USD");
+    expect(result.currencyDecimals).toBe(2);
+    expect(result.currencySymbolPosition).toBe("before");
     expect(result.createdAt).toBeTruthy();
     expect(result.lastModified).toBeTruthy();
+  });
+
+  it("seeds format fields from the chosen currency's defaults", async () => {
+    const result = await bootstrapBudget("/new/budget", "Ruble Budget", "RUB");
+    expect(result.currencyDecimals).toBe(0);
+    expect(result.currencySymbolPosition).toBe("after");
   });
 
   it("defaults currency to USD when omitted", async () => {

@@ -1,7 +1,8 @@
 import { exists, readTextFile, writeTextFile, readDir } from "@tauri-apps/plugin-fs";
 import { join } from "@tauri-apps/api/path";
 import type { BudgetMeta, Category } from "@capybudget/core";
-import { DEFAULT_CATEGORIES, DEFAULT_CURRENCY } from "@capybudget/core";
+import { DEFAULT_CATEGORIES, DEFAULT_CURRENCY, formatDefaultsFor } from "@capybudget/core";
+import { withFormatDefaults } from "./budget-migrations";
 import {
   unparseCsv,
   ACCOUNT_COLUMNS,
@@ -69,7 +70,7 @@ export async function detectBudget(folderPath: string): Promise<BudgetMeta | nul
     return migrated;
   }
 
-  return { ...meta, currency: meta.currency ?? DEFAULT_CURRENCY };
+  return withFormatDefaults({ ...meta, currency: meta.currency ?? DEFAULT_CURRENCY });
 }
 
 const PROTECTED_FILES = ["budget.json", "categories.csv", "accounts.csv", "transactions.csv"];
@@ -90,10 +91,13 @@ export async function bootstrapBudget(
   }
 
   const now = new Date().toISOString();
+  const defaults = formatDefaultsFor(currency);
   const meta: BudgetMeta = {
     schemaVersion: SCHEMA_VERSION,
     name,
     currency,
+    currencyDecimals: defaults.decimals,
+    currencySymbolPosition: defaults.symbolPosition,
     createdAt: now,
     lastModified: now,
   };

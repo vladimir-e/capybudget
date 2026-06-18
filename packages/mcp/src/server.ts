@@ -5,7 +5,7 @@ import {
   ListToolsRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js"
 import { createCsvRepository } from "@capybudget/persistence"
-import { DEFAULT_CURRENCY } from "@capybudget/core"
+import { DEFAULT_CURRENCY, formatDefaultsFor, type MoneyFormat } from "@capybudget/core"
 import {
   getToolDefinitions,
   runTool,
@@ -20,18 +20,33 @@ if (!BUDGET_PATH) {
   throw new Error("BUDGET_PATH environment variable is required")
 }
 
-// ── Currency ─────────────────────────────────────────────────────
+// ── Currency + format ────────────────────────────────────────────
 
-// Money in tool results is formatted with the budget's currency; this is the
-// fallback the app applies when a folder has no currency set (e.g. a
-// pre-currency `budget.json`).
-async function readBudgetCurrency(budgetPath: string): Promise<string> {
+// Money in tool results is rendered with the budget's currency, decimals, and
+// symbol position. Missing fields fall back to the currency's curated defaults,
+// the same backfill the app applies for a budget.json predating them.
+async function readBudgetFormat(
+  budgetPath: string,
+): Promise<{ currency: string; format: MoneyFormat }> {
   try {
     const metaPath = await nodeFileAdapter.join(budgetPath, "budget.json")
     const text = await nodeFileAdapter.readFile(metaPath)
-    return (JSON.parse(text) as { currency?: string }).currency ?? DEFAULT_CURRENCY
+    const raw = JSON.parse(text) as {
+      currency?: string
+      currencyDecimals?: number
+      currencySymbolPosition?: MoneyFormat["symbolPosition"]
+    }
+    const currency = raw.currency ?? DEFAULT_CURRENCY
+    const defaults = formatDefaultsFor(currency)
+    return {
+      currency,
+      format: {
+        decimals: raw.currencyDecimals ?? defaults.decimals,
+        symbolPosition: raw.currencySymbolPosition ?? defaults.symbolPosition,
+      },
+    }
   } catch {
-    return DEFAULT_CURRENCY
+    return { currency: DEFAULT_CURRENCY, format: formatDefaultsFor(DEFAULT_CURRENCY) }
   }
 }
 
@@ -39,11 +54,13 @@ async function readBudgetCurrency(budgetPath: string): Promise<string> {
 
 const repo = createCsvRepository(BUDGET_PATH, nodeFileAdapter, { immediate: true })
 
+const { currency, format } = await readBudgetFormat(BUDGET_PATH)
 const dispatchCtx: ToolContext = {
   repo,
   fileAdapter: nodeFileAdapter,
   budgetPath: BUDGET_PATH,
-  currency: await readBudgetCurrency(BUDGET_PATH),
+  currency,
+  format,
 }
 
 // ── Server setup ─────────────────────────────────────────────────

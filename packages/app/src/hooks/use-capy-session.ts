@@ -26,6 +26,7 @@ import {
   type ChatMessage,
   type ContentBlock,
 } from "@capybudget/intelligence"
+import type { MoneyFormat } from "@capybudget/core"
 import type { BudgetRepository, FileAdapter } from "@capybudget/persistence"
 
 export interface UseCapySessionOptions {
@@ -36,6 +37,10 @@ export interface UseCapySessionOptions {
    *  the first-message snapshot, and the adapter's tool dispatch so Capy reads
    *  and writes money in the user's currency. */
   currency: string
+  /** Budget's money-format config (decimals + symbol position). Threaded into
+   *  the system prompt's worked example and the adapter's tool dispatch so
+   *  Capy-rendered amounts match the user's chosen formatting. */
+  format: MoneyFormat
   customInstructions?: string
   /** Snapshot of the budget's current shape, attached to the first message
    *  of a session so Capy knows what it's working with without a tool call.
@@ -171,7 +176,7 @@ export function useCapySession(opts: UseCapySessionOptions): UseCapySessionRetur
   const ensureSession = useCallback(() => {
     if (!lifecycle.sessionRef.current) {
       const o = lifecycle.optsRef.current
-      const basePrompt = buildSystemPrompt(o.currency)
+      const basePrompt = buildSystemPrompt(o.currency, o.format)
       const customInstructions = o.customInstructions?.trim()
       const systemPrompt = customInstructions
         ? `${basePrompt}\n\n## User instructions\n${customInstructions}`
@@ -205,10 +210,10 @@ export function useCapySession(opts: UseCapySessionOptions): UseCapySessionRetur
   const openaiModel = useIntelligenceStore((s) => s.config.openai.model)
   const claudeCliModel = useIntelligenceStore((s) => s.config.claudeCli.model)
   // Single "session signature" — any change to provider, the model for the
-  // active provider, or the budget's currency should rebuild the session. The
-  // currency is baked into the system prompt + first-message snapshot, so a
-  // switch must spin up a fresh session for Capy to reflect it (rare, so the
-  // lost prompt-cache prefix is an acceptable trade for correctness).
+  // active provider, or the budget's currency + format should rebuild the
+  // session. Currency and format are baked into the system prompt + first-message
+  // snapshot, so a switch must spin up a fresh session for Capy to reflect them
+  // (rare, so the lost prompt-cache prefix is an acceptable trade for correctness).
   const providerSignature =
     provider === "anthropic"
       ? `anthropic:${anthropicModel}`
@@ -217,7 +222,7 @@ export function useCapySession(opts: UseCapySessionOptions): UseCapySessionRetur
         : provider === "claude-cli"
           ? `claude-cli:${claudeCliModel}`
           : (provider ?? "off") // null carries no model — stable string signature
-  const sessionSignature = `${providerSignature}:cur=${opts.currency}`
+  const sessionSignature = `${providerSignature}:cur=${opts.currency}:fmt=${opts.format.decimals},${opts.format.symbolPosition}`
   const prevSignatureRef = useRef(sessionSignature)
   useEffect(() => {
     if (prevSignatureRef.current !== sessionSignature) {

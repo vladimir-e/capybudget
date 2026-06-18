@@ -11,7 +11,7 @@ import { createCsvRepository } from "@capybudget/persistence";
 import type { DisposableRepository } from "@capybudget/persistence";
 import { tauriFileAdapter } from "../../../../src/adapters/tauri-file-adapter";
 import { budgetKeys, useBudgetSnapshot } from "@/hooks/use-budget-data";
-import { useBudgetCurrency } from "@/hooks/use-budget-currency";
+import { useBudgetMeta } from "@/hooks/use-budget-meta";
 import { useImportStore } from "@/stores/import-store";
 
 interface BudgetSearch {
@@ -46,7 +46,12 @@ function BudgetLayout() {
 
   const provider = useIntelligenceStore((s) => s.config.provider);
   const customInstructions = useCustomInstructions(path);
-  const currency = useBudgetCurrency(path);
+  const { data: meta } = useBudgetMeta(path);
+  const currency = meta.currency;
+  const format = useMemo(
+    () => ({ decimals: meta.currencyDecimals, symbolPosition: meta.currencySymbolPosition }),
+    [meta.currencyDecimals, meta.currencySymbolPosition],
+  );
   const getBudgetSnapshot = useBudgetSnapshot(currency);
 
   const onDataChanged = useCallback(() => {
@@ -75,12 +80,13 @@ function BudgetLayout() {
       customInstructions: customInstructions.instructions,
       getBudgetSnapshot,
       currency,
+      format,
       onDataChanged,
       onImportStarted,
       repo,
       fileAdapter: tauriFileAdapter,
     }),
-    [path, name, customInstructions.instructions, getBudgetSnapshot, currency, onDataChanged, onImportStarted, repo],
+    [path, name, customInstructions.instructions, getBudgetSnapshot, currency, format, onDataChanged, onImportStarted, repo],
   );
 
   return (

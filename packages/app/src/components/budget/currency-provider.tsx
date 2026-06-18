@@ -1,9 +1,10 @@
-import { type ReactNode } from "react";
-import { CurrencyContext } from "@/contexts/currency-context";
-import { useBudgetCurrency } from "@/hooks/use-budget-currency";
+import { useMemo, type ReactNode } from "react";
+import { CurrencyContext, type CurrencyConfig } from "@/contexts/currency-context";
+import { useBudgetMeta } from "@/hooks/use-budget-meta";
 
-/** Reads `BudgetMeta.currency` from `budget.json` and provides it to the tree.
- *  Falls back to USD before the file loads or when currency is absent. */
+/** Reads the budget's currency + format config from `budget.json` and provides
+ *  it to the tree. Defaults (USD, standard formatting) come from `useBudgetMeta`
+ *  before the file loads or for a budget missing the fields. */
 export function CurrencyProvider({
   budgetPath,
   children,
@@ -11,7 +12,16 @@ export function CurrencyProvider({
   budgetPath: string;
   children: ReactNode;
 }) {
-  const currency = useBudgetCurrency(budgetPath);
+  const { data } = useBudgetMeta(budgetPath);
 
-  return <CurrencyContext.Provider value={currency}>{children}</CurrencyContext.Provider>;
+  const config = useMemo<CurrencyConfig>(
+    () => ({
+      currency: data.currency,
+      decimals: data.currencyDecimals,
+      symbolPosition: data.currencySymbolPosition,
+    }),
+    [data.currency, data.currencyDecimals, data.currencySymbolPosition],
+  );
+
+  return <CurrencyContext.Provider value={config}>{children}</CurrencyContext.Provider>;
 }
