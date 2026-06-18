@@ -3,6 +3,7 @@ import { useNavigate, useSearch } from "@tanstack/react-router"
 import { ArrowLeft, Coins, RefreshCw, Shapes, Sparkles } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { GeneralSection } from "./general-section"
+import { CurrencySection } from "./currency-section"
 import { ProviderSection } from "./provider-section"
 import { ChatInstructionsSection } from "./chat-instructions-section"
 import { CategoriesSection } from "./categories-section"
@@ -122,7 +123,12 @@ export function SettingsScreen() {
 
       <main className="flex-1 overflow-y-auto">
         <div className="mx-auto w-full max-w-2xl space-y-6 px-6 py-8">
-          {active === "general" && <GeneralSection budgetPath={path} />}
+          {active === "general" && (
+            <>
+              <GeneralSection budgetPath={path} />
+              <CurrencySection budgetPath={path} />
+            </>
+          )}
           {active === "intelligence" && (
             <>
               <ProviderSection />

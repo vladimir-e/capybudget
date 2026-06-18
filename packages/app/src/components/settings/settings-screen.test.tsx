@@ -378,7 +378,7 @@ describe("SettingsScreen", () => {
   it("defaults to the General section when no section is deep-linked", async () => {
     await renderSettings("/budget/settings?path=/test&name=Test")
     expect(await screen.findByText("Budget-wide basics.")).toBeInTheDocument()
-    expect(screen.getByText("Currency")).toBeInTheDocument()
+    expect(screen.getByText("How amounts are displayed.")).toBeInTheDocument()
   })
 
   it("switches to Updates when the section param changes after mount", async () => {

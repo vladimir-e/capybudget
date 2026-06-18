@@ -41,7 +41,7 @@ describe("Settings navigation", () => {
       expect(screen.getByRole("heading", { name: "Settings" })).toBeInTheDocument();
     });
     // Settings opens on the General section (the default landing).
-    expect(screen.getByText("Currency")).toBeInTheDocument();
+    expect(screen.getByText("Budget-wide basics.")).toBeInTheDocument();
   }, TIMEOUT);
 
   it("manages categories from the Settings ▸ Categories section", async () => {
