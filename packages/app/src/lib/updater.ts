@@ -1,9 +1,8 @@
 import { check, type Update } from "@tauri-apps/plugin-updater";
 import { relaunch } from "@tauri-apps/plugin-process";
 
-// Granular updater primitives for the Settings updates panel and the
-// startup toast check. Errors propagate to the caller (the panel surfaces
-// them); the boot check swallows them on its own.
+// Errors propagate to the caller: the panel surfaces them, the boot check
+// swallows its own.
 
 export async function checkForUpdate(): Promise<Update | null> {
   return check();

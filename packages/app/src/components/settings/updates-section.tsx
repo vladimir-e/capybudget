@@ -22,7 +22,9 @@ type Status =
   | { kind: "error"; message: string }
 
 export function UpdatesSection() {
-  const [status, setStatus] = useState<Status>({ kind: "idle" })
+  const [status, setStatus] = useState<Status>(() =>
+    "__TAURI_INTERNALS__" in window ? { kind: "checking" } : { kind: "idle" },
+  )
   const [version, setVersion] = useState<string | null>(null)
 
   useEffect(() => {
@@ -31,6 +33,17 @@ export function UpdatesSection() {
     void getVersion().then((v) => {
       if (!cancelled) setVersion(v)
     })
+    // Auto-check on open so an already-known update (boot toast deep-link, or
+    // just opening the panel) surfaces immediately, without a second click.
+    void checkForUpdate()
+      .then((update) => {
+        if (cancelled) return
+        setStatus(update ? { kind: "available", update } : { kind: "up-to-date" })
+      })
+      .catch((err) => {
+        if (cancelled) return
+        setStatus({ kind: "error", message: err instanceof Error ? err.message : String(err) })
+      })
     return () => {
       cancelled = true
     }

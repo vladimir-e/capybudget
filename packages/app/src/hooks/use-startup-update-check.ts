@@ -15,8 +15,6 @@ interface StartupUpdateCheckArgs {
 const DEFER_MS = 1500
 
 export function useStartupUpdateCheck({ path, name, navigate }: StartupUpdateCheckArgs) {
-  const ran = useRef(false)
-
   // The check fires once, but the toast's deep-link must point at whatever
   // budget is open when the user clicks it — not the one open at first mount.
   const latest = useRef({ path, name, navigate })
@@ -26,8 +24,6 @@ export function useStartupUpdateCheck({ path, name, navigate }: StartupUpdateChe
 
   useEffect(() => {
     if (!("__TAURI_INTERNALS__" in window)) return
-    if (ran.current) return
-    ran.current = true
 
     const timer = setTimeout(() => {
       void checkForUpdate()
