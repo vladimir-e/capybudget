@@ -83,7 +83,11 @@ export function ImportDropZone({
             Drop files or click to browse
           </p>
           <p className="mt-1.5 text-sm text-muted-foreground/60">
-            CSV and images of bank statements
+            Upload bank statements, receipts, or screenshots
+          </p>
+          <p className="mt-2 max-w-sm text-center text-xs text-muted-foreground/40">
+            Don&apos;t like the results? Cancel, give Capy more instructions, and
+            run again.
           </p>
         </div>
       </div>
