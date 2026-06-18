@@ -76,7 +76,7 @@ describe("GeneralSection", () => {
     render(<GeneralSection budgetPath="/b" />)
 
     await user.click(screen.getByLabelText("Decimals"))
-    await user.click(screen.getByRole("option", { name: "0" }))
+    await user.click(await screen.findByRole("option", { name: "0" }))
 
     expect(setBudgetFormat).toHaveBeenCalledWith({ decimals: 0, symbolPosition: "after" })
   })
