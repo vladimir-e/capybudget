@@ -22,6 +22,7 @@ import type {
   Category,
   Transaction,
 } from "@capybudget/core";
+import { formatDefaultsFor } from "@capybudget/core";
 import { createCsvRepository } from "@capybudget/persistence";
 import { nodeFileAdapter } from "@capybudget/mcp";
 import {
@@ -186,10 +187,14 @@ const data = toBudgetFolderData(
 );
 
 const nowIso = new Date().toISOString();
+const currency = "USD";
+const format = formatDefaultsFor(currency);
 const meta: BudgetMeta = {
   schemaVersion: 3,
   name,
-  currency: "USD",
+  currency,
+  currencyDecimals: format.decimals,
+  currencySymbolPosition: format.symbolPosition,
   createdAt: nowIso,
   lastModified: nowIso,
 };
