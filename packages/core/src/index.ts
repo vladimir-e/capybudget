@@ -14,6 +14,7 @@ export { BUDGET_BASES, BASIS_OPTION_LABELS } from "./entities/types";
 
 // Money utilities
 export {
+  DEFAULT_CURRENCY,
   formatMoney,
   formatMoneyCompact,
   currencySymbol,

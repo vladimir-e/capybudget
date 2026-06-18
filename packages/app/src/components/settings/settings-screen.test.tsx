@@ -53,7 +53,9 @@ import {
 // ── Test rendering helper ───────────────────────────────
 
 async function renderSettings(
-  initialPath: string = "/budget/settings?path=/test&name=Test",
+  // Most cases exercise the Intelligence (AI provider) section; deep-link to
+  // it so they don't depend on which section is the default landing.
+  initialPath: string = "/budget/settings?path=/test&name=Test&section=intelligence",
 ) {
   const rootRoute = createRootRoute()
   // Settings reads path/name from the /budget search context and routes back to
@@ -373,10 +375,16 @@ describe("SettingsScreen", () => {
     ).toBeInTheDocument()
   })
 
+  it("defaults to the General section when no section is deep-linked", async () => {
+    await renderSettings("/budget/settings?path=/test&name=Test")
+    expect(await screen.findByText("Budget-wide basics.")).toBeInTheDocument()
+    expect(screen.getByText("Currency")).toBeInTheDocument()
+  })
+
   it("switches to Updates when the section param changes after mount", async () => {
     const { router } = await renderSettings()
 
-    // Default mount lands on Intelligence, not the Updates section.
+    // Mounted on Intelligence (deep-linked), not the Updates section.
     expect(screen.getByText("AI Provider")).toBeInTheDocument()
     expect(screen.queryByText("Keep Capy up to date.")).not.toBeInTheDocument()
 
@@ -392,7 +400,8 @@ describe("SettingsScreen", () => {
 
   it("lets a sidebar click switch sections without a URL change", async () => {
     const user = userEvent.setup()
-    const { router } = await renderSettings()
+    // No section param — the click must drive local state only.
+    const { router } = await renderSettings("/budget/settings?path=/test&name=Test")
 
     await user.click(screen.getByRole("button", { name: /Updates/i }))
 

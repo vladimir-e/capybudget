@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from "react"
 import { useNavigate, useSearch } from "@tanstack/react-router"
-import { ArrowLeft, RefreshCw, Shapes, Sparkles } from "lucide-react"
+import { ArrowLeft, Coins, RefreshCw, Shapes, Sparkles } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { GeneralSection } from "./general-section"
 import { ProviderSection } from "./provider-section"
 import { ChatInstructionsSection } from "./chat-instructions-section"
 import { CategoriesSection } from "./categories-section"
@@ -9,7 +10,7 @@ import { UpdatesSection } from "./updates-section"
 
 declare const __IS_DEMO__: boolean
 
-type SettingsSection = "intelligence" | "categories" | "updates"
+type SettingsSection = "general" | "intelligence" | "categories" | "updates"
 
 const SECTIONS: {
   id: SettingsSection
@@ -17,6 +18,12 @@ const SECTIONS: {
   description: string
   icon: React.ComponentType<{ className?: string }>
 }[] = [
+  {
+    id: "general",
+    label: "General",
+    description: "Currency & basics",
+    icon: Coins,
+  },
   {
     id: "intelligence",
     label: "Intelligence",
@@ -41,10 +48,10 @@ const SECTION_IDS = new Set(SECTIONS.map((s) => s.id))
 
 function resolveSection(section: string | undefined): SettingsSection {
   if (section && SECTION_IDS.has(section as SettingsSection)) {
-    if (section === "updates" && __IS_DEMO__) return "intelligence"
+    if (section === "updates" && __IS_DEMO__) return "general"
     return section as SettingsSection
   }
-  return "intelligence"
+  return "general"
 }
 
 export function SettingsScreen() {
@@ -115,6 +122,7 @@ export function SettingsScreen() {
 
       <main className="flex-1 overflow-y-auto">
         <div className="mx-auto w-full max-w-2xl space-y-6 px-6 py-8">
+          {active === "general" && <GeneralSection budgetPath={path} />}
           {active === "intelligence" && (
             <>
               <ProviderSection />

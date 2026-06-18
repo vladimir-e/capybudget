@@ -74,7 +74,7 @@ describe("BudgetSelector — validation modal", () => {
 
     const retry = await screen.findByRole("button", { name: /pick another folder/i });
 
-    // Set up the second pick — empty folder, bootstrap path.
+    // Set up the second pick — empty folder, opens the create dialog.
     mockPickerOpen.mockResolvedValueOnce("/folder2");
     mockInspectFolder.mockResolvedValueOnce({ hasBudget: false, isEmpty: true, itemCount: 0 });
     mockBootstrapBudget.mockResolvedValueOnce({
@@ -90,8 +90,10 @@ describe("BudgetSelector — validation modal", () => {
     await waitFor(() => {
       expect(mockPickerOpen).toHaveBeenCalledTimes(2);
     });
+    // Empty folder → create dialog, not an immediate bootstrap. Confirm with defaults.
+    await user.click(await screen.findByRole("button", { name: /^create$/i }));
     await waitFor(() => {
-      expect(mockBootstrapBudget).toHaveBeenCalledWith("/folder2", "folder2");
+      expect(mockBootstrapBudget).toHaveBeenCalledWith("/folder2", "folder2", "USD");
     });
   });
 });
@@ -129,10 +131,40 @@ describe("BudgetSelector — converged routing", () => {
       lastModified: "2026-01-01T00:00:00.000Z",
     });
 
-    await clickButton(/open existing/i);
+    const user = await clickButton(/open existing/i);
 
+    // Confirm dialog appears; Create with defaults bootstraps with USD.
+    await user.click(await screen.findByRole("button", { name: /^create$/i }));
     await waitFor(() => {
-      expect(mockBootstrapBudget).toHaveBeenCalledWith("/empty/folder", "folder");
+      expect(mockBootstrapBudget).toHaveBeenCalledWith("/empty/folder", "folder", "USD");
+    });
+  });
+
+  it("the create dialog passes the chosen name + currency to bootstrap", async () => {
+    mockPickerOpen.mockResolvedValue("/empty/folder");
+    mockInspectFolder.mockResolvedValue({ hasBudget: false, isEmpty: true, itemCount: 0 });
+    mockBootstrapBudget.mockResolvedValue({
+      schemaVersion: 3,
+      name: "Travel",
+      currency: "EUR",
+      createdAt: "2026-01-01T00:00:00.000Z",
+      lastModified: "2026-01-01T00:00:00.000Z",
+    });
+
+    const user = await clickButton(/new budget/i);
+
+    const nameInput = await screen.findByLabelText(/name/i);
+    await user.clear(nameInput);
+    await user.type(nameInput, "Travel");
+
+    // Open the currency combobox (trigger shows the current code) and pick EUR.
+    const trigger = document.getElementById("budget-currency")!;
+    await user.click(trigger);
+    await user.click(await screen.findByText("Euro"));
+
+    await user.click(screen.getByRole("button", { name: /^create$/i }));
+    await waitFor(() => {
+      expect(mockBootstrapBudget).toHaveBeenCalledWith("/empty/folder", "Travel", "EUR");
     });
   });
 });

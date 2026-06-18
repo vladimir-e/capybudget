@@ -40,7 +40,8 @@ describe("Settings navigation", () => {
     await waitFor(() => {
       expect(screen.getByRole("heading", { name: "Settings" })).toBeInTheDocument();
     });
-    expect(screen.getByText("AI Provider")).toBeInTheDocument();
+    // Settings opens on the General section (the default landing).
+    expect(screen.getByText("Currency")).toBeInTheDocument();
   }, TIMEOUT);
 
   it("manages categories from the Settings ▸ Categories section", async () => {

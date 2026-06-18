@@ -2,6 +2,10 @@
 // by the budget's chosen currency. Locale detection is deferred.
 const LOCALE = "en-US";
 
+/** Fallback currency for budgets without one set (e.g. a pre-currency
+ *  budget.json) and the default for newly created budgets. */
+export const DEFAULT_CURRENCY = "USD";
+
 const formatters = new Map<string, Intl.NumberFormat>();
 
 function formatter(currency: string, compact: boolean): Intl.NumberFormat {

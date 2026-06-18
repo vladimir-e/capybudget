@@ -9,6 +9,10 @@ CHANGELOG PHILOSOPHY:
 - Resist the urge to be thorough here. Thoroughness goes in specs, not changelog.
 -->
 
+## Unreleased
+
+- **Currency** - Configurable display currency (Settings + new-budget picker); display-only, no conversion.
+
 ## 1.0.1 — 2026-06-17
 
 - **Updates** - In-app update check and install in Settings; the boot-time check is now a non-blocking toast instead of a native dialog.

@@ -226,6 +226,21 @@ describe("bootstrapBudget", () => {
     expect(result.lastModified).toBeTruthy();
   });
 
+  it("defaults currency to USD when omitted", async () => {
+    const result = await bootstrapBudget("/new/budget", "My Budget");
+    expect(result.currency).toBe("USD");
+  });
+
+  it("honors a passed currency", async () => {
+    const result = await bootstrapBudget("/new/budget", "My Budget", "EUR");
+    expect(result.currency).toBe("EUR");
+
+    const budgetJsonCall = mockWriteTextFile.mock.calls.find(
+      (call: string[]) => call[0] === "/new/budget/budget.json",
+    );
+    expect(JSON.parse(budgetJsonCall![1]).currency).toBe("EUR");
+  });
+
   it("writes budget.json", async () => {
     await bootstrapBudget("/new/budget", "Test");
 

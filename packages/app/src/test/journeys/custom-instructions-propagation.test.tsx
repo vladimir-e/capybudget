@@ -107,7 +107,9 @@ describe("Custom instruction edits reach the next conversation", () => {
     await waitFor(() => {
       expect(screen.getByRole("heading", { name: "Settings" })).toBeInTheDocument();
     });
-    const editor = screen.getByPlaceholderText(/I use my Chase card/);
+    // Settings lands on General; the chat-instructions editor lives under Intelligence.
+    await user.click(screen.getByRole("button", { name: /Intelligence/i }));
+    const editor = await screen.findByPlaceholderText(/I use my Chase card/);
     await user.type(editor, INSTRUCTIONS);
     await user.click(screen.getByRole("button", { name: /Save/ }));
 

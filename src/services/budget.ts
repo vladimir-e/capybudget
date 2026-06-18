@@ -1,7 +1,7 @@
 import { exists, readTextFile, writeTextFile, readDir } from "@tauri-apps/plugin-fs";
 import { join } from "@tauri-apps/api/path";
 import type { BudgetMeta, Category } from "@capybudget/core";
-import { DEFAULT_CATEGORIES } from "@capybudget/core";
+import { DEFAULT_CATEGORIES, DEFAULT_CURRENCY } from "@capybudget/core";
 import {
   unparseCsv,
   ACCOUNT_COLUMNS,
@@ -77,7 +77,11 @@ const PROTECTED_FILES = ["budget.json", "categories.csv", "accounts.csv", "trans
 /** Bootstrap a new budget in a folder the caller has already validated as
  *  empty (via inspectFolder). The PROTECTED_FILES guard below is defensive
  *  — it catches races and any future caller that skips inspection. */
-export async function bootstrapBudget(folderPath: string, name: string): Promise<BudgetMeta> {
+export async function bootstrapBudget(
+  folderPath: string,
+  name: string,
+  currency: string = DEFAULT_CURRENCY,
+): Promise<BudgetMeta> {
   for (const file of PROTECTED_FILES) {
     const filePath = await join(folderPath, file);
     if (await exists(filePath)) {
@@ -89,7 +93,7 @@ export async function bootstrapBudget(folderPath: string, name: string): Promise
   const meta: BudgetMeta = {
     schemaVersion: SCHEMA_VERSION,
     name,
-    currency: "USD",
+    currency,
     createdAt: now,
     lastModified: now,
   };

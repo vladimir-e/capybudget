@@ -204,9 +204,12 @@ export function useCapySession(opts: UseCapySessionOptions): UseCapySessionRetur
   const anthropicModel = useIntelligenceStore((s) => s.config.anthropic.model)
   const openaiModel = useIntelligenceStore((s) => s.config.openai.model)
   const claudeCliModel = useIntelligenceStore((s) => s.config.claudeCli.model)
-  // Single "session signature" — any change to provider or the model
-  // for the active provider should rebuild the session.
-  const sessionSignature =
+  // Single "session signature" — any change to provider, the model for the
+  // active provider, or the budget's currency should rebuild the session. The
+  // currency is baked into the system prompt + first-message snapshot, so a
+  // switch must spin up a fresh session for Capy to reflect it (rare, so the
+  // lost prompt-cache prefix is an acceptable trade for correctness).
+  const providerSignature =
     provider === "anthropic"
       ? `anthropic:${anthropicModel}`
       : provider === "openai"
@@ -214,6 +217,7 @@ export function useCapySession(opts: UseCapySessionOptions): UseCapySessionRetur
         : provider === "claude-cli"
           ? `claude-cli:${claudeCliModel}`
           : (provider ?? "off") // null carries no model — stable string signature
+  const sessionSignature = `${providerSignature}:cur=${opts.currency}`
   const prevSignatureRef = useRef(sessionSignature)
   useEffect(() => {
     if (prevSignatureRef.current !== sessionSignature) {

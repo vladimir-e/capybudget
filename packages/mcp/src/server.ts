@@ -5,6 +5,7 @@ import {
   ListToolsRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js"
 import { createCsvRepository } from "@capybudget/persistence"
+import { DEFAULT_CURRENCY } from "@capybudget/core"
 import {
   getToolDefinitions,
   runTool,
@@ -21,11 +22,9 @@ if (!BUDGET_PATH) {
 
 // ── Currency ─────────────────────────────────────────────────────
 
-// Same USD fallback the app applies when a budget folder has no currency set
-// (e.g. a pre-currency `budget.json`). Money in tool results is formatted with
-// this so external agents read amounts in the budget's currency.
-const DEFAULT_CURRENCY = "USD"
-
+// Money in tool results is formatted with the budget's currency; this is the
+// fallback the app applies when a folder has no currency set (e.g. a
+// pre-currency `budget.json`).
 async function readBudgetCurrency(budgetPath: string): Promise<string> {
   try {
     const metaPath = await nodeFileAdapter.join(budgetPath, "budget.json")

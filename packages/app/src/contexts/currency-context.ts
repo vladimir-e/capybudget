@@ -8,9 +8,14 @@
  */
 
 import { createContext, useContext, useMemo } from "react";
-import { formatMoney, formatMoneyCompact, currencySymbol } from "@capybudget/core";
+import {
+  DEFAULT_CURRENCY,
+  formatMoney,
+  formatMoneyCompact,
+  currencySymbol,
+} from "@capybudget/core";
 
-export const DEFAULT_CURRENCY = "USD";
+export { DEFAULT_CURRENCY };
 
 export const CurrencyContext = createContext<string>(DEFAULT_CURRENCY);
 

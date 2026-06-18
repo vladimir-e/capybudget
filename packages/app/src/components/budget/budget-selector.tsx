@@ -19,7 +19,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { DEFAULT_CURRENCY } from "@capybudget/core";
 import { useAppStore } from "@/stores/app-store";
+import { CurrencyCombobox } from "@/components/budget/currency-combobox";
 import {
   detectBudget,
   bootstrapBudget,
@@ -50,6 +54,13 @@ export function BudgetSelector() {
   // but doesn't contain a budget. Both intents share the dialog, copy varies.
   type Intent = "new" | "open";
   const [errorModal, setErrorModal] = useState<Intent | null>(null);
+
+  // Create-budget confirmation: opened after the user picks an empty folder,
+  // it collects the name and currency before bootstrapping. Defaults breeze
+  // through with a single click.
+  const [createTarget, setCreateTarget] = useState<string | null>(null);
+  const [createName, setCreateName] = useState("");
+  const [createCurrency, setCreateCurrency] = useState(DEFAULT_CURRENCY);
 
   // Resolve which background to use: prefer explicit user choice, fall back
   // to system preference.
@@ -113,10 +124,11 @@ export function BudgetSelector() {
       }
 
       if (info.isEmpty) {
-        const name = deriveNameFromPath(folderPath);
-        const meta = await bootstrapBudget(folderPath, name);
-        toast.success("New budget created");
-        await navigateToBudget(folderPath, meta.name);
+        // Bootstrapping is deferred to the confirm dialog so the user can set
+        // name + currency first; stash the target and open it.
+        setCreateName(deriveNameFromPath(folderPath));
+        setCreateCurrency(DEFAULT_CURRENCY);
+        setCreateTarget(folderPath);
         return;
       }
 
@@ -165,6 +177,25 @@ export function BudgetSelector() {
     const intent = errorModal;
     setErrorModal(null);
     if (intent) void pickAndProcess(intent);
+  }
+
+  async function handleCreateBudget() {
+    if (!createTarget || loading) return;
+    const folderPath = createTarget;
+    const name = createName.trim() || deriveNameFromPath(folderPath);
+    setLoading(true);
+    try {
+      const meta = await bootstrapBudget(folderPath, name, createCurrency);
+      setCreateTarget(null);
+      toast.success("New budget created");
+      await navigateToBudget(folderPath, meta.name);
+    } catch (err) {
+      toast.error("Failed to create budget", {
+        description: err instanceof Error ? err.message : String(err),
+      });
+    } finally {
+      setLoading(false);
+    }
   }
 
   // ── render ──────────────────────────────────────────────────────────────────
@@ -303,6 +334,53 @@ export function BudgetSelector() {
             </Button>
             <Button onClick={dismissErrorAndRetry}>
               Pick another folder
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Create-budget confirmation — name + currency before bootstrap. Defaults
+          are prefilled, so Create is a single click. */}
+      <Dialog
+        open={!!createTarget}
+        onOpenChange={(isOpen) => { if (!isOpen) setCreateTarget(null); }}
+      >
+        <DialogContent showCloseButton={false}>
+          <DialogHeader>
+            <DialogTitle>New budget</DialogTitle>
+            <DialogDescription>Name it and pick a display currency.</DialogDescription>
+          </DialogHeader>
+          <form
+            id="create-budget"
+            onSubmit={(e) => { e.preventDefault(); void handleCreateBudget(); }}
+            className="space-y-4"
+          >
+            <div className="space-y-2">
+              <Label htmlFor="budget-name">Name</Label>
+              <Input
+                id="budget-name"
+                value={createName}
+                onChange={(e) => setCreateName(e.target.value)}
+                autoFocus
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="budget-currency">Currency</Label>
+              <div>
+                <CurrencyCombobox
+                  id="budget-currency"
+                  value={createCurrency}
+                  onChange={setCreateCurrency}
+                />
+              </div>
+            </div>
+          </form>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCreateTarget(null)}>
+              Cancel
+            </Button>
+            <Button type="submit" form="create-budget" disabled={loading}>
+              Create
             </Button>
           </DialogFooter>
         </DialogContent>
