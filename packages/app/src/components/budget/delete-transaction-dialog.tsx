@@ -8,7 +8,8 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import type { Transaction } from "@capybudget/core";
-import { formatMoney, resolveTransferPair } from "@capybudget/core";
+import { resolveTransferPair } from "@capybudget/core";
+import { useFormatMoney } from "@/contexts/currency-context";
 import { useAccounts, useCategories, useTransactions } from "@/hooks/use-budget-data";
 import { ArrowRight } from "lucide-react";
 
@@ -23,6 +24,7 @@ export function DeleteTransactionDialog({
   onConfirm,
   onCancel,
 }: DeleteTransactionDialogProps) {
+  const { format } = useFormatMoney();
   const { data: accounts = [] } = useAccounts();
   const { data: categories = [] } = useCategories();
   const { data: allTransactions = [] } = useTransactions();
@@ -72,7 +74,7 @@ export function DeleteTransactionDialog({
                   ? "text-amount-expense"
                   : "text-amount-income"
             }`}>
-              {formatMoney(Math.abs(transaction.amount))}
+              {format(Math.abs(transaction.amount))}
             </span>
           </div>
           <div className="text-foreground">

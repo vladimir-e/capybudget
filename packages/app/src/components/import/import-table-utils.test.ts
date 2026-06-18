@@ -1,6 +1,10 @@
 import { describe, it, expect } from "vitest";
+import { formatMoney } from "@capybudget/core";
 import { sortImportTransactions, filterImportTransactions } from "@/components/import/import-table-utils";
 import type { ImportTransaction } from "@capybudget/core";
+
+// Stand-in for the currency-bound formatter the app threads from useFormatMoney.
+const format = (cents: number) => formatMoney(cents, "USD");
 
 function txn(overrides: Partial<ImportTransaction> = {}): ImportTransaction {
   return {
@@ -75,11 +79,11 @@ describe("filterImportTransactions", () => {
   ];
 
   it("returns all when search is empty", () => {
-    expect(filterImportTransactions(txns, "")).toEqual(txns);
+    expect(filterImportTransactions(txns, "", format)).toEqual(txns);
   });
 
   it("filters by merchant", () => {
-    const result = filterImportTransactions(txns, "coffee");
+    const result = filterImportTransactions(txns, "coffee", format);
     expect(result.map((t) => t.id)).toEqual(["a"]);
   });
 
@@ -88,22 +92,22 @@ describe("filterImportTransactions", () => {
       txn({ id: "a", description: "POS TXN 8832 CARD", merchant: "Starbucks" }),
       txn({ id: "b", description: "ACH DEBIT 1234", merchant: "Netflix" }),
     ];
-    const result = filterImportTransactions(withMerchant, "starbucks");
+    const result = filterImportTransactions(withMerchant, "starbucks", format);
     expect(result.map((t) => t.id)).toEqual(["a"]);
   });
 
   it("filters by source account", () => {
-    const result = filterImportTransactions(txns, "savings");
+    const result = filterImportTransactions(txns, "savings", format);
     expect(result.map((t) => t.id)).toEqual(["b"]);
   });
 
   it("filters by source category", () => {
-    const result = filterImportTransactions(txns, "income");
+    const result = filterImportTransactions(txns, "income", format);
     expect(result.map((t) => t.id)).toEqual(["b"]);
   });
 
   it("is case-insensitive", () => {
-    const result = filterImportTransactions(txns, "PAYROLL");
+    const result = filterImportTransactions(txns, "PAYROLL", format);
     expect(result.map((t) => t.id)).toEqual(["b"]);
   });
 });

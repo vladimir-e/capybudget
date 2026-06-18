@@ -9,11 +9,10 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import {
-  formatMoney,
-  formatMoneyCompact,
   getTopMerchants,
 } from "@capybudget/core";
 import type { Transaction, DateRange } from "@capybudget/core";
+import { useFormatMoney } from "@/contexts/currency-context";
 import { useThemeColors } from "./use-theme-colors";
 import { EmptyState } from "@/components/ui/empty-state";
 import { NO_DATA_YET } from "./empty-copy";
@@ -37,13 +36,14 @@ function MerchantTooltipContent({
   active?: boolean;
   payload?: Array<{ payload: { merchant: string; total: number; count: number; percentage: number } }>;
 }) {
+  const { format } = useFormatMoney();
   if (!active || !payload?.length) return null;
   const data = payload[0].payload;
   return (
     <div className="rounded-lg border bg-background px-3 py-2 shadow-popover">
       <p className="text-sm font-medium">{data.merchant}</p>
       <p className="text-sm text-muted-foreground tabular-nums">
-        {formatMoney(data.total)} · {data.count} txn{data.count !== 1 ? "s" : ""} · {data.percentage.toFixed(1)}%
+        {format(data.total)} · {data.count} txn{data.count !== 1 ? "s" : ""} · {data.percentage.toFixed(1)}%
       </p>
     </div>
   );
@@ -64,6 +64,7 @@ export function MerchantsTab({
   periodType,
   hasAnyTransactions,
 }: MerchantsTabProps) {
+  const { format, formatCompact } = useFormatMoney();
   const merchants = useMemo(
     () => getTopMerchants(transactions, 15),
     [transactions],
@@ -109,7 +110,7 @@ export function MerchantsTab({
           <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
           <XAxis
             type="number"
-            tickFormatter={(v: number) => formatMoneyCompact(v)}
+            tickFormatter={(v: number) => formatCompact(v)}
             tick={{ fontSize: 12 }}
             className="text-muted-foreground"
           />
@@ -160,7 +161,7 @@ export function MerchantsTab({
               </TransactionsDrilldownLink>
             </span>
             <span className="tabular-nums font-medium text-foreground text-right">
-              {formatMoney(m.total)}
+              {format(m.total)}
             </span>
             <span className="tabular-nums text-muted-foreground text-right">
               {m.count}
@@ -189,7 +190,7 @@ export function MerchantsTab({
             : {}
         }
         title={drilldown?.kind === "unknown" ? "Unknown" : (drilldown?.value ?? "")}
-        subtitle={drilldown ? formatDrilldownSubtitle(dateRange, periodType, drilldownTransactions) : undefined}
+        subtitle={drilldown ? formatDrilldownSubtitle(dateRange, periodType, drilldownTransactions, format) : undefined}
       />
     </div>
   );

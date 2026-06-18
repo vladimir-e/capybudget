@@ -13,7 +13,7 @@ import {
 import { useImportMerge } from "@/hooks/use-import-merge";
 import { useImportData } from "@/hooks/use-import-data";
 import type { StagingStore } from "@capybudget/intelligence";
-import { formatMoney } from "@capybudget/core";
+import { useFormatMoney } from "@/contexts/currency-context";
 import { ImportTable } from "./import-table";
 import {
   sortImportTransactions,
@@ -54,6 +54,7 @@ export function ImportPreview({
   onEnrichControl,
   onMergeComplete,
 }: ImportPreviewProps) {
+  const { format } = useFormatMoney();
   const [sort, setSort] = useState<ImportSortConfig>({ column: "date", direction: "asc" });
   const [search, setSearch] = useState("");
 
@@ -90,8 +91,8 @@ export function ImportPreview({
 
   // ── Filtering / sorting ────────────────────────────────────────
   const filtered = useMemo(
-    () => filterImportTransactions(transactions, search),
-    [transactions, search],
+    () => filterImportTransactions(transactions, search, format),
+    [transactions, search, format],
   );
   const sorted = useMemo(() => sortImportTransactions(filtered, sort), [filtered, sort]);
 
@@ -286,7 +287,7 @@ export function ImportPreview({
           <div className="flex items-center gap-3 border-r border-border/40 pr-3">
             <span className="text-sm font-medium tabular-nums">{selectedCount} selected</span>
             <span className="text-sm text-muted-foreground tabular-nums font-semibold">
-              {formatMoney(selectedTotal)}
+              {format(selectedTotal)}
             </span>
           </div>
 
@@ -340,7 +341,7 @@ export function ImportPreview({
                     <strong>
                       {selectedCount} transaction{selectedCount !== 1 ? "s" : ""}
                     </strong>{" "}
-                    ({formatMoney(selectedTotal)}) to your budget.
+                    ({format(selectedTotal)}) to your budget.
                   </span>
                   {newAccountCount > 0 && (
                     <span className="block">

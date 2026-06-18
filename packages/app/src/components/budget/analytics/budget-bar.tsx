@@ -1,6 +1,7 @@
 import { ChevronDown } from "lucide-react";
-import { formatMoney, BUDGET_BASES, BASIS_OPTION_LABELS } from "@capybudget/core";
+import { BUDGET_BASES, BASIS_OPTION_LABELS } from "@capybudget/core";
 import type { BudgetBasis } from "@capybudget/core";
+import { useFormatMoney } from "@/contexts/currency-context";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   DropdownMenu,
@@ -74,7 +75,8 @@ function DividerGlyph({ isImplicit }: { isImplicit: boolean }) {
 /** A reference marker sitting above the bar. Keyboard-focusable with a
  *  descriptive label; hover/focus reveals the exact value. */
 function Pin({ pin, referenceLabel }: { pin: BarPin; referenceLabel: string }) {
-  const label = `${pinLabel(pin.kind, referenceLabel)}: ${formatMoney(pin.value)}`;
+  const { format } = useFormatMoney();
+  const label = `${pinLabel(pin.kind, referenceLabel)}: ${format(pin.value)}`;
   return (
     <Tooltip>
       <TooltipTrigger
@@ -106,9 +108,10 @@ function Divider({
   isImplicit: boolean;
   target: number;
 }) {
+  const { format } = useFormatMoney();
   const label = isImplicit
-    ? `Auto target: ${formatMoney(target)}`
-    : `Budget: ${formatMoney(target)}`;
+    ? `Auto target: ${format(target)}`
+    : `Budget: ${format(target)}`;
   return (
     <Tooltip>
       <TooltipTrigger
@@ -144,6 +147,7 @@ export function BudgetBar({
   row: BudgetRow;
   referenceLabel?: string;
 }) {
+  const { format } = useFormatMoney();
   const geo = barGeometry(row);
   const overLabel = geo.state === "over" ? " (over target)" : "";
 
@@ -182,7 +186,7 @@ export function BudgetBar({
       <div
         className="relative h-2.5 rounded-full overflow-hidden"
         role="img"
-        aria-label={`Spent ${formatMoney(row.spent)} of ${formatMoney(
+        aria-label={`Spent ${format(row.spent)} of ${format(
           row.effectiveTarget ?? 0,
         )} target${overLabel}`}
       >

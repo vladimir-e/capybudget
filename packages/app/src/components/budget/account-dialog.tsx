@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import type { Account, AccountType } from "@capybudget/core";
 import { ACCOUNT_TYPE_LABELS, ACCOUNT_TYPE_ORDER, parseMoney } from "@capybudget/core";
+import { useFormatMoney } from "@/contexts/currency-context";
 import { useCreateAccount, useUpdateAccount } from "@/hooks/use-account-mutations";
 import { toast } from "sonner";
 
@@ -22,6 +23,7 @@ interface AccountDialogProps {
 }
 
 export function AccountDialog({ open, onOpenChange, editingAccount }: AccountDialogProps) {
+  const { symbol } = useFormatMoney();
   const isEditing = !!editingAccount;
   const [name, setName] = useState(editingAccount?.name ?? "");
   const [type, setType] = useState<AccountType>(editingAccount?.type ?? "checking");
@@ -118,7 +120,7 @@ export function AccountDialog({ open, onOpenChange, editingAccount }: AccountDia
                 <Label htmlFor="opening-balance">Opening Balance</Label>
                 <div className="relative">
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
-                    $
+                    {symbol}
                   </span>
                   <Input
                     id="opening-balance"

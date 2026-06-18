@@ -13,11 +13,10 @@ import {
 } from "recharts";
 import {
   ensureMinMonths,
-  formatMoney,
-  formatMoneyCompact,
   getNetWorthOverTime,
 } from "@capybudget/core";
 import type { Account, Transaction, DateRange } from "@capybudget/core";
+import { useFormatMoney } from "@/contexts/currency-context";
 import { ChartSwitcher } from "./chart-switcher";
 import { useThemeColors } from "./use-theme-colors";
 import { NetWorthAccountFilter } from "./net-worth-account-filter";
@@ -42,11 +41,12 @@ function NetWorthTooltipContent({
   payload?: Array<{ value: number }>;
   label?: string;
 }) {
+  const { format } = useFormatMoney();
   if (!active || !payload?.length) return null;
   return (
     <div className="rounded-lg border bg-background px-3 py-2 shadow-popover">
       <p className="text-sm text-muted-foreground">{label}</p>
-      <p className="text-sm font-medium tabular-nums">{formatMoney(payload[0].value)}</p>
+      <p className="text-sm font-medium tabular-nums">{format(payload[0].value)}</p>
     </div>
   );
 }
@@ -68,6 +68,7 @@ const CHART_OPTIONS: Array<{ value: ChartMode; label: string }> = [
 ];
 
 export function NetWorthTab({ accounts, transactions, dateRange, hasAnyTransactions }: NetWorthTabProps) {
+  const { format, formatCompact } = useFormatMoney();
   const [chartMode, setChartMode] = useState<ChartMode>("bar");
   const netWorthExcludedIds = useAnalyticsStore((s) => s.netWorthExcludedIds);
   const setNetWorthExcludedIds = useAnalyticsStore((s) => s.setNetWorthExcludedIds);
@@ -159,7 +160,7 @@ export function NetWorthTab({ accounts, transactions, dateRange, hasAnyTransacti
               style={{ backgroundColor: brandColor }}
             />
             <p className="text-lg font-semibold tabular-nums">
-              {formatMoney(chartData[0].netWorth)}
+              {format(chartData[0].netWorth)}
             </p>
             <p className="text-xs text-muted-foreground">{chartData[0].label}</p>
           </div>
@@ -182,7 +183,7 @@ export function NetWorthTab({ accounts, transactions, dateRange, hasAnyTransacti
               className="text-muted-foreground"
             />
             <YAxis
-              tickFormatter={(v: number) => formatMoneyCompact(v)}
+              tickFormatter={(v: number) => formatCompact(v)}
               tick={{ fontSize: 12 }}
               className="text-muted-foreground"
               width={65}
@@ -213,7 +214,7 @@ export function NetWorthTab({ accounts, transactions, dateRange, hasAnyTransacti
               className="text-muted-foreground"
             />
             <YAxis
-              tickFormatter={(v: number) => formatMoneyCompact(v)}
+              tickFormatter={(v: number) => formatCompact(v)}
               tick={{ fontSize: 12 }}
               className="text-muted-foreground"
               width={65}

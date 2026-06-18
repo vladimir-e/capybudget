@@ -36,7 +36,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { formatMoney, formatMoneyCompact, ACCOUNT_TYPE_LABELS, getAccountBalance, getAccountsByGroup, getNetWorth, isOpeningBalanceTxn } from "@capybudget/core";
+import { ACCOUNT_TYPE_LABELS, getAccountBalance, getAccountsByGroup, getNetWorth, isOpeningBalanceTxn } from "@capybudget/core";
+import { useFormatMoney } from "@/contexts/currency-context";
 import { useAccounts, useTransactions } from "@/hooks/use-budget-data";
 import { NetWorthFilter } from "./net-worth-filter";
 import {
@@ -61,6 +62,7 @@ export function Sidebar({
   onEditAccount,
   onReorderAccounts,
 }: SidebarProps) {
+  const { format, formatCompact } = useFormatMoney();
   const { data: accounts = [] } = useAccounts();
   const { data: transactions = [] } = useTransactions();
   const deleteAccount = useDeleteAccount();
@@ -111,7 +113,7 @@ export function Sidebar({
       if (balance !== 0) {
         setErrorDialog({
           title: "Cannot Archive Account",
-          description: `${account.name} still has a ${formatMoney(Math.abs(balance))} balance. Add a transaction to bring it to zero first — archived accounts are hidden from your budget.`,
+          description: `${account.name} still has a ${format(Math.abs(balance))} balance. Add a transaction to bring it to zero first — archived accounts are hidden from your budget.`,
         });
         return;
       }
@@ -148,7 +150,7 @@ export function Sidebar({
             <NetWorthFilter accounts={accounts} />
           </div>
           <div className="text-2xl font-bold tabular-nums text-brand mt-0.5">
-            {formatMoneyCompact(netWorth)}
+            {formatCompact(netWorth)}
           </div>
         </div>
       </div>
@@ -193,7 +195,7 @@ export function Sidebar({
                     </span>
                     {showGroupTotal && (
                       <span className="text-[11px] font-medium tabular-nums text-muted-foreground/60">
-                        {formatMoney(groupBalance)}
+                        {format(groupBalance)}
                       </span>
                     )}
                   </div>
@@ -340,6 +342,7 @@ function AccountRow({
 }: AccountRowProps & {
   dragHandleProps?: Record<string, unknown>;
 }) {
+  const { format } = useFormatMoney();
   return (
     <div className={`flex items-center rounded-lg transition-all ${
       isActive
@@ -375,7 +378,7 @@ function AccountRow({
         <span className={`ml-2 shrink-0 tabular-nums text-xs font-medium ${
           balance < 0 ? "text-amount-expense/80" : balance > 0 ? "text-amount-income/80" : ""
         } ${dimmed ? "opacity-50" : ""}`}>
-          {formatMoney(balance)}
+          {format(balance)}
         </span>
       </Link>
 

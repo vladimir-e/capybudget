@@ -13,7 +13,8 @@ import { CategorySelector } from "@/components/budget/category-selector";
 import { AccountSelector } from "@/components/budget/account-selector";
 import type { ImportTransaction } from "@capybudget/core";
 import type { Category, Account } from "@capybudget/core";
-import { formatMoney, formatDateLabel } from "@capybudget/core";
+import { formatDateLabel } from "@capybudget/core";
+import { useFormatMoney } from "@/contexts/currency-context";
 import {
   amountColorClass,
   type ImportSortColumn,
@@ -133,6 +134,7 @@ export function ImportTable({
   onOpenAccountMapping,
   duplicateIds,
 }: ImportTableProps) {
+  const { format } = useFormatMoney();
   const [editingCell, setEditingCell] = useState<{
     rowId: string;
     column: EditableColumn;
@@ -316,7 +318,7 @@ export function ImportTable({
                     onCancel={handleCancel}
                   />
                 ) : (
-                  formatMoney(txn.amount)
+                  format(txn.amount)
                 )}
               </TableCell>
 

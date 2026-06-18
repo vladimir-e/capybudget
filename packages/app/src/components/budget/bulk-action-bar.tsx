@@ -27,7 +27,8 @@ import {
 } from "@/hooks/use-bulk-transaction-mutations";
 import { pluralize } from "@/lib/format";
 import type { Transaction } from "@capybudget/core";
-import { formatMoney, toDateString, formatDateLabel } from "@capybudget/core";
+import { toDateString, formatDateLabel } from "@capybudget/core";
+import { useFormatMoney } from "@/contexts/currency-context";
 import {
   CalendarDays,
   FolderInput,
@@ -47,6 +48,7 @@ interface BulkActionBarProps {
 }
 
 export function BulkActionBar({ selectedIds, transactions, onClear }: BulkActionBarProps) {
+  const { format } = useFormatMoney();
   const { data: accounts = [] } = useAccounts();
   const { data: categories = [] } = useCategories();
 
@@ -124,7 +126,7 @@ export function BulkActionBar({ selectedIds, transactions, onClear }: BulkAction
               {count} selected
             </span>
             <span className="text-sm text-muted-foreground tabular-nums font-semibold">
-              {formatMoney(totalAmount)}
+              {format(totalAmount)}
             </span>
           </div>
 
@@ -196,7 +198,7 @@ export function BulkActionBar({ selectedIds, transactions, onClear }: BulkAction
             <DialogHeader>
               <DialogTitle>Delete {pluralize(count, "transaction")}?</DialogTitle>
               <DialogDescription>
-                This will permanently delete {pluralize(count, "transaction")} totalling {formatMoney(totalAmount)}.
+                This will permanently delete {pluralize(count, "transaction")} totalling {format(totalAmount)}.
                 {hasTransfers && " Transfer pairs will be deleted on both sides."}
               </DialogDescription>
             </DialogHeader>

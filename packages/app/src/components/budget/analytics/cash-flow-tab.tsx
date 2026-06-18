@@ -13,11 +13,10 @@ import {
 } from "recharts";
 import {
   ensureMinMonths,
-  formatMoney,
-  formatMoneyCompact,
   getCashFlow,
 } from "@capybudget/core";
 import type { Transaction, DateRange } from "@capybudget/core";
+import { useFormatMoney } from "@/contexts/currency-context";
 import { EmptyState } from "@/components/ui/empty-state";
 import { NO_DATA_YET } from "./empty-copy";
 
@@ -32,6 +31,7 @@ function CashFlowTooltipContent({
   payload?: Array<{ dataKey: string; value: number; color: string }>;
   label?: string;
 }) {
+  const { format } = useFormatMoney();
   if (!active || !payload?.length) return null;
 
   const income = payload.find((p) => p.dataKey === "income")?.value ?? 0;
@@ -42,13 +42,13 @@ function CashFlowTooltipContent({
     <div className="rounded-lg border bg-background px-3 py-2 shadow-popover space-y-1">
       <p className="text-sm font-medium">{label}</p>
       <p className="text-sm text-amount-income tabular-nums">
-        Income: {formatMoney(income)}
+        Income: {format(income)}
       </p>
       <p className="text-sm text-amount-expense tabular-nums">
-        Expenses: {formatMoney(expenses)}
+        Expenses: {format(expenses)}
       </p>
       <p className={`text-sm font-medium tabular-nums ${net >= 0 ? "text-amount-income" : "text-amount-expense"}`}>
-        Net: {net >= 0 ? "+" : ""}{formatMoney(Math.abs(net))}
+        Net: {net >= 0 ? "+" : ""}{format(Math.abs(net))}
       </p>
     </div>
   );
@@ -63,6 +63,7 @@ interface CashFlowTabProps {
 }
 
 export function CashFlowTab({ transactions, dateRange, hasAnyTransactions }: CashFlowTabProps) {
+  const { formatCompact } = useFormatMoney();
   const cashFlowData = useMemo(
     () => getCashFlow(transactions, ensureMinMonths(dateRange, 12)),
     [transactions, dateRange],
@@ -91,7 +92,7 @@ export function CashFlowTab({ transactions, dateRange, hasAnyTransactions }: Cas
           className="text-muted-foreground"
         />
         <YAxis
-          tickFormatter={(v: number) => formatMoneyCompact(v)}
+          tickFormatter={(v: number) => formatCompact(v)}
           tick={{ fontSize: 12 }}
           className="text-muted-foreground"
           width={65}

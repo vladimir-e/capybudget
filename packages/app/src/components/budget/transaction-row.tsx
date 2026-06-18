@@ -11,7 +11,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { InlineEditCell, type EditableColumn } from "@/components/budget/inline-edit-cells";
 import type { Account, Category, Transaction, TransactionFormData } from "@capybudget/core";
-import { formatMoney, formatDateLabel, getAmountClass, resolveTransferPair } from "@capybudget/core";
+import { formatDateLabel, getAmountClass, resolveTransferPair } from "@capybudget/core";
+import { useFormatMoney } from "@/contexts/currency-context";
 import { ArrowRight, Info, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
 
 export interface TransactionRowProps {
@@ -55,6 +56,7 @@ export const TransactionRowMemo = memo(function TransactionRow({
   onEdit,
   onDelete,
 }: TransactionRowProps) {
+  const { format } = useFormatMoney();
   const account = accountMap.get(txn.accountId);
 
   // Transfer display
@@ -164,7 +166,7 @@ export const TransactionRowMemo = memo(function TransactionRow({
       >
         {activeCol === "amount" ? (
           <InlineEditCell txn={txn} column="amount" accounts={accounts} categories={categories} onSave={onInlineSave} onCancel={onInlineCancel} />
-        ) : formatMoney(txn.amount)}
+        ) : format(txn.amount)}
       </TableCell>
       {hasActions && (
         <TableCell className="px-1">

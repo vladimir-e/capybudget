@@ -1,7 +1,6 @@
 import { useMemo, useState } from "react";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
-  formatMoney,
   basisLabel,
   CATEGORY_GROUP_ORDER,
 } from "@capybudget/core";
@@ -11,6 +10,7 @@ import type {
   DateRange,
   Transaction,
 } from "@capybudget/core";
+import { useFormatMoney } from "@/contexts/currency-context";
 import { useBudgetBasis } from "./use-budget-basis";
 import { buildBudgetView } from "./monthly-budget-rows";
 import { BudgetBarLegend } from "./budget-bar";
@@ -40,6 +40,7 @@ export function MonthlyBudgetTab({
   dateRange,
   hasAnyTransactions,
 }: MonthlyBudgetTabProps) {
+  const { format } = useFormatMoney();
   const [hideUntargeted, setHideUntargeted] = useState(false);
   const [drilldown, setDrilldown] = useState<MonthlyBudgetDrilldown | null>(null);
 
@@ -137,14 +138,14 @@ export function MonthlyBudgetTab({
         cards={[
           {
             label: "Spent this month",
-            display: formatMoney(view.totalSpent),
+            display: format(view.totalSpent),
             tone: "expense",
             onClick:
               view.totalSpent > 0 ? () => setDrilldown({ kind: "all" }) : undefined,
           },
           {
             label: "Tracking toward",
-            display: formatMoney(view.totalTargeted),
+            display: format(view.totalTargeted),
           },
           {
             label: "Over budget",
@@ -241,7 +242,7 @@ export function MonthlyBudgetTab({
             : {}
         }
         title={drilldown ? budgetDrilldownTitle(drilldown) : ""}
-        subtitle={drilldown ? formatDrilldownSubtitle(dateRange, "month", drilldownTransactions) : undefined}
+        subtitle={drilldown ? formatDrilldownSubtitle(dateRange, "month", drilldownTransactions, format) : undefined}
       />
     </div>
   );

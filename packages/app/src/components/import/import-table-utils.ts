@@ -1,5 +1,4 @@
 import type { ImportTransaction } from "@capybudget/core";
-import { formatMoney } from "@capybudget/core";
 
 export type ImportSortColumn =
   | "date"
@@ -58,6 +57,7 @@ export function sortImportTransactions(
 export function filterImportTransactions(
   transactions: ImportTransaction[],
   search: string,
+  format: (cents: number) => string,
 ): ImportTransaction[] {
   if (!search) return transactions;
   const q = search.toLowerCase();
@@ -68,6 +68,6 @@ export function filterImportTransactions(
       t.sourceAccount.toLowerCase().includes(q) ||
       t.sourceCategory.toLowerCase().includes(q) ||
       t.type.includes(q) ||
-      formatMoney(t.amount).toLowerCase().includes(q),
+      format(t.amount).toLowerCase().includes(q),
   );
 }

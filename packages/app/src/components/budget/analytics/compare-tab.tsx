@@ -11,11 +11,10 @@ import {
 } from "recharts";
 import {
   CATEGORY_GROUP_ORDER,
-  formatMoney,
-  formatMoneyCompact,
   getCategoryTrends,
 } from "@capybudget/core";
 import type { Category, DateRange, Transaction } from "@capybudget/core";
+import { useFormatMoney } from "@/contexts/currency-context";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ChartSwitcher } from "./chart-switcher";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -85,6 +84,7 @@ function CompareTooltipContent({
   payload?: Array<{ dataKey: string; value: number; color: string }>;
   label?: string;
 }) {
+  const { format } = useFormatMoney();
   if (!active || !payload?.length) return null;
   return (
     <div className="rounded-lg border bg-background px-3 py-2 shadow-popover space-y-1">
@@ -97,7 +97,7 @@ function CompareTooltipContent({
           />
           <span className="text-muted-foreground">{entry.dataKey}</span>
           <span className="tabular-nums font-medium ml-auto">
-            {formatMoney(entry.value)}
+            {format(entry.value)}
           </span>
         </div>
       ))}
@@ -235,6 +235,7 @@ interface CompareTabBodyProps extends CompareTabProps {
 }
 
 function CompareTabBody({ transactions, categories, dateRange, viewMode, hasAnyTransactions }: CompareTabBodyProps) {
+  const { format, formatCompact } = useFormatMoney();
   // Build category rows for current period + view mode.
   const rows = useMemo(
     () => buildCategoryRows(transactions, categories, dateRange, viewMode),
@@ -472,7 +473,7 @@ function CompareTabBody({ transactions, categories, dateRange, viewMode, hasAnyT
                           {row.name}
                         </span>
                         <span className="text-xs text-muted-foreground tabular-nums text-right">
-                          {row.total > 0 ? formatMoney(row.total) : ""}
+                          {row.total > 0 ? format(row.total) : ""}
                         </span>
                       </label>
                     </li>
@@ -505,7 +506,7 @@ function CompareTabBody({ transactions, categories, dateRange, viewMode, hasAnyT
                 className="text-muted-foreground"
               />
               <YAxis
-                tickFormatter={(v: number) => formatMoneyCompact(v)}
+                tickFormatter={(v: number) => formatCompact(v)}
                 tick={{ fontSize: 12 }}
                 className="text-muted-foreground"
                 width={65}
@@ -554,7 +555,7 @@ function CompareTabBody({ transactions, categories, dateRange, viewMode, hasAnyT
         title={drilldown?.label ?? ""}
         // The bucket's date label is already the modal title, so the subtitle
         // is just count/total — no range label prefix.
-        subtitle={drilldown ? formatCountAndTotal(drilldownTransactions) : undefined}
+        subtitle={drilldown ? formatCountAndTotal(drilldownTransactions, format) : undefined}
       />
     </div>
   );

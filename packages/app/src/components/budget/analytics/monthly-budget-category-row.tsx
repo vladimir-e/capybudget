@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import {
-  formatMoney,
   parseMoney,
   centsToEditString,
 } from "@capybudget/core";
 import type { Category } from "@capybudget/core";
+import { useFormatMoney } from "@/contexts/currency-context";
 import { useSetCategoryAssigned } from "@/hooks/use-category-mutations";
 import { toast } from "sonner";
 import { TransactionsDrilldownLink } from "@/components/budget/transactions-drilldown-link";
@@ -27,6 +27,7 @@ interface AssignedInputProps {
  *  Empty input commits as `null` (back to auto/untargeted); `0` commits as an
  *  explicit zero target. Esc cancels, Enter or blur commits. */
 function AssignedInput({ category, row }: AssignedInputProps) {
+  const { format } = useFormatMoney();
   // When not editing, the displayed value is derived directly from the props.
   // When editing, we mount a separate <Editor> with its own local state and
   // an unconditional auto-focus on mount. This sidesteps the "sync state on
@@ -45,7 +46,7 @@ function AssignedInput({ category, row }: AssignedInputProps) {
   let display: React.ReactNode;
   let ariaLabel: string;
   if (row.assigned !== null) {
-    display = <span className="tabular-nums">{formatMoney(row.assigned)}</span>;
+    display = <span className="tabular-nums">{format(row.assigned)}</span>;
     ariaLabel = `Edit budget for ${category.name}`;
   } else if (row.isImplicit) {
     // AUTO is a prefix label pinned left while the amount stays pegged to the
@@ -56,11 +57,11 @@ function AssignedInput({ category, row }: AssignedInputProps) {
           auto
         </span>
         <span className="tabular-nums text-muted-foreground">
-          {formatMoney(row.implicitTarget!)}
+          {format(row.implicitTarget!)}
         </span>
       </span>
     );
-    ariaLabel = `Set a budget for ${category.name} (currently auto: ${formatMoney(row.implicitTarget!)})`;
+    ariaLabel = `Set a budget for ${category.name} (currently auto: ${format(row.implicitTarget!)})`;
   } else {
     display = <span className="text-muted-foreground/60 italic">set</span>;
     ariaLabel = `Set a budget for ${category.name}`;
@@ -165,6 +166,7 @@ interface CategoryRowProps {
 }
 
 export function CategoryRow({ category, row, referenceLabel, onDrilldown }: CategoryRowProps) {
+  const { format } = useFormatMoney();
   const { spent, effectiveTarget } = row;
   const targeted = effectiveTarget !== null;
   const hasSpent = spent > 0;
@@ -203,13 +205,13 @@ export function CategoryRow({ category, row, referenceLabel, onDrilldown }: Cate
             onClick={() => onDrilldown(category)}
             ariaLabel={`View ${category.name} transactions`}
           >
-            {formatMoney(spent)}
+            {format(spent)}
           </TransactionsDrilldownLink>
         </div>
       ) : (
         <span className="text-right text-sm tabular-nums">
           {targeted ? (
-            formatMoney(spent)
+            format(spent)
           ) : (
             <span className="text-muted-foreground/50">—</span>
           )}
@@ -230,7 +232,7 @@ export function CategoryRow({ category, row, referenceLabel, onDrilldown }: Cate
         {remaining === null ? (
           <span className="text-muted-foreground/50">—</span>
         ) : (
-          formatMoney(remaining)
+          format(remaining)
         )}
       </span>
     </div>

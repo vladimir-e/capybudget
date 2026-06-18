@@ -7,11 +7,11 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import {
-  formatMoney,
   getSpendingByCategory,
   getIncomeByCategory,
 } from "@capybudget/core";
 import type { Transaction, Category, DateRange } from "@capybudget/core";
+import { useFormatMoney } from "@/contexts/currency-context";
 import { ChartSwitcher } from "./chart-switcher";
 import { EmptyState } from "@/components/ui/empty-state";
 import { NO_DATA_YET } from "./empty-copy";
@@ -69,13 +69,14 @@ function PieTooltipContent({
   active?: boolean;
   payload?: Array<{ payload: { name: string; value: number; percentage: number } }>;
 }) {
+  const { format } = useFormatMoney();
   if (!active || !payload?.length) return null;
   const data = payload[0].payload;
   return (
     <div className="rounded-lg border bg-background px-3 py-2 shadow-popover">
       <p className="text-sm font-medium">{data.name}</p>
       <p className="text-sm text-muted-foreground">
-        {formatMoney(data.value)} ({data.percentage.toFixed(1)}%)
+        {format(data.value)} ({data.percentage.toFixed(1)}%)
       </p>
     </div>
   );
@@ -105,6 +106,7 @@ export function SpendingTab({
   periodType,
   hasAnyTransactions,
 }: SpendingTabProps) {
+  const { format } = useFormatMoney();
   const [viewMode, setViewMode] = useState<ViewMode>("expenses");
   const [drilldown, setDrilldown] = useState<SliceDrilldown | null>(null);
 
@@ -201,7 +203,7 @@ export function SpendingTab({
                     onClick={() => handleSliceClick(entry)}
                     ariaLabel={`View ${entry.name} transactions`}
                   >
-                    {formatMoney(entry.value)}
+                    {format(entry.value)}
                   </TransactionsDrilldownLink>
                 </span>
                 <span className="tabular-nums text-xs text-muted-foreground text-right">
@@ -228,7 +230,7 @@ export function SpendingTab({
             : {}
         }
         title={drilldown?.categoryName ?? ""}
-        subtitle={drilldown ? formatDrilldownSubtitle(dateRange, periodType, drilldownTransactions) : undefined}
+        subtitle={drilldown ? formatDrilldownSubtitle(dateRange, periodType, drilldownTransactions, format) : undefined}
       />
     </div>
   );

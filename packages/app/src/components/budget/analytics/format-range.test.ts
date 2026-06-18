@@ -6,6 +6,9 @@ import { formatDrilldownSubtitle } from "./format-range";
 // The helper only reads `.amount` and `.length`, so minimal stubs suffice.
 const txn = (amount: number) => ({ amount }) as Transaction;
 
+// Stand-in for the currency-bound formatter the app threads from useFormatMoney.
+const format = (cents: number) => formatMoney(cents, "USD");
+
 const MAY_2026: DateRange = {
   start: new Date(2026, 4, 1),
   end: new Date(2026, 5, 1),
@@ -13,17 +16,17 @@ const MAY_2026: DateRange = {
 
 describe("formatDrilldownSubtitle", () => {
   it("omits the total for a single transaction", () => {
-    const result = formatDrilldownSubtitle(MAY_2026, "month", [txn(4567)]);
+    const result = formatDrilldownSubtitle(MAY_2026, "month", [txn(4567)], format);
     expect(result).toBe("May 2026 · 1 transaction");
   });
 
   it("appends the abs-summed total for two or more transactions", () => {
-    const result = formatDrilldownSubtitle(MAY_2026, "month", [txn(1000), txn(2500)]);
-    expect(result).toBe(`May 2026 · 2 transactions · ${formatMoney(3500)}`);
+    const result = formatDrilldownSubtitle(MAY_2026, "month", [txn(1000), txn(2500)], format);
+    expect(result).toBe(`May 2026 · 2 transactions · ${format(3500)}`);
   });
 
   it("uses each transaction's absolute amount so the total reconciles with the clicked figure", () => {
-    const result = formatDrilldownSubtitle(MAY_2026, "month", [txn(1000), txn(-2500)]);
-    expect(result).toBe(`May 2026 · 2 transactions · ${formatMoney(3500)}`);
+    const result = formatDrilldownSubtitle(MAY_2026, "month", [txn(1000), txn(-2500)], format);
+    expect(result).toBe(`May 2026 · 2 transactions · ${format(3500)}`);
   });
 });
