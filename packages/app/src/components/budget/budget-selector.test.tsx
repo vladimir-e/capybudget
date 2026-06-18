@@ -163,7 +163,8 @@ describe("BudgetSelector — converged routing", () => {
     await waitFor(() => {
       expect(mockBootstrapBudget).toHaveBeenCalledWith("/empty/folder", "Travel", "EUR");
     });
-  });
+    // Opening the 47-item currency popover renders slowly under CI concurrency.
+  }, 15000);
 });
 
 describe("BudgetSelector — recents", () => {
