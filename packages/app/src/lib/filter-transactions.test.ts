@@ -89,10 +89,11 @@ describe("filterTransactions", () => {
     const result = filterTransactions(txns, { ...noFilter, search: "50.00" }, accounts, categories);
     expect(result).toHaveLength(2);
     expect(result.map((t) => t.id)).toEqual(["t1", "t2"]);
-    // A more specific search narrows it down
-    const exact = filterTransactions(txns, { ...noFilter, search: "$50.00" }, accounts, categories);
-    expect(exact).toHaveLength(1);
-    expect(exact[0].id).toBe("t1");
+    // The currency symbol is stripped from the query, so "$50.00" matches the
+    // same rows as "50.00" — currency-agnostic search doesn't anchor on a symbol.
+    const withSymbol = filterTransactions(txns, { ...noFilter, search: "$50.00" }, accounts, categories);
+    expect(withSymbol).toHaveLength(2);
+    expect(withSymbol.map((t) => t.id)).toEqual(["t1", "t2"]);
   });
 
   it("searches negative amount with minus sign", () => {

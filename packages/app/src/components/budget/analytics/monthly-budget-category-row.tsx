@@ -80,6 +80,7 @@ function AssignedInput({ category, row }: AssignedInputProps) {
 }
 
 function Editor({ category, onDone }: { category: Category; onDone: () => void }) {
+  const { symbol } = useFormatMoney();
   const [value, setValue] = useState(() =>
     category.assigned === null ? "" : centsToEditString(category.assigned),
   );
@@ -131,7 +132,7 @@ function Editor({ category, onDone }: { category: Category; onDone: () => void }
 
   return (
     <div className="flex items-center justify-end">
-      <span className="text-sm text-muted-foreground pr-0.5">$</span>
+      <span className="text-sm text-muted-foreground pr-0.5">{symbol}</span>
       <input
         ref={inputRef}
         type="text"
