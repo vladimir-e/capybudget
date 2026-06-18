@@ -108,6 +108,23 @@ describe("GeneralSection", () => {
     expect(screen.getByText("$1,234,567.89")).toBeInTheDocument()
   })
 
+  it("hides the reset link when the format already matches the currency's defaults", () => {
+    // USD defaults are 2 decimals, symbol before — the metaWith baseline.
+    render(<GeneralSection budgetPath="/b" />)
+
+    expect(screen.queryByRole("button", { name: /Reset to/i })).not.toBeInTheDocument()
+  })
+
+  it("resets to the currency's defaults when the format diverges", async () => {
+    const user = userEvent.setup()
+    meta = metaWith({ currencyDecimals: 0, currencySymbolPosition: "off" })
+    render(<GeneralSection budgetPath="/b" />)
+
+    await user.click(screen.getByRole("button", { name: /Reset to USD defaults/i }))
+
+    expect(setBudgetFormat).toHaveBeenCalledWith({ decimals: 2, symbolPosition: "before" })
+  })
+
   it("points the request-currency link at the plain repo page", async () => {
     const user = userEvent.setup()
     render(<GeneralSection budgetPath="/b" />)

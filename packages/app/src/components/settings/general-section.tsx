@@ -1,6 +1,10 @@
 import { open as shellOpen } from "@tauri-apps/plugin-shell"
 import { ExternalLink } from "lucide-react"
-import { currencySymbol, type SymbolPosition } from "@capybudget/core"
+import {
+  currencySymbol,
+  formatDefaultsFor,
+  type SymbolPosition,
+} from "@capybudget/core"
 import {
   Card,
   CardContent,
@@ -51,6 +55,11 @@ export function GeneralSection({ budgetPath }: { budgetPath: string }) {
   }
 
   const hasSymbol = currencySymbol(data.currency) !== ""
+
+  const defaultFormat = formatDefaultsFor(data.currency)
+  const isDefaultFormat =
+    data.currencyDecimals === defaultFormat.decimals &&
+    data.currencySymbolPosition === defaultFormat.symbolPosition
 
   return (
     <Card>
@@ -150,6 +159,16 @@ export function GeneralSection({ budgetPath }: { budgetPath: string }) {
             </Select>
           </div>
         </div>
+
+        {!isDefaultFormat && (
+          <button
+            type="button"
+            className="text-xs text-muted-foreground underline hover:text-foreground transition-colors"
+            onClick={() => void setBudgetFormat(defaultFormat)}
+          >
+            Reset to {data.currency} defaults
+          </button>
+        )}
 
         <p className="text-xs text-muted-foreground">
           Preview: <span className="text-foreground">{formatPreview(PREVIEW_CENTS)}</span>

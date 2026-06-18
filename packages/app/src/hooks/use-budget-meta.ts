@@ -53,9 +53,10 @@ interface UseBudgetMetaReturn {
   /** Read-modify-write: persists `name` and refreshes `lastModified`.
    *  Renames the budget's display name in `budget.json`, not the folder. */
   setName: (name: string) => Promise<void>;
-  /** Read-modify-write: persists `currency` and **resets** decimals + symbol
-   *  position to the new currency's defaults, so switching currency lands on
-   *  its conventional formatting rather than carrying the old one over. */
+  /** Read-modify-write: persists `currency` only. Format (decimals + symbol
+   *  position) is budget-level and survives a currency switch; restoring a
+   *  currency's conventional formatting is a deliberate act via
+   *  `setBudgetFormat(formatDefaultsFor(currency))`. */
   setCurrency: (currency: string) => Promise<void>;
   /** Read-modify-write: persists a format override (decimals + symbol
    *  position) without touching the currency. */
@@ -78,16 +79,8 @@ export function useBudgetMeta(budgetPath: string): UseBudgetMetaReturn {
   );
 
   const setCurrency = useCallback(
-    (currency: string) => {
-      const defaults = formatDefaultsFor(currency);
-      return save({
-        ...data,
-        currency,
-        currencyDecimals: defaults.decimals,
-        currencySymbolPosition: defaults.symbolPosition,
-        lastModified: new Date().toISOString(),
-      });
-    },
+    (currency: string) =>
+      save({ ...data, currency, lastModified: new Date().toISOString() }),
     [data, save],
   );
 

@@ -2,8 +2,8 @@
  * `useBudgetMeta`'s updaters each do a full read-modify-write: they persist the
  * one field they own + a refreshed `lastModified` while preserving everything
  * else. The shared `budget.json` cache key carries the whole `BudgetMeta`, so a
- * single-field write would otherwise clobber the rest. `setCurrency` also resets
- * the format fields to the new currency's defaults.
+ * single-field write would otherwise clobber the rest. `setCurrency` writes only
+ * the currency: format is budget-level and persists across a currency switch.
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -43,7 +43,7 @@ afterEach(() => {
 });
 
 describe("useBudgetMeta", () => {
-  it("setCurrency preserves name/schemaVersion/createdAt and resets format to the new currency's defaults", async () => {
+  it("setCurrency writes only the currency, preserving format and identity fields", async () => {
     mockReadTextFile.mockResolvedValue(JSON.stringify(STORED_META));
 
     const { result } = renderHook(() => useBudgetMeta("/b"), { wrapper });
@@ -61,9 +61,9 @@ describe("useBudgetMeta", () => {
 
     const written = JSON.parse(contents);
     expect(written.currency).toBe("RUB");
-    // RUB's defaults replace the prior USD formatting.
-    expect(written.currencyDecimals).toBe(0);
-    expect(written.currencySymbolPosition).toBe("after");
+    // Format is budget-level: the prior USD formatting carries over untouched.
+    expect(written.currencyDecimals).toBe(2);
+    expect(written.currencySymbolPosition).toBe("before");
     expect(written.name).toBe("My Budget");
     expect(written.schemaVersion).toBe(3);
     expect(written.createdAt).toBe("2026-01-01T00:00:00.000Z");
