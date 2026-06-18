@@ -48,6 +48,9 @@ function BudgetLayout() {
   const customInstructions = useCustomInstructions(path);
   const { data: meta } = useBudgetMeta(path);
   const currency = meta.currency;
+  // Live name comes from budget.json so a rename reflects without a reopen;
+  // fall back to the search param only while meta is still loading.
+  const budgetName = meta.name || name;
   const getBudgetSnapshot = useBudgetSnapshot(currency);
 
   const onDataChanged = useCallback(() => {
@@ -65,13 +68,13 @@ function BudgetLayout() {
   const signalChatImport = useImportStore((s) => s.signalChatImport);
   const onImportStarted = useCallback(() => {
     signalChatImport();
-    void navigate({ to: "/budget/import", search: { path, name } });
-  }, [signalChatImport, navigate, path, name]);
+    void navigate({ to: "/budget/import", search: { path, name: budgetName } });
+  }, [signalChatImport, navigate, path, budgetName]);
 
   const sessionOptions = useMemo(
     () => ({
       budgetPath: path,
-      budgetName: name,
+      budgetName,
       mcpServerPath: "packages/mcp/src/server.ts",
       customInstructions: customInstructions.instructions,
       getBudgetSnapshot,
@@ -81,7 +84,7 @@ function BudgetLayout() {
       repo,
       fileAdapter: tauriFileAdapter,
     }),
-    [path, name, customInstructions.instructions, getBudgetSnapshot, currency, onDataChanged, onImportStarted, repo],
+    [path, budgetName, customInstructions.instructions, getBudgetSnapshot, currency, onDataChanged, onImportStarted, repo],
   );
 
   return (

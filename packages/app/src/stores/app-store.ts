@@ -8,6 +8,7 @@ const DEFAULT_SORT: SortConfig = { column: "date", direction: "desc" };
 interface AppState {
   recentBudgets: RecentBudget[];
   addRecentBudget: (path: string, name: string) => void;
+  renameRecentBudget: (path: string, name: string) => void;
   removeRecentBudget: (path: string) => void;
 
   sortPreferences: Record<string, SortConfig>;
@@ -30,6 +31,13 @@ export const useAppStore = create<AppState>()(
             ].slice(0, 10),
           };
         }),
+
+      renameRecentBudget: (path, name) =>
+        set((state) => ({
+          recentBudgets: state.recentBudgets.map((b) =>
+            b.path === path ? { ...b, name } : b,
+          ),
+        })),
 
       removeRecentBudget: (path) =>
         set((state) => ({

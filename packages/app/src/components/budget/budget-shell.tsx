@@ -25,6 +25,7 @@ import { useStartupUpdateCheck } from "@/hooks/use-startup-update-check";
 import { useCustomInstructions } from "@/hooks/use-custom-instructions";
 import { useCustomCommands } from "@/hooks/use-custom-commands";
 import { useImportStore } from "@/stores/import-store";
+import { useBudgetMeta } from "@/hooks/use-budget-meta";
 import { modKey } from "@/lib/platform";
 import {
   DropdownMenu,
@@ -50,7 +51,11 @@ function shortenPath(path: string, maxLen: number): string {
 }
 
 export function BudgetShell() {
-  const { path, name } = useSearch({ from: "/budget" });
+  const { path, name: searchName } = useSearch({ from: "/budget" });
+  const { data: meta } = useBudgetMeta(path);
+  // Live name from budget.json so a rename re-renders the header and threads the
+  // fresh name into nav links; the search param is the load-time fallback.
+  const name = meta.name || searchName;
   const navigate = useNavigate();
   const createTxn = useCreateTransaction();
   const updateTxn = useUpdateTransaction();
