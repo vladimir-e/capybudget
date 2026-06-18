@@ -69,7 +69,6 @@ export function CurrencySection({ budgetPath }: { budgetPath: string }) {
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="space-y-2">
-          <Label htmlFor="currency">Currency</Label>
           <CurrencyCombobox
             id="currency"
             value={data.currency}
