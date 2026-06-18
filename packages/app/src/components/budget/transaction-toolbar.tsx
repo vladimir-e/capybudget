@@ -7,7 +7,7 @@ import { TransactionFilterPopover } from "@/components/budget/transaction-filter
 import { useCategories } from "@/hooks/use-budget-data";
 import {
   ALL_TRANSACTION_TYPES,
-  hasActiveFilters as computeActiveFilters,
+  hasActiveFilters,
   hasSecondaryFilters,
   type TransactionFilterCriteria,
 } from "@/lib/filter-transactions";
@@ -28,7 +28,6 @@ export function TransactionToolbar({ filters, onFiltersChange }: TransactionTool
   const hasSearch = filters.search.length > 0;
   const hasCategory = filters.categoryId !== null;
   const hasDateRange = filters.dateRange !== null;
-  const hasActiveFilters = computeActiveFilters(filters);
   const hasSecondary = hasSecondaryFilters(filters);
 
   const update = (patch: Partial<TransactionFilterCriteria>) =>
@@ -105,7 +104,7 @@ export function TransactionToolbar({ filters, onFiltersChange }: TransactionTool
         </PopoverContent>
       </Popover>
 
-      {hasActiveFilters && (
+      {hasActiveFilters(filters) && (
         <Button
           variant="ghost"
           size="xs"

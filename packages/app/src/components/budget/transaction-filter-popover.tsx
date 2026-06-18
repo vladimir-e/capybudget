@@ -24,7 +24,7 @@ const sectionLabel =
   "text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60";
 
 export function TransactionFilterPopover({ filters, update }: TransactionFilterPopoverProps) {
-  const selected = filters.types ?? ALL_TRANSACTION_TYPES;
+  const selected = filters.types ?? [...ALL_TRANSACTION_TYPES];
   const showReset = hasSecondaryFilters(filters);
 
   const reset = () =>

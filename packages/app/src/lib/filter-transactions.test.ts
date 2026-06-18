@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { filterTransactions, sortTransactions, type TransactionFilterCriteria, type SortConfig } from "@/lib/filter-transactions";
+import {
+  filterTransactions,
+  hasActiveFilters,
+  hasSecondaryFilters,
+  sortTransactions,
+  type TransactionFilterCriteria,
+  type SortConfig,
+} from "@/lib/filter-transactions";
 import type { Account, Category, Transaction } from "@capybudget/core";
 
 const accounts: Account[] = [
@@ -213,6 +220,51 @@ describe("filterTransactions", () => {
     );
     // Only x4: expense + unknown category. x2/x3 are uncategorized but not expense.
     expect(ids(result)).toEqual(["x4"]);
+  });
+});
+
+describe("hasSecondaryFilters", () => {
+  it("is false when all three types are selected and no toggle is set", () => {
+    expect(hasSecondaryFilters({ ...noFilter, types: ["expense", "income", "transfer"] })).toBe(false);
+  });
+
+  it("is false when types is empty or undefined and no toggle is set", () => {
+    expect(hasSecondaryFilters({ ...noFilter, types: [] })).toBe(false);
+    expect(hasSecondaryFilters(noFilter)).toBe(false);
+  });
+
+  it("is true for a single-type subset", () => {
+    expect(hasSecondaryFilters({ ...noFilter, types: ["expense"] })).toBe(true);
+  });
+
+  it("is true for a two-type subset", () => {
+    expect(hasSecondaryFilters({ ...noFilter, types: ["expense", "income"] })).toBe(true);
+  });
+
+  it("is true when only uncategorizedOnly is set", () => {
+    expect(hasSecondaryFilters({ ...noFilter, uncategorizedOnly: true })).toBe(true);
+  });
+
+  it("is true when only noMerchantOnly is set", () => {
+    expect(hasSecondaryFilters({ ...noFilter, noMerchantOnly: true })).toBe(true);
+  });
+});
+
+describe("hasActiveFilters", () => {
+  it("is false with no filters", () => {
+    expect(hasActiveFilters(noFilter)).toBe(false);
+  });
+
+  it("is true for a primary-only filter (search)", () => {
+    expect(hasActiveFilters({ ...noFilter, search: "rent" })).toBe(true);
+  });
+
+  it("is true for a secondary-only filter (uncategorizedOnly)", () => {
+    expect(hasActiveFilters({ ...noFilter, uncategorizedOnly: true })).toBe(true);
+  });
+
+  it("is true for a secondary-only type subset", () => {
+    expect(hasActiveFilters({ ...noFilter, types: ["expense"] })).toBe(true);
   });
 });
 

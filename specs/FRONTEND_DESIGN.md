@@ -77,6 +77,7 @@ Keyboard-first workflow for the majority of user actions. Controls are intuitive
 - Columns: date, account, merchant, category, amount.
 - Sortable by any column. Inline editing — click to edit.
 - Full-text search across all visible fields, including money e.g. "12.50" finds transactions with amount=1250. Category filter, date range picker.
+- Secondary filters (transaction type, uncategorized-only, no-merchant-only) live behind a filter-icon popover; a dot on the trigger marks an active subset.
 - "All Accounts" view for cross-account overview.
 - Transfers don't have category/merchant columns and display from/to accounts instead.
 

@@ -18,8 +18,7 @@ export interface TransactionFilterCriteria {
   noMerchantOnly?: boolean;
 }
 
-/** The full type set, in toolbar display order. A `types` selection equal to
- *  this (or empty/undefined) is no constraint — only a strict subset filters. */
+/** The full type set, in toolbar display order. */
 export const ALL_TRANSACTION_TYPES: TransactionType[] = ["expense", "income", "transfer"];
 
 /** Normalize a merchant string for equality comparison.
@@ -30,8 +29,8 @@ export function normalizeMerchant(raw: string): string {
   return raw.trim().toLowerCase();
 }
 
-/** A transaction is uncategorized when it carries no category id or one no
- *  category resolves — the same rule the core search uses to label rows
+/** A transaction is uncategorized when it carries no category id, or one that
+ *  no category resolves — the same rule the core search uses to label rows
  *  "uncategorized". */
 function isUncategorized(txn: Transaction, categoryIds: Set<string>): boolean {
   return txn.categoryId === "" || !categoryIds.has(txn.categoryId);
