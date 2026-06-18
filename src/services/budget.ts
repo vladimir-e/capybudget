@@ -69,7 +69,7 @@ export async function detectBudget(folderPath: string): Promise<BudgetMeta | nul
     return migrated;
   }
 
-  return meta;
+  return { ...meta, currency: meta.currency ?? DEFAULT_CURRENCY };
 }
 
 const PROTECTED_FILES = ["budget.json", "categories.csv", "accounts.csv", "transactions.csv"];

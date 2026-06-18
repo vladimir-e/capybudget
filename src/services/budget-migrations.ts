@@ -2,6 +2,7 @@ import { readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
 import { join } from "@tauri-apps/api/path";
 import Papa from "papaparse";
 import type { BudgetMeta } from "@capybudget/core";
+import { DEFAULT_CURRENCY } from "@capybudget/core";
 
 /** A migration transforms a budget folder from version `from` to `from + 1`.
  *  Migrations are pure-ish: they read and rewrite files in place, no other side
@@ -80,6 +81,7 @@ export async function migrateBudgetFolder(
   return {
     ...meta,
     schemaVersion: targetVersion,
+    currency: meta.currency ?? DEFAULT_CURRENCY,
     lastModified: new Date().toISOString(),
   };
 }

@@ -46,6 +46,53 @@ describe("detectBudget", () => {
     expect(mockReadTextFile).toHaveBeenCalledWith("/budgets/test/budget.json");
   });
 
+  it("defaults currency to USD for a current-version, pre-currency budget.json", async () => {
+    // A budget.json written before the currency field shipped is at the
+    // current schema version but lacks `currency`. detectBudget must return a
+    // type-complete BudgetMeta rather than `currency: undefined`.
+    const preCurrency = {
+      schemaVersion: 3,
+      name: "Legacy Budget",
+      createdAt: "2026-01-01T00:00:00.000Z",
+      lastModified: "2026-01-01T00:00:00.000Z",
+    };
+    mockExists.mockResolvedValue(true);
+    mockReadTextFile.mockResolvedValue(JSON.stringify(preCurrency));
+
+    const result = await detectBudget("/budgets/legacy");
+    expect(result?.currency).toBe("USD");
+  });
+
+  it("defaults currency to USD when migrating a pre-currency budget", async () => {
+    // A v1 budget predates the currency field entirely. After migration the
+    // returned meta is at v3, whose shape requires `currency`.
+    const oldMeta = {
+      schemaVersion: 1,
+      name: "Old Budget",
+      createdAt: "2026-01-01T00:00:00.000Z",
+      lastModified: "2026-01-01T00:00:00.000Z",
+    };
+    const oldAccountsCsv = "id,name,type,archived,sortOrder,createdAt";
+    const oldCategoriesCsv = "id,name,group,archived,sortOrder";
+
+    mockExists.mockResolvedValue(true);
+    mockReadTextFile.mockImplementation(async (path: string) => {
+      if (path.endsWith("budget.json")) return JSON.stringify(oldMeta);
+      if (path.endsWith("accounts.csv")) return oldAccountsCsv;
+      if (path.endsWith("categories.csv")) return oldCategoriesCsv;
+      throw new Error(`Unexpected read: ${path}`);
+    });
+
+    const result = await detectBudget("/budgets/old");
+    expect(result?.schemaVersion).toBe(3);
+    expect(result?.currency).toBe("USD");
+
+    const metaWrite = mockWriteTextFile.mock.calls.find((c: string[]) =>
+      c[0].endsWith("budget.json"),
+    );
+    expect(JSON.parse(metaWrite![1]).currency).toBe("USD");
+  });
+
   it("runs pending migrations and writes updated budget.json", async () => {
     // budget.json is at v1; accounts.csv has no excludeFromNetWorth column,
     // categories.csv has no assigned column. detectBudget should walk

@@ -7,6 +7,7 @@ import { MerchantInput } from "@/components/budget/merchant-input";
 import type { Account, Category, Transaction, TransactionFormData } from "@capybudget/core";
 import { parseMoney, getAmountClass, centsToEditString, parseLocalDate, toDateString, formatDateLabel, findCategoryForMerchant } from "@capybudget/core";
 import { useTransactions } from "@/hooks/use-budget-data";
+import { useFormatMoney } from "@/contexts/currency-context";
 import { CalendarDays } from "lucide-react";
 
 // ---------------------------------------------------------------------------
@@ -194,6 +195,7 @@ function AmountEditCell({ txn, onSave, onCancel }: {
   txn: Transaction;
   onSave: (amount: number) => void; onCancel: () => void;
 }) {
+  const { symbol } = useFormatMoney();
   const [value, setValue] = useState(() => centsToEditString(txn.amount));
   const ref = useRef<HTMLInputElement>(null);
   useEffect(() => { ref.current?.focus(); ref.current?.select(); }, []);
@@ -203,7 +205,7 @@ function AmountEditCell({ txn, onSave, onCancel }: {
   return (
     <div className="inline-flex items-center justify-end">
       <span className={`text-[13px] font-semibold ${getAmountClass(txn)}`}>
-        {txn.amount < 0 ? "-$" : "$"}
+        {txn.amount < 0 ? `-${symbol}` : symbol}
       </span>
       <input
         ref={ref}

@@ -11,6 +11,7 @@ import {
   formatDateLabel,
 } from "@capybudget/core";
 import { useTransactions } from "@/hooks/use-budget-data";
+import { useFormatMoney } from "@/contexts/currency-context";
 import { amountColorClass } from "@/components/import/import-table-utils";
 import { CalendarDays } from "lucide-react";
 
@@ -98,6 +99,7 @@ export function AmountEdit({
   onSave: (cents: number) => void;
   onCancel: () => void;
 }) {
+  const { symbol } = useFormatMoney();
   const [value, setValue] = useState(() => centsToEditString(txn.amount));
   const ref = useRef<HTMLInputElement>(null);
   useEffect(() => { ref.current?.focus(); ref.current?.select(); }, []);
@@ -116,7 +118,7 @@ export function AmountEdit({
   return (
     <div onClick={(e) => e.stopPropagation()} className="inline-flex items-center justify-end">
       <span className={`text-[13px] font-semibold ${amountColorClass(txn)}`}>
-        {txn.amount < 0 ? "-$" : "$"}
+        {txn.amount < 0 ? `-${symbol}` : symbol}
       </span>
       <input
         ref={ref}

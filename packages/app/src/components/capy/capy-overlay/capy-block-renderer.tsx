@@ -1,4 +1,5 @@
 import { formatText } from "@/lib/format-text"
+import { useFormatMoney } from "@/contexts/currency-context"
 import type {
   BarChartBlock,
   ContentBlock,
@@ -51,6 +52,7 @@ export function BlockRenderer({
 /* ── Table ─────────────────────────────────────────────────────── */
 
 function TableView({ headers, rows }: Pick<TableBlock, "headers" | "rows">) {
+  const { symbol } = useFormatMoney()
   // Tables can carry more columns than the chat panel is wide. Let the table
   // grow to its content width (min-w-full keeps narrow tables filling the
   // panel) and scroll the container horizontally rather than squeezing or
@@ -77,9 +79,9 @@ function TableView({ headers, rows }: Pick<TableBlock, "headers" | "rows">) {
                 <td
                   key={j}
                   className={`px-4 py-2.5 text-foreground/80 whitespace-nowrap ${
-                    cell.startsWith("-$")
+                    cell.startsWith(`-${symbol}`)
                       ? "text-amount-expense font-medium tabular-nums"
-                      : cell.startsWith("$")
+                      : cell.startsWith(symbol)
                         ? "text-amount-income font-medium tabular-nums"
                         : ""
                   }`}
