@@ -16,6 +16,7 @@ export { BUDGET_BASES, BASIS_OPTION_LABELS } from "./entities/types";
 export {
   formatMoney,
   formatMoneyCompact,
+  currencySymbol,
   getAmountClass,
   centsToEditString,
   parseMoney,

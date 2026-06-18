@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo } from "react";
 import { createFileRoute, Outlet, useNavigate } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { RepositoryProvider } from "@/contexts/repository-context";
+import { CurrencyProvider } from "@/components/budget/currency-provider";
 import { CapySessionProvider } from "@/components/capy/capy-session-provider";
 import { useCustomInstructions } from "@/hooks/use-custom-instructions";
 import { invalidateAfterCapyMutation } from "@/components/budget/capy-invalidation";
@@ -81,9 +82,11 @@ function BudgetLayout() {
 
   return (
     <RepositoryProvider key={path} value={repo}>
-      <CapySessionProvider key={path} options={sessionOptions}>
-        <Outlet />
-      </CapySessionProvider>
+      <CurrencyProvider budgetPath={path}>
+        <CapySessionProvider key={path} options={sessionOptions}>
+          <Outlet />
+        </CapySessionProvider>
+      </CurrencyProvider>
     </RepositoryProvider>
   );
 }

@@ -1,52 +1,90 @@
 import { describe, expect, it } from "vitest";
-import { formatMoney, formatMoneyCompact, getAmountClass, parseMoney } from "./money";
+import {
+  formatMoney,
+  formatMoneyCompact,
+  currencySymbol,
+  getAmountClass,
+  parseMoney,
+} from "./money";
 
 describe("formatMoney", () => {
-  it("formats positive cents", () => {
-    expect(formatMoney(1250)).toBe("$12.50");
+  it("formats positive cents in USD", () => {
+    expect(formatMoney(1250, "USD")).toBe("$12.50");
   });
 
   it("formats zero", () => {
-    expect(formatMoney(0)).toBe("$0.00");
+    expect(formatMoney(0, "USD")).toBe("$0.00");
   });
 
   it("formats negative cents", () => {
-    expect(formatMoney(-1250)).toBe("-$12.50");
+    expect(formatMoney(-1250, "USD")).toBe("-$12.50");
   });
 
   it("pads single-digit cents", () => {
-    expect(formatMoney(5)).toBe("$0.05");
+    expect(formatMoney(5, "USD")).toBe("$0.05");
   });
 
   it("formats large amounts with locale separators", () => {
-    const result = formatMoney(123456789);
-    expect(result).toMatch(/\$1,234,567\.89/);
+    expect(formatMoney(123456789, "USD")).toBe("$1,234,567.89");
+  });
+
+  it("formats EUR with its symbol", () => {
+    expect(formatMoney(1250, "EUR")).toBe("€12.50");
+  });
+
+  it("formats GBP with its symbol", () => {
+    expect(formatMoney(1250, "GBP")).toBe("£12.50");
+  });
+
+  it("formats JPY with no minor unit (1000 cents → ¥10)", () => {
+    expect(formatMoney(1000, "JPY")).toBe("¥10");
+  });
+
+  it("formats negative JPY", () => {
+    expect(formatMoney(-1000, "JPY")).toBe("-¥10");
   });
 });
 
 describe("formatMoneyCompact", () => {
-  it("drops cents for amounts >= $1000", () => {
-    expect(formatMoneyCompact(123456)).toBe("$1,234");
+  it("drops cents for amounts >= 100_000 (USD)", () => {
+    expect(formatMoneyCompact(123456, "USD")).toBe("$1,235");
   });
 
-  it("keeps cents for amounts < $1000", () => {
-    expect(formatMoneyCompact(99999)).toBe("$999.99");
+  it("keeps cents just below the threshold", () => {
+    expect(formatMoneyCompact(99999, "USD")).toBe("$999.99");
   });
 
-  it("drops cents for exactly $1000", () => {
-    expect(formatMoneyCompact(100000)).toBe("$1,000");
+  it("drops cents exactly at the threshold", () => {
+    expect(formatMoneyCompact(100000, "USD")).toBe("$1,000");
   });
 
-  it("drops cents for negative amounts >= $1000", () => {
-    expect(formatMoneyCompact(-250000)).toBe("-$2,500");
+  it("drops cents for negative amounts >= threshold", () => {
+    expect(formatMoneyCompact(-250000, "USD")).toBe("-$2,500");
   });
 
-  it("keeps cents for negative amounts < $1000", () => {
-    expect(formatMoneyCompact(-5000)).toBe("-$50.00");
+  it("keeps cents for negative amounts below threshold", () => {
+    expect(formatMoneyCompact(-5000, "USD")).toBe("-$50.00");
   });
 
   it("formats zero", () => {
-    expect(formatMoneyCompact(0)).toBe("$0.00");
+    expect(formatMoneyCompact(0, "USD")).toBe("$0.00");
+  });
+
+  it("is currency-aware above the threshold (EUR)", () => {
+    expect(formatMoneyCompact(123456, "EUR")).toBe("€1,235");
+  });
+
+  it("is currency-aware below the threshold (JPY)", () => {
+    expect(formatMoneyCompact(1000, "JPY")).toBe("¥10");
+  });
+});
+
+describe("currencySymbol", () => {
+  it("returns the symbol for common currencies", () => {
+    expect(currencySymbol("USD")).toBe("$");
+    expect(currencySymbol("EUR")).toBe("€");
+    expect(currencySymbol("GBP")).toBe("£");
+    expect(currencySymbol("JPY")).toBe("¥");
   });
 });
 

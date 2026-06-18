@@ -1,21 +1,41 @@
-/** Format cents as a display string: 1250 → "$12.50" */
-export function formatMoney(cents: number): string {
-  const sign = cents < 0 ? "-" : "";
-  const abs = Math.abs(cents);
-  const dollars = Math.floor(abs / 100);
-  const remainder = abs % 100;
-  return `${sign}$${dollars.toLocaleString()}.${String(remainder).padStart(2, "0")}`;
+// Fixed display locale; only the currency symbol and minor-unit precision vary
+// by the budget's chosen currency. Locale detection is deferred.
+const LOCALE = "en-US";
+
+const formatters = new Map<string, Intl.NumberFormat>();
+
+function formatter(currency: string, compact: boolean): Intl.NumberFormat {
+  const key = compact ? `${currency}:compact` : currency;
+  let fmt = formatters.get(key);
+  if (!fmt) {
+    fmt = new Intl.NumberFormat(LOCALE, {
+      style: "currency",
+      currency,
+      ...(compact ? { maximumFractionDigits: 0 } : {}),
+    });
+    formatters.set(key, fmt);
+  }
+  return fmt;
 }
 
-/** Format cents compactly: drop cents when |amount| >= $1000. 123456 → "$1,234", 999 → "$9.99" */
-export function formatMoneyCompact(cents: number): string {
-  const abs = Math.abs(cents);
-  if (abs >= 100_000) {
-    const sign = cents < 0 ? "-" : "";
-    const dollars = Math.floor(abs / 100);
-    return `${sign}$${dollars.toLocaleString()}`;
+/** Format cents as a display string: 1250 → "$12.50" (USD), 1000 → "¥10" (JPY) */
+export function formatMoney(cents: number, currency: string): string {
+  return formatter(currency, false).format(cents / 100);
+}
+
+/** Format cents compactly: drop the fractional part when |amount| >= 100_000 cents.
+ *  123456 → "$1,234", 999 → "$9.99". Currency-aware. */
+export function formatMoneyCompact(cents: number, currency: string): string {
+  if (Math.abs(cents) >= 100_000) {
+    return formatter(currency, true).format(cents / 100);
   }
-  return formatMoney(cents);
+  return formatMoney(cents, currency);
+}
+
+/** The currency symbol alone: "USD" → "$", "EUR" → "€", "JPY" → "¥". */
+export function currencySymbol(currency: string): string {
+  const parts = formatter(currency, false).formatToParts(0);
+  return parts.find((p) => p.type === "currency")?.value ?? currency;
 }
 
 /** CSS class for amount coloring based on transaction type */
