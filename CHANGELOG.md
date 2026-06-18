@@ -11,6 +11,7 @@ CHANGELOG PHILOSOPHY:
 
 ## Unreleased
 
+- **Transaction filters** - Task #75: type multiselect + uncategorized/no-merchant filters behind a toolbar popover.
 - **Currency** - Configurable display currency (Settings + new-budget picker); display-only, no conversion.
 
 ## 1.0.1 — 2026-06-17

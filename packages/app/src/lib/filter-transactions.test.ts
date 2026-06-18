@@ -18,6 +18,16 @@ const txns: Transaction[] = [
   { id: "t3", datetime: "2026-03-01T12:00:00.000Z", type: "income", amount: 420000, categoryId: "", accountId: "acc-2", transferPairId: "", merchant: "Acme Corp", note: "", createdAt: "" },
 ];
 
+// Secondary-filter fixtures: a transfer (no category, no merchant), an
+// expense with an unknown category id, and an expense with a blank merchant.
+const secondaryTxns: Transaction[] = [
+  { id: "x1", datetime: "2026-02-10T12:00:00.000Z", type: "expense", amount: -5000, categoryId: "cat-1", accountId: "acc-1", transferPairId: "", merchant: "Trader Joe's", note: "", createdAt: "" },
+  { id: "x2", datetime: "2026-02-11T12:00:00.000Z", type: "income", amount: 420000, categoryId: "", accountId: "acc-2", transferPairId: "", merchant: "Acme Corp", note: "", createdAt: "" },
+  { id: "x3", datetime: "2026-02-12T12:00:00.000Z", type: "transfer", amount: -10000, categoryId: "", accountId: "acc-1", transferPairId: "x3b", merchant: "", note: "", createdAt: "" },
+  { id: "x4", datetime: "2026-02-13T12:00:00.000Z", type: "expense", amount: -2500, categoryId: "deleted-cat", accountId: "acc-1", transferPairId: "", merchant: "Mystery", note: "", createdAt: "" },
+  { id: "x5", datetime: "2026-02-14T12:00:00.000Z", type: "expense", amount: -3000, categoryId: "cat-2", accountId: "acc-1", transferPairId: "", merchant: "   ", note: "", createdAt: "" },
+];
+
 const noFilter: TransactionFilterCriteria = { search: "", categoryId: null, dateRange: null };
 
 describe("filterTransactions", () => {
@@ -144,6 +154,65 @@ describe("filterTransactions", () => {
       categories,
     );
     expect(result).toHaveLength(0);
+  });
+
+  const ids = (rows: Transaction[]) => rows.map((t) => t.id);
+
+  it("filters by a single type", () => {
+    const result = filterTransactions(secondaryTxns, { ...noFilter, types: ["income"] }, accounts, categories);
+    expect(ids(result)).toEqual(["x2"]);
+  });
+
+  it("filters by two types", () => {
+    const result = filterTransactions(secondaryTxns, { ...noFilter, types: ["income", "transfer"] }, accounts, categories);
+    expect(ids(result)).toEqual(["x2", "x3"]);
+  });
+
+  it("all three types selected is a no-op", () => {
+    const result = filterTransactions(
+      secondaryTxns,
+      { ...noFilter, types: ["expense", "income", "transfer"] },
+      accounts,
+      categories,
+    );
+    expect(result).toEqual(secondaryTxns);
+  });
+
+  it("empty type selection is a no-op (never blanks the screen)", () => {
+    const result = filterTransactions(secondaryTxns, { ...noFilter, types: [] }, accounts, categories);
+    expect(result).toEqual(secondaryTxns);
+  });
+
+  it("uncategorizedOnly matches empty and unknown category ids, excludes categorized", () => {
+    const result = filterTransactions(secondaryTxns, { ...noFilter, uncategorizedOnly: true }, accounts, categories);
+    // x2 (empty), x3 (empty/transfer), x4 (unknown id) — not x1/x5 (real category)
+    expect(ids(result)).toEqual(["x2", "x3", "x4"]);
+  });
+
+  it("noMerchantOnly matches empty and whitespace merchant only", () => {
+    const result = filterTransactions(secondaryTxns, { ...noFilter, noMerchantOnly: true }, accounts, categories);
+    // x3 (empty), x5 (whitespace) — not the named-merchant rows
+    expect(ids(result)).toEqual(["x3", "x5"]);
+  });
+
+  it("does not auto-exclude transfers from secondary filters", () => {
+    // The transfer x3 is category-less and merchant-less, so it shows up under
+    // both show-only filters — they compose with type, not against it.
+    const uncategorized = filterTransactions(secondaryTxns, { ...noFilter, uncategorizedOnly: true }, accounts, categories);
+    const noMerchant = filterTransactions(secondaryTxns, { ...noFilter, noMerchantOnly: true }, accounts, categories);
+    expect(ids(uncategorized)).toContain("x3");
+    expect(ids(noMerchant)).toContain("x3");
+  });
+
+  it("composes type with uncategorizedOnly (AND)", () => {
+    const result = filterTransactions(
+      secondaryTxns,
+      { ...noFilter, types: ["expense"], uncategorizedOnly: true },
+      accounts,
+      categories,
+    );
+    // Only x4: expense + unknown category. x2/x3 are uncategorized but not expense.
+    expect(ids(result)).toEqual(["x4"]);
   });
 });
 

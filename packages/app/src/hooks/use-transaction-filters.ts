@@ -1,6 +1,7 @@
 import { useMemo, useState, useCallback } from "react";
 import type { Account, Category, Transaction } from "@capybudget/core";
 import {
+  ALL_TRANSACTION_TYPES,
   DEFAULT_SORT,
   filterTransactions,
   sortTransactions,
@@ -20,6 +21,9 @@ export function useTransactionFilters(
     search: "",
     categoryId: null,
     dateRange: null,
+    types: [...ALL_TRANSACTION_TYPES],
+    uncategorizedOnly: false,
+    noMerchantOnly: false,
   });
 
   // Sort is a property of the grid instrument, shared across all views

@@ -1,10 +1,17 @@
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { CategorySelector } from "@/components/budget/category-selector";
 import { DateRangePicker } from "@/components/budget/date-range-picker";
+import { TransactionFilterPopover } from "@/components/budget/transaction-filter-popover";
 import { useCategories } from "@/hooks/use-budget-data";
-import type { TransactionFilterCriteria } from "@/lib/filter-transactions";
-import { Search, X } from "lucide-react";
+import {
+  ALL_TRANSACTION_TYPES,
+  hasActiveFilters as computeActiveFilters,
+  hasSecondaryFilters,
+  type TransactionFilterCriteria,
+} from "@/lib/filter-transactions";
+import { ListFilter, Search, X } from "lucide-react";
 
 export type { TransactionFilterCriteria as TransactionFilters };
 
@@ -21,14 +28,22 @@ export function TransactionToolbar({ filters, onFiltersChange }: TransactionTool
   const hasSearch = filters.search.length > 0;
   const hasCategory = filters.categoryId !== null;
   const hasDateRange = filters.dateRange !== null;
-  const hasMerchant = filters.merchant !== undefined;
-  const hasActiveFilters = hasSearch || hasCategory || hasDateRange || hasMerchant;
+  const hasActiveFilters = computeActiveFilters(filters);
+  const hasSecondary = hasSecondaryFilters(filters);
 
   const update = (patch: Partial<TransactionFilterCriteria>) =>
     onFiltersChange({ ...filters, ...patch });
 
   const clearAll = () =>
-    onFiltersChange({ search: "", categoryId: null, dateRange: null, merchant: undefined });
+    onFiltersChange({
+      search: "",
+      categoryId: null,
+      dateRange: null,
+      merchant: undefined,
+      types: [...ALL_TRANSACTION_TYPES],
+      uncategorizedOnly: false,
+      noMerchantOnly: false,
+    });
 
   return (
     <div className="flex items-center gap-2">
@@ -68,6 +83,27 @@ export function TransactionToolbar({ filters, onFiltersChange }: TransactionTool
           onChange={(range) => update({ dateRange: range })}
         />
       </div>
+
+      <Popover>
+        <PopoverTrigger
+          render={
+            <Button
+              variant="outline"
+              size="icon-sm"
+              className="relative shrink-0"
+              aria-label="More filters"
+            />
+          }
+        >
+          <ListFilter className="h-3.5 w-3.5" />
+          {hasSecondary && (
+            <span className="absolute right-1 top-1 h-1.5 w-1.5 rounded-full bg-brand" />
+          )}
+        </PopoverTrigger>
+        <PopoverContent align="end" className="w-64">
+          <TransactionFilterPopover filters={filters} update={update} />
+        </PopoverContent>
+      </Popover>
 
       {hasActiveFilters && (
         <Button

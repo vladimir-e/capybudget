@@ -9,6 +9,7 @@ import { useBudgetUI } from "@/contexts/budget-context";
 import { useAccounts, useCategories, useTransactions } from "@/hooks/use-budget-data";
 import { useUpdateTransaction, useDeleteTransaction } from "@/hooks/use-transaction-mutations";
 import { useTransactionFilters } from "@/hooks/use-transaction-filters";
+import { hasActiveFilters } from "@/lib/filter-transactions";
 import { useTransactionSelection } from "@/hooks/use-transaction-selection";
 import type { Transaction, TransactionFormData } from "@capybudget/core";
 import { toast } from "sonner";
@@ -51,8 +52,7 @@ export function TransactionView({ transactions, header, showAccountColumn, readO
     [updateTxn, editingTxnId, cancelEdit],
   );
 
-  const isFiltered =
-    filters.search !== "" || filters.categoryId !== null || filters.dateRange !== null;
+  const isFiltered = hasActiveFilters(filters);
 
   // First run only: the whole budget is empty and we're on the primary
   // all-accounts view (showAccountColumn). A single empty account while others

@@ -1,4 +1,4 @@
-import type { Account, Category, Transaction } from "@capybudget/core";
+import type { Account, Category, Transaction, TransactionType } from "@capybudget/core";
 import { matchesTransaction } from "@capybudget/core";
 import type { DateRangeValue } from "@/components/budget/date-range-picker";
 
@@ -11,7 +11,16 @@ export interface TransactionFilterCriteria {
    *  in `getTopMerchants`. Empty/whitespace merchant matches the synthetic
    *  "Unknown" bucket. */
   merchant?: string;
+  /** Secondary "deep exploration" filters, surfaced behind the toolbar's
+   *  filter popover. */
+  types?: TransactionType[];
+  uncategorizedOnly?: boolean;
+  noMerchantOnly?: boolean;
 }
+
+/** The full type set, in toolbar display order. A `types` selection equal to
+ *  this (or empty/undefined) is no constraint — only a strict subset filters. */
+export const ALL_TRANSACTION_TYPES: TransactionType[] = ["expense", "income", "transfer"];
 
 /** Normalize a merchant string for equality comparison.
  *  Mirrors the grouping key in `getTopMerchants` (lowercase + trim).
@@ -19,6 +28,34 @@ export interface TransactionFilterCriteria {
  *  merchants chart uses for grouping. */
 export function normalizeMerchant(raw: string): string {
   return raw.trim().toLowerCase();
+}
+
+/** A transaction is uncategorized when it carries no category id or one no
+ *  category resolves — the same rule the core search uses to label rows
+ *  "uncategorized". */
+function isUncategorized(txn: Transaction, categoryIds: Set<string>): boolean {
+  return txn.categoryId === "" || !categoryIds.has(txn.categoryId);
+}
+
+/** Whether any secondary (popover) filter is active: a strict non-empty subset
+ *  of types, or either show-only toggle. Drives the trigger dot and the
+ *  popover's Reset affordance. */
+export function hasSecondaryFilters(filters: TransactionFilterCriteria): boolean {
+  const typeCount = filters.types?.length ?? 0;
+  const typeSubset = typeCount > 0 && typeCount < ALL_TRANSACTION_TYPES.length;
+  return typeSubset || filters.uncategorizedOnly === true || filters.noMerchantOnly === true;
+}
+
+/** Whether any filter — primary or secondary — narrows the list. Gates the
+ *  toolbar's Clear-all button and the "no matching transactions" empty state. */
+export function hasActiveFilters(filters: TransactionFilterCriteria): boolean {
+  return (
+    filters.search.length > 0 ||
+    filters.categoryId !== null ||
+    filters.dateRange !== null ||
+    filters.merchant !== undefined ||
+    hasSecondaryFilters(filters)
+  );
 }
 
 export type SortColumn = "date" | "account" | "category" | "merchant" | "amount";
@@ -47,6 +84,20 @@ export function filterTransactions(
   if (filters.merchant !== undefined) {
     const target = normalizeMerchant(filters.merchant);
     result = result.filter((t) => normalizeMerchant(t.merchant) === target);
+  }
+
+  const { types } = filters;
+  if (types && types.length > 0 && types.length < ALL_TRANSACTION_TYPES.length) {
+    result = result.filter((t) => types.includes(t.type));
+  }
+
+  if (filters.uncategorizedOnly) {
+    const categoryIds = new Set(categories.map((c) => c.id));
+    result = result.filter((t) => isUncategorized(t, categoryIds));
+  }
+
+  if (filters.noMerchantOnly) {
+    result = result.filter((t) => normalizeMerchant(t.merchant) === "");
   }
 
   if (filters.dateRange) {
