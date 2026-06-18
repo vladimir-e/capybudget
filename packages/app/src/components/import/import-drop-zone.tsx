@@ -80,14 +80,7 @@ export function ImportDropZone({
             <FileUp className="h-7 w-7" />
           </div>
           <p className="text-base font-medium text-foreground/80">
-            Drop files or click to browse
-          </p>
-          <p className="mt-1.5 text-sm text-muted-foreground/60">
-            Upload bank statements, receipts, or screenshots
-          </p>
-          <p className="mt-2 max-w-sm text-center text-xs text-muted-foreground/40">
-            Don&apos;t like the results? Cancel, give Capy more instructions, and
-            run again.
+            Drop bank statements, receipts, or screenshots
           </p>
         </div>
       </div>
@@ -187,6 +180,10 @@ export function ImportDropZone({
               Start Import
             </Button>
           </div>
+          <p className="pt-1.5 text-right text-xs text-muted-foreground/50">
+            Don&apos;t like the results? Cancel, give Capy more instructions, and
+            run again.
+          </p>
         </div>
       )}
     </>
