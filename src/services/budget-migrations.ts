@@ -2,7 +2,7 @@ import { readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
 import { join } from "@tauri-apps/api/path";
 import Papa from "papaparse";
 import type { BudgetMeta } from "@capybudget/core";
-import { DEFAULT_CURRENCY, formatDefaultsFor } from "@capybudget/core";
+import { resolveBudgetFormat } from "@capybudget/core";
 
 /** Backfill `currency` and the two format fields on a meta read from disk.
  *  Currency, decimals, and symbol position are additive `budget.json` fields
@@ -10,13 +10,12 @@ import { DEFAULT_CURRENCY, formatDefaultsFor } from "@capybudget/core";
  *  currency's curated defaults here, so the rest of the app never sees a hole.
  *  Idempotent: an already-populated meta passes through unchanged. */
 export function withFormatDefaults(meta: BudgetMeta): BudgetMeta {
-  const currency = meta.currency ?? DEFAULT_CURRENCY;
-  const defaults = formatDefaultsFor(currency);
+  const { currency, decimals, symbolPosition } = resolveBudgetFormat(meta);
   return {
     ...meta,
     currency,
-    currencyDecimals: meta.currencyDecimals ?? defaults.decimals,
-    currencySymbolPosition: meta.currencySymbolPosition ?? defaults.symbolPosition,
+    currencyDecimals: decimals,
+    currencySymbolPosition: symbolPosition,
   };
 }
 

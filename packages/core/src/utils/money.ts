@@ -126,6 +126,32 @@ export function formatDefaultsFor(currency: string): MoneyFormat {
   return { decimals: resolvedDecimals(currency), symbolPosition: "before" };
 }
 
+/** The `budget.json` money fields, all optional — currency, decimals, and
+ *  symbol position are additive columns with no schema bump, so any of them
+ *  can be absent in a budget written before it existed. */
+export interface BudgetFormatFields {
+  currency?: string;
+  currencyDecimals?: number;
+  currencySymbolPosition?: SymbolPosition;
+}
+
+/** Resolve a budget's effective currency + format from its raw `budget.json`
+ *  fields, backfilling each missing piece from the currency's curated defaults.
+ *  The single source of truth for the no-schema-bump backfill, shared by every
+ *  reader (app meta parse, migrations, MCP server) so the contract can't drift.
+ *  Pure — no Tauri/node. */
+export function resolveBudgetFormat(
+  raw: BudgetFormatFields,
+): { currency: string; decimals: number; symbolPosition: SymbolPosition } {
+  const currency = raw.currency ?? DEFAULT_CURRENCY;
+  const defaults = formatDefaultsFor(currency);
+  return {
+    currency,
+    decimals: raw.currencyDecimals ?? defaults.decimals,
+    symbolPosition: raw.currencySymbolPosition ?? defaults.symbolPosition,
+  };
+}
+
 /** The minor-unit precision Intl resolves for a currency (2 for USD, 0 for
  *  JPY). Falls back to 2 if the code is unknown to the runtime. */
 function resolvedDecimals(currency: string): number {

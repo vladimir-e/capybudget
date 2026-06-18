@@ -5,7 +5,7 @@ import {
   ListToolsRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js"
 import { createCsvRepository } from "@capybudget/persistence"
-import { DEFAULT_CURRENCY, formatDefaultsFor, type MoneyFormat } from "@capybudget/core"
+import { DEFAULT_CURRENCY, formatDefaultsFor, resolveBudgetFormat, type MoneyFormat } from "@capybudget/core"
 import {
   getToolDefinitions,
   runTool,
@@ -36,15 +36,8 @@ async function readBudgetFormat(
       currencyDecimals?: number
       currencySymbolPosition?: MoneyFormat["symbolPosition"]
     }
-    const currency = raw.currency ?? DEFAULT_CURRENCY
-    const defaults = formatDefaultsFor(currency)
-    return {
-      currency,
-      format: {
-        decimals: raw.currencyDecimals ?? defaults.decimals,
-        symbolPosition: raw.currencySymbolPosition ?? defaults.symbolPosition,
-      },
-    }
+    const { currency, decimals, symbolPosition } = resolveBudgetFormat(raw)
+    return { currency, format: { decimals, symbolPosition } }
   } catch {
     return { currency: DEFAULT_CURRENCY, format: formatDefaultsFor(DEFAULT_CURRENCY) }
   }

@@ -3,6 +3,7 @@ import {
   formatMoney,
   formatMoneyCompact,
   formatDefaultsFor,
+  resolveBudgetFormat,
   CURRENCY_FORMAT_DEFAULTS,
   currencySymbol,
   getAmountClass,
@@ -184,6 +185,30 @@ describe("formatDefaultsFor", () => {
     const a = formatDefaultsFor("RUB");
     a.decimals = 2;
     expect(CURRENCY_FORMAT_DEFAULTS.RUB.decimals).toBe(0);
+  });
+});
+
+describe("resolveBudgetFormat", () => {
+  it("backfills every missing field from the currency's curated defaults", () => {
+    expect(resolveBudgetFormat({ currency: "RUB" })).toEqual({
+      currency: "RUB",
+      decimals: 0,
+      symbolPosition: "after",
+    });
+  });
+
+  it("defaults a missing currency to USD and its baseline format", () => {
+    expect(resolveBudgetFormat({})).toEqual({
+      currency: "USD",
+      decimals: 2,
+      symbolPosition: "before",
+    });
+  });
+
+  it("preserves explicit overrides over the curated defaults", () => {
+    expect(
+      resolveBudgetFormat({ currency: "RUB", currencyDecimals: 2, currencySymbolPosition: "off" }),
+    ).toEqual({ currency: "RUB", decimals: 2, symbolPosition: "off" });
   });
 });
 

@@ -2,14 +2,13 @@ import { exists, readTextFile, writeTextFile, readDir } from "@tauri-apps/plugin
 import { join } from "@tauri-apps/api/path";
 import type { BudgetMeta, Category } from "@capybudget/core";
 import { DEFAULT_CATEGORIES, DEFAULT_CURRENCY, formatDefaultsFor } from "@capybudget/core";
-import { withFormatDefaults } from "./budget-migrations";
+import { withFormatDefaults, migrateBudgetFolder } from "./budget-migrations";
 import {
   unparseCsv,
   ACCOUNT_COLUMNS,
   CATEGORY_COLUMNS,
   TRANSACTION_COLUMNS,
 } from "@capybudget/persistence";
-import { migrateBudgetFolder } from "./budget-migrations";
 
 export const SCHEMA_VERSION = 3;
 const BUDGET_FILE = "budget.json";

@@ -106,6 +106,9 @@ function DemoBudgetLayout() {
     return <Navigate to="/" />;
   }
 
+  // No CurrencyProvider here is deliberate: the demo is hardcoded USD, so money
+  // falls back to the context's USD default. A future non-USD demo scenario must
+  // wrap this in a CurrencyProvider rather than silently rendering USD.
   return (
     <RepositoryProvider key={profileId} value={repo}>
       <CapySessionProvider key={profileId} options={sessionOptions}>

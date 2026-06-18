@@ -11,6 +11,7 @@ import { useCallback } from "react";
 import {
   DEFAULT_CURRENCY,
   formatDefaultsFor,
+  resolveBudgetFormat,
   type BudgetMeta,
   type MoneyFormat,
 } from "@capybudget/core";
@@ -36,14 +37,13 @@ const DEFAULT_META: BudgetMeta = {
  *  would have written. */
 function parseMeta(text: string): BudgetMeta {
   const raw = JSON.parse(text) as Partial<BudgetMeta>;
-  const currency = raw.currency ?? DEFAULT_CURRENCY;
-  const defaults = formatDefaultsFor(currency);
+  const { currency, decimals, symbolPosition } = resolveBudgetFormat(raw);
   return {
     ...DEFAULT_META,
     ...raw,
     currency,
-    currencyDecimals: raw.currencyDecimals ?? defaults.decimals,
-    currencySymbolPosition: raw.currencySymbolPosition ?? defaults.symbolPosition,
+    currencyDecimals: decimals,
+    currencySymbolPosition: symbolPosition,
   };
 }
 
