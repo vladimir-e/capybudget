@@ -43,6 +43,22 @@ describe("formatMoney", () => {
   it("formats negative JPY", () => {
     expect(formatMoney(-1000, "JPY")).toBe("-¥10");
   });
+
+  it("formats a non-Latin symbol currency (KZT → ₸)", () => {
+    expect(formatMoney(123450, "KZT")).toBe("₸1,234.50");
+  });
+
+  it("formats RUB with its symbol", () => {
+    expect(formatMoney(123450, "RUB")).toBe("₽1,234.50");
+  });
+
+  it("omits the code (and its space) for a symbol-less currency (CHF)", () => {
+    expect(formatMoney(123450, "CHF")).toBe("1,234.50");
+  });
+
+  it("omits the code for a symbol-less currency while keeping the minus (CHF)", () => {
+    expect(formatMoney(-123450, "CHF")).toBe("-1,234.50");
+  });
 });
 
 describe("formatMoneyCompact", () => {
@@ -77,6 +93,10 @@ describe("formatMoneyCompact", () => {
   it("is currency-aware below the threshold (JPY)", () => {
     expect(formatMoneyCompact(1000, "JPY")).toBe("¥10");
   });
+
+  it("omits the code for a large symbol-less amount (CHF)", () => {
+    expect(formatMoneyCompact(123456789, "CHF")).toBe("1,234,568");
+  });
 });
 
 describe("currencySymbol", () => {
@@ -85,6 +105,16 @@ describe("currencySymbol", () => {
     expect(currencySymbol("EUR")).toBe("€");
     expect(currencySymbol("GBP")).toBe("£");
     expect(currencySymbol("JPY")).toBe("¥");
+  });
+
+  it("returns the narrow symbol for non-Latin currencies", () => {
+    expect(currencySymbol("KZT")).toBe("₸");
+    expect(currencySymbol("RUB")).toBe("₽");
+  });
+
+  it("returns an empty string when no symbol exists (never the ISO code)", () => {
+    expect(currencySymbol("CHF")).toBe("");
+    expect(currencySymbol("AED")).toBe("");
   });
 });
 

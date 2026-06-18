@@ -57,6 +57,20 @@ function TableView({ headers, rows }: Pick<TableBlock, "headers" | "rows">) {
   // grow to its content width (min-w-full keeps narrow tables filling the
   // panel) and scroll the container horizontally rather than squeezing or
   // wrapping cells into an unreadable mess.
+  //
+  // Amount cells are color-coded by sign. With a real symbol they're detected
+  // by its presence; for a symbol-less currency a cell starts with a minus or a
+  // digit, so a leading-digit check stands in for "positive amount".
+  const sign = (cell: string): "expense" | "income" | null => {
+    if (symbol) {
+      if (cell.startsWith(`-${symbol}`)) return "expense"
+      if (cell.startsWith(symbol)) return "income"
+      return null
+    }
+    if (/^-\d/.test(cell)) return "expense"
+    if (/^\d/.test(cell)) return "income"
+    return null
+  }
   return (
     <div className="rounded-xl border border-border/30 overflow-x-auto capy-scroll">
       <table className="w-max min-w-full text-sm">
@@ -75,20 +89,23 @@ function TableView({ headers, rows }: Pick<TableBlock, "headers" | "rows">) {
         <tbody>
           {rows.map((row, i) => (
             <tr key={i} className="border-t border-border/20">
-              {row.map((cell, j) => (
-                <td
-                  key={j}
-                  className={`px-4 py-2.5 text-foreground/80 whitespace-nowrap ${
-                    cell.startsWith(`-${symbol}`)
-                      ? "text-amount-expense font-medium tabular-nums"
-                      : cell.startsWith(symbol)
-                        ? "text-amount-income font-medium tabular-nums"
-                        : ""
-                  }`}
-                >
-                  {cell}
-                </td>
-              ))}
+              {row.map((cell, j) => {
+                const s = sign(cell)
+                return (
+                  <td
+                    key={j}
+                    className={`px-4 py-2.5 text-foreground/80 whitespace-nowrap ${
+                      s === "expense"
+                        ? "text-amount-expense font-medium tabular-nums"
+                        : s === "income"
+                          ? "text-amount-income font-medium tabular-nums"
+                          : ""
+                    }`}
+                  >
+                    {cell}
+                  </td>
+                )
+              })}
             </tr>
           ))}
         </tbody>

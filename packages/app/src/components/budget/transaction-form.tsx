@@ -223,7 +223,9 @@ export function TransactionForm({
       {/* Amount + Date */}
       <div className="flex items-center gap-3">
         <div className="flex items-baseline gap-0.5 flex-1 min-w-0">
-          <span className={`text-2xl font-bold transition-colors ${colors.text}`}>{symbol}</span>
+          {symbol && (
+            <span className={`text-2xl font-bold transition-colors ${colors.text}`}>{symbol}</span>
+          )}
           <input
             ref={amountRef}
             type="text"

@@ -119,15 +119,17 @@ export function AccountDialog({ open, onOpenChange, editingAccount }: AccountDia
               <div className="space-y-2">
                 <Label htmlFor="opening-balance">Opening Balance</Label>
                 <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
-                    {symbol}
-                  </span>
+                  {symbol && (
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
+                      {symbol}
+                    </span>
+                  )}
                   <Input
                     id="opening-balance"
                     type="text"
                     inputMode="decimal"
                     placeholder="0.00"
-                    className="pl-7 tabular-nums"
+                    className={`tabular-nums ${symbol ? "pl-7" : ""}`}
                     value={balance}
                     onChange={(e) => setBalance(e.target.value)}
                   />

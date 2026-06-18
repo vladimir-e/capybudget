@@ -132,7 +132,7 @@ function Editor({ category, onDone }: { category: Category; onDone: () => void }
 
   return (
     <div className="flex items-center justify-end">
-      <span className="text-sm text-muted-foreground pr-0.5">{symbol}</span>
+      {symbol && <span className="text-sm text-muted-foreground pr-0.5">{symbol}</span>}
       <input
         ref={inputRef}
         type="text"
