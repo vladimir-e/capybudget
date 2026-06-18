@@ -10,24 +10,28 @@
  */
 
 import type { Account, Category, Transaction } from "../entities/types";
-import { formatMoney } from "../utils/money";
+
+// Grouped two-decimal amount without any currency symbol — search matches on
+// the number, never the symbol, so the predicate is currency-independent.
+const amountFormat = new Intl.NumberFormat("en-US", {
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+});
 
 /**
- * Whether a lowercase query matches a money amount. Matches against the
- * formatted form ("$1,850.00"), its comma-stripped form ("$1850.00"), and
- * the currency-stripped form ("1850.00") — so "1850", "1,850", "$1850",
- * "-12", and partials like "29" → "$1.29" / "$290.00" all hit.
- *
- * `query` is assumed already lowercased (it has no letters, so this only
- * matters for the caller's consistency).
+ * Whether a query matches a money amount. Currency-agnostic: it compares the
+ * digits, not the display string. The amount renders symbol-free as a grouped
+ * two-decimal number ("1,850.00", "-12.50"), and the query is stripped to its
+ * numeric characters — so "1850", "1,850", "-12", a stray "$1850", and partials
+ * like "29" → "1.29" / "290.00" all hit, regardless of the budget's currency.
  */
 export function matchesMoney(cents: number, query: string): boolean {
-  const formatted = formatMoney(cents).toLowerCase();
-  if (formatted.includes(query)) return true;
-  const plain = formatted.replace(/,/g, "");
-  if (plain.includes(query)) return true;
-  const noCurrency = plain.replace("$", "");
-  return noCurrency.includes(query);
+  const q = query.replace(/[^0-9.,-]/g, "");
+  if (!/[0-9]/.test(q)) return false;
+  const sign = cents < 0 ? "-" : "";
+  const grouped = sign + amountFormat.format(Math.abs(cents) / 100);
+  if (grouped.includes(q)) return true;
+  return grouped.replace(/,/g, "").includes(q.replace(/,/g, ""));
 }
 
 /**

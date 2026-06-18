@@ -22,39 +22,41 @@ function match(txn: Parameters<typeof matchesTransaction>[0], query: string) {
 // ── matchesMoney (the fuzzy amount predicate) ───────────────────────────
 
 describe("matchesMoney", () => {
-  // Query is lowercased by callers before reaching matchesMoney; money has no
-  // letters so we pass the raw forms here.
-  it("matches the full formatted string with $ and commas", () => {
-    expect(matchesMoney(185000, "$1,850.00")).toBe(true);
-  });
-
-  it("matches without the dollar sign", () => {
+  // Matching is on the number, not the display string — currency-agnostic. The
+  // amount renders symbol-free ("1,850.00"); a stray currency symbol in the
+  // query is stripped, so "$1,850.00" still hits, but it's the digits matching,
+  // not the "$".
+  it("matches the full grouped two-decimal form", () => {
     expect(matchesMoney(185000, "1,850.00")).toBe(true);
     expect(matchesMoney(185000, "1850.00")).toBe(true);
   });
 
-  it("matches without commas", () => {
-    expect(matchesMoney(185000, "1850")).toBe(true);
+  it("ignores a stray currency symbol in the query", () => {
+    expect(matchesMoney(185000, "$1,850.00")).toBe(true);
     expect(matchesMoney(185000, "$1850")).toBe(true);
   });
 
-  it("matches the comma'd whole-dollar chunk", () => {
+  it("matches without commas", () => {
+    expect(matchesMoney(185000, "1850")).toBe(true);
+  });
+
+  it("matches the comma'd whole-number chunk", () => {
     expect(matchesMoney(185000, "1,850")).toBe(true);
   });
 
-  it("matches a partial fragment of the amount (290 → $290.00)", () => {
+  it("matches a partial fragment of the amount (290 → 290.00)", () => {
     expect(matchesMoney(29000, "290")).toBe(true);
   });
 
-  it("matches the documented headline example: 29 → $1.29 and $290", () => {
-    expect(matchesMoney(129, "29")).toBe(true); // "$1.29" contains "29"
-    expect(matchesMoney(29000, "29")).toBe(true); // "$290.00" contains "29"
+  it("matches the documented headline example: 29 → 1.29 and 290", () => {
+    expect(matchesMoney(129, "29")).toBe(true); // "1.29" contains "29"
+    expect(matchesMoney(29000, "29")).toBe(true); // "290.00" contains "29"
   });
 
-  it("matches the dotted form of a sub-dollar amount ($1.29)", () => {
+  it("matches the dotted form of a sub-unit amount (1.29)", () => {
     expect(matchesMoney(129, "1.29")).toBe(true);
     // The decimal point breaks the digit run, so a dotless "129" does NOT
-    // match $1.29 — the substring "129" never appears in "$1.29"/"1.29".
+    // match 1.29 — the substring "129" never appears in "1.29".
     expect(matchesMoney(129, "129")).toBe(false);
   });
 
@@ -73,6 +75,13 @@ describe("matchesMoney", () => {
 
   it("does not match an amount that isn't present", () => {
     expect(matchesMoney(185000, "9999")).toBe(false);
+  });
+
+  it("does not money-match a query with no digits", () => {
+    // A non-numeric query (letters, or a bare sign) must never money-match —
+    // otherwise "-anything" would hit every negative amount.
+    expect(matchesMoney(-8500, "zzz-nope")).toBe(false);
+    expect(matchesMoney(-8500, "-")).toBe(false);
   });
 });
 
