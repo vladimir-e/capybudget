@@ -19,7 +19,10 @@ import {
 } from "@capybudget/core"
 import type { BudgetRepository } from "@capybudget/persistence"
 
-export async function handleListAccounts(repo: BudgetRepository): Promise<string> {
+export async function handleListAccounts(
+  repo: BudgetRepository,
+  currency: string,
+): Promise<string> {
   const accounts = await repo.getAccounts()
   const transactions = await repo.getTransactions()
 
@@ -29,7 +32,7 @@ export async function handleListAccounts(repo: BudgetRepository): Promise<string
       id: a.id,
       name: a.name,
       type: a.type,
-      balance: formatMoney(bal),
+      balance: formatMoney(bal, currency),
       balanceCents: bal,
       archived: a.archived,
     }
@@ -118,12 +121,13 @@ function verboseRow(
   t: Transaction,
   accountMap: Map<string, string>,
   categoryMap: Map<string, string>,
+  currency: string,
 ) {
   return {
     id: t.id,
     date: t.datetime.slice(0, 10),
     type: t.type,
-    amount: formatMoney(t.amount),
+    amount: formatMoney(t.amount, currency),
     amountCents: t.amount,
     account: accountMap.get(t.accountId) ?? t.accountId,
     category: categoryMap.get(t.categoryId) ?? (t.categoryId || "Uncategorized"),
@@ -134,6 +138,7 @@ function verboseRow(
 
 export async function handleListTransactions(
   repo: BudgetRepository,
+  currency: string,
   args: Record<string, unknown>,
 ): Promise<string> {
   const allTxns = await repo.getTransactions()
@@ -167,7 +172,7 @@ export async function handleListTransactions(
   const result =
     args.format === "compact"
       ? txns.map(compactRow)
-      : txns.map((t) => verboseRow(t, accountMap, categoryMap))
+      : txns.map((t) => verboseRow(t, accountMap, categoryMap, currency))
 
   return JSON.stringify(result, null, 2)
 }

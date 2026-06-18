@@ -31,6 +31,7 @@ import {
 
 export async function handleCreateTransaction(
   repo: BudgetRepository,
+  currency: string,
   args: Record<string, unknown>,
 ): Promise<string> {
   const type = args.type as TransactionType
@@ -60,7 +61,7 @@ export async function handleCreateTransaction(
     created: created.map((t) => ({
       id: t.id,
       type: t.type,
-      amount: formatMoney(t.amount),
+      amount: formatMoney(t.amount, currency),
       accountId: t.accountId,
     })),
   })

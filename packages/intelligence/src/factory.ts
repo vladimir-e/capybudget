@@ -49,6 +49,10 @@ export interface ApiAdapterOptions {
   onEvent: (event: StreamEvent) => void
   repo: BudgetRepository
   fileAdapter: FileAdapter
+  /** The budget's display currency (ISO 4217), threaded into the tool
+   *  dispatch context so money in tool results formats in the user's
+   *  currency. From `BudgetMeta.currency`. */
+  currency: string
   /**
    * Whether the active provider can run the import pipeline — passed to
    * `start_import` so it gates cleanly. Always true for the API adapters that
@@ -82,6 +86,9 @@ export interface SessionOptions {
   onExit?: () => void
   repo?: BudgetRepository
   fileAdapter?: FileAdapter
+  /** Budget's display currency (ISO 4217). Consumed by the API adapters'
+   *  tool dispatch; the Claude CLI reads it from `budget.json` via MCP. */
+  currency: string
   /** Claude-CLI-only `--model` value; ignored by API adapters. */
   claudeCliModel?: string
 }
@@ -132,6 +139,7 @@ export function createIntelligenceSession(
         onEvent: options.onEvent,
         repo: options.repo,
         fileAdapter: options.fileAdapter,
+        currency: options.currency,
         importSupported: canImport(provider),
         pdfSupported: canReadPdf(provider),
       })
@@ -150,6 +158,7 @@ export function createIntelligenceSession(
         onEvent: options.onEvent,
         repo: options.repo,
         fileAdapter: options.fileAdapter,
+        currency: options.currency,
         importSupported: canImport(provider),
         pdfSupported: canReadPdf(provider),
       })

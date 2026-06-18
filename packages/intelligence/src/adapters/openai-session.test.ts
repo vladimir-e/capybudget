@@ -224,6 +224,7 @@ function makeSession() {
     onEvent: (e) => events.push(e),
     repo: {} as BudgetRepository,
     fileAdapter: {} as FileAdapter,
+    currency: "USD",
   })
   return { session, events }
 }
@@ -322,7 +323,7 @@ describe("OpenAiSession", () => {
     expect(mockRunTool).toHaveBeenCalledWith(
       "list_transactions",
       { limit: 5 },
-      expect.objectContaining({ budgetPath: "/budget" }),
+      expect.objectContaining({ budgetPath: "/budget", currency: "USD" }),
     )
 
     // Second call: system, user, assistant (tool_calls), tool (tool_call_id).

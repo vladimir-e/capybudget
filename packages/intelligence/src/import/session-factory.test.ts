@@ -28,7 +28,7 @@ function config(overrides: Partial<IntelligenceConfig> = {}): IntelligenceConfig
   };
 }
 
-const baseOptions = { budgetPath: "/b", systemPrompt: "P", repo, fileAdapter };
+const baseOptions = { budgetPath: "/b", systemPrompt: "P", repo, fileAdapter, currency: "USD" };
 
 describe("canImport", () => {
   it("allows only the API providers", () => {

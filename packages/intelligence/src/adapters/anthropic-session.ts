@@ -297,6 +297,7 @@ export class AnthropicSession implements CapySession, StructuredSession {
               repo: this.opts.repo,
               fileAdapter: this.opts.fileAdapter,
               budgetPath: this.opts.budgetPath,
+              currency: this.opts.currency,
               attachments: [...this.turnAttachments],
               importSupported: this.opts.importSupported,
               pdfSupported: this.opts.pdfSupported,

@@ -48,6 +48,7 @@ describe("buildBudgetSnapshot", () => {
       [account(), account({ archived: true })],
       [],
       [],
+      "USD",
     )
     expect(snap.accountCount).toBe(1)
   })
@@ -57,6 +58,7 @@ describe("buildBudgetSnapshot", () => {
       [],
       [txn("2026-03-15"), txn("2025-11-02"), txn("2026-01-20")],
       [],
+      "USD",
     )
     expect(snap.transactionCount).toBe(3)
     expect(snap.earliestDate).toBe("2025-11-02")
@@ -64,7 +66,7 @@ describe("buildBudgetSnapshot", () => {
   })
 
   it("reports nulls when there are no transactions", () => {
-    const snap = buildBudgetSnapshot([], [], [])
+    const snap = buildBudgetSnapshot([], [], [], "USD")
     expect(snap.transactionCount).toBe(0)
     expect(snap.earliestDate).toBeNull()
     expect(snap.latestDate).toBeNull()
@@ -80,6 +82,7 @@ describe("buildBudgetSnapshot", () => {
         category({ name: "Housing", group: "Fixed" }),
         category({ name: "Archived", group: "Fixed", archived: true }),
       ],
+      "USD",
     )
     expect(snap.categoriesByGroup).toEqual([
       { group: "Income", names: ["Paycheck"] },
@@ -90,22 +93,24 @@ describe("buildBudgetSnapshot", () => {
 })
 
 describe("formatBudgetSnapshot", () => {
-  it("renders a compact block with counts, range, and grouped categories", () => {
+  it("renders a compact block with currency, counts, range, and grouped categories", () => {
     const out = formatBudgetSnapshot(
       buildBudgetSnapshot(
         [account()],
         [txn("2026-01-01"), txn("2026-02-01")],
         [category({ name: "Groceries", group: "Daily Living" })],
+        "EUR",
       ),
     )
     expect(out).toContain("[Budget snapshot]")
+    expect(out).toContain("Currency: EUR")
     expect(out).toContain("Accounts: 1 active")
     expect(out).toContain("Transactions: 2 (2026-01-01 → 2026-02-01)")
     expect(out).toContain("Daily Living: Groceries")
   })
 
   it("says 'none yet' for an empty log", () => {
-    const out = formatBudgetSnapshot(buildBudgetSnapshot([], [], []))
+    const out = formatBudgetSnapshot(buildBudgetSnapshot([], [], [], "USD"))
     expect(out).toContain("Transactions: 0 (none yet)")
   })
 })

@@ -11,7 +11,7 @@
  * snapshot to the first message.
  */
 
-export { SYSTEM_PROMPT, buildContext } from "./chat"
+export { buildSystemPrompt, buildContext } from "./chat"
 export { APP_KNOWLEDGE } from "./app-knowledge"
 export { buildBudgetSnapshot, formatBudgetSnapshot } from "./budget-snapshot"
 export type { BudgetSnapshot } from "./budget-snapshot"

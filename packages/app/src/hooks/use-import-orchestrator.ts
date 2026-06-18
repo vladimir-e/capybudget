@@ -10,6 +10,7 @@ import {
 } from "@capybudget/intelligence";
 import { AnthropicSession, OpenAiSession } from "@capybudget/intelligence/adapters";
 import { useBudgetRepository } from "@/contexts/repository-context";
+import { useCurrency } from "@/contexts/currency-context";
 import { useIntelligenceStore } from "@/stores/intelligence-store";
 import { useImportStore } from "@/stores/import-store";
 import { tauriFileAdapter } from "../../../../src/adapters/tauri-file-adapter";
@@ -60,6 +61,7 @@ function composeSystemPrompt(opts?: RunOptions): string {
  */
 export function useImportOrchestrator(budgetPath: string) {
   const repo = useBudgetRepository();
+  const currency = useCurrency();
   const config = useIntelligenceStore((s) => s.config);
   const apply = useImportStore((s) => s.apply);
   const beginRun = useImportStore((s) => s.beginRun);
@@ -105,6 +107,7 @@ export function useImportOrchestrator(budgetPath: string) {
           systemPrompt: composeSystemPrompt(opts),
           repo,
           fileAdapter: tauriFileAdapter,
+          currency,
         },
       });
       if (!session) return null;
@@ -123,7 +126,7 @@ export function useImportOrchestrator(budgetPath: string) {
       });
       return orchestrator;
     },
-    [config, budgetPath, repo, staging, budget, apply],
+    [config, budgetPath, repo, staging, budget, apply, currency],
   );
 
   const start = useCallback(

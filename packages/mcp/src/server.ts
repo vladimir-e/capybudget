@@ -19,6 +19,23 @@ if (!BUDGET_PATH) {
   throw new Error("BUDGET_PATH environment variable is required")
 }
 
+// ── Currency ─────────────────────────────────────────────────────
+
+// Same USD fallback the app applies when a budget folder has no currency set
+// (e.g. a pre-currency `budget.json`). Money in tool results is formatted with
+// this so external agents read amounts in the budget's currency.
+const DEFAULT_CURRENCY = "USD"
+
+async function readBudgetCurrency(budgetPath: string): Promise<string> {
+  try {
+    const metaPath = await nodeFileAdapter.join(budgetPath, "budget.json")
+    const text = await nodeFileAdapter.readFile(metaPath)
+    return (JSON.parse(text) as { currency?: string }).currency ?? DEFAULT_CURRENCY
+  } catch {
+    return DEFAULT_CURRENCY
+  }
+}
+
 // ── Repository + dispatch context ────────────────────────────────
 
 const repo = createCsvRepository(BUDGET_PATH, nodeFileAdapter, { immediate: true })
@@ -27,6 +44,7 @@ const dispatchCtx: ToolContext = {
   repo,
   fileAdapter: nodeFileAdapter,
   budgetPath: BUDGET_PATH,
+  currency: await readBudgetCurrency(BUDGET_PATH),
 }
 
 // ── Server setup ─────────────────────────────────────────────────

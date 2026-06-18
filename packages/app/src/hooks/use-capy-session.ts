@@ -16,7 +16,7 @@ import {
   buildContext,
   formatAttachments,
   isImageAttachment,
-  SYSTEM_PROMPT,
+  buildSystemPrompt,
   MUTATION_TOOL_NAMES,
   START_IMPORT_TOOL_NAME,
   type BudgetSnapshot,
@@ -32,6 +32,10 @@ export interface UseCapySessionOptions {
   budgetPath: string
   budgetName: string
   mcpServerPath: string
+  /** Budget's display currency (ISO 4217). Threaded into the system prompt,
+   *  the first-message snapshot, and the adapter's tool dispatch so Capy reads
+   *  and writes money in the user's currency. */
+  currency: string
   customInstructions?: string
   /** Snapshot of the budget's current shape, attached to the first message
    *  of a session so Capy knows what it's working with without a tool call.
@@ -167,10 +171,11 @@ export function useCapySession(opts: UseCapySessionOptions): UseCapySessionRetur
   const ensureSession = useCallback(() => {
     if (!lifecycle.sessionRef.current) {
       const o = lifecycle.optsRef.current
+      const basePrompt = buildSystemPrompt(o.currency)
       const customInstructions = o.customInstructions?.trim()
       const systemPrompt = customInstructions
-        ? `${SYSTEM_PROMPT}\n\n## User instructions\n${customInstructions}`
-        : SYSTEM_PROMPT
+        ? `${basePrompt}\n\n## User instructions\n${customInstructions}`
+        : basePrompt
 
       lifecycle.createSession(systemPrompt)
     }

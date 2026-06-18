@@ -209,6 +209,7 @@ function makeSession() {
     onEvent: (e) => events.push(e),
     repo: {} as BudgetRepository,
     fileAdapter: {} as FileAdapter,
+    currency: "USD",
   })
   return { session, events }
 }
@@ -278,7 +279,7 @@ describe("AnthropicSession", () => {
     expect(mockRunTool).toHaveBeenCalledWith(
       "list_accounts",
       {},
-      expect.objectContaining({ budgetPath: "/budget" }),
+      expect.objectContaining({ budgetPath: "/budget", currency: "USD" }),
     )
 
     const second = lastStreamCall()

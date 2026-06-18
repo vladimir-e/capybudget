@@ -45,9 +45,10 @@ export function useTransactions() {
  * Returns a getter that builds a budget snapshot from the freshest cached
  * query data on demand. Used to attach a data snapshot to the first message
  * of a Capy session (chat and import) without a tool round-trip. Reads the
- * cache lazily — no extra fetch, no stale closure.
+ * cache lazily — no extra fetch, no stale closure. `currency` rides into the
+ * snapshot so Capy knows the budget's currency on the first turn.
  */
-export function useBudgetSnapshot(): () => BudgetSnapshot {
+export function useBudgetSnapshot(currency: string): () => BudgetSnapshot {
   const queryClient = useQueryClient();
   return useCallback(() => {
     const accounts =
@@ -56,6 +57,6 @@ export function useBudgetSnapshot(): () => BudgetSnapshot {
       queryClient.getQueryData<Transaction[]>(budgetKeys.transactions()) ?? [];
     const categories =
       queryClient.getQueryData<Category[]>(budgetKeys.categories()) ?? [];
-    return buildBudgetSnapshot(accounts, transactions, categories);
-  }, [queryClient]);
+    return buildBudgetSnapshot(accounts, transactions, categories, currency);
+  }, [queryClient, currency]);
 }

@@ -50,6 +50,12 @@ export interface ToolContext {
   fileAdapter: FileAdapter
   budgetPath: string
   /**
+   * The budget's display currency (ISO 4217, e.g. "EUR"). Money in tool
+   * results is formatted with it so the model reads amounts in the user's
+   * currency. Set once per session from `BudgetMeta.currency`.
+   */
+  currency: string
+  /**
    * Attachments on the in-flight chat turn — the bytes `start_import` stages.
    * Threaded by the API adapters from the message that triggered the tool call;
    * absent on the MCP / structured paths, which have no chat turn.
@@ -77,14 +83,16 @@ type ToolHandler = (
 
 const HANDLERS: Record<string, ToolHandler> = {
   // Data
-  list_accounts: ({ repo }) => handleListAccounts(repo),
-  list_transactions: ({ repo }, args) => handleListTransactions(repo, args),
+  list_accounts: ({ repo, currency }) => handleListAccounts(repo, currency),
+  list_transactions: ({ repo, currency }, args) =>
+    handleListTransactions(repo, currency, args),
   search_transactions: ({ repo }, args) => handleSearchTransactions(repo, args),
   group_transactions: ({ repo }, args) => handleGroupTransactions(repo, args),
   list_categories: ({ repo }) => handleListCategories(repo),
 
   // Mutations
-  create_transaction: ({ repo }, args) => handleCreateTransaction(repo, args),
+  create_transaction: ({ repo, currency }, args) =>
+    handleCreateTransaction(repo, currency, args),
   update_transaction: ({ repo }, args) => handleUpdateTransaction(repo, args),
   delete_transactions: ({ repo }, args) => handleDeleteTransactions(repo, args),
   create_account: ({ repo }, args) => handleCreateAccount(repo, args),

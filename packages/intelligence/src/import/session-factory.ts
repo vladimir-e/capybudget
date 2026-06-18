@@ -42,6 +42,10 @@ export interface StructuredImportSessionDeps {
     systemPrompt: string;
     repo: BudgetRepository;
     fileAdapter: FileAdapter;
+    /** The budget's display currency (ISO 4217). The structured import calls
+     *  never dispatch the money-formatting tools, but the API adapter ctor
+     *  carries currency uniformly as a property of the budget it operates on. */
+    currency: string;
   };
 }
 
@@ -74,6 +78,7 @@ export function createStructuredImportSession(
     onEvent: () => {},
     repo: options.repo,
     fileAdapter: options.fileAdapter,
+    currency: options.currency,
   });
 
   // The API adapters implement StructuredSession; verify the surface is

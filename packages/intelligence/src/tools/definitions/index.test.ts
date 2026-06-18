@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest"
 import { getToolDefinitions } from "./index"
-import { SYSTEM_PROMPT } from "../../prompts/chat"
+import { buildSystemPrompt } from "../../prompts/chat"
 
 const ALL_TOOLS = [
   "list_accounts",
@@ -56,7 +56,7 @@ describe("prompt/surface coherence", () => {
   }
 
   it("every tool the chat prompt cites is in the tool surface", () => {
-    const advertised = advertisedTools(SYSTEM_PROMPT)
+    const advertised = advertisedTools(buildSystemPrompt("USD"))
     expect(advertised.length).toBeGreaterThan(0)
     for (const name of advertised) {
       expect(ALL_TOOL_NAMES, `chat prompt cites \`${name}\` but it isn't in the surface`).toContain(

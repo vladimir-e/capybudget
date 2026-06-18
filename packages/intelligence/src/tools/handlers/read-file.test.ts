@@ -17,6 +17,7 @@ beforeEach(() => {
     repo: {} as BudgetRepository,
     fileAdapter: makeFileAdapter(fs),
     budgetPath: BUDGET_PATH,
+    currency: "USD",
   }
 })
 

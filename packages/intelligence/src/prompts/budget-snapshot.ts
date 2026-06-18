@@ -13,6 +13,8 @@ import { CATEGORY_GROUP_ORDER } from "@capybudget/core"
 import type { Account, Category, CategoryGroup, Transaction } from "@capybudget/core"
 
 export interface BudgetSnapshot {
+  /** The budget's display currency (ISO 4217, e.g. "EUR"). */
+  currency: string
   accountCount: number
   transactionCount: number
   /** Earliest → latest transaction date (YYYY-MM-DD), or null when empty. */
@@ -26,6 +28,7 @@ export function buildBudgetSnapshot(
   accounts: Account[],
   transactions: Transaction[],
   categories: Category[],
+  currency: string,
 ): BudgetSnapshot {
   let earliest: string | null = null
   let latest: string | null = null
@@ -49,6 +52,7 @@ export function buildBudgetSnapshot(
   ]
 
   return {
+    currency,
     accountCount: accounts.filter((a) => !a.archived).length,
     transactionCount: transactions.length,
     earliestDate: earliest,
@@ -68,6 +72,7 @@ export function formatBudgetSnapshot(snapshot: BudgetSnapshot): string {
 
   const lines = [
     "[Budget snapshot]",
+    `Currency: ${snapshot.currency}`,
     `Accounts: ${snapshot.accountCount} active`,
     `Transactions: ${snapshot.transactionCount} (${range})`,
     "Categories:",

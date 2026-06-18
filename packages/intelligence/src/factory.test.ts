@@ -26,6 +26,7 @@ function makeOptions(): SessionOptions {
     onEvent: vi.fn(),
     repo: {} as BudgetRepository,
     fileAdapter: {} as FileAdapter,
+    currency: "USD",
   }
 }
 
@@ -136,6 +137,7 @@ describe("createIntelligenceSession", () => {
       onEvent: opts.onEvent,
       repo: opts.repo,
       fileAdapter: opts.fileAdapter,
+      currency: opts.currency,
       importSupported: true,
       pdfSupported: true,
     })
@@ -162,6 +164,7 @@ describe("createIntelligenceSession", () => {
       onEvent: opts.onEvent,
       repo: opts.repo,
       fileAdapter: opts.fileAdapter,
+      currency: opts.currency,
       importSupported: true,
       pdfSupported: false,
     })

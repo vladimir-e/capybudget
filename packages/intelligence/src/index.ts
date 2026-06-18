@@ -58,7 +58,7 @@ export type {
 
 // Chat prompt + shared budget snapshot
 export {
-  SYSTEM_PROMPT,
+  buildSystemPrompt,
   buildContext,
   APP_KNOWLEDGE,
   buildBudgetSnapshot,

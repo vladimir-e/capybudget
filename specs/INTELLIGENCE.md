@@ -227,7 +227,7 @@ The Intelligence section also hosts a chat-instructions editor for `capy-instruc
 
 ## Context Enrichment
 
-Each user message is wrapped with app context before sending. The first message of a session also carries a compact **budget snapshot** — account and transaction counts, the date range, and the category list — so Capy knows the shape of the data without a tool round-trip.
+Each user message is wrapped with app context before sending. The first message of a session also carries a compact **budget snapshot** — the budget's currency, account and transaction counts, the date range, and the category list — so Capy knows the shape of the data (and the currency to format in) without a tool round-trip.
 
 ```
 [Context]
@@ -236,6 +236,7 @@ Date: March 15, 2026
 Budget folder: /path/to/budget
 
 [Budget snapshot]
+Currency: EUR
 Accounts: 4 active
 Transactions: 1820 (2020-01-03 → 2026-03-14)
 Categories:
@@ -247,6 +248,8 @@ Categories:
 [User message]
 What did I spend on food this month?
 ```
+
+The budget's currency is display-only (money stays integer minor units everywhere — see `DATA_MODEL.md`). It threads three ways: into the snapshot above, into the chat system prompt's money examples (so Capy formats amounts with the right symbol and precision), and into the `ToolContext` (so money in tool results — account balances, transaction amounts — is rendered in the budget's currency). The tool handlers receive currency on the context, not from the repository, which exposes only entities.
 
 ## Custom Instructions
 

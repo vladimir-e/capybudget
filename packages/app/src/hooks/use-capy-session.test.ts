@@ -68,6 +68,7 @@ const baseOpts = {
   budgetPath: "/budget",
   budgetName: "personal",
   mcpServerPath: "mcp/server.js",
+  currency: "USD",
 }
 
 beforeEach(() => {

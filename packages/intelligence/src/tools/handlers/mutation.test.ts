@@ -40,7 +40,7 @@ describe("handleCreateTransaction", () => {
   it("creates an expense transaction", async () => {
     const repo = createMockRepo({})
     const result = JSON.parse(
-      await handleCreateTransaction(repo, {
+      await handleCreateTransaction(repo, "USD", {
         type: "expense",
         amount: 2500,
         accountId: "acc-1",
@@ -61,7 +61,7 @@ describe("handleCreateTransaction", () => {
   it("creates a transfer with two legs", async () => {
     const repo = createMockRepo({})
     const result = JSON.parse(
-      await handleCreateTransaction(repo, {
+      await handleCreateTransaction(repo, "USD", {
         type: "transfer",
         amount: 10000,
         accountId: "acc-1",
@@ -79,7 +79,7 @@ describe("handleCreateTransaction", () => {
   it("creates income with positive amount", async () => {
     const repo = createMockRepo({})
     const result = JSON.parse(
-      await handleCreateTransaction(repo, {
+      await handleCreateTransaction(repo, "USD", {
         type: "income",
         amount: 500000,
         accountId: "acc-1",
