@@ -49,9 +49,7 @@ export interface ApiAdapterOptions {
   onEvent: (event: StreamEvent) => void
   repo: BudgetRepository
   fileAdapter: FileAdapter
-  /** The budget's display currency (ISO 4217), threaded into the tool
-   *  dispatch context so the model reasons in the user's currency.
-   *  From `BudgetMeta.currency`. */
+  /** Budget's display currency (ISO 4217), threaded into the tool dispatch context. */
   currency: string
   /**
    * Whether the active provider can run the import pipeline — passed to

@@ -45,7 +45,6 @@ describe("Renaming a budget reflects live without a reopen", () => {
       expect(screen.getByRole("heading", { name: "All Accounts" })).toBeInTheDocument();
     });
 
-    // The rail's nav links start carrying the URL search-param name.
     const railSettings = () => screen.getByRole("link", { name: "Settings" });
     expect(railSettings().getAttribute("href")).toContain("name=Test+Budget");
 

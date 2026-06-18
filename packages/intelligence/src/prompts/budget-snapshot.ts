@@ -13,7 +13,6 @@ import { CATEGORY_GROUP_ORDER } from "@capybudget/core"
 import type { Account, Category, CategoryGroup, Transaction } from "@capybudget/core"
 
 export interface BudgetSnapshot {
-  /** The budget's display currency (ISO 4217, e.g. "EUR"). */
   currency: string
   accountCount: number
   transactionCount: number

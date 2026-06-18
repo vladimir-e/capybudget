@@ -1,18 +1,6 @@
-/**
- * Generic hook for reading/writing a file in the budget folder.
- * Handles load-with-fallback and save-to-disk.
- *
- * Backed by a single TanStack Query entry keyed on (budgetPath, fileName), so
- * every surface that reads the same file shares one cache value. A `save` from
- * any surface writes the file and pushes the new value into the cache, so all
- * subscribers — including the lifted `/budget` layout that feeds the Capy
- * session — re-render with the fresh content immediately.
- *
- * `save` composes from the LATEST cached value, not a render-time snapshot, and
- * accepts an updater for read-modify-write. Two back-to-back edits (before a
- * re-render) each see the other's change, and disk writes are serialized so the
- * file can't lag behind the cache.
- */
+// Reads/writes a budget-folder file through a single TanStack Query entry keyed
+// on (budgetPath, fileName), so every surface that reads the file shares — and
+// re-renders from — one cache value.
 
 import { useCallback, useRef } from "react"
 import { useQuery, useQueryClient } from "@tanstack/react-query"

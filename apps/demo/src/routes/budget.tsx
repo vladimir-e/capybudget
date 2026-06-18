@@ -106,9 +106,8 @@ function DemoBudgetLayout() {
     return <Navigate to="/" />;
   }
 
-  // Drives display currency from the in-memory budget.json keyed on profileId —
-  // the same path the Settings currency picker writes through, so a switch
-  // reformats demo amounts live.
+  // profileId stands in for budgetPath: the in-memory budget.json key the
+  // Settings currency picker writes through, so a switch reformats demo amounts live.
   return (
     <RepositoryProvider key={profileId} value={repo}>
       <CurrencyProvider budgetPath={profileId}>

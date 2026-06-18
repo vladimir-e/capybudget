@@ -1,11 +1,3 @@
-/**
- * `useBudgetMeta`'s updaters each do a full read-modify-write: they persist the
- * one field they own + a refreshed `lastModified` while preserving everything
- * else. The shared `budget.json` cache key carries the whole `BudgetMeta`, so a
- * single-field write would otherwise clobber the rest. `setCurrency` also
- * re-seeds the format knobs from the new currency's defaults.
- */
-
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -68,7 +60,6 @@ describe("useBudgetMeta", () => {
     expect(written.name).toBe("My Budget");
     expect(written.schemaVersion).toBe(3);
     expect(written.createdAt).toBe("2026-01-01T00:00:00.000Z");
-    // lastModified refreshes on write.
     expect(written.lastModified).not.toBe("2026-01-01T00:00:00.000Z");
   });
 
@@ -128,7 +119,6 @@ describe("useBudgetMeta", () => {
     expect(persisted.currencyDecimals).toBe(1);
     expect(persisted.currencySymbolPosition).toBe("off");
 
-    // The cache converges on the same combined value.
     await waitFor(() => {
       expect(result.current.data.currency).toBe("EUR");
       expect(result.current.data.currencyDecimals).toBe(1);

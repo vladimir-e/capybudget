@@ -55,8 +55,7 @@ export function formatRangeLabel(range: DateRange, periodType: PeriodType): stri
 /** Transaction count plus the abs-summed total when there's more than one,
  *  e.g. "3 transactions · $128.40". The per-transaction `Math.abs` keeps the
  *  total reconciled with the pie-slice / merchant-row / chart figure that
- *  opened the modal. Shared by every drilldown subtitle. `format` is the
- *  currency-bound formatter from `useFormatMoney`. */
+ *  opened the modal. */
 export function formatCountAndTotal(
   transactions: Transaction[],
   format: (cents: number) => string,

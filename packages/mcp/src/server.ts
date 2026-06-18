@@ -22,9 +22,6 @@ if (!BUDGET_PATH) {
 
 // ── Currency ─────────────────────────────────────────────────────
 
-// Tool-result money is rendered in the budget's currency using its default
-// convention. A missing or unreadable budget.json falls back to the default
-// currency.
 async function readBudgetCurrency(budgetPath: string): Promise<string> {
   try {
     const metaPath = await nodeFileAdapter.join(budgetPath, "budget.json")

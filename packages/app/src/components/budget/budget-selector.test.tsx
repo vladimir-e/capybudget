@@ -74,7 +74,6 @@ describe("BudgetSelector — validation modal", () => {
 
     const retry = await screen.findByRole("button", { name: /pick another folder/i });
 
-    // Set up the second pick — empty folder, opens the create dialog.
     mockPickerOpen.mockResolvedValueOnce("/folder2");
     mockInspectFolder.mockResolvedValueOnce({ hasBudget: false, isEmpty: true, itemCount: 0 });
     mockBootstrapBudget.mockResolvedValueOnce({
@@ -90,7 +89,7 @@ describe("BudgetSelector — validation modal", () => {
     await waitFor(() => {
       expect(mockPickerOpen).toHaveBeenCalledTimes(2);
     });
-    // Empty folder → create dialog, not an immediate bootstrap. Confirm with defaults.
+    // Empty folder opens the create dialog, not an immediate bootstrap.
     await user.click(await screen.findByRole("button", { name: /^create$/i }));
     await waitFor(() => {
       expect(mockBootstrapBudget).toHaveBeenCalledWith("/folder2", "folder2", "USD");
@@ -133,7 +132,6 @@ describe("BudgetSelector — converged routing", () => {
 
     const user = await clickButton(/open existing/i);
 
-    // Confirm dialog appears; Create with defaults bootstraps with USD.
     await user.click(await screen.findByRole("button", { name: /^create$/i }));
     await waitFor(() => {
       expect(mockBootstrapBudget).toHaveBeenCalledWith("/empty/folder", "folder", "USD");
@@ -157,7 +155,6 @@ describe("BudgetSelector — converged routing", () => {
     await user.clear(nameInput);
     await user.type(nameInput, "Travel");
 
-    // Open the currency combobox (trigger shows the current code) and pick EUR.
     const trigger = document.getElementById("budget-currency")!;
     await user.click(trigger);
     await user.click(await screen.findByText("Euro"));

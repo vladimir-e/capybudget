@@ -57,11 +57,9 @@ function TableView({ headers, rows }: Pick<TableBlock, "headers" | "rows">) {
   // grow to its content width (min-w-full keeps narrow tables filling the
   // panel) and scroll the container horizontally rather than squeezing or
   // wrapping cells into an unreadable mess.
-  //
-  // Amount cells are color-coded by sign. A leading symbol is the cleanest
-  // anchor, but only when the symbol actually leads (`before`); a trailing or
-  // absent symbol leaves the sign/digit at the front, so we detect by that
-  // instead.
+
+  // Anchor sign-detection on a leading symbol only when the symbol actually
+  // leads (`before`); a trailing or absent symbol leaves the sign/digit first.
   const sign = (cell: string): "expense" | "income" | null => {
     if (symbol && symbolPosition === "before") {
       if (cell.startsWith(`-${symbol}`)) return "expense"

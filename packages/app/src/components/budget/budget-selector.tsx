@@ -55,9 +55,6 @@ export function BudgetSelector() {
   type Intent = "new" | "open";
   const [errorModal, setErrorModal] = useState<Intent | null>(null);
 
-  // Create-budget confirmation: opened after the user picks an empty folder,
-  // it collects the name and currency before bootstrapping. Defaults breeze
-  // through with a single click.
   const [createTarget, setCreateTarget] = useState<string | null>(null);
   const [createName, setCreateName] = useState("");
   const [createCurrency, setCreateCurrency] = useState(DEFAULT_CURRENCY);
@@ -124,8 +121,7 @@ export function BudgetSelector() {
       }
 
       if (info.isEmpty) {
-        // Bootstrapping is deferred to the confirm dialog so the user can set
-        // name + currency first; stash the target and open it.
+        // Defer bootstrap to the confirm dialog so the user sets name + currency first.
         setCreateName(deriveNameFromPath(folderPath));
         setCreateCurrency(DEFAULT_CURRENCY);
         setCreateTarget(folderPath);
@@ -339,8 +335,6 @@ export function BudgetSelector() {
         </DialogContent>
       </Dialog>
 
-      {/* Create-budget confirmation — name + currency before bootstrap. Defaults
-          are prefilled, so Create is a single click. */}
       <Dialog
         open={!!createTarget}
         onOpenChange={(isOpen) => { if (!isOpen) setCreateTarget(null); }}

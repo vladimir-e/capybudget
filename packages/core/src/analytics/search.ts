@@ -11,19 +11,17 @@
 
 import type { Account, Category, Transaction } from "../entities/types";
 
-// Grouped two-decimal amount without any currency symbol — search matches on
-// the number, never the symbol, so the predicate is currency-independent.
+// Symbol-free so search matches on the number, never the currency symbol.
 const amountFormat = new Intl.NumberFormat("en-US", {
   minimumFractionDigits: 2,
   maximumFractionDigits: 2,
 });
 
 /**
- * Whether a query matches a money amount. Currency-agnostic: it compares the
- * digits, not the display string. The amount renders symbol-free as a grouped
- * two-decimal number ("1,850.00", "-12.50"), and the query is stripped to its
- * numeric characters — so "1850", "1,850", "-12", a stray "$1850", and partials
- * like "29" → "1.29" / "290.00" all hit, regardless of the budget's currency.
+ * Whether a query matches a money amount. Currency-agnostic: compares digits,
+ * not the display string. The amount renders symbol-free as a grouped
+ * two-decimal number and the query is stripped to numeric characters, so
+ * "1850", "1,850", a stray "$1850", and partials like "29" → "1.29" all hit.
  */
 export function matchesMoney(cents: number, query: string): boolean {
   const q = query.replace(/[^0-9.,-]/g, "");

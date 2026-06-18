@@ -20,17 +20,7 @@ import { APP_MAP } from "./app-map"
 import type { BudgetSnapshot } from "./budget-snapshot"
 import { formatBudgetSnapshot } from "./budget-snapshot"
 
-/**
- * Build the chat system prompt for a budget in the given currency. The two
- * money examples in the formatting rules are rendered in the budget's currency
- * using its default convention — "€12.50" for a EUR budget, "¥13" for
- * zero-decimal JPY — rather than always defaulting to US dollars. Everything
- * else is currency-independent. The result is session-constant (currency
- * doesn't change mid-session), so it stays a stable prompt-cache prefix.
- */
 export function buildSystemPrompt(currency: string): string {
-  // 1250 minor units, formatted in the budget's currency, used as the worked
-  // example in both the display rule and the write-tool rule below.
   const example = formatMoney(1250, currency)
   return `You are Capy, a financial assistant built into a personal budgeting app called Capy Budget. You have full control over the user's budget — you can read, create, update, and delete anything.
 

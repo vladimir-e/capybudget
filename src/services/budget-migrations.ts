@@ -4,11 +4,8 @@ import Papa from "papaparse";
 import type { BudgetMeta } from "@capybudget/core";
 import { resolveBudgetFormat } from "@capybudget/core";
 
-/** Backfill `currency` and the two format fields on a meta read from disk.
- *  Currency, decimals, and symbol position are additive `budget.json` fields
- *  with no schema bump — a budget written before any of them existed gets the
- *  currency's curated defaults here, so the rest of the app never sees a hole.
- *  Idempotent: an already-populated meta passes through unchanged. */
+/** Backfill `currency` and the format fields from the currency's defaults for a
+ *  budget.json written before those fields existed. Idempotent. */
 export function withFormatDefaults(meta: BudgetMeta): BudgetMeta {
   const { currency, decimals, symbolPosition } = resolveBudgetFormat(meta);
   return {

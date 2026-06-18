@@ -14,9 +14,8 @@ export function GeneralSection({ budgetPath }: { budgetPath: string }) {
   const { data, setName } = useBudgetMeta(budgetPath)
   const renameRecentBudget = useAppStore((s) => s.renameRecentBudget)
 
-  // Uncontrolled, keyed on the stored name so an external change (or a reverted
-  // commit) reseeds the field. Committed on blur / Enter, so a rename is one
-  // file write rather than one per keystroke.
+  // Uncontrolled, keyed on the stored name so an external change reseeds the
+  // field. Committed on blur / Enter, so a rename is one file write, not one per keystroke.
   const commitName = (value: string) => {
     const next = value.trim()
     if (next && next !== data.name) {

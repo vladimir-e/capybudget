@@ -23,7 +23,6 @@ const rubTable: TableBlock = {
   ],
 }
 
-/** The <td> whose text matches `content`. */
 function cell(container: HTMLElement, content: string): HTMLElement {
   const td = Array.from(container.querySelectorAll("td")).find(
     (el) => el.textContent === content,

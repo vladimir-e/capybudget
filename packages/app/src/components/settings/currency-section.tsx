@@ -43,9 +43,7 @@ const SYMBOL_POSITIONS: { value: SymbolPosition; label: string }[] = [
 
 const PRECISIONS = [0, 1, 2]
 
-// A positive (income) and a negative (expense) sample, each a few thousand
-// major units with cents, so the preview shows grouping, symbol placement, and
-// precision at once — and mirrors the transaction table's green/red amounts.
+// Income/expense samples large enough to show grouping, symbol, and precision at once.
 const PREVIEW_INCOME_CENTS = 421550
 const PREVIEW_EXPENSE_CENTS = -128900
 

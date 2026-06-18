@@ -32,9 +32,7 @@ export interface UseCapySessionOptions {
   budgetPath: string
   budgetName: string
   mcpServerPath: string
-  /** Budget's display currency (ISO 4217). Threaded into the system prompt,
-   *  the first-message snapshot, and the adapter's tool dispatch so Capy reads
-   *  and writes money in the user's currency. */
+  /** Budget's display currency (ISO 4217), baked into the prompt + snapshot. */
   currency: string
   customInstructions?: string
   /** Snapshot of the budget's current shape, attached to the first message
@@ -204,12 +202,8 @@ export function useCapySession(opts: UseCapySessionOptions): UseCapySessionRetur
   const anthropicModel = useIntelligenceStore((s) => s.config.anthropic.model)
   const openaiModel = useIntelligenceStore((s) => s.config.openai.model)
   const claudeCliModel = useIntelligenceStore((s) => s.config.claudeCli.model)
-  // Single "session signature" — any change to provider, the model for the
-  // active provider, or the budget's currency should rebuild the session.
-  // Currency is baked into the system prompt + first-message snapshot, so a
-  // switch must spin up a fresh session for Capy to reflect it (rare, so the
-  // lost prompt-cache prefix is an acceptable trade for correctness). Format is
-  // not in Capy's path — the user's UI overrides don't reach the model.
+  // Currency is baked into the system prompt + snapshot, so a switch must
+  // rebuild the session for Capy to reflect it — hence it joins the signature.
   const providerSignature =
     provider === "anthropic"
       ? `anthropic:${anthropicModel}`

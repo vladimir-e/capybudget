@@ -5,7 +5,6 @@ import { CurrencyContext } from "@/contexts/currency-context";
 import { makeImportTransaction } from "@capybudget/core/test-factories";
 import { AmountEdit } from "./import-table-editors";
 
-/** Render the import amount editor for a row under the given budget currency. */
 function renderAmountEdit(currency: string, amount: number) {
   return render(
     <CurrencyContext.Provider value={{ currency, ...formatDefaultsFor(currency) }}>

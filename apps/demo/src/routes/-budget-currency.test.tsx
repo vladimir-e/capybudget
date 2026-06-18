@@ -11,8 +11,6 @@ import { useBudgetMeta } from "@/hooks/use-budget-meta"
 
 afterEach(cleanup)
 
-// The constant the demo's /budget route threads as `path`: the search param
-// the Settings currency picker writes through and the provider reads from.
 const BUDGET_PATH = "demo-scenario"
 const AMOUNT_CENTS = 123456
 

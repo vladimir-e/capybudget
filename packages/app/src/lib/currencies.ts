@@ -1,17 +1,12 @@
-/**
- * Currency-list policy for the picker: a single hand-curated list of the
- * currencies Capy supports. Deliberately not enumerated from
- * `Intl.supportedValuesOf` — that long tail drags in dead codes (RUR, etc.)
- * with no friendly names. Users can request more via the Settings link. This
- * is an app concern — core stays currency-agnostic.
- */
+// Hand-curated rather than enumerated from `Intl.supportedValuesOf`, whose long
+// tail drags in dead codes (RUR, etc.) with no friendly names.
 
 export interface CurrencyOption {
   code: string;
   name: string;
 }
 
-/** Supported currencies, in rough order of relevance to Capy's users. */
+// Ordered by rough relevance to Capy's users, not alphabetically.
 export const CURRENCIES: readonly CurrencyOption[] = [
   { code: "USD", name: "US Dollar" },
   { code: "EUR", name: "Euro" },

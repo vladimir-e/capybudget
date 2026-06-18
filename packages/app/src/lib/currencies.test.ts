@@ -1,9 +1,3 @@
-/**
- * Currency-list policy: a single hand-curated list. No runtime enumeration,
- * so no stale ISO-4217 codes (RUR and friends) leak in. These assertions guard
- * the shape and the deliberate inclusions/exclusions.
- */
-
 import { describe, expect, it } from "vitest";
 import { CURRENCIES } from "./currencies";
 

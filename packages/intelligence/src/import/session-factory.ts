@@ -42,7 +42,6 @@ export interface StructuredImportSessionDeps {
     systemPrompt: string;
     repo: BudgetRepository;
     fileAdapter: FileAdapter;
-    /** The budget's display currency (ISO 4217). */
     currency: string;
   };
 }

@@ -49,12 +49,8 @@ export interface ToolContext {
   repo: BudgetRepository
   fileAdapter: FileAdapter
   budgetPath: string
-  /**
-   * The budget's display currency (ISO 4217, e.g. "EUR"). The code the model
-   * reasons with; the symbol comes from it. Tool-result money is formatted in
-   * this currency's default convention. Set once per session from
-   * `BudgetMeta.currency`.
-   */
+  /** Budget's display currency (ISO 4217). Tool-result money is formatted in
+   *  its default convention, not the user's UI overrides. */
   currency: string
   /**
    * Attachments on the in-flight chat turn — the bytes `start_import` stages.
