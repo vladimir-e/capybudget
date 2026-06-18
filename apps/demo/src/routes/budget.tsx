@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { createFileRoute, Navigate, Outlet, redirect } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { RepositoryProvider } from "@/contexts/repository-context";
+import { CurrencyProvider } from "@/components/budget/currency-provider";
 import { CapySessionProvider } from "@/components/capy/capy-session-provider";
 import { useCustomInstructions } from "@/hooks/use-custom-instructions";
 import { invalidateAfterCapyMutation } from "@/components/budget/capy-invalidation";
@@ -105,14 +106,16 @@ function DemoBudgetLayout() {
     return <Navigate to="/" />;
   }
 
-  // No CurrencyProvider here is deliberate: the demo is hardcoded USD, so money
-  // falls back to the context's USD default. A future non-USD demo scenario must
-  // wrap this in a CurrencyProvider rather than silently rendering USD.
+  // Drives display currency from the in-memory budget.json keyed on profileId —
+  // the same path the Settings currency picker writes through, so a switch
+  // reformats demo amounts live.
   return (
     <RepositoryProvider key={profileId} value={repo}>
-      <CapySessionProvider key={profileId} options={sessionOptions}>
-        {seeded ? <Outlet /> : <DemoSeedingScreen name={name} onDone={markSeeded} />}
-      </CapySessionProvider>
+      <CurrencyProvider budgetPath={profileId}>
+        <CapySessionProvider key={profileId} options={sessionOptions}>
+          {seeded ? <Outlet /> : <DemoSeedingScreen name={name} onDone={markSeeded} />}
+        </CapySessionProvider>
+      </CurrencyProvider>
     </RepositoryProvider>
   );
 }
