@@ -30,4 +30,11 @@ describe("AmountEdit — currency-aware prefix", () => {
     expect(screen.getByText("-€")).toBeInTheDocument();
     expect(screen.queryByText("-$")).toBeNull();
   });
+
+  it("trails the symbol for a symbol-after budget, sign leading", () => {
+    renderAmountEdit("RUB", -5000);
+    expect(screen.getByText("-")).toBeInTheDocument();
+    expect(screen.getByText("₽")).toBeInTheDocument();
+    expect(screen.queryByText("-₽")).toBeNull();
+  });
 });

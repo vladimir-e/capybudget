@@ -14,6 +14,15 @@ const table: TableBlock = {
   ],
 }
 
+const rubTable: TableBlock = {
+  type: "table",
+  headers: ["Category", "Amount"],
+  rows: [
+    ["Salary", "5,000 ₽"],
+    ["Rent", "-1,200 ₽"],
+  ],
+}
+
 /** The <td> whose text matches `content`. */
 function cell(container: HTMLElement, content: string): HTMLElement {
   const td = Array.from(container.querySelectorAll("td")).find(
@@ -33,5 +42,16 @@ describe("Capy chat table — currency-aware amount coloring", () => {
 
     expect(cell(container, "€5,000.00").className).toContain("text-amount-income")
     expect(cell(container, "-€1,200.00").className).toContain("text-amount-expense")
+  })
+
+  it("colors a symbol-after currency by the leading sign, not the trailing symbol", () => {
+    const { container } = render(
+      <CurrencyContext.Provider value={{ currency: "RUB", ...formatDefaultsFor("RUB") }}>
+        <BlockRenderer block={rubTable} isUser={false} />
+      </CurrencyContext.Provider>,
+    )
+
+    expect(cell(container, "5,000 ₽").className).toContain("text-amount-income")
+    expect(cell(container, "-1,200 ₽").className).toContain("text-amount-expense")
   })
 })

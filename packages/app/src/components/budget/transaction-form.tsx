@@ -223,6 +223,10 @@ export function TransactionForm({
       {/* Amount + Date */}
       <div className="flex items-center gap-3">
         <div className="flex items-baseline gap-0.5 flex-1 min-w-0">
+          {/* Symbol sits before the amount even for symbol-after budgets: this
+              is a full-width entry field, so a trailing symbol would float far
+              from the left-aligned number. The display formatter still honors
+              position everywhere money is rendered read-only. */}
           {symbol && (
             <span className={`text-2xl font-bold transition-colors ${colors.text}`}>{symbol}</span>
           )}

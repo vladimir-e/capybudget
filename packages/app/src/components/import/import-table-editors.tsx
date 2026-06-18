@@ -99,7 +99,7 @@ export function AmountEdit({
   onSave: (cents: number) => void;
   onCancel: () => void;
 }) {
-  const { symbol } = useFormatMoney();
+  const { symbol, symbolPosition } = useFormatMoney();
   const [value, setValue] = useState(() => centsToEditString(txn.amount));
   const ref = useRef<HTMLInputElement>(null);
   useEffect(() => { ref.current?.focus(); ref.current?.select(); }, []);
@@ -115,11 +115,18 @@ export function AmountEdit({
     }
   };
 
+  // The input holds the unsigned amount, so the sign rides ahead of the number.
+  // A leading symbol fuses with it ("-$"); a trailing or absent symbol leaves
+  // the sign alone in front and the symbol (if any) after the number.
+  const colorClass = amountColorClass(txn);
+  const after = symbolPosition === "after";
+  const sign = txn.amount < 0 ? "-" : "";
+  const span = (text: string) =>
+    text ? <span className={`text-[13px] font-semibold ${colorClass}`}>{text}</span> : null;
+
   return (
     <div onClick={(e) => e.stopPropagation()} className="inline-flex items-center justify-end">
-      <span className={`text-[13px] font-semibold ${amountColorClass(txn)}`}>
-        {txn.amount < 0 ? `-${symbol}` : symbol}
-      </span>
+      {span(after ? sign : `${sign}${symbol}`)}
       <input
         ref={ref}
         type="text"
@@ -131,10 +138,11 @@ export function AmountEdit({
           if (e.key === "Enter") { e.preventDefault(); save(); }
           if (e.key === "Escape") { e.preventDefault(); onCancel(); }
         }}
-        className={`${inputClass} text-right tabular-nums font-semibold ${amountColorClass(txn)}`}
+        className={`${inputClass} text-right tabular-nums font-semibold ${colorClass}`}
         style={{ width: `${Math.max(value.length, 4) + 1}ch` }}
         placeholder="0.00"
       />
+      {after && span(symbol && ` ${symbol}`)}
     </div>
   );
 }

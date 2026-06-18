@@ -17,6 +17,7 @@ import {
   formatMoneyCompact,
   currencySymbol,
   type MoneyFormat,
+  type SymbolPosition,
 } from "@capybudget/core";
 
 export { DEFAULT_CURRENCY };
@@ -54,6 +55,9 @@ export interface CurrencyFormatters {
   formatCompact: (cents: number) => string;
   /** The currency symbol alone (e.g. "$"). */
   symbol: string;
+  /** Where the symbol sits relative to the amount, so callers placing it
+   *  themselves (edit affordances, sign detection) match the formatter. */
+  symbolPosition: SymbolPosition;
   /** The active currency code (e.g. "USD"). */
   currency: string;
 }
@@ -68,6 +72,7 @@ export function useFormatMoney(): CurrencyFormatters {
       format: (cents: number) => formatMoney(cents, currency, format),
       formatCompact: (cents: number) => formatMoneyCompact(cents, currency, format),
       symbol: currencySymbol(currency),
+      symbolPosition,
       currency,
     };
   }, [currency, decimals, symbolPosition]);
