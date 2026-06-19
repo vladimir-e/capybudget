@@ -4,6 +4,7 @@ import {
   centsToEditString,
 } from "@capybudget/core";
 import type { Category } from "@capybudget/core";
+import { useTranslation } from "@capybudget/i18n";
 import { useFormatMoney } from "@/contexts/currency-context";
 import { useSetCategoryAssigned } from "@/hooks/use-category-mutations";
 import { toast } from "sonner";
@@ -28,6 +29,7 @@ interface AssignedInputProps {
  *  explicit zero target. Esc cancels, Enter or blur commits. */
 function AssignedInput({ category, row }: AssignedInputProps) {
   const { format } = useFormatMoney();
+  const { t } = useTranslation("analytics");
   // When not editing, the displayed value is derived directly from the props.
   // When editing, we mount a separate <Editor> with its own local state and
   // an unconditional auto-focus on mount. This sidesteps the "sync state on
@@ -47,24 +49,24 @@ function AssignedInput({ category, row }: AssignedInputProps) {
   let ariaLabel: string;
   if (row.assigned !== null) {
     display = <span className="tabular-nums">{format(row.assigned)}</span>;
-    ariaLabel = `Edit budget for ${category.name}`;
+    ariaLabel = t("budgetInput.editAria", { name: category.name });
   } else if (row.isImplicit) {
     // AUTO is a prefix label pinned left while the amount stays pegged to the
     // column's right edge, so auto targets line up with explicit-budget rows.
     display = (
       <span className="flex w-full items-center justify-between gap-1.5">
         <span className="rounded-sm bg-muted px-1 py-px text-[10px] font-medium uppercase tracking-wide text-muted-foreground/80">
-          auto
+          {t("budgetInput.auto")}
         </span>
         <span className="tabular-nums text-muted-foreground">
           {format(row.implicitTarget!)}
         </span>
       </span>
     );
-    ariaLabel = `Set a budget for ${category.name} (currently auto: ${format(row.implicitTarget!)})`;
+    ariaLabel = t("budgetInput.setAutoAria", { name: category.name, amount: format(row.implicitTarget!) });
   } else {
-    display = <span className="text-muted-foreground/60 italic">set</span>;
-    ariaLabel = `Set a budget for ${category.name}`;
+    display = <span className="text-muted-foreground/60 italic">{t("budgetInput.set")}</span>;
+    ariaLabel = t("budgetInput.setAria", { name: category.name });
   }
 
   return (
@@ -81,6 +83,7 @@ function AssignedInput({ category, row }: AssignedInputProps) {
 
 function Editor({ category, onDone }: { category: Category; onDone: () => void }) {
   const { symbol } = useFormatMoney();
+  const { t } = useTranslation("analytics");
   const [value, setValue] = useState(() =>
     category.assigned === null ? "" : centsToEditString(category.assigned),
   );
@@ -124,7 +127,7 @@ function Editor({ category, onDone }: { category: Category; onDone: () => void }
     setAssigned.mutate(
       { categoryId: category.id, assigned: next },
       {
-        onError: () => toast.error(`Couldn't update ${category.name}`),
+        onError: () => toast.error(t("budgetInput.updateError", { name: category.name })),
       },
     );
     onDone();
@@ -149,7 +152,7 @@ function Editor({ category, onDone }: { category: Category; onDone: () => void }
             onDone();
           }
         }}
-        placeholder="0.00"
+        placeholder={t("budgetInput.placeholder")}
         className="h-7 bg-transparent border-0 border-b border-brand/40 rounded-none px-0.5 text-right text-sm tabular-nums focus:outline-none focus:ring-0 focus:border-brand/60 transition-colors"
         style={{ width: `${Math.max(value.length, 5) + 1}ch` }}
       />
@@ -168,6 +171,7 @@ interface CategoryRowProps {
 
 export function CategoryRow({ category, row, referenceLabel, onDrilldown }: CategoryRowProps) {
   const { format } = useFormatMoney();
+  const { t } = useTranslation("analytics");
   const { spent, effectiveTarget } = row;
   const targeted = effectiveTarget !== null;
   const hasSpent = spent > 0;
@@ -204,7 +208,7 @@ export function CategoryRow({ category, row, referenceLabel, onDrilldown }: Cate
         <div className="text-right text-sm tabular-nums">
           <TransactionsDrilldownLink
             onClick={() => onDrilldown(category)}
-            ariaLabel={`View ${category.name} transactions`}
+            ariaLabel={t("a11y.viewTransactionsAria", { name: category.name })}
           >
             {format(spent)}
           </TransactionsDrilldownLink>

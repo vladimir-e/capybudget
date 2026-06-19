@@ -1,14 +1,24 @@
 import { formatMonthLabel, formatMonthShort, toDateString } from "@capybudget/core";
 import type { DateRange, Transaction } from "@capybudget/core";
+import type { TFunction } from "i18next";
 import type { PeriodType } from "@/stores/analytics-store";
 
+/** The `analytics`-scoped translator threaded from a component's `useTranslation`. */
+type Translate = TFunction<"analytics">;
+
 /** Human-readable label for an analytics date range, picked to match the
- *  period type (e.g. "May 2026", "Q2 2026", "Jan – Mar 2026"). Month names
- *  follow the active UI language, threaded in by the caller (the same locale
- *  the currency formatter reads). Used both by the date-range nav and by the
- *  transactions browser modal subtitle so the two surfaces stay in sync. */
-export function formatRangeLabel(range: DateRange, periodType: PeriodType, locale: string): string {
-  if (periodType === "allTime") return "All Time";
+ *  period type (e.g. "May 2026", "Q2 2026", "Jan – Mar 2026"). Month names and
+ *  the period-type literals ("All Time", the quarter label) follow the active
+ *  UI language, threaded in by the caller via `locale` and `t`. Used both by
+ *  the date-range nav and by the transactions browser modal subtitle so the
+ *  two surfaces stay in sync. */
+export function formatRangeLabel(
+  range: DateRange,
+  periodType: PeriodType,
+  locale: string,
+  t: Translate,
+): string {
+  if (periodType === "allTime") return t("period.allTime");
 
   const start = range.start;
   const endDate = new Date(range.end);
@@ -22,7 +32,7 @@ export function formatRangeLabel(range: DateRange, periodType: PeriodType, local
 
   if (periodType === "quarter") {
     const q = Math.floor(start.getMonth() / 3) + 1;
-    return `Q${q} ${start.getFullYear()}`;
+    return t("period.quarterLabel", { quarter: q, year: start.getFullYear() });
   }
 
   if (periodType === "year") {
@@ -52,11 +62,12 @@ export function formatRangeLabel(range: DateRange, periodType: PeriodType, local
 export function formatCountAndTotal(
   transactions: Transaction[],
   format: (cents: number) => string,
+  t: Translate,
 ): string {
   const count = transactions.length;
-  const base = `${count} transaction${count === 1 ? "" : "s"}`;
+  const base = t("drilldown.transactionCount", { count });
   if (count <= 1) return base;
-  const total = transactions.reduce((sum, t) => sum + Math.abs(t.amount), 0);
+  const total = transactions.reduce((sum, tx) => sum + Math.abs(tx.amount), 0);
   return `${base} · ${format(total)}`;
 }
 
@@ -67,6 +78,7 @@ export function formatDrilldownSubtitle(
   transactions: Transaction[],
   format: (cents: number) => string,
   locale: string,
+  t: Translate,
 ): string {
-  return `${formatRangeLabel(range, periodType, locale)} · ${formatCountAndTotal(transactions, format)}`;
+  return `${formatRangeLabel(range, periodType, locale, t)} · ${formatCountAndTotal(transactions, format, t)}`;
 }

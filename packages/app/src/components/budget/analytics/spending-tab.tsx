@@ -11,11 +11,10 @@ import {
   getIncomeByCategory,
 } from "@capybudget/core";
 import type { Transaction, Category, DateRange } from "@capybudget/core";
-import { useLocale } from "@capybudget/i18n";
+import { useLocale, useTranslation } from "@capybudget/i18n";
 import { useFormatMoney } from "@/contexts/currency-context";
 import { ChartSwitcher } from "./chart-switcher";
 import { EmptyState } from "@/components/ui/empty-state";
-import { NO_DATA_YET } from "./empty-copy";
 import { TransactionsModal } from "@/components/budget/transactions-modal";
 import { TransactionsDrilldownLink } from "@/components/budget/transactions-drilldown-link";
 import type { PeriodType } from "@/stores/analytics-store";
@@ -95,11 +94,6 @@ interface SpendingTabProps {
 
 type ViewMode = SpendingViewMode;
 
-const VIEW_OPTIONS: Array<{ value: ViewMode; label: string }> = [
-  { value: "expenses", label: "Expenses" },
-  { value: "income", label: "Income" },
-];
-
 export function SpendingTab({
   transactions,
   categories,
@@ -109,7 +103,13 @@ export function SpendingTab({
 }: SpendingTabProps) {
   const { format } = useFormatMoney();
   const locale = useLocale();
+  const { t } = useTranslation("analytics");
   const [viewMode, setViewMode] = useState<ViewMode>("expenses");
+
+  const viewOptions: Array<{ value: ViewMode; label: string }> = [
+    { value: "expenses", label: t("view.expenses") },
+    { value: "income", label: t("view.income") },
+  ];
   const [drilldown, setDrilldown] = useState<SliceDrilldown | null>(null);
 
   const spending = useMemo(
@@ -137,8 +137,8 @@ export function SpendingTab({
   );
 
   const emptyMessage = viewMode === "expenses"
-    ? "No expenses in this period"
-    : "No income in this period";
+    ? t("spending.noExpenses")
+    : t("spending.noIncome");
 
   // Pre-filtered transactions for the active drilldown — the same `type`
   // gating `breakdown` produces (expense or income), then by categoryId.
@@ -154,7 +154,7 @@ export function SpendingTab({
   return (
     <div className="space-y-4">
       <div className="flex justify-end">
-        <ChartSwitcher options={VIEW_OPTIONS} value={viewMode} onChange={setViewMode} />
+        <ChartSwitcher options={viewOptions} value={viewMode} onChange={setViewMode} />
       </div>
 
       {chartData.length > 0 ? (
@@ -203,7 +203,7 @@ export function SpendingTab({
                 <span className="tabular-nums text-sm font-medium text-foreground text-right pl-4">
                   <TransactionsDrilldownLink
                     onClick={() => handleSliceClick(entry)}
-                    ariaLabel={`View ${entry.name} transactions`}
+                    ariaLabel={t("a11y.viewTransactionsAria", { name: entry.name })}
                   >
                     {format(entry.value)}
                   </TransactionsDrilldownLink>
@@ -216,7 +216,7 @@ export function SpendingTab({
           </div>
         </div>
       ) : (
-        <EmptyState title={hasAnyTransactions ? emptyMessage : NO_DATA_YET} />
+        <EmptyState title={hasAnyTransactions ? emptyMessage : t("empty.noDataYet")} />
       )}
 
       <TransactionsModal
@@ -232,7 +232,7 @@ export function SpendingTab({
             : {}
         }
         title={drilldown?.categoryName ?? ""}
-        subtitle={drilldown ? formatDrilldownSubtitle(dateRange, periodType, drilldownTransactions, format, locale) : undefined}
+        subtitle={drilldown ? formatDrilldownSubtitle(dateRange, periodType, drilldownTransactions, format, locale, t) : undefined}
       />
     </div>
   );

@@ -4,6 +4,7 @@ import {
   getPeriodSummary,
 } from "@capybudget/core";
 import type { DateRange } from "@capybudget/core";
+import { useTranslation } from "@capybudget/i18n";
 import { useTransactions, useCategories, useAccounts } from "@/hooks/use-budget-data";
 import { useAnalyticsStore, type PeriodType, type TabId } from "@/stores/analytics-store";
 import { DateRangeNav } from "./date-range-nav";
@@ -19,20 +20,20 @@ import { MonthlyBudgetTab } from "./monthly-budget-tab";
 
 interface TabDef {
   id: TabId;
-  label: string;
   allowedPeriods: PeriodType[];
 }
 
 const TABS: TabDef[] = [
-  { id: "spending", label: "Spending", allowedPeriods: ["month", "quarter", "year", "allTime", "custom"] },
-  { id: "cashFlow", label: "Cash Flow", allowedPeriods: ["year", "allTime", "custom"] },
-  { id: "netWorth", label: "Net Worth", allowedPeriods: ["year", "allTime", "custom"] },
-  { id: "compare", label: "Compare", allowedPeriods: ["year", "allTime", "custom"] },
-  { id: "merchants", label: "Merchants", allowedPeriods: ["month", "quarter", "year", "allTime"] },
-  { id: "monthlyBudget", label: "Monthly Budget", allowedPeriods: ["month"] },
+  { id: "spending", allowedPeriods: ["month", "quarter", "year", "allTime", "custom"] },
+  { id: "cashFlow", allowedPeriods: ["year", "allTime", "custom"] },
+  { id: "netWorth", allowedPeriods: ["year", "allTime", "custom"] },
+  { id: "compare", allowedPeriods: ["year", "allTime", "custom"] },
+  { id: "merchants", allowedPeriods: ["month", "quarter", "year", "allTime"] },
+  { id: "monthlyBudget", allowedPeriods: ["month"] },
 ];
 
 export function AnalyticsView() {
+  const { t } = useTranslation("analytics");
   // Data hooks
   const { data: transactions = [] } = useTransactions();
   const { data: categories = [] } = useCategories();
@@ -107,7 +108,7 @@ export function AnalyticsView() {
                   : "border-transparent text-muted-foreground hover:text-foreground"
               }`}
             >
-              {tab.label}
+              {t(`tabs.${tab.id}`)}
             </button>
           ))}
         </div>

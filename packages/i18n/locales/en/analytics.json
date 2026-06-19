@@ -1,1 +1,122 @@
-{}
+{
+  "tabs": {
+    "spending": "Spending",
+    "cashFlow": "Cash Flow",
+    "netWorth": "Net Worth",
+    "compare": "Compare",
+    "merchants": "Merchants",
+    "monthlyBudget": "Monthly Budget"
+  },
+  "summary": {
+    "income": "Income",
+    "expenses": "Expenses",
+    "net": "Net"
+  },
+  "period": {
+    "month": "Month",
+    "quarter": "Quarter",
+    "year": "Year",
+    "allTime": "All Time",
+    "custom": "Custom",
+    "quarterLabel": "Q{{quarter}} {{year}}",
+    "previousPeriod": "Previous period",
+    "nextPeriod": "Next period",
+    "apply": "Apply"
+  },
+  "drilldown": {
+    "transactionCount_one": "{{count}} transaction",
+    "transactionCount_other": "{{count}} transactions"
+  },
+  "a11y": {
+    "viewTransactionsAria": "View {{name}} transactions"
+  },
+  "empty": {
+    "noDataYet": "This will be useful once you have more data.",
+    "noCategoriesYet": "This will be useful once you add categories and data."
+  },
+  "view": {
+    "expenses": "Expenses",
+    "income": "Income"
+  },
+  "spending": {
+    "noExpenses": "No expenses in this period",
+    "noIncome": "No income in this period"
+  },
+  "cashFlow": {
+    "incomeValue": "Income: {{value}}",
+    "expensesValue": "Expenses: {{value}}",
+    "netValue": "Net: {{value}}",
+    "empty": "No cash flow data in this period"
+  },
+  "netWorth": {
+    "bar": "Bar",
+    "area": "Area",
+    "noAccountsTitle": "No accounts selected",
+    "noAccountsDescription": "Select at least one account to chart your net worth.",
+    "noData": "No data available",
+    "monthLabel": "{{month}} {{year}}"
+  },
+  "accountFilter": {
+    "allAccounts": "All accounts",
+    "someAccounts": "{{included}} of {{total}} accounts",
+    "triggerAria": "Accounts in Net Worth — {{label}}",
+    "searchPlaceholder": "Search accounts",
+    "searchAria": "Search accounts",
+    "selectAll": "Select all",
+    "clearAll": "Clear all",
+    "noMatches": "No accounts match.",
+    "toggleGroupAria": "Toggle all {{group}} accounts"
+  },
+  "compare": {
+    "categories": "Categories",
+    "selectAll": "Select all",
+    "clear": "Clear",
+    "selectPrompt": "Select categories to compare",
+    "toggleAria": "Toggle {{name}}",
+    "noExpenses": "No expenses in this period",
+    "noIncome": "No income in this period"
+  },
+  "merchants": {
+    "empty": "No merchant data in this period",
+    "txnCount_one": "{{count}} txn",
+    "txnCount_other": "{{count}} txns",
+    "headerRank": "#",
+    "headerMerchant": "Merchant",
+    "headerAmount": "Amount",
+    "headerTxns": "Txns",
+    "headerPercent": "%"
+  },
+  "monthlyBudget": {
+    "spentThisMonth": "Spent this month",
+    "trackingToward": "Tracking toward",
+    "overBudget": "Over budget",
+    "noCategoriesTitle": "No categories to budget",
+    "addCategories": "Add categories to start tracking.",
+    "showOnlyTracked": "Show only tracked",
+    "trackedCount": "({{targeted}} of {{total}})",
+    "columnCategory": "Category",
+    "columnTarget": "Target",
+    "columnSpent": "Spent",
+    "columnRemaining": "Remaining",
+    "groupTracked": "{{targeted}}/{{total}} tracked"
+  },
+  "budgetInput": {
+    "auto": "auto",
+    "set": "set",
+    "placeholder": "0.00",
+    "editAria": "Edit budget for {{name}}",
+    "setAutoAria": "Set a budget for {{name}} (currently auto: {{amount}})",
+    "setAria": "Set a budget for {{name}}",
+    "updateError": "Couldn't update {{name}}"
+  },
+  "budgetBar": {
+    "lastMonth": "Last month",
+    "lastMonthLower": "last month",
+    "overTarget": " (over target)",
+    "autoTarget": "Auto target: {{amount}}",
+    "budget": "Budget: {{amount}}",
+    "noTargetAria": "No target yet — Capy needs spending history to set one",
+    "spentOfTargetAria": "Spent {{spent}} of {{target}} target{{over}}",
+    "comparisonBasisAria": "Comparison basis: {{label}}"
+  }
+}
