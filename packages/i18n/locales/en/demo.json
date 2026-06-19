@@ -3,6 +3,20 @@
     "eyebrow": "Demo",
     "subtitle": "Pick a scenario to explore."
   },
+  "scenarios": {
+    "underwater": {
+      "name": "Underwater",
+      "description": "Debt-heavy, negative net worth, balance trending the wrong way"
+    },
+    "paycheck-to-paycheck": {
+      "name": "Paycheck to Paycheck",
+      "description": "Income matches outflow, thin savings buffer, flat net worth"
+    },
+    "no-stress": {
+      "name": "No Stress",
+      "description": "High earner, money flows to savings and brokerage, net worth climbs"
+    }
+  },
   "seeding": {
     "title": "Seeding random data…",
     "subtitle": "Any changes reset when you reload.",

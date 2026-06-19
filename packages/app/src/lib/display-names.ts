@@ -16,40 +16,21 @@ import type { BudgetKey } from "@/lib/i18n-keys"
  * equals a canonical default renders its translation; anything else (renamed or
  * user-created) renders verbatim, never translated.
  *
- * The literal name tuples below double as the `canonicalCategory.*` /
- * `canonicalGroup.*` catalog-key space. The `*_KEY` maps pair each enum member
- * with its `budget`-namespace key; typing them `satisfies Record<Enum,
- * BudgetKey>` makes the compiler enforce both exhaustiveness (every member
- * mapped) and key validity (every value is a real catalog key).
+ * The canonical name sets are derived from `@capybudget/core`, not hand-copied:
+ * `CanonicalCategoryName` is the literal-name union of `DEFAULT_CATEGORIES` and
+ * `CanonicalGroupName` is `CategoryGroup` plus the `Archived` sentinel. The
+ * `*_KEY` maps pair each name with its `budget`-namespace key; typing them
+ * `satisfies Record<Name, BudgetKey>` makes the compiler enforce both
+ * exhaustiveness (every canonical name mapped — so a new core default forces a
+ * translation key here or the build fails) and key validity (every value is a
+ * real catalog key).
  */
-
-export const CANONICAL_CATEGORY_NAMES = [
-  "Paycheck",
-  "Other Income",
-  "Housing",
-  "Bills & Utilities",
-  "Subscriptions",
-  "Groceries",
-  "Dining Out",
-  "Transportation",
-  "Alcohol & Smoking",
-  "Health & Beauty",
-  "Clothing",
-  "Fun & Hobbies",
-  "Allowances",
-  "Education & Business",
-  "Gifts & Giving",
-  "Housekeeping & Maintenance",
-  "Big Purchases",
-  "Travel",
-  "Taxes & Fees",
-] as const
 
 /** The "Archived" section is a UI sentinel group, not a `CategoryGroup`, but it
  *  renders alongside the seeded groups and is canonical for the same reasons. */
 export const CANONICAL_GROUP_NAMES = [...CATEGORY_GROUP_ORDER, "Archived"] as const
 
-type CanonicalCategoryName = (typeof CANONICAL_CATEGORY_NAMES)[number]
+type CanonicalCategoryName = (typeof DEFAULT_CATEGORIES)[number]["name"]
 type CanonicalGroupName = (typeof CANONICAL_GROUP_NAMES)[number]
 
 const CANONICAL_CATEGORY_KEY = {
@@ -100,10 +81,6 @@ function isCanonicalCategory(name: string): name is CanonicalCategoryName {
 function isCanonicalGroup(name: string): name is CanonicalGroupName {
   return name in CANONICAL_GROUP_KEY
 }
-
-/** Names of categories the app seeds — `display-names.test.ts` pins this to
- *  core so the tuple above can't silently drift from what gets stored. */
-export const SEEDED_CATEGORY_NAMES = DEFAULT_CATEGORIES.map((c) => c.name)
 
 /** `(stored) => isCanonical(stored) ? translation : stored`. */
 export function useCategoryDisplayName(): (name: string) => string {

@@ -95,6 +95,7 @@ Catalogs are split by area so files stay small and reviewable:
 | `capy`       | The Capy chat assistant UI                   |
 | `onboarding` | First-run / onboarding                       |
 | `help`       | Help-screen chrome (header, anchors, links)  |
+| `demo`       | The web demo (scenario picker, notices)      |
 
 A file may be `{}` while its area hasn't been translated to keys yet — translate
 the ones with content; leave empty ones empty.

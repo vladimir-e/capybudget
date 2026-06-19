@@ -1,6 +1,6 @@
 import type { Category } from "../entities/types";
 
-export const DEFAULT_CATEGORIES: Omit<Category, "id">[] = [
+export const DEFAULT_CATEGORIES = [
   { name: "Paycheck", group: "Income", archived: false, sortOrder: 0, assigned: null },
   { name: "Other Income", group: "Income", archived: false, sortOrder: 1, assigned: null },
   { name: "Housing", group: "Fixed", archived: false, sortOrder: 0, assigned: null },
@@ -20,4 +20,4 @@ export const DEFAULT_CATEGORIES: Omit<Category, "id">[] = [
   { name: "Big Purchases", group: "Irregular", archived: false, sortOrder: 1, assigned: null },
   { name: "Travel", group: "Irregular", archived: false, sortOrder: 2, assigned: null },
   { name: "Taxes & Fees", group: "Irregular", archived: false, sortOrder: 3, assigned: null },
-];
+] as const satisfies readonly Omit<Category, "id">[];

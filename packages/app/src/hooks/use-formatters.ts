@@ -24,19 +24,14 @@ export interface Formatters {
 }
 
 /**
- * Single locale+currency-aware formatter bundle for the render edge. Composes
- * the existing `useFormatMoney` (currency context) / `useFormatPercent` /
- * `useLocale` / core date helpers so components consume pre-bound formatters
- * instead of re-wiring locale and currency at every call site. Small public
- * surface, swappable internals.
+ * Locale+currency-aware formatter bundle for the render edge (see the
+ * `useFormatters()` section in `specs/I18N.md`).
  *
  * Seam: `money`/`moneyCompact` read the currency context, so this hook is only
  * valid under a `CurrencyProvider` (the budget surface). `percent`/`date`/
  * `month`/`monthShort` depend on locale alone — surfaces outside the currency
  * context that need only those can keep using `useFormatPercent`/`useLocale`
- * directly. Range/week/drilldown labels need a per-call translator and live in
- * the analytics adapters (`format-range.ts`, `use-analytics-labels.ts`), not
- * here.
+ * directly.
  */
 export function useFormatters(): Formatters {
   const { format, formatCompact } = useFormatMoney();
