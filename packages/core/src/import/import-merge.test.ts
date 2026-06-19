@@ -285,6 +285,24 @@ describe("prepareMerge", () => {
     expect(result.aliases.accounts["Chase"]).toBe("acct-1");
   });
 
+  it("does not persist aliases for sources with no selected rows", () => {
+    const merged = makeImportTxn({ sourceAccount: "Chase" });
+    const skipped = makeImportTxn({ sourceAccount: "Wells Fargo" });
+
+    const result = prepareMerge(
+      {
+        transactions: [merged, skipped],
+        selectedIds: new Set([merged.id]),
+        accountMapping: { "Chase": "acct-1", "Wells Fargo": "acct-2" },
+      },
+      [],
+      [],
+    );
+
+    expect(result.aliases.accounts["Chase"]).toBe("acct-1");
+    expect(result.aliases.accounts["Wells Fargo"]).toBeUndefined();
+  });
+
   it("clears empty categoryId and merchant", () => {
     const txn = makeImportTxn({ categoryId: "", merchant: "" });
 

@@ -186,11 +186,16 @@ export function prepareMerge(
   const nextTransactions = [...prevTransactions, ...newTxns];
 
   // ── Build updated aliases ─────────────────────────────────
+  // Only remember sources that actually merged a transaction — an alias means
+  // "rows from this source landed here", so a source whose rows were all
+  // deselected must not leak a mapping into the next import.
+  const mergedSources = new Set(selected.map((t) => t.sourceAccount).filter(Boolean));
   const aliases: ImportAliases = {
     accounts: { ...existingAliases.accounts },
   };
 
   for (const [source, target] of Object.entries(accountMapping)) {
+    if (!mergedSources.has(source)) continue;
     if (target === "__create__" && createdAccountIds[source]) {
       aliases.accounts[source] = createdAccountIds[source];
     } else if (target && target !== "__create__") {

@@ -158,6 +158,23 @@ export function ImportPreview({
   const [merging, setMerging] = useState(false);
   const { merge } = useImportMerge(budgetPath);
 
+  // Only the source accounts with at least one selected row — the gate must
+  // reflect what actually merges (prepareMerge processes selectedIds), not every
+  // staged source. `sourceAccounts` (all staged) still drives the Map-accounts
+  // dialog, which is a pre-merge config step.
+  const selectedSourceAccounts = useMemo(
+    () =>
+      [
+        ...new Set(
+          transactions
+            .filter((t) => selectedIds.has(t.id))
+            .map((t) => t.sourceAccount)
+            .filter(Boolean),
+        ),
+      ].sort(),
+    [transactions, selectedIds],
+  );
+
   // Preview of the pending merge — same inputs handleMerge passes to `merge`, so
   // what's shown is exactly what lands. Recomputes when the mapping is edited at
   // the gate. Only runs while the confirmation is open.
@@ -357,10 +374,10 @@ export function ImportPreview({
                 This will add <strong>{format(selectedTotal)}</strong> to your budget.
               </DialogDescription>
             </DialogHeader>
-            {sourceAccounts.length > 0 && (
+            {selectedSourceAccounts.length > 0 && (
               <div className="min-h-0 flex-1 overflow-y-auto">
                 <ImportMappingRows
-                  sourceAccounts={sourceAccounts}
+                  sourceAccounts={selectedSourceAccounts}
                   accounts={accounts}
                   accountMapping={accountMapping}
                   onAccountMappingChange={handleAccountMappingChange}

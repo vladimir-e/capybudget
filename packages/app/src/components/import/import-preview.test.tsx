@@ -238,6 +238,32 @@ describe("ImportPreview — account mapping dialog", () => {
     expect(within(rows).getByText("BOFA CHK 1234")).toBeInTheDocument();
   });
 
+  it("hides source accounts whose rows are all deselected", async () => {
+    // The gate must reflect what merges (selectedIds), not every staged source.
+    Object.assign(dataReturn, {
+      transactions: [
+        { ...TXN, id: "imp-a", sourceAccount: "Chase", accountId: "acct-1" },
+        { ...TXN, id: "imp-b", sourceAccount: "Wells Fargo", accountId: "acct-2" },
+      ],
+      selectedIds: new Set(["imp-a"]),
+      sourceAccounts: ["Chase", "Wells Fargo"],
+      accountMapping: { "Chase": "acct-1", "Wells Fargo": "acct-2" },
+      accounts: [
+        makeBudgetAccount({ id: "acct-1", name: "Chase Checking" }),
+        makeBudgetAccount({ id: "acct-2", name: "Wells Savings" }),
+      ],
+    });
+    renderPreview();
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "Merge" }));
+
+    const dialog = await screen.findByRole("dialog");
+    const rows = within(dialog).getByTestId("mapping-rows");
+    expect(within(rows).getByText("Chase")).toBeInTheDocument();
+    expect(within(rows).queryByText("Wells Fargo")).toBeNull();
+  });
+
   it("shows only the total amount in the confirmation subtitle", async () => {
     Object.assign(dataReturn, {
       transactions: [{ ...TXN, id: "imp-2", amount: -2500 }],
