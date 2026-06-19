@@ -153,6 +153,7 @@ export function MonthlyBudgetTab({
           {
             label: t("monthlyBudget.overBudget"),
             display: String(view.overCount),
+            unit: t("monthlyBudget.overBudgetUnit", { count: view.overCount }),
             tone: view.overCount > 0 ? "expense" : "default",
           },
         ]}
