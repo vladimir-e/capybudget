@@ -11,7 +11,7 @@ CHANGELOG PHILOSOPHY:
 
 ## Unreleased
 
-- **Import** - Merge confirmation lets you fix account mappings in place — each row shows its resulting balance, and unmatched transfers collapse into one warning — so a wrong mapping is visible and correctable before you commit.
+- **Import** - Merge confirmation lets you fix account mappings in place and warns when transfers lost their counterpart, so a wrong mapping is visible and correctable before you commit.
 - **Transaction filters** - Type multiselect + uncategorized/no-merchant filters behind a toolbar popover.
 - **Currency** - Configurable display currency (Settings + new-budget picker); display-only, no conversion.
 

@@ -160,8 +160,8 @@ export {
 export type { MergeInput, MergeOutput } from "./import/import-merge";
 export { prepareMerge, resolveAccountId } from "./import/import-merge";
 
-// Import merge summary (per-account preview of a pending merge)
-export type { MergeAccountSummary, MergeSummary } from "./import/import-merge-summary";
+// Import merge summary (preview of a pending merge)
+export type { MergeSummary } from "./import/import-merge-summary";
 export { summarizeMerge } from "./import/import-merge-summary";
 
 // Import validation

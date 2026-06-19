@@ -13,26 +13,23 @@ vi.mock("./import-table", () => ({
   ),
 }));
 // The mapping rows are the reused element — both dialogs render the same
-// component. The stub surfaces what the preview wires into it: the source rows,
-// the optional per-row balance (rowMeta, only the confirmation passes it), and a
-// remap button that calls back so an edit-at-the-gate is observable.
+// component (source → target only). The stub surfaces what the preview wires
+// into it: the source rows and a remap button that calls back so an
+// edit-at-the-gate is observable.
 vi.mock("./import-mapping", () => ({
   ImportMappingRows: ({
     sourceAccounts,
     accountMapping,
     onAccountMappingChange,
-    rowMeta,
   }: {
     sourceAccounts: string[];
     accountMapping: Record<string, string>;
     onAccountMappingChange: (m: Record<string, string>) => void;
-    rowMeta?: Record<string, { resultingBalance: number }>;
   }) => (
-    <div data-testid="mapping-rows" data-hasmeta={rowMeta ? "yes" : "no"}>
+    <div data-testid="mapping-rows">
       {sourceAccounts.map((s) => (
         <div key={s}>
           <span>{s}</span>
-          {rowMeta?.[s] && <span>balance:{rowMeta[s].resultingBalance}</span>}
           <button onClick={() => onAccountMappingChange({ ...accountMapping, [s]: "acct-2" })}>
             remap {s}
           </button>
@@ -216,7 +213,7 @@ describe("ImportPreview — account mapping dialog", () => {
     expect(within(dialog).getByTestId("mapping-rows")).toBeInTheDocument();
   });
 
-  it("renders editable mapping rows with resulting balances in the confirmation", async () => {
+  it("renders editable mapping rows in the confirmation", async () => {
     const mapped: ImportTransaction = {
       ...TXN,
       id: "imp-2",
@@ -238,11 +235,24 @@ describe("ImportPreview — account mapping dialog", () => {
 
     const dialog = await screen.findByRole("dialog");
     const rows = within(dialog).getByTestId("mapping-rows");
-    // The confirmation passes rowMeta — the same component, in summary mode.
-    expect(rows).toHaveAttribute("data-hasmeta", "yes");
     expect(within(rows).getByText("BOFA CHK 1234")).toBeInTheDocument();
-    // resultingBalance is the destination's post-merge balance (0 + -2500).
-    expect(within(rows).getByText("balance:-2500")).toBeInTheDocument();
+  });
+
+  it("shows only the total amount in the confirmation subtitle", async () => {
+    Object.assign(dataReturn, {
+      transactions: [{ ...TXN, id: "imp-2", amount: -2500 }],
+      selectedIds: new Set(["imp-2"]),
+    });
+    renderPreview();
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "Merge" }));
+
+    const dialog = await screen.findByRole("dialog");
+    // Amount only — the count lives in the title, no new-accounts sentence.
+    expect(within(dialog).getByText(/This will add/)).toHaveTextContent(
+      "This will add -$25.00 to your budget.",
+    );
   });
 
   it("editing a mapping at the gate calls the mapping-change handler", async () => {

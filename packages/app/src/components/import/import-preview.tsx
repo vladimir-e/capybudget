@@ -22,7 +22,7 @@ import {
   filterImportTransactions,
   type ImportSortConfig,
 } from "@/components/import/import-table-utils";
-import { ImportMappingRows, type MappingRowMeta } from "./import-mapping";
+import { ImportMappingRows } from "./import-mapping";
 import { Search, X, GitMerge, AlertTriangle, Copy, Loader2 } from "lucide-react";
 
 interface ImportPreviewProps {
@@ -158,12 +158,12 @@ export function ImportPreview({
   const [merging, setMerging] = useState(false);
   const { merge } = useImportMerge(budgetPath);
 
-  // Per-source-account preview of the pending merge — same inputs handleMerge
-  // passes to `merge`, so what's shown is exactly what lands. Recomputes when the
-  // mapping is edited at the gate. Only runs while the confirmation is open.
+  // Preview of the pending merge — same inputs handleMerge passes to `merge`, so
+  // what's shown is exactly what lands. Recomputes when the mapping is edited at
+  // the gate. Only runs while the confirmation is open.
   const mergeSummary = useMemo(() => {
     if (!showMergeDialog || selectedIds.size === 0) {
-      return { rows: [], unmappedTransferCount: 0 };
+      return { unmappedTransferCount: 0 };
     }
     return summarizeMerge(
       { transactions, selectedIds, accountMapping },
@@ -171,18 +171,6 @@ export function ImportPreview({
       budgetTransactions,
     );
   }, [showMergeDialog, transactions, selectedIds, accountMapping, accounts, budgetTransactions]);
-
-  const rowMeta = useMemo(() => {
-    const meta: Record<string, MappingRowMeta> = {};
-    for (const row of mergeSummary.rows) {
-      meta[row.sourceAccount] = {
-        resultingBalance: row.resultingBalance,
-        isNew: row.isNew,
-        count: row.count,
-      };
-    }
-    return meta;
-  }, [mergeSummary]);
 
   const handleMerge = useCallback(async () => {
     setShowMergeDialog(false);
@@ -354,17 +342,20 @@ export function ImportPreview({
       )}
 
       {/* Merge confirmation — a safety gate. The per-source-account mapping is
-          editable here (the same rows the Map-accounts dialog uses), each showing
-          its destination's resulting balance, so a wrong mapping is both visible
-          and fixable before commit. Unmatched transfers get one warning line
-          rather than rows. Header, warning, and footer stay pinned; the rows are
-          the single scroll region, sized to whatever the viewport leaves them
-          (scrollAfter=Infinity, so the rows don't nest a second scroller). */}
+          editable here (the same rows the Map-accounts dialog uses, source →
+          target only), so a wrong mapping is both visible and fixable before
+          commit. Unmatched transfers get one warning line rather than rows.
+          Header, warning, and footer stay pinned; the rows are the single scroll
+          region, sized to whatever the viewport leaves them (scrollAfter=Infinity,
+          so the rows don't nest a second scroller). */}
       {showMergeDialog && (
         <Dialog open onOpenChange={(open) => { if (!open) setShowMergeDialog(false); }}>
           <DialogContent className="flex max-h-[85vh] flex-col sm:max-w-lg">
             <DialogHeader>
               <DialogTitle>Merge {selectedCount} transactions?</DialogTitle>
+              <DialogDescription>
+                This will add <strong>{format(selectedTotal)}</strong> to your budget.
+              </DialogDescription>
             </DialogHeader>
             {sourceAccounts.length > 0 && (
               <div className="min-h-0 flex-1 overflow-y-auto">
@@ -373,7 +364,6 @@ export function ImportPreview({
                   accounts={accounts}
                   accountMapping={accountMapping}
                   onAccountMappingChange={handleAccountMappingChange}
-                  rowMeta={rowMeta}
                   scrollAfter={Infinity}
                 />
               </div>
