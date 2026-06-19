@@ -10,6 +10,7 @@ import {
   Square,
 } from "lucide-react"
 import { toast } from "sonner"
+import { useTranslation } from "@capybudget/i18n"
 import capyMascot from "@/assets/capy-neutral.webp"
 import { CommandPicker } from "../command-picker"
 import { InstructionsDialog } from "../instructions-dialog"
@@ -72,6 +73,7 @@ export function CapyOverlay({
     newChat: onNewChat,
   } = useCapySessionContext()
   const onClose = useCallback(() => setOpen(false), [setOpen])
+  const { t } = useTranslation("capy")
   const [input, setInput] = useState("")
   const [attachments, setAttachments] = useState<FileAttachment[]>([])
   const [instructionsOpen, setInstructionsOpen] = useState(false)
@@ -214,12 +216,12 @@ export function CapyOverlay({
     const candidates: FileAttachment[] = []
     for (const file of files) {
       if (file.size > MAX_ATTACHMENT_SIZE) {
-        toast.error(`${file.name} exceeds 5MB limit`)
+        toast.error(t("attachments.tooLarge", { name: file.name }))
         continue
       }
       const isImage = file.type.startsWith("image/")
       if (!isImage && !isTextFile(file)) {
-        toast.error(`${file.name} is not a supported file type`)
+        toast.error(t("attachments.unsupported", { name: file.name }))
         continue
       }
       const content = isImage ? await readFileAsBase64(file) : await file.text()
@@ -238,7 +240,7 @@ export function CapyOverlay({
         const accepted: FileAttachment[] = []
         for (const c of candidates) {
           if (runningTotal + c.size > MAX_TOTAL_ATTACHMENT_SIZE) {
-            toast.error("Total attachment size exceeds 10MB")
+            toast.error(t("attachments.totalTooLarge"))
             break
           }
           accepted.push(c)
@@ -247,7 +249,7 @@ export function CapyOverlay({
         return accepted.length > 0 ? [...prev, ...accepted] : prev
       })
     }
-  }, [])
+  }, [t])
 
   const handleSend = () => {
     const text = input.trim()
@@ -307,7 +309,7 @@ export function CapyOverlay({
 
   return (
     <aside
-      aria-label="Capy assistant"
+      aria-label={t("header.panelLabel")}
       inert={!open}
       style={isResizable ? { width: `${resize.width}px` } : undefined}
       className={`@container fixed inset-y-0 right-0 z-50 flex w-full flex-col border-l border-border/50 bg-background shadow-2xl transition-transform duration-200 ease-out ${
@@ -324,7 +326,7 @@ export function CapyOverlay({
         <div
           role="separator"
           aria-orientation="vertical"
-          aria-label="Resize Capy panel"
+          aria-label={t("panel.resize")}
           onPointerDown={resize.onPointerDown}
           className={`absolute inset-y-0 left-0 z-30 w-1 cursor-ew-resize bg-transparent transition-colors hover:bg-brand/30 ${
             resize.isDragging ? "bg-brand/40" : ""
@@ -336,7 +338,7 @@ export function CapyOverlay({
         <div className="absolute inset-4 z-20 flex items-center justify-center rounded-2xl border-2 border-dashed border-brand/50 bg-brand/5 backdrop-blur-sm">
           <div className="flex flex-col items-center gap-2 text-brand">
             <Paperclip className="h-6 w-6" />
-            <p className="text-sm font-medium">Drop files here</p>
+            <p className="text-sm font-medium">{t("dropzone.label")}</p>
           </div>
         </div>
       )}
@@ -364,10 +366,10 @@ export function CapyOverlay({
                 {/* Demo seeds claude-cli to power its stubbed chat but presents
                     AI as "Off" in Settings — show a neutral label, not the seed. */}
                 {__IS_DEMO__
-                  ? "Your AI assistant"
+                  ? t("header.demoStatus")
                   : isConfigured && config.provider
                     ? PROVIDER_LABELS[config.provider]
-                    : "Not configured"}
+                    : t("header.notConfigured")}
               </p>
             </div>
           </div>
@@ -376,8 +378,8 @@ export function CapyOverlay({
           type="button"
           onClick={onClose}
           className="shrink-0 rounded-lg p-2.5 text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground"
-          aria-label="Hide panel"
-          title="Hide panel"
+          aria-label={t("header.hidePanel")}
+          title={t("header.hidePanel")}
         >
           <PanelRightClose className="h-5 w-5" />
         </button>
@@ -426,7 +428,7 @@ export function CapyOverlay({
                       <span className="h-1.5 w-1.5 rounded-full bg-brand/60" />
                       <span className="h-1.5 w-1.5 rounded-full bg-brand/60" />
                     </div>
-                    Thinking...
+                    {t("thinking")}
                   </div>
                 </div>
               </div>
@@ -437,8 +439,8 @@ export function CapyOverlay({
           <button
             type="button"
             onClick={jumpToLatest}
-            aria-label="Scroll to latest"
-            title="Scroll to latest"
+            aria-label={t("jumpToLatest")}
+            title={t("jumpToLatest")}
             className="absolute bottom-3 right-4 z-10 flex h-9 w-9 items-center justify-center rounded-full border border-border/40 bg-background/95 text-foreground/80 shadow-lg backdrop-blur transition-colors hover:border-brand/40 hover:text-foreground"
           >
             <ArrowDown className="h-4 w-4" />
@@ -476,7 +478,7 @@ export function CapyOverlay({
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="Ask Capy anything about your finances..."
+              placeholder={t("input.placeholder")}
               rows={3}
               className="w-full resize-none rounded-2xl bg-transparent px-5 py-4 pr-14 pl-12 text-base text-foreground placeholder:text-muted-foreground/50 focus:outline-none"
             />
@@ -485,7 +487,7 @@ export function CapyOverlay({
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
                 className="rounded-xl p-2.5 text-muted-foreground/40 hover:text-muted-foreground hover:bg-muted/50 transition-colors"
-                aria-label="Attach file"
+                aria-label={t("input.attach")}
               >
                 <Paperclip className="h-4.5 w-4.5" />
               </button>
@@ -496,7 +498,7 @@ export function CapyOverlay({
                   type="button"
                   onClick={onStop}
                   className="rounded-xl p-2.5 text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
-                  aria-label="Stop response"
+                  aria-label={t("input.stop")}
                 >
                   <Square className="h-4 w-4 fill-current" />
                 </button>
@@ -509,7 +511,7 @@ export function CapyOverlay({
                   isStreaming
                 }
                 className="rounded-xl p-2.5 text-brand hover:bg-brand/10 disabled:opacity-25 disabled:hover:bg-transparent transition-colors"
-                aria-label="Send message"
+                aria-label={t("input.send")}
               >
                 <Send className="h-5 w-5" />
               </button>
@@ -522,20 +524,20 @@ export function CapyOverlay({
                 type="button"
                 onClick={() => setInstructionsOpen(true)}
                 className="action-link inline-flex items-center gap-1 text-xs cursor-pointer whitespace-nowrap"
-                aria-label="Custom instructions"
+                aria-label={t("input.instructionsLabel")}
               >
                 <Settings2 className="h-3 w-3" />
-                Instructions
+                {t("input.instructions")}
               </button>
               {messages.length > 0 && (
                 <button
                   type="button"
                   onClick={onNewChat}
                   className="action-link inline-flex items-center gap-1 text-xs cursor-pointer whitespace-nowrap"
-                  aria-label="New chat"
+                  aria-label={t("input.newChat")}
                 >
                   <RotateCcw className="h-3 w-3" />
-                  New chat
+                  {t("input.newChat")}
                 </button>
               )}
             </div>
@@ -543,7 +545,7 @@ export function CapyOverlay({
              *  shows at the desktop default/minimum and hides only once the panel
              *  is narrower than that — i.e. mobile full-width. */}
             <p className="text-xs text-muted-foreground/40 whitespace-nowrap @max-[27rem]:hidden">
-              Shift + Enter for new line
+              {t("input.newLineHint")}
             </p>
           </div>
         </div>

@@ -6,6 +6,7 @@ import {
   Sparkles,
   Tags,
 } from "lucide-react"
+import { useTranslation } from "@capybudget/i18n"
 import capyMascot from "@/assets/capy-neutral.webp"
 import type { IntelligenceProvider } from "@capybudget/intelligence"
 
@@ -43,6 +44,8 @@ interface UnconfiguredEmptyStateProps {
   firstChipRef: RefObject<HTMLButtonElement | null>
 }
 
+// Provider names are brand identifiers, not UI copy — they stay verbatim
+// across locales.
 const PROVIDER_CHIPS: ReadonlyArray<{ provider: IntelligenceProvider; label: string }> = [
   { provider: "claude-cli", label: "Claude Code" },
   { provider: "anthropic", label: "Anthropic" },
@@ -55,14 +58,15 @@ export function UnconfiguredEmptyState({
   onOpenSettings,
   firstChipRef,
 }: UnconfiguredEmptyStateProps) {
+  const { t } = useTranslation("capy")
   return (
     <div className="flex flex-col items-center justify-center px-2 py-10 text-center">
       <MascotHero />
       <h3 className="text-lg font-semibold text-foreground">
-        Set up your AI assistant
+        {t("unconfigured.title")}
       </h3>
       <p className="mt-2 max-w-xs text-sm text-muted-foreground">
-        Capy needs an AI provider before it can help.
+        {t("unconfigured.description")}
       </p>
       <div className="mt-5 flex flex-wrap justify-center gap-2">
         {PROVIDER_CHIPS.map(({ provider, label }, idx) => {
@@ -74,8 +78,8 @@ export function UnconfiguredEmptyState({
           const disabled = isClaudeCli && claudeCliAvailable !== true
           const title = disabled
             ? claudeCliAvailable === null
-              ? "Checking for Claude Code CLI…"
-              : "Claude Code CLI not detected on this machine"
+              ? t("unconfigured.claudeCliChecking")
+              : t("unconfigured.claudeCliMissing")
             : undefined
           return (
             <button
@@ -98,39 +102,22 @@ export function UnconfiguredEmptyState({
         className="mt-5 inline-flex items-center gap-1.5 rounded-xl bg-brand px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-brand/90"
       >
         <Settings className="h-4 w-4" />
-        Open settings
+        {t("unconfigured.openSettings")}
       </button>
     </div>
   )
 }
 
 interface SuggestionCard {
+  id: "help" | "learn" | "subscriptions" | "categorize"
   icon: typeof Sparkles
-  label: string
-  prompt: string
 }
 
 const SUGGESTION_CARDS: ReadonlyArray<SuggestionCard> = [
-  {
-    icon: Sparkles,
-    label: "What can you help me with?",
-    prompt: "What can you help me with?",
-  },
-  {
-    icon: GraduationCap,
-    label: "Teach me how to budget",
-    prompt: "Teach me how to budget",
-  },
-  {
-    icon: Repeat,
-    label: "Find recurring subscriptions",
-    prompt: "Find my recurring subscriptions and what they cost",
-  },
-  {
-    icon: Tags,
-    label: "Help me categorize transactions",
-    prompt: "Help me categorize my uncategorized transactions",
-  },
+  { id: "help", icon: Sparkles },
+  { id: "learn", icon: GraduationCap },
+  { id: "subscriptions", icon: Repeat },
+  { id: "categorize", icon: Tags },
 ]
 
 interface ConfiguredEmptyStateProps {
@@ -138,29 +125,30 @@ interface ConfiguredEmptyStateProps {
 }
 
 export function ConfiguredEmptyState({ onSuggestion }: ConfiguredEmptyStateProps) {
+  const { t } = useTranslation("capy")
   return (
     <div className="flex flex-col items-center px-2 py-8 text-center">
       <MascotHero />
       <h3 className="text-lg font-semibold text-foreground">
-        Hey, I&apos;m Capy.
+        {t("welcome.greeting")}
       </h3>
       <p className="mt-2 max-w-xs text-sm text-muted-foreground">
-        Ask me about your spending, budgets, or transactions. I see everything
-        in this folder.
+        {t("welcome.description")}
       </p>
       <div className="mt-6 grid w-full grid-cols-2 gap-2">
         {SUGGESTION_CARDS.map((card) => {
           const Icon = card.icon
+          const prompt = t(`welcome.suggestions.${card.id}.prompt`)
           return (
             <button
-              key={card.prompt}
+              key={card.id}
               type="button"
-              onClick={() => onSuggestion(card.prompt)}
+              onClick={() => onSuggestion(prompt)}
               className="group flex items-start gap-2.5 rounded-xl border border-border/40 bg-muted/30 p-3 text-left transition-colors hover:border-brand/40 hover:bg-brand/5"
             >
               <Icon className="mt-0.5 h-4 w-4 shrink-0 text-brand transition-colors group-hover:text-brand" />
               <span className="text-xs font-medium text-foreground/85 leading-snug">
-                {card.label}
+                {t(`welcome.suggestions.${card.id}.label`)}
               </span>
             </button>
           )

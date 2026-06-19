@@ -1,5 +1,6 @@
 import { AlertTriangle, Check, ExternalLink, Loader2 } from "lucide-react"
 import { open as shellOpen } from "@tauri-apps/plugin-shell"
+import { useTranslation } from "@capybudget/i18n"
 import { getToolLabel } from "@/lib/tool-labels"
 import { billingCtaUrl } from "@/lib/billing-cta"
 import type {
@@ -194,6 +195,7 @@ function FollowupChips({
 /* ── Error bubble ─────────────────────────────────────────────── */
 
 function ErrorBubble({ block }: { block: ErrorBlock }) {
+  const { t } = useTranslation("capy")
   const ctaUrl = billingCtaUrl(block)
   return (
     <div className="flex justify-start">
@@ -212,7 +214,7 @@ function ErrorBubble({ block }: { block: ErrorBlock }) {
             }}
             className="inline-flex items-center gap-1.5 text-xs font-medium text-destructive/90 underline-offset-4 hover:underline"
           >
-            Open billing page
+            {t("error.openBilling")}
             <ExternalLink className="h-3 w-3" />
           </button>
         )}
