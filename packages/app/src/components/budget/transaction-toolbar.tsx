@@ -104,18 +104,18 @@ export function TransactionToolbar({ filters, onFiltersChange }: TransactionTool
         </PopoverContent>
       </Popover>
 
-      {hasActiveFilters(filters) && (
-        <Button
-          variant="ghost"
-          size="xs"
-          onClick={clearAll}
-          className="shrink-0 text-muted-foreground"
-          aria-label="Clear all filters"
-        >
-          <X className="h-3 w-3" />
-          <span>Clear</span>
-        </Button>
-      )}
+      {/* Always mounted so toggling the first filter never reflows the row;
+          hidden (but space-reserving) when nothing is active. */}
+      <Button
+        variant="ghost"
+        size="xs"
+        onClick={clearAll}
+        className={`shrink-0 text-muted-foreground ${hasActiveFilters(filters) ? "" : "invisible pointer-events-none"}`}
+        aria-label="Clear all filters"
+      >
+        <X className="h-3 w-3" />
+        <span>Clear</span>
+      </Button>
     </div>
   );
 }
