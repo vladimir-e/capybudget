@@ -8,7 +8,8 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import type { Transaction } from "@capybudget/core";
-import { resolveTransferPair } from "@capybudget/core";
+import { formatDateLabel, resolveTransferPair } from "@capybudget/core";
+import { useLocale, useTranslation } from "@capybudget/i18n";
 import { useFormatMoney } from "@/contexts/currency-context";
 import { useAccounts, useCategories, useTransactions } from "@/hooks/use-budget-data";
 import { ArrowRight } from "lucide-react";
@@ -24,6 +25,8 @@ export function DeleteTransactionDialog({
   onConfirm,
   onCancel,
 }: DeleteTransactionDialogProps) {
+  const { t } = useTranslation(["budget", "common"]);
+  const locale = useLocale();
   const { format } = useFormatMoney();
   const { data: accounts = [] } = useAccounts();
   const { data: categories = [] } = useCategories();
@@ -46,21 +49,17 @@ export function DeleteTransactionDialog({
     );
   }
 
-  const formattedDate = new Date(transaction.datetime.slice(0, 10) + "T12:00:00").toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
+  const formattedDate = formatDateLabel(transaction.datetime.slice(0, 10), locale);
 
   return (
     <Dialog open onOpenChange={(open) => { if (!open) onCancel(); }}>
       <DialogContent className="sm:max-w-sm">
         <DialogHeader>
-          <DialogTitle>Delete {isTransfer ? "Transfer" : "Transaction"}</DialogTitle>
+          <DialogTitle>{isTransfer ? t("transaction.delete.titleTransfer") : t("transaction.delete.titleTransaction")}</DialogTitle>
           <DialogDescription>
             {isTransfer
-              ? "This will delete both sides of the transfer."
-              : "This action cannot be undone."}
+              ? t("transaction.delete.transferDescription")
+              : t("transaction.delete.transactionDescription")}
           </DialogDescription>
         </DialogHeader>
 
@@ -80,7 +79,7 @@ export function DeleteTransactionDialog({
           <div className="text-foreground">
             {isTransfer
               ? transferLabel
-              : category?.name ?? transaction.merchant ?? "Uncategorized"}
+              : category?.name ?? transaction.merchant ?? t("transaction.row.uncategorized")}
           </div>
           {!isTransfer && transaction.merchant && category && (
             <div className="text-muted-foreground text-xs">{transaction.merchant}</div>
@@ -88,8 +87,8 @@ export function DeleteTransactionDialog({
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={onCancel}>Cancel</Button>
-          <Button variant="destructive" onClick={onConfirm}>Delete</Button>
+          <Button variant="outline" onClick={onCancel}>{t("common:actions.cancel")}</Button>
+          <Button variant="destructive" onClick={onConfirm}>{t("common:actions.delete")}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

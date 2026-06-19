@@ -12,6 +12,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { InlineEditCell, type EditableColumn } from "@/components/budget/inline-edit-cells";
 import type { Account, Category, Transaction, TransactionFormData } from "@capybudget/core";
 import { formatDateLabel, getAmountClass, resolveTransferPair } from "@capybudget/core";
+import { useLocale, useTranslation } from "@capybudget/i18n";
 import { useFormatMoney } from "@/contexts/currency-context";
 import { ArrowRight, Info, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
 
@@ -56,6 +57,8 @@ export const TransactionRowMemo = memo(function TransactionRow({
   onEdit,
   onDelete,
 }: TransactionRowProps) {
+  const { t } = useTranslation(["budget", "common"]);
+  const locale = useLocale();
   const { format } = useFormatMoney();
   const account = accountMap.get(txn.accountId);
 
@@ -74,10 +77,10 @@ export const TransactionRowMemo = memo(function TransactionRow({
     );
   } else if (txn.categoryId) {
     categoryDisplay = categoryMap.get(txn.categoryId)?.name ?? (
-      <span className="text-muted-foreground/50 italic">Uncategorized</span>
+      <span className="text-muted-foreground/50 italic">{t("transaction.row.uncategorized")}</span>
     );
   } else {
-    categoryDisplay = <span className="text-muted-foreground/50 italic">Uncategorized</span>;
+    categoryDisplay = <span className="text-muted-foreground/50 italic">{t("transaction.row.uncategorized")}</span>;
   }
 
   const isCellClickable = isEditable || (!!onEdit && txn.type === "transfer");
@@ -97,7 +100,7 @@ export const TransactionRowMemo = memo(function TransactionRow({
           <Checkbox
             checked={isSelected}
             onCheckedChange={() => onToggleSelect?.(txn.id, false)}
-            aria-label={`Select transaction`}
+            aria-label={t("transaction.list.select")}
           />
         </TableCell>
       )}
@@ -107,7 +110,7 @@ export const TransactionRowMemo = memo(function TransactionRow({
       >
         {activeCol === "date" ? (
           <InlineEditCell txn={txn} column="date" accounts={accounts} categories={categories} onSave={onInlineSave} onCancel={onInlineCancel} />
-        ) : formatDateLabel(txn.datetime.slice(0, 10))}
+        ) : formatDateLabel(txn.datetime.slice(0, 10), locale)}
       </TableCell>
       {showAccountColumn && (
         <TableCell
@@ -116,7 +119,7 @@ export const TransactionRowMemo = memo(function TransactionRow({
         >
           {activeCol === "account" ? (
             <InlineEditCell txn={txn} column="account" accounts={accounts} categories={categories} onSave={onInlineSave} onCancel={onInlineCancel} />
-          ) : account?.name ?? "Unknown"}
+          ) : account?.name ?? t("transaction.row.unknownAccount")}
         </TableCell>
       )}
       <TableCell
@@ -129,7 +132,7 @@ export const TransactionRowMemo = memo(function TransactionRow({
           <div className="flex items-center min-w-0">
             <span className="truncate">
               {txn.type === "transfer" ? (
-                <span className="text-muted-foreground/50">Transfer</span>
+                <span className="text-muted-foreground/50">{t("transaction.row.transfer")}</span>
               ) : txn.merchant}
             </span>
             {txn.note && (
@@ -140,7 +143,7 @@ export const TransactionRowMemo = memo(function TransactionRow({
                       type="button"
                       className="ml-auto pl-2 inline-flex shrink-0 cursor-pointer p-1.5 -m-1.5"
                       onClick={(e) => { e.stopPropagation(); onEdit?.(txn); }}
-                      aria-label="Edit transaction note"
+                      aria-label={t("transaction.row.editNote")}
                     />
                   }
                 >
@@ -182,13 +185,13 @@ export const TransactionRowMemo = memo(function TransactionRow({
               {onEdit && (
                 <DropdownMenuItem onClick={() => onEdit(txn)}>
                   <Pencil className="h-3.5 w-3.5" />
-                  Edit
+                  {t("common:actions.edit")}
                 </DropdownMenuItem>
               )}
               {onDelete && (
                 <DropdownMenuItem variant="destructive" onClick={() => onDelete(txn)}>
                   <Trash2 className="h-3.5 w-3.5" />
-                  Delete
+                  {t("common:actions.delete")}
                 </DropdownMenuItem>
               )}
             </DropdownMenuContent>

@@ -37,6 +37,7 @@ import {
 import { ChevronDown, ChevronLeft, ChevronRight, Download, FolderOpen, Github, LogOut } from "lucide-react";
 import { open as shellOpen } from "@tauri-apps/plugin-shell";
 import type { Account, Transaction, TransactionFormData } from "@capybudget/core";
+import { useTranslation } from "@capybudget/i18n";
 import { toast } from "sonner";
 
 declare const __IS_DEMO__: boolean;
@@ -51,6 +52,7 @@ function shortenPath(path: string, maxLen: number): string {
 }
 
 export function BudgetShell() {
+  const { t } = useTranslation(["budget", "common"]);
   const { path, name: searchName } = useSearch({ from: "/budget" });
   const { data: meta } = useBudgetMeta(path);
   // Live name from budget.json so a rename re-renders the header and threads the
@@ -180,13 +182,13 @@ export function BudgetShell() {
       updateTxn.mutate(data);
       setEditingTxn(null);
       setFormOpen(false);
-      toast.success("Transaction updated");
+      toast.success(t("transaction.toast.updated"));
     } else {
       createTxn.mutate(data);
       setFormOpen(false);
-      toast.success("Transaction added");
+      toast.success(t("transaction.toast.added"));
     }
-  }, [createTxn, updateTxn]);
+  }, [createTxn, updateTxn, t]);
 
   const editTransaction = useCallback((txn: Transaction) => {
     setEditingTxn(txn);
@@ -232,14 +234,14 @@ export function BudgetShell() {
                   <>
                     <DropdownMenuItem onClick={() => shellOpen(path)}>
                       <FolderOpen className="h-4 w-4" />
-                      Reveal in Finder
+                      {t("shell.revealInFinder")}
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
                   </>
                 )}
                 <DropdownMenuItem onClick={() => navigate({ to: "/" })}>
                   <LogOut className="h-4 w-4" />
-                  Close Budget
+                  {t("shell.closeBudget")}
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -255,10 +257,10 @@ export function BudgetShell() {
                       ? "bg-muted text-foreground"
                       : "text-muted-foreground hover:text-foreground hover:bg-muted/30"
                   }`}
-                  aria-label={effectiveFormOpen ? "Close transaction form" : "Add transaction"}
+                  aria-label={effectiveFormOpen ? t("shell.closeTransactionForm") : t("shell.addTransaction")}
                 >
                   <ChevronDown className={`h-3.5 w-3.5 transition-transform duration-200 ${effectiveFormOpen ? "rotate-180" : ""}`} />
-                  <span>New Transaction</span>
+                  <span>{t("shell.newTransaction")}</span>
                 </button>
                 <ModHintBadge className="left-1/2 top-full mt-1.5 -translate-x-1/2">
                   {modKey}N
@@ -273,12 +275,12 @@ export function BudgetShell() {
                   href="https://capybudget.app"
                   target="_blank"
                   rel="noopener noreferrer"
-                  aria-label="Get the desktop app"
-                  title="Get the desktop app"
+                  aria-label={t("shell.getDesktopApp")}
+                  title={t("shell.getDesktopApp")}
                   className={buttonVariants({ variant: "default" })}
                 >
                   <Download className="h-4 w-4" />
-                  Get the desktop app
+                  {t("shell.getDesktopApp")}
                 </a>
               )}
               {__IS_DEMO__ && (
@@ -286,12 +288,12 @@ export function BudgetShell() {
                   href="https://github.com/vladimir-e/capybudget"
                   target="_blank"
                   rel="noopener noreferrer"
-                  aria-label="View source on GitHub"
-                  title="View source on GitHub"
+                  aria-label={t("shell.viewSource")}
+                  title={t("shell.viewSource")}
                   className={buttonVariants({ variant: "ghost" })}
                 >
                   <Github className="h-4 w-4" />
-                  GitHub
+                  {t("shell.github")}
                 </a>
               )}
               <ColorThemeSwitcher />
@@ -340,7 +342,7 @@ export function BudgetShell() {
                 type="button"
                 onClick={() => setSidebarCollapsed((prev) => !prev)}
                 className="flex w-4 shrink-0 items-center justify-center border-r border-sidebar-border bg-sidebar text-muted-foreground/30 hover:text-muted-foreground hover:bg-sidebar-accent transition-colors"
-                aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+                aria-label={sidebarCollapsed ? t("shell.expandSidebar") : t("shell.collapseSidebar")}
               >
                 {sidebarCollapsed ? (
                   <ChevronRight className="h-3.5 w-3.5" />

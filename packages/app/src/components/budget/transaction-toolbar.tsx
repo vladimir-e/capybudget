@@ -4,6 +4,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { CategorySelector } from "@/components/budget/category-selector";
 import { DateRangePicker } from "@/components/budget/date-range-picker";
 import { TransactionFilterPopover } from "@/components/budget/transaction-filter-popover";
+import { useTranslation } from "@capybudget/i18n";
 import { useCategories } from "@/hooks/use-budget-data";
 import {
   ALL_TRANSACTION_TYPES,
@@ -23,6 +24,7 @@ interface TransactionToolbarProps {
 const activeRing = "ring-1 ring-brand/30 rounded-lg";
 
 export function TransactionToolbar({ filters, onFiltersChange }: TransactionToolbarProps) {
+  const { t } = useTranslation("budget");
   const { data: categories = [] } = useCategories();
 
   const hasSearch = filters.search.length > 0;
@@ -52,10 +54,10 @@ export function TransactionToolbar({ filters, onFiltersChange }: TransactionTool
           size="xs"
           onClick={clearAll}
           className="absolute bottom-full right-0 mb-0.5 text-muted-foreground"
-          aria-label="Clear all filters"
+          aria-label={t("toolbar.clearFilters")}
         >
           <X className="h-3 w-3" />
-          <span>Clear</span>
+          <span>{t("toolbar.clear")}</span>
         </Button>
       )}
 
@@ -63,7 +65,7 @@ export function TransactionToolbar({ filters, onFiltersChange }: TransactionTool
         <div className={`relative flex-[5] min-w-0 ${hasSearch ? activeRing : ""}`}>
           <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground/60" />
           <Input
-            placeholder="Search transactions…"
+            placeholder={t("toolbar.search")}
             value={filters.search}
             onChange={(e) => update({ search: e.target.value })}
             className="pl-8 pr-8"
@@ -73,7 +75,7 @@ export function TransactionToolbar({ filters, onFiltersChange }: TransactionTool
               type="button"
               onClick={() => update({ search: "" })}
               className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground/60 hover:text-foreground"
-              aria-label="Clear search"
+              aria-label={t("toolbar.clearSearch")}
             >
               <X className="h-3.5 w-3.5" />
             </button>
@@ -104,7 +106,7 @@ export function TransactionToolbar({ filters, onFiltersChange }: TransactionTool
                 variant="outline"
                 size="icon-sm"
                 className="relative shrink-0"
-                aria-label="More filters"
+                aria-label={t("toolbar.moreFilters")}
               />
             }
           >

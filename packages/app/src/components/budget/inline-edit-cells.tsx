@@ -6,6 +6,7 @@ import { CategorySelector } from "@/components/budget/category-selector";
 import { MerchantInput } from "@/components/budget/merchant-input";
 import type { Account, Category, Transaction, TransactionFormData } from "@capybudget/core";
 import { parseMoney, getAmountClass, centsToEditString, parseLocalDate, toDateString, formatDateLabel, findCategoryForMerchant } from "@capybudget/core";
+import { useLocale, useTranslation } from "@capybudget/i18n";
 import { useTransactions } from "@/hooks/use-budget-data";
 import { useFormatMoney } from "@/contexts/currency-context";
 import { CalendarDays } from "lucide-react";
@@ -100,6 +101,7 @@ function DateEditCell({ txn, onSave, onCancel }: {
   txn: Transaction;
   onSave: (date: string) => void; onCancel: () => void;
 }) {
+  const locale = useLocale();
   const currentDate = txn.datetime.slice(0, 10);
 
   return (
@@ -113,7 +115,7 @@ function DateEditCell({ txn, onSave, onCancel }: {
         }
       >
         <CalendarDays className="h-3.5 w-3.5 text-muted-foreground/50" />
-        <span>{formatDateLabel(currentDate)}</span>
+        <span>{formatDateLabel(currentDate, locale)}</span>
       </PopoverTrigger>
       <PopoverContent className="w-auto p-0" align="start">
         <Calendar
@@ -150,6 +152,7 @@ function CategoryEditCell({ txn, categories, onSave, onCancel }: {
   txn: Transaction; categories: Category[];
   onSave: (categoryId: string) => void; onCancel: () => void;
 }) {
+  const { t } = useTranslation("budget");
   return (
     <CategorySelector
       categories={categories}
@@ -157,7 +160,7 @@ function CategoryEditCell({ txn, categories, onSave, onCancel }: {
       defaultOpen
       onChange={(id) => onSave(id ?? "")}
       onOpenChange={(open) => { if (!open) onCancel(); }}
-      placeholder="Uncategorized"
+      placeholder={t("category.uncategorized")}
       includeUncategorized
     />
   );
@@ -167,6 +170,7 @@ function MerchantEditCell({ txn, onSave, onCancel }: {
   txn: Transaction;
   onSave: (merchant: string, categoryId?: string) => void; onCancel: () => void;
 }) {
+  const { t } = useTranslation("budget");
   const { data: allTransactions = [] } = useTransactions();
   const [value, setValue] = useState(txn.merchant);
 
@@ -186,7 +190,7 @@ function MerchantEditCell({ txn, onSave, onCancel }: {
         if (e.key === "Escape") { e.preventDefault(); onCancel(); }
       }}
       className={`${inputClass} text-muted-foreground`}
-      placeholder="Merchant"
+      placeholder={t("transaction.form.merchantPlaceholder")}
     />
   );
 }

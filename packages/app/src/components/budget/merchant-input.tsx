@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { Transaction } from "@capybudget/core";
 import { getUniqueMerchants, matchMerchants } from "@capybudget/core";
+import { useTranslation } from "@capybudget/i18n";
 
 interface MerchantInputProps {
   value: string;
@@ -24,11 +25,13 @@ export function MerchantInput({
   onSelect,
   transactions,
   className,
-  placeholder = "Merchant",
+  placeholder,
   autoFocus = false,
   onKeyDown,
   onBlur,
 }: MerchantInputProps) {
+  const { t } = useTranslation("budget");
+  const resolvedPlaceholder = placeholder ?? t("transaction.form.merchantPlaceholder");
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
@@ -155,7 +158,7 @@ export function MerchantInput({
         onBlur={handleBlur}
         onKeyDown={handleKeyDown}
         className={className}
-        placeholder={placeholder}
+        placeholder={resolvedPlaceholder}
         autoFocus={autoFocus}
       />
       {showDropdown &&

@@ -12,6 +12,7 @@ import { useTransactionFilters } from "@/hooks/use-transaction-filters";
 import { hasActiveFilters } from "@/lib/filter-transactions";
 import { useTransactionSelection } from "@/hooks/use-transaction-selection";
 import type { Transaction, TransactionFormData } from "@capybudget/core";
+import { useTranslation } from "@capybudget/i18n";
 import { toast } from "sonner";
 
 interface TransactionViewProps {
@@ -22,6 +23,7 @@ interface TransactionViewProps {
 }
 
 export function TransactionView({ transactions, header, showAccountColumn, readOnly }: TransactionViewProps) {
+  const { t } = useTranslation("budget");
   const { data: accounts = [] } = useAccounts();
   const { data: categories = [] } = useCategories();
   const { data: allTransactions = [] } = useTransactions();
@@ -37,7 +39,7 @@ export function TransactionView({ transactions, header, showAccountColumn, readO
     deleteTxn.mutate(deletingTxn);
     if (editingTxnId === deletingTxn.id) cancelEdit();
     setDeletingTxn(null);
-    toast.success("Transaction deleted");
+    toast.success(t("transaction.toast.deleted"));
   };
 
   const handleInlineSave = useCallback(
@@ -47,9 +49,9 @@ export function TransactionView({ transactions, header, showAccountColumn, readO
         cancelEdit();
       }
       updateTxn.mutate(data);
-      toast.success("Transaction updated");
+      toast.success(t("transaction.toast.updated"));
     },
-    [updateTxn, editingTxnId, cancelEdit],
+    [updateTxn, editingTxnId, cancelEdit, t],
   );
 
   const isFiltered = hasActiveFilters(filters);
@@ -59,13 +61,13 @@ export function TransactionView({ transactions, header, showAccountColumn, readO
   // hold data, or a filter/search that matched nothing, get the plain state.
   const emptyState = useMemo<ReactNode>(() => {
     if (isFiltered) {
-      return <EmptyState className="py-24" title="No matching transactions" description="Try adjusting your search or filters." />;
+      return <EmptyState className="py-24" title={t("transaction.list.noMatchTitle")} description={t("transaction.list.noMatchDescription")} />;
     }
     if (showAccountColumn && allTransactions.length === 0) {
       return <FirstRunGuide />;
     }
     return undefined;
-  }, [isFiltered, showAccountColumn, allTransactions.length]);
+  }, [isFiltered, showAccountColumn, allTransactions.length, t]);
 
   return (
     <div>

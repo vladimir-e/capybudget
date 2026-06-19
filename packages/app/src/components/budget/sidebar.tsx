@@ -37,6 +37,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { ACCOUNT_TYPE_LABELS, getAccountBalance, getAccountsByGroup, getNetWorth, isOpeningBalanceTxn } from "@capybudget/core";
+import { useTranslation } from "@capybudget/i18n";
 import { useFormatMoney } from "@/contexts/currency-context";
 import { useAccounts, useTransactions } from "@/hooks/use-budget-data";
 import { NetWorthFilter } from "./net-worth-filter";
@@ -62,6 +63,7 @@ export function Sidebar({
   onEditAccount,
   onReorderAccounts,
 }: SidebarProps) {
+  const { t } = useTranslation("budget");
   const { format, formatCompact } = useFormatMoney();
   const { data: accounts = [] } = useAccounts();
   const { data: transactions = [] } = useTransactions();
@@ -106,19 +108,22 @@ export function Sidebar({
   function handleArchive(account: Account) {
     if (account.archived) {
       unarchiveAccount.mutate(account.id, {
-        onSuccess: () => toast.success(`${account.name} unarchived`),
+        onSuccess: () => toast.success(t("account.toast.unarchived", { name: account.name })),
       });
     } else {
       const balance = getAccountBalance(account.id, transactions);
       if (balance !== 0) {
         setErrorDialog({
-          title: "Cannot Archive Account",
-          description: `${account.name} still has a ${format(Math.abs(balance))} balance. Add a transaction to bring it to zero first — archived accounts are hidden from your budget.`,
+          title: t("account.cannotArchive.title"),
+          description: t("account.cannotArchive.description", {
+            name: account.name,
+            balance: format(Math.abs(balance)),
+          }),
         });
         return;
       }
       archiveAccount.mutate(account.id, {
-        onSuccess: () => toast.success(`${account.name} archived`),
+        onSuccess: () => toast.success(t("account.toast.archived", { name: account.name })),
       });
     }
   }
@@ -128,24 +133,24 @@ export function Sidebar({
     const hasRealTxns = accountTxns.some((t) => !isOpeningBalanceTxn(t));
     if (hasRealTxns) {
       setErrorDialog({
-        title: "Cannot Delete Account",
-        description: `${account.name} has transactions that would be lost. Delete or move them first, or archive the account instead.`,
+        title: t("account.cannotDelete.title"),
+        description: t("account.cannotDelete.description", { name: account.name }),
       });
       return;
     }
     deleteAccount.mutate(account.id, {
-      onSuccess: () => toast.success(`${account.name} deleted`),
+      onSuccess: () => toast.success(t("account.toast.deleted", { name: account.name })),
     });
   }
 
   return (
-    <aside aria-label="Accounts" className="relative flex w-72 h-full flex-col bg-sidebar shrink-0">
+    <aside aria-label={t("sidebar.label")} className="relative flex w-72 h-full flex-col bg-sidebar shrink-0">
       {/* Net Worth — warm hero area */}
       <div className="px-4 pt-4 pb-3">
         <div className="rounded-lg bg-brand-subtle px-3 py-3">
           <div className="flex items-center justify-between">
             <div className="text-xs font-medium text-brand/70 uppercase tracking-wider">
-              Net Worth
+              {t("sidebar.netWorth")}
             </div>
             <NetWorthFilter accounts={accounts} />
           </div>
@@ -168,7 +173,7 @@ export function Sidebar({
             }`}
           >
             <Layers className="h-4 w-4 text-brand" />
-            All Accounts
+            {t("sidebar.allAccounts")}
           </Link>
 
           {/* Account groups — sortable */}
@@ -234,7 +239,7 @@ export function Sidebar({
               >
                 <ChevronDown className={`h-3 w-3 text-muted-foreground/50 transition-transform ${showArchived ? "" : "-rotate-90"}`} />
                 <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/50">
-                  Archived
+                  {t("sidebar.archived")}
                 </span>
                 <span className="text-[11px] text-muted-foreground/40 ml-auto">
                   {archivedAccounts.length}
@@ -273,7 +278,7 @@ export function Sidebar({
           onClick={onAddAccount}
         >
           <Plus className="h-4 w-4" />
-          Add Account
+          {t("sidebar.addAccount")}
         </Button>
       </div>
 
@@ -342,6 +347,7 @@ function AccountRow({
 }: AccountRowProps & {
   dragHandleProps?: Record<string, unknown>;
 }) {
+  const { t } = useTranslation(["budget", "common"]);
   const { format } = useFormatMoney();
   return (
     <div className={`flex items-center rounded-lg transition-all ${
@@ -393,7 +399,7 @@ function AccountRow({
         <DropdownMenuContent align="start" side="right" sideOffset={4}>
           <DropdownMenuItem onClick={() => onEdit(account)}>
             <Pencil className="mr-2 h-4 w-4" />
-            Edit
+            {t("common:actions.edit")}
           </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem onClick={() => onArchive(account)}>
@@ -402,7 +408,7 @@ function AccountRow({
             ) : (
               <Archive className="mr-2 h-4 w-4" />
             )}
-            {account.archived ? "Unarchive" : "Archive"}
+            {account.archived ? t("category.menu.unarchive") : t("common:actions.archive")}
           </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem
@@ -410,7 +416,7 @@ function AccountRow({
             onClick={() => onDelete(account)}
           >
             <Trash2 className="mr-2 h-4 w-4" />
-            Delete
+            {t("common:actions.delete")}
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>

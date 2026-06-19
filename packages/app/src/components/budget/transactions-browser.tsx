@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { Search, X } from "lucide-react";
 import type { Category, Transaction } from "@capybudget/core";
 import { searchTransactions } from "@capybudget/core";
+import { useLocale, useTranslation } from "@capybudget/i18n";
 import { Input } from "@/components/ui/input";
 import { EmptyState } from "@/components/ui/empty-state";
 import { TransactionList } from "@/components/budget/transaction-list";
@@ -55,16 +56,12 @@ const CATEGORY_CHIP_LIMIT = 4;
 // Chips
 // ---------------------------------------------------------------------------
 
-function formatDateLabel(d: Date): string {
-  return d.toLocaleDateString("en-US", {
+function formatChipDate(d: Date, locale: string): string {
+  return d.toLocaleDateString(locale, {
     month: "short",
     day: "numeric",
     year: "numeric",
   });
-}
-
-function categoryName(id: string, categories: Category[]): string {
-  return categories.find((c) => c.id === id)?.name ?? "Uncategorized";
 }
 
 function FilterChips({
@@ -74,25 +71,31 @@ function FilterChips({
   locked: LockedFilters;
   categories: Category[];
 }) {
+  const { t } = useTranslation("budget");
+  const locale = useLocale();
+
+  const categoryName = (id: string): string =>
+    categories.find((c) => c.id === id)?.name ?? t("browser.uncategorized");
+
   const chips: string[] = [];
 
   if (locked.categoryId !== undefined) {
-    chips.push(categoryName(locked.categoryId, categories));
+    chips.push(categoryName(locked.categoryId));
   }
 
   if (locked.categoryIds !== undefined) {
     if (locked.categoryIds.length > CATEGORY_CHIP_LIMIT) {
-      chips.push(`${locked.categoryIds.length} categories`);
+      chips.push(t("browser.categoriesChip", { count: locked.categoryIds.length }));
     } else {
       for (const id of locked.categoryIds) {
-        chips.push(categoryName(id, categories));
+        chips.push(categoryName(id));
       }
     }
   }
 
   if (locked.merchant !== undefined) {
     const m = locked.merchant.trim();
-    chips.push(m === "" ? "Unknown" : m);
+    chips.push(m === "" ? t("browser.unknown") : m);
   }
 
   if (locked.dateRange) {
@@ -102,7 +105,7 @@ function FilterChips({
     const inclusiveTo = new Date(locked.dateRange.to);
     inclusiveTo.setDate(inclusiveTo.getDate() - 1);
     chips.push(
-      `${formatDateLabel(locked.dateRange.from)} – ${formatDateLabel(inclusiveTo)}`,
+      `${formatChipDate(locked.dateRange.from, locale)} – ${formatChipDate(inclusiveTo, locale)}`,
     );
   }
 
@@ -132,6 +135,7 @@ export function TransactionsBrowser({
   title,
   subtitle,
 }: TransactionsBrowserProps) {
+  const { t } = useTranslation("budget");
   const { data: accounts = [] } = useAccounts();
   const { data: categories = [] } = useCategories();
 
@@ -176,18 +180,18 @@ export function TransactionsBrowser({
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground/60 pointer-events-none" />
           <Input
             type="text"
-            placeholder="Search transactions…"
+            placeholder={t("browser.search")}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="pl-8 pr-8 h-8 text-sm"
-            aria-label="Search transactions"
+            aria-label={t("browser.searchAria")}
           />
           {search && (
             <button
               type="button"
               onClick={() => setSearch("")}
               className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground/60 hover:text-foreground"
-              aria-label="Clear search"
+              aria-label={t("browser.clearSearch")}
             >
               <X className="h-3.5 w-3.5" />
             </button>
@@ -206,7 +210,7 @@ export function TransactionsBrowser({
           <EmptyState
             title={
               <>
-                No transactions match{" "}
+                {t("browser.noMatch")}{" "}
                 <code className="font-mono text-xs">{search}</code>
               </>
             }

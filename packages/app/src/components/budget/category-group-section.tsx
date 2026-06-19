@@ -43,6 +43,7 @@ import {
   useUnarchiveCategory,
 } from "@/hooks/use-category-mutations";
 import type { Category } from "@capybudget/core";
+import { useTranslation } from "@capybudget/i18n";
 import { toast } from "sonner";
 
 interface CategoryGroupSectionProps {
@@ -58,6 +59,7 @@ export function CategoryGroupSection({
   categoryById,
   defaultOpen = true,
 }: CategoryGroupSectionProps) {
+  const { t } = useTranslation(["budget", "common"]);
   const [open, setOpen] = useState(defaultOpen);
   const [adding, setAdding] = useState(false);
   const [addName, setAddName] = useState("");
@@ -86,7 +88,7 @@ export function CategoryGroupSection({
       { name: addName.trim(), group },
       {
         onSuccess: () => {
-          toast.success("Category added");
+          toast.success(t("category.toast.added"));
           setAddName("");
           setAdding(false);
         },
@@ -108,7 +110,7 @@ export function CategoryGroupSection({
       { id: category.id, name: renameValue.trim(), group: category.group },
       {
         onSuccess: () => {
-          toast.success("Category renamed");
+          toast.success(t("category.toast.renamed"));
           setRenamingId(null);
         },
       },
@@ -118,7 +120,7 @@ export function CategoryGroupSection({
   function handleArchive(category: Category) {
     if (category.archived) {
       unarchiveCategory.mutate(category.id, {
-        onSuccess: () => toast.success(`${category.name} unarchived`),
+        onSuccess: () => toast.success(t("category.toast.unarchived", { name: category.name })),
       });
     } else {
       setPendingAction({
@@ -141,17 +143,18 @@ export function CategoryGroupSection({
     if (!pendingAction) return;
     if (pendingAction.type === "archive") {
       archiveCategory.mutate(pendingAction.categoryId, {
-        onSuccess: () => toast.success(`${pendingAction.categoryName} archived`),
+        onSuccess: () => toast.success(t("category.toast.archived", { name: pendingAction.categoryName })),
       });
     } else {
       deleteCategory.mutate(pendingAction.categoryId, {
-        onSuccess: () => toast.success(`${pendingAction.categoryName} deleted`),
+        onSuccess: () => toast.success(t("category.toast.deleted", { name: pendingAction.categoryName })),
       });
     }
     setPendingAction(null);
   }
 
   const isArchived = group === "Archived";
+  const groupLabel = isArchived ? t("category.archivedGroup") : group;
 
   return (
     <div ref={setDroppableRef}>
@@ -172,7 +175,7 @@ export function CategoryGroupSection({
           </CollapsibleTrigger>
 
           <CollapsibleTrigger className="flex-1 text-left">
-            <span className="text-sm font-medium">{group}</span>
+            <span className="text-sm font-medium">{groupLabel}</span>
             <span className="text-muted-foreground text-xs ml-2">
               ({itemIds.length})
             </span>
@@ -223,7 +226,7 @@ export function CategoryGroupSection({
                 <div className="flex items-center gap-1 px-2 py-1.5">
                   <Input
                     autoFocus
-                    placeholder="Category name"
+                    placeholder={t("category.panel.categoryNamePlaceholder")}
                     value={addName}
                     onChange={(e) => setAddName(e.target.value)}
                     onBlur={handleAdd}
@@ -250,24 +253,25 @@ export function CategoryGroupSection({
         <DialogContent className="sm:max-w-sm">
           <DialogHeader>
             <DialogTitle>
-              {pendingAction?.type === "archive" ? "Archive" : "Delete"}{" "}
-              {pendingAction?.categoryName}
+              {pendingAction?.type === "archive"
+                ? t("category.archiveDialog.title", { name: pendingAction?.categoryName })
+                : t("category.deleteDialog.title", { name: pendingAction?.categoryName })}
             </DialogTitle>
             <DialogDescription>
               {pendingAction?.type === "archive"
-                ? "Archived categories won't appear in selectors."
-                : "This will remove the category. Transactions using it will become uncategorized."}
+                ? t("category.archiveDialog.description")
+                : t("category.deleteDialog.description")}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <Button variant="outline" onClick={() => setPendingAction(null)}>
-              Cancel
+              {t("common:actions.cancel")}
             </Button>
             <Button
               variant={pendingAction?.type === "delete" ? "destructive" : "default"}
               onClick={confirmPendingAction}
             >
-              {pendingAction?.type === "archive" ? "Archive" : "Delete"}
+              {pendingAction?.type === "archive" ? t("common:actions.archive") : t("common:actions.delete")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -303,6 +307,7 @@ function SortableCategoryRow({
   onDelete,
   isArchived,
 }: SortableCategoryRowProps) {
+  const { t } = useTranslation(["budget", "common"]);
   const {
     attributes,
     listeners,
@@ -363,16 +368,16 @@ function SortableCategoryRow({
         <DropdownMenuContent align="end">
           {!isArchived && (
             <DropdownMenuItem onClick={onStartRename}>
-              Rename
+              {t("category.menu.rename")}
             </DropdownMenuItem>
           )}
           <DropdownMenuItem onClick={onArchive}>
-            {isArchived ? "Unarchive" : "Archive"}
+            {isArchived ? t("category.menu.unarchive") : t("common:actions.archive")}
           </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem variant="destructive" onClick={onDelete}>
             <Trash2 className="mr-2 h-4 w-4" />
-            Delete
+            {t("common:actions.delete")}
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>

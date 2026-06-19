@@ -25,9 +25,9 @@ import {
   useBulkChangeDate,
   useBulkChangeMerchant,
 } from "@/hooks/use-bulk-transaction-mutations";
-import { pluralize } from "@/lib/format";
 import type { Transaction } from "@capybudget/core";
 import { toDateString, formatDateLabel } from "@capybudget/core";
+import { useLocale, useTranslation } from "@capybudget/i18n";
 import { useFormatMoney } from "@/contexts/currency-context";
 import {
   CalendarDays,
@@ -48,6 +48,8 @@ interface BulkActionBarProps {
 }
 
 export function BulkActionBar({ selectedIds, transactions, onClear }: BulkActionBarProps) {
+  const { t } = useTranslation(["budget", "common"]);
+  const locale = useLocale();
   const { format } = useFormatMoney();
   const { data: accounts = [] } = useAccounts();
   const { data: categories = [] } = useCategories();
@@ -74,27 +76,27 @@ export function BulkActionBar({ selectedIds, transactions, onClear }: BulkAction
     bulkDelete.mutate(selectedIds);
     onClear();
     setShowDeleteDialog(false);
-    toast.success(`Deleted ${pluralize(count, "transaction")}`);
+    toast.success(t("bulk.toast.deleted", { count }));
   };
 
   const handleCategoryChange = (categoryId: string | null) => {
     bulkCategory.mutate({ ids: selectedIds, categoryId: categoryId ?? "" });
-    const label = categories.find((c) => c.id === categoryId)?.name ?? "Uncategorized";
-    toast.success(`Categorized ${pluralize(nonTransferCount, "transaction")} as ${label}`);
+    const label = categories.find((c) => c.id === categoryId)?.name ?? t("bulk.uncategorized");
+    toast.success(t("bulk.toast.categorized", { count: nonTransferCount, label }));
   };
 
   const handleMoveAccount = (accountId: string) => {
     if (!accountId) return;
     bulkMove.mutate({ ids: selectedIds, accountId });
     setOverflowDialog(null);
-    const label = accounts.find((a) => a.id === accountId)?.name ?? "account";
-    toast.success(`Moved ${pluralize(nonTransferCount, "transaction")} to ${label}`);
+    const label = accounts.find((a) => a.id === accountId)?.name ?? t("account.fallbackLabel");
+    toast.success(t("bulk.toast.moved", { count: nonTransferCount, label }));
   };
 
   const handleDateChange = (date: Date) => {
     bulkDate.mutate({ ids: selectedIds, date: toDateString(date) });
     setOverflowDialog(null);
-    toast.success(`Changed date for ${pluralize(count, "transaction")} to ${formatDateLabel(toDateString(date))}`);
+    toast.success(t("bulk.toast.dateChanged", { count, date: formatDateLabel(toDateString(date), locale) }));
   };
 
   const handleMerchantSubmit = () => {
@@ -103,17 +105,17 @@ export function BulkActionBar({ selectedIds, transactions, onClear }: BulkAction
     bulkMerchant.mutate({ ids: selectedIds, merchant: trimmed });
     setOverflowDialog(null);
     setMerchantValue("");
-    toast.success(`Changed merchant for ${pluralize(nonTransferCount, "transaction")}`);
+    toast.success(t("bulk.toast.merchantChanged", { count: nonTransferCount }));
   };
 
   if (count === 0) return null;
 
   const categoryPlaceholder =
     categoryIds.size > 1
-      ? "Mixed categories"
+      ? t("bulk.mixedCategories")
       : categoryIds.size === 1
-        ? (categories.find((c) => c.id === [...categoryIds][0])?.name ?? "Uncategorized")
-        : "Uncategorized";
+        ? (categories.find((c) => c.id === [...categoryIds][0])?.name ?? t("bulk.uncategorized"))
+        : t("bulk.uncategorized");
 
   return (
     <>
@@ -123,7 +125,7 @@ export function BulkActionBar({ selectedIds, transactions, onClear }: BulkAction
           {/* Summary */}
           <div className="flex items-center gap-3 border-r border-border/40 pr-3">
             <span className="text-sm font-medium tabular-nums">
-              {count} selected
+              {t("bulk.selected", { count })}
             </span>
             <span className="text-sm text-muted-foreground tabular-nums font-semibold">
               {format(totalAmount)}
@@ -150,7 +152,7 @@ export function BulkActionBar({ selectedIds, transactions, onClear }: BulkAction
             onClick={() => setShowDeleteDialog(true)}
           >
             <Trash2 className="h-3.5 w-3.5" />
-            Delete
+            {t("bulk.delete")}
           </Button>
 
           {/* Overflow menu */}
@@ -165,15 +167,15 @@ export function BulkActionBar({ selectedIds, transactions, onClear }: BulkAction
             <DropdownMenuContent align="end" side="top" className="min-w-48">
               <DropdownMenuItem onClick={() => setOverflowDialog("move")}>
                 <FolderInput className="h-3.5 w-3.5" />
-                Move to account
+                {t("bulk.moveToAccount")}
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => setOverflowDialog("date")}>
                 <CalendarDays className="h-3.5 w-3.5" />
-                Change date
+                {t("bulk.changeDate")}
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => setOverflowDialog("merchant")}>
                 <Store className="h-3.5 w-3.5" />
-                Change merchant
+                {t("bulk.changeMerchant")}
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -184,7 +186,7 @@ export function BulkActionBar({ selectedIds, transactions, onClear }: BulkAction
             size="icon-xs"
             onClick={onClear}
             className="ml-1 text-muted-foreground/60"
-            aria-label="Clear selection"
+            aria-label={t("bulk.clearSelection")}
           >
             <X className="size-4" />
           </Button>
@@ -196,16 +198,16 @@ export function BulkActionBar({ selectedIds, transactions, onClear }: BulkAction
         <Dialog open onOpenChange={(open) => { if (!open) setShowDeleteDialog(false); }}>
           <DialogContent className="sm:max-w-sm">
             <DialogHeader>
-              <DialogTitle>Delete {pluralize(count, "transaction")}?</DialogTitle>
+              <DialogTitle>{t("bulk.deleteDialog.title", { count })}</DialogTitle>
               <DialogDescription>
-                This will permanently delete {pluralize(count, "transaction")} totalling {format(totalAmount)}.
-                {hasTransfers && " Transfer pairs will be deleted on both sides."}
+                {t("bulk.deleteDialog.description", { count, total: format(totalAmount) })}
+                {hasTransfers && t("bulk.deleteDialog.transferNote")}
               </DialogDescription>
             </DialogHeader>
             <DialogFooter>
-              <Button variant="outline" onClick={() => setShowDeleteDialog(false)}>Cancel</Button>
+              <Button variant="outline" onClick={() => setShowDeleteDialog(false)}>{t("common:actions.cancel")}</Button>
               <Button variant="destructive" onClick={handleDelete}>
-                Delete {pluralize(count, "transaction")}
+                {t("bulk.deleteDialog.confirm", { count })}
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -217,17 +219,16 @@ export function BulkActionBar({ selectedIds, transactions, onClear }: BulkAction
         <Dialog open onOpenChange={(open) => { if (!open) setOverflowDialog(null); }}>
           <DialogContent className="sm:max-w-xs">
             <DialogHeader>
-              <DialogTitle>Move to account</DialogTitle>
+              <DialogTitle>{t("bulk.moveDialog.title")}</DialogTitle>
               <DialogDescription>
-                Move {pluralize(nonTransferCount, "transaction")} to another account.
-                {hasTransfers && " Transfers will be skipped."}
+                {t("bulk.moveDialog.description", { count: nonTransferCount })}
+                {hasTransfers && t("bulk.moveDialog.transferNote")}
               </DialogDescription>
             </DialogHeader>
             <AccountSelector
               accounts={accounts}
               value=""
               onChange={handleMoveAccount}
-              placeholder="Select account…"
               defaultOpen
             />
           </DialogContent>
@@ -239,9 +240,9 @@ export function BulkActionBar({ selectedIds, transactions, onClear }: BulkAction
         <Dialog open onOpenChange={(open) => { if (!open) setOverflowDialog(null); }}>
           <DialogContent className="sm:max-w-fit">
             <DialogHeader>
-              <DialogTitle>Change date</DialogTitle>
+              <DialogTitle>{t("bulk.dateDialog.title")}</DialogTitle>
               <DialogDescription>
-                Set a new date for {pluralize(count, "transaction")}.
+                {t("bulk.dateDialog.description", { count })}
               </DialogDescription>
             </DialogHeader>
             <Calendar
@@ -257,10 +258,10 @@ export function BulkActionBar({ selectedIds, transactions, onClear }: BulkAction
         <Dialog open onOpenChange={(open) => { if (!open) { setOverflowDialog(null); setMerchantValue(""); } }}>
           <DialogContent className="sm:max-w-sm">
             <DialogHeader>
-              <DialogTitle>Change merchant</DialogTitle>
+              <DialogTitle>{t("bulk.merchantDialog.title")}</DialogTitle>
               <DialogDescription>
-                Set a new merchant name for {pluralize(nonTransferCount, "transaction")}.
-                {hasTransfers && " Transfers will be skipped."}
+                {t("bulk.merchantDialog.description", { count: nonTransferCount })}
+                {hasTransfers && t("bulk.merchantDialog.transferNote")}
               </DialogDescription>
             </DialogHeader>
             <input
@@ -268,13 +269,13 @@ export function BulkActionBar({ selectedIds, transactions, onClear }: BulkAction
               value={merchantValue}
               onChange={(e) => setMerchantValue(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter") handleMerchantSubmit(); }}
-              placeholder="Merchant name"
+              placeholder={t("bulk.merchantPlaceholder")}
               className="h-9 w-full rounded-lg border border-input bg-transparent px-3 text-sm outline-none focus:border-ring focus:ring-3 focus:ring-ring/50"
               autoFocus
             />
             <DialogFooter>
-              <Button variant="outline" onClick={() => { setOverflowDialog(null); setMerchantValue(""); }}>Cancel</Button>
-              <Button onClick={handleMerchantSubmit} disabled={!merchantValue.trim()}>Apply</Button>
+              <Button variant="outline" onClick={() => { setOverflowDialog(null); setMerchantValue(""); }}>{t("common:actions.cancel")}</Button>
+              <Button onClick={handleMerchantSubmit} disabled={!merchantValue.trim()}>{t("bulk.apply")}</Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>

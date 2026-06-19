@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/command";
 import { Button } from "@/components/ui/button";
 import type { Category } from "@capybudget/core";
+import { useTranslation } from "@capybudget/i18n";
 import { ChevronDown, X } from "lucide-react";
 
 interface CategorySelectorProps {
@@ -35,7 +36,7 @@ export function CategorySelector({
   categories,
   value,
   onChange,
-  placeholder = "Select category…",
+  placeholder,
   includeAll = false,
   includeUncategorized = false,
   clearable = false,
@@ -43,6 +44,8 @@ export function CategorySelector({
   onOpenChange: onOpenChangeProp,
   suffix,
 }: CategorySelectorProps) {
+  const { t } = useTranslation("budget");
+  const resolvedPlaceholder = placeholder ?? t("category.selector.placeholder");
   const [open, setOpen] = useState(defaultOpen);
   const handleOpenChange = (next: boolean) => { setOpen(next); onOpenChangeProp?.(next); };
 
@@ -51,8 +54,8 @@ export function CategorySelector({
 
   const selectedLabel =
     value === null && includeAll
-      ? "All Categories"
-      : active.find((c) => c.id === value)?.name ?? placeholder;
+      ? t("category.selector.all")
+      : active.find((c) => c.id === value)?.name ?? resolvedPlaceholder;
 
   const showClear = clearable && value !== null;
 
@@ -77,7 +80,7 @@ export function CategorySelector({
             type="button"
             onClick={() => onChange(null)}
             className="flex h-8 items-center rounded-r-lg border border-input px-1.5 text-muted-foreground/60 hover:text-foreground transition-colors"
-            aria-label="Clear category filter"
+            aria-label={t("category.selector.clearFilter")}
           >
             <X className="h-3.5 w-3.5" />
           </button>
@@ -85,9 +88,9 @@ export function CategorySelector({
       </div>
       <PopoverContent className="w-64 p-0" align="start">
         <Command>
-          <CommandInput placeholder="Search categories…" />
+          <CommandInput placeholder={t("category.selector.search")} />
           <CommandList>
-            <CommandEmpty>No categories found.</CommandEmpty>
+            <CommandEmpty>{t("category.selector.empty")}</CommandEmpty>
             {includeAll && (
               <CommandGroup>
                 <CommandItem
@@ -98,7 +101,7 @@ export function CategorySelector({
                     handleOpenChange(false);
                   }}
                 >
-                  All Categories
+                  {t("category.selector.all")}
                 </CommandItem>
               </CommandGroup>
             )}
@@ -112,7 +115,7 @@ export function CategorySelector({
                     handleOpenChange(false);
                   }}
                 >
-                  <span className="text-muted-foreground italic">Uncategorized</span>
+                  <span className="text-muted-foreground italic">{t("category.selector.uncategorized")}</span>
                 </CommandItem>
               </CommandGroup>
             )}

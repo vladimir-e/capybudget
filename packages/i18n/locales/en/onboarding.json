@@ -1,1 +1,28 @@
-{}
+{
+  "firstRun": {
+    "title": "Let’s set up your budget",
+    "subtitle": "Three steps to get going.",
+    "stepsLabel": "Setup steps",
+    "done": "Done",
+    "addAccounts": {
+      "label": "Add your accounts",
+      "sublabel": "Wallet, credit cards, bank accounts…",
+      "action": "Add account"
+    },
+    "logTransactions": {
+      "label": "Log transactions",
+      "sublabelBefore": "Press ",
+      "sublabelAfter": ", or import from statements & screenshots.",
+      "action": "Add transaction",
+      "needsAccount": "Add an account first."
+    },
+    "askCapy": {
+      "label": "Ask Capy",
+      "sublabel": "Your AI assistant — spending, budgets, anything.",
+      "action": "Ask Capy"
+    },
+    "docsBefore": "New here? ",
+    "docsLink": "Check the documentation",
+    "docsAfter": " for quick orientation."
+  }
+}

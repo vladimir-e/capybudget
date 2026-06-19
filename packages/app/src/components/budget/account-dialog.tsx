@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import type { Account, AccountType } from "@capybudget/core";
 import { ACCOUNT_TYPE_LABELS, ACCOUNT_TYPE_ORDER, parseMoney } from "@capybudget/core";
+import { useTranslation } from "@capybudget/i18n";
 import { useFormatMoney } from "@/contexts/currency-context";
 import { useCreateAccount, useUpdateAccount } from "@/hooks/use-account-mutations";
 import { toast } from "sonner";
@@ -23,6 +24,7 @@ interface AccountDialogProps {
 }
 
 export function AccountDialog({ open, onOpenChange, editingAccount }: AccountDialogProps) {
+  const { t } = useTranslation(["budget", "common"]);
   const { symbol } = useFormatMoney();
   const isEditing = !!editingAccount;
   const [name, setName] = useState(editingAccount?.name ?? "");
@@ -52,7 +54,7 @@ export function AccountDialog({ open, onOpenChange, editingAccount }: AccountDia
         { id: editingAccount.id, name: name.trim(), type },
         {
           onSuccess: () => {
-            toast.success("Account updated");
+            toast.success(t("account.toast.updated"));
             handleClose(false);
           },
         },
@@ -63,7 +65,7 @@ export function AccountDialog({ open, onOpenChange, editingAccount }: AccountDia
         { name: name.trim(), type, openingBalance },
         {
           onSuccess: () => {
-            toast.success("Account created");
+            toast.success(t("account.toast.created"));
             handleClose(false);
           },
         },
@@ -76,26 +78,26 @@ export function AccountDialog({ open, onOpenChange, editingAccount }: AccountDia
       <DialogContent className="sm:max-w-md">
         <form onSubmit={(e) => { e.preventDefault(); handleSubmit(); }}>
           <DialogHeader>
-            <DialogTitle>{isEditing ? "Edit Account" : "Add Account"}</DialogTitle>
+            <DialogTitle>{isEditing ? t("account.dialog.editTitle") : t("account.dialog.addTitle")}</DialogTitle>
           </DialogHeader>
 
           <div className="space-y-4 py-4">
             <div className="space-y-2">
-              <Label htmlFor="account-name">Name</Label>
+              <Label htmlFor="account-name">{t("account.dialog.name")}</Label>
               <Input
                 id="account-name"
-                placeholder="e.g. BofA Checking"
+                placeholder={t("account.dialog.namePlaceholder")}
                 value={name}
                 onChange={(e) => { setName(e.target.value); setNameError(false); }}
                 aria-invalid={nameError}
               />
               {nameError && (
-                <p className="text-xs text-destructive">Account name is required</p>
+                <p className="text-xs text-destructive">{t("account.dialog.nameRequired")}</p>
               )}
             </div>
 
             <div className="space-y-2">
-              <Label>Type</Label>
+              <Label>{t("account.dialog.type")}</Label>
               <ToggleGroup
                 variant="outline"
                 spacing={2}
@@ -117,7 +119,7 @@ export function AccountDialog({ open, onOpenChange, editingAccount }: AccountDia
 
             {!isEditing && (
               <div className="space-y-2">
-                <Label htmlFor="opening-balance">Opening Balance</Label>
+                <Label htmlFor="opening-balance">{t("account.dialog.openingBalance")}</Label>
                 <div className="relative">
                   {symbol && (
                     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
@@ -140,10 +142,10 @@ export function AccountDialog({ open, onOpenChange, editingAccount }: AccountDia
 
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => handleClose(false)}>
-              Cancel
+              {t("common:actions.cancel")}
             </Button>
             <Button type="submit">
-              {isEditing ? "Save" : "Create Account"}
+              {isEditing ? t("common:actions.save") : t("account.dialog.create")}
             </Button>
           </DialogFooter>
         </form>

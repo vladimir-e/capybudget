@@ -1,5 +1,6 @@
 import { FileText, X } from "lucide-react";
 import type { ReactNode } from "react";
+import { useTranslation } from "@capybudget/i18n";
 
 interface BudgetTileProps {
   title: string;
@@ -20,6 +21,7 @@ export function BudgetTile({
   onRemove,
   removeLabel,
 }: BudgetTileProps) {
+  const { t } = useTranslation("common");
   return (
     <div
       role="button"
@@ -53,7 +55,7 @@ export function BudgetTile({
       {onRemove && (
         <button
           type="button"
-          aria-label={removeLabel ?? "Remove"}
+          aria-label={removeLabel ?? t("actions.remove")}
           className="shrink-0 inline-flex size-11 items-center justify-center rounded-md text-muted-foreground/30 opacity-60 transition-opacity hover:opacity-100 hover:text-destructive focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 group-hover:opacity-100"
           onClick={(e) => {
             e.stopPropagation();

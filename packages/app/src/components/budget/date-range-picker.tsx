@@ -7,8 +7,8 @@ import {
   startOfWeek,
   endOfWeek,
   subDays,
-  format,
 } from "date-fns";
+import { useLocale, useTranslation } from "@capybudget/i18n";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
@@ -25,8 +25,17 @@ interface DateRangePickerProps {
   onChange: (range: DateRangeValue | null) => void;
 }
 
+type PresetKey =
+  | "thisWeek"
+  | "thisMonth"
+  | "lastMonth"
+  | "last30Days"
+  | "last90Days"
+  | "last365Days"
+  | "thisYear";
+
 interface Preset {
-  label: string;
+  key: PresetKey;
   range: () => DateRangeValue;
 }
 
@@ -34,47 +43,51 @@ function buildPresets(): Preset[] {
   const today = new Date();
   return [
     {
-      label: "This week",
+      key: "thisWeek",
       range: () => ({
         from: startOfWeek(today, { weekStartsOn: 1 }),
         to: endOfWeek(today, { weekStartsOn: 1 }),
       }),
     },
     {
-      label: "This month",
+      key: "thisMonth",
       range: () => ({ from: startOfMonth(today), to: endOfMonth(today) }),
     },
     {
-      label: "Last month",
+      key: "lastMonth",
       range: () => {
         const last = subMonths(today, 1);
         return { from: startOfMonth(last), to: endOfMonth(last) };
       },
     },
     {
-      label: "Last 30 days",
+      key: "last30Days",
       range: () => ({ from: subDays(today, 30), to: today }),
     },
     {
-      label: "Last 90 days",
+      key: "last90Days",
       range: () => ({ from: subDays(today, 90), to: today }),
     },
     {
-      label: "Last 365 days",
+      key: "last365Days",
       range: () => ({ from: subDays(today, 365), to: today }),
     },
     {
-      label: "This year",
+      key: "thisYear",
       range: () => ({ from: startOfYear(today), to: today }),
     },
   ];
 }
 
-function formatRange(range: DateRangeValue): string {
-  return `${format(range.from, "MMM d")} – ${format(range.to, "MMM d, yyyy")}`;
+function formatRange(range: DateRangeValue, locale: string): string {
+  const from = range.from.toLocaleDateString(locale, { month: "short", day: "numeric" });
+  const to = range.to.toLocaleDateString(locale, { month: "short", day: "numeric", year: "numeric" });
+  return `${from} – ${to}`;
 }
 
 export function DateRangePicker({ value, onChange }: DateRangePickerProps) {
+  const { t } = useTranslation("budget");
+  const locale = useLocale();
   const [open, setOpen] = useState(false);
   const [customRange, setCustomRange] = useState<DateRange | undefined>(
     value ? { from: value.from, to: value.to } : undefined,
@@ -102,7 +115,7 @@ export function DateRangePicker({ value, onChange }: DateRangePickerProps) {
     setCustomRange(undefined);
   };
 
-  const triggerLabel = value ? formatRange(value) : "All time";
+  const triggerLabel = value ? formatRange(value, locale) : t("dateRange.allTime");
 
   return (
     <Popover
@@ -130,7 +143,7 @@ export function DateRangePicker({ value, onChange }: DateRangePickerProps) {
             type="button"
             onClick={handleClear}
             className="flex h-8 items-center rounded-r-lg border border-input px-1.5 text-muted-foreground/60 hover:text-foreground transition-colors"
-            aria-label="Clear date filter"
+            aria-label={t("dateRange.clearFilter")}
           >
             <X className="h-3.5 w-3.5" />
           </button>
@@ -141,12 +154,12 @@ export function DateRangePicker({ value, onChange }: DateRangePickerProps) {
           <div className="flex flex-col p-1 min-w-44">
             {presets.map((preset) => (
               <button
-                key={preset.label}
+                key={preset.key}
                 type="button"
                 onClick={() => handlePreset(preset)}
                 className="rounded-md px-3 py-1.5 text-left text-sm hover:bg-muted transition-colors"
               >
-                {preset.label}
+                {t(`dateRange.${preset.key}`)}
               </button>
             ))}
             <div className="my-1 h-px bg-border" />
@@ -158,7 +171,7 @@ export function DateRangePicker({ value, onChange }: DateRangePickerProps) {
               }}
               className="rounded-md px-3 py-1.5 text-left text-sm hover:bg-muted transition-colors"
             >
-              Custom range…
+              {t("dateRange.customRange")}
             </button>
           </div>
         ) : (
@@ -176,14 +189,14 @@ export function DateRangePicker({ value, onChange }: DateRangePickerProps) {
                 onClick={() => setMode("presets")}
                 className="text-sm text-muted-foreground hover:text-foreground transition-colors"
               >
-                Presets
+                {t("dateRange.presets")}
               </button>
               <Button
                 size="sm"
                 disabled={!customRange?.from || !customRange?.to}
                 onClick={handleCustomApply}
               >
-                Apply
+                {t("dateRange.apply")}
               </Button>
             </div>
           </div>

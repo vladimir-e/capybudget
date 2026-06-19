@@ -22,6 +22,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { DEFAULT_CURRENCY } from "@capybudget/core";
+import { useTranslation } from "@capybudget/i18n";
 import { useAppStore } from "@/stores/app-store";
 import { CurrencyCombobox } from "@/components/budget/currency-combobox";
 import {
@@ -38,13 +39,14 @@ import { useTheme } from "next-themes";
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
-function deriveNameFromPath(folderPath: string): string {
-  return folderPath.split("/").filter(Boolean).pop() ?? "My Budget";
+function deriveNameFromPath(folderPath: string, fallback: string): string {
+  return folderPath.split("/").filter(Boolean).pop() ?? fallback;
 }
 
 // ── component ─────────────────────────────────────────────────────────────────
 
 export function BudgetSelector() {
+  const { t } = useTranslation(["budget", "common"]);
   const navigate = useNavigate();
   const { theme, resolvedTheme } = useTheme();
   const { recentBudgets, addRecentBudget, removeRecentBudget } = useAppStore();
@@ -100,8 +102,8 @@ export function BudgetSelector() {
       // unmounted. Translate the otherwise-cryptic fs error into something
       // human and quietly clean up the recent if it's there.
       if (!(await exists(folderPath))) {
-        toast.error("This folder no longer exists.", {
-          description: "Removed from recents.",
+        toast.error(t("selector.toast.folderGone"), {
+          description: t("selector.toast.folderGoneDescription"),
         });
         removeRecentBudget(folderPath);
         return;
@@ -113,7 +115,7 @@ export function BudgetSelector() {
         const meta = await detectBudget(folderPath);
         if (!meta) {
           // budget.json disappeared between inspect and detect — treat as failure
-          toast.error("Failed to open budget");
+          toast.error(t("selector.toast.openFailed"));
           return;
         }
         await navigateToBudget(folderPath, meta.name);
@@ -122,7 +124,7 @@ export function BudgetSelector() {
 
       if (info.isEmpty) {
         // Defer bootstrap to the confirm dialog so the user sets name + currency first.
-        setCreateName(deriveNameFromPath(folderPath));
+        setCreateName(deriveNameFromPath(folderPath, t("selector.defaultName")));
         setCreateCurrency(DEFAULT_CURRENCY);
         setCreateTarget(folderPath);
         return;
@@ -132,7 +134,7 @@ export function BudgetSelector() {
       setErrorModal(intent);
     } catch (err) {
       toast.error(
-        intent === "new" ? "Failed to create budget" : "Failed to open budget",
+        intent === "new" ? t("selector.toast.createFailed") : t("selector.toast.openFailed"),
         {
           description: err instanceof Error ? err.message : String(err),
         }
@@ -178,15 +180,15 @@ export function BudgetSelector() {
   async function handleCreateBudget() {
     if (!createTarget || loading) return;
     const folderPath = createTarget;
-    const name = createName.trim() || deriveNameFromPath(folderPath);
+    const name = createName.trim() || deriveNameFromPath(folderPath, t("selector.defaultName"));
     setLoading(true);
     try {
       const meta = await bootstrapBudget(folderPath, name, createCurrency);
       setCreateTarget(null);
-      toast.success("New budget created");
+      toast.success(t("selector.toast.created"));
       await navigateToBudget(folderPath, meta.name);
     } catch (err) {
-      toast.error("Failed to create budget", {
+      toast.error(t("selector.toast.createFailed"), {
         description: err instanceof Error ? err.message : String(err),
       });
     } finally {
@@ -218,13 +220,13 @@ export function BudgetSelector() {
           {/* Eyebrow + title + subtitle */}
           <div className="space-y-1 mb-8">
             <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground/60 font-mono">
-              Welcome
+              {t("selector.welcome")}
             </p>
             <h1 className="text-3xl font-bold tracking-tight">
-              Capy Budget
+              {t("selector.appName")}
             </h1>
             <p className="text-sm text-muted-foreground">
-              Free, open source, with AI powers.
+              {t("selector.tagline")}
             </p>
           </div>
 
@@ -236,7 +238,7 @@ export function BudgetSelector() {
               disabled={loading}
             >
               <FolderPlus className="h-5 w-5" />
-              New budget
+              {t("selector.newBudget")}
             </Button>
 
             <Button
@@ -246,7 +248,7 @@ export function BudgetSelector() {
               disabled={loading}
             >
               <FolderOpen className="h-5 w-5" />
-              Open existing&hellip;
+              {t("selector.openExisting")}
             </Button>
           </div>
 
@@ -255,12 +257,10 @@ export function BudgetSelector() {
             <Popover>
               <PopoverTrigger className="inline-flex items-center gap-1.5 text-xs text-muted-foreground/70 hover:text-muted-foreground hover:underline underline-offset-2 transition-colors cursor-default">
                 <HelpCircle className="h-3.5 w-3.5 shrink-0" />
-                What&rsquo;s a budget folder?
+                {t("selector.whatsAFolder")}
               </PopoverTrigger>
               <PopoverContent side="bottom" align="start" className="w-80 text-sm leading-relaxed text-muted-foreground">
-                Capy stores everything as plain files inside a folder you
-                choose &mdash; transactions.csv, budget.json. Sync across
-                devices by putting it in iCloud or Google Drive.
+                {t("selector.folderExplainer")}
               </PopoverContent>
             </Popover>
           </div>
@@ -271,7 +271,7 @@ export function BudgetSelector() {
               <div className="flex items-center gap-3">
                 <div className="h-px flex-1 bg-border/50" />
                 <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground/50 font-mono">
-                  Recent
+                  {t("selector.recent")}
                 </p>
                 <div className="h-px flex-1 bg-border/50" />
               </div>
@@ -314,22 +314,22 @@ export function BudgetSelector() {
               <AlertCircle className="h-5 w-5 text-muted-foreground" />
               <DialogTitle>
                 {errorModal === "new"
-                  ? "This folder isn’t empty"
-                  : "No budget in this folder"}
+                  ? t("selector.errorFolderNotEmpty.title")
+                  : t("selector.errorNoBudget.title")}
               </DialogTitle>
             </div>
             <DialogDescription>
               {errorModal === "new"
-                ? "Pick an empty folder to start a new budget."
-                : "Pick a folder that already has a budget, or an empty folder to start a new one."}
+                ? t("selector.errorFolderNotEmpty.description")
+                : t("selector.errorNoBudget.description")}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <Button variant="outline" onClick={() => setErrorModal(null)}>
-              Cancel
+              {t("common:actions.cancel")}
             </Button>
             <Button onClick={dismissErrorAndRetry}>
-              Pick another folder
+              {t("selector.pickAnother")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -341,8 +341,8 @@ export function BudgetSelector() {
       >
         <DialogContent showCloseButton={false}>
           <DialogHeader>
-            <DialogTitle>New budget</DialogTitle>
-            <DialogDescription>Name it and pick a display currency.</DialogDescription>
+            <DialogTitle>{t("selector.newDialog.title")}</DialogTitle>
+            <DialogDescription>{t("selector.newDialog.description")}</DialogDescription>
           </DialogHeader>
           <form
             id="create-budget"
@@ -350,7 +350,7 @@ export function BudgetSelector() {
             className="space-y-4"
           >
             <div className="space-y-2">
-              <Label htmlFor="budget-name">Name</Label>
+              <Label htmlFor="budget-name">{t("selector.newDialog.name")}</Label>
               <Input
                 id="budget-name"
                 value={createName}
@@ -359,7 +359,7 @@ export function BudgetSelector() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="budget-currency">Currency</Label>
+              <Label htmlFor="budget-currency">{t("selector.newDialog.currency")}</Label>
               <div>
                 <CurrencyCombobox
                   id="budget-currency"
@@ -371,10 +371,10 @@ export function BudgetSelector() {
           </form>
           <DialogFooter>
             <Button variant="outline" onClick={() => setCreateTarget(null)}>
-              Cancel
+              {t("common:actions.cancel")}
             </Button>
             <Button type="submit" form="create-budget" disabled={loading}>
-              Create
+              {t("selector.newDialog.create")}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { Check, FileText, Sparkles, Wallet } from "lucide-react";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 
+import { useTranslation } from "@capybudget/i18n";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useBudgetUI } from "@/contexts/budget-context";
@@ -17,6 +18,7 @@ interface StepProps {
 }
 
 function Step({ icon, label, sublabel, done, action }: StepProps) {
+  const { t } = useTranslation("onboarding");
   return (
     <li className="flex items-center gap-4 py-3">
       <span
@@ -32,7 +34,7 @@ function Step({ icon, label, sublabel, done, action }: StepProps) {
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2 text-sm font-medium text-foreground/90">
           {label}
-          {done && <span className="text-xs font-normal text-muted-foreground">Done</span>}
+          {done && <span className="text-xs font-normal text-muted-foreground">{t("firstRun.done")}</span>}
         </div>
         <p className="mt-0.5 text-xs text-muted-foreground">{sublabel}</p>
       </div>
@@ -46,6 +48,7 @@ function Step({ icon, label, sublabel, done, action }: StepProps) {
  *  live state — step 1 marks done and step 2 activates once an account exists —
  *  and disappears entirely the moment any transaction lands. */
 export function FirstRunGuide() {
+  const { t } = useTranslation("onboarding");
   const { hasAccounts, openAccountDialog, startTransaction } = useBudgetUI();
   const { setOpen: setCapyOpen } = useCapySessionContext();
   const navigate = useNavigate();
@@ -53,34 +56,36 @@ export function FirstRunGuide() {
 
   return (
     <div className="mx-auto max-w-md py-16 text-center">
-      <p className="text-base font-medium text-foreground/90">Let&rsquo;s set up your budget</p>
-      <p className="mt-1 text-sm text-muted-foreground">Three steps to get going.</p>
+      <p className="text-base font-medium text-foreground/90">{t("firstRun.title")}</p>
+      <p className="mt-1 text-sm text-muted-foreground">{t("firstRun.subtitle")}</p>
 
-      <ol aria-label="Setup steps" className="mt-6 divide-y divide-border/50 text-left">
+      <ol aria-label={t("firstRun.stepsLabel")} className="mt-6 divide-y divide-border/50 text-left">
         <Step
           icon={<Wallet />}
-          label="Add your accounts"
-          sublabel="Wallet, credit cards, bank accounts…"
+          label={t("firstRun.addAccounts.label")}
+          sublabel={t("firstRun.addAccounts.sublabel")}
           done={hasAccounts}
           action={
             <Button variant="outline" size="sm" onClick={openAccountDialog}>
-              Add account
+              {t("firstRun.addAccounts.action")}
             </Button>
           }
         />
 
         <Step
           icon={<FileText />}
-          label="Log transactions"
+          label={t("firstRun.logTransactions.label")}
           sublabel={
             <>
-              Press <kbd className="rounded bg-muted px-1 py-0.5 font-mono text-[10px] text-muted-foreground/80">{modKey}N</kbd>, or import from statements &amp; screenshots.
+              {t("firstRun.logTransactions.sublabelBefore")}
+              <kbd className="rounded bg-muted px-1 py-0.5 font-mono text-[10px] text-muted-foreground/80">{modKey}N</kbd>
+              {t("firstRun.logTransactions.sublabelAfter")}
             </>
           }
           action={
             hasAccounts ? (
               <Button variant="outline" size="sm" onClick={startTransaction}>
-                Add transaction
+                {t("firstRun.logTransactions.action")}
               </Button>
             ) : (
               <Tooltip>
@@ -93,11 +98,11 @@ export function FirstRunGuide() {
                       onClick={(e) => e.preventDefault()}
                       className="cursor-not-allowed opacity-50"
                     >
-                      Add transaction
+                      {t("firstRun.logTransactions.action")}
                     </Button>
                   }
                 />
-                <TooltipContent>Add an account first.</TooltipContent>
+                <TooltipContent>{t("firstRun.logTransactions.needsAccount")}</TooltipContent>
               </Tooltip>
             )
           }
@@ -105,26 +110,26 @@ export function FirstRunGuide() {
 
         <Step
           icon={<Sparkles />}
-          label="Ask Capy"
-          sublabel="Your AI assistant — spending, budgets, anything."
+          label={t("firstRun.askCapy.label")}
+          sublabel={t("firstRun.askCapy.sublabel")}
           action={
             <Button variant="outline" size="sm" onClick={() => setCapyOpen(true)}>
-              Ask Capy
+              {t("firstRun.askCapy.action")}
             </Button>
           }
         />
       </ol>
 
       <p className="mt-6 text-xs text-muted-foreground">
-        New here?{" "}
+        {t("firstRun.docsBefore")}
         <button
           type="button"
           onClick={() => navigate({ to: "/budget/help", search: { path, name } })}
           className="text-foreground/70 underline underline-offset-2 transition-colors hover:text-foreground"
         >
-          Check the documentation
-        </button>{" "}
-        for quick orientation.
+          {t("firstRun.docsLink")}
+        </button>
+        {t("firstRun.docsAfter")}
       </p>
     </div>
   );

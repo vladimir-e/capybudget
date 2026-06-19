@@ -1,1 +1,277 @@
-{}
+{
+  "selector": {
+    "welcome": "Welcome",
+    "appName": "Capy Budget",
+    "tagline": "Free, open source, with AI powers.",
+    "newBudget": "New budget",
+    "openExisting": "Open existing…",
+    "whatsAFolder": "What’s a budget folder?",
+    "folderExplainer": "Capy stores everything as plain files inside a folder you choose — transactions.csv, budget.json. Sync across devices by putting it in iCloud or Google Drive.",
+    "recent": "Recent",
+    "removeFromRecents": "Remove {{name}} from recents",
+    "newDialog": {
+      "title": "New budget",
+      "description": "Name it and pick a display currency.",
+      "name": "Name",
+      "currency": "Currency",
+      "create": "Create"
+    },
+    "errorFolderNotEmpty": {
+      "title": "This folder isn’t empty",
+      "description": "Pick an empty folder to start a new budget."
+    },
+    "errorNoBudget": {
+      "title": "No budget in this folder",
+      "description": "Pick a folder that already has a budget, or an empty folder to start a new one."
+    },
+    "pickAnother": "Pick another folder",
+    "defaultName": "My Budget",
+    "toast": {
+      "folderGone": "This folder no longer exists.",
+      "folderGoneDescription": "Removed from recents.",
+      "openFailed": "Failed to open budget",
+      "createFailed": "Failed to create budget",
+      "created": "New budget created"
+    }
+  },
+  "shell": {
+    "revealInFinder": "Reveal in Finder",
+    "closeBudget": "Close Budget",
+    "newTransaction": "New Transaction",
+    "addTransaction": "Add transaction",
+    "closeTransactionForm": "Close transaction form",
+    "getDesktopApp": "Get the desktop app",
+    "viewSource": "View source on GitHub",
+    "github": "GitHub",
+    "expandSidebar": "Expand sidebar",
+    "collapseSidebar": "Collapse sidebar"
+  },
+  "account": {
+    "dialog": {
+      "addTitle": "Add Account",
+      "editTitle": "Edit Account",
+      "name": "Name",
+      "namePlaceholder": "e.g. BofA Checking",
+      "nameRequired": "Account name is required",
+      "type": "Type",
+      "openingBalance": "Opening Balance",
+      "create": "Create Account"
+    },
+    "toast": {
+      "created": "Account created",
+      "updated": "Account updated",
+      "archived": "{{name}} archived",
+      "unarchived": "{{name}} unarchived",
+      "deleted": "{{name}} deleted"
+    },
+    "selector": {
+      "placeholder": "Select account…",
+      "search": "Search accounts…",
+      "empty": "No accounts found.",
+      "all": "All Accounts",
+      "unset": "Unset",
+      "to": "To…",
+      "clearFilter": "Clear account filter"
+    },
+    "fallbackLabel": "account",
+    "cannotArchive": {
+      "title": "Cannot Archive Account",
+      "description": "{{name}} still has a {{balance}} balance. Add a transaction to bring it to zero first — archived accounts are hidden from your budget."
+    },
+    "cannotDelete": {
+      "title": "Cannot Delete Account",
+      "description": "{{name}} has transactions that would be lost. Delete or move them first, or archive the account instead."
+    }
+  },
+  "sidebar": {
+    "label": "Accounts",
+    "netWorth": "Net Worth",
+    "allAccounts": "All Accounts",
+    "archived": "Archived",
+    "addAccount": "Add Account"
+  },
+  "netWorthFilter": {
+    "trigger": "Choose accounts in Net Worth",
+    "title": "Net Worth includes",
+    "subtitle": "Uncheck to exclude from totals",
+    "empty": "No active accounts."
+  },
+  "category": {
+    "panel": {
+      "groupNamePlaceholder": "Group name",
+      "addGroup": "Add Group",
+      "categoryNamePlaceholder": "Category name",
+      "newCategoryName": "New Category"
+    },
+    "uncategorized": "Uncategorized",
+    "archivedGroup": "Archived",
+    "menu": {
+      "rename": "Rename",
+      "archive": "Archive",
+      "unarchive": "Unarchive"
+    },
+    "toast": {
+      "added": "Category added",
+      "renamed": "Category renamed",
+      "archived": "{{name}} archived",
+      "unarchived": "{{name}} unarchived",
+      "deleted": "{{name}} deleted",
+      "groupCreated": "Group \"{{name}}\" created"
+    },
+    "archiveDialog": {
+      "title": "Archive {{name}}",
+      "description": "Archived categories won’t appear in selectors."
+    },
+    "deleteDialog": {
+      "title": "Delete {{name}}",
+      "description": "This will remove the category. Transactions using it will become uncategorized."
+    },
+    "selector": {
+      "placeholder": "Select category…",
+      "search": "Search categories…",
+      "empty": "No categories found.",
+      "all": "All Categories",
+      "uncategorized": "Uncategorized",
+      "clearFilter": "Clear category filter"
+    }
+  },
+  "currency": {
+    "search": "Search currency…",
+    "empty": "No currencies found."
+  },
+  "transaction": {
+    "type": {
+      "expense": "Expense",
+      "income": "Income",
+      "transfer": "Transfer"
+    },
+    "form": {
+      "addPrompt": "Add transaction…",
+      "merchantPlaceholder": "Merchant",
+      "categoryPlaceholder": "Category",
+      "notesPlaceholder": "Notes (optional)",
+      "selectAccount": "Please select an account",
+      "selectBothAccounts": "Please select both accounts"
+    },
+    "toast": {
+      "added": "Transaction added",
+      "updated": "Transaction updated",
+      "deleted": "Transaction deleted"
+    },
+    "list": {
+      "date": "Date",
+      "account": "Account",
+      "merchant": "Merchant",
+      "category": "Category",
+      "amount": "Amount",
+      "selectAll": "Select all transactions",
+      "select": "Select transaction",
+      "emptyTitle": "No transactions yet",
+      "emptyDescription": "Transactions will appear here once added.",
+      "noMatchTitle": "No matching transactions",
+      "noMatchDescription": "Try adjusting your search or filters."
+    },
+    "row": {
+      "uncategorized": "Uncategorized",
+      "transfer": "Transfer",
+      "unknownAccount": "Unknown",
+      "editNote": "Edit transaction note"
+    },
+    "delete": {
+      "titleTransaction": "Delete Transaction",
+      "titleTransfer": "Delete Transfer",
+      "transferDescription": "This will delete both sides of the transfer.",
+      "transactionDescription": "This action cannot be undone."
+    }
+  },
+  "bulk": {
+    "selected": "{{count}} selected",
+    "delete": "Delete",
+    "moveToAccount": "Move to account",
+    "changeDate": "Change date",
+    "changeMerchant": "Change merchant",
+    "clearSelection": "Clear selection",
+    "merchantPlaceholder": "Merchant name",
+    "apply": "Apply",
+    "uncategorized": "Uncategorized",
+    "mixedCategories": "Mixed categories",
+    "toast": {
+      "deleted_one": "Deleted {{count}} transaction",
+      "deleted_other": "Deleted {{count}} transactions",
+      "categorized_one": "Categorized {{count}} transaction as {{label}}",
+      "categorized_other": "Categorized {{count}} transactions as {{label}}",
+      "moved_one": "Moved {{count}} transaction to {{label}}",
+      "moved_other": "Moved {{count}} transactions to {{label}}",
+      "dateChanged_one": "Changed date for {{count}} transaction to {{date}}",
+      "dateChanged_other": "Changed date for {{count}} transactions to {{date}}",
+      "merchantChanged_one": "Changed merchant for {{count}} transaction",
+      "merchantChanged_other": "Changed merchant for {{count}} transactions"
+    },
+    "deleteDialog": {
+      "title_one": "Delete {{count}} transaction?",
+      "title_other": "Delete {{count}} transactions?",
+      "description_one": "This will permanently delete {{count}} transaction totalling {{total}}.",
+      "description_other": "This will permanently delete {{count}} transactions totalling {{total}}.",
+      "transferNote": " Transfer pairs will be deleted on both sides.",
+      "confirm_one": "Delete {{count}} transaction",
+      "confirm_other": "Delete {{count}} transactions"
+    },
+    "moveDialog": {
+      "title": "Move to account",
+      "description_one": "Move {{count}} transaction to another account.",
+      "description_other": "Move {{count}} transactions to another account.",
+      "transferNote": " Transfers will be skipped."
+    },
+    "dateDialog": {
+      "title": "Change date",
+      "description_one": "Set a new date for {{count}} transaction.",
+      "description_other": "Set a new date for {{count}} transactions."
+    },
+    "merchantDialog": {
+      "title": "Change merchant",
+      "description_one": "Set a new merchant name for {{count}} transaction.",
+      "description_other": "Set a new merchant name for {{count}} transactions.",
+      "transferNote": " Transfers will be skipped."
+    }
+  },
+  "filter": {
+    "type": "Type",
+    "showOnly": "Show only",
+    "uncategorized": "Uncategorized",
+    "noMerchant": "No merchant",
+    "expense": "Expense",
+    "income": "Income",
+    "transfer": "Transfer"
+  },
+  "toolbar": {
+    "search": "Search transactions…",
+    "clearSearch": "Clear search",
+    "clearFilters": "Clear all filters",
+    "clear": "Clear",
+    "moreFilters": "More filters"
+  },
+  "dateRange": {
+    "allTime": "All time",
+    "thisWeek": "This week",
+    "thisMonth": "This month",
+    "lastMonth": "Last month",
+    "last30Days": "Last 30 days",
+    "last90Days": "Last 90 days",
+    "last365Days": "Last 365 days",
+    "thisYear": "This year",
+    "customRange": "Custom range…",
+    "presets": "Presets",
+    "apply": "Apply",
+    "clearFilter": "Clear date filter"
+  },
+  "browser": {
+    "search": "Search transactions…",
+    "clearSearch": "Clear search",
+    "searchAria": "Search transactions",
+    "categoriesChip_one": "{{count}} category",
+    "categoriesChip_other": "{{count}} categories",
+    "unknown": "Unknown",
+    "uncategorized": "Uncategorized",
+    "noMatch": "No transactions match"
+  }
+}

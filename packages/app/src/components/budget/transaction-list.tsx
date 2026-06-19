@@ -11,6 +11,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { EmptyState } from "@/components/ui/empty-state";
 import { type EditableColumn } from "@/components/budget/inline-edit-cells";
 import type { Transaction, TransactionFormData } from "@capybudget/core";
+import { useTranslation } from "@capybudget/i18n";
 import { useAccounts, useCategories, useTransactions } from "@/hooks/use-budget-data";
 import type { SortColumn, SortConfig } from "@/lib/filter-transactions";
 import { TransactionRowMemo } from "@/components/budget/transaction-row";
@@ -118,6 +119,7 @@ export function TransactionList({
   indeterminate,
   emptyState,
 }: TransactionListProps) {
+  const { t } = useTranslation("budget");
   const { data: accounts = [] } = useAccounts();
   const { data: categories = [] } = useCategories();
   const { data: allTransactions = [] } = useTransactions();
@@ -178,8 +180,8 @@ export function TransactionList({
         <EmptyState
           className="py-24"
           icon={<Inbox strokeWidth={1.5} />}
-          title="No transactions yet"
-          description="Transactions will appear here once added."
+          title={t("transaction.list.emptyTitle")}
+          description={t("transaction.list.emptyDescription")}
         />
       )
     );
@@ -240,17 +242,17 @@ export function TransactionList({
             checked={allSelected}
             indeterminate={indeterminate}
             onCheckedChange={() => onToggleAll?.()}
-            aria-label="Select all transactions"
+            aria-label={t("transaction.list.selectAll")}
           />
         </TableHead>
       )}
-      <SortableHeader column="date" sort={sort} onSortChange={onSortChange} className="w-[120px]">Date</SortableHeader>
+      <SortableHeader column="date" sort={sort} onSortChange={onSortChange} className="w-[120px]">{t("transaction.list.date")}</SortableHeader>
       {showAccountColumn && (
-        <SortableHeader column="account" sort={sort} onSortChange={onSortChange}>Account</SortableHeader>
+        <SortableHeader column="account" sort={sort} onSortChange={onSortChange}>{t("transaction.list.account")}</SortableHeader>
       )}
-      <SortableHeader column="merchant" sort={sort} onSortChange={onSortChange} className="max-w-[300px]">Merchant</SortableHeader>
-      <SortableHeader column="category" sort={sort} onSortChange={onSortChange}>Category</SortableHeader>
-      <SortableHeader column="amount" sort={sort} onSortChange={onSortChange} align="right" className="w-[130px]">Amount</SortableHeader>
+      <SortableHeader column="merchant" sort={sort} onSortChange={onSortChange} className="max-w-[300px]">{t("transaction.list.merchant")}</SortableHeader>
+      <SortableHeader column="category" sort={sort} onSortChange={onSortChange}>{t("transaction.list.category")}</SortableHeader>
+      <SortableHeader column="amount" sort={sort} onSortChange={onSortChange} align="right" className="w-[130px]">{t("transaction.list.amount")}</SortableHeader>
       {hasActions && <TableHead className="w-[48px]" />}
     </TableRow>
   );

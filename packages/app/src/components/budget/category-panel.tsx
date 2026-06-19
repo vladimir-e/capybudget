@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { CategoryGroupSection } from "@/components/budget/category-group-section";
 import type { Category } from "@capybudget/core";
 import { CATEGORY_GROUP_ORDER } from "@capybudget/core";
+import { useTranslation } from "@capybudget/i18n";
 import {
   useCreateCategory,
   useReorderCategoryDnd,
@@ -19,6 +20,7 @@ interface CategoryPanelProps {
 }
 
 export function CategoryPanel({ categories }: CategoryPanelProps) {
+  const { t } = useTranslation("budget");
   const [addingGroup, setAddingGroup] = useState(false);
   const [newGroupName, setNewGroupName] = useState("");
   const createCategory = useCreateCategory();
@@ -62,10 +64,10 @@ export function CategoryPanel({ categories }: CategoryPanelProps) {
       return;
     }
     createCategory.mutate(
-      { name: "New Category", group: name },
+      { name: t("category.panel.newCategoryName"), group: name },
       {
         onSuccess: () => {
-          toast.success(`Group "${name}" created`);
+          toast.success(t("category.toast.groupCreated", { name }));
           setNewGroupName("");
           setAddingGroup(false);
         },
@@ -111,7 +113,7 @@ export function CategoryPanel({ categories }: CategoryPanelProps) {
           <div className="mt-4 flex items-center gap-2">
             <Input
               autoFocus
-              placeholder="Group name"
+              placeholder={t("category.panel.groupNamePlaceholder")}
               value={newGroupName}
               onChange={(e) => setNewGroupName(e.target.value)}
               onBlur={handleAddGroup}
@@ -133,7 +135,7 @@ export function CategoryPanel({ categories }: CategoryPanelProps) {
             onClick={() => setAddingGroup(true)}
           >
             <Plus className="h-4 w-4" />
-            Add Group
+            {t("category.panel.addGroup")}
           </Button>
         )}
       </div>

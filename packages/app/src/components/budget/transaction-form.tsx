@@ -9,6 +9,7 @@ import { MerchantInput } from "@/components/budget/merchant-input";
 import { useAccounts, useCategories, useTransactions } from "@/hooks/use-budget-data";
 import type { Transaction, TransactionType, TransactionFormData } from "@capybudget/core";
 import { findCategoryForMerchant, resolveTransferPair, parseMoney, getToday, parseLocalDate, toDateString, formatDateLabel } from "@capybudget/core";
+import { useLocale, useTranslation } from "@capybudget/i18n";
 import { useFormatMoney } from "@/contexts/currency-context";
 import { Minus, Plus, ArrowLeftRight, Check, CalendarDays } from "lucide-react";
 
@@ -24,10 +25,10 @@ interface TransactionFormProps {
   onDismiss?: () => void;
 }
 
-const TYPES: { value: TransactionType; label: string; icon: typeof Minus }[] = [
-  { value: "expense", label: "Expense", icon: Minus },
-  { value: "income", label: "Income", icon: Plus },
-  { value: "transfer", label: "Transfer", icon: ArrowLeftRight },
+const TYPES: { value: TransactionType; icon: typeof Minus }[] = [
+  { value: "expense", icon: Minus },
+  { value: "income", icon: Plus },
+  { value: "transfer", icon: ArrowLeftRight },
 ];
 
 const TYPE_COLORS: Record<TransactionType, { text: string; pill: string }> = {
@@ -53,6 +54,8 @@ export function TransactionForm({
   onCancel,
   onDismiss,
 }: TransactionFormProps) {
+  const { t } = useTranslation(["budget", "common"]);
+  const locale = useLocale();
   const { symbol } = useFormatMoney();
   const { data: accounts = [] } = useAccounts();
   const { data: categories = [] } = useCategories();
@@ -170,7 +173,7 @@ export function TransactionForm({
         className="group flex w-full items-center gap-2 rounded-lg border border-dashed border-border/50 px-4 py-2.5 text-sm text-muted-foreground/50 transition-colors hover:border-border hover:bg-muted/20 hover:text-muted-foreground"
       >
         <Plus className="h-4 w-4 transition-colors group-hover:text-foreground" />
-        <span>Add transaction…</span>
+        <span>{t("transaction.form.addPrompt")}</span>
       </button>
     );
   }
@@ -198,7 +201,7 @@ export function TransactionForm({
       {/* Type selector */}
       <div className="flex justify-center">
         <div className="flex gap-0.5 rounded-lg bg-muted/50 p-0.5">
-          {TYPES.map(({ value, label, icon: Icon }) => {
+          {TYPES.map(({ value, icon: Icon }) => {
             const active = type === value;
             const locked = isEditing && editingTransaction?.type === "transfer" && value !== "transfer";
             return (
@@ -213,7 +216,7 @@ export function TransactionForm({
                 } ${locked ? "opacity-30 cursor-not-allowed" : ""}`}
               >
                 <Icon className="h-3 w-3" />
-                {label}
+                {t(`transaction.type.${value}`)}
               </button>
             );
           })}
@@ -256,7 +259,7 @@ export function TransactionForm({
             }
           >
             <CalendarDays className="h-3.5 w-3.5 text-muted-foreground" />
-            <span className="text-sm">{formatDateLabel(date)}</span>
+            <span className="text-sm">{formatDateLabel(date, locale)}</span>
           </PopoverTrigger>
           <PopoverContent className="w-auto p-0" align="end">
             <Calendar
@@ -293,14 +296,14 @@ export function TransactionForm({
             }}
             transactions={allTransactions}
             className="h-8 w-full min-w-0 rounded-lg border border-input bg-transparent px-2.5 py-1 text-base transition-colors outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 md:text-sm dark:bg-input/30"
-            placeholder="Merchant"
+            placeholder={t("transaction.form.merchantPlaceholder")}
           />
           <div className="[&>div]:w-full [&_button:first-of-type]:w-full">
             <CategorySelector
               categories={categories}
               value={categoryId}
               onChange={setCategoryId}
-              placeholder="Category"
+              placeholder={t("transaction.form.categoryPlaceholder")}
               includeUncategorized
             />
           </div>
@@ -313,7 +316,7 @@ export function TransactionForm({
               />
             </div>
             {accountError && (
-              <p className="text-xs text-destructive">Please select an account</p>
+              <p className="text-xs text-destructive">{t("transaction.form.selectAccount")}</p>
             )}
           </div>
         </>
@@ -334,13 +337,13 @@ export function TransactionForm({
                 accounts={accounts}
                 value={toAccountId}
                 onChange={(id) => { setToAccountId(id); setToAccountError(false); }}
-                placeholder="To…"
+                placeholder={t("account.selector.to")}
                 excludeIds={[accountId]}
               />
             </div>
           </div>
           {(accountError || toAccountError) && (
-            <p className="text-xs text-destructive">Please select {accountError && toAccountError ? "both accounts" : "an account"}</p>
+            <p className="text-xs text-destructive">{accountError && toAccountError ? t("transaction.form.selectBothAccounts") : t("transaction.form.selectAccount")}</p>
           )}
           </div>
         </>
@@ -350,18 +353,18 @@ export function TransactionForm({
       <Input
         value={note}
         onChange={(e) => setNote(e.target.value)}
-        placeholder="Notes (optional)"
+        placeholder={t("transaction.form.notesPlaceholder")}
         className="text-muted-foreground"
       />
 
       {/* Submit */}
       <div className="flex items-center gap-2 pt-1">
         <Button type="button" variant="ghost" size="sm" className="flex-1" tabIndex={-1} onClick={() => { resetForm(); onDismiss?.(); }}>
-          Cancel
+          {t("common:actions.cancel")}
         </Button>
         <Button type="submit" size="sm" className="flex-1">
           {isEditing ? <Check className="h-3.5 w-3.5" /> : <Plus className="h-3.5 w-3.5" />}
-          {isEditing ? "Save" : "Add"}
+          {isEditing ? t("common:actions.save") : t("common:actions.add")}
         </Button>
       </div>
     </form>

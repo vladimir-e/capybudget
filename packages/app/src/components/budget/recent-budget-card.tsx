@@ -1,4 +1,5 @@
 import type { RecentBudget } from "@capybudget/core";
+import { useLocale, useTranslation } from "@capybudget/i18n";
 import { BudgetTile } from "@/components/budget/budget-tile";
 
 interface RecentBudgetCardProps {
@@ -7,8 +8,8 @@ interface RecentBudgetCardProps {
   onRemove: (path: string) => void;
 }
 
-function formatDate(iso: string) {
-  return new Date(iso).toLocaleDateString(undefined, {
+function formatDate(iso: string, locale: string) {
+  return new Date(iso).toLocaleDateString(locale, {
     month: "short",
     day: "numeric",
     year: "numeric",
@@ -29,16 +30,18 @@ export function RecentBudgetCard({
   onOpen,
   onRemove,
 }: RecentBudgetCardProps) {
+  const { t } = useTranslation("budget");
+  const locale = useLocale();
   return (
     <BudgetTile
       title={budget.name}
       subtitle={
         <span className="font-mono">{shortenPath(budget.path)}</span>
       }
-      trailing={formatDate(budget.lastOpened)}
+      trailing={formatDate(budget.lastOpened, locale)}
       onClick={() => onOpen(budget.path)}
       onRemove={() => onRemove(budget.path)}
-      removeLabel={`Remove ${budget.name} from recents`}
+      removeLabel={t("selector.removeFromRecents", { name: budget.name })}
     />
   );
 }

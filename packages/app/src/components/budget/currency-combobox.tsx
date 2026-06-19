@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/command";
 import { Button } from "@/components/ui/button";
 import { currencySymbol } from "@capybudget/core";
+import { useTranslation } from "@capybudget/i18n";
 import { CURRENCIES, type CurrencyOption } from "@/lib/currencies";
 import { ChevronDown } from "lucide-react";
 
@@ -21,6 +22,7 @@ interface CurrencyComboboxProps {
 }
 
 export function CurrencyCombobox({ value, onChange, id, disabled }: CurrencyComboboxProps) {
+  const { t } = useTranslation("budget");
   const [open, setOpen] = useState(false);
 
   return (
@@ -42,9 +44,9 @@ export function CurrencyCombobox({ value, onChange, id, disabled }: CurrencyComb
       </PopoverTrigger>
       <PopoverContent className="w-56 p-0" align="start">
         <Command>
-          <CommandInput placeholder="Search currency…" />
+          <CommandInput placeholder={t("currency.search")} />
           <CommandList>
-            <CommandEmpty>No currencies found.</CommandEmpty>
+            <CommandEmpty>{t("currency.empty")}</CommandEmpty>
             <CommandGroup>
               {CURRENCIES.map((c) => (
                 <CurrencyItem

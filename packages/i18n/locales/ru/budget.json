@@ -1,1 +1,289 @@
-{}
+{
+  "selector": {
+    "welcome": "Добро пожаловать",
+    "appName": "Capy Budget",
+    "tagline": "Бесплатно, с открытым кодом и силой ИИ.",
+    "newBudget": "Новый бюджет",
+    "openExisting": "Открыть существующий…",
+    "whatsAFolder": "Что такое папка бюджета?",
+    "folderExplainer": "Capy хранит всё в виде обычных файлов в выбранной вами папке — transactions.csv, budget.json. Положите её в iCloud или Google Диск, чтобы синхронизировать между устройствами.",
+    "recent": "Недавние",
+    "removeFromRecents": "Убрать {{name}} из недавних",
+    "newDialog": {
+      "title": "Новый бюджет",
+      "description": "Дайте название и выберите валюту отображения.",
+      "name": "Название",
+      "currency": "Валюта",
+      "create": "Создать"
+    },
+    "errorFolderNotEmpty": {
+      "title": "Эта папка не пуста",
+      "description": "Выберите пустую папку, чтобы создать новый бюджет."
+    },
+    "errorNoBudget": {
+      "title": "В этой папке нет бюджета",
+      "description": "Выберите папку с уже существующим бюджетом или пустую папку, чтобы создать новый."
+    },
+    "pickAnother": "Выбрать другую папку",
+    "defaultName": "Мой бюджет",
+    "toast": {
+      "folderGone": "Эта папка больше не существует.",
+      "folderGoneDescription": "Убрана из недавних.",
+      "openFailed": "Не удалось открыть бюджет",
+      "createFailed": "Не удалось создать бюджет",
+      "created": "Новый бюджет создан"
+    }
+  },
+  "shell": {
+    "revealInFinder": "Показать в Finder",
+    "closeBudget": "Закрыть бюджет",
+    "newTransaction": "Новая операция",
+    "addTransaction": "Добавить операцию",
+    "closeTransactionForm": "Закрыть форму операции",
+    "getDesktopApp": "Скачать приложение",
+    "viewSource": "Исходный код на GitHub",
+    "github": "GitHub",
+    "expandSidebar": "Развернуть панель",
+    "collapseSidebar": "Свернуть панель"
+  },
+  "account": {
+    "dialog": {
+      "addTitle": "Добавить счёт",
+      "editTitle": "Изменить счёт",
+      "name": "Название",
+      "namePlaceholder": "напр. Сбер Дебетовая",
+      "nameRequired": "Укажите название счёта",
+      "type": "Тип",
+      "openingBalance": "Начальный остаток",
+      "create": "Создать счёт"
+    },
+    "toast": {
+      "created": "Счёт создан",
+      "updated": "Счёт обновлён",
+      "archived": "{{name}} — в архиве",
+      "unarchived": "{{name}} возвращён из архива",
+      "deleted": "{{name}} удалён"
+    },
+    "selector": {
+      "placeholder": "Выберите счёт…",
+      "search": "Поиск счетов…",
+      "empty": "Счета не найдены.",
+      "all": "Все счета",
+      "unset": "Не задано",
+      "to": "Куда…",
+      "clearFilter": "Сбросить фильтр по счёту"
+    },
+    "fallbackLabel": "счёт",
+    "cannotArchive": {
+      "title": "Нельзя архивировать счёт",
+      "description": "На счёте {{name}} ещё есть остаток {{balance}}. Сначала добавьте операцию, чтобы обнулить его — архивные счета скрыты из бюджета."
+    },
+    "cannotDelete": {
+      "title": "Нельзя удалить счёт",
+      "description": "У счёта {{name}} есть операции, которые будут потеряны. Сначала удалите или перенесите их, либо отправьте счёт в архив."
+    }
+  },
+  "sidebar": {
+    "label": "Счета",
+    "netWorth": "Капитал",
+    "allAccounts": "Все счета",
+    "archived": "Архив",
+    "addAccount": "Добавить счёт"
+  },
+  "netWorthFilter": {
+    "trigger": "Выбрать счета для капитала",
+    "title": "В капитал входят",
+    "subtitle": "Снимите галочку, чтобы исключить из итога",
+    "empty": "Нет активных счетов."
+  },
+  "category": {
+    "panel": {
+      "groupNamePlaceholder": "Название группы",
+      "addGroup": "Добавить группу",
+      "categoryNamePlaceholder": "Название категории",
+      "newCategoryName": "Новая категория"
+    },
+    "uncategorized": "Без категории",
+    "archivedGroup": "Архив",
+    "menu": {
+      "rename": "Переименовать",
+      "archive": "В архив",
+      "unarchive": "Из архива"
+    },
+    "toast": {
+      "added": "Категория добавлена",
+      "renamed": "Категория переименована",
+      "archived": "{{name}} — в архиве",
+      "unarchived": "{{name}} возвращена из архива",
+      "deleted": "{{name}} удалена",
+      "groupCreated": "Группа «{{name}}» создана"
+    },
+    "archiveDialog": {
+      "title": "Архивировать {{name}}",
+      "description": "Архивные категории не показываются в списках выбора."
+    },
+    "deleteDialog": {
+      "title": "Удалить {{name}}",
+      "description": "Категория будет удалена. Операции с ней останутся без категории."
+    },
+    "selector": {
+      "placeholder": "Выберите категорию…",
+      "search": "Поиск категорий…",
+      "empty": "Категории не найдены.",
+      "all": "Все категории",
+      "uncategorized": "Без категории",
+      "clearFilter": "Сбросить фильтр по категории"
+    }
+  },
+  "currency": {
+    "search": "Поиск валюты…",
+    "empty": "Валюты не найдены."
+  },
+  "transaction": {
+    "type": {
+      "expense": "Расход",
+      "income": "Доход",
+      "transfer": "Перевод"
+    },
+    "form": {
+      "addPrompt": "Добавить операцию…",
+      "merchantPlaceholder": "Продавец",
+      "categoryPlaceholder": "Категория",
+      "notesPlaceholder": "Заметка (необязательно)",
+      "selectAccount": "Выберите счёт",
+      "selectBothAccounts": "Выберите оба счёта"
+    },
+    "toast": {
+      "added": "Операция добавлена",
+      "updated": "Операция обновлена",
+      "deleted": "Операция удалена"
+    },
+    "list": {
+      "date": "Дата",
+      "account": "Счёт",
+      "merchant": "Продавец",
+      "category": "Категория",
+      "amount": "Сумма",
+      "selectAll": "Выбрать все операции",
+      "select": "Выбрать операцию",
+      "emptyTitle": "Пока нет операций",
+      "emptyDescription": "Операции появятся здесь после добавления.",
+      "noMatchTitle": "Подходящих операций нет",
+      "noMatchDescription": "Попробуйте изменить поиск или фильтры."
+    },
+    "row": {
+      "uncategorized": "Без категории",
+      "transfer": "Перевод",
+      "unknownAccount": "Неизвестно",
+      "editNote": "Изменить заметку операции"
+    },
+    "delete": {
+      "titleTransaction": "Удалить операцию",
+      "titleTransfer": "Удалить перевод",
+      "transferDescription": "Будут удалены обе стороны перевода.",
+      "transactionDescription": "Это действие нельзя отменить."
+    }
+  },
+  "bulk": {
+    "selected": "Выбрано: {{count}}",
+    "delete": "Удалить",
+    "moveToAccount": "Перенести на счёт",
+    "changeDate": "Изменить дату",
+    "changeMerchant": "Изменить продавца",
+    "clearSelection": "Снять выделение",
+    "merchantPlaceholder": "Название продавца",
+    "apply": "Применить",
+    "uncategorized": "Без категории",
+    "mixedCategories": "Разные категории",
+    "toast": {
+      "deleted_one": "Удалена {{count}} операция",
+      "deleted_few": "Удалено {{count}} операции",
+      "deleted_many": "Удалено {{count}} операций",
+      "categorized_one": "{{count}} операции присвоена категория «{{label}}»",
+      "categorized_few": "{{count}} операциям присвоена категория «{{label}}»",
+      "categorized_many": "{{count}} операциям присвоена категория «{{label}}»",
+      "moved_one": "{{count}} операция перенесена на счёт {{label}}",
+      "moved_few": "{{count}} операции перенесены на счёт {{label}}",
+      "moved_many": "{{count}} операций перенесено на счёт {{label}}",
+      "dateChanged_one": "Дата {{count}} операции изменена на {{date}}",
+      "dateChanged_few": "Дата {{count}} операций изменена на {{date}}",
+      "dateChanged_many": "Дата {{count}} операций изменена на {{date}}",
+      "merchantChanged_one": "Продавец изменён у {{count}} операции",
+      "merchantChanged_few": "Продавец изменён у {{count}} операций",
+      "merchantChanged_many": "Продавец изменён у {{count}} операций"
+    },
+    "deleteDialog": {
+      "title_one": "Удалить {{count}} операцию?",
+      "title_few": "Удалить {{count}} операции?",
+      "title_many": "Удалить {{count}} операций?",
+      "description_one": "Будет безвозвратно удалена {{count}} операция на сумму {{total}}.",
+      "description_few": "Будут безвозвратно удалены {{count}} операции на сумму {{total}}.",
+      "description_many": "Будет безвозвратно удалено {{count}} операций на сумму {{total}}.",
+      "transferNote": " Переводы будут удалены с обеих сторон.",
+      "confirm_one": "Удалить {{count}} операцию",
+      "confirm_few": "Удалить {{count}} операции",
+      "confirm_many": "Удалить {{count}} операций"
+    },
+    "moveDialog": {
+      "title": "Перенести на счёт",
+      "description_one": "Перенести {{count}} операцию на другой счёт.",
+      "description_few": "Перенести {{count}} операции на другой счёт.",
+      "description_many": "Перенести {{count}} операций на другой счёт.",
+      "transferNote": " Переводы будут пропущены."
+    },
+    "dateDialog": {
+      "title": "Изменить дату",
+      "description_one": "Задайте новую дату для {{count}} операции.",
+      "description_few": "Задайте новую дату для {{count}} операций.",
+      "description_many": "Задайте новую дату для {{count}} операций."
+    },
+    "merchantDialog": {
+      "title": "Изменить продавца",
+      "description_one": "Задайте нового продавца для {{count}} операции.",
+      "description_few": "Задайте нового продавца для {{count}} операций.",
+      "description_many": "Задайте нового продавца для {{count}} операций.",
+      "transferNote": " Переводы будут пропущены."
+    }
+  },
+  "filter": {
+    "type": "Тип",
+    "showOnly": "Показывать только",
+    "uncategorized": "Без категории",
+    "noMerchant": "Без продавца",
+    "expense": "Расход",
+    "income": "Доход",
+    "transfer": "Перевод"
+  },
+  "toolbar": {
+    "search": "Поиск операций…",
+    "clearSearch": "Очистить поиск",
+    "clearFilters": "Сбросить все фильтры",
+    "clear": "Сбросить",
+    "moreFilters": "Ещё фильтры"
+  },
+  "dateRange": {
+    "allTime": "Всё время",
+    "thisWeek": "Эта неделя",
+    "thisMonth": "Этот месяц",
+    "lastMonth": "Прошлый месяц",
+    "last30Days": "Последние 30 дней",
+    "last90Days": "Последние 90 дней",
+    "last365Days": "Последние 365 дней",
+    "thisYear": "Этот год",
+    "customRange": "Свой период…",
+    "presets": "Шаблоны",
+    "apply": "Применить",
+    "clearFilter": "Сбросить фильтр по дате"
+  },
+  "browser": {
+    "search": "Поиск операций…",
+    "clearSearch": "Очистить поиск",
+    "searchAria": "Поиск операций",
+    "categoriesChip_one": "{{count}} категория",
+    "categoriesChip_few": "{{count}} категории",
+    "categoriesChip_many": "{{count}} категорий",
+    "unknown": "Неизвестно",
+    "uncategorized": "Без категории",
+    "noMatch": "Нет операций по запросу"
+  }
+}
