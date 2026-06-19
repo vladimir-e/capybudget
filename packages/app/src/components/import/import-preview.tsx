@@ -15,6 +15,7 @@ import { useImportData } from "@/hooks/use-import-data";
 import { useTransactions } from "@/hooks/use-budget-data";
 import { summarizeMerge } from "@capybudget/core";
 import type { StagingStore } from "@capybudget/intelligence";
+import { useTranslation } from "@capybudget/i18n";
 import { useFormatMoney } from "@/contexts/currency-context";
 import { ImportTable } from "./import-table";
 import {
@@ -56,6 +57,7 @@ export function ImportPreview({
   onEnrichControl,
   onMergeComplete,
 }: ImportPreviewProps) {
+  const { t } = useTranslation(["import", "common"]);
   const { format } = useFormatMoney();
   const { data: budgetTransactions = [] } = useTransactions();
   const [sort, setSort] = useState<ImportSortConfig>({ column: "date", direction: "asc" });
@@ -200,18 +202,24 @@ export function ImportPreview({
       await flushWriteBack();
       const result = await merge({ transactions, selectedIds, accountMapping });
       toast.success(
-        `Merged ${result.transactionCount} transaction${result.transactionCount !== 1 ? "s" : ""}` +
-          (result.accountsCreated > 0
-            ? ` and created ${result.accountsCreated} account${result.accountsCreated !== 1 ? "s" : ""}`
-            : ""),
+        result.accountsCreated > 0
+          ? t("preview.mergeSuccessWithAccounts", {
+              count: result.transactionCount,
+              accounts: t("preview.accountsCreated", { count: result.accountsCreated }),
+            })
+          : t("preview.mergeSuccess", { count: result.transactionCount }),
       );
       onMergeComplete();
     } catch (err) {
-      toast.error(`Merge failed: ${err instanceof Error ? err.message : "Unknown error"}`);
+      toast.error(
+        t("preview.mergeFailed", {
+          error: err instanceof Error ? err.message : t("preview.unknownError"),
+        }),
+      );
     } finally {
       setMerging(false);
     }
-  }, [merge, transactions, selectedIds, accountMapping, onMergeComplete, flushWriteBack, onStopRun]);
+  }, [merge, transactions, selectedIds, accountMapping, onMergeComplete, flushWriteBack, onStopRun, t]);
 
   if (loading && transactions.length === 0) {
     return (
@@ -238,9 +246,9 @@ export function ImportPreview({
               <span>
                 {[
                   certainDuplicateCount > 0 &&
-                    `${certainDuplicateCount} duplicate${certainDuplicateCount !== 1 ? "s" : ""} detected — already unselected`,
+                    t("preview.certainDuplicates", { count: certainDuplicateCount }),
                   possibleDuplicateCount > 0 &&
-                    `${possibleDuplicateCount} possible duplicate${possibleDuplicateCount !== 1 ? "s" : ""} (close date match) — review before merging`,
+                    t("preview.possibleDuplicates", { count: possibleDuplicateCount }),
                 ]
                   .filter(Boolean)
                   .join(" · ")}
@@ -252,8 +260,8 @@ export function ImportPreview({
               <AlertTriangle className="h-3.5 w-3.5 text-amber-500 shrink-0" />
               <span>
                 {[
-                  uncategorizedCount > 0 && `${uncategorizedCount} uncategorized`,
-                  lowConfidenceCount > 0 && `${lowConfidenceCount} low confidence`,
+                  uncategorizedCount > 0 && t("preview.uncategorized", { count: uncategorizedCount }),
+                  lowConfidenceCount > 0 && t("preview.lowConfidence", { count: lowConfidenceCount }),
                 ]
                   .filter(Boolean)
                   .join(", ")}
@@ -266,13 +274,13 @@ export function ImportPreview({
       {/* Selection summary + search, directly above the table */}
       <div className="flex items-center justify-between gap-3">
         <p className="text-sm text-muted-foreground">
-          <span className="font-medium text-foreground tabular-nums">{selectedCount}</span> of{" "}
-          <span className="tabular-nums">{totalCount}</span> transactions selected for import
+          <span className="font-medium text-foreground tabular-nums">{selectedCount}</span>{" "}
+          <span className="tabular-nums">{t("preview.ofTotalSelected", { total: totalCount })}</span>
         </p>
         <div className={`relative w-72 max-w-[50%] ${search ? "ring-1 ring-brand/30 rounded-lg" : ""}`}>
           <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground/60" />
           <Input
-            placeholder="Search transactions…"
+            placeholder={t("preview.searchPlaceholder")}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="pl-8 pr-8"
@@ -282,7 +290,7 @@ export function ImportPreview({
               type="button"
               onClick={() => setSearch("")}
               className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground/60 hover:text-foreground"
-              aria-label="Clear search"
+              aria-label={t("preview.clearSearch")}
             >
               <X className="h-3.5 w-3.5" />
             </button>
@@ -315,7 +323,9 @@ export function ImportPreview({
       <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 animate-in slide-in-from-bottom-4 fade-in duration-200">
         <div className="flex items-center gap-3 rounded-xl border border-border/60 bg-background/95 backdrop-blur-sm shadow-overlay px-4 py-2.5">
           <div className="flex items-center gap-3 border-r border-border/40 pr-3">
-            <span className="text-sm font-medium tabular-nums">{selectedCount} selected</span>
+            <span className="text-sm font-medium tabular-nums">
+              {t("preview.selectedCount", { count: selectedCount })}
+            </span>
             <span className="text-sm text-muted-foreground tabular-nums font-semibold">
               {format(selectedTotal)}
             </span>
@@ -328,7 +338,7 @@ export function ImportPreview({
             onClick={() => setShowMergeDialog(true)}
           >
             {merging ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <GitMerge className="h-3.5 w-3.5" />}
-            {merging ? "Merging…" : "Merge"}
+            {merging ? t("preview.merging") : t("preview.merge")}
           </Button>
         </div>
       </div>
@@ -339,11 +349,8 @@ export function ImportPreview({
         <Dialog open onOpenChange={(open) => { if (!open) setShowMappingDialog(false); }}>
           <DialogContent className="sm:max-w-lg">
             <DialogHeader>
-              <DialogTitle>Map accounts</DialogTitle>
-              <DialogDescription>
-                Where each imported account&rsquo;s transactions land — an existing
-                account, or one created on merge.
-              </DialogDescription>
+              <DialogTitle>{t("preview.mapAccountsTitle")}</DialogTitle>
+              <DialogDescription>{t("preview.mapAccountsDescription")}</DialogDescription>
             </DialogHeader>
             <ImportMappingRows
               sourceAccounts={sourceAccounts}
@@ -352,7 +359,7 @@ export function ImportPreview({
               onAccountMappingChange={handleAccountMappingChange}
             />
             <DialogFooter>
-              <Button onClick={() => setShowMappingDialog(false)}>Done</Button>
+              <Button onClick={() => setShowMappingDialog(false)}>{t("preview.done")}</Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
@@ -369,9 +376,11 @@ export function ImportPreview({
         <Dialog open onOpenChange={(open) => { if (!open) setShowMergeDialog(false); }}>
           <DialogContent className="flex max-h-[85vh] flex-col sm:max-w-lg">
             <DialogHeader>
-              <DialogTitle>Merge {selectedCount} transactions?</DialogTitle>
+              <DialogTitle>{t("preview.mergeConfirmTitle", { count: selectedCount })}</DialogTitle>
               <DialogDescription>
-                This will add <strong>{format(selectedTotal)}</strong> to your budget.
+                {t("preview.mergeConfirmDescriptionBefore")}
+                <strong>{format(selectedTotal)}</strong>
+                {t("preview.mergeConfirmDescriptionAfter")}
               </DialogDescription>
             </DialogHeader>
             {selectedSourceAccounts.length > 0 && (
@@ -389,19 +398,17 @@ export function ImportPreview({
               <div className="flex items-start gap-2 text-sm text-amber-500">
                 <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
                 <span>
-                  {mergeSummary.unmappedTransferCount === 1
-                    ? "1 transfer had no matching counterpart — it’ll import as income/expense."
-                    : `${mergeSummary.unmappedTransferCount} transfers had no matching counterpart — they’ll import as income/expense.`}
+                  {t("preview.unmappedTransfers", { count: mergeSummary.unmappedTransferCount })}
                 </span>
               </div>
             )}
             <DialogFooter>
               <Button variant="outline" onClick={() => setShowMergeDialog(false)}>
-                Cancel
+                {t("common:actions.cancel")}
               </Button>
               <Button onClick={handleMerge} className="gap-1.5">
                 <GitMerge className="h-3.5 w-3.5" />
-                Merge
+                {t("preview.merge")}
               </Button>
             </DialogFooter>
           </DialogContent>

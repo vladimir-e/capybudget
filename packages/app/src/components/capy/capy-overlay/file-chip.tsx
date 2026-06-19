@@ -1,5 +1,6 @@
 import { File as FileIcon, Image, X } from "lucide-react"
 import { formatFileSize } from "@capybudget/intelligence"
+import { useTranslation } from "@capybudget/i18n"
 
 export function FileChip({
   name,
@@ -12,6 +13,7 @@ export function FileChip({
   mediaType: string
   onRemove?: () => void
 }) {
+  const { t } = useTranslation("capy")
   const Icon = mediaType.startsWith("image/") ? Image : FileIcon
   return (
     <span className="inline-flex items-center gap-1.5 rounded-lg bg-brand/8 px-2.5 py-1 text-xs text-foreground/70">
@@ -25,7 +27,7 @@ export function FileChip({
           type="button"
           onClick={onRemove}
           className="ml-0.5 text-muted-foreground/40 hover:text-muted-foreground transition-colors"
-          aria-label={`Remove ${name}`}
+          aria-label={t("attachments.remove", { name })}
         >
           <X className="h-3 w-3" />
         </button>

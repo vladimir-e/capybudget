@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { ChevronDown } from "lucide-react";
 import type { Account } from "@capybudget/core";
+import { useTranslation } from "@capybudget/i18n";
 import {
   Popover,
   PopoverContent,
@@ -29,6 +30,7 @@ export function NetWorthAccountFilter({
   excludedIds,
   onChange,
 }: NetWorthAccountFilterProps) {
+  const { t } = useTranslation("analytics");
   const [query, setQuery] = useState("");
 
   const totalCount = accounts.length;
@@ -38,8 +40,8 @@ export function NetWorthAccountFilter({
   );
   const triggerLabel =
     excludedIds.size === 0
-      ? "All accounts"
-      : `${includedCount} of ${totalCount} accounts`;
+      ? t("accountFilter.allAccounts")
+      : t("accountFilter.someAccounts", { included: includedCount, total: totalCount });
 
   const groups = useMemo(() => groupAccounts(accounts), [accounts]);
 
@@ -80,7 +82,7 @@ export function NetWorthAccountFilter({
           <Button
             variant="outline"
             size="sm"
-            aria-label={`Accounts in Net Worth — ${triggerLabel}`}
+            aria-label={t("accountFilter.triggerAria", { label: triggerLabel })}
           />
         }
       >
@@ -95,8 +97,8 @@ export function NetWorthAccountFilter({
           <Input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search accounts"
-            aria-label="Search accounts"
+            placeholder={t("accountFilter.searchPlaceholder")}
+            aria-label={t("accountFilter.searchAria")}
           />
           <div className="mt-2 flex items-center gap-1">
             <Button
@@ -105,7 +107,7 @@ export function NetWorthAccountFilter({
               onClick={() => onChange(setInclusionForIds(visibleIds, true, excludedIds))}
               disabled={visibleIncludedCount === visibleIds.length}
             >
-              Select all
+              {t("accountFilter.selectAll")}
             </Button>
             <Button
               variant="ghost"
@@ -113,7 +115,7 @@ export function NetWorthAccountFilter({
               onClick={() => onChange(setInclusionForIds(visibleIds, false, excludedIds))}
               disabled={visibleIncludedCount === 0}
             >
-              Clear all
+              {t("accountFilter.clearAll")}
             </Button>
           </div>
         </div>
@@ -121,7 +123,7 @@ export function NetWorthAccountFilter({
         <div className="min-h-0 flex-1 overflow-y-auto py-1">
           {visibleGroups.length === 0 && (
             <div className="px-3 py-2 text-sm text-muted-foreground">
-              No accounts match.
+              {t("accountFilter.noMatches")}
             </div>
           )}
           {visibleGroups.map((group) => {
@@ -140,7 +142,7 @@ export function NetWorthAccountFilter({
                     onCheckedChange={(checked) =>
                       setGroupInclusion(group, checked === true)
                     }
-                    aria-label={`Toggle all ${group.label} accounts`}
+                    aria-label={t("accountFilter.toggleGroupAria", { group: group.label })}
                   />
                   <span className="text-[9px] font-semibold uppercase tracking-wider text-muted-foreground/50">
                     {group.label}

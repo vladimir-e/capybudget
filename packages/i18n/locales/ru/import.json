@@ -1,1 +1,136 @@
-{}
+{
+  "title": "Импорт",
+  "subtitle": {
+    "importing": "Импортируем ваши транзакции…",
+    "review": "Проверьте и отредактируйте импортированные транзакции",
+    "setup": "Настройте ИИ-ассистента, чтобы импортировать транзакции",
+    "drop": "Перетащите файлы, чтобы импортировать транзакции"
+  },
+  "dropOverlay": "Перетащите файлы для импорта",
+  "cancelImport": "Отменить импорт",
+  "cancelDialog": {
+    "title": "Отменить импорт?",
+    "description": "Загруженные файлы и все транзакции, которые извлекла Capy, будут удалены. Это действие необратимо.",
+    "keep": "Продолжить импорт",
+    "discard": "Отменить импорт"
+  },
+  "errors": {
+    "unsupportedType": "{{name}} — неподдерживаемый тип файла",
+    "pdfNeedsAnthropic": "{{name}} пропущен — для импорта PDF нужен провайдер Anthropic",
+    "saveFailed": "Не удалось сохранить {{name}}",
+    "providerRequired": "Для импорта нужно настроить Anthropic или OpenAI."
+  },
+  "dropZone": {
+    "browseLabel": "Выбрать файлы для импорта",
+    "prompt": "Перетащите выписки, чеки или скриншоты",
+    "filesReady_one": "{{count}} файл готов",
+    "filesReady_few": "{{count}} файла готовы",
+    "filesReady_many": "{{count}} файлов готовы",
+    "filesReady_other": "{{count}} файлов готовы",
+    "uploading": "(загружается: {{count}})",
+    "duplicateHint": "возможно, дубликат — импортировано {{date}}",
+    "removeFile": "Удалить {{name}}",
+    "instructions": "Инструкции (необязательно)",
+    "instructionsPlaceholder": "напр. «Это экспорт моего бюджета из Excel, суммы в столбцах Дебет/Кредит»",
+    "anyAccount": "Любой счёт",
+    "start": "Начать импорт",
+    "rerunHint": "Не нравится результат? Отмените, дайте Capy больше инструкций и запустите снова."
+  },
+  "unsupported": {
+    "title": "Настройте ИИ-ассистента",
+    "body": "Прежде чем импортировать транзакции, выберите провайдера ИИ в настройках.",
+    "openSettings": "Открыть настройки"
+  },
+  "progress": {
+    "normalizing": "Нормализация",
+    "enhancing": "Обработка",
+    "stop": "Остановить",
+    "enrich": "Обработать {{count}}",
+    "countOf": "{{done}} из {{total}}",
+    "countRows_one": "{{count}} строка",
+    "countRows_few": "{{count}} строки",
+    "countRows_many": "{{count}} строк",
+    "countRows_other": "{{count}} строк"
+  },
+  "preview": {
+    "certainDuplicates_one": "обнаружен {{count}} дубликат — уже снят выбор",
+    "certainDuplicates_few": "обнаружено {{count}} дубликата — уже снят выбор",
+    "certainDuplicates_many": "обнаружено {{count}} дубликатов — уже снят выбор",
+    "certainDuplicates_other": "обнаружено {{count}} дубликатов — уже снят выбор",
+    "possibleDuplicates_one": "{{count}} возможный дубликат (близкая дата) — проверьте перед объединением",
+    "possibleDuplicates_few": "{{count}} возможных дубликата (близкая дата) — проверьте перед объединением",
+    "possibleDuplicates_many": "{{count}} возможных дубликатов (близкая дата) — проверьте перед объединением",
+    "possibleDuplicates_other": "{{count}} возможных дубликатов (близкая дата) — проверьте перед объединением",
+    "uncategorized": "{{count}} без категории",
+    "lowConfidence": "{{count}} с низкой уверенностью",
+    "ofTotalSelected": "из {{total}} транзакций выбрано для импорта",
+    "searchPlaceholder": "Поиск транзакций…",
+    "clearSearch": "Очистить поиск",
+    "selectedCount": "выбрано: {{count}}",
+    "merging": "Объединение…",
+    "merge": "Объединить",
+    "mergeSuccess_one": "Объединена {{count}} транзакция",
+    "mergeSuccess_few": "Объединено {{count}} транзакции",
+    "mergeSuccess_many": "Объединено {{count}} транзакций",
+    "mergeSuccess_other": "Объединено {{count}} транзакций",
+    "mergeSuccessWithAccounts_one": "Объединена {{count}} транзакция и создано {{accounts}}",
+    "mergeSuccessWithAccounts_few": "Объединено {{count}} транзакции и создано {{accounts}}",
+    "mergeSuccessWithAccounts_many": "Объединено {{count}} транзакций и создано {{accounts}}",
+    "mergeSuccessWithAccounts_other": "Объединено {{count}} транзакций и создано {{accounts}}",
+    "accountsCreated_one": "{{count}} счёт",
+    "accountsCreated_few": "{{count}} счёта",
+    "accountsCreated_many": "{{count}} счетов",
+    "accountsCreated_other": "{{count}} счетов",
+    "mergeFailed": "Не удалось объединить: {{error}}",
+    "unknownError": "Неизвестная ошибка",
+    "mapAccountsTitle": "Сопоставление счетов",
+    "mapAccountsDescription": "Куда попадут транзакции каждого импортированного счёта — на существующий счёт или на созданный при объединении.",
+    "done": "Готово",
+    "mergeConfirmTitle_one": "Объединить {{count}} транзакцию?",
+    "mergeConfirmTitle_few": "Объединить {{count}} транзакции?",
+    "mergeConfirmTitle_many": "Объединить {{count}} транзакций?",
+    "mergeConfirmTitle_other": "Объединить {{count}} транзакций?",
+    "mergeConfirmDescriptionBefore": "В ваш бюджет будет добавлено ",
+    "mergeConfirmDescriptionAfter": ".",
+    "unmappedTransfers_one": "у {{count}} перевода не нашлось пары — он импортируется как доход/расход.",
+    "unmappedTransfers_few": "у {{count}} переводов не нашлось пары — они импортируются как доход/расход.",
+    "unmappedTransfers_many": "у {{count}} переводов не нашлось пары — они импортируются как доход/расход.",
+    "unmappedTransfers_other": "у {{count}} переводов не нашлось пары — они импортируются как доход/расход."
+  },
+  "table": {
+    "selectAll": "Выбрать все транзакции",
+    "includeTransaction": "Включить транзакцию",
+    "duplicateTitle": "Дубликат существующей транзакции",
+    "possibleDuplicateTitle": "Возможный дубликат (близкая дата)",
+    "columns": {
+      "date": "Дата",
+      "merchant": "Контрагент",
+      "amount": "Сумма",
+      "type": "Тип",
+      "account": "Счёт",
+      "category": "Категория"
+    },
+    "noTransactionsTitle": "Транзакции не найдены",
+    "noTransactionsDescription": "Попробуйте изменить запрос.",
+    "noAccount": "нет",
+    "newAccountTag": "новый",
+    "toAccount": "На счёт",
+    "fromAccount": "Со счёта",
+    "transferPlaceholder": "Перевод",
+    "uncategorizedPlaceholder": "Без категории",
+    "confidenceTitle": "уверенность: {{confidence}}",
+    "types": {
+      "expense": "расход",
+      "income": "доход",
+      "transfer": "перевод"
+    }
+  },
+  "editors": {
+    "merchantPlaceholder": "Контрагент"
+  },
+  "accountMapping": {
+    "searchPlaceholder": "Поиск счетов…",
+    "empty": "Счета не найдены.",
+    "create": "Создать «{{source}}»"
+  }
+}

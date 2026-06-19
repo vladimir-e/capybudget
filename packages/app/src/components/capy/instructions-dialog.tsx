@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react"
+import { useTranslation } from "@capybudget/i18n"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -22,6 +23,7 @@ export function InstructionsDialog({
   instructions,
   onSave,
 }: InstructionsDialogProps) {
+  const { t } = useTranslation(["capy", "common"])
   const [draft, setDraft] = useState(instructions)
   const [saving, setSaving] = useState(false)
 
@@ -45,17 +47,16 @@ export function InstructionsDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Custom Instructions</DialogTitle>
+          <DialogTitle>{t("instructionsDialog.title")}</DialogTitle>
           <DialogDescription>
-            Help Capy understand your financial situation. Describe common
-            patterns, account purposes, or categorization preferences.
+            {t("instructionsDialog.description")}
           </DialogDescription>
         </DialogHeader>
 
         <textarea
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
-          placeholder={"e.g. I use my Chase card for daily expenses.\nWhole Foods and Trader Joe's are groceries.\nVenmo transfers to Sarah are rent splits."}
+          placeholder={t("instructionsDialog.placeholder")}
           rows={8}
           className="w-full resize-none rounded-lg border border-border/50 bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-brand/50"
         />
@@ -66,7 +67,7 @@ export function InstructionsDialog({
             disabled={!hasChanges || saving}
             size="sm"
           >
-            {saving ? "Saving..." : "Save"}
+            {saving ? t("common:actions.saving") : t("common:actions.save")}
           </Button>
         </DialogFooter>
       </DialogContent>

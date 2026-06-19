@@ -1,1 +1,87 @@
-{}
+{
+  "launcher": {
+    "label": "Ask Capy",
+    "open": "Open Capy assistant",
+    "close": "Close Capy assistant"
+  },
+  "header": {
+    "panelLabel": "Capy assistant",
+    "demoStatus": "Your AI assistant",
+    "notConfigured": "Not configured",
+    "hidePanel": "Hide panel"
+  },
+  "panel": {
+    "resize": "Resize Capy panel"
+  },
+  "dropzone": {
+    "label": "Drop files here"
+  },
+  "input": {
+    "placeholder": "Ask Capy anything about your finances...",
+    "attach": "Attach file",
+    "send": "Send message",
+    "stop": "Stop response",
+    "instructions": "Instructions",
+    "instructionsLabel": "Custom instructions",
+    "newChat": "New chat",
+    "newLineHint": "Shift + Enter for new line"
+  },
+  "thinking": "Thinking...",
+  "jumpToLatest": "Scroll to latest",
+  "chart": {
+    "total": "total"
+  },
+  "attachments": {
+    "tooLarge": "{{name}} exceeds 5MB limit",
+    "unsupported": "{{name}} is not a supported file type",
+    "totalTooLarge": "Total attachment size exceeds 10MB",
+    "remove": "Remove {{name}}"
+  },
+  "commands": {
+    "trigger": "Commands",
+    "add": "Add command",
+    "namePlaceholder": "Command name",
+    "promptPlaceholder": "Prompt to send...",
+    "edit": "Edit command",
+    "delete": "Delete command",
+    "cancel": "Cancel",
+    "save": "Save"
+  },
+  "instructionsDialog": {
+    "title": "Custom Instructions",
+    "description": "Help Capy understand your financial situation. Describe common patterns, account purposes, or categorization preferences.",
+    "placeholder": "e.g. I use my Chase card for daily expenses.\nWhole Foods and Trader Joe's are groceries.\nVenmo transfers to Sarah are rent splits."
+  },
+  "unconfigured": {
+    "title": "Set up your AI assistant",
+    "description": "Capy needs an AI provider before it can help.",
+    "openSettings": "Open settings",
+    "claudeCliChecking": "Checking for Claude Code CLI…",
+    "claudeCliMissing": "Claude Code CLI not detected on this machine"
+  },
+  "welcome": {
+    "greeting": "Hey, I'm Capy.",
+    "description": "Ask me about your spending, budgets, or transactions. I see everything in this folder.",
+    "suggestions": {
+      "help": {
+        "label": "What can you help me with?",
+        "prompt": "What can you help me with?"
+      },
+      "learn": {
+        "label": "Teach me how to budget",
+        "prompt": "Teach me how to budget"
+      },
+      "subscriptions": {
+        "label": "Find recurring subscriptions",
+        "prompt": "Find my recurring subscriptions and what they cost"
+      },
+      "categorize": {
+        "label": "Help me categorize transactions",
+        "prompt": "Help me categorize my uncategorized transactions"
+      }
+    }
+  },
+  "error": {
+    "openBilling": "Open billing page"
+  }
+}

@@ -1,3 +1,4 @@
+import { useTranslation } from "@capybudget/i18n";
 import { TransactionsDrilldownLink } from "@/components/budget/transactions-drilldown-link";
 
 export interface KPICard {
@@ -11,6 +12,7 @@ export interface KPICard {
 }
 
 export function KpiStrip({ cards }: { cards: KPICard[] }) {
+  const { t } = useTranslation("analytics");
   return (
     <div className="grid grid-cols-3 gap-3">
       {cards.map((c) => {
@@ -30,7 +32,7 @@ export function KpiStrip({ cards }: { cards: KPICard[] }) {
               <div className={valueClass}>
                 <TransactionsDrilldownLink
                   onClick={c.onClick}
-                  ariaLabel={`View ${c.label} transactions`}
+                  ariaLabel={t("a11y.viewTransactionsAria", { name: c.label })}
                 >
                   {c.display}
                 </TransactionsDrilldownLink>

@@ -14,6 +14,8 @@ import { AccountSelector } from "@/components/budget/account-selector";
 import type { ImportTransaction } from "@capybudget/core";
 import type { Category, Account } from "@capybudget/core";
 import { formatDateLabel } from "@capybudget/core";
+import { useTranslation, useLocale } from "@capybudget/i18n";
+import type { TFunction } from "i18next";
 import { useFormatMoney } from "@/contexts/currency-context";
 import {
   amountColorClass,
@@ -134,6 +136,8 @@ export function ImportTable({
   onOpenAccountMapping,
   duplicateIds,
 }: ImportTableProps) {
+  const { t } = useTranslation(["import", "common"]);
+  const locale = useLocale();
   const { format } = useFormatMoney();
   const [editingCell, setEditingCell] = useState<{
     rowId: string;
@@ -173,8 +177,8 @@ export function ImportTable({
     return (
       <EmptyState
         icon={<Inbox strokeWidth={1.5} />}
-        title="No transactions found"
-        description="Try adjusting your search."
+        title={t("table.noTransactionsTitle")}
+        description={t("table.noTransactionsDescription")}
         className="py-24"
       />
     );
@@ -189,26 +193,26 @@ export function ImportTable({
               checked={allSelected}
               indeterminate={indeterminate}
               onCheckedChange={() => onToggleAll()}
-              aria-label="Select all transactions"
+              aria-label={t("table.selectAll")}
             />
           </TableHead>
           <SortableHeader column="date" sort={sort} onSortChange={onSortChange} className="w-[120px]">
-            Date
+            {t("table.columns.date")}
           </SortableHeader>
           <SortableHeader column="merchant" sort={sort} onSortChange={onSortChange}>
-            Merchant
+            {t("table.columns.merchant")}
           </SortableHeader>
           <SortableHeader column="amount" sort={sort} onSortChange={onSortChange} align="right" className="w-[120px]">
-            Amount
+            {t("table.columns.amount")}
           </SortableHeader>
           <SortableHeader column="type" sort={sort} onSortChange={onSortChange} className="w-[90px]">
-            Type
+            {t("table.columns.type")}
           </SortableHeader>
           <SortableHeader column="sourceAccount" sort={sort} onSortChange={onSortChange} className="w-[140px]">
-            Account
+            {t("table.columns.account")}
           </SortableHeader>
           <SortableHeader column="categoryId" sort={sort} onSortChange={onSortChange} className="w-[180px]">
-            Category
+            {t("table.columns.category")}
           </SortableHeader>
         </TableRow>
       </TableHeader>
@@ -247,14 +251,14 @@ export function ImportTable({
                   <Checkbox
                     checked={isSelected}
                     onCheckedChange={() => onToggleSelect(txn.id, false)}
-                    aria-label="Include transaction"
+                    aria-label={t("table.includeTransaction")}
                   />
                   {isDuplicate && (
                     <span
                       title={
                         isPossibleDuplicate
-                          ? "Possible duplicate (close date match)"
-                          : "Duplicate of an existing transaction"
+                          ? t("table.possibleDuplicateTitle")
+                          : t("table.duplicateTitle")
                       }
                     >
                       <Copy
@@ -277,7 +281,7 @@ export function ImportTable({
                     onCancel={handleCancel}
                   />
                 ) : (
-                  formatDateLabel(txn.date)
+                  formatDateLabel(txn.date, locale)
                 )}
               </TableCell>
 
@@ -334,7 +338,7 @@ export function ImportTable({
                     onCancel={handleCancel}
                   />
                 ) : (
-                  <TypeBadge type={txn.type} />
+                  <TypeBadge type={txn.type} label={t(`table.types.${txn.type}` as const)} />
                 )}
               </TableCell>
 
@@ -356,7 +360,7 @@ export function ImportTable({
                       onChange={(id) =>
                         onUpdateTransaction(txn.id, { targetAccountId: id })
                       }
-                      placeholder={txn.amount < 0 ? "To account" : "From account"}
+                      placeholder={txn.amount < 0 ? t("table.toAccount") : t("table.fromAccount")}
                       includeUnset={!!txn.targetAccountId}
                       disableIds={[accountMapping[txn.sourceAccount] || txn.accountId].filter(Boolean)}
                     />
@@ -367,6 +371,7 @@ export function ImportTable({
                     accounts={accounts}
                     accountMapping={accountMapping}
                     onOpenMapping={onOpenAccountMapping}
+                    t={t}
                   />
                 )}
               </TableCell>
@@ -382,10 +387,10 @@ export function ImportTable({
                       categoryConfidence: categoryId ? "high" : "",
                     })
                   }
-                  placeholder={txn.type === "transfer" ? "Transfer" : "Uncategorized"}
+                  placeholder={txn.type === "transfer" ? t("table.transferPlaceholder") : t("table.uncategorizedPlaceholder")}
                   includeUncategorized
                   suffix={txn.categoryConfidence ? (
-                    <ConfidenceDot confidence={txn.categoryConfidence} />
+                    <ConfidenceDot confidence={txn.categoryConfidence} t={t} />
                   ) : undefined}
                 />
               </TableCell>
@@ -412,14 +417,16 @@ function MappedAccountCell({
   accounts,
   accountMapping,
   onOpenMapping,
+  t,
 }: {
   sourceAccount: string;
   accounts: Account[];
   accountMapping: Record<string, string>;
   onOpenMapping: () => void;
+  t: TFunction<["import", "common"]>;
 }) {
   if (!sourceAccount) {
-    return <span className="text-muted-foreground/40 italic">none</span>;
+    return <span className="text-muted-foreground/40 italic">{t("table.noAccount")}</span>;
   }
   const targetId = accountMapping[sourceAccount];
   const target =
@@ -436,7 +443,7 @@ function MappedAccountCell({
       </span>
       {!target && (
         <span className="shrink-0 rounded bg-brand/10 px-1 py-px text-[10px] font-medium text-brand">
-          new
+          {t("table.newAccountTag")}
         </span>
       )}
     </button>
@@ -445,7 +452,7 @@ function MappedAccountCell({
 
 // ── Type Badge ──────────────────────────────────────────────────
 
-function TypeBadge({ type }: { type: string }) {
+function TypeBadge({ type, label }: { type: string; label: string }) {
   const colors: Record<string, string> = {
     expense: "bg-amount-expense/10 text-amount-expense",
     income: "bg-amount-income/10 text-amount-income",
@@ -455,14 +462,20 @@ function TypeBadge({ type }: { type: string }) {
     <span
       className={`inline-flex items-center rounded-md px-1.5 py-0.5 text-[11px] font-medium ${colors[type] ?? colors.transfer}`}
     >
-      {type}
+      {label}
     </span>
   );
 }
 
 // ── Confidence Dot ───────────────────────────────────────────────
 
-function ConfidenceDot({ confidence }: { confidence: string }) {
+function ConfidenceDot({
+  confidence,
+  t,
+}: {
+  confidence: string;
+  t: TFunction<["import", "common"]>;
+}) {
   const color =
     confidence === "high"
       ? "bg-amount-income"
@@ -470,7 +483,7 @@ function ConfidenceDot({ confidence }: { confidence: string }) {
   return (
     <span
       className={`inline-block h-1.5 w-1.5 shrink-0 rounded-full ${color}`}
-      title={`${confidence} confidence`}
+      title={t("table.confidenceTitle", { confidence })}
     />
   );
 }

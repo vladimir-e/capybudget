@@ -1,1 +1,124 @@
-{}
+{
+  "tabs": {
+    "spending": "Расходы",
+    "cashFlow": "Денежный поток",
+    "netWorth": "Чистая стоимость",
+    "compare": "Сравнение",
+    "merchants": "Продавцы",
+    "monthlyBudget": "Месячный бюджет"
+  },
+  "summary": {
+    "income": "Доходы",
+    "expenses": "Расходы",
+    "net": "Итого"
+  },
+  "period": {
+    "month": "Месяц",
+    "quarter": "Квартал",
+    "year": "Год",
+    "allTime": "За всё время",
+    "custom": "Произвольно",
+    "quarterLabel": "{{quarter}} кв. {{year}}",
+    "previousPeriod": "Предыдущий период",
+    "nextPeriod": "Следующий период",
+    "apply": "Применить"
+  },
+  "drilldown": {
+    "transactionCount_one": "{{count}} операция",
+    "transactionCount_few": "{{count}} операции",
+    "transactionCount_many": "{{count}} операций"
+  },
+  "a11y": {
+    "viewTransactionsAria": "Показать операции «{{name}}»"
+  },
+  "empty": {
+    "noDataYet": "Это станет полезным, когда накопится больше данных.",
+    "noCategoriesYet": "Это станет полезным, когда вы добавите категории и данные."
+  },
+  "view": {
+    "expenses": "Расходы",
+    "income": "Доходы"
+  },
+  "spending": {
+    "noExpenses": "Нет расходов за этот период",
+    "noIncome": "Нет доходов за этот период"
+  },
+  "cashFlow": {
+    "incomeValue": "Доходы: {{value}}",
+    "expensesValue": "Расходы: {{value}}",
+    "netValue": "Итого: {{value}}",
+    "empty": "Нет данных о денежном потоке за этот период"
+  },
+  "netWorth": {
+    "bar": "Столбцы",
+    "area": "Область",
+    "noAccountsTitle": "Счета не выбраны",
+    "noAccountsDescription": "Выберите хотя бы один счёт, чтобы построить график чистой стоимости.",
+    "noData": "Нет данных",
+    "monthLabel": "{{month}} {{year}}"
+  },
+  "accountFilter": {
+    "allAccounts": "Все счета",
+    "someAccounts": "{{included}} из {{total}} счетов",
+    "triggerAria": "Счета в чистой стоимости — {{label}}",
+    "searchPlaceholder": "Поиск счетов",
+    "searchAria": "Поиск счетов",
+    "selectAll": "Выбрать все",
+    "clearAll": "Снять все",
+    "noMatches": "Нет подходящих счетов.",
+    "toggleGroupAria": "Переключить все счета группы «{{group}}»"
+  },
+  "compare": {
+    "categories": "Категории",
+    "selectAll": "Выбрать все",
+    "clear": "Сбросить",
+    "selectPrompt": "Выберите категории для сравнения",
+    "toggleAria": "Переключить «{{name}}»",
+    "noExpenses": "Нет расходов за этот период",
+    "noIncome": "Нет доходов за этот период"
+  },
+  "merchants": {
+    "empty": "Нет данных о продавцах за этот период",
+    "txnCount_one": "{{count}} опер.",
+    "txnCount_few": "{{count}} опер.",
+    "txnCount_many": "{{count}} опер.",
+    "headerRank": "№",
+    "headerMerchant": "Продавец",
+    "headerAmount": "Сумма",
+    "headerTxns": "Опер.",
+    "headerPercent": "%"
+  },
+  "monthlyBudget": {
+    "spentThisMonth": "Потрачено за месяц",
+    "trackingToward": "Цель",
+    "overBudget": "Превышение бюджета",
+    "noCategoriesTitle": "Нет категорий для бюджета",
+    "addCategories": "Добавьте категории, чтобы начать отслеживание.",
+    "showOnlyTracked": "Только отслеживаемые",
+    "trackedCount": "({{targeted}} из {{total}})",
+    "columnCategory": "Категория",
+    "columnTarget": "Цель",
+    "columnSpent": "Потрачено",
+    "columnRemaining": "Остаток",
+    "groupTracked": "{{targeted}}/{{total}} отслеживается"
+  },
+  "budgetInput": {
+    "auto": "авто",
+    "set": "задать",
+    "placeholder": "0,00",
+    "editAria": "Изменить бюджет для «{{name}}»",
+    "setAutoAria": "Задать бюджет для «{{name}}» (сейчас авто: {{amount}})",
+    "setAria": "Задать бюджет для «{{name}}»",
+    "updateError": "Не удалось обновить «{{name}}»"
+  },
+  "budgetBar": {
+    "lastMonth": "Прошлый месяц",
+    "lastMonthLower": "прошлый месяц",
+    "overTarget": " (превышение цели)",
+    "autoTarget": "Авто-цель: {{amount}}",
+    "budget": "Бюджет: {{amount}}",
+    "noTargetAria": "Цель ещё не задана — Capy нужна история расходов, чтобы её определить",
+    "spentOfTargetAria": "Потрачено {{spent}} из цели {{target}}{{over}}",
+    "comparisonBasisAria": "База сравнения: {{label}}"
+  }
+}

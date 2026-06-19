@@ -9,6 +9,7 @@ import {
 import { FileUp, X, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { useNavigate } from "@tanstack/react-router";
+import { useTranslation } from "@capybudget/i18n";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -50,6 +51,7 @@ type ImportViewState =
 
 export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
   const navigate = useNavigate();
+  const { t } = useTranslation(["import", "common"]);
   const repository = useImportRepository(budgetPath);
 
   // ── Orchestrator + run state ──────────────────────────────────
@@ -138,14 +140,14 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
       if (!mountedRef.current) return;
       // `start()` runs the plain staged sources — the chat on-ramp carries no
       // per-run account/instruction hints (those are file-attach controls).
-      if (!start()) toast.error("Import needs Anthropic or OpenAI configured.");
+      if (!start()) toast.error(t("errors.providerRequired"));
       return;
     }
     await refreshSourceFiles();
     if (!mountedRef.current) return;
     setHasImportData(false);
     setDiskChecked(true);
-  }, [staging, start, refreshSourceFiles, setHasImportData]);
+  }, [staging, start, refreshSourceFiles, setHasImportData, t]);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -213,13 +215,13 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
       for (const file of rawFiles) {
         const isImage = isImageFile(file);
         if (!isImage && !isImportTextFile(file)) {
-          toast.error(`${file.name} is not a supported file type`);
+          toast.error(t("errors.unsupportedType", { name: file.name }));
           continue;
         }
         // The active provider must be able to read PDFs, or the import starts a
         // run the model never sees (OpenAI swaps PDFs for a placeholder note).
         if ((file.type === "application/pdf" || isPdfFilename(file.name)) && !pdfSupported) {
-          toast.error(`${file.name} skipped — PDF import needs the Anthropic provider`);
+          toast.error(t("errors.pdfNeedsAnthropic", { name: file.name }));
           continue;
         }
         setUploadingFiles((prev) => new Set(prev).add(file.name));
@@ -233,7 +235,7 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
             : await file.text();
           await repository.writeSourceFile(file.name, content);
         } catch (err) {
-          toast.error(`Failed to save ${file.name}`);
+          toast.error(t("errors.saveFailed", { name: file.name }));
           console.error("[import] write source file failed:", err);
         } finally {
           setUploadingFiles((prev) => {
@@ -261,7 +263,7 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
         /* best-effort */
       }
     },
-    [repository, refreshSourceFiles, pdfSupported],
+    [repository, refreshSourceFiles, pdfSupported, t],
   );
 
   const handleDragEnter = useCallback((e: DragEvent) => {
@@ -316,7 +318,7 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
     await customInstructions.save(instructions);
     const accountName = accounts.find((a) => a.id === selectedAccountId)?.name;
     if (!start({ accountName, instructions })) {
-      toast.error("Import needs Anthropic or OpenAI configured.");
+      toast.error(t("errors.providerRequired"));
     }
   }, [
     sourceFiles,
@@ -326,17 +328,18 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
     accounts,
     selectedAccountId,
     start,
+    t,
   ]);
 
   const handleEnrich = useCallback(() => {
     const instructions = customInstructions.instructions?.trim();
     if (!enrich({ instructions })) {
-      toast.error("Import needs Anthropic or OpenAI configured.");
+      toast.error(t("errors.providerRequired"));
       return;
     }
     // A live run now owns the meter — drop the disk-reconstructed resume seed.
     setResumeBatch(null);
-  }, [enrich, customInstructions.instructions]);
+  }, [enrich, customInstructions.instructions, t]);
 
   const handleCancel = useCallback(async () => {
     // Cancel discards. Await the in-flight batch first — otherwise an
@@ -377,12 +380,12 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
   const showProgressBar = showRun && (running || barPhase !== "idle" || grounded);
 
   const subtitle = running
-    ? "Importing your transactions…"
+    ? t("subtitle.importing")
     : showRun
-      ? "Review and edit imported transactions"
+      ? t("subtitle.review")
       : showUnsupported
-        ? "Set up your AI assistant to import transactions"
-        : "Drop files to import transactions";
+        ? t("subtitle.setup")
+        : t("subtitle.drop");
 
   if (viewState === "loading") {
     return (
@@ -404,7 +407,7 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
         <div className="pointer-events-none absolute inset-0 z-50 flex items-center justify-center bg-background/60">
           <div className="absolute inset-4 flex flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed border-brand/50 bg-brand/5 text-brand animate-in fade-in zoom-in-95 duration-150">
             <FileUp className="h-10 w-10" />
-            <p className="text-lg font-semibold">Drop files to import</p>
+            <p className="text-lg font-semibold">{t("dropOverlay")}</p>
           </div>
         </div>
       )}
@@ -416,7 +419,7 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
             <FileUp className="h-4.5 w-4.5" />
           </div>
           <div className="flex-1">
-            <h2 className="text-xl font-bold tracking-tight">Import</h2>
+            <h2 className="text-xl font-bold tracking-tight">{t("title")}</h2>
             <p className="text-sm text-muted-foreground">{subtitle}</p>
           </div>
           {showRun && (
@@ -427,7 +430,7 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
               className="gap-1.5 shrink-0"
             >
               <X className="h-3.5 w-3.5" />
-              Cancel Import
+              {t("cancelImport")}
             </Button>
           )}
         </div>
@@ -497,15 +500,12 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
       <Dialog open={showCancelConfirm} onOpenChange={setShowCancelConfirm}>
         <DialogContent className="sm:max-w-sm">
           <DialogHeader>
-            <DialogTitle>Cancel import?</DialogTitle>
-            <DialogDescription>
-              This discards the uploaded files and any transactions Capy has extracted. It can't be
-              undone.
-            </DialogDescription>
+            <DialogTitle>{t("cancelDialog.title")}</DialogTitle>
+            <DialogDescription>{t("cancelDialog.description")}</DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowCancelConfirm(false)}>
-              Keep importing
+              {t("cancelDialog.keep")}
             </Button>
             <Button
               variant="destructive"
@@ -514,7 +514,7 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
                 void handleCancel();
               }}
             >
-              Discard import
+              {t("cancelDialog.discard")}
             </Button>
           </DialogFooter>
         </DialogContent>

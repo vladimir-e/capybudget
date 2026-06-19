@@ -1,5 +1,6 @@
 import { useState } from "react"
 import { ChevronUp, Pencil, Plus, Trash2, X, Check } from "lucide-react"
+import { useTranslation } from "@capybudget/i18n"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import type { CapyCommand } from "@/hooks/use-custom-commands"
 
@@ -10,6 +11,7 @@ interface CommandPickerProps {
 }
 
 export function CommandPicker({ commands, onSelect, onSave }: CommandPickerProps) {
+  const { t } = useTranslation("capy")
   const [open, setOpen] = useState(false)
   const [editing, setEditing] = useState<string | null>(null)
   const [editName, setEditName] = useState("")
@@ -84,7 +86,7 @@ export function CommandPicker({ commands, onSelect, onSave }: CommandPickerProps
           />
         }
       >
-        Commands
+        {t("commands.trigger")}
         <ChevronUp className="h-3 w-3" />
       </PopoverTrigger>
       <PopoverContent
@@ -122,7 +124,7 @@ export function CommandPicker({ commands, onSelect, onSave }: CommandPickerProps
                   type="button"
                   onClick={() => startEdit(cmd)}
                   className="p-1.5 text-muted-foreground/40 hover:text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity"
-                  aria-label="Edit command"
+                  aria-label={t("commands.edit")}
                 >
                   <Pencil className="h-3 w-3" />
                 </button>
@@ -146,7 +148,7 @@ export function CommandPicker({ commands, onSelect, onSave }: CommandPickerProps
               className="w-full flex items-center gap-2 rounded-md px-3 py-2 text-xs text-muted-foreground/50 hover:text-muted-foreground hover:bg-muted/40 transition-colors"
             >
               <Plus className="h-3 w-3" />
-              Add command
+              {t("commands.add")}
             </button>
           )}
         </div>
@@ -172,20 +174,21 @@ function EditRow({
   onCancel: () => void
   onDelete?: () => void
 }) {
+  const { t } = useTranslation(["capy", "common"])
   return (
     <div className="rounded-md bg-muted/40 p-2 space-y-1.5">
       <input
         type="text"
         value={name}
         onChange={(e) => onNameChange(e.target.value)}
-        placeholder="Command name"
+        placeholder={t("commands.namePlaceholder")}
         className="w-full rounded bg-background px-2 py-1 text-sm text-foreground placeholder:text-muted-foreground/40 border border-border/50 focus:outline-none focus:ring-1 focus:ring-brand/50"
         autoFocus
       />
       <textarea
         value={prompt}
         onChange={(e) => onPromptChange(e.target.value)}
-        placeholder="Prompt to send..."
+        placeholder={t("commands.promptPlaceholder")}
         rows={2}
         className="w-full rounded bg-background px-2 py-1 text-xs text-foreground placeholder:text-muted-foreground/40 border border-border/50 focus:outline-none focus:ring-1 focus:ring-brand/50 resize-none"
       />
@@ -196,7 +199,7 @@ function EditRow({
               type="button"
               onClick={onDelete}
               className="p-1 text-muted-foreground/50 hover:text-destructive transition-colors"
-              aria-label="Delete command"
+              aria-label={t("commands.delete")}
             >
               <Trash2 className="h-3.5 w-3.5" />
             </button>
@@ -207,7 +210,7 @@ function EditRow({
             type="button"
             onClick={onCancel}
             className="p-1 text-muted-foreground/50 hover:text-muted-foreground transition-colors"
-            aria-label="Cancel"
+            aria-label={t("common:actions.cancel")}
           >
             <X className="h-3.5 w-3.5" />
           </button>
@@ -216,7 +219,7 @@ function EditRow({
             onClick={onSave}
             disabled={!name.trim() || !prompt.trim()}
             className="p-1 text-brand hover:text-brand/80 disabled:opacity-30 transition-colors"
-            aria-label="Save"
+            aria-label={t("common:actions.save")}
           >
             <Check className="h-3.5 w-3.5" />
           </button>

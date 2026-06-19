@@ -1,4 +1,5 @@
 import type { Category, CategoryGroup } from "@capybudget/core";
+import { useTranslation } from "@capybudget/i18n";
 import type { BudgetRow } from "./monthly-budget-rows";
 import { CategoryRow } from "./monthly-budget-category-row";
 
@@ -7,13 +8,14 @@ import { CategoryRow } from "./monthly-budget-category-row";
 /** Sticky labels above the rows — same grid as `CategoryRow` so columns line
  *  up with the data. */
 export function ColumnHeader() {
+  const { t } = useTranslation("analytics");
   return (
     <div className="sticky top-0 z-10 bg-background border-b grid grid-cols-[minmax(0,1.4fr)_140px_120px_minmax(160px,2fr)_120px] gap-3 items-center px-3 py-1.5 text-xs font-medium text-muted-foreground uppercase tracking-wider">
-      <span>Category</span>
-      <span className="text-right">Target</span>
-      <span className="text-right">Spent</span>
+      <span>{t("monthlyBudget.columnCategory")}</span>
+      <span className="text-right">{t("monthlyBudget.columnTarget")}</span>
+      <span className="text-right">{t("monthlyBudget.columnSpent")}</span>
       <span /> {/* bar column intentionally unlabelled */}
-      <span className="text-right">Remaining</span>
+      <span className="text-right">{t("monthlyBudget.columnRemaining")}</span>
     </div>
   );
 }
@@ -37,6 +39,7 @@ export function GroupSection({
   referenceLabel,
   onDrilldown,
 }: GroupSectionProps) {
+  const { t } = useTranslation("analytics");
   const entries = categories.map((c) => ({
     category: c,
     row: rowByCategory.get(c.id),
@@ -66,7 +69,7 @@ export function GroupSection({
           {group}
           {targetedCount < totalCount && (
             <span className="ml-2 text-xs font-normal normal-case tracking-normal text-muted-foreground/60">
-              {targetedCount}/{totalCount} tracked
+              {t("monthlyBudget.groupTracked", { targeted: targetedCount, total: totalCount })}
             </span>
           )}
         </h3>

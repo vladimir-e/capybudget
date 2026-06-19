@@ -1,3 +1,4 @@
+import { useTranslation } from "@capybudget/i18n"
 import { formatText } from "@/lib/format-text"
 import { useFormatMoney } from "@/contexts/currency-context"
 import type {
@@ -161,6 +162,7 @@ function BarChart({ title, data }: Pick<BarChartBlock, "title" | "data">) {
 /* ── Donut Chart ───────────────────────────────────────────────── */
 
 function DonutChart({ title, data }: Pick<DonutChartBlock, "title" | "data">) {
+  const { t } = useTranslation("capy")
   const total = data.reduce((sum, d) => sum + d.value, 0)
   if (data.length === 0 || total === 0) return null
   const size = 140
@@ -241,7 +243,7 @@ function DonutChart({ title, data }: Pick<DonutChartBlock, "title" | "data">) {
             className="fill-muted-foreground"
             style={{ fontSize: 10 }}
           >
-            total
+            {t("chart.total")}
           </text>
         </svg>
         <div className="space-y-2 min-w-0">

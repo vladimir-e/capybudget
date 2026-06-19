@@ -1,1 +1,118 @@
-{}
+{
+  "title": "Import",
+  "subtitle": {
+    "importing": "Importing your transactions…",
+    "review": "Review and edit imported transactions",
+    "setup": "Set up your AI assistant to import transactions",
+    "drop": "Drop files to import transactions"
+  },
+  "dropOverlay": "Drop files to import",
+  "cancelImport": "Cancel Import",
+  "cancelDialog": {
+    "title": "Cancel import?",
+    "description": "This discards the uploaded files and any transactions Capy has extracted. It can't be undone.",
+    "keep": "Keep importing",
+    "discard": "Discard import"
+  },
+  "errors": {
+    "unsupportedType": "{{name}} is not a supported file type",
+    "pdfNeedsAnthropic": "{{name}} skipped — PDF import needs the Anthropic provider",
+    "saveFailed": "Failed to save {{name}}",
+    "providerRequired": "Import needs Anthropic or OpenAI configured."
+  },
+  "dropZone": {
+    "browseLabel": "Browse for files to import",
+    "prompt": "Drop bank statements, receipts, or screenshots",
+    "filesReady_one": "{{count}} file ready",
+    "filesReady_other": "{{count}} files ready",
+    "uploading": "({{count}} uploading...)",
+    "duplicateHint": "might be a duplicate — imported on {{date}}",
+    "removeFile": "Remove {{name}}",
+    "instructions": "Instructions (optional)",
+    "instructionsPlaceholder": "e.g. \"This is my Excel budget export, amounts are in the Debit/Credit columns\"",
+    "anyAccount": "Any account",
+    "start": "Start Import",
+    "rerunHint": "Don't like the results? Cancel, give Capy more instructions, and run again."
+  },
+  "unsupported": {
+    "title": "Set up your AI assistant",
+    "body": "Pick an AI provider in settings before importing transactions.",
+    "openSettings": "Open settings"
+  },
+  "progress": {
+    "normalizing": "Normalizing",
+    "enhancing": "Enhancing",
+    "stop": "Stop",
+    "enrich": "Enrich {{count}}",
+    "countOf": "{{done}} of {{total}}",
+    "countRows_one": "{{count}} row",
+    "countRows_other": "{{count}} rows"
+  },
+  "preview": {
+    "certainDuplicates_one": "{{count}} duplicate detected — already unselected",
+    "certainDuplicates_other": "{{count}} duplicates detected — already unselected",
+    "possibleDuplicates_one": "{{count}} possible duplicate (close date match) — review before merging",
+    "possibleDuplicates_other": "{{count}} possible duplicates (close date match) — review before merging",
+    "uncategorized": "{{count}} uncategorized",
+    "lowConfidence": "{{count}} low confidence",
+    "ofTotalSelected": "of {{total}} transactions selected for import",
+    "searchPlaceholder": "Search transactions…",
+    "clearSearch": "Clear search",
+    "selectedCount": "{{count}} selected",
+    "merging": "Merging…",
+    "merge": "Merge",
+    "mergeSuccess_one": "Merged {{count}} transaction",
+    "mergeSuccess_other": "Merged {{count}} transactions",
+    "mergeSuccessWithAccounts_one": "Merged {{count}} transaction and created {{accounts}}",
+    "mergeSuccessWithAccounts_other": "Merged {{count}} transactions and created {{accounts}}",
+    "accountsCreated_one": "{{count}} account",
+    "accountsCreated_other": "{{count}} accounts",
+    "mergeFailed": "Merge failed: {{error}}",
+    "unknownError": "Unknown error",
+    "mapAccountsTitle": "Map accounts",
+    "mapAccountsDescription": "Where each imported account's transactions land — an existing account, or one created on merge.",
+    "done": "Done",
+    "mergeConfirmTitle_one": "Merge {{count}} transaction?",
+    "mergeConfirmTitle_other": "Merge {{count}} transactions?",
+    "mergeConfirmDescriptionBefore": "This will add ",
+    "mergeConfirmDescriptionAfter": " to your budget.",
+    "unmappedTransfers_one": "{{count}} transfer had no matching counterpart — it'll import as income/expense.",
+    "unmappedTransfers_other": "{{count}} transfers had no matching counterpart — they'll import as income/expense."
+  },
+  "table": {
+    "selectAll": "Select all transactions",
+    "includeTransaction": "Include transaction",
+    "duplicateTitle": "Duplicate of an existing transaction",
+    "possibleDuplicateTitle": "Possible duplicate (close date match)",
+    "columns": {
+      "date": "Date",
+      "merchant": "Merchant",
+      "amount": "Amount",
+      "type": "Type",
+      "account": "Account",
+      "category": "Category"
+    },
+    "noTransactionsTitle": "No transactions found",
+    "noTransactionsDescription": "Try adjusting your search.",
+    "noAccount": "none",
+    "newAccountTag": "new",
+    "toAccount": "To account",
+    "fromAccount": "From account",
+    "transferPlaceholder": "Transfer",
+    "uncategorizedPlaceholder": "Uncategorized",
+    "confidenceTitle": "{{confidence}} confidence",
+    "types": {
+      "expense": "expense",
+      "income": "income",
+      "transfer": "transfer"
+    }
+  },
+  "editors": {
+    "merchantPlaceholder": "Merchant"
+  },
+  "accountMapping": {
+    "searchPlaceholder": "Search accounts…",
+    "empty": "No accounts found.",
+    "create": "Create \"{{source}}\""
+  }
+}

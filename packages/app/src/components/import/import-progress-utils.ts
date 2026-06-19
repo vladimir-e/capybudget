@@ -11,11 +11,10 @@ import type { ImportTransaction } from "@capybudget/core";
  */
 export const PROGRESS_SEGMENTS: {
   key: "normalizing" | "enhancing";
-  label: string;
   phases: readonly ImportPhase[];
 }[] = [
-  { key: "normalizing", label: "Normalizing", phases: ["reading", "normalizing"] },
-  { key: "enhancing", label: "Enhancing", phases: ["history", "categorizing"] },
+  { key: "normalizing", phases: ["reading", "normalizing"] },
+  { key: "enhancing", phases: ["history", "categorizing"] },
 ];
 
 export type SegmentState = "pending" | "active" | "done";
@@ -81,13 +80,21 @@ export function resumeMeter(
   return total > 0 ? { done, total } : null;
 }
 
+/** The count to render next to a segment: a proportional "done of total", a
+ *  bare row count while the denominator is unknown, or nothing. The component
+ *  turns this into a localized label. */
+export type MeterCount =
+  | { kind: "of"; done: number; total: number }
+  | { kind: "rows"; done: number }
+  | null;
+
 export interface MeterView {
   /** 0–100 fill width. */
   fillPct: number;
   /** Every row landed — drives the check glyph and the done color. */
   complete: boolean;
-  /** "12 of 30" ("12 rows" while the total is unknown), or null without a meter. */
-  countLabel: string | null;
+  /** The metered count, or null when there's nothing to show. */
+  count: MeterCount;
 }
 
 /**
@@ -108,11 +115,11 @@ export function meterView(state: SegmentState, meter: SegmentMeter | null): Mete
   };
   if (!meter || meter.total === null || meter.total <= 0) {
     const counting = !!meter && state !== "pending" && meter.done > 0;
-    return { ...binary, countLabel: counting ? `${meter.done} rows` : null };
+    return { ...binary, count: counting ? { kind: "rows", done: meter.done } : null };
   }
   return {
     fillPct: Math.min(100, Math.round((meter.done / meter.total) * 100)),
     complete: meter.done >= meter.total && state !== "active",
-    countLabel: state !== "pending" ? `${meter.done} of ${meter.total}` : null,
+    count: state !== "pending" ? { kind: "of", done: meter.done, total: meter.total } : null,
   };
 }

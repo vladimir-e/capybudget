@@ -1,11 +1,14 @@
 import { describe, it, expect } from "vitest";
 import type { Category, DateRange, Transaction } from "@capybudget/core";
+import { i18n } from "@capybudget/i18n";
 import {
   budgetDrilldownTitle,
   eligibleBudgetCategoryIds,
   filterForBudgetDrilldown,
 } from "./monthly-budget-drilldown";
 import { makeAccount, makeCategory, makeTransaction } from "@/test/factories";
+
+const t = i18n.getFixedT("en", "analytics");
 
 // Build a stable category set covering every case the drilldown filter cares
 // about: ordinary budgeted/unbudgeted categories (both eligible), archived
@@ -210,11 +213,11 @@ describe("filterForBudgetDrilldown", () => {
 describe("budgetDrilldownTitle", () => {
   it("uses the category name for kind: category", () => {
     expect(
-      budgetDrilldownTitle({ kind: "category", category: budgetedGroceries }),
+      budgetDrilldownTitle({ kind: "category", category: budgetedGroceries }, t),
     ).toBe("Groceries");
   });
 
   it("labels the all-spend drilldown", () => {
-    expect(budgetDrilldownTitle({ kind: "all" })).toBe("Spent this month");
+    expect(budgetDrilldownTitle({ kind: "all" }, t)).toBe("Spent this month");
   });
 });

@@ -1,5 +1,6 @@
 import type { Category, DateRange, Transaction } from "@capybudget/core";
 import { filterTransactionsByDateRange } from "@capybudget/core";
+import type { TFunction } from "i18next";
 
 /** Drilldown contexts for the Monthly Budget tab. `category` is a per-row
  *  Spent cell; `all` mirrors the "Spent this month" KPI — every eligible
@@ -43,11 +44,14 @@ export function filterForBudgetDrilldown(
 }
 
 /** Modal title for the active drilldown — matches the cell the user clicked. */
-export function budgetDrilldownTitle(d: MonthlyBudgetDrilldown): string {
+export function budgetDrilldownTitle(
+  d: MonthlyBudgetDrilldown,
+  t: TFunction<"analytics">,
+): string {
   switch (d.kind) {
     case "category":
       return d.category.name;
     case "all":
-      return "Spent this month";
+      return t("monthlyBudget.spentThisMonth");
   }
 }

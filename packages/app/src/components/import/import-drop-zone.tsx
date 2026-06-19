@@ -9,6 +9,7 @@ import {
   Upload,
   X,
 } from "lucide-react";
+import { useTranslation, useLocale } from "@capybudget/i18n";
 import { Button } from "@/components/ui/button";
 import { AccountSelector } from "@/components/budget/account-selector";
 import { type SourceFileInfo } from "@/hooks/use-import-repository";
@@ -51,6 +52,8 @@ export function ImportDropZone({
   onAccountChange,
   onStart,
 }: ImportDropZoneProps) {
+  const { t } = useTranslation(["import", "common"]);
+  const locale = useLocale();
   return (
     <>
       <input
@@ -63,7 +66,7 @@ export function ImportDropZone({
       <div
         role="button"
         tabIndex={0}
-        aria-label="Browse for files to import"
+        aria-label={t("dropZone.browseLabel")}
         onClick={onBrowse}
         onKeyDown={(e) => {
           if (e.key === "Enter" || e.key === " ") {
@@ -80,7 +83,7 @@ export function ImportDropZone({
             <FileUp className="h-7 w-7" />
           </div>
           <p className="text-base font-medium text-foreground/80">
-            Drop bank statements, receipts, or screenshots
+            {t("dropZone.prompt")}
           </p>
         </div>
       </div>
@@ -88,10 +91,10 @@ export function ImportDropZone({
       {(sourceFiles.length > 0 || uploadingFiles.size > 0) && (
         <div className="space-y-2">
           <div className="text-xs font-medium uppercase tracking-wider text-muted-foreground/70">
-            {sourceFiles.length} file{sourceFiles.length !== 1 ? "s" : ""} ready
+            {t("dropZone.filesReady", { count: sourceFiles.length })}
             {uploadingFiles.size > 0 && (
               <span className="ml-2 text-brand">
-                ({uploadingFiles.size} uploading...)
+                {t("dropZone.uploading", { count: uploadingFiles.size })}
               </span>
             )}
           </div>
@@ -131,7 +134,7 @@ export function ImportDropZone({
                     {dupDate && (
                       <span className="flex items-center gap-1 text-[11px] text-amber-600 dark:text-amber-400">
                         <Copy className="h-3 w-3 shrink-0" />
-                        might be a duplicate — imported on {formatDateLabel(dupDate.slice(0, 10))}
+                        {t("dropZone.duplicateHint", { date: formatDateLabel(dupDate.slice(0, 10), locale) })}
                       </span>
                     )}
                   </div>
@@ -142,7 +145,7 @@ export function ImportDropZone({
                     type="button"
                     onClick={(e) => { e.stopPropagation(); onRemoveFile(file.name); }}
                     className="rounded-lg p-1 text-muted-foreground/70 hover:text-foreground hover:bg-muted transition-colors"
-                    aria-label={`Remove ${file.name}`}
+                    aria-label={t("dropZone.removeFile", { name: file.name })}
                   >
                     <X className="h-3.5 w-3.5" />
                   </button>
@@ -152,13 +155,13 @@ export function ImportDropZone({
           </div>
           <div className="space-y-1.5">
             <div className="text-xs font-medium uppercase tracking-wider text-muted-foreground/70">
-              Instructions (optional)
+              {t("dropZone.instructions")}
             </div>
             <textarea
               value={localInstructions ?? ""}
               onChange={(e) => onInstructionsChange(e.target.value)}
               onBlur={onInstructionsBlur}
-              placeholder="e.g. &quot;This is my Excel budget export, amounts are in the Debit/Credit columns&quot;"
+              placeholder={t("dropZone.instructionsPlaceholder")}
               rows={2}
               className="w-full resize-none rounded-xl border border-input bg-muted/50 px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground/60 focus:border-brand/50 focus:outline-none focus:ring-1 focus:ring-brand/20 dark:bg-input/30"
             />
@@ -168,7 +171,7 @@ export function ImportDropZone({
               accounts={accounts}
               value={selectedAccountId}
               onChange={onAccountChange}
-              placeholder="Any account"
+              placeholder={t("dropZone.anyAccount")}
               clearable
             />
             <Button
@@ -177,12 +180,11 @@ export function ImportDropZone({
               className="gap-2 rounded-xl px-6 py-5 text-base font-semibold shadow-lg shadow-brand/20"
             >
               <Sparkles className="h-4.5 w-4.5" />
-              Start Import
+              {t("dropZone.start")}
             </Button>
           </div>
           <p className="pt-1.5 text-right text-xs text-muted-foreground/50">
-            Don&apos;t like the results? Cancel, give Capy more instructions, and
-            run again.
+            {t("dropZone.rerunHint")}
           </p>
         </div>
       )}
@@ -199,21 +201,22 @@ export function ProviderUnsupportedBanner({
 }: {
   onOpenSettings: () => void;
 }) {
+  const { t } = useTranslation("import");
   return (
     <div className="flex flex-col items-center justify-center rounded-2xl border border-brand/20 bg-brand/5 px-6 py-10 text-center">
       <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-brand/10 text-brand">
         <Sparkles className="h-7 w-7" />
       </div>
-      <p className="text-lg font-medium text-foreground/80">Set up your AI assistant</p>
+      <p className="text-lg font-medium text-foreground/80">{t("unsupported.title")}</p>
       <p className="mt-1 max-w-sm text-sm text-muted-foreground/70">
-        Pick an AI provider in settings before importing transactions.
+        {t("unsupported.body")}
       </p>
       <button
         type="button"
         onClick={onOpenSettings}
         className="mt-5 inline-flex items-center gap-1.5 rounded-xl bg-brand px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-brand/90 transition-colors"
       >
-        Open settings
+        {t("unsupported.openSettings")}
       </button>
     </div>
   );

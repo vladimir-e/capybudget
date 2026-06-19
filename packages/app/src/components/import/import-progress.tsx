@@ -6,15 +6,25 @@ import type {
   NormalizeProgress,
   TerminalLogEntry,
 } from "@capybudget/intelligence";
+import { useTranslation } from "@capybudget/i18n";
+import type { TFunction } from "i18next";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
   PROGRESS_SEGMENTS,
   meterView,
   segmentState,
+  type MeterCount,
   type SegmentMeter,
   type SegmentState,
 } from "./import-progress-utils";
+
+/** The localized "X of N" / "X rows" count for a metered segment. */
+function countLabel(count: MeterCount, t: TFunction<["import", "common"]>): string | null {
+  if (!count) return null;
+  if (count.kind === "rows") return t("progress.countRows", { count: count.done });
+  return t("progress.countOf", { done: count.done, total: count.total });
+}
 
 interface ImportProgressProps {
   /** The orchestrator's current phase. */
@@ -57,6 +67,7 @@ export function ImportProgress({
   onStop,
   enrich,
 }: ImportProgressProps) {
+  const { t } = useTranslation(["import", "common"]);
   const showEnrich = !running && !!enrich && enrich.count > 0;
   return (
     <div className="space-y-4">
@@ -74,7 +85,16 @@ export function ImportProgress({
                   ? { done: normalizeProgress.rows, total: normalizeProgress.total }
                   : null
                 : batchProgress;
-            return <Segment key={seg.key} label={seg.label} state={state} running={running} meter={meter} />;
+            return (
+              <Segment
+                key={seg.key}
+                label={t(`progress.${seg.key}`)}
+                state={state}
+                running={running}
+                meter={meter}
+                t={t}
+              />
+            );
           })}
         </div>
         {(running || showEnrich) && (
@@ -87,12 +107,12 @@ export function ImportProgress({
             {running ? (
               <>
                 <Square className="h-3.5 w-3.5" />
-                Stop
+                {t("progress.stop")}
               </>
             ) : (
               <>
                 <Sparkles className="h-3.5 w-3.5" />
-                Enrich {enrich?.count}
+                {t("progress.enrich", { count: enrich?.count })}
               </>
             )}
           </Button>
@@ -118,13 +138,16 @@ function Segment({
   state,
   running,
   meter,
+  t,
 }: {
   label: string;
   state: SegmentState;
   running: boolean;
   meter: SegmentMeter | null;
+  t: TFunction<["import", "common"]>;
 }) {
-  const { fillPct, complete, countLabel } = meterView(state, meter);
+  const { fillPct, complete, count } = meterView(state, meter);
+  const meterLabel = countLabel(count, t);
   const proportional = !!meter && meter.total !== null && meter.total > 0;
 
   return (
@@ -150,9 +173,9 @@ function Segment({
         >
           {label}
         </span>
-        {countLabel && (
+        {meterLabel && (
           <span className="ml-auto shrink-0 text-[11px] tabular-nums text-muted-foreground/70">
-            {countLabel}
+            {meterLabel}
           </span>
         )}
       </div>
