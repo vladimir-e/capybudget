@@ -8,6 +8,7 @@ import {
   XAxis,
   YAxis,
   CartesianGrid,
+  ReferenceLine,
   Tooltip,
   ResponsiveContainer,
 } from "recharts";
@@ -110,6 +111,19 @@ export function NetWorthTab({ accounts, transactions, dateRange, hasAnyTransacti
     [netWorthData],
   );
 
+  // Always anchor the Y-axis to 0 so all-negative net worth reads against the
+  // real reference ($0) rather than auto-fitting its floor to the least-bad month.
+  const yDomain = useMemo<[number | "auto", number | "auto"]>(() => {
+    if (chartData.length === 0) return ["auto", "auto"];
+    let min = Infinity;
+    let max = -Infinity;
+    for (const { netWorth } of chartData) {
+      if (netWorth < min) min = netWorth;
+      if (netWorth > max) max = netWorth;
+    }
+    return [Math.min(0, min), Math.max(0, max)];
+  }, [chartData]);
+
   const { brandColor, expenseColor } = useThemeColors({
     brandColor: ["--brand", "oklch(0.58 0.14 55)"],
     expenseColor: ["--amount-expense", "#ef4444"],
@@ -183,11 +197,13 @@ export function NetWorthTab({ accounts, transactions, dateRange, hasAnyTransacti
               className="text-muted-foreground"
             />
             <YAxis
+              domain={yDomain}
               tickFormatter={(v: number) => formatCompact(v)}
               tick={{ fontSize: 12 }}
               className="text-muted-foreground"
               width={65}
             />
+            <ReferenceLine y={0} strokeDasharray="3 3" strokeOpacity={0.5} className="stroke-muted-foreground" />
             <Tooltip content={<NetWorthTooltipContent />} />
             <Bar dataKey="netWorth" radius={[1, 1, 0, 0]}>
               {chartData.map((entry, i) => (
@@ -214,11 +230,13 @@ export function NetWorthTab({ accounts, transactions, dateRange, hasAnyTransacti
               className="text-muted-foreground"
             />
             <YAxis
+              domain={yDomain}
               tickFormatter={(v: number) => formatCompact(v)}
               tick={{ fontSize: 12 }}
               className="text-muted-foreground"
               width={65}
             />
+            <ReferenceLine y={0} strokeDasharray="3 3" strokeOpacity={0.5} className="stroke-muted-foreground" />
             <Tooltip content={<NetWorthTooltipContent />} />
             <Area
               type="monotone"
