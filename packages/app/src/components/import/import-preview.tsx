@@ -158,10 +158,6 @@ export function ImportPreview({
   const [merging, setMerging] = useState(false);
   const { merge } = useImportMerge(budgetPath);
 
-  const newAccountCount = sourceAccounts.filter(
-    (s) => !accountMapping[s] || accountMapping[s] === "__create__",
-  ).length;
-
   // Per-source-account preview of the pending merge — same inputs handleMerge
   // passes to `merge`, so what's shown is exactly what lands. Recomputes when the
   // mapping is edited at the gate. Only runs while the confirmation is open.
@@ -369,19 +365,6 @@ export function ImportPreview({
           <DialogContent className="flex max-h-[85vh] flex-col sm:max-w-lg">
             <DialogHeader>
               <DialogTitle>Merge {selectedCount} transactions?</DialogTitle>
-              <DialogDescription>
-                This will add{" "}
-                <strong>
-                  {selectedCount} transaction{selectedCount !== 1 ? "s" : ""}
-                </strong>{" "}
-                ({format(selectedTotal)}) to your budget.
-                {newAccountCount > 0 && (
-                  <>
-                    {" "}
-                    {newAccountCount} new account{newAccountCount > 1 ? "s" : ""} will be created.
-                  </>
-                )}
-              </DialogDescription>
             </DialogHeader>
             {sourceAccounts.length > 0 && (
               <div className="min-h-0 flex-1 overflow-y-auto">
