@@ -92,11 +92,11 @@ export function filterTransactions(
 
   if (filters.uncategorizedOnly) {
     const categoryIds = new Set(categories.map((c) => c.id));
-    result = result.filter((t) => isUncategorized(t, categoryIds));
+    result = result.filter((t) => t.type !== "transfer" && isUncategorized(t, categoryIds));
   }
 
   if (filters.noMerchantOnly) {
-    result = result.filter((t) => normalizeMerchant(t.merchant) === "");
+    result = result.filter((t) => t.type !== "transfer" && normalizeMerchant(t.merchant) === "");
   }
 
   if (filters.dateRange) {

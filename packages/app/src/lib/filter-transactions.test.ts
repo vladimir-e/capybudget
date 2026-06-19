@@ -212,25 +212,26 @@ describe("filterTransactions", () => {
     expect(result).toEqual(secondaryTxns);
   });
 
-  it("uncategorizedOnly matches empty and unknown category ids, excludes categorized", () => {
+  it("uncategorizedOnly matches empty and unknown category ids, excludes categorized and transfers", () => {
     const result = filterTransactions(secondaryTxns, { ...noFilter, uncategorizedOnly: true }, accounts, categories);
-    // x2 (empty), x3 (empty/transfer), x4 (unknown id) — not x1/x5 (real category)
-    expect(ids(result)).toEqual(["x2", "x3", "x4"]);
+    // x2 (empty), x4 (unknown id) — not x1/x5 (real category), not x3 (transfer)
+    expect(ids(result)).toEqual(["x2", "x4"]);
   });
 
-  it("noMerchantOnly matches empty and whitespace merchant only", () => {
+  it("noMerchantOnly matches empty and whitespace merchant only, excludes transfers", () => {
     const result = filterTransactions(secondaryTxns, { ...noFilter, noMerchantOnly: true }, accounts, categories);
-    // x3 (empty), x5 (whitespace) — not the named-merchant rows
-    expect(ids(result)).toEqual(["x3", "x5"]);
+    // x5 (whitespace) — not the named-merchant rows, not x3 (transfer)
+    expect(ids(result)).toEqual(["x5"]);
   });
 
-  it("does not auto-exclude transfers from secondary filters", () => {
-    // The transfer x3 is category-less and merchant-less, so it shows up under
-    // both show-only filters — they compose with type, not against it.
+  it("excludes transfers from both secondary filters", () => {
+    // The transfer x3 is category-less and merchant-less, but transfers are
+    // intentionally uncategorized/merchant-less, so they're noise here — both
+    // show-only filters exclude them.
     const uncategorized = filterTransactions(secondaryTxns, { ...noFilter, uncategorizedOnly: true }, accounts, categories);
     const noMerchant = filterTransactions(secondaryTxns, { ...noFilter, noMerchantOnly: true }, accounts, categories);
-    expect(ids(uncategorized)).toContain("x3");
-    expect(ids(noMerchant)).toContain("x3");
+    expect(ids(uncategorized)).not.toContain("x3");
+    expect(ids(noMerchant)).not.toContain("x3");
   });
 
   it("composes type with uncategorizedOnly (AND)", () => {
