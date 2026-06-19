@@ -1,10 +1,21 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { serializeImportCsv, type ImportTransaction } from "@capybudget/core";
 import { makeImportTransaction } from "@capybudget/core/test-factories";
 import type { DirEntry, FileAdapter, FileStat } from "@capybudget/persistence";
 import { FileStagingStore, parseImportCsv } from "./staging-store";
 
 describe("parseImportCsv", () => {
+  // Validation warns about dropped/fixed rows via console.warn — expected here
+  // since several cases feed deliberately-broken rows. Capture it to keep the
+  // test output clean and to assert the row was flagged for the right reason.
+  let warnSpy: ReturnType<typeof vi.spyOn>;
+  beforeEach(() => {
+    warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+  });
+  afterEach(() => {
+    warnSpy.mockRestore();
+  });
+
   it("round-trips serialized staging back into typed rows", () => {
     const rows: ImportTransaction[] = [
       makeImportTransaction({ id: "imp-1", amount: -2500, merchant: "Whole Foods", categoryId: "cat-1", categoryConfidence: "high", duplicate: true, duplicateConfidence: "low" }),
@@ -33,11 +44,13 @@ describe("parseImportCsv", () => {
   it("drops a row whose amount isn't a number", () => {
     const parsed = parseImportCsv("id,date,amount\nimp-1,2026-01-01,not-a-number");
     expect(parsed).toHaveLength(0);
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("invalid amount"));
   });
 
   it("drops a row with a malformed date", () => {
     const parsed = parseImportCsv("id,date,amount\nimp-1,March 1st,-100");
     expect(parsed).toHaveLength(0);
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("invalid date"));
   });
 
   it("keeps a deliberate zero-amount row", () => {
@@ -51,12 +64,14 @@ describe("parseImportCsv", () => {
   it("drops a row with a blank amount", () => {
     const parsed = parseImportCsv('id,date,amount,description\nimp-1,2026-01-01,," "');
     expect(parsed).toHaveLength(0);
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("invalid amount"));
   });
 
   it("backfills a missing id so the row can be matched back by id", () => {
     const parsed = parseImportCsv("id,date,amount\n,2026-01-01,-100");
     expect(parsed).toHaveLength(1);
     expect(parsed[0].id).toBeTruthy();
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("missing id"));
   });
 });
 

@@ -8,6 +8,7 @@ import {
   Outlet,
   RouterProvider,
 } from "@tanstack/react-router"
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { ProviderSection } from "@/components/settings/provider-section"
 import { SettingsScreen } from "@/components/settings/settings-screen"
 
@@ -39,7 +40,16 @@ async function renderSettings() {
     }),
   })
   await router.load()
-  return render(<RouterProvider router={router} />)
+  // SettingsScreen → GeneralSection → useBudgetMeta reads via TanStack Query,
+  // so the screen needs a QueryClient just like the app-side settings test.
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  })
+  return render(
+    <QueryClientProvider client={queryClient}>
+      <RouterProvider router={router} />
+    </QueryClientProvider>,
+  )
 }
 
 describe("ProviderSection in the demo", () => {
