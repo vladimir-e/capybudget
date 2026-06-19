@@ -59,6 +59,28 @@ describe("filterTransactions", () => {
     expect(result.map((t) => t.id)).toEqual(["t1", "t2"]);
   });
 
+  it("single-day selection returns that whole day (from === to, inclusive)", () => {
+    // The picker hands `from`/`to` as local-midnight Dates; t1 is stored at noon.
+    const feb10 = new Date(2026, 1, 10);
+    const result = filterTransactions(
+      txns,
+      { ...noFilter, dateRange: { from: feb10, to: feb10 } },
+      accounts,
+      categories,
+    );
+    expect(result.map((t) => t.id)).toEqual(["t1"]);
+  });
+
+  it("range is inclusive of both endpoint days", () => {
+    const result = filterTransactions(
+      txns,
+      { ...noFilter, dateRange: { from: new Date(2026, 1, 10), to: new Date(2026, 1, 15) } },
+      accounts,
+      categories,
+    );
+    expect(result.map((t) => t.id)).toEqual(["t1", "t2"]);
+  });
+
   it("searches by merchant (case-insensitive)", () => {
     const result = filterTransactions(txns, { ...noFilter, search: "trader" }, accounts, categories);
     expect(result).toHaveLength(1);
