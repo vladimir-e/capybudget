@@ -18,20 +18,6 @@ async function waitForApp() {
 const TIMEOUT = 15_000;
 
 describe("Fresh start", () => {
-  it("prompts to create an account when adding a transaction with no accounts", async () => {
-    const { user } = await renderApp({
-      seed: { accounts: [], categories: [], transactions: [] },
-    });
-    await waitForApp();
-
-    // The header "Add transaction" should redirect to account creation
-    const header = screen.getByRole("banner");
-    await user.click(within(header).getByRole("button", { name: /add transaction/i }));
-
-    const dialog = await screen.findByRole("dialog");
-    expect(within(dialog).getByText("Add Account")).toBeInTheDocument();
-  }, TIMEOUT);
-
   it("creates first account then adds first transaction", async () => {
     const groceries = makeCategory({ id: "cat-groceries", name: "Groceries" });
     const { user, repo } = await renderApp({

@@ -55,6 +55,27 @@ afterEach(() => {
   cleanup();
 });
 
+describe("SpendingTab — empty states", () => {
+  it("shows the brand-new-budget copy when the budget has no transactions at all", () => {
+    renderWithProviders(
+      <SpendingTab
+        transactions={[]}
+        categories={[]}
+        dateRange={dateRange}
+        periodType="month"
+        hasAnyTransactions={false}
+      />,
+    );
+
+    // A brand-new budget gets the forward-looking copy, not the period-scoped
+    // "no expenses in this period" — the empty period is the whole budget.
+    expect(
+      screen.getByText("This will be useful once you have more data."),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("No expenses in this period")).not.toBeInTheDocument();
+  });
+});
+
 describe("SpendingTab — drilldown wiring", () => {
   it("clicking the category-list amount opens the modal with the same pre-filter as a pie-slice click", async () => {
     const user = userEvent.setup();

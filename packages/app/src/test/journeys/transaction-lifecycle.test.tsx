@@ -38,6 +38,13 @@ function getTransactionTable() {
   return screen.getByRole("table");
 }
 
+/** Find an account link in the sidebar (disambiguates from the form selector). */
+function getSidebarAccountLink(name: string): HTMLElement {
+  const inLink = screen.getAllByText(name).find((el) => el.closest("a"));
+  if (!inLink) throw new Error(`Account "${name}" not found in sidebar`);
+  return inLink;
+}
+
 /** Open the transaction form and wait for the auto-focus timer to settle. */
 async function openTransactionForm(user: ReturnType<typeof import("@testing-library/user-event").default.setup>) {
   await user.click(screen.getByRole("button", { name: /add transaction/i }));
@@ -64,6 +71,19 @@ describe("Transaction lifecycle", () => {
     expect(within(table).getByText("Whole Foods")).toBeInTheDocument();
     expect(within(table).getByText("-$42.00")).toBeInTheDocument();
     expect(within(table).getByText("Groceries")).toBeInTheDocument();
+  }, TIMEOUT);
+
+  it("navigates from the sidebar to a single account view", async () => {
+    const { user } = await renderApp({ seed });
+    await waitForApp();
+
+    await user.click(getSidebarAccountLink("Checking"));
+
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: "Checking" })).toBeInTheDocument();
+    });
+    // The account view still renders its transaction table.
+    expect(screen.getByRole("table")).toBeInTheDocument();
   }, TIMEOUT);
 
   it("adds a new expense transaction via the form", async () => {
