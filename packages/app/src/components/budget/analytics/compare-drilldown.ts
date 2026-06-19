@@ -26,11 +26,14 @@ export function bucketWindow(
   return { start: new Date(startMs), end: new Date(endMs) };
 }
 
-/** One row of the Compare line chart. `month` is the X label; `__start`/`__end`
- *  are the bucket's ISO window (see `bucketWindow`). The remaining keys are
- *  dynamic per-category amounts, keyed by category name. */
+/** One row of the Compare line chart. `monthLabel` is the localized X label;
+ *  `month` is core's English bucket label, kept for the drilldown title's
+ *  stable identity. `__start`/`__end` are the bucket's ISO window (see
+ *  `bucketWindow`). The remaining keys are dynamic per-category amounts, keyed
+ *  by the localized category display name. */
 export type CompareChartRow = {
   month: string;
+  monthLabel: string;
   __start: string;
   __end: string;
 } & Record<string, string | number>;
@@ -40,7 +43,7 @@ export type CompareChartRow = {
  *  The 3.x wrapper `onClick` passes a `MouseHandlerDataParam` with no
  *  `activePayload` — only `activeTooltipIndex` (a number for a categorical
  *  chart) and `activeLabel` (the X value). We index our own `chartData`:
- *  the tooltip index first, then a `month`-label match as a fallback so a
+ *  the tooltip index first, then an X-label match as a fallback so a
  *  future Recharts change to the index field can't silently break the click.
  *  Returns `null` when neither resolves to a valid row. */
 export function resolveClickedRow(
@@ -57,7 +60,7 @@ export function resolveClickedRow(
     }
   }
   if (typeof activeLabel === "string") {
-    return rows.find((r) => r.month === activeLabel) ?? null;
+    return rows.find((r) => r.monthLabel === activeLabel) ?? null;
   }
   return null;
 }

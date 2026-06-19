@@ -12,6 +12,22 @@
     "expenses": "Expenses",
     "net": "Net"
   },
+  "fallback": {
+    "unknown": "Unknown",
+    "uncategorized": "Uncategorized"
+  },
+  "basis": {
+    "trailing3": "3-mo avg",
+    "trailing6": "6-mo avg",
+    "trailing12": "12-mo avg",
+    "monthLabel": "{{month}} {{year}}",
+    "trailing3Option": "3 months",
+    "trailing6Option": "6 months",
+    "trailing12Option": "12 months",
+    "sameMonthLastYearOption": "same month last year"
+  },
+  "monthLabel": "{{month}} {{year}}",
+  "weekLabel": "{{month}} {{day}}",
   "period": {
     "month": "Month",
     "quarter": "Quarter",

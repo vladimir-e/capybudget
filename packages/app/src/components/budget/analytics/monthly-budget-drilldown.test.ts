@@ -211,13 +211,15 @@ describe("filterForBudgetDrilldown", () => {
 });
 
 describe("budgetDrilldownTitle", () => {
-  it("uses the category name for kind: category", () => {
+  const identity = (name: string) => name;
+
+  it("uses the localized category name for kind: category", () => {
     expect(
-      budgetDrilldownTitle({ kind: "category", category: budgetedGroceries }, t),
+      budgetDrilldownTitle({ kind: "category", category: budgetedGroceries }, t, identity),
     ).toBe("Groceries");
   });
 
   it("labels the all-spend drilldown", () => {
-    expect(budgetDrilldownTitle({ kind: "all" }, t)).toBe("Spent this month");
+    expect(budgetDrilldownTitle({ kind: "all" }, t, identity)).toBe("Spent this month");
   });
 });

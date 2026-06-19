@@ -1,5 +1,6 @@
 import type { Category, CategoryGroup } from "@capybudget/core";
 import { useTranslation } from "@capybudget/i18n";
+import { useGroupDisplayName } from "@/lib/display-names";
 import type { BudgetRow } from "./monthly-budget-rows";
 import { CategoryRow } from "./monthly-budget-category-row";
 
@@ -40,6 +41,7 @@ export function GroupSection({
   onDrilldown,
 }: GroupSectionProps) {
   const { t } = useTranslation("analytics");
+  const groupDisplay = useGroupDisplayName();
   const entries = categories.map((c) => ({
     category: c,
     row: rowByCategory.get(c.id),
@@ -66,7 +68,7 @@ export function GroupSection({
       {/* Group header — title only, full width, no per-group subtotals. */}
       <div className="px-3 pt-3 pb-1.5 border-b">
         <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
-          {group}
+          {groupDisplay(group)}
           {targetedCount < totalCount && (
             <span className="ml-2 text-xs font-normal normal-case tracking-normal text-muted-foreground/60">
               {t("monthlyBudget.groupTracked", { targeted: targetedCount, total: totalCount })}

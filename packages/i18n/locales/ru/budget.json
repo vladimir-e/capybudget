@@ -96,6 +96,44 @@
     "subtitle": "Снимите галочку, чтобы исключить из итога",
     "empty": "Нет активных счетов."
   },
+  "canonicalCategory": {
+    "Paycheck": "Зарплата",
+    "Other Income": "Прочие доходы",
+    "Housing": "Жильё",
+    "Bills & Utilities": "Счета и ЖКХ",
+    "Subscriptions": "Подписки",
+    "Groceries": "Продукты",
+    "Dining Out": "Кафе и рестораны",
+    "Transportation": "Транспорт",
+    "Alcohol & Smoking": "Алкоголь и сигареты",
+    "Health & Beauty": "Здоровье и красота",
+    "Clothing": "Одежда",
+    "Fun & Hobbies": "Развлечения и хобби",
+    "Allowances": "Карманные деньги",
+    "Education & Business": "Образование и бизнес",
+    "Gifts & Giving": "Подарки и пожертвования",
+    "Housekeeping & Maintenance": "Дом и обслуживание",
+    "Big Purchases": "Крупные покупки",
+    "Travel": "Путешествия",
+    "Taxes & Fees": "Налоги и сборы"
+  },
+  "canonicalGroup": {
+    "Income": "Доходы",
+    "Fixed": "Обязательные",
+    "Daily Living": "Повседневные",
+    "Personal": "Личные",
+    "Irregular": "Нерегулярные",
+    "Archived": "Архив"
+  },
+  "accountType": {
+    "cash": "Наличные",
+    "checking": "Дебетовая",
+    "savings": "Накопительный",
+    "credit_card": "Кредитная карта",
+    "loan": "Кредиты",
+    "asset": "Активы",
+    "crypto": "Криптовалюта"
+  },
   "category": {
     "panel": {
       "groupNamePlaceholder": "Название группы",
@@ -107,8 +145,7 @@
     "archivedGroup": "Архив",
     "menu": {
       "rename": "Переименовать",
-      "archive": "В архив",
-      "unarchive": "Из архива"
+      "archive": "В архив"
     },
     "toast": {
       "added": "Категория добавлена",

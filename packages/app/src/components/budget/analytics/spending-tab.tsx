@@ -20,6 +20,7 @@ import { TransactionsDrilldownLink } from "@/components/budget/transactions-dril
 import type { PeriodType } from "@/stores/analytics-store";
 import { formatDrilldownSubtitle } from "./format-range";
 import { getRechartsPayload } from "./recharts-payload";
+import { useCategorySeriesLabel } from "./use-analytics-labels";
 import {
   buildSliceDrilldown,
   filterForSliceDrilldown,
@@ -104,6 +105,7 @@ export function SpendingTab({
   const { format } = useFormatMoney();
   const locale = useLocale();
   const { t } = useTranslation("analytics");
+  const categorySeriesLabel = useCategorySeriesLabel();
   const [viewMode, setViewMode] = useState<ViewMode>("expenses");
 
   const viewOptions: Array<{ value: ViewMode; label: string }> = [
@@ -129,11 +131,11 @@ export function SpendingTab({
     () =>
       breakdown.map((s) => ({
         categoryId: s.categoryId,
-        name: s.categoryName,
+        name: categorySeriesLabel(s.categoryId, s.categoryName),
         value: s.total,
         percentage: s.percentage,
       })),
-    [breakdown],
+    [breakdown, categorySeriesLabel],
   );
 
   const emptyMessage = viewMode === "expenses"

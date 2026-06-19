@@ -10,8 +10,9 @@ import {
 } from "@/components/ui/command";
 import { Button } from "@/components/ui/button";
 import type { Account } from "@capybudget/core";
-import { ACCOUNT_TYPE_LABELS, ACCOUNT_TYPE_ORDER } from "@capybudget/core";
+import { ACCOUNT_TYPE_ORDER } from "@capybudget/core";
 import { useTranslation } from "@capybudget/i18n";
+import { useAccountTypeLabel } from "@/lib/display-names";
 import { ChevronDown, X } from "lucide-react";
 
 interface AccountSelectorProps {
@@ -49,6 +50,7 @@ export function AccountSelector({
   onOpenChange: onOpenChangeProp,
 }: AccountSelectorProps) {
   const { t } = useTranslation("budget");
+  const accountTypeLabel = useAccountTypeLabel();
   const resolvedPlaceholder = placeholder ?? t("account.selector.placeholder");
   const [open, setOpen] = useState(defaultOpen);
   const handleOpenChange = (next: boolean) => { setOpen(next); onOpenChangeProp?.(next); };
@@ -127,7 +129,7 @@ export function AccountSelector({
               </CommandGroup>
             )}
             {groups.map((type) => (
-              <CommandGroup key={type} heading={ACCOUNT_TYPE_LABELS[type]}>
+              <CommandGroup key={type} heading={accountTypeLabel(type)}>
                 {active
                   .filter((a) => a.type === type)
                   .map((a) => {

@@ -6,6 +6,7 @@ import {
 import type { Category } from "@capybudget/core";
 import { useTranslation } from "@capybudget/i18n";
 import { useFormatMoney } from "@/contexts/currency-context";
+import { useCategoryDisplayName } from "@/lib/display-names";
 import { useSetCategoryAssigned } from "@/hooks/use-category-mutations";
 import { toast } from "sonner";
 import { TransactionsDrilldownLink } from "@/components/budget/transactions-drilldown-link";
@@ -30,6 +31,7 @@ interface AssignedInputProps {
 function AssignedInput({ category, row }: AssignedInputProps) {
   const { format } = useFormatMoney();
   const { t } = useTranslation("analytics");
+  const categoryDisplay = useCategoryDisplayName();
   // When not editing, the displayed value is derived directly from the props.
   // When editing, we mount a separate <Editor> with its own local state and
   // an unconditional auto-focus on mount. This sidesteps the "sync state on
@@ -49,7 +51,7 @@ function AssignedInput({ category, row }: AssignedInputProps) {
   let ariaLabel: string;
   if (row.assigned !== null) {
     display = <span className="tabular-nums">{format(row.assigned)}</span>;
-    ariaLabel = t("budgetInput.editAria", { name: category.name });
+    ariaLabel = t("budgetInput.editAria", { name: categoryDisplay(category.name) });
   } else if (row.isImplicit) {
     // AUTO is a prefix label pinned left while the amount stays pegged to the
     // column's right edge, so auto targets line up with explicit-budget rows.
@@ -63,10 +65,10 @@ function AssignedInput({ category, row }: AssignedInputProps) {
         </span>
       </span>
     );
-    ariaLabel = t("budgetInput.setAutoAria", { name: category.name, amount: format(row.implicitTarget!) });
+    ariaLabel = t("budgetInput.setAutoAria", { name: categoryDisplay(category.name), amount: format(row.implicitTarget!) });
   } else {
     display = <span className="text-muted-foreground/60 italic">{t("budgetInput.set")}</span>;
-    ariaLabel = t("budgetInput.setAria", { name: category.name });
+    ariaLabel = t("budgetInput.setAria", { name: categoryDisplay(category.name) });
   }
 
   return (
@@ -84,6 +86,7 @@ function AssignedInput({ category, row }: AssignedInputProps) {
 function Editor({ category, onDone }: { category: Category; onDone: () => void }) {
   const { symbol } = useFormatMoney();
   const { t } = useTranslation("analytics");
+  const categoryDisplay = useCategoryDisplayName();
   const [value, setValue] = useState(() =>
     category.assigned === null ? "" : centsToEditString(category.assigned),
   );
@@ -127,7 +130,7 @@ function Editor({ category, onDone }: { category: Category; onDone: () => void }
     setAssigned.mutate(
       { categoryId: category.id, assigned: next },
       {
-        onError: () => toast.error(t("budgetInput.updateError", { name: category.name })),
+        onError: () => toast.error(t("budgetInput.updateError", { name: categoryDisplay(category.name) })),
       },
     );
     onDone();
@@ -172,6 +175,7 @@ interface CategoryRowProps {
 export function CategoryRow({ category, row, referenceLabel, onDrilldown }: CategoryRowProps) {
   const { format } = useFormatMoney();
   const { t } = useTranslation("analytics");
+  const categoryDisplay = useCategoryDisplayName();
   const { spent, effectiveTarget } = row;
   const targeted = effectiveTarget !== null;
   const hasSpent = spent > 0;
@@ -194,7 +198,7 @@ export function CategoryRow({ category, row, referenceLabel, onDrilldown }: Cate
           className="h-2 w-2 rounded-full shrink-0"
           style={{ backgroundColor: targeted ? "var(--brand)" : "var(--muted-foreground)" }}
         />
-        <span className="text-sm truncate">{category.name}</span>
+        <span className="text-sm truncate">{categoryDisplay(category.name)}</span>
       </div>
 
       {/* Assigned / target (editable) */}
@@ -208,7 +212,7 @@ export function CategoryRow({ category, row, referenceLabel, onDrilldown }: Cate
         <div className="text-right text-sm tabular-nums">
           <TransactionsDrilldownLink
             onClick={() => onDrilldown(category)}
-            ariaLabel={t("a11y.viewTransactionsAria", { name: category.name })}
+            ariaLabel={t("a11y.viewTransactionsAria", { name: categoryDisplay(category.name) })}
           >
             {format(spent)}
           </TransactionsDrilldownLink>

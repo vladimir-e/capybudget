@@ -11,8 +11,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import type { Account, AccountType } from "@capybudget/core";
-import { ACCOUNT_TYPE_LABELS, ACCOUNT_TYPE_ORDER, parseMoney } from "@capybudget/core";
+import { ACCOUNT_TYPE_ORDER, parseMoney } from "@capybudget/core";
 import { useTranslation } from "@capybudget/i18n";
+import { useAccountTypeLabel } from "@/lib/display-names";
 import { useFormatMoney } from "@/contexts/currency-context";
 import { useCreateAccount, useUpdateAccount } from "@/hooks/use-account-mutations";
 import { toast } from "sonner";
@@ -25,6 +26,7 @@ interface AccountDialogProps {
 
 export function AccountDialog({ open, onOpenChange, editingAccount }: AccountDialogProps) {
   const { t } = useTranslation(["budget", "common"]);
+  const accountTypeLabel = useAccountTypeLabel();
   const { symbol } = useFormatMoney();
   const isEditing = !!editingAccount;
   const [name, setName] = useState(editingAccount?.name ?? "");
@@ -105,13 +107,13 @@ export function AccountDialog({ open, onOpenChange, editingAccount }: AccountDia
                 value={[type]}
                 onValueChange={(v) => { if (v.length > 0) setType(v[v.length - 1] as AccountType); }}
               >
-                {ACCOUNT_TYPE_ORDER.map((t) => (
+                {ACCOUNT_TYPE_ORDER.map((type) => (
                   <ToggleGroupItem
-                    key={t}
-                    value={t}
+                    key={type}
+                    value={type}
                     className="aria-pressed:bg-brand aria-pressed:text-white aria-pressed:border-brand"
                   >
-                    {ACCOUNT_TYPE_LABELS[t]}
+                    {accountTypeLabel(type)}
                   </ToggleGroupItem>
                 ))}
               </ToggleGroup>

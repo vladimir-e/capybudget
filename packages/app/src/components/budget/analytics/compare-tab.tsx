@@ -16,11 +16,13 @@ import {
 import type { Category, DateRange, Transaction } from "@capybudget/core";
 import { useTranslation } from "@capybudget/i18n";
 import { useFormatMoney } from "@/contexts/currency-context";
+import { useGroupDisplayName } from "@/lib/display-names";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ChartSwitcher } from "./chart-switcher";
 import { EmptyState } from "@/components/ui/empty-state";
 import { TransactionsModal } from "@/components/budget/transactions-modal";
 import { formatCountAndTotal } from "./format-range";
+import { useCategorySeriesLabel, useMonthLabel, useWeekLabel } from "./use-analytics-labels";
 import {
   bucketWindow,
   filterForCompareDrilldown,
@@ -238,6 +240,10 @@ interface CompareTabBodyProps extends CompareTabProps {
 function CompareTabBody({ transactions, categories, dateRange, viewMode, hasAnyTransactions }: CompareTabBodyProps) {
   const { format, formatCompact } = useFormatMoney();
   const { t } = useTranslation("analytics");
+  const categorySeriesLabel = useCategorySeriesLabel();
+  const groupDisplay = useGroupDisplayName();
+  const monthLabel = useMonthLabel();
+  const weekLabel = useWeekLabel();
   // Build category rows for current period + view mode.
   const rows = useMemo(
     () => buildCategoryRows(transactions, categories, dateRange, viewMode),
@@ -329,38 +335,45 @@ function CompareTabBody({ transactions, categories, dateRange, viewMode, hasAnyT
   const periodHasData = rows.length > 0;
   const anySelected = selected.size > 0;
 
-  // Map series → color slot, handling Uncategorized's empty-string id.
+  // Map series → color slot + localized line label, handling Uncategorized's
+  // empty-string id. The display label is the chart's series-join key: both the
+  // `<Line dataKey>` and the row values below key off it, so translating it in
+  // one place keeps the join intact.
   const seriesWithColor = useMemo(() => {
     return seriesData.series.map((s) => {
       const key = toSelectionKey(s.categoryId);
       const slot = pick.colorMap.get(key) ?? 0;
       return {
         ...s,
+        displayName: categorySeriesLabel(s.categoryId, s.categoryName),
         color: CHART_LINE_COLORS[slot % CHART_LINE_COLORS.length],
       };
     });
-  }, [seriesData.series, pick.colorMap]);
+  }, [seriesData.series, pick.colorMap, categorySeriesLabel]);
 
-  // Chart data shape: { month, __start, __end, [categoryName]: cents, ... }.
+  // Chart data shape: { month, monthLabel, __start, __end, [displayName]: cents, ... }.
   // Each row carries its bucket's own transaction window so a click maps
   // deterministically back to a date range. The `__`-prefixed keys never
   // render as lines — only `seriesWithColor` keys do.
   const chartData = useMemo(() => {
-    const nameById = new Map(seriesData.series.map((s) => [s.categoryId, s.categoryName]));
+    const labelById = new Map(
+      seriesData.series.map((s) => [s.categoryId, categorySeriesLabel(s.categoryId, s.categoryName)]),
+    );
     return seriesData.points.map((point): CompareChartRow => {
       const win = bucketWindow(point.date, granularity, dateRange);
       const row: CompareChartRow = {
         month: point.month,
+        monthLabel: granularity === "week" ? weekLabel(point.date) : monthLabel(point.date),
         __start: win.start.toISOString(),
         __end: win.end.toISOString(),
       };
       for (const [catId, amt] of Object.entries(point.byCategory)) {
-        const name = nameById.get(catId) ?? "Uncategorized";
+        const name = labelById.get(catId) ?? categorySeriesLabel(catId, "Uncategorized");
         row[name] = amt;
       }
       return row;
     });
-  }, [seriesData, granularity, dateRange]);
+  }, [seriesData, granularity, dateRange, categorySeriesLabel, monthLabel, weekLabel]);
 
   const [drilldown, setDrilldown] = useState<CompareDrilldown | null>(null);
 
@@ -382,7 +395,7 @@ function CompareTabBody({ transactions, categories, dateRange, viewMode, hasAnyT
     const row = resolveClickedRow(chartData, s?.activeTooltipIndex, s?.activeLabel);
     if (!row) return;
     setDrilldown({
-      label: row.month,
+      label: row.monthLabel,
       range: { from: new Date(row.__start), to: new Date(row.__end) },
       categoryIds: selectedIdsForCore,
       mode: viewMode,
@@ -431,7 +444,7 @@ function CompareTabBody({ transactions, categories, dateRange, viewMode, hasAnyT
           {grouped.map(({ group, rows: groupRowsList }) => (
             <div key={group} className="space-y-1">
               <div className="text-[11px] uppercase tracking-wider text-muted-foreground/80 font-medium pb-0.5 border-b border-border/50">
-                {group}
+                {group === "Uncategorized" ? t("fallback.uncategorized") : groupDisplay(group)}
               </div>
               <ul className="space-y-0.5">
                 {groupRowsList.map((row) => {
@@ -469,10 +482,10 @@ function CompareTabBody({ transactions, categories, dateRange, viewMode, hasAnyT
                           checked={isChecked}
                           disabled={isZero}
                           onCheckedChange={() => toggle(key)}
-                          aria-label={t("compare.toggleAria", { name: row.name })}
+                          aria-label={t("compare.toggleAria", { name: categorySeriesLabel(row.id, row.name) })}
                         />
                         <span className="text-sm text-foreground truncate">
-                          {row.name}
+                          {categorySeriesLabel(row.id, row.name)}
                         </span>
                         <span className="text-xs text-muted-foreground tabular-nums text-right">
                           {row.total > 0 ? format(row.total) : ""}
@@ -503,7 +516,7 @@ function CompareTabBody({ transactions, categories, dateRange, viewMode, hasAnyT
             >
               <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
               <XAxis
-                dataKey="month"
+                dataKey="monthLabel"
                 tick={{ fontSize: 12 }}
                 className="text-muted-foreground"
               />
@@ -530,7 +543,7 @@ function CompareTabBody({ transactions, categories, dateRange, viewMode, hasAnyT
               {seriesWithColor.map((s) => (
                 <Line
                   key={s.categoryId || UNCATEGORIZED_KEY}
-                  dataKey={s.categoryName}
+                  dataKey={s.displayName}
                   type="monotone"
                   stroke={s.color}
                   strokeWidth={2}

@@ -31,6 +31,26 @@
   "chart": {
     "total": "всего"
   },
+  "tool": {
+    "list_accounts": "Запрос счетов",
+    "list_transactions": "Запрос операций",
+    "list_categories": "Запрос категорий",
+    "search_transactions": "Поиск операций",
+    "group_transactions": "Группировка операций",
+    "create_transaction": "Создание операции",
+    "update_transaction": "Обновление операции",
+    "delete_transactions": "Удаление операций",
+    "create_account": "Создание счёта",
+    "update_account": "Обновление счёта",
+    "delete_account": "Удаление счёта",
+    "create_category": "Создание категории",
+    "update_category": "Обновление категории",
+    "delete_category": "Удаление категории",
+    "bulk_update_transactions": "Обновление операций",
+    "start_import": "Запуск импорта",
+    "render_chart": "Отрисовка графика",
+    "ToolSearch": "Поиск инструментов"
+  },
   "attachments": {
     "tooLarge": "{{name}} превышает лимит 5 МБ",
     "unsupported": "{{name}} — неподдерживаемый тип файла",

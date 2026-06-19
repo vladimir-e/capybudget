@@ -12,6 +12,22 @@
     "expenses": "Расходы",
     "net": "Итого"
   },
+  "fallback": {
+    "unknown": "Неизвестно",
+    "uncategorized": "Без категории"
+  },
+  "basis": {
+    "trailing3": "сред. за 3 мес.",
+    "trailing6": "сред. за 6 мес.",
+    "trailing12": "сред. за 12 мес.",
+    "monthLabel": "{{month}} {{year}}",
+    "trailing3Option": "3 месяца",
+    "trailing6Option": "6 месяцев",
+    "trailing12Option": "12 месяцев",
+    "sameMonthLastYearOption": "тот же месяц год назад"
+  },
+  "monthLabel": "{{month}} {{year}}",
+  "weekLabel": "{{month}} {{day}}",
   "period": {
     "month": "Месяц",
     "quarter": "Квартал",

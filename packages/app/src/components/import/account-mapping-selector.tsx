@@ -10,8 +10,9 @@ import {
 } from "@/components/ui/command";
 import { Button } from "@/components/ui/button";
 import type { Account } from "@capybudget/core";
-import { ACCOUNT_TYPE_LABELS, ACCOUNT_TYPE_ORDER } from "@capybudget/core";
+import { ACCOUNT_TYPE_ORDER } from "@capybudget/core";
 import { useTranslation } from "@capybudget/i18n";
+import { useAccountTypeLabel } from "@/lib/display-names";
 import { ChevronDown, Plus } from "lucide-react";
 
 /** The per-source-account destination picker: an existing account grouped by
@@ -30,6 +31,7 @@ export function AccountMappingSelector({
   onChange: (value: string) => void;
 }) {
   const { t } = useTranslation("import");
+  const accountTypeLabel = useAccountTypeLabel();
   const [open, setOpen] = useState(false);
   const active = accounts.filter((a) => !a.archived);
   const groups = ACCOUNT_TYPE_ORDER.filter((type) =>
@@ -76,7 +78,7 @@ export function AccountMappingSelector({
               </CommandItem>
             </CommandGroup>
             {groups.map((type) => (
-              <CommandGroup key={type} heading={ACCOUNT_TYPE_LABELS[type]}>
+              <CommandGroup key={type} heading={accountTypeLabel(type)}>
                 {active
                   .filter((a) => a.type === type)
                   .map((a) => (

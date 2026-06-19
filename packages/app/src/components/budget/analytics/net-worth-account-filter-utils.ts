@@ -1,16 +1,18 @@
-import type { Account } from "@capybudget/core";
-import { ACCOUNT_TYPE_LABELS, ACCOUNT_TYPE_ORDER } from "@capybudget/core";
+import type { Account, AccountType } from "@capybudget/core";
+import { ACCOUNT_TYPE_ORDER } from "@capybudget/core";
 
 /** The transient Net Worth filter tracks an EXCLUDED-id set; default empty means
  *  every account is included, so accounts added later are included automatically. */
 
+/** A group's `key` is its account type, or the archived sentinel. Display labels
+ *  are derived at the render edge (account types localize; archived has its own
+ *  catalog key) so this stays locale-agnostic. */
+export const ARCHIVED_GROUP_KEY = "__archived__";
+
 export interface AccountGroup {
-  key: string;
-  label: string;
+  key: AccountType | typeof ARCHIVED_GROUP_KEY;
   accounts: Account[];
 }
-
-const ARCHIVED_GROUP_KEY = "__archived__";
 
 /** The archived group mixes account types, so it needs the type tiebreaker that
  *  the per-type active groups don't (those are already type-homogeneous). */
@@ -33,14 +35,13 @@ export function groupAccounts(accounts: Account[]): AccountGroup[] {
       .filter((a) => a.type === type)
       .sort((a, b) => a.sortOrder - b.sortOrder);
     if (inType.length > 0) {
-      groups.push({ key: type, label: ACCOUNT_TYPE_LABELS[type], accounts: inType });
+      groups.push({ key: type, accounts: inType });
     }
   }
 
   if (archived.length > 0) {
     groups.push({
       key: ARCHIVED_GROUP_KEY,
-      label: "Archived",
       accounts: [...archived].sort(byTypeThenSortOrder),
     });
   }

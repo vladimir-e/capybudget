@@ -29,6 +29,7 @@ import type { Transaction } from "@capybudget/core";
 import { toDateString, formatDateLabel } from "@capybudget/core";
 import { useLocale, useTranslation } from "@capybudget/i18n";
 import { useFormatMoney } from "@/contexts/currency-context";
+import { useCategoryDisplayName } from "@/lib/display-names";
 import {
   CalendarDays,
   FolderInput,
@@ -51,6 +52,7 @@ export function BulkActionBar({ selectedIds, transactions, onClear }: BulkAction
   const { t } = useTranslation(["budget", "common"]);
   const locale = useLocale();
   const { format } = useFormatMoney();
+  const categoryDisplay = useCategoryDisplayName();
   const { data: accounts = [] } = useAccounts();
   const { data: categories = [] } = useCategories();
 
@@ -81,7 +83,8 @@ export function BulkActionBar({ selectedIds, transactions, onClear }: BulkAction
 
   const handleCategoryChange = (categoryId: string | null) => {
     bulkCategory.mutate({ ids: selectedIds, categoryId: categoryId ?? "" });
-    const label = categories.find((c) => c.id === categoryId)?.name ?? t("bulk.uncategorized");
+    const name = categories.find((c) => c.id === categoryId)?.name;
+    const label = name ? categoryDisplay(name) : t("bulk.uncategorized");
     toast.success(t("bulk.toast.categorized", { count: nonTransferCount, label }));
   };
 
@@ -114,7 +117,10 @@ export function BulkActionBar({ selectedIds, transactions, onClear }: BulkAction
     categoryIds.size > 1
       ? t("bulk.mixedCategories")
       : categoryIds.size === 1
-        ? (categories.find((c) => c.id === [...categoryIds][0])?.name ?? t("bulk.uncategorized"))
+        ? (() => {
+            const name = categories.find((c) => c.id === [...categoryIds][0])?.name;
+            return name ? categoryDisplay(name) : t("bulk.uncategorized");
+          })()
         : t("bulk.uncategorized");
 
   return (

@@ -1,3 +1,5 @@
+import type { TFunction } from "i18next"
+
 /**
  * Human-readable labels for tool-activity content blocks.
  *
@@ -7,28 +9,36 @@
  * applies uniformly. Unknown tools fall back to their raw name.
  */
 
-const TOOL_LABELS: Record<string, string> = {
-  list_accounts: "Querying accounts",
-  list_transactions: "Querying transactions",
-  list_categories: "Querying categories",
-  search_transactions: "Searching transactions",
-  group_transactions: "Grouping transactions",
-  create_transaction: "Creating transaction",
-  update_transaction: "Updating transaction",
-  delete_transactions: "Deleting transactions",
-  create_account: "Creating account",
-  update_account: "Updating account",
-  delete_account: "Deleting account",
-  create_category: "Creating category",
-  update_category: "Updating category",
-  delete_category: "Deleting category",
-  bulk_update_transactions: "Updating transactions",
-  start_import: "Starting import",
-  render_chart: "Rendering chart",
+const KNOWN_TOOLS = [
+  "list_accounts",
+  "list_transactions",
+  "list_categories",
+  "search_transactions",
+  "group_transactions",
+  "create_transaction",
+  "update_transaction",
+  "delete_transactions",
+  "create_account",
+  "update_account",
+  "delete_account",
+  "create_category",
+  "update_category",
+  "delete_category",
+  "bulk_update_transactions",
+  "start_import",
+  "render_chart",
   // Claude CLI built-in — surfaces when the CLI defers MCP tool schemas.
-  ToolSearch: "Looking up tools",
+  "ToolSearch",
+] as const
+
+type KnownTool = (typeof KNOWN_TOOLS)[number]
+
+const KNOWN_TOOL_SET = new Set<string>(KNOWN_TOOLS)
+
+function isKnownTool(tool: string): tool is KnownTool {
+  return KNOWN_TOOL_SET.has(tool)
 }
 
-export function getToolLabel(tool: string): string {
-  return TOOL_LABELS[tool] ?? tool
+export function getToolLabel(tool: string, t: TFunction<"capy">): string {
+  return isKnownTool(tool) ? t(`tool.${tool}`) : tool
 }

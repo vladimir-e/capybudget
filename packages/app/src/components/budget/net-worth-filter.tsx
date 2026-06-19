@@ -1,7 +1,8 @@
 import { Settings2 } from "lucide-react";
 import type { Account } from "@capybudget/core";
-import { ACCOUNT_TYPE_LABELS, ACCOUNT_TYPE_ORDER } from "@capybudget/core";
+import { ACCOUNT_TYPE_ORDER } from "@capybudget/core";
 import { useTranslation } from "@capybudget/i18n";
+import { useAccountTypeLabel } from "@/lib/display-names";
 import {
   Popover,
   PopoverContent,
@@ -20,6 +21,7 @@ interface NetWorthFilterProps {
  *  hidden — they're already excluded from Net Worth by virtue of being archived. */
 export function NetWorthFilter({ accounts }: NetWorthFilterProps) {
   const { t } = useTranslation("budget");
+  const accountTypeLabel = useAccountTypeLabel();
   const setExclusions = useSetNetWorthExclusions();
 
   const candidates = accounts
@@ -75,7 +77,7 @@ export function NetWorthFilter({ accounts }: NetWorthFilterProps) {
           {[...byType.entries()].map(([type, accts], idx) => (
             <div key={type} className={idx === 0 ? "" : "mt-1"}>
               <div className="px-3 pt-1 pb-0.5 text-[9px] font-semibold uppercase tracking-wider text-muted-foreground/50">
-                {ACCOUNT_TYPE_LABELS[type as Account["type"]]}
+                {accountTypeLabel(type as Account["type"])}
               </div>
               {accts.map((a) => {
                 const included = !a.excludeFromNetWorth;

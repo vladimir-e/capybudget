@@ -13,6 +13,7 @@
     "delete": "Delete",
     "add": "Add",
     "archive": "Archive",
+    "unarchive": "Unarchive",
     "edit": "Edit",
     "remove": "Remove",
     "close": "Close",

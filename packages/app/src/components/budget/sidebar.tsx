@@ -36,8 +36,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { ACCOUNT_TYPE_LABELS, getAccountBalance, getAccountsByGroup, getNetWorth, isOpeningBalanceTxn } from "@capybudget/core";
+import { getAccountBalance, getAccountsByGroup, getNetWorth, isOpeningBalanceTxn } from "@capybudget/core";
 import { useTranslation } from "@capybudget/i18n";
+import { useAccountTypeLabel } from "@/lib/display-names";
 import { useFormatMoney } from "@/contexts/currency-context";
 import { useAccounts, useTransactions } from "@/hooks/use-budget-data";
 import { NetWorthFilter } from "./net-worth-filter";
@@ -64,6 +65,7 @@ export function Sidebar({
   onReorderAccounts,
 }: SidebarProps) {
   const { t } = useTranslation("budget");
+  const accountTypeLabel = useAccountTypeLabel();
   const { format, formatCompact } = useFormatMoney();
   const { data: accounts = [] } = useAccounts();
   const { data: transactions = [] } = useTransactions();
@@ -196,7 +198,7 @@ export function Sidebar({
                 <div key={type} className="mt-5">
                   <div className="flex items-center justify-between pl-3 pr-9 mb-1">
                     <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/70">
-                      {ACCOUNT_TYPE_LABELS[type]}
+                      {accountTypeLabel(type)}
                     </span>
                     {showGroupTotal && (
                       <span className="text-[11px] font-medium tabular-nums text-muted-foreground/60">
@@ -408,7 +410,7 @@ function AccountRow({
             ) : (
               <Archive className="mr-2 h-4 w-4" />
             )}
-            {account.archived ? t("category.menu.unarchive") : t("common:actions.archive")}
+            {account.archived ? t("common:actions.unarchive") : t("common:actions.archive")}
           </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem

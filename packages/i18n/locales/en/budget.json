@@ -96,6 +96,44 @@
     "subtitle": "Uncheck to exclude from totals",
     "empty": "No active accounts."
   },
+  "canonicalCategory": {
+    "Paycheck": "Paycheck",
+    "Other Income": "Other Income",
+    "Housing": "Housing",
+    "Bills & Utilities": "Bills & Utilities",
+    "Subscriptions": "Subscriptions",
+    "Groceries": "Groceries",
+    "Dining Out": "Dining Out",
+    "Transportation": "Transportation",
+    "Alcohol & Smoking": "Alcohol & Smoking",
+    "Health & Beauty": "Health & Beauty",
+    "Clothing": "Clothing",
+    "Fun & Hobbies": "Fun & Hobbies",
+    "Allowances": "Allowances",
+    "Education & Business": "Education & Business",
+    "Gifts & Giving": "Gifts & Giving",
+    "Housekeeping & Maintenance": "Housekeeping & Maintenance",
+    "Big Purchases": "Big Purchases",
+    "Travel": "Travel",
+    "Taxes & Fees": "Taxes & Fees"
+  },
+  "canonicalGroup": {
+    "Income": "Income",
+    "Fixed": "Fixed",
+    "Daily Living": "Daily Living",
+    "Personal": "Personal",
+    "Irregular": "Irregular",
+    "Archived": "Archived"
+  },
+  "accountType": {
+    "cash": "Cash",
+    "checking": "Checking",
+    "savings": "Savings",
+    "credit_card": "Credit Card",
+    "loan": "Loans",
+    "asset": "Assets",
+    "crypto": "Crypto"
+  },
   "category": {
     "panel": {
       "groupNamePlaceholder": "Group name",
@@ -107,8 +145,7 @@
     "archivedGroup": "Archived",
     "menu": {
       "rename": "Rename",
-      "archive": "Archive",
-      "unarchive": "Unarchive"
+      "archive": "Archive"
     },
     "toast": {
       "added": "Category added",

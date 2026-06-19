@@ -27,6 +27,15 @@ import {
   type MerchantDrilldownTarget,
 } from "./merchant-drilldown";
 
+interface MerchantRow {
+  merchant: string;
+  displayMerchant: string;
+  total: number;
+  count: number;
+  percentage: number;
+  isUnknown: boolean;
+}
+
 // ── Tooltip ──
 
 function MerchantTooltipContent({
@@ -34,7 +43,7 @@ function MerchantTooltipContent({
   payload,
 }: {
   active?: boolean;
-  payload?: Array<{ payload: { merchant: string; total: number; count: number; percentage: number } }>;
+  payload?: Array<{ payload: MerchantRow }>;
 }) {
   const { format } = useFormatMoney();
   const { t } = useTranslation("analytics");
@@ -42,7 +51,7 @@ function MerchantTooltipContent({
   const data = payload[0].payload;
   return (
     <div className="rounded-lg border bg-background px-3 py-2 shadow-popover">
-      <p className="text-sm font-medium">{data.merchant}</p>
+      <p className="text-sm font-medium">{data.displayMerchant}</p>
       <p className="text-sm text-muted-foreground tabular-nums">
         {format(data.total)} · {t("merchants.txnCount", { count: data.count })} · {data.percentage.toFixed(1)}%
       </p>
@@ -68,9 +77,13 @@ export function MerchantsTab({
   const { format, formatCompact } = useFormatMoney();
   const locale = useLocale();
   const { t } = useTranslation("analytics");
-  const merchants = useMemo(
-    () => getTopMerchants(transactions, 15),
-    [transactions],
+  const merchants = useMemo<MerchantRow[]>(
+    () =>
+      getTopMerchants(transactions, 15).map((m) => ({
+        ...m,
+        displayMerchant: m.isUnknown ? t("fallback.unknown") : m.merchant,
+      })),
+    [transactions, t],
   );
 
   const [drilldown, setDrilldown] = useState<MerchantDrilldownTarget | null>(null);
@@ -119,7 +132,7 @@ export function MerchantsTab({
           />
           <YAxis
             type="category"
-            dataKey="merchant"
+            dataKey="displayMerchant"
             tick={{ fontSize: 12 }}
             className="text-muted-foreground"
             width={120}
@@ -158,9 +171,9 @@ export function MerchantsTab({
             <span className="truncate">
               <TransactionsDrilldownLink
                 onClick={() => handleMerchantClick(m)}
-                ariaLabel={t("a11y.viewTransactionsAria", { name: m.merchant })}
+                ariaLabel={t("a11y.viewTransactionsAria", { name: m.displayMerchant })}
               >
-                {m.merchant}
+                {m.displayMerchant}
               </TransactionsDrilldownLink>
             </span>
             <span className="tabular-nums font-medium text-foreground text-right">
@@ -192,7 +205,7 @@ export function MerchantsTab({
               }
             : {}
         }
-        title={drilldown?.kind === "unknown" ? "Unknown" : (drilldown?.value ?? "")}
+        title={drilldown?.kind === "unknown" ? t("fallback.unknown") : (drilldown?.value ?? "")}
         subtitle={drilldown ? formatDrilldownSubtitle(dateRange, periodType, drilldownTransactions, format, locale, t) : undefined}
       />
     </div>

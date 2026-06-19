@@ -1,9 +1,6 @@
 import { useMemo, useState } from "react";
 import { Checkbox } from "@/components/ui/checkbox";
-import {
-  basisLabel,
-  CATEGORY_GROUP_ORDER,
-} from "@capybudget/core";
+import { CATEGORY_GROUP_ORDER } from "@capybudget/core";
 import type {
   Category,
   CategoryGroup,
@@ -12,6 +9,7 @@ import type {
 } from "@capybudget/core";
 import { useLocale, useTranslation } from "@capybudget/i18n";
 import { useFormatMoney } from "@/contexts/currency-context";
+import { useCategoryDisplayName } from "@/lib/display-names";
 import { useBudgetBasis } from "./use-budget-basis";
 import { buildBudgetView } from "./monthly-budget-rows";
 import { BudgetBarLegend } from "./budget-bar";
@@ -26,6 +24,7 @@ import {
 import { KpiStrip } from "./monthly-budget-kpi-strip";
 import { ColumnHeader, GroupSection } from "./monthly-budget-group-section";
 import { EmptyState } from "@/components/ui/empty-state";
+import { useBasisLabel } from "./use-analytics-labels";
 
 interface MonthlyBudgetTabProps {
   transactions: Transaction[];
@@ -43,6 +42,8 @@ export function MonthlyBudgetTab({
   const { format } = useFormatMoney();
   const locale = useLocale();
   const { t } = useTranslation("analytics");
+  const basisLabel = useBasisLabel();
+  const categoryDisplay = useCategoryDisplayName();
   const [hideUntargeted, setHideUntargeted] = useState(false);
   const [drilldown, setDrilldown] = useState<MonthlyBudgetDrilldown | null>(null);
 
@@ -52,7 +53,7 @@ export function MonthlyBudgetTab({
   // The viewed month is the range's start (a first-of-month boundary).
   const referenceLabel = useMemo(
     () => basisLabel(basis, dateRange.start),
-    [basis, dateRange.start],
+    [basisLabel, basis, dateRange.start],
   );
 
   const view = useMemo(
@@ -243,7 +244,7 @@ export function MonthlyBudgetTab({
               }
             : {}
         }
-        title={drilldown ? budgetDrilldownTitle(drilldown, t) : ""}
+        title={drilldown ? budgetDrilldownTitle(drilldown, t, categoryDisplay) : ""}
         subtitle={drilldown ? formatDrilldownSubtitle(dateRange, "month", drilldownTransactions, format, locale, t) : undefined}
       />
     </div>

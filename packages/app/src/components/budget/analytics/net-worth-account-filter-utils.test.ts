@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import type { Account } from "@capybudget/core";
 import {
+  ARCHIVED_GROUP_KEY,
   computeIncludedIds,
   groupAccounts,
   toggleAccountInclusion,
@@ -101,7 +102,7 @@ describe("groupAccounts", () => {
       makeAccount({ id: "check", type: "checking" }),
       makeAccount({ id: "old", type: "savings", archived: true }),
     ]);
-    expect(groups.map((g) => g.label)).toEqual(["Checking", "Archived"]);
+    expect(groups.map((g) => g.key)).toEqual(["checking", ARCHIVED_GROUP_KEY]);
     expect(groups[groups.length - 1].accounts.map((a) => a.id)).toEqual(["old"]);
   });
 
@@ -112,7 +113,7 @@ describe("groupAccounts", () => {
     ]);
     const savings = groups.find((g) => g.key === "savings");
     expect(savings?.accounts.map((a) => a.id)).toEqual(["active-savings"]);
-    const archived = groups.find((g) => g.label === "Archived");
+    const archived = groups.find((g) => g.key === ARCHIVED_GROUP_KEY);
     expect(archived?.accounts.map((a) => a.id)).toEqual(["old-savings"]);
   });
 });

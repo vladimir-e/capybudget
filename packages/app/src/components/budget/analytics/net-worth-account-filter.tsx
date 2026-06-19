@@ -10,7 +10,9 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { useAccountTypeLabel, useGroupDisplayName } from "@/lib/display-names";
 import {
+  ARCHIVED_GROUP_KEY,
   groupAccounts,
   setInclusionForIds,
   toggleAccountInclusion,
@@ -31,6 +33,10 @@ export function NetWorthAccountFilter({
   onChange,
 }: NetWorthAccountFilterProps) {
   const { t } = useTranslation("analytics");
+  const accountTypeLabel = useAccountTypeLabel();
+  const groupDisplay = useGroupDisplayName();
+  const groupLabel = (group: AccountGroup) =>
+    group.key === ARCHIVED_GROUP_KEY ? groupDisplay("Archived") : accountTypeLabel(group.key);
   const [query, setQuery] = useState("");
 
   const totalCount = accounts.length;
@@ -142,10 +148,10 @@ export function NetWorthAccountFilter({
                     onCheckedChange={(checked) =>
                       setGroupInclusion(group, checked === true)
                     }
-                    aria-label={t("accountFilter.toggleGroupAria", { group: group.label })}
+                    aria-label={t("accountFilter.toggleGroupAria", { group: groupLabel(group) })}
                   />
                   <span className="text-[9px] font-semibold uppercase tracking-wider text-muted-foreground/50">
-                    {group.label}
+                    {groupLabel(group)}
                   </span>
                 </label>
                 {group.accounts.map((a) => (

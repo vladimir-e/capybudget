@@ -19,6 +19,7 @@ import type { Transaction, DateRange } from "@capybudget/core";
 import { useTranslation } from "@capybudget/i18n";
 import { useFormatMoney } from "@/contexts/currency-context";
 import { EmptyState } from "@/components/ui/empty-state";
+import { useMonthLabel } from "./use-analytics-labels";
 
 // ── Tooltip ──
 
@@ -66,9 +67,14 @@ interface CashFlowTabProps {
 export function CashFlowTab({ transactions, dateRange, hasAnyTransactions }: CashFlowTabProps) {
   const { formatCompact } = useFormatMoney();
   const { t } = useTranslation("analytics");
+  const monthLabel = useMonthLabel();
   const cashFlowData = useMemo(
-    () => getCashFlow(transactions, ensureMinMonths(dateRange, 12)),
-    [transactions, dateRange],
+    () =>
+      getCashFlow(transactions, ensureMinMonths(dateRange, 12)).map((p) => ({
+        ...p,
+        monthLabel: monthLabel(p.date),
+      })),
+    [transactions, dateRange, monthLabel],
   );
 
   const { incomeColor, expenseColor } = useThemeColors({
@@ -89,7 +95,7 @@ export function CashFlowTab({ transactions, dateRange, hasAnyTransactions }: Cas
       <BarChart data={cashFlowData} margin={{ top: 5, right: 20, bottom: 5, left: 10 }}>
         <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
         <XAxis
-          dataKey="month"
+          dataKey="monthLabel"
           tick={{ fontSize: 12 }}
           className="text-muted-foreground"
         />

@@ -1,7 +1,8 @@
 import { ChevronDown } from "lucide-react";
-import { BUDGET_BASES, BASIS_OPTION_LABELS } from "@capybudget/core";
+import { BUDGET_BASES } from "@capybudget/core";
 import type { BudgetBasis } from "@capybudget/core";
 import { useTranslation } from "@capybudget/i18n";
+import { useBasisOptionLabel } from "./use-analytics-labels";
 import type { TFunction } from "i18next";
 import { useFormatMoney } from "@/contexts/currency-context";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -263,6 +264,7 @@ export function BudgetBarLegend({
   onBasisChange: (basis: BudgetBasis) => void;
 }) {
   const { t } = useTranslation("analytics");
+  const basisOptionLabel = useBasisOptionLabel();
   return (
     <div className="flex flex-wrap items-center justify-end gap-x-4 gap-y-1.5 text-xs text-muted-foreground">
       <LegendItem glyph={<PinGlyph kind="lastMonth" />} label={t("budgetBar.lastMonthLower")} />
@@ -289,7 +291,7 @@ export function BudgetBarLegend({
           >
             {BUDGET_BASES.map((b) => (
               <DropdownMenuRadioItem key={b} value={b}>
-                {BASIS_OPTION_LABELS[b]}
+                {basisOptionLabel(b)}
               </DropdownMenuRadioItem>
             ))}
           </DropdownMenuRadioGroup>

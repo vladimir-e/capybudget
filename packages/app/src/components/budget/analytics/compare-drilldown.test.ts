@@ -10,9 +10,9 @@ import { makeTransaction } from "@/test/factories";
 
 describe("resolveClickedRow", () => {
   const rows: CompareChartRow[] = [
-    { month: "Jan 2024", __start: "2024-01-01T00:00:00.000Z", __end: "2024-02-01T00:00:00.000Z", Groceries: 1500 },
-    { month: "Feb 2024", __start: "2024-02-01T00:00:00.000Z", __end: "2024-03-01T00:00:00.000Z", Groceries: 1300 },
-    { month: "Mar 2024", __start: "2024-03-01T00:00:00.000Z", __end: "2024-04-01T00:00:00.000Z", Groceries: 900 },
+    { month: "Jan 2024", monthLabel: "Jan 2024", __start: "2024-01-01T00:00:00.000Z", __end: "2024-02-01T00:00:00.000Z", Groceries: 1500 },
+    { month: "Feb 2024", monthLabel: "Feb 2024", __start: "2024-02-01T00:00:00.000Z", __end: "2024-03-01T00:00:00.000Z", Groceries: 1300 },
+    { month: "Mar 2024", monthLabel: "Mar 2024", __start: "2024-03-01T00:00:00.000Z", __end: "2024-04-01T00:00:00.000Z", Groceries: 900 },
   ];
 
   // The shape a Recharts 3.8 LineChart wrapper onClick actually passes

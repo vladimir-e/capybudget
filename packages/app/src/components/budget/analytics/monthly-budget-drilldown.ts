@@ -43,14 +43,17 @@ export function filterForBudgetDrilldown(
   });
 }
 
-/** Modal title for the active drilldown — matches the cell the user clicked. */
+/** Modal title for the active drilldown — matches the cell the user clicked.
+ *  `categoryDisplay` localizes a canonical default category name (the stored
+ *  string is unchanged; only the title text is). */
 export function budgetDrilldownTitle(
   d: MonthlyBudgetDrilldown,
   t: TFunction<"analytics">,
+  categoryDisplay: (name: string) => string,
 ): string {
   switch (d.kind) {
     case "category":
-      return d.category.name;
+      return categoryDisplay(d.category.name);
     case "all":
       return t("monthlyBudget.spentThisMonth");
   }

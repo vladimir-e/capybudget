@@ -11,6 +11,7 @@ import type { Transaction } from "@capybudget/core";
 import { formatDateLabel, resolveTransferPair } from "@capybudget/core";
 import { useLocale, useTranslation } from "@capybudget/i18n";
 import { useFormatMoney } from "@/contexts/currency-context";
+import { useCategoryDisplayName } from "@/lib/display-names";
 import { useAccounts, useCategories, useTransactions } from "@/hooks/use-budget-data";
 import { ArrowRight } from "lucide-react";
 
@@ -26,6 +27,7 @@ export function DeleteTransactionDialog({
   onCancel,
 }: DeleteTransactionDialogProps) {
   const { t } = useTranslation(["budget", "common"]);
+  const categoryDisplay = useCategoryDisplayName();
   const locale = useLocale();
   const { format } = useFormatMoney();
   const { data: accounts = [] } = useAccounts();
@@ -79,7 +81,7 @@ export function DeleteTransactionDialog({
           <div className="text-foreground">
             {isTransfer
               ? transferLabel
-              : category?.name ?? transaction.merchant ?? t("transaction.row.uncategorized")}
+              : category ? categoryDisplay(category.name) : transaction.merchant ?? t("transaction.row.uncategorized")}
           </div>
           {!isTransfer && transaction.merchant && category && (
             <div className="text-muted-foreground text-xs">{transaction.merchant}</div>

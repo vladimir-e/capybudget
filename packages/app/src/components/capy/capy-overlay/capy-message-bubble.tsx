@@ -138,6 +138,7 @@ function ToolGroupCard({
   blocks: ToolActivityBlock[]
   inProgress: boolean
 }) {
+  const { t } = useTranslation("capy")
   return (
     <div className="rounded-xl bg-muted/40 px-3.5 py-2.5">
       <div className="flex flex-col gap-1.5">
@@ -154,7 +155,7 @@ function ToolGroupCard({
               ) : (
                 <Check className="h-3.5 w-3.5 shrink-0 text-brand/80" />
               )}
-              <span>{getToolLabel(block.tool)}</span>
+              <span>{getToolLabel(block.tool, t)}</span>
             </div>
           )
         })}

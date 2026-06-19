@@ -14,6 +14,7 @@ import type { Account, Category, Transaction, TransactionFormData } from "@capyb
 import { formatDateLabel, getAmountClass, resolveTransferPair } from "@capybudget/core";
 import { useLocale, useTranslation } from "@capybudget/i18n";
 import { useFormatMoney } from "@/contexts/currency-context";
+import { useCategoryDisplayName } from "@/lib/display-names";
 import { ArrowRight, Info, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
 
 export interface TransactionRowProps {
@@ -60,6 +61,7 @@ export const TransactionRowMemo = memo(function TransactionRow({
   const { t } = useTranslation(["budget", "common"]);
   const locale = useLocale();
   const { format } = useFormatMoney();
+  const categoryDisplayName = useCategoryDisplayName();
   const account = accountMap.get(txn.accountId);
 
   // Transfer display
@@ -76,7 +78,10 @@ export const TransactionRowMemo = memo(function TransactionRow({
       </span>
     );
   } else if (txn.categoryId) {
-    categoryDisplay = categoryMap.get(txn.categoryId)?.name ?? (
+    const categoryName = categoryMap.get(txn.categoryId)?.name;
+    categoryDisplay = categoryName ? (
+      categoryDisplayName(categoryName)
+    ) : (
       <span className="text-muted-foreground/50 italic">{t("transaction.row.uncategorized")}</span>
     );
   } else {

@@ -8,6 +8,7 @@ import { CategoryGroupSection } from "@/components/budget/category-group-section
 import type { Category } from "@capybudget/core";
 import { CATEGORY_GROUP_ORDER } from "@capybudget/core";
 import { useTranslation } from "@capybudget/i18n";
+import { useCategoryDisplayName } from "@/lib/display-names";
 import {
   useCreateCategory,
   useReorderCategoryDnd,
@@ -21,6 +22,7 @@ interface CategoryPanelProps {
 
 export function CategoryPanel({ categories }: CategoryPanelProps) {
   const { t } = useTranslation("budget");
+  const categoryDisplay = useCategoryDisplayName();
   const [addingGroup, setAddingGroup] = useState(false);
   const [newGroupName, setNewGroupName] = useState("");
   const createCategory = useCreateCategory();
@@ -144,7 +146,7 @@ export function CategoryPanel({ categories }: CategoryPanelProps) {
         {activeItem ? (
           <div className="flex items-center gap-2 rounded-md border bg-card px-3 py-2 shadow-popover">
             <GripVertical className="h-3.5 w-3.5 text-muted-foreground" />
-            <span className="text-sm">{activeItem.name}</span>
+            <span className="text-sm">{categoryDisplay(activeItem.name)}</span>
           </div>
         ) : null}
       </DragOverlay>

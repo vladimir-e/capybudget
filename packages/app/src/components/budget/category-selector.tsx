@@ -11,6 +11,7 @@ import {
 import { Button } from "@/components/ui/button";
 import type { Category } from "@capybudget/core";
 import { useTranslation } from "@capybudget/i18n";
+import { useCategoryDisplayName, useGroupDisplayName } from "@/lib/display-names";
 import { ChevronDown, X } from "lucide-react";
 
 interface CategorySelectorProps {
@@ -45,6 +46,8 @@ export function CategorySelector({
   suffix,
 }: CategorySelectorProps) {
   const { t } = useTranslation("budget");
+  const categoryDisplay = useCategoryDisplayName();
+  const groupDisplay = useGroupDisplayName();
   const resolvedPlaceholder = placeholder ?? t("category.selector.placeholder");
   const [open, setOpen] = useState(defaultOpen);
   const handleOpenChange = (next: boolean) => { setOpen(next); onOpenChangeProp?.(next); };
@@ -52,10 +55,11 @@ export function CategorySelector({
   const active = categories.filter((c) => !c.archived);
   const groups = [...new Set(active.map((c) => c.group))];
 
+  const selectedName = active.find((c) => c.id === value)?.name;
   const selectedLabel =
     value === null && includeAll
       ? t("category.selector.all")
-      : active.find((c) => c.id === value)?.name ?? resolvedPlaceholder;
+      : selectedName ? categoryDisplay(selectedName) : resolvedPlaceholder;
 
   const showClear = clearable && value !== null;
 
@@ -94,7 +98,7 @@ export function CategorySelector({
             {includeAll && (
               <CommandGroup>
                 <CommandItem
-                  value="All Categories"
+                  value={t("category.selector.all")}
                   data-checked={value === null}
                   onSelect={() => {
                     onChange(null);
@@ -108,7 +112,7 @@ export function CategorySelector({
             {includeUncategorized && (
               <CommandGroup>
                 <CommandItem
-                  value="Uncategorized"
+                  value={t("category.selector.uncategorized")}
                   data-checked={value === null}
                   onSelect={() => {
                     onChange(null);
@@ -120,20 +124,20 @@ export function CategorySelector({
               </CommandGroup>
             )}
             {groups.map((group) => (
-              <CommandGroup key={group} heading={group}>
+              <CommandGroup key={group} heading={groupDisplay(group)}>
                 {active
                   .filter((c) => c.group === group)
                   .map((c) => (
                     <CommandItem
                       key={c.id}
-                      value={c.name}
+                      value={categoryDisplay(c.name)}
                       data-checked={c.id === value}
                       onSelect={() => {
                         onChange(c.id);
                         handleOpenChange(false);
                       }}
                     >
-                      {c.name}
+                      {categoryDisplay(c.name)}
                     </CommandItem>
                   ))}
               </CommandGroup>
