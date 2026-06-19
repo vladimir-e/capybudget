@@ -1,3 +1,5 @@
+import { useTranslation } from "@capybudget/i18n";
+
 const PROMO_URL = "https://capybudget.app";
 
 /**
@@ -8,16 +10,17 @@ const PROMO_URL = "https://capybudget.app";
  * shell so it durably pushes the below-banner region down (see styles.css).
  */
 export function MobileNotice() {
+  const { t } = useTranslation("demo");
   return (
     <div className="border-b border-border bg-muted px-3 py-2 text-xs text-muted-foreground sm:hidden">
-      <span>Capy Budget is a desktop app — this preview isn't built for small screens.</span>{" "}
+      <span>{t("mobileNotice.body")}</span>{" "}
       <a
         href={PROMO_URL}
         target="_blank"
         rel="noopener noreferrer"
         className="font-medium whitespace-nowrap text-primary hover:underline"
       >
-        Get the desktop app →
+        {t("mobileNotice.cta")} →
       </a>
     </div>
   );

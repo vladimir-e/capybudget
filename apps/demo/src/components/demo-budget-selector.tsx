@@ -2,6 +2,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { useTheme } from "next-themes";
 import { ExternalLink } from "lucide-react";
 import { open as openExternal } from "@tauri-apps/plugin-shell";
+import { useTranslation } from "@capybudget/i18n";
 
 import { ThemeToggle } from "@/components/theme-toggle";
 import { BudgetTile } from "@/components/budget/budget-tile";
@@ -19,6 +20,7 @@ const PROFILE_STICKERS: Record<string, string> = {
 };
 
 export function DemoBudgetSelector() {
+  const { t } = useTranslation("demo");
   const navigate = useNavigate();
   const { theme, resolvedTheme } = useTheme();
 
@@ -53,11 +55,11 @@ export function DemoBudgetSelector() {
           {/* Eyebrow + title + subtitle */}
           <div className="space-y-1 mb-8">
             <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground/60 font-mono">
-              Demo
+              {t("selector.eyebrow")}
             </p>
             <h1 className="text-3xl font-bold tracking-tight">Capy Budget</h1>
             <p className="text-sm text-muted-foreground">
-              Pick a scenario to explore.
+              {t("selector.subtitle")}
             </p>
           </div>
 

@@ -1,0 +1,20 @@
+{
+  "selector": {
+    "eyebrow": "Demo",
+    "subtitle": "Pick a scenario to explore."
+  },
+  "seeding": {
+    "title": "Seeding random data…",
+    "subtitle": "Any changes reset when you reload.",
+    "progressLabel": "Seeding random data"
+  },
+  "importNotice": {
+    "title": "Smart Import is only available in the desktop app",
+    "body": "Download Capy Budget to turn CSVs and statement photos into a clean ledger.",
+    "cta": "Get the desktop app"
+  },
+  "mobileNotice": {
+    "body": "Capy Budget is a desktop app — this preview isn't built for small screens.",
+    "cta": "Get the desktop app"
+  }
+}

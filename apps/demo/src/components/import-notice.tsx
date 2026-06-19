@@ -1,4 +1,5 @@
 import { Sparkles } from "lucide-react";
+import { useTranslation } from "@capybudget/i18n";
 
 const PROMO_URL = "https://capybudget.app";
 
@@ -9,6 +10,7 @@ const PROMO_URL = "https://capybudget.app";
  * a non-functional preview.
  */
 export function ImportNotice() {
+  const { t } = useTranslation("demo");
   return (
     <div className="flex h-full items-center justify-center p-6">
       <div className="flex max-w-md flex-col items-center gap-4 rounded-xl border border-brand/30 bg-brand/5 px-6 py-8 text-center">
@@ -16,12 +18,9 @@ export function ImportNotice() {
           <Sparkles className="h-5 w-5 text-brand" />
         </div>
         <div className="space-y-1.5">
-          <p className="text-base font-medium">
-            Smart Import is only available in the desktop app
-          </p>
+          <p className="text-base font-medium">{t("importNotice.title")}</p>
           <p className="text-sm text-muted-foreground">
-            Download Capy Budget to turn CSVs and statement photos into a clean
-            ledger.
+            {t("importNotice.body")}
           </p>
         </div>
         <a
@@ -30,7 +29,7 @@ export function ImportNotice() {
           rel="noopener noreferrer"
           className="font-medium whitespace-nowrap text-primary hover:underline"
         >
-          Get the desktop app →
+          {t("importNotice.cta")} →
         </a>
       </div>
     </div>

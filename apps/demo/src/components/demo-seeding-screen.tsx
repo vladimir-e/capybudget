@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useTheme } from "next-themes";
+import { useTranslation } from "@capybudget/i18n";
 
 import bgDay from "@/assets/capy-bg-day.webp";
 import bgNight from "@/assets/capy-bg-night.webp";
@@ -17,6 +18,7 @@ interface DemoSeedingScreenProps {
 }
 
 export function DemoSeedingScreen({ name, onDone }: DemoSeedingScreenProps) {
+  const { t } = useTranslation("demo");
   const { theme, resolvedTheme } = useTheme();
   const isDark = (resolvedTheme ?? theme) === "dark";
   const bgUrl = isDark ? bgNight : bgDay;
@@ -49,17 +51,17 @@ export function DemoSeedingScreen({ name, onDone }: DemoSeedingScreenProps) {
               {name}
             </p>
             <h1 className="text-2xl font-bold tracking-tight">
-              Seeding random data…
+              {t("seeding.title")}
             </h1>
             <p className="text-sm text-muted-foreground">
-              Any changes reset when you reload.
+              {t("seeding.subtitle")}
             </p>
           </div>
 
           <div
             className="h-2 w-full overflow-hidden rounded-full bg-background/40"
             role="progressbar"
-            aria-label="Seeding random data"
+            aria-label={t("seeding.progressLabel")}
             aria-valuemin={0}
             aria-valuemax={100}
             aria-valuenow={progress}
