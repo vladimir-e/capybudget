@@ -71,7 +71,7 @@ import {
   _setStoreLoaderForTests,
 } from "@/stores/intelligence-store";
 
-const TIMEOUT = 15_000;
+const TIMEOUT = 30_000;
 const ASSISTANT_REPLY = "Capy remembers this conversation.";
 const INSTRUCTIONS = "My Amex is for travel; Whole Foods is groceries.";
 

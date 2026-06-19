@@ -78,7 +78,7 @@ export async function renderApp(options: RenderAppOptions = {}): Promise<RenderA
 
   return {
     ...result,
-    user: userEvent.setup(),
+    user: userEvent.setup({ delay: null }),
     repo,
     queryClient,
   };

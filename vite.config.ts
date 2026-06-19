@@ -8,6 +8,8 @@ import path from "path";
 // @ts-expect-error process is a nodejs global
 const host = process.env.TAURI_DEV_HOST;
 
+const journeyGlob = "packages/app/src/test/journeys/**/*.test.{ts,tsx}";
+
 export default defineConfig(async () => ({
   define: {
     __PROJECT_ROOT__: JSON.stringify(process.cwd()),
@@ -35,6 +37,29 @@ export default defineConfig(async () => ({
     // Demo specs run under apps/demo's own config (npm run test:demo) so they
     // see __IS_DEMO__ = true and the Tauri stubs. Keep them out of this run.
     exclude: [...configDefaults.exclude, "apps/demo/**"],
+    projects: [
+      {
+        extends: true,
+        test: {
+          name: "unit",
+          exclude: [...configDefaults.exclude, "apps/demo/**", journeyGlob],
+        },
+      },
+      {
+        extends: true,
+        // The journeys load the full app module graph per file (~5.6s cold
+        // start each). A shared-module worker pool halves that transform cost.
+        // isolate:false leaks module state across files, which is fine here —
+        // every journey resets stores via renderApp — but would corrupt the
+        // unit suite, so it stays scoped to this project.
+        test: {
+          name: "journeys",
+          include: [journeyGlob],
+          pool: "threads",
+          isolate: false,
+        },
+      },
+    ],
   },
   clearScreen: false,
   server: {

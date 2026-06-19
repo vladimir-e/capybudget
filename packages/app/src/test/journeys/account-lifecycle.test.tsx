@@ -6,7 +6,7 @@ import { renderApp } from "@/test/render-app";
 import { makeAccount, makeTransaction } from "@/test/factories";
 
 // CI runners are ~2-3x slower than local; give journey tests breathing room.
-const TIMEOUT = 15_000;
+const TIMEOUT = 30_000;
 
 // ── Helpers ─────────────────────────────────────────────────
 
