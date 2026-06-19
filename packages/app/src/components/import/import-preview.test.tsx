@@ -12,8 +12,34 @@ vi.mock("./import-table", () => ({
     <button onClick={onOpenAccountMapping}>open account mapping</button>
   ),
 }));
+// The mapping rows are the reused element — both dialogs render the same
+// component. The stub surfaces what the preview wires into it: the source rows,
+// the optional per-row balance (rowMeta, only the confirmation passes it), and a
+// remap button that calls back so an edit-at-the-gate is observable.
 vi.mock("./import-mapping", () => ({
-  ImportMappingRows: () => <div data-testid="mapping-rows" />,
+  ImportMappingRows: ({
+    sourceAccounts,
+    accountMapping,
+    onAccountMappingChange,
+    rowMeta,
+  }: {
+    sourceAccounts: string[];
+    accountMapping: Record<string, string>;
+    onAccountMappingChange: (m: Record<string, string>) => void;
+    rowMeta?: Record<string, { resultingBalance: number }>;
+  }) => (
+    <div data-testid="mapping-rows" data-hasmeta={rowMeta ? "yes" : "no"}>
+      {sourceAccounts.map((s) => (
+        <div key={s}>
+          <span>{s}</span>
+          {rowMeta?.[s] && <span>balance:{rowMeta[s].resultingBalance}</span>}
+          <button onClick={() => onAccountMappingChange({ ...accountMapping, [s]: "acct-2" })}>
+            remap {s}
+          </button>
+        </div>
+      ))}
+    </div>
+  ),
 }));
 
 const { merge, flushWriteBack, dataReturn } = vi.hoisted(() => ({
@@ -27,6 +53,19 @@ vi.mock("@/hooks/use-import-data", () => ({ useImportData: () => dataReturn }));
 vi.mock("@/hooks/use-budget-data", () => ({ useTransactions: () => ({ data: [] }) }));
 
 import { ImportPreview } from "./import-preview";
+import type { Account } from "@capybudget/core";
+
+function makeBudgetAccount(overrides: Partial<Account> & { id: string }): Account {
+  return {
+    name: "Account",
+    type: "checking",
+    archived: false,
+    excludeFromNetWorth: false,
+    sortOrder: 1,
+    createdAt: "2026-01-01T00:00:00.000Z",
+    ...overrides,
+  };
+}
 
 const TXN: ImportTransaction = {
   id: "imp-1",
@@ -177,21 +216,11 @@ describe("ImportPreview — account mapping dialog", () => {
     expect(within(dialog).getByTestId("mapping-rows")).toBeInTheDocument();
   });
 
-  it("keeps the merge dialog confirmation-only — no mapping rows", async () => {
-    Object.assign(dataReturn, { sourceAccounts: ["BOFA CHK 1234"] });
-    renderPreview();
-
-    const user = userEvent.setup();
-    await user.click(screen.getByRole("button", { name: "Merge" }));
-
-    const dialog = await screen.findByRole("dialog");
-    expect(within(dialog).queryByTestId("mapping-rows")).toBeNull();
-  });
-
-  it("surfaces the per-account summary in the merge confirmation", async () => {
+  it("renders editable mapping rows with resulting balances in the confirmation", async () => {
     const mapped: ImportTransaction = {
       ...TXN,
       id: "imp-2",
+      amount: -2500,
       sourceAccount: "BOFA CHK 1234",
       accountId: "acct-1",
     };
@@ -200,17 +229,7 @@ describe("ImportPreview — account mapping dialog", () => {
       selectedIds: new Set(["imp-2"]),
       sourceAccounts: ["BOFA CHK 1234"],
       accountMapping: { "BOFA CHK 1234": "acct-1" },
-      accounts: [
-        {
-          id: "acct-1",
-          name: "BofA Checking",
-          type: "checking",
-          archived: false,
-          excludeFromNetWorth: false,
-          sortOrder: 1,
-          createdAt: "2026-01-01T00:00:00.000Z",
-        },
-      ],
+      accounts: [makeBudgetAccount({ id: "acct-1", name: "BofA Checking" })],
     });
     renderPreview();
 
@@ -218,8 +237,60 @@ describe("ImportPreview — account mapping dialog", () => {
     await user.click(screen.getByRole("button", { name: "Merge" }));
 
     const dialog = await screen.findByRole("dialog");
-    expect(within(dialog).getByText("BofA Checking")).toBeInTheDocument();
-    expect(within(dialog).getByText("BOFA CHK 1234")).toBeInTheDocument();
+    const rows = within(dialog).getByTestId("mapping-rows");
+    // The confirmation passes rowMeta — the same component, in summary mode.
+    expect(rows).toHaveAttribute("data-hasmeta", "yes");
+    expect(within(rows).getByText("BOFA CHK 1234")).toBeInTheDocument();
+    // resultingBalance is the destination's post-merge balance (0 + -2500).
+    expect(within(rows).getByText("balance:-2500")).toBeInTheDocument();
+  });
+
+  it("editing a mapping at the gate calls the mapping-change handler", async () => {
+    const handleAccountMappingChange = vi.fn();
+    Object.assign(dataReturn, {
+      transactions: [{ ...TXN, id: "imp-2", sourceAccount: "BOFA CHK 1234", accountId: "acct-1" }],
+      selectedIds: new Set(["imp-2"]),
+      sourceAccounts: ["BOFA CHK 1234"],
+      accountMapping: { "BOFA CHK 1234": "acct-1" },
+      accounts: [makeBudgetAccount({ id: "acct-1", name: "BofA Checking" })],
+      handleAccountMappingChange,
+    });
+    renderPreview();
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "Merge" }));
+
+    const dialog = await screen.findByRole("dialog");
+    await user.click(within(dialog).getByRole("button", { name: "remap BOFA CHK 1234" }));
+
+    expect(handleAccountMappingChange).toHaveBeenCalledWith({ "BOFA CHK 1234": "acct-2" });
+  });
+
+  it("warns about transfers that lost their counterpart, without listing them", async () => {
+    // A lone transfer with no target and no opposite leg downgrades on merge.
+    const orphan: ImportTransaction = {
+      ...TXN,
+      id: "imp-3",
+      type: "transfer",
+      amount: -5000,
+      sourceAccount: "BOFA CHK 1234",
+      accountId: "acct-1",
+      categoryId: "",
+    };
+    Object.assign(dataReturn, {
+      transactions: [orphan],
+      selectedIds: new Set(["imp-3"]),
+      sourceAccounts: ["BOFA CHK 1234"],
+      accountMapping: { "BOFA CHK 1234": "acct-1" },
+      accounts: [makeBudgetAccount({ id: "acct-1", name: "BofA Checking" })],
+    });
+    renderPreview();
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "Merge" }));
+
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByText(/had no matching counterpart/)).toBeInTheDocument();
   });
 });
 

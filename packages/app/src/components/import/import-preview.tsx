@@ -17,13 +17,12 @@ import { summarizeMerge } from "@capybudget/core";
 import type { StagingStore } from "@capybudget/intelligence";
 import { useFormatMoney } from "@/contexts/currency-context";
 import { ImportTable } from "./import-table";
-import { AccountMappingSummary } from "./account-mapping-summary";
 import {
   sortImportTransactions,
   filterImportTransactions,
   type ImportSortConfig,
 } from "@/components/import/import-table-utils";
-import { ImportMappingRows } from "./import-mapping";
+import { ImportMappingRows, type MappingRowMeta } from "./import-mapping";
 import { Search, X, GitMerge, AlertTriangle, Copy, Loader2 } from "lucide-react";
 
 interface ImportPreviewProps {
@@ -163,17 +162,31 @@ export function ImportPreview({
     (s) => !accountMapping[s] || accountMapping[s] === "__create__",
   ).length;
 
-  // Per-account preview of the pending merge — same inputs handleMerge passes to
-  // `merge`, so what's shown is exactly what lands. Only computed while the
-  // confirmation is open (it runs the full merge plan).
+  // Per-source-account preview of the pending merge — same inputs handleMerge
+  // passes to `merge`, so what's shown is exactly what lands. Recomputes when the
+  // mapping is edited at the gate. Only runs while the confirmation is open.
   const mergeSummary = useMemo(() => {
-    if (!showMergeDialog || selectedIds.size === 0) return [];
+    if (!showMergeDialog || selectedIds.size === 0) {
+      return { rows: [], unmappedTransferCount: 0 };
+    }
     return summarizeMerge(
       { transactions, selectedIds, accountMapping },
       accounts,
       budgetTransactions,
     );
   }, [showMergeDialog, transactions, selectedIds, accountMapping, accounts, budgetTransactions]);
+
+  const rowMeta = useMemo(() => {
+    const meta: Record<string, MappingRowMeta> = {};
+    for (const row of mergeSummary.rows) {
+      meta[row.sourceAccount] = {
+        resultingBalance: row.resultingBalance,
+        isNew: row.isNew,
+        count: row.count,
+      };
+    }
+    return meta;
+  }, [mergeSummary]);
 
   const handleMerge = useCallback(async () => {
     setShowMergeDialog(false);
@@ -344,13 +357,15 @@ export function ImportPreview({
         </Dialog>
       )}
 
-      {/* Merge confirmation — a safety gate: the per-account summary surfaces
-          where every transaction lands and the balance each account becomes, so
-          a wrong mapping is visible before commit. Header and footer stay
-          pinned; only the summary scrolls (capped at ~5 rows). */}
+      {/* Merge confirmation — a safety gate. The per-source-account mapping is
+          editable here (the same rows the Map-accounts dialog uses), each showing
+          its destination's resulting balance, so a wrong mapping is both visible
+          and fixable before commit. Unmatched transfers get one warning line
+          rather than rows. Header and footer stay pinned; the rows scroll past
+          five. */}
       {showMergeDialog && (
         <Dialog open onOpenChange={(open) => { if (!open) setShowMergeDialog(false); }}>
-          <DialogContent className="flex max-h-[85vh] flex-col sm:max-w-md">
+          <DialogContent className="flex max-h-[85vh] flex-col sm:max-w-lg">
             <DialogHeader>
               <DialogTitle>Merge {selectedCount} transactions?</DialogTitle>
               <DialogDescription>
@@ -367,9 +382,27 @@ export function ImportPreview({
                 )}
               </DialogDescription>
             </DialogHeader>
-            <div className="min-h-0 flex-1 overflow-hidden">
-              <AccountMappingSummary rows={mergeSummary} />
-            </div>
+            {sourceAccounts.length > 0 && (
+              <div className="min-h-0 flex-1 overflow-hidden">
+                <ImportMappingRows
+                  sourceAccounts={sourceAccounts}
+                  accounts={accounts}
+                  accountMapping={accountMapping}
+                  onAccountMappingChange={handleAccountMappingChange}
+                  rowMeta={rowMeta}
+                />
+              </div>
+            )}
+            {mergeSummary.unmappedTransferCount > 0 && (
+              <div className="flex items-start gap-2 text-sm text-amber-500">
+                <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                <span>
+                  {mergeSummary.unmappedTransferCount === 1
+                    ? "1 transfer had no matching counterpart — it’ll import as income/expense."
+                    : `${mergeSummary.unmappedTransferCount} transfers had no matching counterpart — they’ll import as income/expense.`}
+                </span>
+              </div>
+            )}
             <DialogFooter>
               <Button variant="outline" onClick={() => setShowMergeDialog(false)}>
                 Cancel

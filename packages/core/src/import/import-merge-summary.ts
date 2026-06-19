@@ -1,93 +1,111 @@
 import { getAccountBalance } from "../analytics/queries";
 import type { Account, AccountType, Transaction } from "../entities/types";
 import { prepareMerge, resolveAccountId, type MergeInput } from "./import-merge";
-import type { ImportAliases } from "./import-types";
+import type { ImportAliases, ImportTransaction } from "./import-types";
 
-/** One account's stake in a pending merge — what lands where, and the balance
- *  it produces. Derived from the real merge plan so the preview can never
- *  diverge from what merge actually does. */
+/** One import source account's stake in a pending merge: where it maps, how many
+ *  of its rows land, and the destination's true post-merge balance. Derived from
+ *  the real merge plan so the preview can never diverge from what merge does. */
 export interface MergeAccountSummary {
+  sourceAccount: string;
   accountId: string;
   accountName: string;
   accountType: AccountType;
   isNew: boolean;
-  /** Import source name(s) feeding this account. Empty for a transfer-target
-   *  account that isn't itself an import source. */
-  sourceAccounts: string[];
   count: number;
-  /** Sum of the landing transactions' amounts (signed cents). */
-  delta: number;
-  currentBalance: number;
   resultingBalance: number;
 }
 
+export interface MergeSummary {
+  /** One row per import source account — the account-mapping axis, the same set
+   *  the Map-accounts dialog edits. Transfer-counterpart accounts are not rows. */
+  rows: MergeAccountSummary[];
+  /** Selected transfers that the merge couldn't pair (no counterpart matched),
+   *  so they import as income/expense. A wrong-but-not-corrupting outcome worth
+   *  flagging, not enumerating. */
+  unmappedTransferCount: number;
+}
+
 /**
- * Summarize what a merge will do, per destination account.
+ * Summarize what a merge will do, per import source account.
  *
- * Groups by the *resulting* `accountId` rather than by import source: a transfer
- * leg lands on its counterpart account even though no import source names it, and
- * a mis-pointed transfer corrupts the budget just as a mis-mapped source does, so
- * the target must surface here too.
+ * Rows follow the account-mapping axis (one per source account), not the set of
+ * destination accounts: a transfer leg landing on a counterpart account is not a
+ * mapping the user made and isn't listed. The destination balance still reflects
+ * those legs because it's read from the full merge plan via `getAccountBalance`.
  */
 export function summarizeMerge(
   input: MergeInput,
   prevAccounts: Account[],
   prevTransactions: Transaction[],
   existingAliases: ImportAliases = { accounts: {} },
-): MergeAccountSummary[] {
+): MergeSummary {
+  const selected = input.transactions.filter((t) => input.selectedIds.has(t.id));
+  if (selected.length === 0) return { rows: [], unmappedTransferCount: 0 };
+
   const result = prepareMerge(input, prevAccounts, prevTransactions, existingAliases);
-
-  // prepareMerge appends new transactions after the previous ones, so the tail
-  // beyond the original length is exactly what this merge adds.
-  const newTxns = result.transactions.slice(prevTransactions.length);
-
   const newAccountIds = new Set(Object.values(result.createdAccountIds));
   const accountById = new Map(result.accounts.map((a) => [a.id, a]));
 
-  const sourcesByAccount = new Map<string, Set<string>>();
-  const selected = input.transactions.filter((t) => input.selectedIds.has(t.id));
+  // Distinct source accounts, in stable encounter-name order.
+  const sourceAccounts = [
+    ...new Set(selected.map((t) => t.sourceAccount).filter(Boolean)),
+  ];
+
+  const countBySource = new Map<string, number>();
   for (const t of selected) {
     if (!t.sourceAccount) continue;
-    const accountId = resolveAccountId(t, result.createdAccountIds, input.accountMapping);
-    if (!accountId) continue;
-    const set = sourcesByAccount.get(accountId) ?? new Set<string>();
-    set.add(t.sourceAccount);
-    sourcesByAccount.set(accountId, set);
+    countBySource.set(t.sourceAccount, (countBySource.get(t.sourceAccount) ?? 0) + 1);
   }
 
-  const byAccount = new Map<string, { count: number; delta: number }>();
-  for (const t of newTxns) {
-    if (!t.accountId) continue;
-    const agg = byAccount.get(t.accountId) ?? { count: 0, delta: 0 };
-    agg.count += 1;
-    agg.delta += t.amount;
-    byAccount.set(t.accountId, agg);
-  }
-
-  const summaries: MergeAccountSummary[] = [];
-  for (const [accountId, { count, delta }] of byAccount) {
+  const rows: MergeAccountSummary[] = [];
+  for (const sourceAccount of sourceAccounts) {
+    const sample = selected.find((t) => t.sourceAccount === sourceAccount)!;
+    const accountId = resolveAccountId(sample, result.createdAccountIds, input.accountMapping);
     const account = accountById.get(accountId);
     if (!account) continue;
-    const isNew = newAccountIds.has(accountId);
-    const currentBalance = isNew ? 0 : getAccountBalance(accountId, prevTransactions);
-    summaries.push({
+    rows.push({
+      sourceAccount,
       accountId,
       accountName: account.name,
       accountType: account.type,
-      isNew,
-      sourceAccounts: [...(sourcesByAccount.get(accountId) ?? [])].sort(),
-      count,
-      delta,
-      currentBalance,
-      resultingBalance: currentBalance + delta,
+      isNew: newAccountIds.has(accountId),
+      count: countBySource.get(sourceAccount) ?? 0,
+      // True post-merge balance over the full plan — includes any transfer leg
+      // that lands here, even though such a leg never produces its own row.
+      resultingBalance: getAccountBalance(accountId, result.transactions),
     });
   }
 
-  summaries.sort((a, b) => {
+  rows.sort((a, b) => {
     if (a.isNew !== b.isNew) return a.isNew ? -1 : 1;
     if (a.count !== b.count) return b.count - a.count;
     return a.accountName.localeCompare(b.accountName);
   });
 
-  return summaries;
+  const newTxns = result.transactions.slice(prevTransactions.length);
+  return { rows, unmappedTransferCount: countUnmappedTransfers(selected, newTxns) };
+}
+
+/**
+ * Count selected transfers the merge left without a counterpart — those it
+ * downgraded to income/expense. Read off the plan, not re-derived: the merge
+ * keeps a matched transfer's legs as `type: "transfer"`, so the transfer legs it
+ * emitted account for the matched rows. A single-leg transfer with a known
+ * target yields two legs; a paired two-leg transfer yields one leg per row.
+ */
+function countUnmappedTransfers(
+  selected: ImportTransaction[],
+  newTxns: Transaction[],
+): number {
+  const selectedTransfers = selected.filter((t) => t.type === "transfer");
+  if (selectedTransfers.length === 0) return 0;
+
+  const newTransferLegs = newTxns.filter((t) => t.type === "transfer").length;
+  const targetedRows = selectedTransfers.filter((t) => t.targetAccountId).length;
+  // Targeted rows emit two legs each; the remaining legs come one-per-row from
+  // paired two-leg imports. What's left of the selected transfers downgraded.
+  const pairedTwoLegRows = newTransferLegs - targetedRows * 2;
+  const matched = targetedRows + pairedTwoLegRows;
+  return selectedTransfers.length - matched;
 }
