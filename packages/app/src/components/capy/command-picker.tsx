@@ -11,7 +11,7 @@ interface CommandPickerProps {
 }
 
 export function CommandPicker({ commands, onSelect, onSave }: CommandPickerProps) {
-  const { t } = useTranslation("capy")
+  const { t } = useTranslation(["capy", "common"])
   const [open, setOpen] = useState(false)
   const [editing, setEditing] = useState<string | null>(null)
   const [editName, setEditName] = useState("")

@@ -24,10 +24,10 @@ import { TransactionsModal } from "@/components/budget/transactions-modal";
 import { formatCountAndTotal } from "./format-range";
 import { useCategorySeriesLabel, useMonthLabel, useWeekLabel } from "./use-analytics-labels";
 import {
-  bucketWindow,
+  buildCompareChartRows,
   filterForCompareDrilldown,
   resolveClickedRow,
-  type CompareChartRow,
+  seriesKeyFor,
   type CompareDrilldown,
   type CompareViewMode,
 } from "./compare-drilldown";
@@ -78,7 +78,9 @@ function CompareTooltipContent({
   label,
 }: {
   active?: boolean;
-  payload?: Array<{ dataKey: string; value: number; color: string }>;
+  // `dataKey` is the stable `cat:<id>` join key; `name` is the localized line
+  // label (from `<Line name>`) and is what we show.
+  payload?: Array<{ dataKey: string; name: string; value: number; color: string }>;
   label?: string;
 }) {
   const { format } = useFormatMoney();
@@ -92,7 +94,7 @@ function CompareTooltipContent({
             className="h-2 w-2 rounded-full shrink-0"
             style={{ backgroundColor: entry.color }}
           />
-          <span className="text-muted-foreground">{entry.dataKey}</span>
+          <span className="text-muted-foreground">{entry.name}</span>
           <span className="tabular-nums font-medium ml-auto">
             {format(entry.value)}
           </span>
@@ -335,45 +337,35 @@ function CompareTabBody({ transactions, categories, dateRange, viewMode, hasAnyT
   const periodHasData = rows.length > 0;
   const anySelected = selected.size > 0;
 
-  // Map series → color slot + localized line label, handling Uncategorized's
-  // empty-string id. The display label is the chart's series-join key: both the
-  // `<Line dataKey>` and the row values below key off it, so translating it in
-  // one place keeps the join intact.
+  // Map series → stable join key + color slot + localized line label, handling
+  // Uncategorized's empty-string id. `seriesKey` (`cat:<id>`) is the join key
+  // the row values and `<Line dataKey>` agree on; `displayName` is only the
+  // rendered label (legend, tooltip, axis), so two categories with identical
+  // translations stay distinct lines.
   const seriesWithColor = useMemo(() => {
     return seriesData.series.map((s) => {
       const key = toSelectionKey(s.categoryId);
       const slot = pick.colorMap.get(key) ?? 0;
       return {
         ...s,
+        seriesKey: seriesKeyFor(s.categoryId),
         displayName: categorySeriesLabel(s.categoryId, s.categoryName),
         color: CHART_LINE_COLORS[slot % CHART_LINE_COLORS.length],
       };
     });
   }, [seriesData.series, pick.colorMap, categorySeriesLabel]);
 
-  // Chart data shape: { month, monthLabel, __start, __end, [displayName]: cents, ... }.
-  // Each row carries its bucket's own transaction window so a click maps
-  // deterministically back to a date range. The `__`-prefixed keys never
-  // render as lines — only `seriesWithColor` keys do.
-  const chartData = useMemo(() => {
-    const labelById = new Map(
-      seriesData.series.map((s) => [s.categoryId, categorySeriesLabel(s.categoryId, s.categoryName)]),
-    );
-    return seriesData.points.map((point): CompareChartRow => {
-      const win = bucketWindow(point.date, granularity, dateRange);
-      const row: CompareChartRow = {
-        month: point.month,
-        monthLabel: granularity === "week" ? weekLabel(point.date) : monthLabel(point.date),
-        __start: win.start.toISOString(),
-        __end: win.end.toISOString(),
-      };
-      for (const [catId, amt] of Object.entries(point.byCategory)) {
-        const name = labelById.get(catId) ?? categorySeriesLabel(catId, "Uncategorized");
-        row[name] = amt;
-      }
-      return row;
-    });
-  }, [seriesData, granularity, dateRange, categorySeriesLabel, monthLabel, weekLabel]);
+  // Rows carry their bucket's own transaction window so a click maps
+  // deterministically back to a date range; per-category amounts key on the
+  // stable `cat:<id>` series key (see `buildCompareChartRows`). The
+  // `__`-prefixed keys never render as lines — only `seriesWithColor` keys do.
+  const chartData = useMemo(
+    () =>
+      buildCompareChartRows(seriesData.points, granularity, dateRange, (isoDate) =>
+        granularity === "week" ? weekLabel(isoDate) : monthLabel(isoDate),
+      ),
+    [seriesData, granularity, dateRange, monthLabel, weekLabel],
+  );
 
   const [drilldown, setDrilldown] = useState<CompareDrilldown | null>(null);
 
@@ -542,8 +534,9 @@ function CompareTabBody({ transactions, categories, dateRange, viewMode, hasAnyT
               <Legend wrapperStyle={{ fontSize: "12px" }} />
               {seriesWithColor.map((s) => (
                 <Line
-                  key={s.categoryId || UNCATEGORIZED_KEY}
-                  dataKey={s.displayName}
+                  key={s.seriesKey}
+                  dataKey={s.seriesKey}
+                  name={s.displayName}
                   type="monotone"
                   stroke={s.color}
                   strokeWidth={2}

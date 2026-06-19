@@ -42,7 +42,8 @@
   "drilldown": {
     "transactionCount_one": "{{count}} операция",
     "transactionCount_few": "{{count}} операции",
-    "transactionCount_many": "{{count}} операций"
+    "transactionCount_many": "{{count}} операций",
+    "transactionCount_other": "{{count}} операций"
   },
   "a11y": {
     "viewTransactionsAria": "Показать операции «{{name}}»"
@@ -98,6 +99,7 @@
     "txnCount_one": "{{count}} опер.",
     "txnCount_few": "{{count}} опер.",
     "txnCount_many": "{{count}} опер.",
+    "txnCount_other": "{{count}} опер.",
     "headerRank": "№",
     "headerMerchant": "Продавец",
     "headerAmount": "Сумма",

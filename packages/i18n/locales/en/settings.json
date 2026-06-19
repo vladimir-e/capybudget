@@ -82,7 +82,22 @@
       "notDetected": "Not detected",
       "notDetectedHint": "Not detected — install from",
       "testConnection": "Test connection",
-      "testing": "Testing…"
+      "testing": "Testing…",
+      "connectionWorks": "Connection works"
+    },
+    "apiConfig": {
+      "apiKey": "API key",
+      "showKey": "Show API key",
+      "hideKey": "Hide API key",
+      "storedLocally": "Stored locally in your app config folder.",
+      "savedKeyEndsIn": "Saved key ends in",
+      "getApiKey": "Get an {{provider}} API key"
+    },
+    "model": {
+      "label": "Model",
+      "useCustom": "Use a custom model",
+      "customPlaceholder": "model-identifier",
+      "selectPlaceholder": "Select a model…"
     }
   },
   "chatInstructions": {

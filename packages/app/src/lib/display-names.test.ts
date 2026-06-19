@@ -1,5 +1,6 @@
 import { afterAll, describe, expect, it } from "vitest"
 import { renderHook } from "@testing-library/react"
+import { ACCOUNT_TYPE_ORDER } from "@capybudget/core"
 import { i18n } from "@capybudget/i18n"
 import {
   CANONICAL_CATEGORY_NAMES,
@@ -21,6 +22,20 @@ afterAll(async () => {
 describe("canonical name tuples", () => {
   it("stay in lockstep with the categories core seeds", () => {
     expect([...CANONICAL_CATEGORY_NAMES]).toEqual(SEEDED_CATEGORY_NAMES)
+  })
+
+  it("has an en `accountType.*` translation for every core account type", () => {
+    // `useAccountTypeLabel` builds `accountType.${type}` dynamically, so a new
+    // type added to core's enum isn't statically checked. This pins the catalog
+    // to `ACCOUNT_TYPE_ORDER`: a missing key renders as the echoed key string
+    // ("accountType.brokerage"), which this catches.
+    for (const type of ACCOUNT_TYPE_ORDER) {
+      const key = `accountType.${type}`
+      const label = i18n.getResource("en", "budget", key) as string | undefined
+      expect(label, `missing en budget:${key}`).toBeTruthy()
+      expect(label).not.toBe(key)
+      expect(label).not.toBe(type)
+    }
   })
 })
 

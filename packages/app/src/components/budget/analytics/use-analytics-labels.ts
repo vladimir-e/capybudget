@@ -54,9 +54,9 @@ export function useBasisOptionLabel(): (basis: BudgetBasis) => string {
   return (basis: BudgetBasis) => t(BASIS_OPTION_KEY[basis])
 }
 
-/** Resolved reference label for a basis ("3-mo avg" / "Mar 2025"). Mirrors
- *  core's `basisLabel`, but localized: the trailing bases are fixed strings,
- *  `sameMonthLastYear` resolves to the month it points at. */
+/** Resolved reference label for a basis ("3-mo avg" / "Mar 2025"), localized:
+ *  the trailing bases are fixed strings, `sameMonthLastYear` resolves to the
+ *  month it points at. */
 export function useBasisLabel(): (basis: BudgetBasis, viewedMonth: Date) => string {
   const { t } = useTranslation("analytics")
   const locale = useLocale()

@@ -1,6 +1,7 @@
 import { useTranslation } from "@capybudget/i18n"
 import { formatText } from "@/lib/format-text"
 import { useFormatMoney } from "@/contexts/currency-context"
+import { useFormatPercent } from "@/lib/format-percent"
 import type {
   BarChartBlock,
   ContentBlock,
@@ -169,6 +170,7 @@ function BarChart({ title, data }: Pick<BarChartBlock, "title" | "data">) {
 function DonutChart({ title, data }: Pick<DonutChartBlock, "title" | "data">) {
   const { t } = useTranslation("capy")
   const { formatCompact } = useFormatMoney()
+  const formatPercent = useFormatPercent()
   const total = data.reduce((sum, d) => sum + d.value, 0)
   if (data.length === 0 || total === 0) return null
   const size = 140
@@ -212,7 +214,7 @@ function DonutChart({ title, data }: Pick<DonutChartBlock, "title" | "data">) {
       path,
       color: CHART_COLORS[i % CHART_COLORS.length],
       label: d.label,
-      pct: ((d.value / total) * 100).toFixed(0),
+      pct: (d.value / total) * 100,
       value: d.value,
     }
   })
@@ -261,7 +263,7 @@ function DonutChart({ title, data }: Pick<DonutChartBlock, "title" | "data">) {
               />
               <span className="text-foreground/80 truncate">{s.label}</span>
               <span className="text-muted-foreground tabular-nums ml-auto shrink-0">
-                {s.pct}%
+                {formatPercent(s.pct, 0)}
               </span>
             </div>
           ))}

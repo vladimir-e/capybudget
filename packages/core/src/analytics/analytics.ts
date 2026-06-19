@@ -512,24 +512,6 @@ export function basisMonths(basis: BudgetBasis, viewedMonth: Date): string[] {
   return keys;
 }
 
-/** Human label for a basis, resolved against the viewed month. The trailing
- *  bases are fixed strings; `sameMonthLastYear` resolves to the actual month
- *  it points at (e.g. "Dec 2024" when viewing Dec 2025). */
-export function basisLabel(basis: BudgetBasis, viewedMonth: Date): string {
-  switch (basis) {
-    case "trailing3":
-      return "3-mo avg";
-    case "trailing6":
-      return "6-mo avg";
-    case "trailing12":
-      return "12-mo avg";
-    case "sameMonthLastYear": {
-      const d = new Date(viewedMonth.getFullYear() - 1, viewedMonth.getMonth(), 1);
-      return `${MONTH_LABELS[d.getMonth()]} ${d.getFullYear()}`;
-    }
-  }
-}
-
 /** Mean over the active (non-zero) months only — the divisor is the count of
  *  months that actually had spend, so an inactive ($0) month neither adds to
  *  the sum nor dilutes the average. `0` when no month was active. Rounded to

@@ -236,49 +236,60 @@
       "deleted_one": "Удалена {{count}} операция",
       "deleted_few": "Удалено {{count}} операции",
       "deleted_many": "Удалено {{count}} операций",
+      "deleted_other": "Удалено {{count}} операций",
       "categorized_one": "{{count}} операции присвоена категория «{{label}}»",
       "categorized_few": "{{count}} операциям присвоена категория «{{label}}»",
       "categorized_many": "{{count}} операциям присвоена категория «{{label}}»",
+      "categorized_other": "{{count}} операциям присвоена категория «{{label}}»",
       "moved_one": "{{count}} операция перенесена на счёт {{label}}",
       "moved_few": "{{count}} операции перенесены на счёт {{label}}",
       "moved_many": "{{count}} операций перенесено на счёт {{label}}",
+      "moved_other": "{{count}} операций перенесено на счёт {{label}}",
       "dateChanged_one": "Дата {{count}} операции изменена на {{date}}",
       "dateChanged_few": "Дата {{count}} операций изменена на {{date}}",
       "dateChanged_many": "Дата {{count}} операций изменена на {{date}}",
+      "dateChanged_other": "Дата {{count}} операций изменена на {{date}}",
       "merchantChanged_one": "Продавец изменён у {{count}} операции",
       "merchantChanged_few": "Продавец изменён у {{count}} операций",
-      "merchantChanged_many": "Продавец изменён у {{count}} операций"
+      "merchantChanged_many": "Продавец изменён у {{count}} операций",
+      "merchantChanged_other": "Продавец изменён у {{count}} операций"
     },
     "deleteDialog": {
       "title_one": "Удалить {{count}} операцию?",
       "title_few": "Удалить {{count}} операции?",
       "title_many": "Удалить {{count}} операций?",
+      "title_other": "Удалить {{count}} операций?",
       "description_one": "Будет безвозвратно удалена {{count}} операция на сумму {{total}}.",
       "description_few": "Будут безвозвратно удалены {{count}} операции на сумму {{total}}.",
       "description_many": "Будет безвозвратно удалено {{count}} операций на сумму {{total}}.",
+      "description_other": "Будет безвозвратно удалено {{count}} операций на сумму {{total}}.",
       "transferNote": " Переводы будут удалены с обеих сторон.",
       "confirm_one": "Удалить {{count}} операцию",
       "confirm_few": "Удалить {{count}} операции",
-      "confirm_many": "Удалить {{count}} операций"
+      "confirm_many": "Удалить {{count}} операций",
+      "confirm_other": "Удалить {{count}} операций"
     },
     "moveDialog": {
       "title": "Перенести на счёт",
       "description_one": "Перенести {{count}} операцию на другой счёт.",
       "description_few": "Перенести {{count}} операции на другой счёт.",
       "description_many": "Перенести {{count}} операций на другой счёт.",
+      "description_other": "Перенести {{count}} операций на другой счёт.",
       "transferNote": " Переводы будут пропущены."
     },
     "dateDialog": {
       "title": "Изменить дату",
       "description_one": "Задайте новую дату для {{count}} операции.",
       "description_few": "Задайте новую дату для {{count}} операций.",
-      "description_many": "Задайте новую дату для {{count}} операций."
+      "description_many": "Задайте новую дату для {{count}} операций.",
+      "description_other": "Задайте новую дату для {{count}} операций."
     },
     "merchantDialog": {
       "title": "Изменить продавца",
       "description_one": "Задайте нового продавца для {{count}} операции.",
       "description_few": "Задайте нового продавца для {{count}} операций.",
       "description_many": "Задайте нового продавца для {{count}} операций.",
+      "description_other": "Задайте нового продавца для {{count}} операций.",
       "transferNote": " Переводы будут пропущены."
     }
   },
@@ -319,6 +330,7 @@
     "categoriesChip_one": "{{count}} категория",
     "categoriesChip_few": "{{count}} категории",
     "categoriesChip_many": "{{count}} категорий",
+    "categoriesChip_other": "{{count}} категорий",
     "unknown": "Неизвестно",
     "uncategorized": "Без категории",
     "noMatch": "Нет операций по запросу"

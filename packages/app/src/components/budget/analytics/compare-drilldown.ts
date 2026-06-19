@@ -1,7 +1,15 @@
 import { filterTransactionsByDateRange } from "@capybudget/core";
-import type { DateRange, Transaction } from "@capybudget/core";
+import type { DateRange, Transaction, TrendPoint } from "@capybudget/core";
 
 export type CompareViewMode = "expense" | "income";
+
+/** Stable per-category series-join key for the chart. Keying the row
+ *  aggregation and `<Line dataKey>` on the category id — never the localized
+ *  display name — keeps two categories that happen to share a translated label
+ *  from collapsing into one overwritten line. */
+export function seriesKeyFor(categoryId: string): string {
+  return `cat:${categoryId}`;
+}
 
 /** The transaction window for a clicked trend bucket, `[start, end)`.
  *
@@ -30,13 +38,41 @@ export function bucketWindow(
  *  `month` is core's English bucket label, kept for the drilldown title's
  *  stable identity. `__start`/`__end` are the bucket's ISO window (see
  *  `bucketWindow`). The remaining keys are dynamic per-category amounts, keyed
- *  by the localized category display name. */
+ *  by the stable `cat:<id>` series key (never the localized display name, so
+ *  identically-translated categories stay distinct). */
 export type CompareChartRow = {
   month: string;
   monthLabel: string;
   __start: string;
   __end: string;
 } & Record<string, string | number>;
+
+/** Build the Compare line-chart rows from core's trend points. Per-category
+ *  amounts key on the stable `cat:<id>` series key (via `seriesKeyFor`), not the
+ *  localized label, so two categories with an identical translated name occupy
+ *  distinct row fields instead of overwriting each other. `xLabel` formats the
+ *  bucket's locale-aware X label from the point's ISO date (injected so this
+ *  stays free of React/i18n). */
+export function buildCompareChartRows(
+  points: TrendPoint[],
+  granularity: "month" | "week",
+  dateRange: DateRange,
+  xLabel: (isoDate: string) => string,
+): CompareChartRow[] {
+  return points.map((point): CompareChartRow => {
+    const win = bucketWindow(point.date, granularity, dateRange);
+    const row: CompareChartRow = {
+      month: point.month,
+      monthLabel: xLabel(point.date),
+      __start: win.start.toISOString(),
+      __end: win.end.toISOString(),
+    };
+    for (const [catId, amt] of Object.entries(point.byCategory)) {
+      row[seriesKeyFor(catId)] = amt;
+    }
+    return row;
+  });
+}
 
 /** Resolve the chart row a Recharts `LineChart` `onClick` refers to.
  *

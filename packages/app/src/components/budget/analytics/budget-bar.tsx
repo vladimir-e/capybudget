@@ -29,7 +29,7 @@ const FILL_RED = "var(--amount-expense)";
 
 /** Default reference-pin label when no resolved basis label is threaded
  *  (direct `BudgetBar` renders, tests). In the tab, the live label comes from
- *  `basisLabel(basis, viewedMonth)` and is passed down explicitly. */
+ *  `useBasisLabel()` and is passed down explicitly. */
 const DEFAULT_REFERENCE_LABEL = "3-mo avg";
 
 /** Pin display label. `lastMonth` is fixed; the reference pin shows whatever

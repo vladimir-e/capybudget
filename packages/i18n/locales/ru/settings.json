@@ -82,7 +82,22 @@
       "notDetected": "Не обнаружен",
       "notDetectedHint": "Не обнаружен — установите с",
       "testConnection": "Проверить подключение",
-      "testing": "Проверка…"
+      "testing": "Проверка…",
+      "connectionWorks": "Подключение работает"
+    },
+    "apiConfig": {
+      "apiKey": "API-ключ",
+      "showKey": "Показать API-ключ",
+      "hideKey": "Скрыть API-ключ",
+      "storedLocally": "Хранится локально, в папке конфигурации приложения.",
+      "savedKeyEndsIn": "Сохранённый ключ оканчивается на",
+      "getApiKey": "Получить API-ключ {{provider}}"
+    },
+    "model": {
+      "label": "Модель",
+      "useCustom": "Указать свою модель",
+      "customPlaceholder": "идентификатор-модели",
+      "selectPlaceholder": "Выберите модель…"
     }
   },
   "chatInstructions": {
@@ -96,7 +111,8 @@
     "description": "Управляйте группами и категориями, по которым раскладываются ваши операции. Перетаскивайте для сортировки, переименовывайте на месте или архивируйте ненужные.",
     "count_one": "{{count}} категория",
     "count_few": "{{count}} категории",
-    "count_many": "{{count}} категорий"
+    "count_many": "{{count}} категорий",
+    "count_other": "{{count}} категорий"
   },
   "updates": {
     "title": "Обновления",

@@ -5,6 +5,7 @@ import enImport from "../locales/en/import.json";
 import enCapy from "../locales/en/capy.json";
 import enOnboarding from "../locales/en/onboarding.json";
 import enAnalytics from "../locales/en/analytics.json";
+import enHelp from "../locales/en/help.json";
 import { SUPPORTED_LOCALES } from "./locales";
 
 export const NAMESPACES = [
@@ -15,6 +16,7 @@ export const NAMESPACES = [
   "import",
   "capy",
   "onboarding",
+  "help",
 ] as const;
 
 export type Namespace = (typeof NAMESPACES)[number];
@@ -35,6 +37,7 @@ const en = {
   import: enImport,
   capy: enCapy,
   onboarding: enOnboarding,
+  help: enHelp,
 } as const;
 
 // Eager so the catalogs are in the first bundle — i18next initializes

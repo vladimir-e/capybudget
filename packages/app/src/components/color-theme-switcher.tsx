@@ -1,4 +1,5 @@
 import { Palette } from "lucide-react";
+import { useTranslation } from "@capybudget/i18n";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -16,13 +17,14 @@ const entries = Object.entries(COLOR_THEMES) as [
 ][];
 
 export function ColorThemeSwitcher() {
+  const { t } = useTranslation("common");
   const { colorTheme, setColorTheme } = useColorTheme();
 
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
         render={
-          <Button variant="ghost" size="icon" className="h-8 w-8" aria-label="Color theme" />
+          <Button variant="ghost" size="icon" className="h-8 w-8" aria-label={t("theme.colorTheme")} />
         }
       >
         <Palette className="h-4 w-4" />

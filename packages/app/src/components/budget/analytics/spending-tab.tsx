@@ -13,6 +13,7 @@ import {
 import type { Transaction, Category, DateRange } from "@capybudget/core";
 import { useLocale, useTranslation } from "@capybudget/i18n";
 import { useFormatMoney } from "@/contexts/currency-context";
+import { useFormatPercent } from "@/lib/format-percent";
 import { ChartSwitcher } from "./chart-switcher";
 import { EmptyState } from "@/components/ui/empty-state";
 import { TransactionsModal } from "@/components/budget/transactions-modal";
@@ -71,13 +72,14 @@ function PieTooltipContent({
   payload?: Array<{ payload: { name: string; value: number; percentage: number } }>;
 }) {
   const { format } = useFormatMoney();
+  const formatPercent = useFormatPercent();
   if (!active || !payload?.length) return null;
   const data = payload[0].payload;
   return (
     <div className="rounded-lg border bg-background px-3 py-2 shadow-popover">
       <p className="text-sm font-medium">{data.name}</p>
       <p className="text-sm text-muted-foreground">
-        {format(data.value)} ({data.percentage.toFixed(1)}%)
+        {format(data.value)} ({formatPercent(data.percentage)})
       </p>
     </div>
   );
@@ -105,6 +107,7 @@ export function SpendingTab({
   const { format } = useFormatMoney();
   const locale = useLocale();
   const { t } = useTranslation("analytics");
+  const formatPercent = useFormatPercent();
   const categorySeriesLabel = useCategorySeriesLabel();
   const [viewMode, setViewMode] = useState<ViewMode>("expenses");
 
@@ -211,7 +214,7 @@ export function SpendingTab({
                   </TransactionsDrilldownLink>
                 </span>
                 <span className="tabular-nums text-xs text-muted-foreground text-right">
-                  {entry.percentage.toFixed(1)}%
+                  {formatPercent(entry.percentage)}
                 </span>
               </div>
             ))}

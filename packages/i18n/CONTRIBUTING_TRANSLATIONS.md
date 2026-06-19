@@ -85,14 +85,31 @@ difference in plural-form count between languages.
 
 Catalogs are split by area so files stay small and reviewable:
 
-| Namespace    | Covers                                   |
-| ------------ | ---------------------------------------- |
-| `common`     | Navigation labels, shared action buttons |
-| `settings`   | The Settings screen and its sections     |
-| `budget`     | Budget/accounts/transactions UI          |
-| `import`     | The Import flow                          |
-| `capy`       | The Capy chat assistant UI               |
-| `onboarding` | First-run / onboarding                   |
+| Namespace    | Covers                                       |
+| ------------ | -------------------------------------------- |
+| `common`     | Navigation labels, shared action buttons     |
+| `settings`   | The Settings screen and its sections         |
+| `budget`     | Budget/accounts/transactions UI              |
+| `analytics`  | The analytics tabs (charts, drilldowns)      |
+| `import`     | The Import flow                              |
+| `capy`       | The Capy chat assistant UI                   |
+| `onboarding` | First-run / onboarding                       |
+| `help`       | Help-screen chrome (header, anchors, links)  |
 
 A file may be `{}` while its area hasn't been translated to keys yet — translate
 the ones with content; leave empty ones empty.
+
+## Help guide
+
+The Help screen's chrome (the "Help" header, the section anchors, the demo link)
+lives in the `help` catalog namespace like everything else. Its **long-form
+prose**, though — the multi-paragraph "How budgeting works" guide — does not:
+paragraphs of copy are unmaintainable as flat JSON values, so each language gets
+its own content module under
+`packages/app/src/components/help/help-guide-content.<lang>.ts` (e.g.
+`help-guide-content.ru.ts`), selected at render time off the active locale.
+
+To translate the guide for a new language, copy `help-guide-content.en.ts` to
+your language code, translate the prose, and register it in the `GUIDES` map in
+`help-guide-content.ts`. Keep each section's `id` unchanged — it's the stable
+anchor the sidebar and scroll-spy rely on; only `title`/`intro`/`text` translate.

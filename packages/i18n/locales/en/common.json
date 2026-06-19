@@ -20,5 +20,18 @@
     "back": "Back",
     "reset": "Reset",
     "confirm": "Confirm"
+  },
+  "theme": {
+    "light": "Light mode",
+    "dark": "Dark mode",
+    "system": "System theme",
+    "colorTheme": "Color theme"
+  },
+  "dialog": {
+    "close": "Close"
+  },
+  "commandPalette": {
+    "title": "Command Palette",
+    "description": "Search for a command to run…"
   }
 }

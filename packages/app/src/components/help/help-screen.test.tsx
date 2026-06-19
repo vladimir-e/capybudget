@@ -12,7 +12,7 @@ import {
 
 import { open as shellOpen } from "@tauri-apps/plugin-shell"
 import { HelpScreen } from "./help-screen"
-import { HELP_SECTIONS } from "./help-guide-content"
+import { EN_HELP_GUIDE } from "./help-guide-content.en"
 
 afterEach(() => {
   cleanup()
@@ -67,7 +67,7 @@ describe("HelpScreen", () => {
     ).toBeInTheDocument()
 
     const sidebar = screen.getByRole("navigation", { name: "Help sections" })
-    for (const section of HELP_SECTIONS) {
+    for (const section of EN_HELP_GUIDE.sections) {
       expect(
         within(sidebar).getByRole("button", { name: section.title }),
       ).toBeInTheDocument()

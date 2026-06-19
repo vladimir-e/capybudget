@@ -16,10 +16,10 @@ export const BUDGET_BASES = [
 export type BudgetBasis = (typeof BUDGET_BASES)[number];
 
 /** Descriptive labels for the basis picker's menu options — the long form a
- *  user reads when choosing ("3 months"), distinct from the resolved
- *  reference label that `basisLabel` renders on the trigger and pin ("3-mo
- *  avg" / "Dec 2024"). Co-located with `BUDGET_BASES` so the two label sets
- *  can't drift from the type. */
+ *  user reads when choosing ("3 months"), distinct from the short resolved
+ *  reference label shown on the trigger and pin ("3-mo avg" / "Dec 2024").
+ *  Co-located with `BUDGET_BASES` so the two label sets can't drift from the
+ *  type. */
 export const BASIS_OPTION_LABELS: Record<BudgetBasis, string> = {
   trailing3: "3 months",
   trailing6: "6 months",

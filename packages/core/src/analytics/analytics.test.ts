@@ -12,7 +12,6 @@ import {
   getMonthlyBudgetSummary,
   getCategoryHistoricalStats,
   basisMonths,
-  basisLabel,
 } from "./analytics";
 import type { Transaction, Category, Account, BudgetBasis } from "../entities/types";
 import type { DateRange } from "./analytics";
@@ -1350,24 +1349,5 @@ describe("basisMonths", () => {
     const may = new Date(2026, 4, 1); // May 2026
     expect(basisMonths("trailing3", may)).toEqual(["2026-04", "2026-03", "2026-02"]);
     expect(basisMonths("sameMonthLastYear", may)).toEqual(["2025-05"]);
-  });
-});
-
-describe("basisLabel", () => {
-  const viewed = new Date(2025, 11, 1); // Dec 2025
-
-  it("labels the trailing bases with their window length", () => {
-    expect(basisLabel("trailing3", viewed)).toBe("3-mo avg");
-    expect(basisLabel("trailing6", viewed)).toBe("6-mo avg");
-    expect(basisLabel("trailing12", viewed)).toBe("12-mo avg");
-  });
-
-  it("resolves sameMonthLastYear to the month it points at", () => {
-    expect(basisLabel("sameMonthLastYear", viewed)).toBe("Dec 2024");
-  });
-
-  it("tracks the viewed month for the seasonal label", () => {
-    expect(basisLabel("sameMonthLastYear", new Date(2026, 2, 1))).toBe("Mar 2025");
-    expect(basisLabel("sameMonthLastYear", new Date(2027, 0, 1))).toBe("Jan 2026");
   });
 });

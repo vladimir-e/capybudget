@@ -14,6 +14,7 @@ import {
 import type { Transaction, DateRange } from "@capybudget/core";
 import { useLocale, useTranslation } from "@capybudget/i18n";
 import { useFormatMoney } from "@/contexts/currency-context";
+import { useFormatPercent } from "@/lib/format-percent";
 import { useThemeColors } from "./use-theme-colors";
 import { EmptyState } from "@/components/ui/empty-state";
 import { TransactionsModal } from "@/components/budget/transactions-modal";
@@ -47,13 +48,14 @@ function MerchantTooltipContent({
 }) {
   const { format } = useFormatMoney();
   const { t } = useTranslation("analytics");
+  const formatPercent = useFormatPercent();
   if (!active || !payload?.length) return null;
   const data = payload[0].payload;
   return (
     <div className="rounded-lg border bg-background px-3 py-2 shadow-popover">
       <p className="text-sm font-medium">{data.displayMerchant}</p>
       <p className="text-sm text-muted-foreground tabular-nums">
-        {format(data.total)} · {t("merchants.txnCount", { count: data.count })} · {data.percentage.toFixed(1)}%
+        {format(data.total)} · {t("merchants.txnCount", { count: data.count })} · {formatPercent(data.percentage)}
       </p>
     </div>
   );
@@ -77,6 +79,7 @@ export function MerchantsTab({
   const { format, formatCompact } = useFormatMoney();
   const locale = useLocale();
   const { t } = useTranslation("analytics");
+  const formatPercent = useFormatPercent();
   const merchants = useMemo<MerchantRow[]>(
     () =>
       getTopMerchants(transactions, 15).map((m) => ({
@@ -183,7 +186,7 @@ export function MerchantsTab({
               {m.count}
             </span>
             <span className="tabular-nums text-muted-foreground text-right">
-              {m.percentage.toFixed(1)}%
+              {formatPercent(m.percentage)}
             </span>
           </div>
         ))}

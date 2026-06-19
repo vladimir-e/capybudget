@@ -1,6 +1,7 @@
 import { useState } from "react"
 import { open as shellOpen } from "@tauri-apps/plugin-shell"
 import { ExternalLink, Eye, EyeOff, Loader2 } from "lucide-react"
+import { useTranslation } from "@capybudget/i18n"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -25,22 +26,23 @@ const OPENAI_MODELS: ModelOption[] = [
 
 // Per-provider presentation: everything that genuinely differs between the
 // otherwise-identical API config blocks lives here, so the component body has
-// zero provider branches.
+// zero provider branches. `providerName` is the brand (stays English) injected
+// into the localized "Get an {{provider}} API key" link.
 interface ProviderUi {
   keyPlaceholder: string
-  docLabel: string
+  providerName: string
   docHref: string
 }
 
 const PROVIDER_UI: Record<ApiProviderKey, ProviderUi> = {
   anthropic: {
     keyPlaceholder: "sk-ant-…",
-    docLabel: "Get an Anthropic API key",
+    providerName: "Anthropic",
     docHref: "https://console.anthropic.com/settings/keys",
   },
   openai: {
     keyPlaceholder: "sk-proj-…",
-    docLabel: "Get an OpenAI API key",
+    providerName: "OpenAI",
     docHref: "https://platform.openai.com/api-keys",
   },
 }
@@ -98,6 +100,7 @@ function ApiProviderConfig({
   onSaveModel,
   models,
 }: ApiProviderConfigProps) {
+  const { t } = useTranslation("settings")
   const ui = PROVIDER_UI[providerKey]
 
   // Local draft for the API key — only commit on blur to avoid thrashing
@@ -146,7 +149,7 @@ function ApiProviderConfig({
       {/* API key field */}
       <div className="space-y-2">
         <div className="flex items-center justify-between">
-          <Label htmlFor={`${providerKey}-api-key`}>API key</Label>
+          <Label htmlFor={`${providerKey}-api-key`}>{t("provider.apiConfig.apiKey")}</Label>
           <Button
             variant="outline"
             size="sm"
@@ -155,10 +158,10 @@ function ApiProviderConfig({
           >
             {testState.kind === "running" ? (
               <>
-                <Loader2 className="h-3 w-3 animate-spin" /> Testing…
+                <Loader2 className="h-3 w-3 animate-spin" /> {t("provider.detection.testing")}
               </>
             ) : (
-              "Test connection"
+              t("provider.detection.testConnection")
             )}
           </Button>
         </div>
@@ -178,7 +181,7 @@ function ApiProviderConfig({
             type="button"
             onClick={() => setShowKey((p) => !p)}
             className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-muted-foreground/60 hover:text-foreground transition-colors"
-            aria-label={showKey ? "Hide API key" : "Show API key"}
+            aria-label={showKey ? t("provider.apiConfig.hideKey") : t("provider.apiConfig.showKey")}
           >
             {showKey ? (
               <EyeOff className="h-3.5 w-3.5" />
@@ -189,11 +192,12 @@ function ApiProviderConfig({
         </div>
         <div className="flex items-center justify-between text-xs">
           <p className="text-muted-foreground/70">
-            Stored locally in your app config folder.
+            {t("provider.apiConfig.storedLocally")}
           </p>
           {lastFour && (
             <p className="text-muted-foreground/70 tabular-nums">
-              Saved key ends in <span className="font-mono">…{lastFour}</span>
+              {t("provider.apiConfig.savedKeyEndsIn")}{" "}
+              <span className="font-mono">…{lastFour}</span>
             </p>
           )}
         </div>
@@ -207,7 +211,10 @@ function ApiProviderConfig({
         models={models}
       />
 
-      <ProviderDocLink label={ui.docLabel} href={ui.docHref} />
+      <ProviderDocLink
+        label={t("provider.apiConfig.getApiKey", { provider: ui.providerName })}
+        href={ui.docHref}
+      />
     </div>
   )
 }

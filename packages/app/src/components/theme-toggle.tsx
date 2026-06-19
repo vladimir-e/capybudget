@@ -1,5 +1,6 @@
 import { useTheme } from "next-themes";
 import { Sun, Moon, Monitor } from "lucide-react";
+import { useTranslation } from "@capybudget/i18n";
 import { Button } from "@/components/ui/button";
 
 const CYCLE = ["light", "dark", "system"] as const;
@@ -10,17 +11,18 @@ const ICONS = {
   system: Monitor,
 } as const;
 
-const LABELS = {
-  light: "Light mode",
-  dark: "Dark mode",
-  system: "System theme",
+const LABEL_KEYS = {
+  light: "theme.light",
+  dark: "theme.dark",
+  system: "theme.system",
 } as const;
 
 export function ThemeToggle() {
+  const { t } = useTranslation("common");
   const { theme, setTheme } = useTheme();
   const current = (theme ?? "system") as (typeof CYCLE)[number];
   const Icon = ICONS[current] ?? Monitor;
-  const label = LABELS[current] ?? "System theme";
+  const label = t(LABEL_KEYS[current] ?? "theme.system");
 
   const next = () => {
     const idx = CYCLE.indexOf(current);

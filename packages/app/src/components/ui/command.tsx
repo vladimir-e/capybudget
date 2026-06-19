@@ -7,6 +7,7 @@
 // Don't "fix" these to match the convention without revisiting the palette UX.
 import * as React from "react"
 import { Command as CommandPrimitive } from "cmdk"
+import { useTranslation } from "@capybudget/i18n"
 
 import { cn } from "@/lib/utils"
 import {
@@ -39,8 +40,8 @@ function Command({
 }
 
 function CommandDialog({
-  title = "Command Palette",
-  description = "Search for a command to run...",
+  title,
+  description,
   children,
   className,
   showCloseButton = false,
@@ -52,11 +53,14 @@ function CommandDialog({
   showCloseButton?: boolean
   children: React.ReactNode
 }) {
+  const { t } = useTranslation("common")
   return (
     <Dialog {...props}>
       <DialogHeader className="sr-only">
-        <DialogTitle>{title}</DialogTitle>
-        <DialogDescription>{description}</DialogDescription>
+        <DialogTitle>{title ?? t("commandPalette.title")}</DialogTitle>
+        <DialogDescription>
+          {description ?? t("commandPalette.description")}
+        </DialogDescription>
       </DialogHeader>
       <DialogContent
         className={cn(
