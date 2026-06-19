@@ -74,6 +74,7 @@
       "clearFilter": "Сбросить фильтр по счёту"
     },
     "fallbackLabel": "счёт",
+    "notFound": "Счёт не найден",
     "cannotArchive": {
       "title": "Нельзя архивировать счёт",
       "description": "На счёте {{name}} ещё есть остаток {{balance}}. Сначала добавьте операцию, чтобы обнулить его — архивные счета скрыты из бюджета."
@@ -89,6 +90,13 @@
     "allAccounts": "Все счета",
     "archived": "Архив",
     "addAccount": "Добавить счёт"
+  },
+  "allAccounts": {
+    "title": "Все счета",
+    "transactionCount_one": "{{count}} операция",
+    "transactionCount_few": "{{count}} операции",
+    "transactionCount_many": "{{count}} операций",
+    "transactionCount_other": "{{count}} операций"
   },
   "netWorthFilter": {
     "trigger": "Выбрать счета для капитала",

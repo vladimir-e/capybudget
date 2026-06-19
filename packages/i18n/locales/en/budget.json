@@ -74,6 +74,7 @@
       "clearFilter": "Clear account filter"
     },
     "fallbackLabel": "account",
+    "notFound": "Account not found",
     "cannotArchive": {
       "title": "Cannot Archive Account",
       "description": "{{name}} still has a {{balance}} balance. Add a transaction to bring it to zero first — archived accounts are hidden from your budget."
@@ -89,6 +90,11 @@
     "allAccounts": "All Accounts",
     "archived": "Archived",
     "addAccount": "Add Account"
+  },
+  "allAccounts": {
+    "title": "All Accounts",
+    "transactionCount_one": "{{count}} transaction",
+    "transactionCount_other": "{{count}} transactions"
   },
   "netWorthFilter": {
     "trigger": "Choose accounts in Net Worth",

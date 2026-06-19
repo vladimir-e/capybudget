@@ -30,6 +30,9 @@
   "dialog": {
     "close": "Close"
   },
+  "errors": {
+    "loadFailed": "Failed to load data"
+  },
   "commandPalette": {
     "title": "Command Palette",
     "description": "Search for a command to run…"

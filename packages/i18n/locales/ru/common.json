@@ -30,6 +30,9 @@
   "dialog": {
     "close": "Закрыть"
   },
+  "errors": {
+    "loadFailed": "Не удалось загрузить данные"
+  },
   "commandPalette": {
     "title": "Командная палитра",
     "description": "Найдите команду для запуска…"

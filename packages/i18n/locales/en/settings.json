@@ -1,6 +1,9 @@
 {
   "title": "Settings",
   "back": "Back to budget",
+  "nav": {
+    "label": "Settings sections"
+  },
   "sections": {
     "general": {
       "label": "General",

@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { useTranslation } from "@capybudget/i18n";
 import { TransactionView } from "@/components/budget/transaction-view";
 import { useTransactions } from "@/hooks/use-budget-data";
 
@@ -7,6 +8,7 @@ export const Route = createFileRoute("/budget/_shell/")({
 });
 
 function AllAccountsView() {
+  const { t } = useTranslation("budget");
   const { data: transactions = [] } = useTransactions();
 
   return (
@@ -15,9 +17,9 @@ function AllAccountsView() {
       showAccountColumn={true}
       header={
         <div className="px-6 py-5 border-b bg-gradient-to-b from-brand-subtle/40 to-transparent">
-          <h2 className="text-xl font-bold tracking-tight">All Accounts</h2>
+          <h2 className="text-xl font-bold tracking-tight">{t("allAccounts.title")}</h2>
           <p className="text-sm text-muted-foreground mt-1">
-            {transactions.length} transaction{transactions.length !== 1 ? "s" : ""}
+            {t("allAccounts.transactionCount", { count: transactions.length })}
           </p>
         </div>
       }

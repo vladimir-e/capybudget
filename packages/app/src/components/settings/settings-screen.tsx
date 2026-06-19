@@ -75,7 +75,7 @@ export function SettingsScreen() {
     <div className="h-screen overflow-x-auto overflow-y-hidden">
     <div className="flex h-full min-w-[48rem]">
       <nav
-        aria-label="Settings sections"
+        aria-label={t("nav.label")}
         className="flex w-60 shrink-0 flex-col border-r border-sidebar-border bg-sidebar"
       >
         <div className="flex items-center gap-2 px-3 py-3">

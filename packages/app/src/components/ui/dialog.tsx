@@ -98,6 +98,7 @@ function DialogFooter({
 }: React.ComponentProps<"div"> & {
   showCloseButton?: boolean
 }) {
+  const { t } = useTranslation("common")
   return (
     <div
       data-slot="dialog-footer"
@@ -110,7 +111,7 @@ function DialogFooter({
       {children}
       {showCloseButton && (
         <DialogPrimitive.Close render={<Button variant="outline" />}>
-          Close
+          {t("dialog.close")}
         </DialogPrimitive.Close>
       )}
     </div>

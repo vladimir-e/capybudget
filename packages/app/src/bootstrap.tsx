@@ -4,6 +4,7 @@ import { RouterProvider, createRouter } from "@tanstack/react-router";
 import { MutationCache, QueryCache, QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { toast } from "sonner";
 import type { AnyRoute } from "@tanstack/react-router";
+import { i18n } from "@capybudget/i18n";
 import { useIntelligenceStore } from "@/stores/intelligence-store";
 
 export async function bootstrapApp(routeTree: AnyRoute) {
@@ -18,7 +19,7 @@ export async function bootstrapApp(routeTree: AnyRoute) {
   const queryClient = new QueryClient({
     queryCache: new QueryCache({
       onError: (error) => {
-        toast.error("Failed to load data", {
+        toast.error(i18n.t("common:errors.loadFailed"), {
           description: error.message,
         });
       },
