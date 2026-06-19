@@ -4,12 +4,14 @@ import enBudget from "../locales/en/budget.json";
 import enImport from "../locales/en/import.json";
 import enCapy from "../locales/en/capy.json";
 import enOnboarding from "../locales/en/onboarding.json";
+import enAnalytics from "../locales/en/analytics.json";
 import { SUPPORTED_LOCALES } from "./locales";
 
 export const NAMESPACES = [
   "common",
   "settings",
   "budget",
+  "analytics",
   "import",
   "capy",
   "onboarding",
@@ -29,6 +31,7 @@ const en = {
   common: enCommon,
   settings: enSettings,
   budget: enBudget,
+  analytics: enAnalytics,
   import: enImport,
   capy: enCapy,
   onboarding: enOnboarding,
