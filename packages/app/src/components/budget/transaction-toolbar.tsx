@@ -45,77 +45,81 @@ export function TransactionToolbar({ filters, onFiltersChange }: TransactionTool
     });
 
   return (
-    <div className="flex items-center gap-2">
-      <div className={`relative flex-[5] min-w-0 ${hasSearch ? activeRing : ""}`}>
-        <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground/60" />
-        <Input
-          placeholder="Search transactions…"
-          value={filters.search}
-          onChange={(e) => update({ search: e.target.value })}
-          className="pl-8 pr-8"
-        />
-        {hasSearch && (
-          <button
-            type="button"
-            onClick={() => update({ search: "" })}
-            className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground/60 hover:text-foreground"
-            aria-label="Clear search"
+    <div className="space-y-2">
+      {hasActiveFilters(filters) && (
+        <div className="flex justify-end">
+          <Button
+            variant="ghost"
+            size="xs"
+            onClick={clearAll}
+            className="text-muted-foreground"
+            aria-label="Clear all filters"
           >
-            <X className="h-3.5 w-3.5" />
-          </button>
-        )}
-      </div>
+            <X className="h-3 w-3" />
+            <span>Clear</span>
+          </Button>
+        </div>
+      )}
 
-      <div className={`flex-[3] min-w-0 [&>div]:w-full [&_button:first-of-type]:flex-1 [&_button:first-of-type]:min-w-0 ${hasCategory ? activeRing : ""}`}>
-        <CategorySelector
-          categories={categories}
-          value={filters.categoryId}
-          onChange={(id) => update({ categoryId: id })}
-          includeAll
-          clearable
-        />
-      </div>
-
-      <div className={`flex-[3] min-w-0 [&>div]:w-full [&_button:first-of-type]:flex-1 [&_button:first-of-type]:min-w-0 ${hasDateRange ? activeRing : ""}`}>
-        <DateRangePicker
-          value={filters.dateRange}
-          onChange={(range) => update({ dateRange: range })}
-        />
-      </div>
-
-      <Popover>
-        <PopoverTrigger
-          render={
-            <Button
-              variant="outline"
-              size="icon-sm"
-              className="relative shrink-0"
-              aria-label="More filters"
-            />
-          }
-        >
-          <ListFilter className="h-3.5 w-3.5" />
-          {hasSecondary && (
-            <span className="absolute right-1 top-1 h-1.5 w-1.5 rounded-full bg-brand" />
+      <div className="flex items-center gap-2">
+        <div className={`relative flex-[5] min-w-0 ${hasSearch ? activeRing : ""}`}>
+          <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground/60" />
+          <Input
+            placeholder="Search transactions…"
+            value={filters.search}
+            onChange={(e) => update({ search: e.target.value })}
+            className="pl-8 pr-8"
+          />
+          {hasSearch && (
+            <button
+              type="button"
+              onClick={() => update({ search: "" })}
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground/60 hover:text-foreground"
+              aria-label="Clear search"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
           )}
-        </PopoverTrigger>
-        <PopoverContent align="end" className="w-64">
-          <TransactionFilterPopover filters={filters} update={update} />
-        </PopoverContent>
-      </Popover>
+        </div>
 
-      {/* Always mounted so toggling the first filter never reflows the row;
-          hidden (but space-reserving) when nothing is active. */}
-      <Button
-        variant="ghost"
-        size="xs"
-        onClick={clearAll}
-        className={`shrink-0 text-muted-foreground ${hasActiveFilters(filters) ? "" : "invisible pointer-events-none"}`}
-        aria-label="Clear all filters"
-      >
-        <X className="h-3 w-3" />
-        <span>Clear</span>
-      </Button>
+        <div className={`flex-[3] min-w-0 [&>div]:w-full [&_button:first-of-type]:flex-1 [&_button:first-of-type]:min-w-0 ${hasCategory ? activeRing : ""}`}>
+          <CategorySelector
+            categories={categories}
+            value={filters.categoryId}
+            onChange={(id) => update({ categoryId: id })}
+            includeAll
+            clearable
+          />
+        </div>
+
+        <div className={`flex-[3] min-w-0 [&>div]:w-full [&_button:first-of-type]:flex-1 [&_button:first-of-type]:min-w-0 ${hasDateRange ? activeRing : ""}`}>
+          <DateRangePicker
+            value={filters.dateRange}
+            onChange={(range) => update({ dateRange: range })}
+          />
+        </div>
+
+        <Popover>
+          <PopoverTrigger
+            render={
+              <Button
+                variant="outline"
+                size="icon-sm"
+                className="relative shrink-0"
+                aria-label="More filters"
+              />
+            }
+          >
+            <ListFilter className="h-3.5 w-3.5" />
+            {hasSecondary && (
+              <span className="absolute right-1 top-1 h-1.5 w-1.5 rounded-full bg-brand" />
+            )}
+          </PopoverTrigger>
+          <PopoverContent align="end" className="w-80">
+            <TransactionFilterPopover filters={filters} update={update} />
+          </PopoverContent>
+        </Popover>
+      </div>
     </div>
   );
 }
