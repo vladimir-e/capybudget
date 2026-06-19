@@ -9,14 +9,32 @@ import {
 
 const STORAGE_KEY = "capybudget.language";
 
+// This config self-initializes at module-eval, before any React error boundary
+// mounts. Storage-partitioned webviews and Safari private mode throw on
+// `localStorage` access, so an unguarded read here white-screens the whole app
+// at boot. Reads fall through to detection; writes are best-effort.
+function readStoredLocale(): string | null {
+  try {
+    return localStorage.getItem(STORAGE_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function writeStoredLocale(locale: Locale): void {
+  try {
+    localStorage.setItem(STORAGE_KEY, locale);
+  } catch {
+    // Persistence is best-effort.
+  }
+}
+
 // Synchronous so the first paint already has the right language — no flash of
 // English. On the Tauri shell `navigator.language` is the OS locale, so no
 // separate native call is needed.
 function detectInitialLocale(): Locale {
-  if (typeof localStorage !== "undefined") {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored) return normalizeLocale(stored);
-  }
+  const stored = readStoredLocale();
+  if (stored) return normalizeLocale(stored);
   if (typeof navigator !== "undefined") {
     return normalizeLocale(navigator.language);
   }
@@ -37,9 +55,7 @@ void i18n.use(initReactI18next).init({
 });
 
 export async function setLocale(locale: Locale): Promise<void> {
-  if (typeof localStorage !== "undefined") {
-    localStorage.setItem(STORAGE_KEY, locale);
-  }
+  writeStoredLocale(locale);
   await i18n.changeLanguage(locale);
 }
 
