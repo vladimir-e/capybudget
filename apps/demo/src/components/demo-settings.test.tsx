@@ -45,9 +45,7 @@ async function renderSettings() {
 describe("ProviderSection in the demo", () => {
   it("shows the desktop-only notice", () => {
     render(<ProviderSection />)
-    expect(
-      screen.getByText("AI is only available in the desktop app"),
-    ).toBeInTheDocument()
+    expect(screen.getByTestId("provider-demo-notice")).toBeInTheDocument()
   })
 
   it("disables every provider radio", () => {

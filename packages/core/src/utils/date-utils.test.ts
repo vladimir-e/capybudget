@@ -1,5 +1,13 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { toDateString, parseLocalDate, formatDateLabel, localDateTime, getToday } from "./date-utils";
+import {
+  toDateString,
+  parseLocalDate,
+  formatDateLabel,
+  formatMonthLabel,
+  formatMonthShort,
+  localDateTime,
+  getToday,
+} from "./date-utils";
 
 describe("toDateString", () => {
   it("formats a date as YYYY-MM-DD", () => {
@@ -54,6 +62,30 @@ describe("formatDateLabel", () => {
 
   it("formats December correctly", () => {
     expect(formatDateLabel("2025-12-25")).toBe("Dec 25, 2025");
+  });
+
+  it("follows the locale's wording when one is passed (ru)", () => {
+    expect(formatDateLabel("2026-03-10", "ru")).toBe("10 мар. 2026 г.");
+  });
+});
+
+describe("formatMonthLabel", () => {
+  it("renders a long month-and-year in en by default", () => {
+    expect(formatMonthLabel("2026-03-10")).toBe("March 2026");
+  });
+
+  it("localizes the month name (ru)", () => {
+    expect(formatMonthLabel("2026-05-01", "ru")).toBe("май 2026 г.");
+  });
+});
+
+describe("formatMonthShort", () => {
+  it("renders an abbreviated month in en by default", () => {
+    expect(formatMonthShort(new Date(2026, 0, 1))).toBe("Jan");
+  });
+
+  it("localizes the abbreviated month (ru)", () => {
+    expect(formatMonthShort(new Date(2026, 0, 1), "ru")).toBe("янв.");
   });
 });
 

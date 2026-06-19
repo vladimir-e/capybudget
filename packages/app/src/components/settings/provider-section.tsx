@@ -120,7 +120,10 @@ export function ProviderSection() {
       </CardHeader>
       <CardContent className="space-y-6">
         {__IS_DEMO__ && (
-          <div className="flex items-start gap-3 rounded-lg border border-brand/30 bg-brand/5 px-3 py-2.5 text-sm">
+          <div
+            data-testid="provider-demo-notice"
+            className="flex items-start gap-3 rounded-lg border border-brand/30 bg-brand/5 px-3 py-2.5 text-sm"
+          >
             <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-brand" />
             <div className="flex-1">
               <p className="font-medium">{t("provider.demoNoticeTitle")}</p>

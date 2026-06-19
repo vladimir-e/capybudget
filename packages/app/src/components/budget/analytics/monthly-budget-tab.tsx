@@ -10,6 +10,7 @@ import type {
   DateRange,
   Transaction,
 } from "@capybudget/core";
+import { useLocale } from "@capybudget/i18n";
 import { useFormatMoney } from "@/contexts/currency-context";
 import { useBudgetBasis } from "./use-budget-basis";
 import { buildBudgetView } from "./monthly-budget-rows";
@@ -41,6 +42,7 @@ export function MonthlyBudgetTab({
   hasAnyTransactions,
 }: MonthlyBudgetTabProps) {
   const { format } = useFormatMoney();
+  const locale = useLocale();
   const [hideUntargeted, setHideUntargeted] = useState(false);
   const [drilldown, setDrilldown] = useState<MonthlyBudgetDrilldown | null>(null);
 
@@ -242,7 +244,7 @@ export function MonthlyBudgetTab({
             : {}
         }
         title={drilldown ? budgetDrilldownTitle(drilldown) : ""}
-        subtitle={drilldown ? formatDrilldownSubtitle(dateRange, "month", drilldownTransactions, format) : undefined}
+        subtitle={drilldown ? formatDrilldownSubtitle(dateRange, "month", drilldownTransactions, format, locale) : undefined}
       />
     </div>
   );

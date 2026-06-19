@@ -11,6 +11,7 @@ import {
   getIncomeByCategory,
 } from "@capybudget/core";
 import type { Transaction, Category, DateRange } from "@capybudget/core";
+import { useLocale } from "@capybudget/i18n";
 import { useFormatMoney } from "@/contexts/currency-context";
 import { ChartSwitcher } from "./chart-switcher";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -107,6 +108,7 @@ export function SpendingTab({
   hasAnyTransactions,
 }: SpendingTabProps) {
   const { format } = useFormatMoney();
+  const locale = useLocale();
   const [viewMode, setViewMode] = useState<ViewMode>("expenses");
   const [drilldown, setDrilldown] = useState<SliceDrilldown | null>(null);
 
@@ -230,7 +232,7 @@ export function SpendingTab({
             : {}
         }
         title={drilldown?.categoryName ?? ""}
-        subtitle={drilldown ? formatDrilldownSubtitle(dateRange, periodType, drilldownTransactions, format) : undefined}
+        subtitle={drilldown ? formatDrilldownSubtitle(dateRange, periodType, drilldownTransactions, format, locale) : undefined}
       />
     </div>
   );

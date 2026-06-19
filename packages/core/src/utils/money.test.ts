@@ -109,6 +109,26 @@ describe("formatMoney — composition matrix", () => {
   });
 });
 
+describe("formatMoney — locale-aware grouping and decimal", () => {
+  // The number's group/decimal glyphs follow the formatting locale; the symbol
+  // and its position do not. Under ru, Intl groups thousands with a NBSP
+  // (U+00A0) and uses a comma decimal; the normal space before the symbol that
+  // `compose` adds is unaffected.
+  const NBSP = String.fromCharCode(0x00a0);
+
+  it("renders ru grouping (NBSP) and comma decimal, symbol after", () => {
+    expect(formatMoney(125000, "RUB", after2, "ru")).toBe(`1${NBSP}250,00 ₽`);
+  });
+
+  it("keeps en grouping (comma) and dot decimal by default", () => {
+    expect(formatMoney(125000, "RUB", after2)).toBe("1,250.00 ₽");
+  });
+
+  it("threads the locale through a before-symbol currency too", () => {
+    expect(formatMoney(125000, "USD", before2, "ru")).toBe(`$1${NBSP}250,00`);
+  });
+});
+
 describe("formatMoneyCompact", () => {
   it("drops cents for amounts >= 100_000 (USD before)", () => {
     expect(formatMoneyCompact(123456, "USD", before2)).toBe("$1,235");

@@ -35,6 +35,11 @@ export function formatMonthLabel(s: string, locale: string = SOURCE_LOCALE): str
   });
 }
 
+/** Localized abbreviated month name for a Date, e.g. "Mar" (en) / "март" (ru). */
+export function formatMonthShort(d: Date, locale: string = SOURCE_LOCALE): string {
+  return d.toLocaleDateString(locale, { month: "short" });
+}
+
 /** Local ISO-ish datetime string (no timezone offset), e.g. "2026-03-10T14:30:05.123". */
 export function localDateTime(): string {
   const d = new Date();

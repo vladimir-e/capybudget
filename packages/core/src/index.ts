@@ -34,6 +34,7 @@ export {
   parseLocalDate,
   formatDateLabel,
   formatMonthLabel,
+  formatMonthShort,
   localDateTime,
 } from "./utils/date-utils";
 

@@ -2,7 +2,9 @@
 
 All UI text lives in JSON catalogs under `locales/<lang>/<namespace>.json`. English
 (`en`) is the source of truth; every other language mirrors its key structure.
-Translating is a copy-and-edit job — you never touch code.
+Adding a language is two edits: the JSON catalogs, and one line registering the
+language. The catalogs load automatically — there is no per-locale wiring file to
+keep in sync.
 
 ## Add a language
 
@@ -31,13 +33,20 @@ Translating is a copy-and-edit job — you never touch code.
    - `aiLanguage` — the language's English name, injected into the AI prompt so
      Capy replies in it.
 
+   This is the *only* code line you touch. The resource loader globs the
+   `locales/` directories, so it picks up your catalogs from the registry entry
+   alone — there's no separate import list to update.
+
 4. Check key parity against English:
 
    ```bash
    npm run i18n:check
    ```
 
-   It fails loudly on any missing or extra key, per namespace. Fix until it passes.
+   It fails loudly on any missing or extra key (per namespace), and on a locale
+   that's registered but has no directory — or has a directory but isn't
+   registered. Fix until it passes. The same check runs in CI and in the test
+   suite, so the gate can't be skipped.
 
 ## Rules
 

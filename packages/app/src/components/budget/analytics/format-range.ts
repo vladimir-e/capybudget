@@ -1,29 +1,23 @@
+import { formatMonthLabel, formatMonthShort, toDateString } from "@capybudget/core";
 import type { DateRange, Transaction } from "@capybudget/core";
 import type { PeriodType } from "@/stores/analytics-store";
 
-const MONTH_NAMES = [
-  "January", "February", "March", "April", "May", "June",
-  "July", "August", "September", "October", "November", "December",
-];
-
-const SHORT_MONTHS = [
-  "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
-];
-
 /** Human-readable label for an analytics date range, picked to match the
- *  period type (e.g. "May 2026", "Q2 2026", "Jan – Mar 2026"). Used both
- *  by the date-range nav and by the transactions browser modal subtitle so
- *  the two surfaces stay in sync. */
-export function formatRangeLabel(range: DateRange, periodType: PeriodType): string {
+ *  period type (e.g. "May 2026", "Q2 2026", "Jan – Mar 2026"). Month names
+ *  follow the active UI language, threaded in by the caller (the same locale
+ *  the currency formatter reads). Used both by the date-range nav and by the
+ *  transactions browser modal subtitle so the two surfaces stay in sync. */
+export function formatRangeLabel(range: DateRange, periodType: PeriodType, locale: string): string {
   if (periodType === "allTime") return "All Time";
 
   const start = range.start;
   const endDate = new Date(range.end);
   endDate.setDate(endDate.getDate() - 1);
 
+  const monthAndYear = (d: Date) => formatMonthLabel(toDateString(d), locale);
+
   if (periodType === "month") {
-    return `${MONTH_NAMES[start.getMonth()]} ${start.getFullYear()}`;
+    return monthAndYear(start);
   }
 
   if (periodType === "quarter") {
@@ -36,20 +30,19 @@ export function formatRangeLabel(range: DateRange, periodType: PeriodType): stri
   }
 
   // custom
-  const startMonth = start.getMonth();
   const startYear = start.getFullYear();
-  const endMonth = endDate.getMonth();
   const endYear = endDate.getFullYear();
+  const sameMonth = start.getMonth() === endDate.getMonth() && startYear === endYear;
 
-  if (startMonth === endMonth && startYear === endYear) {
-    return `${MONTH_NAMES[startMonth]} ${startYear}`;
+  if (sameMonth) {
+    return monthAndYear(start);
   }
 
   if (startYear === endYear) {
-    return `${SHORT_MONTHS[startMonth]} – ${SHORT_MONTHS[endMonth]} ${startYear}`;
+    return `${formatMonthShort(start, locale)} – ${formatMonthShort(endDate, locale)} ${startYear}`;
   }
 
-  return `${SHORT_MONTHS[startMonth]} ${startYear} – ${SHORT_MONTHS[endMonth]} ${endYear}`;
+  return `${formatMonthShort(start, locale)} ${startYear} – ${formatMonthShort(endDate, locale)} ${endYear}`;
 }
 
 /** Transaction count plus the abs-summed total when there's more than one,
@@ -73,6 +66,7 @@ export function formatDrilldownSubtitle(
   periodType: PeriodType,
   transactions: Transaction[],
   format: (cents: number) => string,
+  locale: string,
 ): string {
-  return `${formatRangeLabel(range, periodType)} · ${formatCountAndTotal(transactions, format)}`;
+  return `${formatRangeLabel(range, periodType, locale)} · ${formatCountAndTotal(transactions, format)}`;
 }

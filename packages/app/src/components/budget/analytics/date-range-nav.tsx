@@ -8,6 +8,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import { useLocale } from "@capybudget/i18n";
 import type { DateRange } from "@capybudget/core";
 import type { PeriodType } from "@/stores/analytics-store";
 import type { DateRange as CalendarDateRange } from "react-day-picker";
@@ -46,7 +47,8 @@ export function DateRangeNav({
   onCustomRange,
   dataBounds,
 }: DateRangeNavProps) {
-  const label = formatRangeLabel(dateRange, periodType);
+  const locale = useLocale();
+  const label = formatRangeLabel(dateRange, periodType, locale);
 
   const calendarDisabled = useMemo(() => {
     if (!dataBounds) return undefined;

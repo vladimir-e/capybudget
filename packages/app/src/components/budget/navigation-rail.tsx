@@ -22,7 +22,7 @@ export function NavigationRail({
 }: NavigationRailProps) {
   const search = useMemo(() => ({ path: budgetPath, name: budgetName }), [budgetPath, budgetName]);
   const navigate = useNavigate();
-  const { t } = useTranslation();
+  const { t } = useTranslation("common");
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {

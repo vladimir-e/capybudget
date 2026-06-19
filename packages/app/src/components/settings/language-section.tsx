@@ -1,6 +1,6 @@
 import {
   SUPPORTED_LOCALES,
-  normalizeLocale,
+  isSupportedLocale,
   setLocale,
   useLocale,
   useTranslation,
@@ -37,7 +37,7 @@ export function LanguageSection() {
           <Select
             value={locale}
             onValueChange={(v) => {
-              if (typeof v === "string") void setLocale(normalizeLocale(v))
+              if (typeof v === "string" && isSupportedLocale(v)) void setLocale(v)
             }}
           >
             <SelectTrigger id="language" className="w-full">
