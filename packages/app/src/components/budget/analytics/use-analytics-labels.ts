@@ -1,6 +1,7 @@
 import { type BudgetBasis, formatMonthShort } from "@capybudget/core"
 import { useLocale, useTranslation } from "@capybudget/i18n"
 import { useCategoryDisplayName } from "@/lib/display-names"
+import type { AnalyticsKey } from "@/lib/i18n-keys"
 
 /**
  * Display-time localization for the strings core analytics bakes in English so
@@ -46,7 +47,15 @@ const BASIS_OPTION_KEY = {
   trailing6: "basis.trailing6Option",
   trailing12: "basis.trailing12Option",
   sameMonthLastYear: "basis.sameMonthLastYearOption",
-} as const satisfies Record<BudgetBasis, string>
+} satisfies Record<BudgetBasis, AnalyticsKey>
+
+/** Short resolved label for a trailing basis ("3-mo avg"); `sameMonthLastYear`
+ *  resolves to its month instead and isn't in this map. */
+const BASIS_SHORT_KEY = {
+  trailing3: "basis.trailing3",
+  trailing6: "basis.trailing6",
+  trailing12: "basis.trailing12",
+} satisfies Record<Exclude<BudgetBasis, "sameMonthLastYear">, AnalyticsKey>
 
 /** Long-form basis option for the picker menu ("3 months"). */
 export function useBasisOptionLabel(): (basis: BudgetBasis) => string {
@@ -65,6 +74,6 @@ export function useBasisLabel(): (basis: BudgetBasis, viewedMonth: Date) => stri
       const d = new Date(viewedMonth.getFullYear() - 1, viewedMonth.getMonth(), 1)
       return t("basis.monthLabel", { month: formatMonthShort(d, locale), year: d.getFullYear() })
     }
-    return t(`basis.${basis}`)
+    return t(BASIS_SHORT_KEY[basis])
   }
 }

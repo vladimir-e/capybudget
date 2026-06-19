@@ -1,9 +1,9 @@
 import { useEffect } from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { useTranslation } from "@capybudget/i18n";
 import { TransactionView } from "@/components/budget/transaction-view";
 import { AccountHeader } from "@/components/budget/account-header";
 import { useBudgetUI } from "@/contexts/budget-context";
+import { useBudgetLabels } from "@/lib/use-budget-labels";
 import { useAccounts, useTransactions } from "@/hooks/use-budget-data";
 import { getTransactionsForAccount, getAccountBalance } from "@capybudget/core";
 
@@ -12,7 +12,7 @@ export const Route = createFileRoute("/budget/_shell/account/$accountId")({
 });
 
 function AccountView() {
-  const { t } = useTranslation("budget");
+  const labels = useBudgetLabels();
   const { accountId } = Route.useParams();
   const { data: accounts = [] } = useAccounts();
   const { data: transactions = [] } = useTransactions();
@@ -27,7 +27,7 @@ function AccountView() {
   if (!account) {
     return (
       <div className="flex items-center justify-center h-full">
-        <p className="text-muted-foreground">{t("account.notFound")}</p>
+        <p className="text-muted-foreground">{labels.accountNotFound()}</p>
       </div>
     );
   }

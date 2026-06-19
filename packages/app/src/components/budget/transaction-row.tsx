@@ -11,9 +11,9 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { InlineEditCell, type EditableColumn } from "@/components/budget/inline-edit-cells";
 import type { Account, Category, Transaction, TransactionFormData } from "@capybudget/core";
-import { formatDateLabel, getAmountClass, resolveTransferPair } from "@capybudget/core";
-import { useLocale, useTranslation } from "@capybudget/i18n";
-import { useFormatMoney } from "@/contexts/currency-context";
+import { getAmountClass, resolveTransferPair } from "@capybudget/core";
+import { useTranslation } from "@capybudget/i18n";
+import { useFormatters } from "@/hooks/use-formatters";
 import { useCategoryDisplayName } from "@/lib/display-names";
 import { ArrowRight, Info, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
 
@@ -59,8 +59,7 @@ export const TransactionRowMemo = memo(function TransactionRow({
   onDelete,
 }: TransactionRowProps) {
   const { t } = useTranslation(["budget", "common"]);
-  const locale = useLocale();
-  const { format } = useFormatMoney();
+  const { money, date } = useFormatters();
   const categoryDisplayName = useCategoryDisplayName();
   const account = accountMap.get(txn.accountId);
 
@@ -115,7 +114,7 @@ export const TransactionRowMemo = memo(function TransactionRow({
       >
         {activeCol === "date" ? (
           <InlineEditCell txn={txn} column="date" accounts={accounts} categories={categories} onSave={onInlineSave} onCancel={onInlineCancel} />
-        ) : formatDateLabel(txn.datetime.slice(0, 10), locale)}
+        ) : date(txn.datetime.slice(0, 10))}
       </TableCell>
       {showAccountColumn && (
         <TableCell
@@ -174,7 +173,7 @@ export const TransactionRowMemo = memo(function TransactionRow({
       >
         {activeCol === "amount" ? (
           <InlineEditCell txn={txn} column="amount" accounts={accounts} categories={categories} onSave={onInlineSave} onCancel={onInlineCancel} />
-        ) : format(txn.amount)}
+        ) : money(txn.amount)}
       </TableCell>
       {hasActions && (
         <TableCell className="px-1">

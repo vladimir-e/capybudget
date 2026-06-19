@@ -13,8 +13,7 @@ import {
 } from "@capybudget/core";
 import type { Transaction, DateRange } from "@capybudget/core";
 import { useLocale, useTranslation } from "@capybudget/i18n";
-import { useFormatMoney } from "@/contexts/currency-context";
-import { useFormatPercent } from "@/lib/format-percent";
+import { useFormatters } from "@/hooks/use-formatters";
 import { useThemeColors } from "./use-theme-colors";
 import { EmptyState } from "@/components/ui/empty-state";
 import { TransactionsModal } from "@/components/budget/transactions-modal";
@@ -46,16 +45,15 @@ function MerchantTooltipContent({
   active?: boolean;
   payload?: Array<{ payload: MerchantRow }>;
 }) {
-  const { format } = useFormatMoney();
+  const { money, percent } = useFormatters();
   const { t } = useTranslation("analytics");
-  const formatPercent = useFormatPercent();
   if (!active || !payload?.length) return null;
   const data = payload[0].payload;
   return (
     <div className="rounded-lg border bg-background px-3 py-2 shadow-popover">
       <p className="text-sm font-medium">{data.displayMerchant}</p>
       <p className="text-sm text-muted-foreground tabular-nums">
-        {format(data.total)} · {t("merchants.txnCount", { count: data.count })} · {formatPercent(data.percentage)}
+        {money(data.total)} · {t("merchants.txnCount", { count: data.count })} · {percent(data.percentage)}
       </p>
     </div>
   );
@@ -76,10 +74,9 @@ export function MerchantsTab({
   periodType,
   hasAnyTransactions,
 }: MerchantsTabProps) {
-  const { format, formatCompact } = useFormatMoney();
+  const { money, moneyCompact, percent } = useFormatters();
   const locale = useLocale();
   const { t } = useTranslation("analytics");
-  const formatPercent = useFormatPercent();
   const merchants = useMemo<MerchantRow[]>(
     () =>
       getTopMerchants(transactions, 15).map((m) => ({
@@ -129,7 +126,7 @@ export function MerchantsTab({
           <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
           <XAxis
             type="number"
-            tickFormatter={(v: number) => formatCompact(v)}
+            tickFormatter={(v: number) => moneyCompact(v)}
             tick={{ fontSize: 12 }}
             className="text-muted-foreground"
           />
@@ -180,13 +177,13 @@ export function MerchantsTab({
               </TransactionsDrilldownLink>
             </span>
             <span className="tabular-nums font-medium text-foreground text-right">
-              {format(m.total)}
+              {money(m.total)}
             </span>
             <span className="tabular-nums text-muted-foreground text-right">
               {m.count}
             </span>
             <span className="tabular-nums text-muted-foreground text-right">
-              {formatPercent(m.percentage)}
+              {percent(m.percentage)}
             </span>
           </div>
         ))}
@@ -209,7 +206,7 @@ export function MerchantsTab({
             : {}
         }
         title={drilldown?.kind === "unknown" ? t("fallback.unknown") : (drilldown?.value ?? "")}
-        subtitle={drilldown ? formatDrilldownSubtitle(dateRange, periodType, drilldownTransactions, format, locale, t) : undefined}
+        subtitle={drilldown ? formatDrilldownSubtitle(dateRange, periodType, drilldownTransactions, money, locale, t) : undefined}
       />
     </div>
   );

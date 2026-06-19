@@ -1,4 +1,5 @@
 import type { TFunction } from "i18next"
+import type { CapyKey } from "@/lib/i18n-keys"
 
 /**
  * Human-readable labels for tool-activity content blocks.
@@ -9,36 +10,32 @@ import type { TFunction } from "i18next"
  * applies uniformly. Unknown tools fall back to their raw name.
  */
 
-const KNOWN_TOOLS = [
-  "list_accounts",
-  "list_transactions",
-  "list_categories",
-  "search_transactions",
-  "group_transactions",
-  "create_transaction",
-  "update_transaction",
-  "delete_transactions",
-  "create_account",
-  "update_account",
-  "delete_account",
-  "create_category",
-  "update_category",
-  "delete_category",
-  "bulk_update_transactions",
-  "start_import",
-  "render_chart",
+const TOOL_KEY = {
+  list_accounts: "tool.list_accounts",
+  list_transactions: "tool.list_transactions",
+  list_categories: "tool.list_categories",
+  search_transactions: "tool.search_transactions",
+  group_transactions: "tool.group_transactions",
+  create_transaction: "tool.create_transaction",
+  update_transaction: "tool.update_transaction",
+  delete_transactions: "tool.delete_transactions",
+  create_account: "tool.create_account",
+  update_account: "tool.update_account",
+  delete_account: "tool.delete_account",
+  create_category: "tool.create_category",
+  update_category: "tool.update_category",
+  delete_category: "tool.delete_category",
+  bulk_update_transactions: "tool.bulk_update_transactions",
+  start_import: "tool.start_import",
+  render_chart: "tool.render_chart",
   // Claude CLI built-in — surfaces when the CLI defers MCP tool schemas.
-  "ToolSearch",
-] as const
+  ToolSearch: "tool.ToolSearch",
+} satisfies Record<string, CapyKey>
 
-type KnownTool = (typeof KNOWN_TOOLS)[number]
-
-const KNOWN_TOOL_SET = new Set<string>(KNOWN_TOOLS)
-
-function isKnownTool(tool: string): tool is KnownTool {
-  return KNOWN_TOOL_SET.has(tool)
+function isKnownTool(tool: string): tool is keyof typeof TOOL_KEY {
+  return tool in TOOL_KEY
 }
 
 export function getToolLabel(tool: string, t: TFunction<"capy">): string {
-  return isKnownTool(tool) ? t(`tool.${tool}`) : tool
+  return isKnownTool(tool) ? t(TOOL_KEY[tool]) : tool
 }

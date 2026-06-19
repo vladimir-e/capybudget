@@ -4,6 +4,7 @@ import {
   type AccountType,
 } from "@capybudget/core"
 import { useTranslation } from "@capybudget/i18n"
+import type { BudgetKey } from "@/lib/i18n-keys"
 
 /**
  * Canonical-display translation.
@@ -15,9 +16,11 @@ import { useTranslation } from "@capybudget/i18n"
  * equals a canonical default renders its translation; anything else (renamed or
  * user-created) renders verbatim, never translated.
  *
- * The literal name tuples below ARE the `budget:canonicalCategory.*` /
- * `canonicalGroup.*` catalog keys, so they double as the typed key space.
- * `display-names.test.ts` asserts they stay in lockstep with core's seed.
+ * The literal name tuples below double as the `canonicalCategory.*` /
+ * `canonicalGroup.*` catalog-key space. The `*_KEY` maps pair each enum member
+ * with its `budget`-namespace key; typing them `satisfies Record<Enum,
+ * BudgetKey>` makes the compiler enforce both exhaustiveness (every member
+ * mapped) and key validity (every value is a real catalog key).
  */
 
 export const CANONICAL_CATEGORY_NAMES = [
@@ -49,15 +52,53 @@ export const CANONICAL_GROUP_NAMES = [...CATEGORY_GROUP_ORDER, "Archived"] as co
 type CanonicalCategoryName = (typeof CANONICAL_CATEGORY_NAMES)[number]
 type CanonicalGroupName = (typeof CANONICAL_GROUP_NAMES)[number]
 
-const CANONICAL_CATEGORY_SET = new Set<string>(CANONICAL_CATEGORY_NAMES)
-const CANONICAL_GROUP_SET = new Set<string>(CANONICAL_GROUP_NAMES)
+const CANONICAL_CATEGORY_KEY = {
+  Paycheck: "canonicalCategory.Paycheck",
+  "Other Income": "canonicalCategory.Other Income",
+  Housing: "canonicalCategory.Housing",
+  "Bills & Utilities": "canonicalCategory.Bills & Utilities",
+  Subscriptions: "canonicalCategory.Subscriptions",
+  Groceries: "canonicalCategory.Groceries",
+  "Dining Out": "canonicalCategory.Dining Out",
+  Transportation: "canonicalCategory.Transportation",
+  "Alcohol & Smoking": "canonicalCategory.Alcohol & Smoking",
+  "Health & Beauty": "canonicalCategory.Health & Beauty",
+  Clothing: "canonicalCategory.Clothing",
+  "Fun & Hobbies": "canonicalCategory.Fun & Hobbies",
+  Allowances: "canonicalCategory.Allowances",
+  "Education & Business": "canonicalCategory.Education & Business",
+  "Gifts & Giving": "canonicalCategory.Gifts & Giving",
+  "Housekeeping & Maintenance": "canonicalCategory.Housekeeping & Maintenance",
+  "Big Purchases": "canonicalCategory.Big Purchases",
+  Travel: "canonicalCategory.Travel",
+  "Taxes & Fees": "canonicalCategory.Taxes & Fees",
+} satisfies Record<CanonicalCategoryName, BudgetKey>
+
+const CANONICAL_GROUP_KEY = {
+  Income: "canonicalGroup.Income",
+  Fixed: "canonicalGroup.Fixed",
+  "Daily Living": "canonicalGroup.Daily Living",
+  Personal: "canonicalGroup.Personal",
+  Irregular: "canonicalGroup.Irregular",
+  Archived: "canonicalGroup.Archived",
+} satisfies Record<CanonicalGroupName, BudgetKey>
+
+const ACCOUNT_TYPE_KEY = {
+  cash: "accountType.cash",
+  checking: "accountType.checking",
+  savings: "accountType.savings",
+  credit_card: "accountType.credit_card",
+  loan: "accountType.loan",
+  asset: "accountType.asset",
+  crypto: "accountType.crypto",
+} satisfies Record<AccountType, BudgetKey>
 
 function isCanonicalCategory(name: string): name is CanonicalCategoryName {
-  return CANONICAL_CATEGORY_SET.has(name)
+  return name in CANONICAL_CATEGORY_KEY
 }
 
 function isCanonicalGroup(name: string): name is CanonicalGroupName {
-  return CANONICAL_GROUP_SET.has(name)
+  return name in CANONICAL_GROUP_KEY
 }
 
 /** Names of categories the app seeds — `display-names.test.ts` pins this to
@@ -68,19 +109,19 @@ export const SEEDED_CATEGORY_NAMES = DEFAULT_CATEGORIES.map((c) => c.name)
 export function useCategoryDisplayName(): (name: string) => string {
   const { t } = useTranslation("budget")
   return (name: string) =>
-    isCanonicalCategory(name) ? t(`canonicalCategory.${name}`) : name
+    isCanonicalCategory(name) ? t(CANONICAL_CATEGORY_KEY[name]) : name
 }
 
 /** Same canonical-match contract as `useCategoryDisplayName`, for group names. */
 export function useGroupDisplayName(): (name: string) => string {
   const { t } = useTranslation("budget")
   return (name: string) =>
-    isCanonicalGroup(name) ? t(`canonicalGroup.${name}`) : name
+    isCanonicalGroup(name) ? t(CANONICAL_GROUP_KEY[name]) : name
 }
 
 /** Localized label for an account type. Core's enum/order stays the source of
  *  truth; only the display string is localized. */
 export function useAccountTypeLabel(): (type: AccountType) => string {
   const { t } = useTranslation("budget")
-  return (type: AccountType) => t(`accountType.${type}`)
+  return (type: AccountType) => t(ACCOUNT_TYPE_KEY[type])
 }

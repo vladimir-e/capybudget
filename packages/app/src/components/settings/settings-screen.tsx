@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react"
 import { useNavigate, useSearch } from "@tanstack/react-router"
 import { ArrowLeft, Coins, RefreshCw, Shapes, Sparkles } from "lucide-react"
 import { useTranslation } from "@capybudget/i18n"
+import type { SettingsKey } from "@/lib/i18n-keys"
 import { Button } from "@/components/ui/button"
 import { GeneralSection } from "./general-section"
 import { LanguageSection } from "./language-section"
@@ -24,6 +25,20 @@ const SECTIONS: {
   { id: "categories", icon: Shapes },
   { id: "updates", icon: RefreshCw },
 ]
+
+const SECTION_LABEL_KEY = {
+  general: "sections.general.label",
+  intelligence: "sections.intelligence.label",
+  categories: "sections.categories.label",
+  updates: "sections.updates.label",
+} satisfies Record<SettingsSection, SettingsKey>
+
+const SECTION_DESCRIPTION_KEY = {
+  general: "sections.general.description",
+  intelligence: "sections.intelligence.description",
+  categories: "sections.categories.description",
+  updates: "sections.updates.description",
+} satisfies Record<SettingsSection, SettingsKey>
 
 const SECTION_IDS = new Set(SECTIONS.map((s) => s.id))
 
@@ -95,8 +110,8 @@ export function SettingsScreen() {
             <SectionItem
               key={s.id}
               icon={s.icon}
-              label={t(`sections.${s.id}.label`)}
-              description={t(`sections.${s.id}.description`)}
+              label={t(SECTION_LABEL_KEY[s.id])}
+              description={t(SECTION_DESCRIPTION_KEY[s.id])}
               active={active === s.id}
               onSelect={() => setActive(s.id)}
             />

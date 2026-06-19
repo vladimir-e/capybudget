@@ -1,12 +1,12 @@
 import { useTranslation } from "@capybudget/i18n";
-import { useFormatMoney } from "@/contexts/currency-context";
+import { useFormatters } from "@/hooks/use-formatters";
 
 interface SummaryStripProps {
   summary: { totalIncome: number; totalExpenses: number; net: number };
 }
 
 export function SummaryStrip({ summary }: SummaryStripProps) {
-  const { format } = useFormatMoney();
+  const { money } = useFormatters();
   const { t } = useTranslation("analytics");
   return (
     <div className="flex items-center gap-6 rounded-lg border bg-card px-5 py-4">
@@ -15,7 +15,7 @@ export function SummaryStrip({ summary }: SummaryStripProps) {
           {t("summary.income")}
         </div>
         <div className="text-xl font-bold tabular-nums text-amount-income mt-0.5">
-          {format(summary.totalIncome)}
+          {money(summary.totalIncome)}
         </div>
       </div>
       <div className="h-8 w-px bg-border" />
@@ -24,7 +24,7 @@ export function SummaryStrip({ summary }: SummaryStripProps) {
           {t("summary.expenses")}
         </div>
         <div className="text-xl font-bold tabular-nums text-amount-expense mt-0.5">
-          {format(Math.abs(summary.totalExpenses))}
+          {money(Math.abs(summary.totalExpenses))}
         </div>
       </div>
       <div className="h-8 w-px bg-border" />
@@ -38,7 +38,7 @@ export function SummaryStrip({ summary }: SummaryStripProps) {
           }`}
         >
           {summary.net >= 0 ? "+" : ""}
-          {format(Math.abs(summary.net))}
+          {money(Math.abs(summary.net))}
         </div>
       </div>
     </div>
