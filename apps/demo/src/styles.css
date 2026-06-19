@@ -26,3 +26,26 @@
     height: 100%;
   }
 }
+
+/* ── Tablet+ scroll containment ───────────────────────────────────────
+   iPad and desktop skip the phone <MobileNotice> layout, so the shared app's
+   `h-screen` (100vh) applies raw. On iPad Safari 100vh is the *large* viewport
+   (toolbar-collapsed height), which overshoots the visible area while the
+   toolbar is showing — so the page body scrolls, the header drifts offscreen,
+   and the inner transactions list then fights the page for the upward swipe.
+   Pin the page to the dynamic viewport and lock body scroll so only the inner
+   panels move and the header stays put; with no page scroll the toolbar never
+   collapses, so dvh is stable (no resize jank). `overscroll-behavior` kills the
+   rubber-band chain from the inner list. The desktop app never hits this (native
+   window, no dynamic chrome). Scoped to the demo. */
+@media (width >= 40rem) {
+  html,
+  body {
+    height: 100dvh;
+    overflow: hidden;
+    overscroll-behavior: none;
+  }
+  #root .h-screen {
+    height: 100dvh;
+  }
+}
