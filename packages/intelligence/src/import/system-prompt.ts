@@ -7,10 +7,10 @@ export const IMPORT_STRUCTURED_SYSTEM_PROMPT =
   "source actually contains — never invent transactions, dates, or amounts — and " +
   "always answer with the requested structure.";
 
-export function buildImportSystemPrompt(language?: string): string {
-  if (!language || language === "English") return IMPORT_STRUCTURED_SYSTEM_PROMPT;
-  return (
-    IMPORT_STRUCTURED_SYSTEM_PROMPT +
-    ` Write any free-text field values you generate in ${language}.`
-  );
+// Language-neutral by design: the import pipeline produces canonical, source-
+// faithful data (category names are matched by exact string, merchant names are
+// stored verbatim), so its prompt must not localize free-text fields to the UI
+// language. Chat replies localize; structured import does not.
+export function buildImportSystemPrompt(): string {
+  return IMPORT_STRUCTURED_SYSTEM_PROMPT;
 }

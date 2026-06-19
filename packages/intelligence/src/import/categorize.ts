@@ -161,7 +161,7 @@ function buildEnrichPrompt(
   });
 
   return [
-    `Assign a clean merchant name and a budget category to each transaction below. Return the category by its exact NAME from the lists below.`,
+    `Assign a clean merchant name and a budget category to each transaction below. Return the category as one EXACT name from the lists below, copied verbatim — do not translate or rephrase it. Keep the cleaned merchant name in the source statement's own language — do not translate it.`,
     ``,
     `The category's type MUST match the transaction type: an \`income\` transaction takes an "Income"-group category; an \`expense\` takes a category from any non-Income group. The categories are split below by which type they apply to — pick from the matching list.`,
     ``,

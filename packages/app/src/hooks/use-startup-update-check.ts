@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react"
 import { useNavigate } from "@tanstack/react-router"
 import { toast } from "sonner"
+import { i18n } from "@capybudget/i18n"
 import { checkForUpdate } from "@/lib/updater"
 
 interface StartupUpdateCheckArgs {
@@ -29,9 +30,9 @@ export function useStartupUpdateCheck({ path, name, navigate }: StartupUpdateChe
       void checkForUpdate()
         .then((update) => {
           if (!update) return
-          toast(`Capy ${update.version} available`, {
+          toast(i18n.t("common:update.available", { version: update.version }), {
             action: {
-              label: "Update",
+              label: i18n.t("common:update.action"),
               onClick: () => {
                 const { path, name, navigate } = latest.current
                 navigate({

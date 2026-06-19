@@ -30,6 +30,17 @@
     "system": "Системная тема",
     "colorTheme": "Цветовая тема"
   },
+  "colorTheme": {
+    "capybara": "Капибара",
+    "ocean": "Океан",
+    "forest": "Лес",
+    "rose": "Роза",
+    "slate": "Сланец"
+  },
+  "update": {
+    "available": "Доступна Capy {{version}}",
+    "action": "Обновить"
+  },
   "dialog": {
     "close": "Закрыть"
   },

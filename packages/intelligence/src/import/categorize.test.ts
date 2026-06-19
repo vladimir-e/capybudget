@@ -181,6 +181,22 @@ describe("enrichBatch", () => {
     expect(text).toMatch(/"Other" is NOT a category|never let it override/);
   });
 
+  it("instructs an exact, untranslated category name and a source-language merchant", async () => {
+    // Canonical-data contract: the category must match a stored name by exact
+    // string and the stored merchant is source-faithful, so the prompt forbids
+    // translating either — a localized field would break name-matching / corrupt
+    // the stored CSV.
+    const batch = [makeImportTransaction({ id: "imp-1" })];
+    const session = new MockStructuredSession([() => ({ rows: [] })]);
+
+    await enrichBatch(session, batch, {}, categories);
+
+    const text = (session.calls[0].messages[0].content as string);
+    expect(text).toMatch(/EXACT name/);
+    expect(text).toMatch(/do not translate/i);
+    expect(text).toMatch(/source statement's own language/i);
+  });
+
   it("presents categories by name + group, never by id", async () => {
     const batch = [makeImportTransaction({ id: "imp-1" })];
     const session = new MockStructuredSession([() => ({ rows: [] })]);

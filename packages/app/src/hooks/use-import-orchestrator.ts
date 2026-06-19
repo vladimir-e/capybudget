@@ -9,7 +9,6 @@ import {
   type BudgetDataProvider,
 } from "@capybudget/intelligence";
 import { AnthropicSession, OpenAiSession } from "@capybudget/intelligence/adapters";
-import { useAiLanguage } from "@capybudget/i18n";
 import { useBudgetRepository } from "@/contexts/repository-context";
 import { useCurrency } from "@/contexts/currency-context";
 import { useIntelligenceStore } from "@/stores/intelligence-store";
@@ -34,8 +33,8 @@ export interface RunOptions {
   instructions?: string;
 }
 
-function composeSystemPrompt(language: string, opts?: RunOptions): string {
-  const base = buildImportSystemPrompt(language);
+function composeSystemPrompt(opts?: RunOptions): string {
+  const base = buildImportSystemPrompt();
   const extra: string[] = [];
   if (opts?.accountName) {
     extra.push(`Default source account when a row has none: ${opts.accountName}.`);
@@ -64,7 +63,6 @@ function composeSystemPrompt(language: string, opts?: RunOptions): string {
 export function useImportOrchestrator(budgetPath: string) {
   const repo = useBudgetRepository();
   const currency = useCurrency();
-  const language = useAiLanguage();
   const config = useIntelligenceStore((s) => s.config);
   const apply = useImportStore((s) => s.apply);
   const beginRun = useImportStore((s) => s.beginRun);
@@ -107,7 +105,7 @@ export function useImportOrchestrator(budgetPath: string) {
         },
         options: {
           budgetPath,
-          systemPrompt: composeSystemPrompt(language, opts),
+          systemPrompt: composeSystemPrompt(opts),
           repo,
           fileAdapter: tauriFileAdapter,
           currency,
@@ -129,7 +127,7 @@ export function useImportOrchestrator(budgetPath: string) {
       });
       return orchestrator;
     },
-    [config, budgetPath, repo, staging, budget, apply, currency, language],
+    [config, budgetPath, repo, staging, budget, apply, currency],
   );
 
   const start = useCallback(

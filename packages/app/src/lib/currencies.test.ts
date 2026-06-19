@@ -1,27 +1,25 @@
 import { describe, expect, it } from "vitest";
-import { CURRENCIES } from "./currencies";
+import { CURRENCY_CODES } from "./currencies";
 
 describe("currencies", () => {
-  it("every entry has a 3-letter uppercase code and a non-empty name", () => {
-    for (const c of CURRENCIES) {
-      expect(c.code).toMatch(/^[A-Z]{3}$/);
-      expect(c.name.trim().length).toBeGreaterThan(0);
+  it("every code is 3-letter uppercase", () => {
+    for (const code of CURRENCY_CODES) {
+      expect(code).toMatch(/^[A-Z]{3}$/);
     }
   });
 
   it("has no duplicate codes", () => {
-    const codes = CURRENCIES.map((c) => c.code);
-    expect(new Set(codes).size).toBe(codes.length);
+    expect(new Set(CURRENCY_CODES).size).toBe(CURRENCY_CODES.length);
   });
 
   it("includes the currencies Capy's users need", () => {
-    const codes = new Set(CURRENCIES.map((c) => c.code));
+    const codes = new Set<string>(CURRENCY_CODES);
     for (const code of ["USD", "EUR", "UAH", "ARS", "KZT", "RUB"]) {
       expect(codes).toContain(code);
     }
   });
 
   it("excludes the stale RUR code", () => {
-    expect(CURRENCIES.some((c) => c.code === "RUR")).toBe(false);
+    expect(CURRENCY_CODES).not.toContain("RUR");
   });
 });

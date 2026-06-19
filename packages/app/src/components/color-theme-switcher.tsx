@@ -10,11 +10,20 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useColorTheme } from "@/contexts/color-theme-context";
 import { COLOR_THEMES, type ColorTheme } from "@/lib/color-themes";
+import type { CommonKey } from "@/lib/i18n-keys";
 
 const entries = Object.entries(COLOR_THEMES) as [
   ColorTheme,
   (typeof COLOR_THEMES)[ColorTheme],
 ][];
+
+const LABEL_KEY = {
+  capybara: "colorTheme.capybara",
+  ocean: "colorTheme.ocean",
+  forest: "colorTheme.forest",
+  rose: "colorTheme.rose",
+  slate: "colorTheme.slate",
+} satisfies Record<ColorTheme, CommonKey>;
 
 export function ColorThemeSwitcher() {
   const { t } = useTranslation("common");
@@ -34,13 +43,13 @@ export function ColorThemeSwitcher() {
           value={colorTheme}
           onValueChange={(v) => setColorTheme(v as ColorTheme)}
         >
-          {entries.map(([key, { label, swatch }]) => (
+          {entries.map(([key, { swatch }]) => (
             <DropdownMenuRadioItem key={key} value={key}>
               <span
                 className="inline-block h-3 w-3 rounded-full border border-foreground/15"
                 style={{ background: swatch }}
               />
-              {label}
+              {t(LABEL_KEY[key])}
             </DropdownMenuRadioItem>
           ))}
         </DropdownMenuRadioGroup>

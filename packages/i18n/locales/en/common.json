@@ -30,6 +30,17 @@
     "system": "System theme",
     "colorTheme": "Color theme"
   },
+  "colorTheme": {
+    "capybara": "Capybara",
+    "ocean": "Ocean",
+    "forest": "Forest",
+    "rose": "Rose",
+    "slate": "Slate"
+  },
+  "update": {
+    "available": "Capy {{version}} available",
+    "action": "Update"
+  },
   "dialog": {
     "close": "Close"
   },

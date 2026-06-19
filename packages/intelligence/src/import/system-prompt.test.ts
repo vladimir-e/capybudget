@@ -5,14 +5,8 @@ import {
 } from "./system-prompt";
 
 describe("buildImportSystemPrompt", () => {
-  it("returns the base prompt unchanged for English or no language", () => {
+  it("is language-neutral — the import pipeline produces canonical, source-faithful data", () => {
     expect(buildImportSystemPrompt()).toBe(IMPORT_STRUCTURED_SYSTEM_PROMPT);
-    expect(buildImportSystemPrompt("English")).toBe(IMPORT_STRUCTURED_SYSTEM_PROMPT);
-  });
-
-  it("appends a language instruction for a non-English language", () => {
-    const ru = buildImportSystemPrompt("Russian");
-    expect(ru.startsWith(IMPORT_STRUCTURED_SYSTEM_PROMPT)).toBe(true);
-    expect(ru).toContain("in Russian");
+    expect(buildImportSystemPrompt()).not.toMatch(/in [A-Z][a-z]+\b/);
   });
 });
