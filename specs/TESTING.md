@@ -26,12 +26,13 @@ packages/persistence/src/csv-repository.test.ts
 Full-app integration tests in `packages/app/src/test/journeys/`. Mount the entire component tree with a memory router and in-memory repository — no file I/O, no Tauri APIs.
 
 ```
-packages/app/src/test/journeys/transaction-lifecycle.test.tsx
-packages/app/src/test/journeys/fresh-start.test.tsx
 packages/app/src/test/journeys/account-lifecycle.test.tsx
+packages/app/src/test/journeys/transaction-lifecycle.test.tsx
+packages/app/src/test/journeys/lifted-layout.test.tsx
+packages/app/src/test/journeys/fresh-start.test.tsx
 ```
 
-Journey tests exercise real user interactions (open form, type, click, submit) against the complete component tree including routing, TanStack Query, mutations, and undo/redo. They run in ~3s.
+Journey tests exercise real user interactions (open form, type, click, submit) against the complete component tree including routing, TanStack Query, mutations, and undo/redo. Each file pays a one-time cold-start to transform and import the full app module graph, so they run as a dedicated `journeys` Vitest project (`vite.config.ts`) with `pool: "threads"` and `isolate: false` — sharing the module graph within the worker keeps the suite around ~15s. The rest of the suite runs in the `unit` project on defaults; `isolate: false` is scoped to journeys because it causes cross-file state bleed elsewhere. A 30s per-test timeout gives headroom over the cold-start under CPU contention.
 
 ## Test Infrastructure
 
