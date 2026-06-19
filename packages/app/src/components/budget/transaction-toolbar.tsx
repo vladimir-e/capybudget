@@ -45,20 +45,18 @@ export function TransactionToolbar({ filters, onFiltersChange }: TransactionTool
     });
 
   return (
-    <div className="space-y-2">
+    <div className="relative">
       {hasActiveFilters(filters) && (
-        <div className="flex justify-end">
-          <Button
-            variant="ghost"
-            size="xs"
-            onClick={clearAll}
-            className="text-muted-foreground"
-            aria-label="Clear all filters"
-          >
-            <X className="h-3 w-3" />
-            <span>Clear</span>
-          </Button>
-        </div>
+        <Button
+          variant="ghost"
+          size="xs"
+          onClick={clearAll}
+          className="absolute bottom-full right-0 mb-1 text-muted-foreground"
+          aria-label="Clear all filters"
+        >
+          <X className="h-3 w-3" />
+          <span>Clear</span>
+        </Button>
       )}
 
       <div className="flex items-center gap-2">
