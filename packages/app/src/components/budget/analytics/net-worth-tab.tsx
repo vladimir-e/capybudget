@@ -111,8 +111,6 @@ export function NetWorthTab({ accounts, transactions, dateRange, hasAnyTransacti
     [netWorthData],
   );
 
-  // Always anchor the Y-axis to 0 so all-negative net worth reads against the
-  // real reference ($0) rather than auto-fitting its floor to the least-bad month.
   const yDomain = useMemo<[number | "auto", number | "auto"]>(() => {
     if (chartData.length === 0) return ["auto", "auto"];
     let min = Infinity;
