@@ -13,11 +13,24 @@ export function parseLocalDate(s: string): Date {
   return new Date(s + "T12:00:00");
 }
 
-/** Format YYYY-MM-DD as "Mar 10, 2026". */
-export function formatDateLabel(s: string): string {
-  return parseLocalDate(s).toLocaleDateString("en-US", {
+// Wording of the rendered date follows this locale; callers thread in the
+// active UI language. Defaults to the source locale so existing callers keep
+// rendering English.
+const SOURCE_LOCALE = "en-US";
+
+/** Format YYYY-MM-DD as "Mar 10, 2026" (locale-dependent wording). */
+export function formatDateLabel(s: string, locale: string = SOURCE_LOCALE): string {
+  return parseLocalDate(s).toLocaleDateString(locale, {
     month: "short",
     day: "numeric",
+    year: "numeric",
+  });
+}
+
+/** Format YYYY-MM-DD as a localized "March 2026" month-and-year label. */
+export function formatMonthLabel(s: string, locale: string = SOURCE_LOCALE): string {
+  return parseLocalDate(s).toLocaleDateString(locale, {
+    month: "long",
     year: "numeric",
   });
 }

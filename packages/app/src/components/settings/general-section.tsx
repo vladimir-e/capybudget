@@ -1,3 +1,4 @@
+import { useTranslation } from "@capybudget/i18n"
 import {
   Card,
   CardContent,
@@ -11,6 +12,7 @@ import { useBudgetMeta } from "@/hooks/use-budget-meta"
 import { useAppStore } from "@/stores/app-store"
 
 export function GeneralSection({ budgetPath }: { budgetPath: string }) {
+  const { t } = useTranslation("settings")
   const { data, setName } = useBudgetMeta(budgetPath)
   const renameRecentBudget = useAppStore((s) => s.renameRecentBudget)
 
@@ -29,12 +31,12 @@ export function GeneralSection({ budgetPath }: { budgetPath: string }) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>General</CardTitle>
-        <CardDescription>Budget-wide basics.</CardDescription>
+        <CardTitle>{t("general.title")}</CardTitle>
+        <CardDescription>{t("general.description")}</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="space-y-2">
-          <Label htmlFor="budget-name">Budget name</Label>
+          <Label htmlFor="budget-name">{t("general.budgetName")}</Label>
           <Input
             id="budget-name"
             key={data.name}

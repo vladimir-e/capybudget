@@ -1,6 +1,7 @@
 import { useEffect, useMemo } from "react";
 import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
 import { Receipt, PieChart, FileUp, Settings, BookOpen } from "lucide-react";
+import { useTranslation } from "@capybudget/i18n";
 import { ModHintBadge } from "@/components/budget/mod-hint-badge";
 import { modKey } from "@/lib/platform";
 
@@ -21,6 +22,7 @@ export function NavigationRail({
 }: NavigationRailProps) {
   const search = useMemo(() => ({ path: budgetPath, name: budgetName }), [budgetPath, budgetName]);
   const navigate = useNavigate();
+  const { t } = useTranslation();
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -54,23 +56,23 @@ export function NavigationRail({
     <>
       {/* Desktop: vertical rail */}
       <nav className="hidden md:flex w-16 flex-col items-center border-r border-sidebar-border bg-sidebar pt-3 gap-1 shrink-0">
-        <NavItem variant="rail" to="/budget" search={search} active={isAccounts} icon={Receipt} label="Accounts" hint="1" />
-        <NavItem variant="rail" to="/budget/categories" search={search} active={isBudget} icon={PieChart} label="Budget" hint="2" />
-        <NavItem variant="rail" to="/budget/import" search={search} active={isImport} icon={FileUp} label="Import" indicator={hasImportData} hint="3" />
+        <NavItem variant="rail" to="/budget" search={search} active={isAccounts} icon={Receipt} label={t("nav.accounts")} hint="1" />
+        <NavItem variant="rail" to="/budget/categories" search={search} active={isBudget} icon={PieChart} label={t("nav.budget")} hint="2" />
+        <NavItem variant="rail" to="/budget/import" search={search} active={isImport} icon={FileUp} label={t("nav.import")} indicator={hasImportData} hint="3" />
 
         {/* Bottom utility cluster — separated from primary nav.
             Sidebar collapse lives on the sidebar itself, not the rail. */}
         <div className="mt-auto flex flex-col items-center gap-1 pb-3 pt-2 border-t border-sidebar-border/40 w-full">
-          <NavItem variant="rail" to="/budget/help" search={search} active={isHelp} icon={BookOpen} label="Help" />
-          <NavItem variant="rail" to="/budget/settings" search={search} active={isSettings} icon={Settings} label="Settings" hint={`${modKey},`} />
+          <NavItem variant="rail" to="/budget/help" search={search} active={isHelp} icon={BookOpen} label={t("nav.help")} />
+          <NavItem variant="rail" to="/budget/settings" search={search} active={isSettings} icon={Settings} label={t("nav.settings")} hint={`${modKey},`} />
         </div>
       </nav>
 
       {/* Mobile: bottom tab bar */}
       <nav className="md:hidden fixed bottom-0 inset-x-0 z-30 flex items-center justify-around border-t border-sidebar-border bg-sidebar/95 backdrop-blur-sm px-2 pb-[env(safe-area-inset-bottom)]">
-        <NavItem variant="tab" to="/budget" search={search} active={isAccounts} icon={Receipt} label="Accounts" />
-        <NavItem variant="tab" to="/budget/categories" search={search} active={isBudget} icon={PieChart} label="Budget" />
-        <NavItem variant="tab" to="/budget/import" search={search} active={isImport} icon={FileUp} label="Import" indicator={hasImportData} />
+        <NavItem variant="tab" to="/budget" search={search} active={isAccounts} icon={Receipt} label={t("nav.accounts")} />
+        <NavItem variant="tab" to="/budget/categories" search={search} active={isBudget} icon={PieChart} label={t("nav.budget")} />
+        <NavItem variant="tab" to="/budget/import" search={search} active={isImport} icon={FileUp} label={t("nav.import")} indicator={hasImportData} />
       </nav>
     </>
   );

@@ -34,6 +34,9 @@ export interface UseCapySessionOptions {
   mcpServerPath: string
   /** Budget's display currency (ISO 4217), baked into the prompt + snapshot. */
   currency: string
+  /** English name of the active UI language; baked into the system prompt so
+   *  Capy replies in it. Joins the session signature, so a switch rebuilds. */
+  language?: string
   customInstructions?: string
   /** Snapshot of the budget's current shape, attached to the first message
    *  of a session so Capy knows what it's working with without a tool call.
@@ -169,7 +172,7 @@ export function useCapySession(opts: UseCapySessionOptions): UseCapySessionRetur
   const ensureSession = useCallback(() => {
     if (!lifecycle.sessionRef.current) {
       const o = lifecycle.optsRef.current
-      const basePrompt = buildSystemPrompt(o.currency)
+      const basePrompt = buildSystemPrompt(o.currency, o.language)
       const customInstructions = o.customInstructions?.trim()
       const systemPrompt = customInstructions
         ? `${basePrompt}\n\n## User instructions\n${customInstructions}`
@@ -202,8 +205,6 @@ export function useCapySession(opts: UseCapySessionOptions): UseCapySessionRetur
   const anthropicModel = useIntelligenceStore((s) => s.config.anthropic.model)
   const openaiModel = useIntelligenceStore((s) => s.config.openai.model)
   const claudeCliModel = useIntelligenceStore((s) => s.config.claudeCli.model)
-  // Currency is baked into the system prompt + snapshot, so a switch must
-  // rebuild the session for Capy to reflect it — hence it joins the signature.
   const providerSignature =
     provider === "anthropic"
       ? `anthropic:${anthropicModel}`
@@ -212,7 +213,9 @@ export function useCapySession(opts: UseCapySessionOptions): UseCapySessionRetur
         : provider === "claude-cli"
           ? `claude-cli:${claudeCliModel}`
           : (provider ?? "off") // null carries no model — stable string signature
-  const sessionSignature = `${providerSignature}:cur=${opts.currency}`
+  // Currency and language are baked into the system prompt, so a switch must
+  // rebuild the session for Capy to reflect it — both join the signature.
+  const sessionSignature = `${providerSignature}:cur=${opts.currency}:lng=${opts.language ?? "en"}`
   const prevSignatureRef = useRef(sessionSignature)
   useEffect(() => {
     if (prevSignatureRef.current !== sessionSignature) {

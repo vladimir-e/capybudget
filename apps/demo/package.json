@@ -12,6 +12,7 @@
   "dependencies": {
     "@capybudget/app": "*",
     "@capybudget/core": "*",
+    "@capybudget/i18n": "*",
     "@capybudget/intelligence": "*",
     "@capybudget/persistence": "*",
     "@vercel/analytics": "^2.0.1"

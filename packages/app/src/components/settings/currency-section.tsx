@@ -1,6 +1,7 @@
 import { useState } from "react"
 import { open as shellOpen } from "@tauri-apps/plugin-shell"
 import { ChevronDown, ExternalLink } from "lucide-react"
+import { useTranslation } from "@capybudget/i18n"
 import {
   currencySymbol,
   formatDefaultsFor,
@@ -35,11 +36,7 @@ import { useFormatMoney } from "@/contexts/currency-context"
 // users to a GitHub login wall, which reads as a dead end.
 const CURRENCY_REQUEST_URL = "https://github.com/vladimir-e/capybudget"
 
-const SYMBOL_POSITIONS: { value: SymbolPosition; label: string }[] = [
-  { value: "before", label: "Before" },
-  { value: "after", label: "After" },
-  { value: "off", label: "Off" },
-]
+const SYMBOL_POSITIONS: SymbolPosition[] = ["before", "after", "off"]
 
 const PRECISIONS = [0, 1, 2]
 
@@ -48,6 +45,7 @@ const PREVIEW_INCOME_CENTS = 421550
 const PREVIEW_EXPENSE_CENTS = -128900
 
 export function CurrencySection({ budgetPath }: { budgetPath: string }) {
+  const { t } = useTranslation("settings")
   const { data, setCurrency, setBudgetFormat } = useBudgetMeta(budgetPath)
   const { format: formatPreview } = useFormatMoney()
   const [formatOpen, setFormatOpen] = useState(false)
@@ -62,8 +60,8 @@ export function CurrencySection({ budgetPath }: { budgetPath: string }) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Currency</CardTitle>
-        <CardDescription>How amounts are displayed.</CardDescription>
+        <CardTitle>{t("currency.title")}</CardTitle>
+        <CardDescription>{t("currency.description")}</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="space-y-2">
@@ -73,13 +71,13 @@ export function CurrencySection({ budgetPath }: { budgetPath: string }) {
             onChange={(code) => void setCurrency(code)}
           />
           <p className="text-xs text-muted-foreground">
-            Changes display only — your balances aren’t converted.{" "}
+            {t("currency.changeNotice")}{" "}
             <button
               type="button"
               className="inline-flex items-center gap-1 underline hover:text-foreground transition-colors"
               onClick={() => void shellOpen(CURRENCY_REQUEST_URL)}
             >
-              Request currency
+              {t("currency.requestCurrency")}
               <ExternalLink className="size-3" />
             </button>
           </p>
@@ -87,9 +85,9 @@ export function CurrencySection({ budgetPath }: { budgetPath: string }) {
 
         <Collapsible open={formatOpen} onOpenChange={setFormatOpen} className="space-y-2">
           <div className="flex h-4 items-center justify-between">
-            <Label className="text-xs text-muted-foreground">Preview</Label>
+            <Label className="text-xs text-muted-foreground">{t("currency.preview")}</Label>
             <CollapsibleTrigger className="flex items-center gap-1 text-xs text-muted-foreground underline hover:text-foreground transition-colors">
-              Format settings
+              {t("currency.formatSettings")}
               <ChevronDown
                 className={`size-3 transition-transform ${formatOpen ? "rotate-180" : ""}`}
               />
@@ -104,7 +102,7 @@ export function CurrencySection({ budgetPath }: { budgetPath: string }) {
           <CollapsibleContent className="space-y-4 pt-2">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>Symbol</Label>
+                <Label>{t("currency.symbol")}</Label>
                 <ToggleGroup
                   variant="outline"
                   spacing={2}
@@ -120,23 +118,23 @@ export function CurrencySection({ budgetPath }: { budgetPath: string }) {
                 >
                   {SYMBOL_POSITIONS.map((p) => (
                     <ToggleGroupItem
-                      key={p.value}
-                      value={p.value}
+                      key={p}
+                      value={p}
                       className="aria-pressed:bg-brand aria-pressed:text-white aria-pressed:border-brand"
                     >
-                      {p.label}
+                      {t(`currency.symbolPosition.${p}`)}
                     </ToggleGroupItem>
                   ))}
                 </ToggleGroup>
                 {!hasSymbol && (
                   <p className="text-xs text-muted-foreground">
-                    {data.currency} has no symbol, so position has no effect.
+                    {t("currency.noSymbol", { currency: data.currency })}
                   </p>
                 )}
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="precision">Decimals</Label>
+                <Label htmlFor="precision">{t("currency.decimals")}</Label>
                 <Select
                   value={String(data.currencyDecimals)}
                   onValueChange={(v) => {
@@ -168,7 +166,7 @@ export function CurrencySection({ budgetPath }: { budgetPath: string }) {
                   className="text-xs text-muted-foreground underline hover:text-foreground transition-colors"
                   onClick={() => void setBudgetFormat(defaultFormat)}
                 >
-                  Reset to {data.currency} defaults
+                  {t("currency.resetDefaults", { currency: data.currency })}
                 </button>
               </div>
             )}

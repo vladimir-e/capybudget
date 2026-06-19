@@ -1,0 +1,113 @@
+{
+  "title": "Settings",
+  "back": "Back to budget",
+  "sections": {
+    "general": {
+      "label": "General",
+      "description": "Currency & basics"
+    },
+    "intelligence": {
+      "label": "Intelligence",
+      "description": "AI provider"
+    },
+    "categories": {
+      "label": "Categories",
+      "description": "Organize spending"
+    },
+    "updates": {
+      "label": "Updates",
+      "description": "App version"
+    }
+  },
+  "general": {
+    "title": "General",
+    "description": "Budget-wide basics.",
+    "budgetName": "Budget name"
+  },
+  "language": {
+    "title": "Language",
+    "description": "Display language for the app.",
+    "label": "Language"
+  },
+  "currency": {
+    "title": "Currency",
+    "description": "How amounts are displayed.",
+    "changeNotice": "Changes display only — your balances aren’t converted.",
+    "requestCurrency": "Request currency",
+    "preview": "Preview",
+    "formatSettings": "Format settings",
+    "symbol": "Symbol",
+    "symbolPosition": {
+      "before": "Before",
+      "after": "After",
+      "off": "Off"
+    },
+    "noSymbol": "{{currency}} has no symbol, so position has no effect.",
+    "decimals": "Decimals",
+    "resetDefaults": "Reset to {{currency}} defaults"
+  },
+  "provider": {
+    "title": "AI Provider",
+    "description": "Capy needs an AI provider to chat and process imports. Pick one and enter your credentials below.",
+    "demoNoticeTitle": "AI is only available in the desktop app",
+    "demoNoticeBody": "The web demo runs entirely in your browser and can't store an AI provider. Download the desktop app to chat with Capy and use smart import.",
+    "missingTitle": "Claude Code is no longer detected",
+    "missingBody": "Reinstall Claude Code or pick another provider to keep using Capy.",
+    "sourceBuildTitle": "Claude Code requires a source build",
+    "sourceBuildBody": "The desktop app can't run Claude Code yet. Pick another provider, or",
+    "runFromSource": "run Capy from source",
+    "toUseSubscription": "to use your Claude subscription.",
+    "distHint": "Not available in the desktop build —",
+    "buildFromSource": "build from source",
+    "advanced": "advanced",
+    "providerSet": "Provider set to {{provider}}",
+    "options": {
+      "off": {
+        "label": "Off",
+        "description": "Capy is disabled. Pick a provider below to enable AI features."
+      },
+      "anthropic": {
+        "description": "Direct API calls. Pay-per-use with your own key."
+      },
+      "openai": {
+        "description": "Direct API calls. Pay-per-use with your own key."
+      },
+      "claudeCli": {
+        "description": "Use the local Claude Code CLI. Runs against your Claude subscription."
+      }
+    },
+    "detection": {
+      "checking": "Checking…",
+      "detected": "Detected",
+      "notDetected": "Not detected",
+      "notDetectedHint": "Not detected — install from",
+      "testConnection": "Test connection",
+      "testing": "Testing…"
+    }
+  },
+  "chatInstructions": {
+    "title": "Chat instructions",
+    "description": "Help Capy understand your finances — common patterns, account purposes, categorization preferences. Applies to new conversations.",
+    "placeholder": "e.g. I use my Chase card for daily expenses.\nWhole Foods and Trader Joe's are groceries.\nVenmo transfers to Sarah are rent splits.",
+    "saved": "Instructions saved"
+  },
+  "categories": {
+    "title": "Categories",
+    "description": "Organize the groups and categories your transactions are sorted into. Drag to reorder, rename inline, or archive ones you no longer use.",
+    "count_one": "{{count}} category",
+    "count_other": "{{count}} categories"
+  },
+  "updates": {
+    "title": "Updates",
+    "description": "Keep Capy up to date.",
+    "currentVersion": "Current version {{version}}",
+    "checking": "Checking for updates…",
+    "upToDate": "You're on the latest version.",
+    "available": "Capy {{version}} is available.",
+    "installRestart": "Install & restart",
+    "downloading": "Downloading…",
+    "downloadingPct": "Downloading… {{pct}}%",
+    "restarting": "Restarting…",
+    "checkForUpdates": "Check for updates"
+  }
+}

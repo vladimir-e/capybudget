@@ -2,13 +2,14 @@ import { useCallback, useMemo } from "react";
 import {
   ImportOrchestrator,
   FileStagingStore,
-  IMPORT_STRUCTURED_SYSTEM_PROMPT,
+  buildImportSystemPrompt,
   canImport,
   canReadPdf,
   createStructuredImportSession,
   type BudgetDataProvider,
 } from "@capybudget/intelligence";
 import { AnthropicSession, OpenAiSession } from "@capybudget/intelligence/adapters";
+import { useAiLanguage } from "@capybudget/i18n";
 import { useBudgetRepository } from "@/contexts/repository-context";
 import { useCurrency } from "@/contexts/currency-context";
 import { useIntelligenceStore } from "@/stores/intelligence-store";
@@ -33,15 +34,16 @@ export interface RunOptions {
   instructions?: string;
 }
 
-function composeSystemPrompt(opts?: RunOptions): string {
+function composeSystemPrompt(language: string, opts?: RunOptions): string {
+  const base = buildImportSystemPrompt(language);
   const extra: string[] = [];
   if (opts?.accountName) {
     extra.push(`Default source account when a row has none: ${opts.accountName}.`);
   }
   const instructions = opts?.instructions?.trim();
   if (instructions) extra.push(instructions);
-  if (extra.length === 0) return IMPORT_STRUCTURED_SYSTEM_PROMPT;
-  return `${IMPORT_STRUCTURED_SYSTEM_PROMPT}\n\n## User instructions\n${extra.join("\n")}`;
+  if (extra.length === 0) return base;
+  return `${base}\n\n## User instructions\n${extra.join("\n")}`;
 }
 
 /**
@@ -62,6 +64,7 @@ function composeSystemPrompt(opts?: RunOptions): string {
 export function useImportOrchestrator(budgetPath: string) {
   const repo = useBudgetRepository();
   const currency = useCurrency();
+  const language = useAiLanguage();
   const config = useIntelligenceStore((s) => s.config);
   const apply = useImportStore((s) => s.apply);
   const beginRun = useImportStore((s) => s.beginRun);
@@ -104,7 +107,7 @@ export function useImportOrchestrator(budgetPath: string) {
         },
         options: {
           budgetPath,
-          systemPrompt: composeSystemPrompt(opts),
+          systemPrompt: composeSystemPrompt(language, opts),
           repo,
           fileAdapter: tauriFileAdapter,
           currency,
@@ -126,7 +129,7 @@ export function useImportOrchestrator(budgetPath: string) {
       });
       return orchestrator;
     },
-    [config, budgetPath, repo, staging, budget, apply, currency],
+    [config, budgetPath, repo, staging, budget, apply, currency, language],
   );
 
   const start = useCallback(

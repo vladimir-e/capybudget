@@ -7,6 +7,7 @@ import { CapySessionProvider } from "@/components/capy/capy-session-provider";
 import { useCustomInstructions } from "@/hooks/use-custom-instructions";
 import { invalidateAfterCapyMutation } from "@/components/budget/capy-invalidation";
 import { useIntelligenceStore } from "@/stores/intelligence-store";
+import { useAiLanguage } from "@capybudget/i18n";
 import { createCsvRepository } from "@capybudget/persistence";
 import type { DisposableRepository } from "@capybudget/persistence";
 import { tauriFileAdapter } from "../../../../src/adapters/tauri-file-adapter";
@@ -51,6 +52,7 @@ function BudgetLayout() {
   // Live name comes from budget.json so a rename reflects without a reopen;
   // fall back to the search param only while meta is still loading.
   const budgetName = meta.name || name;
+  const language = useAiLanguage();
   const getBudgetSnapshot = useBudgetSnapshot(currency);
 
   const onDataChanged = useCallback(() => {
@@ -79,12 +81,13 @@ function BudgetLayout() {
       customInstructions: customInstructions.instructions,
       getBudgetSnapshot,
       currency,
+      language,
       onDataChanged,
       onImportStarted,
       repo,
       fileAdapter: tauriFileAdapter,
     }),
-    [path, budgetName, customInstructions.instructions, getBudgetSnapshot, currency, onDataChanged, onImportStarted, repo],
+    [path, budgetName, customInstructions.instructions, getBudgetSnapshot, currency, language, onDataChanged, onImportStarted, repo],
   );
 
   return (

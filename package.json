@@ -27,6 +27,7 @@
     "www": "npm run dev --workspace=@capybudget/www",
     "www:build": "npm run build --workspace=@capybudget/www",
     "www:preview": "npm run preview --workspace=@capybudget/www",
+    "i18n:check": "npm run i18n:check --workspace=@capybudget/i18n",
     "release": "node scripts/release.mjs"
   },
   "dependencies": {

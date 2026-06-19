@@ -2,6 +2,7 @@ import { useEffect, useState } from "react"
 import { open as shellOpen } from "@tauri-apps/plugin-shell"
 import { AlertTriangle, Check, Loader2, Sparkles } from "lucide-react"
 import { toast } from "sonner"
+import { useTranslation } from "@capybudget/i18n"
 import { Button } from "@/components/ui/button"
 import {
   Card,
@@ -56,14 +57,16 @@ function fromFormValue(value: ProviderFormValue): IntelligenceProvider {
   return value === OFF_FORM_VALUE ? null : value
 }
 
-const PROVIDER_FORM_LABELS: Record<ProviderFormValue, string> = {
-  off: "Off",
-  ...PROVIDER_LABELS,
-}
-
 export function ProviderSection() {
+  const { t } = useTranslation("settings")
   const provider = useIntelligenceStore((s) => s.config.provider)
   const setProvider = useIntelligenceStore((s) => s.setProvider)
+
+  // Provider product names stay English (brand); only "Off" is localized.
+  const providerFormLabels: Record<ProviderFormValue, string> = {
+    off: t("provider.options.off.label"),
+    ...PROVIDER_LABELS,
+  }
 
   // Probe state — null means we haven't checked yet on this mount.
   const [claudeDetected, setClaudeDetected] = useState<boolean | null>(null)
@@ -99,7 +102,7 @@ export function ProviderSection() {
     const nextProvider = fromFormValue(next)
     if (nextProvider === provider) return
     setProvider(nextProvider)
-    toast.success(`Provider set to ${PROVIDER_FORM_LABELS[next]}`)
+    toast.success(t("provider.providerSet", { provider: providerFormLabels[next] }))
   }
 
   // Warn the user if they previously selected claude-cli but it's no
@@ -112,22 +115,17 @@ export function ProviderSection() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>AI Provider</CardTitle>
-        <CardDescription>
-          Capy needs an AI provider to chat and process imports. Pick one and
-          enter your credentials below.
-        </CardDescription>
+        <CardTitle>{t("provider.title")}</CardTitle>
+        <CardDescription>{t("provider.description")}</CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
         {__IS_DEMO__ && (
           <div className="flex items-start gap-3 rounded-lg border border-brand/30 bg-brand/5 px-3 py-2.5 text-sm">
             <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-brand" />
             <div className="flex-1">
-              <p className="font-medium">AI is only available in the desktop app</p>
+              <p className="font-medium">{t("provider.demoNoticeTitle")}</p>
               <p className="text-xs text-muted-foreground mt-0.5">
-                The web demo runs entirely in your browser and can't store an AI
-                provider. Download the desktop app to chat with Capy and use
-                smart import.
+                {t("provider.demoNoticeBody")}
               </p>
             </div>
           </div>
@@ -139,12 +137,9 @@ export function ProviderSection() {
             <div className="flex-1">
               {IS_DIST_BUILD ? (
                 <>
-                  <p className="font-medium">
-                    Claude Code requires a source build
-                  </p>
+                  <p className="font-medium">{t("provider.sourceBuildTitle")}</p>
                   <p className="text-xs text-destructive/80 mt-0.5">
-                    The desktop app can't run Claude Code yet. Pick another
-                    provider, or{" "}
+                    {t("provider.sourceBuildBody")}{" "}
                     <button
                       type="button"
                       className="underline hover:text-foreground transition-colors"
@@ -152,17 +147,16 @@ export function ProviderSection() {
                         void shellOpen(BUILD_FROM_SOURCE_URL)
                       }}
                     >
-                      run Capy from source
+                      {t("provider.runFromSource")}
                     </button>{" "}
-                    to use your Claude subscription.
+                    {t("provider.toUseSubscription")}
                   </p>
                 </>
               ) : (
                 <>
-                  <p className="font-medium">Claude Code is no longer detected</p>
+                  <p className="font-medium">{t("provider.missingTitle")}</p>
                   <p className="text-xs text-destructive/80 mt-0.5">
-                    Reinstall Claude Code or pick another provider to keep using
-                    Capy.
+                    {t("provider.missingBody")}
                   </p>
                 </>
               )}
@@ -183,32 +177,32 @@ export function ProviderSection() {
               option and sits last. */}
           <ProviderRadio
             value={OFF_FORM_VALUE}
-            label="Off"
-            description="Capy is disabled. Pick a provider below to enable AI features."
+            label={t("provider.options.off.label")}
+            description={t("provider.options.off.description")}
             disabled={__IS_DEMO__}
           />
           <ProviderRadio
             value="anthropic"
-            label="Anthropic API"
-            description="Direct API calls. Pay-per-use with your own key."
+            label={PROVIDER_LABELS.anthropic}
+            description={t("provider.options.anthropic.description")}
             disabled={__IS_DEMO__}
           />
           <ProviderRadio
             value="openai"
-            label="OpenAI API"
-            description="Direct API calls. Pay-per-use with your own key."
+            label={PROVIDER_LABELS.openai}
+            description={t("provider.options.openai.description")}
             disabled={__IS_DEMO__}
           />
           <ProviderRadio
             value="claude-cli"
-            label="Claude Code"
-            badge="advanced"
-            description="Use the local Claude Code CLI. Runs against your Claude subscription."
+            label={PROVIDER_LABELS["claude-cli"]}
+            badge={t("provider.advanced")}
+            description={t("provider.options.claudeCli.description")}
             disabled={__IS_DEMO__ || claudeDetected === false || claudeProbing}
             hint={
               __IS_DEMO__ ? undefined : IS_DIST_BUILD ? (
                 <span>
-                  Not available in the desktop build —{" "}
+                  {t("provider.distHint")}{" "}
                   <button
                     type="button"
                     className="underline hover:text-foreground transition-colors"
@@ -216,18 +210,18 @@ export function ProviderSection() {
                       void shellOpen(BUILD_FROM_SOURCE_URL)
                     }}
                   >
-                    build from source
+                    {t("provider.buildFromSource")}
                   </button>{" "}
-                  to use your Claude subscription.
+                  {t("provider.toUseSubscription")}
                 </span>
               ) : claudeProbing ? (
                 <span className="inline-flex items-center gap-1.5">
                   <Loader2 className="h-3 w-3 animate-spin" />
-                  Checking…
+                  {t("provider.detection.checking")}
                 </span>
               ) : claudeDetected === false ? (
                 <span>
-                  Not detected — install from{" "}
+                  {t("provider.detection.notDetectedHint")}{" "}
                   <button
                     type="button"
                     className="underline hover:text-foreground transition-colors"
@@ -324,6 +318,7 @@ interface ClaudeCliConfigProps {
 }
 
 function ClaudeCliConfig({ detected, probing, onRecheck }: ClaudeCliConfigProps) {
+  const { t } = useTranslation("settings")
   const [testState, setTestState] = useState<TestState>({ kind: "idle" })
   const model = useIntelligenceStore((s) => s.config.claudeCli.model)
   const setModel = useIntelligenceStore((s) => s.setClaudeCliModel)
@@ -356,15 +351,15 @@ function ClaudeCliConfig({ detected, probing, onRecheck }: ClaudeCliConfigProps)
           <p className="text-sm">
             {probing ? (
               <span className="inline-flex items-center gap-1.5 text-muted-foreground">
-                <Loader2 className="h-3.5 w-3.5 animate-spin" /> Checking…
+                <Loader2 className="h-3.5 w-3.5 animate-spin" /> {t("provider.detection.checking")}
               </span>
             ) : detected ? (
               <span className="inline-flex items-center gap-1.5 text-amount-income">
-                <Check className="h-3.5 w-3.5" /> Detected
+                <Check className="h-3.5 w-3.5" /> {t("provider.detection.detected")}
               </span>
             ) : (
               <span className="inline-flex items-center gap-1.5 text-destructive">
-                <AlertTriangle className="h-3.5 w-3.5" /> Not detected
+                <AlertTriangle className="h-3.5 w-3.5" /> {t("provider.detection.notDetected")}
               </span>
             )}
           </p>
@@ -376,10 +371,10 @@ function ClaudeCliConfig({ detected, probing, onRecheck }: ClaudeCliConfigProps)
           >
             {testState.kind === "running" ? (
               <>
-                <Loader2 className="h-3 w-3 animate-spin" /> Testing…
+                <Loader2 className="h-3 w-3 animate-spin" /> {t("provider.detection.testing")}
               </>
             ) : (
-              "Test connection"
+              t("provider.detection.testConnection")
             )}
           </Button>
         </div>

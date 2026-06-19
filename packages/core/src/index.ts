@@ -33,6 +33,7 @@ export {
   getToday,
   parseLocalDate,
   formatDateLabel,
+  formatMonthLabel,
   localDateTime,
 } from "./utils/date-utils";
 

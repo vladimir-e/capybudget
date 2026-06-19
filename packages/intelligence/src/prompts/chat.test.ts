@@ -107,4 +107,13 @@ describe("buildSystemPrompt", () => {
     expect(rub).toContain("13 ₽"); // 1250 cents → 12.5 → 13 at 0 decimals, symbol after
     expect(rub).not.toContain("₽12");
   });
+
+  it("injects a respond-in-language instruction for a non-English language", () => {
+    expect(buildSystemPrompt("RUB", "Russian")).toContain("Respond in Russian");
+  });
+
+  it("omits the language instruction for English or when unspecified", () => {
+    expect(buildSystemPrompt("USD")).not.toContain("Respond in");
+    expect(buildSystemPrompt("USD", "English")).not.toContain("Respond in");
+  });
 });

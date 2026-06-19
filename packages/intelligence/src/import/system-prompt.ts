@@ -15,3 +15,17 @@ export const IMPORT_STRUCTURED_SYSTEM_PROMPT =
   "request states its task and the exact shape to return. Extract only what the " +
   "source actually contains — never invent transactions, dates, or amounts — and " +
   "always answer with the requested structure.";
+
+/**
+ * The import system prompt with the user's language folded in. Field values the
+ * model generates (e.g. a cleaned merchant name) follow that language; the
+ * requested JSON structure and keys stay as specified. `undefined`/English
+ * leaves the base prompt untouched.
+ */
+export function buildImportSystemPrompt(language?: string): string {
+  if (!language || language === "English") return IMPORT_STRUCTURED_SYSTEM_PROMPT;
+  return (
+    IMPORT_STRUCTURED_SYSTEM_PROMPT +
+    ` Write any free-text field values you generate in ${language}.`
+  );
+}

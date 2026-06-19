@@ -11,6 +11,7 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.92.0",
     "@capybudget/core": "*",
+    "@capybudget/i18n": "*",
     "@capybudget/intelligence": "*",
     "@capybudget/persistence": "*",
     "@tanstack/react-virtual": "^3.13.23",

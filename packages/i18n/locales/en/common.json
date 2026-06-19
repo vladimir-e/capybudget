@@ -1,0 +1,23 @@
+{
+  "nav": {
+    "accounts": "Accounts",
+    "budget": "Budget",
+    "import": "Import",
+    "settings": "Settings",
+    "help": "Help"
+  },
+  "actions": {
+    "save": "Save",
+    "saving": "Saving…",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "add": "Add",
+    "archive": "Archive",
+    "edit": "Edit",
+    "remove": "Remove",
+    "close": "Close",
+    "back": "Back",
+    "reset": "Reset",
+    "confirm": "Confirm"
+  }
+}

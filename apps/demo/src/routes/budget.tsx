@@ -8,6 +8,7 @@ import { useCustomInstructions } from "@/hooks/use-custom-instructions";
 import { invalidateAfterCapyMutation } from "@/components/budget/capy-invalidation";
 import { useIntelligenceStore } from "@/stores/intelligence-store";
 import { budgetKeys } from "@/hooks/use-budget-data";
+import { useAiLanguage } from "@capybudget/i18n";
 import { createInMemoryRepository } from "@capybudget/persistence";
 import { DEFAULT_CURRENCY } from "@capybudget/core";
 import { PROFILES } from "../data/profiles";
@@ -79,6 +80,7 @@ function DemoBudgetLayout() {
 
   const provider = useIntelligenceStore((s) => s.config.provider);
   const customInstructions = useCustomInstructions(profileId);
+  const language = useAiLanguage();
 
   const onDataChanged = useCallback(() => {
     if (!repo) return;
@@ -96,10 +98,11 @@ function DemoBudgetLayout() {
       mcpServerPath: "packages/mcp/src/server.ts",
       customInstructions: customInstructions.instructions,
       currency: DEFAULT_CURRENCY,
+      language,
       onDataChanged,
       repo: repo ?? undefined,
     }),
-    [profileId, name, customInstructions.instructions, onDataChanged, repo],
+    [profileId, name, customInstructions.instructions, language, onDataChanged, repo],
   );
 
   if (!profile || !repo) {

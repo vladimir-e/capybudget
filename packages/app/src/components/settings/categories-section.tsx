@@ -1,3 +1,4 @@
+import { useTranslation } from "@capybudget/i18n"
 import {
   Card,
   CardContent,
@@ -9,18 +10,19 @@ import { CategoryPanel } from "@/components/budget/category-panel"
 import { useCategories } from "@/hooks/use-budget-data"
 
 export function CategoriesSection() {
+  const { t } = useTranslation("settings")
   const { data: categories = [] } = useCategories()
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Categories</CardTitle>
-        <CardDescription>
-          Organize the groups and categories your transactions are sorted into.
-          Drag to reorder, rename inline, or archive ones you no longer use.
-        </CardDescription>
+        <CardTitle>{t("categories.title")}</CardTitle>
+        <CardDescription>{t("categories.description")}</CardDescription>
       </CardHeader>
-      <CardContent>
+      <CardContent className="space-y-3">
+        <p className="text-xs text-muted-foreground">
+          {t("categories.count", { count: categories.length })}
+        </p>
         <CategoryPanel categories={categories} />
       </CardContent>
     </Card>

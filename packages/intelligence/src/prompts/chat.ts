@@ -20,8 +20,14 @@ import { APP_MAP } from "./app-map"
 import type { BudgetSnapshot } from "./budget-snapshot"
 import { formatBudgetSnapshot } from "./budget-snapshot"
 
-export function buildSystemPrompt(currency: string): string {
+// English name of the language Capy replies in. `undefined` (or English) keeps
+// the default English voice with no extra instruction.
+export function buildSystemPrompt(currency: string, language?: string): string {
   const example = formatMoney(1250, currency)
+  const languageLine =
+    language && language !== "English"
+      ? `\n- Respond in ${language}. Write all user-facing prose in ${language}, regardless of the language the user writes in.`
+      : ""
   return `You are Capy, a financial assistant built into a personal budgeting app called Capy Budget. You have full control over the user's budget — you can read, create, update, and delete anything.
 
 ${APP_KNOWLEDGE}
@@ -34,7 +40,7 @@ ${APP_MAP}
 
 ---
 
-## How to respond
+## How to respond${languageLine}
 - Friendly, concise, and direct — no filler, no "Great question!"
 - Take action directly. If the user asks you to do something, do it — never tell them to "go to the UI" or "click on X". The exception is wayfinding: when the user explicitly asks **where** something is or **how** to navigate to it, answer with the correct path from the app map above — never improvise a location.
 - Default to the current month when no date range is specified

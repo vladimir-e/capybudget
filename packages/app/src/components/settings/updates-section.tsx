@@ -2,6 +2,7 @@ import { useEffect, useState } from "react"
 import { getVersion } from "@tauri-apps/api/app"
 import type { Update } from "@tauri-apps/plugin-updater"
 import { RefreshCw } from "lucide-react"
+import { useTranslation } from "@capybudget/i18n"
 import { Button } from "@/components/ui/button"
 import {
   Card,
@@ -22,6 +23,7 @@ type Status =
   | { kind: "error"; message: string }
 
 export function UpdatesSection() {
+  const { t } = useTranslation("settings")
   const [status, setStatus] = useState<Status>(() =>
     "__TAURI_INTERNALS__" in window ? { kind: "checking" } : { kind: "idle" },
   )
@@ -85,27 +87,29 @@ export function UpdatesSection() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Updates</CardTitle>
-        <CardDescription>Keep Capy up to date.</CardDescription>
+        <CardTitle>{t("updates.title")}</CardTitle>
+        <CardDescription>{t("updates.description")}</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         {version && (
-          <p className="text-sm text-muted-foreground">Current version {version}</p>
+          <p className="text-sm text-muted-foreground">
+            {t("updates.currentVersion", { version })}
+          </p>
         )}
 
         {status.kind === "checking" && (
-          <p className="text-sm text-muted-foreground">Checking for updates…</p>
+          <p className="text-sm text-muted-foreground">{t("updates.checking")}</p>
         )}
 
         {status.kind === "up-to-date" && (
-          <p className="text-sm text-muted-foreground">You're on the latest version.</p>
+          <p className="text-sm text-muted-foreground">{t("updates.upToDate")}</p>
         )}
 
         {status.kind === "available" && (
           <div className="space-y-3">
-            <p className="text-sm">Capy {status.update.version} is available.</p>
+            <p className="text-sm">{t("updates.available", { version: status.update.version })}</p>
             <Button size="sm" onClick={() => handleInstall(status.update)}>
-              Install &amp; restart
+              {t("updates.installRestart")}
             </Button>
           </div>
         )}
@@ -120,16 +124,18 @@ export function UpdatesSection() {
                     style={{ width: `${status.pct}%` }}
                   />
                 </div>
-                <p className="text-xs text-muted-foreground">Downloading… {status.pct}%</p>
+                <p className="text-xs text-muted-foreground">
+                  {t("updates.downloadingPct", { pct: status.pct })}
+                </p>
               </>
             ) : (
-              <p className="text-sm text-muted-foreground">Downloading…</p>
+              <p className="text-sm text-muted-foreground">{t("updates.downloading")}</p>
             )}
           </div>
         )}
 
         {status.kind === "installing" && (
-          <p className="text-sm text-muted-foreground">Restarting…</p>
+          <p className="text-sm text-muted-foreground">{t("updates.restarting")}</p>
         )}
 
         {status.kind === "error" && (
@@ -139,7 +145,7 @@ export function UpdatesSection() {
         {showCheckButton && (
           <Button variant="outline" size="sm" onClick={handleCheck} disabled={busy}>
             <RefreshCw className="h-4 w-4" />
-            Check for updates
+            {t("updates.checkForUpdates")}
           </Button>
         )}
       </CardContent>

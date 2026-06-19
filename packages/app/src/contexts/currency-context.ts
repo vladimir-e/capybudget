@@ -8,6 +8,7 @@ import {
   type MoneyFormat,
   type SymbolPosition,
 } from "@capybudget/core";
+import { useLocale } from "@capybudget/i18n";
 
 export { DEFAULT_CURRENCY };
 
@@ -36,14 +37,17 @@ export interface CurrencyFormatters {
 
 export function useFormatMoney(): CurrencyFormatters {
   const { currency, decimals, symbolPosition } = useContext(CurrencyContext);
+  // Grouping/decimal glyphs follow the active UI language (e.g. "1 250,00 ₽"
+  // under ru); the currency and symbol are unaffected.
+  const locale = useLocale();
   return useMemo(() => {
     const format: MoneyFormat = { decimals, symbolPosition };
     return {
-      format: (cents: number) => formatMoney(cents, currency, format),
-      formatCompact: (cents: number) => formatMoneyCompact(cents, currency, format),
+      format: (cents: number) => formatMoney(cents, currency, format, locale),
+      formatCompact: (cents: number) => formatMoneyCompact(cents, currency, format, locale),
       symbol: currencySymbol(currency),
       symbolPosition,
       currency,
     };
-  }, [currency, decimals, symbolPosition]);
+  }, [currency, decimals, symbolPosition, locale]);
 }

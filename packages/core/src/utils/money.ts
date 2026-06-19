@@ -1,6 +1,8 @@
-// Grouping and decimal style come from this locale; symbol, position, and
-// precision are explicit inputs. Locale detection is deferred.
-const LOCALE = "en-US";
+// Grouping and decimal style come from the formatting locale; symbol, position,
+// and precision are explicit inputs. The locale is threaded in by the caller
+// (the app passes the active UI language); the symbol itself is currency-driven
+// and locale-independent, so currency lookups stay on the source locale.
+const SOURCE_LOCALE = "en-US";
 
 export const DEFAULT_CURRENCY = "USD";
 
@@ -13,17 +15,18 @@ export interface MoneyFormat {
   symbolPosition: SymbolPosition;
 }
 
-const decimalFormatters = new Map<number, Intl.NumberFormat>();
+const decimalFormatters = new Map<string, Intl.NumberFormat>();
 
-function decimalFormatter(decimals: number): Intl.NumberFormat {
-  let fmt = decimalFormatters.get(decimals);
+function decimalFormatter(locale: string, decimals: number): Intl.NumberFormat {
+  const key = `${locale}:${decimals}`;
+  let fmt = decimalFormatters.get(key);
   if (!fmt) {
-    fmt = new Intl.NumberFormat(LOCALE, {
+    fmt = new Intl.NumberFormat(locale, {
       style: "decimal",
       minimumFractionDigits: decimals,
       maximumFractionDigits: decimals,
     });
-    decimalFormatters.set(decimals, fmt);
+    decimalFormatters.set(key, fmt);
   }
   return fmt;
 }
@@ -38,9 +41,10 @@ export function formatMoney(
   cents: number,
   currency: string,
   format: MoneyFormat = formatDefaultsFor(currency),
+  locale: string = SOURCE_LOCALE,
 ): string {
   const sign = cents < 0 ? "-" : "";
-  const num = decimalFormatter(format.decimals).format(Math.abs(cents) / 100);
+  const num = decimalFormatter(locale, format.decimals).format(Math.abs(cents) / 100);
   return compose(sign, num, currencySymbol(currency), format.symbolPosition);
 }
 
@@ -49,11 +53,12 @@ export function formatMoneyCompact(
   cents: number,
   currency: string,
   format: MoneyFormat = formatDefaultsFor(currency),
+  locale: string = SOURCE_LOCALE,
 ): string {
   if (Math.abs(cents) >= 100_000 && format.decimals > 0) {
-    return formatMoney(cents, currency, { ...format, decimals: 0 });
+    return formatMoney(cents, currency, { ...format, decimals: 0 }, locale);
   }
-  return formatMoney(cents, currency, format);
+  return formatMoney(cents, currency, format, locale);
 }
 
 const symbolFormatters = new Map<string, Intl.NumberFormat>();
@@ -63,7 +68,7 @@ const symbolFormatters = new Map<string, Intl.NumberFormat>();
 export function currencySymbol(currency: string): string {
   let fmt = symbolFormatters.get(currency);
   if (!fmt) {
-    fmt = new Intl.NumberFormat(LOCALE, {
+    fmt = new Intl.NumberFormat(SOURCE_LOCALE, {
       style: "currency",
       currency,
       currencyDisplay: "narrowSymbol",
@@ -134,7 +139,7 @@ function clampDecimals(decimals: number): number {
 
 function resolvedDecimals(currency: string): number {
   try {
-    const opts = new Intl.NumberFormat(LOCALE, {
+    const opts = new Intl.NumberFormat(SOURCE_LOCALE, {
       style: "currency",
       currency,
     }).resolvedOptions();
