@@ -32,6 +32,7 @@ import {
   findMissingBudgetPaths,
 } from "../../../../../src/services/budget";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { LanguageSelect } from "@/components/settings/language-select";
 import { RecentBudgetCard } from "@/components/budget/recent-budget-card";
 import bgDay from "@/assets/capy-bg-day.webp";
 import bgNight from "@/assets/capy-bg-night.webp";
@@ -209,6 +210,7 @@ export function BudgetSelector() {
 
       {/* Top-right controls */}
       <div className="fixed top-4 right-4 z-10 flex items-center gap-1">
+        <LanguageSelect withIcon className="border-transparent bg-transparent hover:bg-accent/50 dark:bg-transparent" />
         <ThemeToggle />
       </div>
 

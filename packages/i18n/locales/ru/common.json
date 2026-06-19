@@ -6,6 +6,9 @@
     "settings": "Настройки",
     "help": "Справка"
   },
+  "language": {
+    "label": "Язык"
+  },
   "actions": {
     "save": "Сохранить",
     "saving": "Сохранение…",

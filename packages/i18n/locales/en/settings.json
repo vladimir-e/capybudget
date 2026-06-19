@@ -29,8 +29,7 @@
   },
   "language": {
     "title": "Language",
-    "description": "Display language for the app.",
-    "label": "Language"
+    "description": "Display language for the app."
   },
   "currency": {
     "title": "Currency",

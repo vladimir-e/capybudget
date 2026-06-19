@@ -1,42 +1,25 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import { afterEach, describe, expect, it, vi } from "vitest"
 import { cleanup, render, screen } from "@testing-library/react"
-import userEvent from "@testing-library/user-event"
 import { LanguageSection } from "./language-section"
 
-// Keep the real i18n (so the picker renders, hooks resolve, and the endonym
-// labels come from SUPPORTED_LOCALES) but spy on setLocale — that's the one
-// side effect, and under the hood it persists + calls i18next.changeLanguage.
-const { setLocaleMock } = vi.hoisted(() => ({ setLocaleMock: vi.fn() }))
-
+// setLocale is the section's only side effect; the picker behavior itself is
+// covered in language-select.test.tsx. Here we only assert the section chrome
+// and that it embeds a working, endonym-labelled picker.
 vi.mock("@capybudget/i18n", async (importActual) => {
   const actual = await importActual<typeof import("@capybudget/i18n")>()
-  return { ...actual, setLocale: setLocaleMock }
-})
-
-beforeEach(() => {
-  setLocaleMock.mockClear()
+  return { ...actual, setLocale: vi.fn() }
 })
 
 afterEach(cleanup)
 
 describe("LanguageSection", () => {
-  it("renders the supported languages by their endonym", async () => {
-    const user = userEvent.setup()
+  it("renders the language card with its picker", () => {
     render(<LanguageSection />)
 
-    await user.click(screen.getByLabelText("Language"))
-
-    expect(await screen.findByRole("option", { name: "English" })).toBeInTheDocument()
-    expect(screen.getByRole("option", { name: "Русский" })).toBeInTheDocument()
-  })
-
-  it("applies the chosen language through setLocale", async () => {
-    const user = userEvent.setup()
-    render(<LanguageSection />)
-
-    await user.click(screen.getByLabelText("Language"))
-    await user.click(await screen.findByRole("option", { name: "Русский" }))
-
-    expect(setLocaleMock).toHaveBeenCalledWith("ru")
+    expect(screen.getByText("Language")).toBeInTheDocument()
+    expect(
+      screen.getByText("Display language for the app."),
+    ).toBeInTheDocument()
+    expect(screen.getByRole("combobox")).toHaveTextContent("English")
   })
 })

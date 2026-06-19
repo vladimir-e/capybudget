@@ -5,6 +5,7 @@ import { open as openExternal } from "@tauri-apps/plugin-shell";
 import { useTranslation } from "@capybudget/i18n";
 
 import { ThemeToggle } from "@/components/theme-toggle";
+import { LanguageSelect } from "@/components/settings/language-select";
 import { BudgetTile } from "@/components/budget/budget-tile";
 import bgDay from "@/assets/capy-bg-day.webp";
 import bgNight from "@/assets/capy-bg-night.webp";
@@ -47,6 +48,7 @@ export function DemoBudgetSelector() {
 
       {/* Top-right controls */}
       <div className="fixed top-4 right-4 z-10 flex items-center gap-1">
+        <LanguageSelect withIcon className="border-transparent bg-transparent hover:bg-accent/50 dark:bg-transparent" />
         <ThemeToggle />
       </div>
 

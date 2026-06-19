@@ -6,6 +6,9 @@
     "settings": "Settings",
     "help": "Help"
   },
+  "language": {
+    "label": "Language"
+  },
   "actions": {
     "save": "Save",
     "saving": "Saving…",

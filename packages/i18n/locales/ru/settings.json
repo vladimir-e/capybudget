@@ -29,8 +29,7 @@
   },
   "language": {
     "title": "Язык",
-    "description": "Язык интерфейса приложения.",
-    "label": "Язык"
+    "description": "Язык интерфейса приложения."
   },
   "currency": {
     "title": "Валюта",
