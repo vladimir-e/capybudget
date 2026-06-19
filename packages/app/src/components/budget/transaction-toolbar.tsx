@@ -51,7 +51,7 @@ export function TransactionToolbar({ filters, onFiltersChange }: TransactionTool
           variant="ghost"
           size="xs"
           onClick={clearAll}
-          className="absolute bottom-full right-0 mb-1 text-muted-foreground"
+          className="absolute bottom-full right-0 mb-0.5 text-muted-foreground"
           aria-label="Clear all filters"
         >
           <X className="h-3 w-3" />
@@ -113,7 +113,7 @@ export function TransactionToolbar({ filters, onFiltersChange }: TransactionTool
               <span className="absolute right-1 top-1 h-1.5 w-1.5 rounded-full bg-brand" />
             )}
           </PopoverTrigger>
-          <PopoverContent align="end" className="w-80">
+          <PopoverContent align="end" className="w-72">
             <TransactionFilterPopover filters={filters} update={update} />
           </PopoverContent>
         </Popover>
