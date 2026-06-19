@@ -43,22 +43,22 @@ describe("segmentState", () => {
 
 describe("meterView", () => {
   it("fills a non-meter done segment fully and checks it", () => {
-    expect(meterView("done", null)).toEqual({ fillPct: 100, complete: true, countLabel: null });
+    expect(meterView("done", null)).toEqual({ fillPct: 100, complete: true, count: null });
   });
 
   it("fills a non-meter active segment fully but does not check it", () => {
-    expect(meterView("active", null)).toEqual({ fillPct: 100, complete: false, countLabel: null });
+    expect(meterView("active", null)).toEqual({ fillPct: 100, complete: false, count: null });
   });
 
   it("leaves pending segments empty", () => {
-    expect(meterView("pending", null)).toEqual({ fillPct: 0, complete: false, countLabel: null });
+    expect(meterView("pending", null)).toEqual({ fillPct: 0, complete: false, count: null });
   });
 
   it("tracks the batch meter proportionally with a live count", () => {
     expect(meterView("active", { done: 12, total: 30 })).toEqual({
       fillPct: 40,
       complete: false,
-      countLabel: "12 of 30",
+      count: { kind: "of", done: 12, total: 30 },
     });
   });
 
@@ -66,13 +66,13 @@ describe("meterView", () => {
     expect(meterView("done", { done: 30, total: 30 })).toEqual({
       fillPct: 100,
       complete: true,
-      countLabel: "30 of 30",
+      count: { kind: "of", done: 30, total: 30 },
     });
     // A run that stopped at 18/30 reads incomplete even though its phase is done.
     expect(meterView("done", { done: 18, total: 30 })).toEqual({
       fillPct: 60,
       complete: false,
-      countLabel: "18 of 30",
+      count: { kind: "of", done: 18, total: 30 },
     });
   });
 
@@ -86,7 +86,7 @@ describe("meterView", () => {
     expect(meterView("active", { done: 30, total: 30 })).toEqual({
       fillPct: 100,
       complete: false,
-      countLabel: "30 of 30",
+      count: { kind: "of", done: 30, total: 30 },
     });
   });
 
@@ -94,16 +94,16 @@ describe("meterView", () => {
     expect(meterView("active", { done: 42, total: null })).toEqual({
       fillPct: 100, // binary active fill — the pulse carries the motion
       complete: false,
-      countLabel: "42 rows",
+      count: { kind: "rows", done: 42 },
     });
-    expect(meterView("active", { done: 0, total: null }).countLabel).toBeNull();
+    expect(meterView("active", { done: 0, total: null }).count).toBeNull();
   });
 
   it("ignores an empty meter (total 0) and falls back to phase state", () => {
     expect(meterView("done", { done: 0, total: 0 })).toEqual({
       fillPct: 100,
       complete: true,
-      countLabel: null,
+      count: null,
     });
   });
 });
@@ -120,7 +120,11 @@ describe("resumeMeter", () => {
     expect(meter).toEqual({ done: 2, total: 3 });
     // The bar then renders Enhancing partly-filled, never falsely checked,
     // even though a from-disk phase reads `done`.
-    expect(meterView("done", meter)).toEqual({ fillPct: 67, complete: false, countLabel: "2 of 3" });
+    expect(meterView("done", meter)).toEqual({
+      fillPct: 67,
+      complete: false,
+      count: { kind: "of", done: 2, total: 3 },
+    });
   });
 
   it("reads complete when every categorizable row landed", () => {

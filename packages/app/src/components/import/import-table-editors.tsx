@@ -11,6 +11,7 @@ import {
   formatDateLabel,
 } from "@capybudget/core";
 import { useTransactions } from "@/hooks/use-budget-data";
+import { useTranslation, useLocale } from "@capybudget/i18n";
 import { useFormatMoney } from "@/contexts/currency-context";
 import { amountColorClass } from "@/components/import/import-table-utils";
 import { CalendarDays } from "lucide-react";
@@ -27,6 +28,7 @@ export function DateEdit({
   onSave: (date: string) => void;
   onCancel: () => void;
 }) {
+  const locale = useLocale();
   return (
     <div onClick={(e) => e.stopPropagation()}>
       <Popover defaultOpen onOpenChange={(open) => { if (!open) onCancel(); }}>
@@ -39,7 +41,7 @@ export function DateEdit({
           }
         >
           <CalendarDays className="h-3.5 w-3.5 text-muted-foreground/50" />
-          <span>{formatDateLabel(value)}</span>
+          <span>{formatDateLabel(value, locale)}</span>
         </PopoverTrigger>
         <PopoverContent className="w-auto p-0" align="start">
           <Calendar
@@ -67,6 +69,7 @@ export function MerchantEdit({
   onSave: (v: string) => void;
   onCancel: () => void;
 }) {
+  const { t } = useTranslation("import");
   const { data: allTransactions = [] } = useTransactions();
   const [draft, setDraft] = useState(value);
 
@@ -84,7 +87,7 @@ export function MerchantEdit({
           if (e.key === "Escape") { e.preventDefault(); onCancel(); }
         }}
         className={`${inputClass} text-foreground/80`}
-        placeholder="Merchant"
+        placeholder={t("editors.merchantPlaceholder")}
       />
     </div>
   );
@@ -156,6 +159,7 @@ export function TypeEdit({
   onSave: (v: string) => void;
   onCancel: () => void;
 }) {
+  const { t } = useTranslation("import");
   return (
     <div onClick={(e) => e.stopPropagation()}>
       <select
@@ -166,9 +170,9 @@ export function TypeEdit({
         onKeyDown={(e) => { if (e.key === "Escape") onCancel(); }}
         className="h-7 rounded-md border border-input bg-background px-1.5 text-[13px] focus:outline-none focus:ring-1 focus:ring-ring"
       >
-        <option value="expense">expense</option>
-        <option value="income">income</option>
-        <option value="transfer">transfer</option>
+        <option value="expense">{t("table.types.expense")}</option>
+        <option value="income">{t("table.types.income")}</option>
+        <option value="transfer">{t("table.types.transfer")}</option>
       </select>
     </div>
   );
