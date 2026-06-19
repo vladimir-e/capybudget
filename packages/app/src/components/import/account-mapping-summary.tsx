@@ -56,10 +56,11 @@ export function AccountMappingSummary({ rows }: AccountMappingSummaryProps) {
     </ul>
   );
 
-  // Five rows ≈ each row's content height + the 1.5-unit gap between them.
+  // Cap at five rows so a sixth scrolls into view: 5 × 2.25rem row + 4 × 0.375rem
+  // gap. Keeps the dialog's footer on-screen no matter how many accounts merge.
   if (rows.length > 5) {
     return (
-      <ScrollArea className="max-h-[15.5rem] pr-3">
+      <ScrollArea className="max-h-[12.75rem] pr-3">
         {list}
       </ScrollArea>
     );

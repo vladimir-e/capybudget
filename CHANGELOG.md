@@ -11,6 +11,7 @@ CHANGELOG PHILOSOPHY:
 
 ## Unreleased
 
+- **Import** - Merge confirmation shows a per-account summary (where transactions land + each account's resulting balance), so a wrong account mapping is visible before you commit.
 - **Transaction filters** - Type multiselect + uncategorized/no-merchant filters behind a toolbar popover.
 - **Currency** - Configurable display currency (Settings + new-budget picker); display-only, no conversion.
 

@@ -17,6 +17,23 @@ export interface MergeOutput {
 }
 
 /**
+ * Resolve an import row to its destination budget account id: a freshly created
+ * account wins, then an explicit non-`__create__` mapping, then the id the
+ * engine already grounded onto the row. Shared with the merge-summary preview so
+ * the two can never disagree on where a transaction lands.
+ */
+export function resolveAccountId(
+  t: ImportTransaction,
+  createdAccountIds: Record<string, string>,
+  accountMapping: Record<string, string>,
+): string {
+  if (createdAccountIds[t.sourceAccount]) return createdAccountIds[t.sourceAccount];
+  const mapped = accountMapping[t.sourceAccount];
+  if (mapped && mapped !== "__create__") return mapped;
+  return t.accountId || "";
+}
+
+/**
  * Detect and mutually link transfer pairs among newly created transactions.
  *
  * A pair is two transfers with the same date, opposite amounts, and different
@@ -97,12 +114,8 @@ export function prepareMerge(
   }
 
   // ── Resolve account ID per transaction ────────────────────
-  const resolveAccount = (t: ImportTransaction): string => {
-    if (createdAccountIds[t.sourceAccount]) return createdAccountIds[t.sourceAccount];
-    const mapped = accountMapping[t.sourceAccount];
-    if (mapped && mapped !== "__create__") return mapped;
-    return t.accountId || "";
-  };
+  const resolveAccount = (t: ImportTransaction): string =>
+    resolveAccountId(t, createdAccountIds, accountMapping);
 
   // ── Resolve target account for transfers ───────────────────
   const resolveTargetAccount = (t: ImportTransaction): string => {

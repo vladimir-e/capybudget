@@ -1,6 +1,6 @@
 import { getAccountBalance } from "../analytics/queries";
 import type { Account, AccountType, Transaction } from "../entities/types";
-import { prepareMerge, type MergeInput } from "./import-merge";
+import { prepareMerge, resolveAccountId, type MergeInput } from "./import-merge";
 import type { ImportAliases } from "./import-types";
 
 /** One account's stake in a pending merge — what lands where, and the balance
@@ -10,33 +10,24 @@ export interface MergeAccountSummary {
   accountId: string;
   accountName: string;
   accountType: AccountType;
-  /** Created by this merge — had no prior existence in the budget. */
   isNew: boolean;
   /** Import source name(s) feeding this account. Empty for a transfer-target
    *  account that isn't itself an import source. */
   sourceAccounts: string[];
-  /** New transactions landing on this account. */
   count: number;
-  /** Sum of those transactions' amounts (signed cents). */
+  /** Sum of the landing transactions' amounts (signed cents). */
   delta: number;
-  /** Balance from the existing transactions only — 0 for a new account. */
   currentBalance: number;
-  /** Balance after the merge: `currentBalance + delta`. */
   resultingBalance: number;
 }
 
 /**
  * Summarize what a merge will do, per destination account.
  *
- * Runs the actual {@link prepareMerge} (pure, no I/O) and groups the *newly
- * added* transactions by their resolved `accountId`. Grouping by the result —
- * rather than by import source — is what captures transfer-target accounts: a
- * transfer leg lands on the counterpart account even though no import source
- * names it, and a mis-pointed transfer corrupts the budget just as a mis-mapped
- * source does, so it must surface here too.
- *
- * Sorted new-accounts-first, then by transaction count descending, then by
- * name — deterministic so the preview is stable across renders.
+ * Groups by the *resulting* `accountId` rather than by import source: a transfer
+ * leg lands on its counterpart account even though no import source names it, and
+ * a mis-pointed transfer corrupts the budget just as a mis-mapped source does, so
+ * the target must surface here too.
  */
 export function summarizeMerge(
   input: MergeInput,
@@ -53,19 +44,11 @@ export function summarizeMerge(
   const newAccountIds = new Set(Object.values(result.createdAccountIds));
   const accountById = new Map(result.accounts.map((a) => [a.id, a]));
 
-  // Which import sources feed which destination account. Built from the same
-  // selected rows and resolution prepareMerge uses, so a source that lands on
-  // an account is attributed to it; transfer-target legs carry no source.
   const sourcesByAccount = new Map<string, Set<string>>();
   const selected = input.transactions.filter((t) => input.selectedIds.has(t.id));
   for (const t of selected) {
     if (!t.sourceAccount) continue;
-    const accountId =
-      result.createdAccountIds[t.sourceAccount] ??
-      (input.accountMapping[t.sourceAccount] &&
-      input.accountMapping[t.sourceAccount] !== "__create__"
-        ? input.accountMapping[t.sourceAccount]
-        : t.accountId);
+    const accountId = resolveAccountId(t, result.createdAccountIds, input.accountMapping);
     if (!accountId) continue;
     const set = sourcesByAccount.get(accountId) ?? new Set<string>();
     set.add(t.sourceAccount);
