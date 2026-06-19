@@ -38,7 +38,7 @@
     "slate": "Сланец"
   },
   "update": {
-    "available": "Доступна Capy {{version}}",
+    "available": "Доступна Капи {{version}}",
     "action": "Обновить"
   },
   "dialog": {
@@ -49,6 +49,6 @@
   },
   "commandPalette": {
     "title": "Командная палитра",
-    "description": "Найдите команду для запуска…"
+    "description": "Найди команду для запуска…"
   }
 }

@@ -2,9 +2,9 @@
   "tabs": {
     "spending": "Расходы",
     "cashFlow": "Денежный поток",
-    "netWorth": "Чистая стоимость",
+    "netWorth": "Капитал",
     "compare": "Сравнение",
-    "merchants": "Продавцы",
+    "merchants": "Получатели",
     "monthlyBudget": "Месячный бюджет"
   },
   "summary": {
@@ -50,7 +50,7 @@
   },
   "empty": {
     "noDataYet": "Это станет полезным, когда накопится больше данных.",
-    "noCategoriesYet": "Это станет полезным, когда вы добавите категории и данные."
+    "noCategoriesYet": "Это станет полезным, когда ты добавишь категории и данные."
   },
   "view": {
     "expenses": "Расходы",
@@ -70,14 +70,14 @@
     "bar": "Столбцы",
     "area": "Область",
     "noAccountsTitle": "Счета не выбраны",
-    "noAccountsDescription": "Выберите хотя бы один счёт, чтобы построить график чистой стоимости.",
+    "noAccountsDescription": "Выбери хотя бы один счёт, чтобы построить график капитала.",
     "noData": "Нет данных",
     "monthLabel": "{{month}} {{year}}"
   },
   "accountFilter": {
     "allAccounts": "Все счета",
     "someAccounts": "{{included}} из {{total}} счетов",
-    "triggerAria": "Счета в чистой стоимости — {{label}}",
+    "triggerAria": "Счета в капитале — {{label}}",
     "searchPlaceholder": "Поиск счетов",
     "searchAria": "Поиск счетов",
     "selectAll": "Выбрать все",
@@ -89,19 +89,19 @@
     "categories": "Категории",
     "selectAll": "Выбрать все",
     "clear": "Сбросить",
-    "selectPrompt": "Выберите категории для сравнения",
+    "selectPrompt": "Выбери категории для сравнения",
     "toggleAria": "Переключить «{{name}}»",
     "noExpenses": "Нет расходов за этот период",
     "noIncome": "Нет доходов за этот период"
   },
   "merchants": {
-    "empty": "Нет данных о продавцах за этот период",
+    "empty": "Нет данных о получателях за этот период",
     "txnCount_one": "{{count}} опер.",
     "txnCount_few": "{{count}} опер.",
     "txnCount_many": "{{count}} опер.",
     "txnCount_other": "{{count}} опер.",
     "headerRank": "№",
-    "headerMerchant": "Продавец",
+    "headerMerchant": "Получатель",
     "headerAmount": "Сумма",
     "headerTxns": "Опер.",
     "headerPercent": "%"
@@ -111,7 +111,7 @@
     "trackingToward": "Цель",
     "overBudget": "Превышение бюджета",
     "noCategoriesTitle": "Нет категорий для бюджета",
-    "addCategories": "Добавьте категории, чтобы начать отслеживание.",
+    "addCategories": "Добавь категории, чтобы начать отслеживание.",
     "showOnlyTracked": "Только отслеживаемые",
     "trackedCount": "({{targeted}} из {{total}})",
     "columnCategory": "Категория",
@@ -135,7 +135,7 @@
     "overTarget": " (превышение цели)",
     "autoTarget": "Авто-цель: {{amount}}",
     "budget": "Бюджет: {{amount}}",
-    "noTargetAria": "Цель ещё не задана — Capy нужна история расходов, чтобы её определить",
+    "noTargetAria": "Цель ещё не задана — Капи нужна история расходов, чтобы её определить",
     "spentOfTargetAria": "Потрачено {{spent}} из цели {{target}}{{over}}",
     "comparisonBasisAria": "База сравнения: {{label}}"
   }

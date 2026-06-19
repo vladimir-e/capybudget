@@ -1,28 +1,28 @@
 {
   "selector": {
     "welcome": "Добро пожаловать",
-    "appName": "Capy Budget",
+    "appName": "Капи Бюджет",
     "tagline": "Бесплатно, с открытым кодом и силой ИИ.",
     "newBudget": "Новый бюджет",
     "openExisting": "Открыть существующий…",
     "whatsAFolder": "Что такое папка бюджета?",
-    "folderExplainer": "Capy хранит всё в виде обычных файлов в выбранной вами папке — transactions.csv, budget.json. Положите её в iCloud или Google Диск, чтобы синхронизировать между устройствами.",
+    "folderExplainer": "Капи хранит всё в виде обычных файлов в выбранной тобой папке — transactions.csv, budget.json. Положи её в iCloud или Google Диск, чтобы синхронизировать между устройствами.",
     "recent": "Недавние",
     "removeFromRecents": "Убрать {{name}} из недавних",
     "newDialog": {
       "title": "Новый бюджет",
-      "description": "Дайте название и выберите валюту отображения.",
+      "description": "Дай название и выбери валюту отображения.",
       "name": "Название",
       "currency": "Валюта",
       "create": "Создать"
     },
     "errorFolderNotEmpty": {
       "title": "Эта папка не пуста",
-      "description": "Выберите пустую папку, чтобы создать новый бюджет."
+      "description": "Выбери пустую папку, чтобы создать новый бюджет."
     },
     "errorNoBudget": {
       "title": "В этой папке нет бюджета",
-      "description": "Выберите папку с уже существующим бюджетом или пустую папку, чтобы создать новый."
+      "description": "Выбери папку с уже существующим бюджетом или пустую папку, чтобы создать новый."
     },
     "pickAnother": "Выбрать другую папку",
     "defaultName": "Мой бюджет",
@@ -52,7 +52,7 @@
       "editTitle": "Изменить счёт",
       "name": "Название",
       "namePlaceholder": "напр. Сбер Дебетовая",
-      "nameRequired": "Укажите название счёта",
+      "nameRequired": "Укажи название счёта",
       "type": "Тип",
       "openingBalance": "Начальный остаток",
       "create": "Создать счёт"
@@ -65,7 +65,7 @@
       "deleted": "{{name}} удалён"
     },
     "selector": {
-      "placeholder": "Выберите счёт…",
+      "placeholder": "Выбери счёт…",
       "search": "Поиск счетов…",
       "empty": "Счета не найдены.",
       "all": "Все счета",
@@ -77,11 +77,11 @@
     "notFound": "Счёт не найден",
     "cannotArchive": {
       "title": "Нельзя архивировать счёт",
-      "description": "На счёте {{name}} ещё есть остаток {{balance}}. Сначала добавьте операцию, чтобы обнулить его — архивные счета скрыты из бюджета."
+      "description": "На счёте {{name}} ещё есть остаток {{balance}}. Сначала добавь операцию, чтобы обнулить его — архивные счета скрыты из бюджета."
     },
     "cannotDelete": {
       "title": "Нельзя удалить счёт",
-      "description": "У счёта {{name}} есть операции, которые будут потеряны. Сначала удалите или перенесите их, либо отправьте счёт в архив."
+      "description": "У счёта {{name}} есть операции, которые будут потеряны. Сначала удали или перенеси их, либо отправь счёт в архив."
     }
   },
   "sidebar": {
@@ -101,7 +101,7 @@
   "netWorthFilter": {
     "trigger": "Выбрать счета для капитала",
     "title": "В капитал входят",
-    "subtitle": "Снимите галочку, чтобы исключить из итога",
+    "subtitle": "Сними галочку, чтобы исключить из итога",
     "empty": "Нет активных счетов."
   },
   "canonicalCategory": {
@@ -135,7 +135,7 @@
   },
   "accountType": {
     "cash": "Наличные",
-    "checking": "Дебетовая",
+    "checking": "Банковский счёт",
     "savings": "Накопительный",
     "credit_card": "Кредитная карта",
     "loan": "Кредиты",
@@ -172,7 +172,7 @@
       "description": "Категория будет удалена. Операции с ней останутся без категории."
     },
     "selector": {
-      "placeholder": "Выберите категорию…",
+      "placeholder": "Выбери категорию…",
       "search": "Поиск категорий…",
       "empty": "Категории не найдены.",
       "all": "Все категории",
@@ -241,11 +241,11 @@
     },
     "form": {
       "addPrompt": "Добавить операцию…",
-      "merchantPlaceholder": "Продавец",
+      "merchantPlaceholder": "Получатель",
       "categoryPlaceholder": "Категория",
       "notesPlaceholder": "Заметка (необязательно)",
-      "selectAccount": "Выберите счёт",
-      "selectBothAccounts": "Выберите оба счёта"
+      "selectAccount": "Выбери счёт",
+      "selectBothAccounts": "Выбери оба счёта"
     },
     "toast": {
       "added": "Операция добавлена",
@@ -255,7 +255,7 @@
     "list": {
       "date": "Дата",
       "account": "Счёт",
-      "merchant": "Продавец",
+      "merchant": "Получатель",
       "category": "Категория",
       "amount": "Сумма",
       "selectAll": "Выбрать все операции",
@@ -263,7 +263,7 @@
       "emptyTitle": "Пока нет операций",
       "emptyDescription": "Операции появятся здесь после добавления.",
       "noMatchTitle": "Подходящих операций нет",
-      "noMatchDescription": "Попробуйте изменить поиск или фильтры."
+      "noMatchDescription": "Попробуй изменить поиск или фильтры."
     },
     "row": {
       "uncategorized": "Без категории",
@@ -283,9 +283,9 @@
     "delete": "Удалить",
     "moveToAccount": "Перенести на счёт",
     "changeDate": "Изменить дату",
-    "changeMerchant": "Изменить продавца",
+    "changeMerchant": "Изменить получателя",
     "clearSelection": "Снять выделение",
-    "merchantPlaceholder": "Название продавца",
+    "merchantPlaceholder": "Название получателя",
     "apply": "Применить",
     "uncategorized": "Без категории",
     "mixedCategories": "Разные категории",
@@ -306,10 +306,10 @@
       "dateChanged_few": "Дата {{count}} операций изменена на {{date}}",
       "dateChanged_many": "Дата {{count}} операций изменена на {{date}}",
       "dateChanged_other": "Дата {{count}} операций изменена на {{date}}",
-      "merchantChanged_one": "Продавец изменён у {{count}} операции",
-      "merchantChanged_few": "Продавец изменён у {{count}} операций",
-      "merchantChanged_many": "Продавец изменён у {{count}} операций",
-      "merchantChanged_other": "Продавец изменён у {{count}} операций"
+      "merchantChanged_one": "Получатель изменён у {{count}} операции",
+      "merchantChanged_few": "Получатель изменён у {{count}} операций",
+      "merchantChanged_many": "Получатель изменён у {{count}} операций",
+      "merchantChanged_other": "Получатель изменён у {{count}} операций"
     },
     "deleteDialog": {
       "title_one": "Удалить {{count}} операцию?",
@@ -336,17 +336,17 @@
     },
     "dateDialog": {
       "title": "Изменить дату",
-      "description_one": "Задайте новую дату для {{count}} операции.",
-      "description_few": "Задайте новую дату для {{count}} операций.",
-      "description_many": "Задайте новую дату для {{count}} операций.",
-      "description_other": "Задайте новую дату для {{count}} операций."
+      "description_one": "Задай новую дату для {{count}} операции.",
+      "description_few": "Задай новую дату для {{count}} операций.",
+      "description_many": "Задай новую дату для {{count}} операций.",
+      "description_other": "Задай новую дату для {{count}} операций."
     },
     "merchantDialog": {
-      "title": "Изменить продавца",
-      "description_one": "Задайте нового продавца для {{count}} операции.",
-      "description_few": "Задайте нового продавца для {{count}} операций.",
-      "description_many": "Задайте нового продавца для {{count}} операций.",
-      "description_other": "Задайте нового продавца для {{count}} операций.",
+      "title": "Изменить получателя",
+      "description_one": "Задай нового получателя для {{count}} операции.",
+      "description_few": "Задай нового получателя для {{count}} операций.",
+      "description_many": "Задай нового получателя для {{count}} операций.",
+      "description_other": "Задай нового получателя для {{count}} операций.",
       "transferNote": " Переводы будут пропущены."
     }
   },
@@ -354,7 +354,7 @@
     "type": "Тип",
     "showOnly": "Показывать только",
     "uncategorized": "Без категории",
-    "noMerchant": "Без продавца",
+    "noMerchant": "Без получателя",
     "expense": "Расход",
     "income": "Доход",
     "transfer": "Перевод"
