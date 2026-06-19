@@ -209,7 +209,7 @@ export function TransactionsBrowser({
        *  at `calc(100vh - 220px)`, which is comfortably larger than the
        *  modal's 80vh budget minus chrome, so the inner cap effectively
        *  defers to the parent flex height in modal context. */}
-      <div className="flex-1 min-h-0 overflow-auto">
+      <div className="list-scroll flex-1 min-h-0 overflow-auto">
         {emptyFromSearch ? (
           <EmptyState
             title={

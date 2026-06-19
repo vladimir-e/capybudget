@@ -288,7 +288,7 @@ export function TransactionList({
   return (
     <div
       ref={scrollContainerRef}
-      className="w-full overflow-auto"
+      className="list-scroll w-full overflow-auto"
       style={{ maxHeight: "calc(100vh - 220px)" }}
     >
       <table
