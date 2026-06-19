@@ -11,10 +11,16 @@ const host = process.env.TAURI_DEV_HOST;
 // Full-app-mount tests: each renders the entire app via renderApp(), paying a
 // ~5.6s module-graph cold start. Partition is by cost-class, not directory —
 // these live both in journeys/ and beside the components they exercise.
+//
+// Eligibility is stricter than "renders the full app": because this pool runs
+// isolate:false (shared module registry across files in a worker), a file here
+// must NOT vi.mock a module that another file in the pool uses for real. That
+// rules out budget-selector.test.tsx — it module-mocks src/services/budget,
+// which the journey tests exercise live; sharing a registry would feed them the
+// mock and they'd never render. It stays in the isolated `unit` pool.
 const fullAppMountTests = [
   "packages/app/src/test/journeys/**/*.test.{ts,tsx}",
   "packages/app/src/components/budget/first-run-guide.test.tsx",
-  "packages/app/src/components/budget/budget-selector.test.tsx",
   "packages/app/src/test/performance.test.tsx",
 ];
 
