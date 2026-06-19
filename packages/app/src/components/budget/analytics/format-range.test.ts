@@ -4,15 +4,13 @@ import type { DateRange, Transaction } from "@capybudget/core";
 import { i18n } from "@capybudget/i18n";
 import { formatRangeLabel, formatDrilldownSubtitle } from "./format-range";
 
-// The helper only reads `.amount` and `.length`, so minimal stubs suffice.
 const txn = (amount: number) => ({ amount }) as Transaction;
 
-// Stand-in for the currency-bound formatter the app threads from useFormatMoney.
 const format = (cents: number) =>
   formatMoney(cents, "USD", { decimals: 2, symbolPosition: "before" });
 
-// Real `analytics`-scoped translators per language, so the test exercises the
-// shipped catalog strings (incl. Russian plural rules) end to end.
+// Real translators, so the test exercises the shipped catalog strings end to
+// end, including Russian plural rules.
 const tEn = i18n.getFixedT("en", "analytics");
 const tRu = i18n.getFixedT("ru", "analytics");
 

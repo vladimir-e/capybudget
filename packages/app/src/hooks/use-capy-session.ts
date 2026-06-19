@@ -35,8 +35,8 @@ export interface UseCapySessionOptions {
   mcpServerPath: string
   /** Budget's display currency (ISO 4217), baked into the prompt + snapshot. */
   currency: string
-  /** English name of the active UI language; baked into the system prompt so
-   *  Capy replies in it. Joins the session signature, so a switch rebuilds. */
+  /** English name of the active UI language, baked into the prompt; joins the
+   *  session signature so a switch rebuilds. */
   language?: string
   customInstructions?: string
   /** Snapshot of the budget's current shape, attached to the first message
@@ -69,10 +69,8 @@ export function useCapySession(opts: UseCapySessionOptions): UseCapySessionRetur
   // Snapshot rides on the first message of each session only.
   const snapshotSentRef = useRef(false)
 
-  // These chat-bubble strings surface from lifecycle callbacks and stable
-  // useCallbacks that don't re-create per render, so read `t` through a ref
-  // kept current rather than closing over a value that goes stale on a
-  // language switch.
+  // Read through a ref: stable lifecycle callbacks don't re-create per render,
+  // so closing over `t` directly would go stale on a language switch.
   const { t } = useTranslation("capy")
   const tRef = useRef(t)
   useEffect(() => {
@@ -223,8 +221,8 @@ export function useCapySession(opts: UseCapySessionOptions): UseCapySessionRetur
         : provider === "claude-cli"
           ? `claude-cli:${claudeCliModel}`
           : (provider ?? "off") // null carries no model — stable string signature
-  // Currency and language are baked into the system prompt, so a switch must
-  // rebuild the session for Capy to reflect it — both join the signature.
+  // Currency and language are baked into the prompt, so they join the signature:
+  // a switch changes it and rebuilds the session.
   const sessionSignature = `${providerSignature}:cur=${opts.currency}:lng=${opts.language ?? "en"}`
   const prevSignatureRef = useRef(sessionSignature)
   useEffect(() => {

@@ -3,22 +3,15 @@ import type { DateRange, Transaction, TrendPoint } from "@capybudget/core";
 
 export type CompareViewMode = "expense" | "income";
 
-/** Stable per-category series-join key for the chart. Keying the row
- *  aggregation and `<Line dataKey>` on the category id — never the localized
- *  display name — keeps two categories that happen to share a translated label
- *  from collapsing into one overwritten line. */
+// Join on the category id, never the localized display name: two categories
+// that share a translated label would otherwise collapse into one chart line.
 export function seriesKeyFor(categoryId: string): string {
   return `cat:${categoryId}`;
 }
 
-/** The transaction window for a clicked trend bucket, `[start, end)`.
- *
- *  Derived from the trend point's own period boundary — never re-parsed from
- *  the locale-formatted X-axis label — so it lines up exactly with the buckets
- *  `getCategoryTrends` produced. `pointDate` is the bucket's ISO period start
- *  (`TrendPoint.date`): first-of-month for monthly granularity, the Monday of
- *  the week for weekly. The window is clamped to `dateRange` on both ends so a
- *  partial leading or trailing bucket can't reach outside the charted period. */
+// Derived from the trend point's own ISO period start, never re-parsed from the
+// locale-formatted X-axis label, so it matches the buckets getCategoryTrends
+// produced. Clamped to dateRange so a partial edge bucket can't reach outside it.
 export function bucketWindow(
   pointDate: string,
   granularity: "month" | "week",
@@ -34,25 +27,14 @@ export function bucketWindow(
   return { start: new Date(startMs), end: new Date(endMs) };
 }
 
-/** One row of the Compare line chart. `monthLabel` is the localized X label;
- *  `month` is core's English bucket label, kept for the drilldown title's
- *  stable identity. `__start`/`__end` are the bucket's ISO window (see
- *  `bucketWindow`). The remaining keys are dynamic per-category amounts, keyed
- *  by the stable `cat:<id>` series key (never the localized display name, so
- *  identically-translated categories stay distinct). */
 export type CompareChartRow = {
+  // English bucket label, kept for the drilldown title's stable identity.
   month: string;
   monthLabel: string;
   __start: string;
   __end: string;
 } & Record<string, string | number>;
 
-/** Build the Compare line-chart rows from core's trend points. Per-category
- *  amounts key on the stable `cat:<id>` series key (via `seriesKeyFor`), not the
- *  localized label, so two categories with an identical translated name occupy
- *  distinct row fields instead of overwriting each other. `xLabel` formats the
- *  bucket's locale-aware X label from the point's ISO date (injected so this
- *  stays free of React/i18n). */
 export function buildCompareChartRows(
   points: TrendPoint[],
   granularity: "month" | "week",
@@ -74,14 +56,9 @@ export function buildCompareChartRows(
   });
 }
 
-/** Resolve the chart row a Recharts `LineChart` `onClick` refers to.
- *
- *  The 3.x wrapper `onClick` passes a `MouseHandlerDataParam` with no
- *  `activePayload` — only `activeTooltipIndex` (a number for a categorical
- *  chart) and `activeLabel` (the X value). We index our own `chartData`:
- *  the tooltip index first, then an X-label match as a fallback so a
- *  future Recharts change to the index field can't silently break the click.
- *  Returns `null` when neither resolves to a valid row. */
+// Recharts 3.x `onClick` passes no `activePayload` — only `activeTooltipIndex`
+// and `activeLabel`. Index by tooltip index first, then fall back to an X-label
+// match so a future change to the index field can't silently break the click.
 export function resolveClickedRow(
   rows: CompareChartRow[],
   activeTooltipIndex: unknown,
@@ -101,24 +78,14 @@ export function resolveClickedRow(
   return null;
 }
 
-/** A click target for the Compare line-chart drilldown.
- *
- *  `range` is the clicked bucket's own date window (see `bucketWindow`).
- *  `categoryIds` is the selected set, using `""` for the synthetic
- *  Uncategorized bucket — the same encoding `getCategoryTrends` accepts. */
 export interface CompareDrilldown {
-  /** Display label for the clicked bucket, e.g. "Jan 2024" or "Jan 6". */
   label: string;
-  /** The bucket's transaction window, `[from, to)`. */
   range: { from: Date; to: Date };
-  /** Selected category ids (`""` = Uncategorized). */
+  // `""` encodes the Uncategorized bucket, matching what getCategoryTrends accepts.
   categoryIds: string[];
   mode: CompareViewMode;
 }
 
-/** Filter transactions matching the active Compare drilldown — the same
- *  type-and-category gating that produced the chart, scoped to the clicked
- *  bucket's date window. */
 export function filterForCompareDrilldown(
   transactions: Transaction[],
   drilldown: CompareDrilldown,

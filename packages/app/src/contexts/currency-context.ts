@@ -37,8 +37,8 @@ export interface CurrencyFormatters {
 
 export function useFormatMoney(): CurrencyFormatters {
   const { currency, decimals, symbolPosition } = useContext(CurrencyContext);
-  // Grouping/decimal glyphs follow the active UI language (e.g. "1 250,00 ₽"
-  // under ru); the currency and symbol are unaffected.
+  // Locale drives grouping/decimal glyphs ("1 250,00 ₽" under ru); currency and
+  // symbol are independent of it.
   const locale = useLocale();
   return useMemo(() => {
     const format: MoneyFormat = { decimals, symbolPosition };

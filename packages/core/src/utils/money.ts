@@ -1,7 +1,6 @@
-// Grouping and decimal style come from the formatting locale; symbol, position,
-// and precision are explicit inputs. The locale is threaded in by the caller
-// (the app passes the active UI language); the symbol itself is currency-driven
-// and locale-independent, so currency lookups stay on the source locale.
+// Grouping and decimal style come from the caller's locale; symbol, position,
+// and precision are explicit inputs. The symbol is currency-driven and
+// locale-independent, so currency lookups stay on this source locale.
 const SOURCE_LOCALE = "en-US";
 
 export const DEFAULT_CURRENCY = "USD";

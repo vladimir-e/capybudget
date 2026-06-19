@@ -284,8 +284,6 @@ describe("useCapySession session teardown", () => {
     expect(createdSessions).toHaveLength(1)
     const firstSession = createdSessions[0]
 
-    // Language is baked into the system prompt's respond-in-language line, so a
-    // switch must rebuild the session — same contract as currency.
     rerender({ ...baseOpts, language: "Russian" })
     expect(firstSession.killSpy).toHaveBeenCalled()
   })

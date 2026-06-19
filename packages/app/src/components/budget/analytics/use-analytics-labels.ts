@@ -3,16 +3,9 @@ import { useLocale, useTranslation } from "@capybudget/i18n"
 import { useCategoryDisplayName } from "@/lib/display-names"
 import type { AnalyticsKey } from "@/lib/i18n-keys"
 
-/**
- * Display-time localization for the strings core analytics bakes in English so
- * its series-matching joins stay stable: the "Unknown"/"Uncategorized"
- * fallbacks, the month labels on chart axes, and the basis labels. Core keeps
- * emitting canonical English; these hooks translate only at the render edge.
- */
+// Core analytics bakes labels in English so its series-matching joins stay
+// stable; these hooks translate only at the render edge.
 
-/** Localized name for an analytics category series/slice: the empty-id
- *  Uncategorized bucket renders the localized fallback, a canonical default
- *  renders its translation, and a renamed/custom category renders verbatim. */
 export function useCategorySeriesLabel(): (categoryId: string, categoryName: string) => string {
   const { t } = useTranslation("analytics")
   const categoryDisplay = useCategoryDisplayName()
@@ -20,8 +13,6 @@ export function useCategorySeriesLabel(): (categoryId: string, categoryName: str
     categoryId === "" ? t("fallback.uncategorized") : categoryDisplay(categoryName)
 }
 
-/** Localized chart label for a month, derived from the point's ISO `date` so
- *  the wording follows the active locale instead of core's English `month`. */
 export function useMonthLabel(): (isoDate: string) => string {
   const { t } = useTranslation("analytics")
   const locale = useLocale()
@@ -31,8 +22,6 @@ export function useMonthLabel(): (isoDate: string) => string {
   }
 }
 
-/** Localized chart label for a weekly bucket ("Mar 10"), from the bucket's ISO
- *  start date. */
 export function useWeekLabel(): (isoDate: string) => string {
   const { t } = useTranslation("analytics")
   const locale = useLocale()
@@ -49,23 +38,17 @@ const BASIS_OPTION_KEY = {
   sameMonthLastYear: "basis.sameMonthLastYearOption",
 } satisfies Record<BudgetBasis, AnalyticsKey>
 
-/** Short resolved label for a trailing basis ("3-mo avg"); `sameMonthLastYear`
- *  resolves to its month instead and isn't in this map. */
 const BASIS_SHORT_KEY = {
   trailing3: "basis.trailing3",
   trailing6: "basis.trailing6",
   trailing12: "basis.trailing12",
 } satisfies Record<Exclude<BudgetBasis, "sameMonthLastYear">, AnalyticsKey>
 
-/** Long-form basis option for the picker menu ("3 months"). */
 export function useBasisOptionLabel(): (basis: BudgetBasis) => string {
   const { t } = useTranslation("analytics")
   return (basis: BudgetBasis) => t(BASIS_OPTION_KEY[basis])
 }
 
-/** Resolved reference label for a basis ("3-mo avg" / "Mar 2025"), localized:
- *  the trailing bases are fixed strings, `sameMonthLastYear` resolves to the
- *  month it points at. */
 export function useBasisLabel(): (basis: BudgetBasis, viewedMonth: Date) => string {
   const { t } = useTranslation("analytics")
   const locale = useLocale()

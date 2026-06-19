@@ -3,15 +3,8 @@ import type { DateRange, Transaction } from "@capybudget/core";
 import type { TFunction } from "i18next";
 import type { PeriodType } from "@/stores/analytics-store";
 
-/** The `analytics`-scoped translator threaded from a component's `useTranslation`. */
 type Translate = TFunction<"analytics">;
 
-/** Human-readable label for an analytics date range, picked to match the
- *  period type (e.g. "May 2026", "Q2 2026", "Jan – Mar 2026"). Month names and
- *  the period-type literals ("All Time", the quarter label) follow the active
- *  UI language, threaded in by the caller via `locale` and `t`. Used both by
- *  the date-range nav and by the transactions browser modal subtitle so the
- *  two surfaces stay in sync. */
 export function formatRangeLabel(
   range: DateRange,
   periodType: PeriodType,
@@ -55,10 +48,8 @@ export function formatRangeLabel(
   return `${formatMonthShort(start, locale)} ${startYear} – ${formatMonthShort(endDate, locale)} ${endYear}`;
 }
 
-/** Transaction count plus the abs-summed total when there's more than one,
- *  e.g. "3 transactions · $128.40". The per-transaction `Math.abs` keeps the
- *  total reconciled with the pie-slice / merchant-row / chart figure that
- *  opened the modal. */
+// Per-transaction `Math.abs` keeps the total reconciled with the pie-slice /
+// merchant-row / chart figure that opened the modal, instead of netting out.
 export function formatCountAndTotal(
   transactions: Transaction[],
   format: (cents: number) => string,
@@ -71,7 +62,6 @@ export function formatCountAndTotal(
   return `${base} · ${format(total)}`;
 }
 
-/** Subtitle for the transactions drilldown modal: range label + count/total. */
 export function formatDrilldownSubtitle(
   range: DateRange,
   periodType: PeriodType,

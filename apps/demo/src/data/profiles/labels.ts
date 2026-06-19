@@ -3,10 +3,6 @@ import type { DemoKey } from "@/lib/i18n-keys";
 
 import type { DemoProfile } from "./types";
 
-/** The `demo:scenarios.*` keys for a profile. Typed `DemoKey` so the compiler
- *  pins each to a real catalog key; `i18n:check` enforces locale parity. The
- *  scenario `name`/`description` are the profile's only user-visible copy — the
- *  rest of the profile is financial config the engine consumes, never rendered. */
 const SCENARIO_KEY = {
   underwater: {
     name: "scenarios.underwater.name",
@@ -27,9 +23,6 @@ export interface ScenarioLabels {
   description: string;
 }
 
-/** Localizes a profile's user-visible name + description off its id. Falls back
- *  to the profile's own strings for any id without catalog keys — which never
- *  fires for the shipped profiles, but keeps an unkeyed scenario readable. */
 export function useScenarioLabels(): (profile: DemoProfile) => ScenarioLabels {
   const { t } = useTranslation("demo");
   return (profile) => {

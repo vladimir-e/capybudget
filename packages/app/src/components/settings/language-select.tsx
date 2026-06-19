@@ -17,7 +17,6 @@ import {
 interface LanguageSelectProps {
   className?: string
   size?: "sm" | "default"
-  /** Show a leading globe icon — useful for compact, label-less placements. */
   withIcon?: boolean
   id?: string
 }

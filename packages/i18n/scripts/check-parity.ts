@@ -1,10 +1,3 @@
-/**
- * CLI wrapper for the catalog parity check (`npm run i18n:check`). Exits
- * non-zero on any problem — the guardrail that keeps a contributor PR ("copy
- * en/, translate the values") from silently shipping a drifted catalog. The
- * same check runs in the vitest suite via `parity.test.ts`, so `npm test`
- * fails on drift too.
- */
 import { checkParity } from "./parity";
 
 const { problems, localeCount, namespaceCount } = checkParity();

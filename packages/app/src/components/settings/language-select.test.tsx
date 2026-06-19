@@ -4,9 +4,8 @@ import userEvent from "@testing-library/user-event"
 import { i18n } from "@capybudget/i18n"
 import { LanguageSelect } from "./language-select"
 
-// Keep the real i18n (so the picker renders, hooks resolve, and the endonym
-// labels come from SUPPORTED_LOCALES) but spy on setLocale — that's the one
-// side effect, and under the hood it persists + calls i18next.changeLanguage.
+// Keep the real i18n so the picker renders with real endonym labels; spy only
+// on setLocale, the one side effect.
 const { setLocaleMock } = vi.hoisted(() => ({ setLocaleMock: vi.fn() }))
 
 vi.mock("@capybudget/i18n", async (importActual) => {

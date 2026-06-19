@@ -1,19 +1,8 @@
-/**
- * Key-parity check for the locale catalogs. Every non-source locale must have
- * exactly the same keys as `en`, per namespace; plural variants (`key_one`,
- * `key_few`, …) collapse to their base key first since they legitimately differ
- * across languages. Also cross-validates that the directories on disk and the
- * `SUPPORTED_LOCALES` registry agree, so a half-registered language can't pass.
- *
- * On top of base-key parity it checks plural *completeness*: every plural group
- * must cover exactly the categories that locale's `Intl.PluralRules` declares
- * (`one`/`other` for en, `one`/`few`/`many`/`other` for ru, …). Base-key parity
- * alone can't see this — it strips the suffix — so a missing required plural
- * form would otherwise ship silently.
- *
- * Pure (returns problems, doesn't exit) so both the CLI wrapper and the vitest
- * suite can drive it — the test is what makes parity drift fail `npm test`.
- */
+// Plural variants collapse to their base key before cross-locale parity, since
+// the per-suffix forms legitimately differ across languages. Completeness is a
+// separate pass: base-key parity strips the suffix and can't see a missing
+// required plural form. Pure (returns problems, no exit) so both the CLI wrapper
+// and the vitest suite can drive it.
 import { readFileSync, readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
@@ -54,8 +43,6 @@ function readNamespaceKeys(locale: string, namespace: string): Set<string> {
   return flatten(parseNamespace(locale, namespace));
 }
 
-/** The CLDR plural categories a locale's cardinal rules declare. Cached per
- *  locale — the set is what every plural group in that locale must provide. */
 const pluralCategoryCache = new Map<string, Set<string>>();
 function requiredPluralCategories(locale: string): Set<string> {
   let cats = pluralCategoryCache.get(locale);
@@ -66,8 +53,6 @@ function requiredPluralCategories(locale: string): Set<string> {
   return cats;
 }
 
-/** Group every suffixed plural key in a namespace by its base, mapping each base
- *  to the set of suffixes present. Non-plural keys are ignored. */
 function pluralGroups(raw: Set<string>): Map<string, Set<string>> {
   const groups = new Map<string, Set<string>>();
   for (const key of raw) {
@@ -84,9 +69,6 @@ function pluralGroups(raw: Set<string>): Map<string, Set<string>> {
   return groups;
 }
 
-/** Plural-completeness problems for one locale/namespace: each plural group must
- *  cover exactly the locale's required CLDR categories — no missing form a
- *  consumer would fall back on, no stray form that does nothing. */
 function pluralProblems(locale: string, namespace: string): string[] {
   const required = requiredPluralCategories(locale);
   const groups = pluralGroups(flattenRaw(parseNamespace(locale, namespace)));
@@ -121,9 +103,8 @@ export function checkParity(): ParityReport {
 
   const problems: string[] = [];
 
-  // A locale on disk that isn't in SUPPORTED_LOCALES never loads (resources
-  // globs only registered codes); a registered code with no directory crashes
-  // at init. Either way the picker and the catalog drift apart — flag both.
+  // A catalog not in SUPPORTED_LOCALES never loads (resources globs only
+  // registered codes); a registered code with no directory crashes at init.
   const registered = new Set<string>(SUPPORTED_LOCALES.map((l) => l.code));
   const onDisk = new Set(locales);
   for (const locale of onDisk) {
@@ -138,9 +119,8 @@ export function checkParity(): ParityReport {
   }
 
   for (const locale of locales) {
-    // Every locale (including the source) must have complete plural groups for
-    // its own CLDR categories — en's `one`/`other`, ru's `one`/`few`/`many`/
-    // `other`, etc. This is orthogonal to cross-locale key parity below.
+    // Completeness is per-locale over its own CLDR categories (en's one/other,
+    // ru's one/few/many/other) — orthogonal to the cross-locale key parity below.
     for (const namespace of namespaces) {
       try {
         problems.push(...pluralProblems(locale, namespace));

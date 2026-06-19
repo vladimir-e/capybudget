@@ -13,9 +13,7 @@ export function parseLocalDate(s: string): Date {
   return new Date(s + "T12:00:00");
 }
 
-// Wording of the rendered date follows this locale; callers thread in the
-// active UI language. Defaults to the source locale so existing callers keep
-// rendering English.
+// The default for callers that don't thread a locale — keeps them rendering English.
 const SOURCE_LOCALE = "en-US";
 
 /** Format YYYY-MM-DD as "Mar 10, 2026" (locale-dependent wording). */

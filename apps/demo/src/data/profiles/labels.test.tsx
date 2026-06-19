@@ -6,8 +6,6 @@ import { i18n } from "@capybudget/i18n"
 import { useScenarioLabels } from "./labels"
 import { PROFILE_LIST } from "."
 
-/** Isolated translator fixed to one language, so a case never mutates the
- *  shared instance. Mirrors the app's display-name tests. */
 function localeWrapper(locale: string) {
   const scoped = i18n.cloneInstance({ lng: locale })
   return ({ children }: { children: ReactNode }) => (
@@ -32,8 +30,6 @@ describe("useScenarioLabels", () => {
     const ru = renderHook(() => useScenarioLabels(), { wrapper: localeWrapper("ru") })
 
     for (const profile of PROFILE_LIST) {
-      // Each profile resolves to real catalog copy, distinct per locale — never
-      // the bare key falling through.
       const enLabels = en.result.current(profile)
       const ruLabels = ru.result.current(profile)
       expect(enLabels.name).not.toContain("scenarios.")

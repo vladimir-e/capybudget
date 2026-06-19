@@ -43,9 +43,7 @@ export function filterForBudgetDrilldown(
   });
 }
 
-/** Modal title for the active drilldown — matches the cell the user clicked.
- *  `categoryDisplay` localizes a canonical default category name (the stored
- *  string is unchanged; only the title text is). */
+/** Modal title for the active drilldown — matches the cell the user clicked. */
 export function budgetDrilldownTitle(
   d: MonthlyBudgetDrilldown,
   t: TFunction<"analytics">,

@@ -19,7 +19,6 @@ import {
   type SegmentState,
 } from "./import-progress-utils";
 
-/** The localized "X of N" / "X rows" count for a metered segment. */
 function countLabel(count: MeterCount, t: TFunction<["import", "common"]>): string | null {
   if (!count) return null;
   if (count.kind === "rows") return t("progress.countRows", { count: count.done });

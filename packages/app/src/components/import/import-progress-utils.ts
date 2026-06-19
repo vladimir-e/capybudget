@@ -80,9 +80,7 @@ export function resumeMeter(
   return total > 0 ? { done, total } : null;
 }
 
-/** The count to render next to a segment: a proportional "done of total", a
- *  bare row count while the denominator is unknown, or nothing. The component
- *  turns this into a localized label. */
+// Structured (not a pre-formatted string) so the component localizes it at render.
 export type MeterCount =
   | { kind: "of"; done: number; total: number }
   | { kind: "rows"; done: number }
@@ -93,7 +91,6 @@ export interface MeterView {
   fillPct: number;
   /** Every row landed — drives the check glyph and the done color. */
   complete: boolean;
-  /** The metered count, or null when there's nothing to show. */
   count: MeterCount;
 }
 

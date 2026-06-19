@@ -110,10 +110,7 @@ describe("formatMoney — composition matrix", () => {
 });
 
 describe("formatMoney — locale-aware grouping and decimal", () => {
-  // The number's group/decimal glyphs follow the formatting locale; the symbol
-  // and its position do not. Under ru, Intl groups thousands with a NBSP
-  // (U+00A0) and uses a comma decimal; the normal space before the symbol that
-  // `compose` adds is unaffected.
+  // Under ru, Intl groups thousands with a NBSP (U+00A0), not a regular space.
   const NBSP = String.fromCharCode(0x00a0);
 
   it("renders ru grouping (NBSP) and comma decimal, symbol after", () => {

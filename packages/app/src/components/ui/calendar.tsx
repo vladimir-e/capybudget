@@ -30,8 +30,6 @@ function Calendar({
   buttonVariant?: React.ComponentProps<typeof Button>["variant"]
 }) {
   const defaultClassNames = getDefaultClassNames()
-  // Month/weekday names follow the active UI language unless a caller pins a
-  // locale explicitly.
   const activeLocale = useLocale()
   const resolvedLocale = locale ?? DAY_PICKER_LOCALES[activeLocale]
 

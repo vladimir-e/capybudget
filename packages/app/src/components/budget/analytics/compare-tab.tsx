@@ -78,8 +78,7 @@ function CompareTooltipContent({
   label,
 }: {
   active?: boolean;
-  // `dataKey` is the stable `cat:<id>` join key; `name` is the localized line
-  // label (from `<Line name>`) and is what we show.
+  // `name` is the localized label to show; `dataKey` is the `cat:<id>` join key.
   payload?: Array<{ dataKey: string; name: string; value: number; color: string }>;
   label?: string;
 }) {
@@ -337,11 +336,6 @@ function CompareTabBody({ transactions, categories, dateRange, viewMode, hasAnyT
   const periodHasData = rows.length > 0;
   const anySelected = selected.size > 0;
 
-  // Map series → stable join key + color slot + localized line label, handling
-  // Uncategorized's empty-string id. `seriesKey` (`cat:<id>`) is the join key
-  // the row values and `<Line dataKey>` agree on; `displayName` is only the
-  // rendered label (legend, tooltip, axis), so two categories with identical
-  // translations stay distinct lines.
   const seriesWithColor = useMemo(() => {
     return seriesData.series.map((s) => {
       const key = toSelectionKey(s.categoryId);
@@ -355,10 +349,6 @@ function CompareTabBody({ transactions, categories, dateRange, viewMode, hasAnyT
     });
   }, [seriesData.series, pick.colorMap, categorySeriesLabel]);
 
-  // Rows carry their bucket's own transaction window so a click maps
-  // deterministically back to a date range; per-category amounts key on the
-  // stable `cat:<id>` series key (see `buildCompareChartRows`). The
-  // `__`-prefixed keys never render as lines — only `seriesWithColor` keys do.
   const chartData = useMemo(
     () =>
       buildCompareChartRows(seriesData.points, granularity, dateRange, (isoDate) =>

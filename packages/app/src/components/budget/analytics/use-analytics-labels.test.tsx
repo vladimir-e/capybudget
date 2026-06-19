@@ -10,8 +10,6 @@ import {
   useMonthLabel,
 } from "./use-analytics-labels"
 
-/** Isolated translator: a clone fixed to one language, so a test never mutates
- *  the shared instance and there's nothing to reset between cases. */
 function localeWrapper(locale: string) {
   const scoped = i18n.cloneInstance({ lng: locale })
   return ({ children }: { children: ReactNode }) => (

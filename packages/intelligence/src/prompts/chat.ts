@@ -20,8 +20,7 @@ import { APP_MAP } from "./app-map"
 import type { BudgetSnapshot } from "./budget-snapshot"
 import { formatBudgetSnapshot } from "./budget-snapshot"
 
-// English name of the language Capy replies in. `undefined` (or English) keeps
-// the default English voice with no extra instruction.
+// `language` is the English name of the language Capy replies in.
 export function buildSystemPrompt(currency: string, language?: string): string {
   const example = formatMoney(1250, currency)
   const languageLine =

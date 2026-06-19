@@ -25,12 +25,9 @@ export type Namespace = (typeof NAMESPACES)[number];
 
 export const DEFAULT_NAMESPACE: Namespace = "common";
 
-// `en` is the source of truth: its catalogs are imported statically and typed,
-// so `react-i18next.d.ts` can derive the `t()` key space from them and a wrong
-// key fails typecheck. Every other locale mirrors `en`'s keys (enforced at
-// runtime by `i18n:check`), so it doesn't need its own type — it's loaded by
-// glob below, keyed off `SUPPORTED_LOCALES`. Result: adding a language is a
-// translation-only change (JSON + one `SUPPORTED_LOCALES` entry), no edit here.
+// `en` is imported statically so `react-i18next.d.ts` can derive the typed `t()`
+// key space from it. Other locales only mirror `en`'s keys (enforced at runtime
+// by `i18n:check`), so they need no type and load by glob below.
 const en = {
   common: enCommon,
   settings: enSettings,
@@ -43,8 +40,8 @@ const en = {
   demo: enDemo,
 } as const;
 
-// Eager so the catalogs are in the first bundle — i18next initializes
-// synchronously and the first paint already has the right language.
+// Eager so catalogs are in the first bundle and the first paint has the right
+// language — i18next initializes synchronously.
 const catalogs = import.meta.glob<Record<string, unknown>>("../locales/*/*.json", {
   eager: true,
   import: "default",

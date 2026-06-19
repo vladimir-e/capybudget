@@ -9,16 +9,6 @@ import {
   useGroupDisplayName,
 } from "./display-names"
 
-// The canonical-category / canonical-group / account-type tuples once carried
-// runtime lockstep tests (tuple-equals-seed; every account type has a catalog
-// key). Both are now compile-time: the `*_KEY` maps in display-names are typed
-// `satisfies Record<Enum, BudgetKey>`, so the compiler rejects a tuple that
-// drifts from the enum or a value that isn't a real catalog key. What remains
-// is the behavior types can't see — canonical-match vs verbatim passthrough,
-// and that the translations resolve.
-
-/** Isolated translator: a clone fixed to one language, so a test never mutates
- *  the shared instance and there's nothing to reset between cases. */
 function localeWrapper(locale: string) {
   const scoped = i18n.cloneInstance({ lng: locale })
   return ({ children }: { children: ReactNode }) => (

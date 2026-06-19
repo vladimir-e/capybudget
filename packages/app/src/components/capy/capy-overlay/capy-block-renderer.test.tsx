@@ -56,9 +56,6 @@ describe("Capy chat table — currency-aware amount coloring", () => {
 })
 
 describe("Capy chart blocks — currency-formatted amounts (dollars → cents)", () => {
-  // The render_chart contract carries amounts in DOLLARS; the renderer bridges
-  // to the cents-based currency formatter, so $1,850.00 renders via the budget
-  // currency rather than a hardcoded `$1850.00`.
   const bar: BarChartBlock = {
     type: "bar-chart",
     title: "Spending",

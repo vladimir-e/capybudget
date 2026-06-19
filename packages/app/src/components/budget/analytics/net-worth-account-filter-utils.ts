@@ -4,9 +4,8 @@ import { ACCOUNT_TYPE_ORDER } from "@capybudget/core";
 /** The transient Net Worth filter tracks an EXCLUDED-id set; default empty means
  *  every account is included, so accounts added later are included automatically. */
 
-/** A group's `key` is its account type, or the archived sentinel. Display labels
- *  are derived at the render edge (account types localize; archived has its own
- *  catalog key) so this stays locale-agnostic. */
+// Groups key off the type or this sentinel, never a display label, so this stays
+// locale-agnostic — labels are localized at the render edge.
 export const ARCHIVED_GROUP_KEY = "__archived__";
 
 export interface AccountGroup {

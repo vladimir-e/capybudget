@@ -1,9 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { checkParity } from "./parity";
 
-// Runs the same parity assertion as `npm run i18n:check`, so catalog drift
-// (a missing/extra key, or a locale registered without its directory) fails
-// the normal `npm test` gate — not just a separately-remembered command.
+// Mirrors `npm run i18n:check` so catalog drift fails the `npm test` gate too.
 describe("locale catalog parity", () => {
   it("every locale matches en's keys and the registry agrees with disk", () => {
     const { problems, localeCount, namespaceCount } = checkParity();

@@ -44,8 +44,7 @@ interface UnconfiguredEmptyStateProps {
   firstChipRef: RefObject<HTMLButtonElement | null>
 }
 
-// Provider names are brand identifiers, not UI copy — they stay verbatim
-// across locales.
+// Brand names, not UI copy — verbatim across locales.
 const PROVIDER_CHIPS: ReadonlyArray<{ provider: IntelligenceProvider; label: string }> = [
   { provider: "claude-cli", label: "Claude Code" },
   { provider: "anthropic", label: "Anthropic" },

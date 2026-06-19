@@ -6,28 +6,11 @@ import {
 import { useTranslation } from "@capybudget/i18n"
 import type { BudgetKey } from "@/lib/i18n-keys"
 
-/**
- * Canonical-display translation.
- *
- * Category and group names are user data — stored verbatim in `categories.csv`
- * and freely renamable. Defaults seed in English (the canonical form) and stay
- * stored in English so AI/import/analytics keep matching on stable strings. The
- * localization is display-time, by canonical match: a stored name that exactly
- * equals a canonical default renders its translation; anything else (renamed or
- * user-created) renders verbatim, never translated.
- *
- * The canonical name sets are derived from `@capybudget/core`, not hand-copied:
- * `CanonicalCategoryName` is the literal-name union of `DEFAULT_CATEGORIES` and
- * `CanonicalGroupName` is `CategoryGroup` plus the `Archived` sentinel. The
- * `*_KEY` maps pair each name with its `budget`-namespace key; typing them
- * `satisfies Record<Name, BudgetKey>` makes the compiler enforce both
- * exhaustiveness (every canonical name mapped — so a new core default forces a
- * translation key here or the build fails) and key validity (every value is a
- * real catalog key).
- */
+// Category and group names are user data, stored and matched in English so
+// AI/import/analytics joins stay stable. Localization is display-time by
+// canonical match: a stored name that exactly equals a canonical default
+// renders its translation; anything renamed or user-created renders verbatim.
 
-/** The "Archived" section is a UI sentinel group, not a `CategoryGroup`, but it
- *  renders alongside the seeded groups and is canonical for the same reasons. */
 export const CANONICAL_GROUP_NAMES = [...CATEGORY_GROUP_ORDER, "Archived"] as const
 
 type CanonicalCategoryName = (typeof DEFAULT_CATEGORIES)[number]["name"]
@@ -82,22 +65,18 @@ function isCanonicalGroup(name: string): name is CanonicalGroupName {
   return name in CANONICAL_GROUP_KEY
 }
 
-/** `(stored) => isCanonical(stored) ? translation : stored`. */
 export function useCategoryDisplayName(): (name: string) => string {
   const { t } = useTranslation("budget")
   return (name: string) =>
     isCanonicalCategory(name) ? t(CANONICAL_CATEGORY_KEY[name]) : name
 }
 
-/** Same canonical-match contract as `useCategoryDisplayName`, for group names. */
 export function useGroupDisplayName(): (name: string) => string {
   const { t } = useTranslation("budget")
   return (name: string) =>
     isCanonicalGroup(name) ? t(CANONICAL_GROUP_KEY[name]) : name
 }
 
-/** Localized label for an account type. Core's enum/order stays the source of
- *  truth; only the display string is localized. */
 export function useAccountTypeLabel(): (type: AccountType) => string {
   const { t } = useTranslation("budget")
   return (type: AccountType) => t(ACCOUNT_TYPE_KEY[type])
