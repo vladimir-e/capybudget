@@ -14,6 +14,8 @@ export interface MergeOutput {
   aliases: ImportAliases;
   createdAccountIds: Record<string, string>; // sourceAccount → new accountId
   sourcesToCreate: string[];
+  /** Transfers that found no counterpart and were downgraded to income/expense. */
+  downgradedTransferCount: number;
 }
 
 /**
@@ -172,10 +174,12 @@ export function prepareMerge(
   linkTransferPairs(newTxns);
 
   // ── Downgrade unpaired transfers to income/expense ─────────────
+  let downgradedTransferCount = 0;
   for (let i = 0; i < newTxns.length; i++) {
     const t = newTxns[i];
     if (t.type === "transfer" && !t.transferPairId) {
       newTxns[i] = { ...t, type: t.amount < 0 ? "expense" : "income" };
+      downgradedTransferCount += 1;
     }
   }
 
@@ -200,5 +204,6 @@ export function prepareMerge(
     aliases,
     createdAccountIds,
     sourcesToCreate,
+    downgradedTransferCount,
   };
 }

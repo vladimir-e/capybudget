@@ -310,4 +310,41 @@ describe("summarizeMerge — unmappedTransferCount", () => {
 
     expect(unmappedTransferCount).toBe(1);
   });
+
+  it("counts the orphan when its amount collides with a targeted transfer's leg", () => {
+    const chk = makeAccount({ id: "acct-chk", name: "Checking", type: "checking" });
+    const sav = makeAccount({ id: "acct-sav", name: "Savings", type: "savings" });
+    // A single-leg transfer Checking → Savings creates a +10000 pre-paired leg on
+    // Savings. The orphan is a +10000 transfer on Savings, same date — the exact
+    // amount/date/account of that leg. It must NOT steal the pre-paired leg's
+    // partner; it stays unpaired and downgrades. Locks the count to the plan so a
+    // future linkTransferPairs change can't silently re-pair the collision.
+    const targeted = makeImportTxn({
+      id: "t-targeted",
+      sourceAccount: "Checking",
+      type: "transfer",
+      amount: -10000,
+      targetAccountId: "acct-sav",
+      categoryId: "",
+    });
+    const orphan = makeImportTxn({
+      id: "t-orphan",
+      sourceAccount: "Savings",
+      type: "transfer",
+      amount: 10000,
+      categoryId: "",
+    });
+
+    const { unmappedTransferCount } = summarizeMerge(
+      {
+        transactions: [targeted, orphan],
+        selectedIds: new Set([targeted.id, orphan.id]),
+        accountMapping: { Checking: "acct-chk", Savings: "acct-sav" },
+      },
+      [chk, sav],
+      [],
+    );
+
+    expect(unmappedTransferCount).toBe(1);
+  });
 });

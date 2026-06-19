@@ -361,8 +361,9 @@ export function ImportPreview({
           editable here (the same rows the Map-accounts dialog uses), each showing
           its destination's resulting balance, so a wrong mapping is both visible
           and fixable before commit. Unmatched transfers get one warning line
-          rather than rows. Header and footer stay pinned; the rows scroll past
-          five. */}
+          rather than rows. Header, warning, and footer stay pinned; the rows are
+          the single scroll region, sized to whatever the viewport leaves them
+          (scrollAfter=Infinity, so the rows don't nest a second scroller). */}
       {showMergeDialog && (
         <Dialog open onOpenChange={(open) => { if (!open) setShowMergeDialog(false); }}>
           <DialogContent className="flex max-h-[85vh] flex-col sm:max-w-lg">
@@ -383,13 +384,14 @@ export function ImportPreview({
               </DialogDescription>
             </DialogHeader>
             {sourceAccounts.length > 0 && (
-              <div className="min-h-0 flex-1 overflow-hidden">
+              <div className="min-h-0 flex-1 overflow-y-auto">
                 <ImportMappingRows
                   sourceAccounts={sourceAccounts}
                   accounts={accounts}
                   accountMapping={accountMapping}
                   onAccountMappingChange={handleAccountMappingChange}
                   rowMeta={rowMeta}
+                  scrollAfter={Infinity}
                 />
               </div>
             )}

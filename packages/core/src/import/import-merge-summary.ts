@@ -1,7 +1,7 @@
 import { getAccountBalance } from "../analytics/queries";
 import type { Account, AccountType, Transaction } from "../entities/types";
 import { prepareMerge, resolveAccountId, type MergeInput } from "./import-merge";
-import type { ImportAliases, ImportTransaction } from "./import-types";
+import type { ImportAliases } from "./import-types";
 
 /** One import source account's stake in a pending merge: where it maps, how many
  *  of its rows land, and the destination's true post-merge balance. Derived from
@@ -83,29 +83,7 @@ export function summarizeMerge(
     return a.accountName.localeCompare(b.accountName);
   });
 
-  const newTxns = result.transactions.slice(prevTransactions.length);
-  return { rows, unmappedTransferCount: countUnmappedTransfers(selected, newTxns) };
-}
-
-/**
- * Count selected transfers the merge left without a counterpart — those it
- * downgraded to income/expense. Read off the plan, not re-derived: the merge
- * keeps a matched transfer's legs as `type: "transfer"`, so the transfer legs it
- * emitted account for the matched rows. A single-leg transfer with a known
- * target yields two legs; a paired two-leg transfer yields one leg per row.
- */
-function countUnmappedTransfers(
-  selected: ImportTransaction[],
-  newTxns: Transaction[],
-): number {
-  const selectedTransfers = selected.filter((t) => t.type === "transfer");
-  if (selectedTransfers.length === 0) return 0;
-
-  const newTransferLegs = newTxns.filter((t) => t.type === "transfer").length;
-  const targetedRows = selectedTransfers.filter((t) => t.targetAccountId).length;
-  // Targeted rows emit two legs each; the remaining legs come one-per-row from
-  // paired two-leg imports. What's left of the selected transfers downgraded.
-  const pairedTwoLegRows = newTransferLegs - targetedRows * 2;
-  const matched = targetedRows + pairedTwoLegRows;
-  return selectedTransfers.length - matched;
+  // The downgrade count comes straight off the plan, so it stays correct no
+  // matter how prepareMerge emits transfer legs.
+  return { rows, unmappedTransferCount: result.downgradedTransferCount };
 }
