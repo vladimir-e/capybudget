@@ -233,7 +233,7 @@ export function SpendingTab({
               }
             : {}
         }
-        title={drilldown?.categoryName ?? ""}
+        title={drilldown ? categorySeriesLabel(drilldown.categoryId, drilldown.categoryName) : ""}
         subtitle={drilldown ? formatDrilldownSubtitle(dateRange, periodType, drilldownTransactions, money, locale, t) : undefined}
       />
     </div>

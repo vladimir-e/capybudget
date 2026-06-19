@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { EmptyState } from "@/components/ui/empty-state";
 import { TransactionList } from "@/components/budget/transaction-list";
 import { useAccounts, useCategories } from "@/hooks/use-budget-data";
+import { useCategoryDisplayName } from "@/lib/display-names";
 import {
   DEFAULT_SORT,
   sortTransactions,
@@ -73,9 +74,12 @@ function FilterChips({
 }) {
   const { t } = useTranslation("budget");
   const locale = useLocale();
+  const categoryDisplay = useCategoryDisplayName();
 
-  const categoryName = (id: string): string =>
-    categories.find((c) => c.id === id)?.name ?? t("browser.uncategorized");
+  const categoryName = (id: string): string => {
+    const cat = categories.find((c) => c.id === id);
+    return cat ? categoryDisplay(cat.name) : t("browser.uncategorized");
+  };
 
   const chips: string[] = [];
 
