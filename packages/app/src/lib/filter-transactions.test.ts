@@ -51,7 +51,7 @@ describe("filterTransactions", () => {
   it("filters by date range", () => {
     const result = filterTransactions(
       txns,
-      { ...noFilter, dateRange: { from: new Date("2026-02-01"), to: new Date("2026-02-28T23:59:59.999Z") } },
+      { ...noFilter, dateRange: { from: new Date(2026, 1, 1), to: new Date(2026, 1, 28) } },
       accounts,
       categories,
     );
@@ -150,7 +150,7 @@ describe("filterTransactions", () => {
   it("combines multiple filters", () => {
     const result = filterTransactions(
       txns,
-      { search: "landlord", categoryId: "cat-2", dateRange: { from: new Date("2026-02-01"), to: new Date("2026-02-28T23:59:59.999Z") } },
+      { search: "landlord", categoryId: "cat-2", dateRange: { from: new Date(2026, 1, 1), to: new Date(2026, 1, 28) } },
       accounts,
       categories,
     );
