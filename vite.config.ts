@@ -8,7 +8,15 @@ import path from "path";
 // @ts-expect-error process is a nodejs global
 const host = process.env.TAURI_DEV_HOST;
 
-const journeyGlob = "packages/app/src/test/journeys/**/*.test.{ts,tsx}";
+// Full-app-mount tests: each renders the entire app via renderApp(), paying a
+// ~5.6s module-graph cold start. Partition is by cost-class, not directory —
+// these live both in journeys/ and beside the components they exercise.
+const fullAppMountTests = [
+  "packages/app/src/test/journeys/**/*.test.{ts,tsx}",
+  "packages/app/src/components/budget/first-run-guide.test.tsx",
+  "packages/app/src/components/budget/budget-selector.test.tsx",
+  "packages/app/src/test/performance.test.tsx",
+];
 
 export default defineConfig(async () => ({
   define: {
@@ -42,19 +50,20 @@ export default defineConfig(async () => ({
         extends: true,
         test: {
           name: "unit",
-          exclude: [...configDefaults.exclude, "apps/demo/**", journeyGlob],
+          exclude: [...configDefaults.exclude, "apps/demo/**", ...fullAppMountTests],
         },
       },
       {
         extends: true,
-        // The journeys load the full app module graph per file (~5.6s cold
-        // start each). A shared-module worker pool halves that transform cost.
-        // isolate:false leaks module state across files, which is fine here —
-        // every journey resets stores via renderApp — but would corrupt the
-        // unit suite, so it stays scoped to this project.
+        // Full-app-mount tests each transform/import the whole app module graph
+        // (~5.6s cold start per file). A shared-module worker pool pays that
+        // cost once per worker instead of once per file. isolate:false leaks
+        // module state across files, which is fine here — every file resets its
+        // own state per test (renderApp's afterEach, or beforeEach mock/store
+        // resets) — but would corrupt the unit suite, so it stays scoped here.
         test: {
-          name: "journeys",
-          include: [journeyGlob],
+          name: "full-app",
+          include: [...fullAppMountTests],
           pool: "threads",
           isolate: false,
         },
