@@ -30,7 +30,7 @@ import {
 } from "@/components/ui/collapsible"
 import { CurrencyCombobox } from "@/components/budget/currency-combobox"
 import { useBudgetMeta } from "@/hooks/use-budget-meta"
-import { useFormatMoney } from "@/contexts/currency-context"
+import { useFormatters } from "@/hooks/use-formatters"
 
 // The plain repo page rather than `issues/new` — the latter bounces signed-out
 // users to a GitHub login wall, which reads as a dead end.
@@ -47,7 +47,7 @@ const PREVIEW_EXPENSE_CENTS = -128900
 export function CurrencySection({ budgetPath }: { budgetPath: string }) {
   const { t } = useTranslation("settings")
   const { data, setCurrency, setBudgetFormat } = useBudgetMeta(budgetPath)
-  const { format: formatPreview } = useFormatMoney()
+  const { money: formatPreview } = useFormatters()
   const [formatOpen, setFormatOpen] = useState(false)
 
   const hasSymbol = currencySymbol(data.currency) !== ""

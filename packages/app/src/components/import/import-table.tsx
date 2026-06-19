@@ -13,10 +13,9 @@ import { CategorySelector } from "@/components/budget/category-selector";
 import { AccountSelector } from "@/components/budget/account-selector";
 import type { ImportTransaction } from "@capybudget/core";
 import type { Category, Account } from "@capybudget/core";
-import { formatDateLabel } from "@capybudget/core";
-import { useTranslation, useLocale } from "@capybudget/i18n";
+import { useTranslation } from "@capybudget/i18n";
 import type { TFunction } from "i18next";
-import { useFormatMoney } from "@/contexts/currency-context";
+import { useFormatters } from "@/hooks/use-formatters";
 import {
   amountColorClass,
   type ImportSortColumn,
@@ -137,8 +136,7 @@ export function ImportTable({
   duplicateIds,
 }: ImportTableProps) {
   const { t } = useTranslation(["import", "common"]);
-  const locale = useLocale();
-  const { format } = useFormatMoney();
+  const { money, date } = useFormatters();
   const [editingCell, setEditingCell] = useState<{
     rowId: string;
     column: EditableColumn;
@@ -281,7 +279,7 @@ export function ImportTable({
                     onCancel={handleCancel}
                   />
                 ) : (
-                  formatDateLabel(txn.date, locale)
+                  date(txn.date)
                 )}
               </TableCell>
 
@@ -322,7 +320,7 @@ export function ImportTable({
                     onCancel={handleCancel}
                   />
                 ) : (
-                  format(txn.amount)
+                  money(txn.amount)
                 )}
               </TableCell>
 

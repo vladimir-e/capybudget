@@ -9,13 +9,14 @@ import {
   Upload,
   X,
 } from "lucide-react";
-import { useTranslation, useLocale } from "@capybudget/i18n";
+import { useTranslation } from "@capybudget/i18n";
 import { Button } from "@/components/ui/button";
 import { AccountSelector } from "@/components/budget/account-selector";
 import { type SourceFileInfo } from "@/hooks/use-import-repository";
 import { isImageFilename } from "@/lib/file-attachments";
 import { formatFileSize } from "@capybudget/intelligence";
-import { formatDateLabel, type Account } from "@capybudget/core";
+import { type Account } from "@capybudget/core";
+import { useFormatters } from "@/hooks/use-formatters";
 
 interface ImportDropZoneProps {
   fileInputRef: RefObject<HTMLInputElement | null>;
@@ -53,7 +54,7 @@ export function ImportDropZone({
   onStart,
 }: ImportDropZoneProps) {
   const { t } = useTranslation(["import", "common"]);
-  const locale = useLocale();
+  const { date } = useFormatters();
   return (
     <>
       <input
@@ -134,7 +135,7 @@ export function ImportDropZone({
                     {dupDate && (
                       <span className="flex items-center gap-1 text-[11px] text-amber-600 dark:text-amber-400">
                         <Copy className="h-3 w-3 shrink-0" />
-                        {t("dropZone.duplicateHint", { date: formatDateLabel(dupDate.slice(0, 10), locale) })}
+                        {t("dropZone.duplicateHint", { date: date(dupDate.slice(0, 10)) })}
                       </span>
                     )}
                   </div>

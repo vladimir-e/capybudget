@@ -26,9 +26,9 @@ import {
   useBulkChangeMerchant,
 } from "@/hooks/use-bulk-transaction-mutations";
 import type { Transaction } from "@capybudget/core";
-import { toDateString, formatDateLabel } from "@capybudget/core";
-import { useLocale, useTranslation } from "@capybudget/i18n";
-import { useFormatMoney } from "@/contexts/currency-context";
+import { toDateString } from "@capybudget/core";
+import { useTranslation } from "@capybudget/i18n";
+import { useFormatters } from "@/hooks/use-formatters";
 import { useCategoryDisplayName } from "@/lib/display-names";
 import {
   CalendarDays,
@@ -50,8 +50,7 @@ interface BulkActionBarProps {
 
 export function BulkActionBar({ selectedIds, transactions, onClear }: BulkActionBarProps) {
   const { t } = useTranslation(["budget", "common"]);
-  const locale = useLocale();
-  const { format } = useFormatMoney();
+  const { money, date: formatDate } = useFormatters();
   const categoryDisplay = useCategoryDisplayName();
   const { data: accounts = [] } = useAccounts();
   const { data: categories = [] } = useCategories();
@@ -99,7 +98,7 @@ export function BulkActionBar({ selectedIds, transactions, onClear }: BulkAction
   const handleDateChange = (date: Date) => {
     bulkDate.mutate({ ids: selectedIds, date: toDateString(date) });
     setOverflowDialog(null);
-    toast.success(t("bulk.toast.dateChanged", { count, date: formatDateLabel(toDateString(date), locale) }));
+    toast.success(t("bulk.toast.dateChanged", { count, date: formatDate(toDateString(date)) }));
   };
 
   const handleMerchantSubmit = () => {
@@ -134,7 +133,7 @@ export function BulkActionBar({ selectedIds, transactions, onClear }: BulkAction
               {t("bulk.selected", { count })}
             </span>
             <span className="text-sm text-muted-foreground tabular-nums font-semibold">
-              {format(totalAmount)}
+              {money(totalAmount)}
             </span>
           </div>
 
@@ -206,7 +205,7 @@ export function BulkActionBar({ selectedIds, transactions, onClear }: BulkAction
             <DialogHeader>
               <DialogTitle>{t("bulk.deleteDialog.title", { count })}</DialogTitle>
               <DialogDescription>
-                {t("bulk.deleteDialog.description", { count, total: format(totalAmount) })}
+                {t("bulk.deleteDialog.description", { count, total: money(totalAmount) })}
                 {hasTransfers && t("bulk.deleteDialog.transferNote")}
               </DialogDescription>
             </DialogHeader>

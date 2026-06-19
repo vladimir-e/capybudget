@@ -14,12 +14,11 @@ import {
 } from "recharts";
 import {
   ensureMinMonths,
-  formatMonthShort,
   getNetWorthOverTime,
 } from "@capybudget/core";
 import type { Account, Transaction, DateRange } from "@capybudget/core";
-import { useLocale, useTranslation } from "@capybudget/i18n";
-import { useFormatMoney } from "@/contexts/currency-context";
+import { useTranslation } from "@capybudget/i18n";
+import { useFormatters } from "@/hooks/use-formatters";
 import { ChartSwitcher } from "./chart-switcher";
 import { useThemeColors } from "./use-theme-colors";
 import { NetWorthAccountFilter } from "./net-worth-account-filter";
@@ -38,12 +37,12 @@ function NetWorthTooltipContent({
   payload?: Array<{ value: number }>;
   label?: string;
 }) {
-  const { format } = useFormatMoney();
+  const { money } = useFormatters();
   if (!active || !payload?.length) return null;
   return (
     <div className="rounded-lg border bg-background px-3 py-2 shadow-popover">
       <p className="text-sm text-muted-foreground">{label}</p>
-      <p className="text-sm font-medium tabular-nums">{format(payload[0].value)}</p>
+      <p className="text-sm font-medium tabular-nums">{money(payload[0].value)}</p>
     </div>
   );
 }
@@ -60,8 +59,7 @@ interface NetWorthTabProps {
 type ChartMode = "bar" | "area";
 
 export function NetWorthTab({ accounts, transactions, dateRange, hasAnyTransactions }: NetWorthTabProps) {
-  const { format, formatCompact } = useFormatMoney();
-  const locale = useLocale();
+  const { money, moneyCompact, monthShort } = useFormatters();
   const { t } = useTranslation("analytics");
   const [chartMode, setChartMode] = useState<ChartMode>("bar");
 
@@ -103,13 +101,13 @@ export function NetWorthTab({ accounts, transactions, dateRange, hasAnyTransacti
         const d = new Date(p.date);
         return {
           label: t("netWorth.monthLabel", {
-            month: formatMonthShort(d, locale),
+            month: monthShort(d),
             year: d.getFullYear(),
           }),
           netWorth: p.netWorth,
         };
       }),
-    [netWorthData, locale, t],
+    [netWorthData, monthShort, t],
   );
 
   const yDomain = useMemo<[number | "auto", number | "auto"]>(() => {
@@ -173,7 +171,7 @@ export function NetWorthTab({ accounts, transactions, dateRange, hasAnyTransacti
               style={{ backgroundColor: brandColor }}
             />
             <p className="text-lg font-semibold tabular-nums">
-              {format(chartData[0].netWorth)}
+              {money(chartData[0].netWorth)}
             </p>
             <p className="text-xs text-muted-foreground">{chartData[0].label}</p>
           </div>
@@ -197,7 +195,7 @@ export function NetWorthTab({ accounts, transactions, dateRange, hasAnyTransacti
             />
             <YAxis
               domain={yDomain}
-              tickFormatter={(v: number) => formatCompact(v)}
+              tickFormatter={(v: number) => moneyCompact(v)}
               tick={{ fontSize: 12 }}
               className="text-muted-foreground"
               width={65}
@@ -230,7 +228,7 @@ export function NetWorthTab({ accounts, transactions, dateRange, hasAnyTransacti
             />
             <YAxis
               domain={yDomain}
-              tickFormatter={(v: number) => formatCompact(v)}
+              tickFormatter={(v: number) => moneyCompact(v)}
               tick={{ fontSize: 12 }}
               className="text-muted-foreground"
               width={65}

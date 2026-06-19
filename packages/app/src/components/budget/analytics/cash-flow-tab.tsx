@@ -17,7 +17,7 @@ import {
 } from "@capybudget/core";
 import type { Transaction, DateRange } from "@capybudget/core";
 import { useTranslation } from "@capybudget/i18n";
-import { useFormatMoney } from "@/contexts/currency-context";
+import { useFormatters } from "@/hooks/use-formatters";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useMonthLabel } from "./use-analytics-labels";
 
@@ -32,7 +32,7 @@ function CashFlowTooltipContent({
   payload?: Array<{ dataKey: string; value: number; color: string }>;
   label?: string;
 }) {
-  const { format } = useFormatMoney();
+  const { money } = useFormatters();
   const { t } = useTranslation("analytics");
   if (!active || !payload?.length) return null;
 
@@ -44,13 +44,13 @@ function CashFlowTooltipContent({
     <div className="rounded-lg border bg-background px-3 py-2 shadow-popover space-y-1">
       <p className="text-sm font-medium">{label}</p>
       <p className="text-sm text-amount-income tabular-nums">
-        {t("cashFlow.incomeValue", { value: format(income) })}
+        {t("cashFlow.incomeValue", { value: money(income) })}
       </p>
       <p className="text-sm text-amount-expense tabular-nums">
-        {t("cashFlow.expensesValue", { value: format(expenses) })}
+        {t("cashFlow.expensesValue", { value: money(expenses) })}
       </p>
       <p className={`text-sm font-medium tabular-nums ${net >= 0 ? "text-amount-income" : "text-amount-expense"}`}>
-        {t("cashFlow.netValue", { value: `${net >= 0 ? "+" : ""}${format(Math.abs(net))}` })}
+        {t("cashFlow.netValue", { value: `${net >= 0 ? "+" : ""}${money(Math.abs(net))}` })}
       </p>
     </div>
   );
@@ -65,7 +65,7 @@ interface CashFlowTabProps {
 }
 
 export function CashFlowTab({ transactions, dateRange, hasAnyTransactions }: CashFlowTabProps) {
-  const { formatCompact } = useFormatMoney();
+  const { moneyCompact } = useFormatters();
   const { t } = useTranslation("analytics");
   const monthLabel = useMonthLabel();
   const cashFlowData = useMemo(
@@ -100,7 +100,7 @@ export function CashFlowTab({ transactions, dateRange, hasAnyTransactions }: Cas
           className="text-muted-foreground"
         />
         <YAxis
-          tickFormatter={(v: number) => formatCompact(v)}
+          tickFormatter={(v: number) => moneyCompact(v)}
           tick={{ fontSize: 12 }}
           className="text-muted-foreground"
           width={65}

@@ -8,7 +8,7 @@ import type {
   Transaction,
 } from "@capybudget/core";
 import { useLocale, useTranslation } from "@capybudget/i18n";
-import { useFormatMoney } from "@/contexts/currency-context";
+import { useFormatters } from "@/hooks/use-formatters";
 import { useCategoryDisplayName } from "@/lib/display-names";
 import { useBudgetBasis } from "./use-budget-basis";
 import { buildBudgetView } from "./monthly-budget-rows";
@@ -39,7 +39,7 @@ export function MonthlyBudgetTab({
   dateRange,
   hasAnyTransactions,
 }: MonthlyBudgetTabProps) {
-  const { format } = useFormatMoney();
+  const { money } = useFormatters();
   const locale = useLocale();
   const { t } = useTranslation("analytics");
   const basisLabel = useBasisLabel();
@@ -141,14 +141,14 @@ export function MonthlyBudgetTab({
         cards={[
           {
             label: t("monthlyBudget.spentThisMonth"),
-            display: format(view.totalSpent),
+            display: money(view.totalSpent),
             tone: "expense",
             onClick:
               view.totalSpent > 0 ? () => setDrilldown({ kind: "all" }) : undefined,
           },
           {
             label: t("monthlyBudget.trackingToward"),
-            display: format(view.totalTargeted),
+            display: money(view.totalTargeted),
           },
           {
             label: t("monthlyBudget.overBudget"),
@@ -245,7 +245,7 @@ export function MonthlyBudgetTab({
             : {}
         }
         title={drilldown ? budgetDrilldownTitle(drilldown, t, categoryDisplay) : ""}
-        subtitle={drilldown ? formatDrilldownSubtitle(dateRange, "month", drilldownTransactions, format, locale, t) : undefined}
+        subtitle={drilldown ? formatDrilldownSubtitle(dateRange, "month", drilldownTransactions, money, locale, t) : undefined}
       />
     </div>
   );

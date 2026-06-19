@@ -39,7 +39,7 @@ import {
 import { getAccountBalance, getAccountsByGroup, getNetWorth, isOpeningBalanceTxn } from "@capybudget/core";
 import { useTranslation } from "@capybudget/i18n";
 import { useAccountTypeLabel } from "@/lib/display-names";
-import { useFormatMoney } from "@/contexts/currency-context";
+import { useFormatters } from "@/hooks/use-formatters";
 import { useAccounts, useTransactions } from "@/hooks/use-budget-data";
 import { NetWorthFilter } from "./net-worth-filter";
 import {
@@ -66,7 +66,7 @@ export function Sidebar({
 }: SidebarProps) {
   const { t } = useTranslation("budget");
   const accountTypeLabel = useAccountTypeLabel();
-  const { format, formatCompact } = useFormatMoney();
+  const { money, moneyCompact } = useFormatters();
   const { data: accounts = [] } = useAccounts();
   const { data: transactions = [] } = useTransactions();
   const deleteAccount = useDeleteAccount();
@@ -119,7 +119,7 @@ export function Sidebar({
           title: t("account.cannotArchive.title"),
           description: t("account.cannotArchive.description", {
             name: account.name,
-            balance: format(Math.abs(balance)),
+            balance: money(Math.abs(balance)),
           }),
         });
         return;
@@ -157,7 +157,7 @@ export function Sidebar({
             <NetWorthFilter accounts={accounts} />
           </div>
           <div className="text-2xl font-bold tabular-nums text-brand mt-0.5">
-            {formatCompact(netWorth)}
+            {moneyCompact(netWorth)}
           </div>
         </div>
       </div>
@@ -202,7 +202,7 @@ export function Sidebar({
                     </span>
                     {showGroupTotal && (
                       <span className="text-[11px] font-medium tabular-nums text-muted-foreground/60">
-                        {format(groupBalance)}
+                        {money(groupBalance)}
                       </span>
                     )}
                   </div>
@@ -350,7 +350,7 @@ function AccountRow({
   dragHandleProps?: Record<string, unknown>;
 }) {
   const { t } = useTranslation(["budget", "common"]);
-  const { format } = useFormatMoney();
+  const { money } = useFormatters();
   return (
     <div className={`flex items-center rounded-lg transition-all ${
       isActive
@@ -386,7 +386,7 @@ function AccountRow({
         <span className={`ml-2 shrink-0 tabular-nums text-xs font-medium ${
           balance < 0 ? "text-amount-expense/80" : balance > 0 ? "text-amount-income/80" : ""
         } ${dimmed ? "opacity-50" : ""}`}>
-          {format(balance)}
+          {money(balance)}
         </span>
       </Link>
 

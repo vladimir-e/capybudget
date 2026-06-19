@@ -16,7 +16,7 @@ import { useTransactions } from "@/hooks/use-budget-data";
 import { summarizeMerge } from "@capybudget/core";
 import type { StagingStore } from "@capybudget/intelligence";
 import { useTranslation } from "@capybudget/i18n";
-import { useFormatMoney } from "@/contexts/currency-context";
+import { useFormatters } from "@/hooks/use-formatters";
 import { ImportTable } from "./import-table";
 import {
   sortImportTransactions,
@@ -58,7 +58,7 @@ export function ImportPreview({
   onMergeComplete,
 }: ImportPreviewProps) {
   const { t } = useTranslation(["import", "common"]);
-  const { format } = useFormatMoney();
+  const { money } = useFormatters();
   const { data: budgetTransactions = [] } = useTransactions();
   const [sort, setSort] = useState<ImportSortConfig>({ column: "date", direction: "asc" });
   const [search, setSearch] = useState("");
@@ -96,8 +96,8 @@ export function ImportPreview({
 
   // ── Filtering / sorting ────────────────────────────────────────
   const filtered = useMemo(
-    () => filterImportTransactions(transactions, search, format),
-    [transactions, search, format],
+    () => filterImportTransactions(transactions, search, money),
+    [transactions, search, money],
   );
   const sorted = useMemo(() => sortImportTransactions(filtered, sort), [filtered, sort]);
 
@@ -327,7 +327,7 @@ export function ImportPreview({
               {t("preview.selectedCount", { count: selectedCount })}
             </span>
             <span className="text-sm text-muted-foreground tabular-nums font-semibold">
-              {format(selectedTotal)}
+              {money(selectedTotal)}
             </span>
           </div>
 
@@ -379,7 +379,7 @@ export function ImportPreview({
               <DialogTitle>{t("preview.mergeConfirmTitle", { count: selectedCount })}</DialogTitle>
               <DialogDescription>
                 {t("preview.mergeConfirmDescriptionBefore")}
-                <strong>{format(selectedTotal)}</strong>
+                <strong>{money(selectedTotal)}</strong>
                 {t("preview.mergeConfirmDescriptionAfter")}
               </DialogDescription>
             </DialogHeader>

@@ -12,8 +12,7 @@ import {
 } from "@capybudget/core";
 import type { Transaction, Category, DateRange } from "@capybudget/core";
 import { useLocale, useTranslation } from "@capybudget/i18n";
-import { useFormatMoney } from "@/contexts/currency-context";
-import { useFormatPercent } from "@/lib/format-percent";
+import { useFormatters } from "@/hooks/use-formatters";
 import { ChartSwitcher } from "./chart-switcher";
 import { EmptyState } from "@/components/ui/empty-state";
 import { TransactionsModal } from "@/components/budget/transactions-modal";
@@ -71,15 +70,14 @@ function PieTooltipContent({
   active?: boolean;
   payload?: Array<{ payload: { name: string; value: number; percentage: number } }>;
 }) {
-  const { format } = useFormatMoney();
-  const formatPercent = useFormatPercent();
+  const { money, percent } = useFormatters();
   if (!active || !payload?.length) return null;
   const data = payload[0].payload;
   return (
     <div className="rounded-lg border bg-background px-3 py-2 shadow-popover">
       <p className="text-sm font-medium">{data.name}</p>
       <p className="text-sm text-muted-foreground">
-        {format(data.value)} ({formatPercent(data.percentage)})
+        {money(data.value)} ({percent(data.percentage)})
       </p>
     </div>
   );
@@ -104,10 +102,9 @@ export function SpendingTab({
   periodType,
   hasAnyTransactions,
 }: SpendingTabProps) {
-  const { format } = useFormatMoney();
+  const { money, percent } = useFormatters();
   const locale = useLocale();
   const { t } = useTranslation("analytics");
-  const formatPercent = useFormatPercent();
   const categorySeriesLabel = useCategorySeriesLabel();
   const [viewMode, setViewMode] = useState<ViewMode>("expenses");
 
@@ -210,11 +207,11 @@ export function SpendingTab({
                     onClick={() => handleSliceClick(entry)}
                     ariaLabel={t("a11y.viewTransactionsAria", { name: entry.name })}
                   >
-                    {format(entry.value)}
+                    {money(entry.value)}
                   </TransactionsDrilldownLink>
                 </span>
                 <span className="tabular-nums text-xs text-muted-foreground text-right">
-                  {formatPercent(entry.percentage)}
+                  {percent(entry.percentage)}
                 </span>
               </div>
             ))}
@@ -237,7 +234,7 @@ export function SpendingTab({
             : {}
         }
         title={drilldown?.categoryName ?? ""}
-        subtitle={drilldown ? formatDrilldownSubtitle(dateRange, periodType, drilldownTransactions, format, locale, t) : undefined}
+        subtitle={drilldown ? formatDrilldownSubtitle(dateRange, periodType, drilldownTransactions, money, locale, t) : undefined}
       />
     </div>
   );

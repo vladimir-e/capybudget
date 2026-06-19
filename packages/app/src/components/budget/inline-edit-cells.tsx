@@ -5,10 +5,11 @@ import { AccountSelector } from "@/components/budget/account-selector";
 import { CategorySelector } from "@/components/budget/category-selector";
 import { MerchantInput } from "@/components/budget/merchant-input";
 import type { Account, Category, Transaction, TransactionFormData } from "@capybudget/core";
-import { parseMoney, getAmountClass, centsToEditString, parseLocalDate, toDateString, formatDateLabel, findCategoryForMerchant } from "@capybudget/core";
-import { useLocale, useTranslation } from "@capybudget/i18n";
+import { parseMoney, getAmountClass, centsToEditString, parseLocalDate, toDateString, findCategoryForMerchant } from "@capybudget/core";
+import { useTranslation } from "@capybudget/i18n";
 import { useTransactions } from "@/hooks/use-budget-data";
 import { useFormatMoney } from "@/contexts/currency-context";
+import { useFormatters } from "@/hooks/use-formatters";
 import { CalendarDays } from "lucide-react";
 
 // ---------------------------------------------------------------------------
@@ -101,7 +102,7 @@ function DateEditCell({ txn, onSave, onCancel }: {
   txn: Transaction;
   onSave: (date: string) => void; onCancel: () => void;
 }) {
-  const locale = useLocale();
+  const { date } = useFormatters();
   const currentDate = txn.datetime.slice(0, 10);
 
   return (
@@ -115,7 +116,7 @@ function DateEditCell({ txn, onSave, onCancel }: {
         }
       >
         <CalendarDays className="h-3.5 w-3.5 text-muted-foreground/50" />
-        <span>{formatDateLabel(currentDate, locale)}</span>
+        <span>{date(currentDate)}</span>
       </PopoverTrigger>
       <PopoverContent className="w-auto p-0" align="start">
         <Calendar

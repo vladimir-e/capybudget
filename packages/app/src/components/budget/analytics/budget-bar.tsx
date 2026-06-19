@@ -4,7 +4,7 @@ import type { BudgetBasis } from "@capybudget/core";
 import { useTranslation } from "@capybudget/i18n";
 import { useBasisOptionLabel } from "./use-analytics-labels";
 import type { TFunction } from "i18next";
-import { useFormatMoney } from "@/contexts/currency-context";
+import { useFormatters } from "@/hooks/use-formatters";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   DropdownMenu,
@@ -78,9 +78,9 @@ function DividerGlyph({ isImplicit }: { isImplicit: boolean }) {
 /** A reference marker sitting above the bar. Keyboard-focusable with a
  *  descriptive label; hover/focus reveals the exact value. */
 function Pin({ pin, referenceLabel }: { pin: BarPin; referenceLabel: string }) {
-  const { format } = useFormatMoney();
+  const { money } = useFormatters();
   const { t } = useTranslation("analytics");
-  const label = `${pinLabel(pin.kind, referenceLabel, t)}: ${format(pin.value)}`;
+  const label = `${pinLabel(pin.kind, referenceLabel, t)}: ${money(pin.value)}`;
   return (
     <Tooltip>
       <TooltipTrigger
@@ -112,11 +112,11 @@ function Divider({
   isImplicit: boolean;
   target: number;
 }) {
-  const { format } = useFormatMoney();
+  const { money } = useFormatters();
   const { t } = useTranslation("analytics");
   const label = isImplicit
-    ? t("budgetBar.autoTarget", { amount: format(target) })
-    : t("budgetBar.budget", { amount: format(target) });
+    ? t("budgetBar.autoTarget", { amount: money(target) })
+    : t("budgetBar.budget", { amount: money(target) });
   return (
     <Tooltip>
       <TooltipTrigger
@@ -152,7 +152,7 @@ export function BudgetBar({
   row: BudgetRow;
   referenceLabel?: string;
 }) {
-  const { format } = useFormatMoney();
+  const { money } = useFormatters();
   const { t } = useTranslation("analytics");
   const geo = barGeometry(row);
   const overLabel = geo.state === "over" ? t("budgetBar.overTarget") : "";
@@ -193,8 +193,8 @@ export function BudgetBar({
         className="relative h-2.5 rounded-full overflow-hidden"
         role="img"
         aria-label={t("budgetBar.spentOfTargetAria", {
-          spent: format(row.spent),
-          target: format(row.effectiveTarget ?? 0),
+          spent: money(row.spent),
+          target: money(row.effectiveTarget ?? 0),
           over: overLabel,
         })}
       >

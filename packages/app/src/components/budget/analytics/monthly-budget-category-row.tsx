@@ -6,6 +6,7 @@ import {
 import type { Category } from "@capybudget/core";
 import { useTranslation } from "@capybudget/i18n";
 import { useFormatMoney } from "@/contexts/currency-context";
+import { useFormatters } from "@/hooks/use-formatters";
 import { useCategoryDisplayName } from "@/lib/display-names";
 import { useSetCategoryAssigned } from "@/hooks/use-category-mutations";
 import { toast } from "sonner";
@@ -29,7 +30,7 @@ interface AssignedInputProps {
  *  Empty input commits as `null` (back to auto/untargeted); `0` commits as an
  *  explicit zero target. Esc cancels, Enter or blur commits. */
 function AssignedInput({ category, row }: AssignedInputProps) {
-  const { format } = useFormatMoney();
+  const { money } = useFormatters();
   const { t } = useTranslation("analytics");
   const categoryDisplay = useCategoryDisplayName();
   // When not editing, the displayed value is derived directly from the props.
@@ -50,7 +51,7 @@ function AssignedInput({ category, row }: AssignedInputProps) {
   let display: React.ReactNode;
   let ariaLabel: string;
   if (row.assigned !== null) {
-    display = <span className="tabular-nums">{format(row.assigned)}</span>;
+    display = <span className="tabular-nums">{money(row.assigned)}</span>;
     ariaLabel = t("budgetInput.editAria", { name: categoryDisplay(category.name) });
   } else if (row.isImplicit) {
     // AUTO is a prefix label pinned left while the amount stays pegged to the
@@ -61,11 +62,11 @@ function AssignedInput({ category, row }: AssignedInputProps) {
           {t("budgetInput.auto")}
         </span>
         <span className="tabular-nums text-muted-foreground">
-          {format(row.implicitTarget!)}
+          {money(row.implicitTarget!)}
         </span>
       </span>
     );
-    ariaLabel = t("budgetInput.setAutoAria", { name: categoryDisplay(category.name), amount: format(row.implicitTarget!) });
+    ariaLabel = t("budgetInput.setAutoAria", { name: categoryDisplay(category.name), amount: money(row.implicitTarget!) });
   } else {
     display = <span className="text-muted-foreground/60 italic">{t("budgetInput.set")}</span>;
     ariaLabel = t("budgetInput.setAria", { name: categoryDisplay(category.name) });
@@ -173,7 +174,7 @@ interface CategoryRowProps {
 }
 
 export function CategoryRow({ category, row, referenceLabel, onDrilldown }: CategoryRowProps) {
-  const { format } = useFormatMoney();
+  const { money } = useFormatters();
   const { t } = useTranslation("analytics");
   const categoryDisplay = useCategoryDisplayName();
   const { spent, effectiveTarget } = row;
@@ -214,13 +215,13 @@ export function CategoryRow({ category, row, referenceLabel, onDrilldown }: Cate
             onClick={() => onDrilldown(category)}
             ariaLabel={t("a11y.viewTransactionsAria", { name: categoryDisplay(category.name) })}
           >
-            {format(spent)}
+            {money(spent)}
           </TransactionsDrilldownLink>
         </div>
       ) : (
         <span className="text-right text-sm tabular-nums">
           {targeted ? (
-            format(spent)
+            money(spent)
           ) : (
             <span className="text-muted-foreground/50">—</span>
           )}
@@ -241,7 +242,7 @@ export function CategoryRow({ category, row, referenceLabel, onDrilldown }: Cate
         {remaining === null ? (
           <span className="text-muted-foreground/50">—</span>
         ) : (
-          format(remaining)
+          money(remaining)
         )}
       </span>
     </div>

@@ -8,9 +8,10 @@ import { AccountSelector } from "@/components/budget/account-selector";
 import { MerchantInput } from "@/components/budget/merchant-input";
 import { useAccounts, useCategories, useTransactions } from "@/hooks/use-budget-data";
 import type { Transaction, TransactionType, TransactionFormData } from "@capybudget/core";
-import { findCategoryForMerchant, resolveTransferPair, parseMoney, getToday, parseLocalDate, toDateString, formatDateLabel } from "@capybudget/core";
-import { useLocale, useTranslation } from "@capybudget/i18n";
+import { findCategoryForMerchant, resolveTransferPair, parseMoney, getToday, parseLocalDate, toDateString } from "@capybudget/core";
+import { useTranslation } from "@capybudget/i18n";
 import { useFormatMoney } from "@/contexts/currency-context";
+import { useFormatters } from "@/hooks/use-formatters";
 import { Minus, Plus, ArrowLeftRight, Check, CalendarDays } from "lucide-react";
 
 interface TransactionFormProps {
@@ -55,8 +56,8 @@ export function TransactionForm({
   onDismiss,
 }: TransactionFormProps) {
   const { t } = useTranslation(["budget", "common"]);
-  const locale = useLocale();
   const { symbol } = useFormatMoney();
+  const { date: formatDate } = useFormatters();
   const { data: accounts = [] } = useAccounts();
   const { data: categories = [] } = useCategories();
   const { data: allTransactions = [] } = useTransactions();
@@ -259,7 +260,7 @@ export function TransactionForm({
             }
           >
             <CalendarDays className="h-3.5 w-3.5 text-muted-foreground" />
-            <span className="text-sm">{formatDateLabel(date, locale)}</span>
+            <span className="text-sm">{formatDate(date)}</span>
           </PopoverTrigger>
           <PopoverContent className="w-auto p-0" align="end">
             <Calendar

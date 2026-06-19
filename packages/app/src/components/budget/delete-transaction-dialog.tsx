@@ -8,9 +8,9 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import type { Transaction } from "@capybudget/core";
-import { formatDateLabel, resolveTransferPair } from "@capybudget/core";
-import { useLocale, useTranslation } from "@capybudget/i18n";
-import { useFormatMoney } from "@/contexts/currency-context";
+import { resolveTransferPair } from "@capybudget/core";
+import { useTranslation } from "@capybudget/i18n";
+import { useFormatters } from "@/hooks/use-formatters";
 import { useCategoryDisplayName } from "@/lib/display-names";
 import { useAccounts, useCategories, useTransactions } from "@/hooks/use-budget-data";
 import { ArrowRight } from "lucide-react";
@@ -28,8 +28,7 @@ export function DeleteTransactionDialog({
 }: DeleteTransactionDialogProps) {
   const { t } = useTranslation(["budget", "common"]);
   const categoryDisplay = useCategoryDisplayName();
-  const locale = useLocale();
-  const { format } = useFormatMoney();
+  const { money, date } = useFormatters();
   const { data: accounts = [] } = useAccounts();
   const { data: categories = [] } = useCategories();
   const { data: allTransactions = [] } = useTransactions();
@@ -51,7 +50,7 @@ export function DeleteTransactionDialog({
     );
   }
 
-  const formattedDate = formatDateLabel(transaction.datetime.slice(0, 10), locale);
+  const formattedDate = date(transaction.datetime.slice(0, 10));
 
   return (
     <Dialog open onOpenChange={(open) => { if (!open) onCancel(); }}>
@@ -75,7 +74,7 @@ export function DeleteTransactionDialog({
                   ? "text-amount-expense"
                   : "text-amount-income"
             }`}>
-              {format(Math.abs(transaction.amount))}
+              {money(Math.abs(transaction.amount))}
             </span>
           </div>
           <div className="text-foreground">

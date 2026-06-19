@@ -8,11 +8,11 @@ import {
   centsToEditString,
   parseLocalDate,
   toDateString,
-  formatDateLabel,
 } from "@capybudget/core";
 import { useTransactions } from "@/hooks/use-budget-data";
-import { useTranslation, useLocale } from "@capybudget/i18n";
+import { useTranslation } from "@capybudget/i18n";
 import { useFormatMoney } from "@/contexts/currency-context";
+import { useFormatters } from "@/hooks/use-formatters";
 import { amountColorClass } from "@/components/import/import-table-utils";
 import { CalendarDays } from "lucide-react";
 
@@ -28,7 +28,7 @@ export function DateEdit({
   onSave: (date: string) => void;
   onCancel: () => void;
 }) {
-  const locale = useLocale();
+  const { date } = useFormatters();
   return (
     <div onClick={(e) => e.stopPropagation()}>
       <Popover defaultOpen onOpenChange={(open) => { if (!open) onCancel(); }}>
@@ -41,7 +41,7 @@ export function DateEdit({
           }
         >
           <CalendarDays className="h-3.5 w-3.5 text-muted-foreground/50" />
-          <span>{formatDateLabel(value, locale)}</span>
+          <span>{date(value)}</span>
         </PopoverTrigger>
         <PopoverContent className="w-auto p-0" align="start">
           <Calendar

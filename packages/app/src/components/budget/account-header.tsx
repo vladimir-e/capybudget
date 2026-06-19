@@ -1,6 +1,6 @@
 import { Badge } from "@/components/ui/badge";
 import type { Account } from "@capybudget/core";
-import { useFormatMoney } from "@/contexts/currency-context";
+import { useFormatters } from "@/hooks/use-formatters";
 import { useAccountTypeLabel } from "@/lib/display-names";
 
 interface AccountHeaderProps {
@@ -9,7 +9,7 @@ interface AccountHeaderProps {
 }
 
 export function AccountHeader({ account, balance }: AccountHeaderProps) {
-  const { format } = useFormatMoney();
+  const { money } = useFormatters();
   const accountTypeLabel = useAccountTypeLabel();
   return (
     <div className="px-6 py-5 border-b bg-gradient-to-b from-brand-subtle/40 to-transparent">
@@ -22,7 +22,7 @@ export function AccountHeader({ account, balance }: AccountHeaderProps) {
       <div className={`text-3xl font-bold tabular-nums mt-1 ${
         balance < 0 ? "text-amount-expense" : "text-foreground"
       }`}>
-        {format(balance)}
+        {money(balance)}
       </div>
     </div>
   );

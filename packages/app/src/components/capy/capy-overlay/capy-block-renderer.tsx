@@ -1,7 +1,7 @@
 import { useTranslation } from "@capybudget/i18n"
 import { formatText } from "@/lib/format-text"
 import { useFormatMoney } from "@/contexts/currency-context"
-import { useFormatPercent } from "@/lib/format-percent"
+import { useFormatters } from "@/hooks/use-formatters"
 import type {
   BarChartBlock,
   ContentBlock,
@@ -130,7 +130,7 @@ const CHART_COLORS = [
 ]
 
 function BarChart({ title, data }: Pick<BarChartBlock, "title" | "data">) {
-  const { format } = useFormatMoney()
+  const { money } = useFormatters()
   if (data.length === 0) return null
   const max = Math.max(...data.map((d) => d.value))
   if (max === 0) return null
@@ -146,7 +146,7 @@ function BarChart({ title, data }: Pick<BarChartBlock, "title" | "data">) {
             <div className="flex justify-between text-sm">
               <span className="text-foreground/80">{d.label}</span>
               <span className="font-medium tabular-nums text-foreground/70">
-                {format(dollarsToCents(d.value))}
+                {money(dollarsToCents(d.value))}
               </span>
             </div>
             <div className="h-2 rounded-full bg-muted/40 overflow-hidden">
@@ -169,8 +169,7 @@ function BarChart({ title, data }: Pick<BarChartBlock, "title" | "data">) {
 
 function DonutChart({ title, data }: Pick<DonutChartBlock, "title" | "data">) {
   const { t } = useTranslation("capy")
-  const { formatCompact } = useFormatMoney()
-  const formatPercent = useFormatPercent()
+  const { moneyCompact, percent } = useFormatters()
   const total = data.reduce((sum, d) => sum + d.value, 0)
   if (data.length === 0 || total === 0) return null
   const size = 140
@@ -242,7 +241,7 @@ function DonutChart({ title, data }: Pick<DonutChartBlock, "title" | "data">) {
             className="fill-foreground text-lg font-semibold"
             style={{ fontSize: 18 }}
           >
-            {formatCompact(dollarsToCents(total))}
+            {moneyCompact(dollarsToCents(total))}
           </text>
           <text
             x={cx}
@@ -263,7 +262,7 @@ function DonutChart({ title, data }: Pick<DonutChartBlock, "title" | "data">) {
               />
               <span className="text-foreground/80 truncate">{s.label}</span>
               <span className="text-muted-foreground tabular-nums ml-auto shrink-0">
-                {formatPercent(s.pct, 0)}
+                {percent(s.pct, 0)}
               </span>
             </div>
           ))}
