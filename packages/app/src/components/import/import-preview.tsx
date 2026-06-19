@@ -12,9 +12,12 @@ import {
 } from "@/components/ui/dialog";
 import { useImportMerge } from "@/hooks/use-import-merge";
 import { useImportData } from "@/hooks/use-import-data";
+import { useTransactions } from "@/hooks/use-budget-data";
+import { summarizeMerge } from "@capybudget/core";
 import type { StagingStore } from "@capybudget/intelligence";
 import { useFormatMoney } from "@/contexts/currency-context";
 import { ImportTable } from "./import-table";
+import { AccountMappingSummary } from "./account-mapping-summary";
 import {
   sortImportTransactions,
   filterImportTransactions,
@@ -55,6 +58,7 @@ export function ImportPreview({
   onMergeComplete,
 }: ImportPreviewProps) {
   const { format } = useFormatMoney();
+  const { data: budgetTransactions = [] } = useTransactions();
   const [sort, setSort] = useState<ImportSortConfig>({ column: "date", direction: "asc" });
   const [search, setSearch] = useState("");
 
@@ -158,6 +162,18 @@ export function ImportPreview({
   const newAccountCount = sourceAccounts.filter(
     (s) => !accountMapping[s] || accountMapping[s] === "__create__",
   ).length;
+
+  // Per-account preview of the pending merge — same inputs handleMerge passes to
+  // `merge`, so what's shown is exactly what lands. Only computed while the
+  // confirmation is open (it runs the full merge plan).
+  const mergeSummary = useMemo(() => {
+    if (!showMergeDialog || selectedIds.size === 0) return [];
+    return summarizeMerge(
+      { transactions, selectedIds, accountMapping },
+      accounts,
+      budgetTransactions,
+    );
+  }, [showMergeDialog, transactions, selectedIds, accountMapping, accounts, budgetTransactions]);
 
   const handleMerge = useCallback(async () => {
     setShowMergeDialog(false);
@@ -328,29 +344,32 @@ export function ImportPreview({
         </Dialog>
       )}
 
-      {/* Merge confirmation */}
+      {/* Merge confirmation — a safety gate: the per-account summary surfaces
+          where every transaction lands and the balance each account becomes, so
+          a wrong mapping is visible before commit. Header and footer stay
+          pinned; only the summary scrolls (capped at ~5 rows). */}
       {showMergeDialog && (
         <Dialog open onOpenChange={(open) => { if (!open) setShowMergeDialog(false); }}>
-          <DialogContent className="sm:max-w-md">
+          <DialogContent className="flex max-h-[85vh] flex-col sm:max-w-md">
             <DialogHeader>
               <DialogTitle>Merge {selectedCount} transactions?</DialogTitle>
               <DialogDescription>
-                <span className="space-y-2 block">
-                  <span className="block">
-                    This will add{" "}
-                    <strong>
-                      {selectedCount} transaction{selectedCount !== 1 ? "s" : ""}
-                    </strong>{" "}
-                    ({format(selectedTotal)}) to your budget.
-                  </span>
-                  {newAccountCount > 0 && (
-                    <span className="block">
-                      {newAccountCount} new account{newAccountCount > 1 ? "s" : ""} will be created.
-                    </span>
-                  )}
-                </span>
+                This will add{" "}
+                <strong>
+                  {selectedCount} transaction{selectedCount !== 1 ? "s" : ""}
+                </strong>{" "}
+                ({format(selectedTotal)}) to your budget.
+                {newAccountCount > 0 && (
+                  <>
+                    {" "}
+                    {newAccountCount} new account{newAccountCount > 1 ? "s" : ""} will be created.
+                  </>
+                )}
               </DialogDescription>
             </DialogHeader>
+            <div className="min-h-0 flex-1 overflow-hidden">
+              <AccountMappingSummary rows={mergeSummary} />
+            </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setShowMergeDialog(false)}>
                 Cancel

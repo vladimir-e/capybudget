@@ -24,6 +24,7 @@ const { merge, flushWriteBack, dataReturn } = vi.hoisted(() => ({
 
 vi.mock("@/hooks/use-import-merge", () => ({ useImportMerge: () => ({ merge }) }));
 vi.mock("@/hooks/use-import-data", () => ({ useImportData: () => dataReturn }));
+vi.mock("@/hooks/use-budget-data", () => ({ useTransactions: () => ({ data: [] }) }));
 
 import { ImportPreview } from "./import-preview";
 
@@ -185,6 +186,40 @@ describe("ImportPreview — account mapping dialog", () => {
 
     const dialog = await screen.findByRole("dialog");
     expect(within(dialog).queryByTestId("mapping-rows")).toBeNull();
+  });
+
+  it("surfaces the per-account summary in the merge confirmation", async () => {
+    const mapped: ImportTransaction = {
+      ...TXN,
+      id: "imp-2",
+      sourceAccount: "BOFA CHK 1234",
+      accountId: "acct-1",
+    };
+    Object.assign(dataReturn, {
+      transactions: [mapped],
+      selectedIds: new Set(["imp-2"]),
+      sourceAccounts: ["BOFA CHK 1234"],
+      accountMapping: { "BOFA CHK 1234": "acct-1" },
+      accounts: [
+        {
+          id: "acct-1",
+          name: "BofA Checking",
+          type: "checking",
+          archived: false,
+          excludeFromNetWorth: false,
+          sortOrder: 1,
+          createdAt: "2026-01-01T00:00:00.000Z",
+        },
+      ],
+    });
+    renderPreview();
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "Merge" }));
+
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByText("BofA Checking")).toBeInTheDocument();
+    expect(within(dialog).getByText("BOFA CHK 1234")).toBeInTheDocument();
   });
 });
 
