@@ -106,6 +106,8 @@
     "spentThisMonth": "Spent this month",
     "trackingToward": "Tracking toward",
     "overBudget": "Over budget",
+    "overBudgetUnit_one": "category",
+    "overBudgetUnit_other": "categories",
     "noCategoriesTitle": "No categories to budget",
     "addCategories": "Add categories to start tracking.",
     "showOnlyTracked": "Show only tracked",

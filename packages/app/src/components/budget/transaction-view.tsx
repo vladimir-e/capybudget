@@ -1,5 +1,6 @@
 import { useCallback, useMemo, useState, type ReactNode } from "react";
 import { TransactionList } from "@/components/budget/transaction-list";
+import { VIRTUALIZE_THRESHOLD } from "@/components/budget/transaction-list-utils";
 import { TransactionToolbar } from "@/components/budget/transaction-toolbar";
 import { DeleteTransactionDialog } from "@/components/budget/delete-transaction-dialog";
 import { BulkActionBar } from "@/components/budget/bulk-action-bar";
@@ -70,27 +71,39 @@ export function TransactionView({ transactions, header, showAccountColumn, readO
   }, [isFiltered, showAccountColumn, allTransactions.length, t]);
 
   return (
-    <div>
+    // Flex column that fills the pane: the title and toolbar are fixed rows and
+    // the list takes whatever height is left and scrolls internally, so the pane
+    // itself never scrolls (the title stays put) on any viewport — no hand-tuned
+    // height budget to drift. The list area carries the styled gutter only when
+    // it owns the scroll; once the list virtualizes it wraps its own scroller
+    // (see the modal in transactions-browser for the same gating).
+    <div className="flex h-full min-h-0 flex-col">
       {header}
-      <div className="p-6 space-y-4">
+      <div className="flex min-h-0 flex-1 flex-col gap-4 p-6">
         <TransactionToolbar filters={filters} onFiltersChange={setFilters} />
 
-        <TransactionList
-          transactions={filtered}
-          showAccountColumn={showAccountColumn}
-          editingTransactionId={readOnly ? undefined : editingTxnId}
-          onEdit={readOnly ? undefined : editTransaction}
-          onDelete={readOnly ? undefined : setDeletingTxn}
-          onInlineSave={readOnly ? undefined : handleInlineSave}
-          sort={sort}
-          onSortChange={setSort}
-          selectedIds={readOnly ? undefined : selection.selectedIds}
-          onToggleSelect={readOnly ? undefined : selection.toggle}
-          onToggleAll={readOnly ? undefined : selection.toggleAll}
-          allSelected={selection.allSelected}
-          indeterminate={selection.indeterminate}
-          emptyState={emptyState}
-        />
+        <div
+          className={`min-h-0 flex-1 ${
+            filtered.length < VIRTUALIZE_THRESHOLD ? "list-scroll overflow-auto" : ""
+          }`}
+        >
+          <TransactionList
+            transactions={filtered}
+            showAccountColumn={showAccountColumn}
+            editingTransactionId={readOnly ? undefined : editingTxnId}
+            onEdit={readOnly ? undefined : editTransaction}
+            onDelete={readOnly ? undefined : setDeletingTxn}
+            onInlineSave={readOnly ? undefined : handleInlineSave}
+            sort={sort}
+            onSortChange={setSort}
+            selectedIds={readOnly ? undefined : selection.selectedIds}
+            onToggleSelect={readOnly ? undefined : selection.toggle}
+            onToggleAll={readOnly ? undefined : selection.toggleAll}
+            allSelected={selection.allSelected}
+            indeterminate={selection.indeterminate}
+            emptyState={emptyState}
+          />
+        </div>
 
         {!readOnly && (
           <DeleteTransactionDialog

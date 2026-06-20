@@ -286,10 +286,13 @@ export function TransactionList({
   const paddingBottom = virtualItems.length > 0 ? totalSize - virtualItems[virtualItems.length - 1].end : 0;
 
   return (
+    // Fill the parent and own the vertical scroll. Callers (the account view,
+    // the drilldown modal) hand this a bounded flex height, so the list scrolls
+    // internally while the surrounding chrome stays put — no viewport-math
+    // height cap to mis-budget and no second scroller in the ancestor chain.
     <div
       ref={scrollContainerRef}
-      className="w-full overflow-auto"
-      style={{ maxHeight: "calc(100vh - 220px)" }}
+      className="list-scroll h-full w-full overflow-auto"
     >
       <table
         data-slot="table"

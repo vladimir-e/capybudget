@@ -5,6 +5,9 @@ export interface KPICard {
   label: string;
   /** Pre-formatted display value (money, a count, etc.). */
   display: string;
+  /** Optional noun trailing the value so a bare count reads as a thing —
+   *  e.g. "3" + "categories". Rendered smaller and muted; the value stays hero. */
+  unit?: string;
   tone?: "default" | "income" | "expense";
   /** When set, the value renders as a drilldown link that opens the
    *  transactions browser for whatever scope this card represents. */
@@ -28,18 +31,23 @@ export function KpiStrip({ cards }: { cards: KPICard[] }) {
             <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
               {c.label}
             </div>
-            {c.onClick ? (
-              <div className={valueClass}>
+            <div className={valueClass}>
+              {c.onClick ? (
                 <TransactionsDrilldownLink
                   onClick={c.onClick}
                   ariaLabel={t("a11y.viewTransactionsAria", { name: c.label })}
                 >
                   {c.display}
                 </TransactionsDrilldownLink>
-              </div>
-            ) : (
-              <div className={valueClass}>{c.display}</div>
-            )}
+              ) : (
+                c.display
+              )}
+              {c.unit ? (
+                <span className="ml-1.5 text-sm font-medium text-muted-foreground">
+                  {c.unit}
+                </span>
+              ) : null}
+            </div>
           </div>
         );
       })}
