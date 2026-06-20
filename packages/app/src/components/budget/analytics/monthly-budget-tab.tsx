@@ -7,7 +7,7 @@ import type {
   DateRange,
   Transaction,
 } from "@capybudget/core";
-import { useLocale, useTranslation } from "@capybudget/i18n";
+import { useFormatLocale, useTranslation } from "@capybudget/i18n";
 import { useFormatters } from "@/hooks/use-formatters";
 import { useCategoryDisplayName } from "@/lib/display-names";
 import { useBudgetBasis } from "./use-budget-basis";
@@ -40,7 +40,7 @@ export function MonthlyBudgetTab({
   hasAnyTransactions,
 }: MonthlyBudgetTabProps) {
   const { money } = useFormatters();
-  const locale = useLocale();
+  const locale = useFormatLocale();
   const { t } = useTranslation("analytics");
   const basisLabel = useBasisLabel();
   const categoryDisplay = useCategoryDisplayName();

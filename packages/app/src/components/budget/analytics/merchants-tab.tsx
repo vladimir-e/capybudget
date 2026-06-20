@@ -12,7 +12,7 @@ import {
   getTopMerchants,
 } from "@capybudget/core";
 import type { Transaction, DateRange } from "@capybudget/core";
-import { useLocale, useTranslation } from "@capybudget/i18n";
+import { useFormatLocale, useTranslation } from "@capybudget/i18n";
 import { useFormatters } from "@/hooks/use-formatters";
 import { useThemeColors } from "./use-theme-colors";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -75,7 +75,7 @@ export function MerchantsTab({
   hasAnyTransactions,
 }: MerchantsTabProps) {
   const { money, moneyCompact, percent } = useFormatters();
-  const locale = useLocale();
+  const locale = useFormatLocale();
   const { t } = useTranslation("analytics");
   const merchants = useMemo<MerchantRow[]>(
     () =>

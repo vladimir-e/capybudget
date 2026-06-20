@@ -8,7 +8,7 @@ import {
   type MoneyFormat,
   type SymbolPosition,
 } from "@capybudget/core";
-import { useLocale } from "@capybudget/i18n";
+import { useFormatLocale } from "@capybudget/i18n";
 
 export { DEFAULT_CURRENCY };
 
@@ -37,9 +37,9 @@ export interface CurrencyFormatters {
 
 export function useFormatMoney(): CurrencyFormatters {
   const { currency, decimals, symbolPosition } = useContext(CurrencyContext);
-  // Locale drives grouping/decimal glyphs ("1 250,00 ₽" under ru); currency and
-  // symbol are independent of it.
-  const locale = useLocale();
+  // Format locale drives grouping/decimal glyphs ("1 250,00 ₽" under ru, region
+  // variants under en); currency and symbol are independent of it.
+  const locale = useFormatLocale();
   return useMemo(() => {
     const format: MoneyFormat = { decimals, symbolPosition };
     return {

@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { Search, X } from "lucide-react";
 import type { Category, Transaction } from "@capybudget/core";
 import { searchTransactions } from "@capybudget/core";
-import { useLocale, useTranslation } from "@capybudget/i18n";
+import { useFormatLocale, useTranslation } from "@capybudget/i18n";
 import { Input } from "@/components/ui/input";
 import { EmptyState } from "@/components/ui/empty-state";
 import { TransactionList } from "@/components/budget/transaction-list";
@@ -73,7 +73,7 @@ function FilterChips({
   categories: Category[];
 }) {
   const { t } = useTranslation("budget");
-  const locale = useLocale();
+  const locale = useFormatLocale();
   const categoryDisplay = useCategoryDisplayName();
 
   const categoryName = (id: string): string => {

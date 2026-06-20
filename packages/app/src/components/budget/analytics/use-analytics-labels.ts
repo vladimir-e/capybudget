@@ -1,5 +1,5 @@
 import { type BudgetBasis, formatMonthShort } from "@capybudget/core"
-import { useLocale, useTranslation } from "@capybudget/i18n"
+import { useFormatLocale, useTranslation } from "@capybudget/i18n"
 import { useCategoryDisplayName } from "@/lib/display-names"
 import type { AnalyticsKey } from "@/lib/i18n-keys"
 
@@ -15,7 +15,7 @@ export function useCategorySeriesLabel(): (categoryId: string, categoryName: str
 
 export function useMonthLabel(): (isoDate: string) => string {
   const { t } = useTranslation("analytics")
-  const locale = useLocale()
+  const locale = useFormatLocale()
   return (isoDate: string) => {
     const d = new Date(isoDate)
     return t("monthLabel", { month: formatMonthShort(d, locale), year: d.getFullYear() })
@@ -24,7 +24,7 @@ export function useMonthLabel(): (isoDate: string) => string {
 
 export function useWeekLabel(): (isoDate: string) => string {
   const { t } = useTranslation("analytics")
-  const locale = useLocale()
+  const locale = useFormatLocale()
   return (isoDate: string) => {
     const d = new Date(isoDate)
     return t("weekLabel", { month: formatMonthShort(d, locale), day: d.getDate() })
@@ -51,7 +51,7 @@ export function useBasisOptionLabel(): (basis: BudgetBasis) => string {
 
 export function useBasisLabel(): (basis: BudgetBasis, viewedMonth: Date) => string {
   const { t } = useTranslation("analytics")
-  const locale = useLocale()
+  const locale = useFormatLocale()
   return (basis: BudgetBasis, viewedMonth: Date) => {
     if (basis === "sameMonthLastYear") {
       const d = new Date(viewedMonth.getFullYear() - 1, viewedMonth.getMonth(), 1)

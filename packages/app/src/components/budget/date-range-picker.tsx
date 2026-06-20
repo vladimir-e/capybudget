@@ -8,7 +8,7 @@ import {
   endOfWeek,
   subDays,
 } from "date-fns";
-import { useLocale, useTranslation } from "@capybudget/i18n";
+import { useFormatLocale, useTranslation } from "@capybudget/i18n";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
@@ -87,7 +87,7 @@ function formatRange(range: DateRangeValue, locale: string): string {
 
 export function DateRangePicker({ value, onChange }: DateRangePickerProps) {
   const { t } = useTranslation("budget");
-  const locale = useLocale();
+  const locale = useFormatLocale();
   const [open, setOpen] = useState(false);
   const [customRange, setCustomRange] = useState<DateRange | undefined>(
     value ? { from: value.from, to: value.to } : undefined,

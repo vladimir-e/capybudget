@@ -4,7 +4,7 @@ import {
   formatMonthLabel,
   formatMonthShort,
 } from "@capybudget/core";
-import { useLocale } from "@capybudget/i18n";
+import { useFormatLocale } from "@capybudget/i18n";
 import { useFormatMoney } from "@/contexts/currency-context";
 import { useFormatPercent } from "@/lib/format-percent";
 
@@ -18,12 +18,12 @@ export interface Formatters {
 }
 
 // `money`/`moneyCompact` read the currency context, so this hook is only valid
-// under a `CurrencyProvider` (the budget surface). The rest depend on locale
-// alone; surfaces without the currency context use `useFormatPercent`/`useLocale`.
+// under a `CurrencyProvider` (the budget surface). The rest depend on the format
+// locale alone; surfaces without the currency context use `useFormatPercent`.
 export function useFormatters(): Formatters {
   const { format, formatCompact } = useFormatMoney();
   const percent = useFormatPercent();
-  const locale = useLocale();
+  const locale = useFormatLocale();
 
   return useMemo<Formatters>(
     () => ({

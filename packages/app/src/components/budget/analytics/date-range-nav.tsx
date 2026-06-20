@@ -8,7 +8,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { useLocale, useTranslation } from "@capybudget/i18n";
+import { useFormatLocale, useTranslation } from "@capybudget/i18n";
 import type { DateRange } from "@capybudget/core";
 import type { PeriodType } from "@/stores/analytics-store";
 import type { DateRange as CalendarDateRange } from "react-day-picker";
@@ -39,7 +39,7 @@ export function DateRangeNav({
   onCustomRange,
   dataBounds,
 }: DateRangeNavProps) {
-  const locale = useLocale();
+  const locale = useFormatLocale();
   const { t } = useTranslation("analytics");
   const label = formatRangeLabel(dateRange, periodType, locale, t);
 

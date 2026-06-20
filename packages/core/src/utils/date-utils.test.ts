@@ -67,6 +67,13 @@ describe("formatDateLabel", () => {
   it("follows the locale's wording when one is passed (ru)", () => {
     expect(formatDateLabel("2026-03-10", "ru")).toBe("10 мар. 2026 г.");
   });
+
+  // The regional-formatting capability the i18n format-locale split unlocks:
+  // same language, different region, different date order — no extra catalog.
+  it("respects regional date order within one language (en-GB vs en-US)", () => {
+    expect(formatDateLabel("2026-03-10", "en-GB")).toBe("10 Mar 2026");
+    expect(formatDateLabel("2026-03-10", "en-US")).toBe("Mar 10, 2026");
+  });
 });
 
 describe("formatMonthLabel", () => {

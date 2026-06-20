@@ -1,5 +1,5 @@
 import type { RecentBudget } from "@capybudget/core";
-import { useLocale, useTranslation } from "@capybudget/i18n";
+import { useFormatLocale, useTranslation } from "@capybudget/i18n";
 import { BudgetTile } from "@/components/budget/budget-tile";
 
 interface RecentBudgetCardProps {
@@ -31,7 +31,7 @@ export function RecentBudgetCard({
   onRemove,
 }: RecentBudgetCardProps) {
   const { t } = useTranslation("budget");
-  const locale = useLocale();
+  const locale = useFormatLocale();
   return (
     <BudgetTile
       title={budget.name}

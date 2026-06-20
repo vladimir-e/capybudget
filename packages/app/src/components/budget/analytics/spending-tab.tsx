@@ -11,7 +11,7 @@ import {
   getIncomeByCategory,
 } from "@capybudget/core";
 import type { Transaction, Category, DateRange } from "@capybudget/core";
-import { useLocale, useTranslation } from "@capybudget/i18n";
+import { useFormatLocale, useTranslation } from "@capybudget/i18n";
 import { useFormatters } from "@/hooks/use-formatters";
 import { ChartSwitcher } from "./chart-switcher";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -103,7 +103,7 @@ export function SpendingTab({
   hasAnyTransactions,
 }: SpendingTabProps) {
   const { money, percent } = useFormatters();
-  const locale = useLocale();
+  const locale = useFormatLocale();
   const { t } = useTranslation("analytics");
   const categorySeriesLabel = useCategorySeriesLabel();
   const [viewMode, setViewMode] = useState<ViewMode>("expenses");
