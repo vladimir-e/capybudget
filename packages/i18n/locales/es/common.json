@@ -1,0 +1,54 @@
+{
+  "nav": {
+    "accounts": "Cuentas",
+    "budget": "Presupuesto",
+    "import": "Importar",
+    "settings": "Ajustes",
+    "help": "Ayuda"
+  },
+  "language": {
+    "label": "Idioma"
+  },
+  "actions": {
+    "save": "Guardar",
+    "saving": "Guardando…",
+    "cancel": "Cancelar",
+    "delete": "Eliminar",
+    "add": "Añadir",
+    "archive": "Archivar",
+    "unarchive": "Desarchivar",
+    "edit": "Editar",
+    "remove": "Quitar",
+    "close": "Cerrar",
+    "back": "Atrás",
+    "reset": "Restablecer",
+    "confirm": "Confirmar"
+  },
+  "theme": {
+    "light": "Modo claro",
+    "dark": "Modo oscuro",
+    "system": "Tema del sistema",
+    "colorTheme": "Tema de color"
+  },
+  "colorTheme": {
+    "capybara": "Capibara",
+    "ocean": "Océano",
+    "forest": "Bosque",
+    "rose": "Rosa",
+    "slate": "Pizarra"
+  },
+  "update": {
+    "available": "Capy {{version}} disponible",
+    "action": "Actualizar"
+  },
+  "dialog": {
+    "close": "Cerrar"
+  },
+  "errors": {
+    "loadFailed": "No se pudieron cargar los datos"
+  },
+  "commandPalette": {
+    "title": "Paleta de comandos",
+    "description": "Busca un comando para ejecutar…"
+  }
+}

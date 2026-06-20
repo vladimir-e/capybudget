@@ -1,0 +1,34 @@
+{
+  "selector": {
+    "eyebrow": "Demo",
+    "subtitle": "Elige un escenario para explorar."
+  },
+  "scenarios": {
+    "underwater": {
+      "name": "Bajo el agua",
+      "description": "Muchas deudas, patrimonio neto negativo, el saldo va por mal camino"
+    },
+    "paycheck-to-paycheck": {
+      "name": "Al día",
+      "description": "Los ingresos igualan los gastos, colchón de ahorro mínimo, patrimonio neto estancado"
+    },
+    "no-stress": {
+      "name": "Sin estrés",
+      "description": "Buenos ingresos, el dinero va a ahorros e inversiones, el patrimonio neto sube"
+    }
+  },
+  "seeding": {
+    "title": "Generando datos aleatorios…",
+    "subtitle": "Cualquier cambio se restablece al recargar.",
+    "progressLabel": "Generando datos aleatorios"
+  },
+  "importNotice": {
+    "title": "La importación inteligente solo está disponible en la app de escritorio",
+    "body": "Descarga Capy Budget para convertir CSV y fotos de extractos en un registro impecable.",
+    "cta": "Descargar la app de escritorio"
+  },
+  "mobileNotice": {
+    "body": "Capy Budget es una app de escritorio: esta vista previa no está pensada para pantallas pequeñas.",
+    "cta": "Descargar la app de escritorio"
+  }
+}

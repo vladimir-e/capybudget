@@ -1,0 +1,140 @@
+{
+  "tabs": {
+    "spending": "Gastos",
+    "cashFlow": "Flujo de caja",
+    "netWorth": "Patrimonio neto",
+    "compare": "Comparar",
+    "merchants": "Comercios",
+    "monthlyBudget": "Presupuesto mensual"
+  },
+  "summary": {
+    "income": "Ingresos",
+    "expenses": "Gastos",
+    "net": "Neto"
+  },
+  "fallback": {
+    "unknown": "Desconocido",
+    "uncategorized": "Sin categoría"
+  },
+  "basis": {
+    "trailing3": "prom. 3 meses",
+    "trailing6": "prom. 6 meses",
+    "trailing12": "prom. 12 meses",
+    "monthLabel": "{{month}} {{year}}",
+    "trailing3Option": "3 meses",
+    "trailing6Option": "6 meses",
+    "trailing12Option": "12 meses",
+    "sameMonthLastYearOption": "mismo mes del año pasado"
+  },
+  "monthLabel": "{{month}} {{year}}",
+  "weekLabel": "{{day}} {{month}}",
+  "period": {
+    "month": "Mes",
+    "quarter": "Trimestre",
+    "year": "Año",
+    "allTime": "Todo el tiempo",
+    "custom": "Personalizado",
+    "quarterLabel": "T{{quarter}} {{year}}",
+    "previousPeriod": "Periodo anterior",
+    "nextPeriod": "Periodo siguiente",
+    "apply": "Aplicar"
+  },
+  "drilldown": {
+    "transactionCount_one": "{{count}} transacción",
+    "transactionCount_many": "{{count}} transacciones",
+    "transactionCount_other": "{{count}} transacciones"
+  },
+  "a11y": {
+    "viewTransactionsAria": "Ver transacciones de {{name}}"
+  },
+  "empty": {
+    "noDataYet": "Esto será útil cuando tengas más datos.",
+    "noCategoriesYet": "Esto será útil cuando añadas categorías y datos."
+  },
+  "view": {
+    "expenses": "Gastos",
+    "income": "Ingresos"
+  },
+  "spending": {
+    "noExpenses": "No hay gastos en este periodo",
+    "noIncome": "No hay ingresos en este periodo"
+  },
+  "cashFlow": {
+    "incomeValue": "Ingresos: {{value}}",
+    "expensesValue": "Gastos: {{value}}",
+    "netValue": "Neto: {{value}}",
+    "empty": "No hay datos de flujo de caja en este periodo"
+  },
+  "netWorth": {
+    "bar": "Barras",
+    "area": "Área",
+    "noAccountsTitle": "No hay cuentas seleccionadas",
+    "noAccountsDescription": "Selecciona al menos una cuenta para graficar tu patrimonio neto.",
+    "noData": "No hay datos disponibles",
+    "monthLabel": "{{month}} {{year}}"
+  },
+  "accountFilter": {
+    "allAccounts": "Todas las cuentas",
+    "someAccounts": "{{included}} de {{total}} cuentas",
+    "triggerAria": "Cuentas en Patrimonio neto — {{label}}",
+    "searchPlaceholder": "Buscar cuentas",
+    "searchAria": "Buscar cuentas",
+    "selectAll": "Seleccionar todas",
+    "clearAll": "Quitar todas",
+    "noMatches": "Ninguna cuenta coincide.",
+    "toggleGroupAria": "Alternar todas las cuentas de {{group}}"
+  },
+  "compare": {
+    "categories": "Categorías",
+    "selectAll": "Seleccionar todas",
+    "clear": "Limpiar",
+    "selectPrompt": "Selecciona categorías para comparar",
+    "toggleAria": "Alternar {{name}}",
+    "noExpenses": "No hay gastos en este periodo",
+    "noIncome": "No hay ingresos en este periodo"
+  },
+  "merchants": {
+    "empty": "No hay datos de comercios en este periodo",
+    "txnCount_one": "{{count}} trans.",
+    "txnCount_many": "{{count}} trans.",
+    "txnCount_other": "{{count}} trans.",
+    "headerRank": "N.º",
+    "headerMerchant": "Comercio",
+    "headerAmount": "Importe",
+    "headerTxns": "Trans.",
+    "headerPercent": "%"
+  },
+  "monthlyBudget": {
+    "spentThisMonth": "Gastado este mes",
+    "trackingToward": "Previsión",
+    "overBudget": "Te has pasado del presupuesto",
+    "noCategoriesTitle": "No hay categorías que presupuestar",
+    "addCategories": "Añade categorías para empezar a hacer seguimiento.",
+    "showOnlyTracked": "Mostrar solo con seguimiento",
+    "trackedCount": "({{targeted}} de {{total}})",
+    "columnCategory": "Categoría",
+    "columnTarget": "Objetivo",
+    "columnSpent": "Gastado",
+    "columnRemaining": "Restante",
+    "groupTracked": "{{targeted}}/{{total}} con seguimiento"
+  },
+  "budgetInput": {
+    "auto": "auto",
+    "set": "fijar",
+    "placeholder": "0,00",
+    "editAria": "Editar el presupuesto de {{name}}",
+    "setAutoAria": "Fijar un presupuesto para {{name}} (ahora automático: {{amount}})",
+    "setAria": "Fijar un presupuesto para {{name}}",
+    "updateError": "No se pudo actualizar {{name}}"
+  },
+  "budgetBar": {
+    "lastMonth": "Mes pasado",
+    "lastMonthLower": "el mes pasado",
+    "overTarget": " (por encima del objetivo)",
+    "autoTarget": "Objetivo automático: {{amount}}",
+    "budget": "Presupuesto: {{amount}}",
+    "noTargetAria": "Aún no hay objetivo — Capy necesita historial de gastos para fijarlo",
+    "spentOfTargetAria": "Gastado {{spent}} de un objetivo de {{target}}{{over}}",
+    "comparisonBasisAria": "Base de comparación: {{label}}"
+  }
+}

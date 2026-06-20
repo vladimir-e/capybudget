@@ -10,6 +10,7 @@ export interface LocaleMeta {
 export const SUPPORTED_LOCALES = [
   { code: "en", label: "English", aiLanguage: "English" },
   { code: "ru", label: "Русский", aiLanguage: "Russian" },
+  { code: "es", label: "Español", aiLanguage: "Spanish" },
 ] as const satisfies readonly LocaleMeta[];
 
 export type Locale = (typeof SUPPORTED_LOCALES)[number]["code"];

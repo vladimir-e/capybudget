@@ -1,0 +1,113 @@
+{
+  "launcher": {
+    "label": "Preguntar a Capy",
+    "open": "Abrir el asistente Capy",
+    "close": "Cerrar el asistente Capy"
+  },
+  "header": {
+    "panelLabel": "Asistente Capy",
+    "demoStatus": "Tu asistente con IA",
+    "notConfigured": "Sin configurar",
+    "hidePanel": "Ocultar panel"
+  },
+  "panel": {
+    "resize": "Ajustar el ancho del panel de Capy"
+  },
+  "dropzone": {
+    "label": "Suelta los archivos aquí"
+  },
+  "input": {
+    "placeholder": "Pregúntale a Capy lo que sea sobre tus finanzas...",
+    "attach": "Adjuntar archivo",
+    "send": "Enviar mensaje",
+    "stop": "Detener respuesta",
+    "instructions": "Instrucciones",
+    "instructionsLabel": "Instrucciones personalizadas",
+    "newChat": "Nuevo chat",
+    "newLineHint": "Shift + Enter para salto de línea"
+  },
+  "thinking": "Pensando...",
+  "jumpToLatest": "Ir al último mensaje",
+  "chart": {
+    "total": "total"
+  },
+  "tool": {
+    "list_accounts": "Consultando cuentas",
+    "list_transactions": "Consultando transacciones",
+    "list_categories": "Consultando categorías",
+    "search_transactions": "Buscando transacciones",
+    "group_transactions": "Agrupando transacciones",
+    "create_transaction": "Creando transacción",
+    "update_transaction": "Actualizando transacción",
+    "delete_transactions": "Eliminando transacciones",
+    "create_account": "Creando cuenta",
+    "update_account": "Actualizando cuenta",
+    "delete_account": "Eliminando cuenta",
+    "create_category": "Creando categoría",
+    "update_category": "Actualizando categoría",
+    "delete_category": "Eliminando categoría",
+    "bulk_update_transactions": "Actualizando transacciones",
+    "start_import": "Iniciando importación",
+    "render_chart": "Generando gráfico",
+    "ToolSearch": "Buscando herramientas"
+  },
+  "attachments": {
+    "tooLarge": "{{name}} supera el límite de 5 MB",
+    "unsupported": "{{name}} no es un tipo de archivo compatible",
+    "totalTooLarge": "El tamaño total de los adjuntos supera los 10 MB",
+    "remove": "Quitar {{name}}"
+  },
+  "commands": {
+    "trigger": "Comandos",
+    "add": "Añadir comando",
+    "namePlaceholder": "Nombre del comando",
+    "promptPlaceholder": "Texto a enviar...",
+    "edit": "Editar comando",
+    "delete": "Eliminar comando",
+    "cancel": "Cancelar",
+    "save": "Guardar"
+  },
+  "instructionsDialog": {
+    "title": "Instrucciones personalizadas",
+    "description": "Ayuda a Capy a entender tu situación financiera. Describe tus patrones habituales, para qué usas cada cuenta o cómo prefieres categorizar.",
+    "placeholder": "p. ej. Uso mi tarjeta Chase para los gastos diarios.\nWhole Foods y Trader Joe's son alimentación.\nLas transferencias por Venmo a Sarah son su parte del alquiler."
+  },
+  "unconfigured": {
+    "title": "Configura tu asistente con IA",
+    "description": "Capy necesita un proveedor de IA antes de poder ayudarte.",
+    "openSettings": "Abrir ajustes",
+    "claudeCliChecking": "Buscando la CLI de Claude Code…",
+    "claudeCliMissing": "No se detectó la CLI de Claude Code en este equipo"
+  },
+  "welcome": {
+    "greeting": "¡Hola! Soy Capy.",
+    "description": "Pregúntame sobre tus gastos, presupuestos o transacciones. Veo todo lo que hay en esta carpeta.",
+    "suggestions": {
+      "help": {
+        "label": "¿En qué puedes ayudarme?",
+        "prompt": "¿En qué puedes ayudarme?"
+      },
+      "learn": {
+        "label": "Enséñame a hacer un presupuesto",
+        "prompt": "Enséñame a hacer un presupuesto"
+      },
+      "subscriptions": {
+        "label": "Encontrar suscripciones recurrentes",
+        "prompt": "Encuentra mis suscripciones recurrentes y cuánto cuestan"
+      },
+      "categorize": {
+        "label": "Ayúdame a categorizar transacciones",
+        "prompt": "Ayúdame a categorizar mis transacciones sin categoría"
+      }
+    }
+  },
+  "error": {
+    "openBilling": "Abrir la página de facturación"
+  },
+  "session": {
+    "endedUnexpectedly": "La sesión terminó de forma inesperada. Envía un mensaje para empezar una nueva conversación.",
+    "notConfigured": "Capy no está configurado. Abre los ajustes para elegir un proveedor de IA.",
+    "sendFailed": "No se pudo enviar el mensaje",
+    "interrupted": "Sesión interrumpida. Envía un mensaje para continuar."
+  }
+}

@@ -1,0 +1,131 @@
+{
+  "title": "Ajustes",
+  "back": "Volver al presupuesto",
+  "nav": {
+    "label": "Secciones de ajustes"
+  },
+  "sections": {
+    "general": {
+      "label": "General",
+      "description": "Moneda y básicos"
+    },
+    "intelligence": {
+      "label": "Inteligencia",
+      "description": "Proveedor de IA"
+    },
+    "categories": {
+      "label": "Categorías",
+      "description": "Organiza tus gastos"
+    },
+    "updates": {
+      "label": "Actualizaciones",
+      "description": "Versión de la app"
+    }
+  },
+  "general": {
+    "title": "General",
+    "description": "Ajustes básicos de todo el presupuesto.",
+    "budgetName": "Nombre del presupuesto"
+  },
+  "language": {
+    "title": "Idioma",
+    "description": "Idioma de la interfaz de la app."
+  },
+  "currency": {
+    "title": "Moneda",
+    "description": "Cómo se muestran los importes.",
+    "changeNotice": "Solo cambia la visualización; tus saldos no se convierten.",
+    "requestCurrency": "Solicitar una moneda",
+    "preview": "Vista previa",
+    "formatSettings": "Ajustes de formato",
+    "symbol": "Símbolo",
+    "symbolPosition": {
+      "before": "Antes",
+      "after": "Después",
+      "off": "Ocultar"
+    },
+    "noSymbol": "{{currency}} no tiene símbolo, así que su posición no tiene efecto.",
+    "decimals": "Decimales",
+    "resetDefaults": "Restablecer los valores por defecto de {{currency}}"
+  },
+  "provider": {
+    "title": "Proveedor de IA",
+    "description": "Capy necesita un proveedor de IA para chatear y procesar importaciones. Elige uno e introduce tus credenciales abajo.",
+    "demoNoticeTitle": "La IA solo está disponible en la app de escritorio",
+    "demoNoticeBody": "La demo web se ejecuta por completo en tu navegador y no puede guardar un proveedor de IA. Descarga la app de escritorio para chatear con Capy y usar la importación inteligente.",
+    "missingTitle": "Ya no se detecta Claude Code",
+    "missingBody": "Reinstala Claude Code o elige otro proveedor para seguir usando Capy.",
+    "sourceBuildTitle": "Claude Code requiere una compilación desde el código fuente",
+    "sourceBuildBody": "La app de escritorio aún no puede ejecutar Claude Code. Elige otro proveedor o",
+    "runFromSource": "ejecuta Capy desde el código fuente",
+    "toUseSubscription": "para usar tu suscripción de Claude.",
+    "distHint": "No disponible en la compilación de escritorio:",
+    "buildFromSource": "compila desde el código fuente",
+    "advanced": "avanzado",
+    "providerSet": "Proveedor establecido en {{provider}}",
+    "options": {
+      "off": {
+        "label": "Desactivado",
+        "description": "Capy está desactivado. Elige un proveedor abajo para activar las funciones de IA."
+      },
+      "anthropic": {
+        "description": "Llamadas directas a la API. Pago por uso con tu propia clave."
+      },
+      "openai": {
+        "description": "Llamadas directas a la API. Pago por uso con tu propia clave."
+      },
+      "claudeCli": {
+        "description": "Usa la CLI local de Claude Code. Funciona con tu suscripción de Claude."
+      }
+    },
+    "detection": {
+      "checking": "Comprobando…",
+      "detected": "Detectado",
+      "notDetected": "No detectado",
+      "notDetectedHint": "No detectado: instálalo desde",
+      "testConnection": "Probar conexión",
+      "testing": "Probando…",
+      "connectionWorks": "La conexión funciona"
+    },
+    "apiConfig": {
+      "apiKey": "Clave de API",
+      "showKey": "Mostrar la clave de API",
+      "hideKey": "Ocultar la clave de API",
+      "storedLocally": "Se guarda localmente en la carpeta de configuración de la app.",
+      "savedKeyEndsIn": "La clave guardada termina en",
+      "getApiKey": "Consigue una clave de API de {{provider}}"
+    },
+    "model": {
+      "label": "Modelo",
+      "useCustom": "Usar un modelo personalizado",
+      "customPlaceholder": "identificador-del-modelo",
+      "selectPlaceholder": "Selecciona un modelo…"
+    }
+  },
+  "chatInstructions": {
+    "title": "Instrucciones para el chat",
+    "description": "Ayuda a Capy a entender tus finanzas: patrones habituales, para qué usas cada cuenta, cómo prefieres categorizar. Se aplica a las conversaciones nuevas.",
+    "placeholder": "p. ej. Uso mi tarjeta Chase para los gastos diarios.\nWhole Foods y Trader Joe's son alimentación.\nLas transferencias por Venmo a Sarah son su parte del alquiler.",
+    "saved": "Instrucciones guardadas"
+  },
+  "categories": {
+    "title": "Categorías",
+    "description": "Organiza los grupos y categorías en los que se clasifican tus transacciones. Arrastra para reordenar, renombra al vuelo o archiva las que ya no uses.",
+    "count_one": "{{count}} categoría",
+    "count_many": "{{count}} categorías",
+    "count_other": "{{count}} categorías"
+  },
+  "updates": {
+    "title": "Actualizaciones",
+    "description": "Mantén Capy al día.",
+    "currentVersion": "Versión actual {{version}}",
+    "checking": "Buscando actualizaciones…",
+    "upToDate": "Tienes la última versión.",
+    "available": "Capy {{version}} ya está disponible.",
+    "installRestart": "Instalar y reiniciar",
+    "downloading": "Descargando…",
+    "downloadingPct": "Descargando… {{pct}} %",
+    "restarting": "Reiniciando…",
+    "checkForUpdates": "Buscar actualizaciones"
+  }
+}

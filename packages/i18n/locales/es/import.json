@@ -1,0 +1,127 @@
+{
+  "title": "Importar",
+  "subtitle": {
+    "importing": "Importando tus transacciones…",
+    "review": "Revisa y edita las transacciones importadas",
+    "setup": "Configura tu asistente con IA para importar transacciones",
+    "drop": "Suelta archivos para importar transacciones"
+  },
+  "dropOverlay": "Suelta archivos para importar",
+  "cancelImport": "Cancelar importación",
+  "cancelDialog": {
+    "title": "¿Cancelar la importación?",
+    "description": "Esto descarta los archivos subidos y todas las transacciones que Capy haya extraído. No se puede deshacer.",
+    "keep": "Seguir importando",
+    "discard": "Descartar la importación"
+  },
+  "errors": {
+    "unsupportedType": "{{name}} no es un tipo de archivo compatible",
+    "pdfNeedsAnthropic": "{{name}} omitido — la importación de PDF necesita el proveedor Anthropic",
+    "saveFailed": "No se pudo guardar {{name}}",
+    "providerRequired": "La importación necesita Anthropic u OpenAI configurado."
+  },
+  "dropZone": {
+    "browseLabel": "Buscar archivos para importar",
+    "prompt": "Suelta extractos bancarios, recibos o capturas de pantalla",
+    "filesReady_one": "{{count}} archivo listo",
+    "filesReady_many": "{{count}} archivos listos",
+    "filesReady_other": "{{count}} archivos listos",
+    "uploading": "({{count}} subiendo...)",
+    "duplicateHint": "podría ser un duplicado — importado el {{date}}",
+    "removeFile": "Quitar {{name}}",
+    "instructions": "Instrucciones (opcional)",
+    "instructionsPlaceholder": "p. ej. «Es la exportación de mi presupuesto en Excel, los importes están en las columnas Debe/Haber»",
+    "anyAccount": "Cualquier cuenta",
+    "start": "Empezar importación",
+    "rerunHint": "¿No te gusta el resultado? Cancela, dale más instrucciones a Capy y vuelve a ejecutarla."
+  },
+  "unsupported": {
+    "title": "Configura tu asistente con IA",
+    "body": "Elige un proveedor de IA en los ajustes antes de importar transacciones.",
+    "openSettings": "Abrir ajustes"
+  },
+  "progress": {
+    "normalizing": "Normalizando",
+    "enhancing": "Enriqueciendo",
+    "stop": "Detener",
+    "enrich": "Enriquecer {{count}}",
+    "countOf": "{{done}} de {{total}}",
+    "countRows_one": "{{count}} fila",
+    "countRows_many": "{{count}} filas",
+    "countRows_other": "{{count}} filas"
+  },
+  "preview": {
+    "certainDuplicates_one": "{{count}} duplicado detectado — ya está deseleccionado",
+    "certainDuplicates_many": "{{count}} duplicados detectados — ya están deseleccionados",
+    "certainDuplicates_other": "{{count}} duplicados detectados — ya están deseleccionados",
+    "possibleDuplicates_one": "{{count}} posible duplicado (fecha parecida) — revísalo antes de combinar",
+    "possibleDuplicates_many": "{{count}} posibles duplicados (fecha parecida) — revísalos antes de combinar",
+    "possibleDuplicates_other": "{{count}} posibles duplicados (fecha parecida) — revísalos antes de combinar",
+    "uncategorized": "{{count}} sin categoría",
+    "lowConfidence": "{{count}} con confianza baja",
+    "ofTotalSelected": "de {{total}} transacciones seleccionadas para importar",
+    "searchPlaceholder": "Buscar transacciones…",
+    "clearSearch": "Limpiar búsqueda",
+    "selectedCount": "{{count}} seleccionadas",
+    "merging": "Combinando…",
+    "merge": "Combinar",
+    "mergeSuccess_one": "Se combinó {{count}} transacción",
+    "mergeSuccess_many": "Se combinaron {{count}} transacciones",
+    "mergeSuccess_other": "Se combinaron {{count}} transacciones",
+    "mergeSuccessWithAccounts_one": "Se combinó {{count}} transacción y se creó {{accounts}}",
+    "mergeSuccessWithAccounts_many": "Se combinaron {{count}} transacciones y se crearon {{accounts}}",
+    "mergeSuccessWithAccounts_other": "Se combinaron {{count}} transacciones y se crearon {{accounts}}",
+    "accountsCreated_one": "{{count}} cuenta",
+    "accountsCreated_many": "{{count}} cuentas",
+    "accountsCreated_other": "{{count}} cuentas",
+    "mergeFailed": "Falló la combinación: {{error}}",
+    "unknownError": "Error desconocido",
+    "mapAccountsTitle": "Asignar cuentas",
+    "mapAccountsDescription": "Dónde van a parar las transacciones de cada cuenta importada: a una cuenta existente o a una creada al combinar.",
+    "done": "Listo",
+    "mergeConfirmTitle_one": "¿Combinar {{count}} transacción?",
+    "mergeConfirmTitle_many": "¿Combinar {{count}} transacciones?",
+    "mergeConfirmTitle_other": "¿Combinar {{count}} transacciones?",
+    "mergeConfirmDescriptionBefore": "Esto añadirá ",
+    "mergeConfirmDescriptionAfter": " a tu presupuesto.",
+    "unmappedTransfers_one": "{{count}} transferencia no tenía contraparte — se importará como ingreso/gasto.",
+    "unmappedTransfers_many": "{{count}} transferencias no tenían contraparte — se importarán como ingresos/gastos.",
+    "unmappedTransfers_other": "{{count}} transferencias no tenían contraparte — se importarán como ingresos/gastos."
+  },
+  "table": {
+    "selectAll": "Seleccionar todas las transacciones",
+    "includeTransaction": "Incluir transacción",
+    "duplicateTitle": "Duplicado de una transacción existente",
+    "possibleDuplicateTitle": "Posible duplicado (fecha parecida)",
+    "columns": {
+      "date": "Fecha",
+      "merchant": "Comercio",
+      "amount": "Importe",
+      "type": "Tipo",
+      "account": "Cuenta",
+      "category": "Categoría"
+    },
+    "noTransactionsTitle": "No se encontraron transacciones",
+    "noTransactionsDescription": "Prueba a ajustar la búsqueda.",
+    "noAccount": "ninguna",
+    "newAccountTag": "nueva",
+    "toAccount": "A la cuenta",
+    "fromAccount": "Desde la cuenta",
+    "transferPlaceholder": "Transferencia",
+    "uncategorizedPlaceholder": "Sin categoría",
+    "confidenceTitle": "confianza {{confidence}}",
+    "types": {
+      "expense": "gasto",
+      "income": "ingreso",
+      "transfer": "transferencia"
+    }
+  },
+  "editors": {
+    "merchantPlaceholder": "Comercio"
+  },
+  "accountMapping": {
+    "searchPlaceholder": "Buscar cuentas…",
+    "empty": "No se encontraron cuentas.",
+    "create": "Crear «{{source}}»"
+  }
+}

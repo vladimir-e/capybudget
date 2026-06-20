@@ -1,0 +1,382 @@
+{
+  "selector": {
+    "welcome": "Bienvenido",
+    "appName": "Capy Budget",
+    "tagline": "Gratis, de código abierto y con superpoderes de IA.",
+    "newBudget": "Nuevo presupuesto",
+    "openExisting": "Abrir uno existente…",
+    "whatsAFolder": "¿Qué es una carpeta de presupuesto?",
+    "folderExplainer": "Capy guarda todo como archivos simples dentro de una carpeta que tú eliges: transactions.csv, budget.json. Sincroniza entre dispositivos poniéndola en iCloud o Google Drive.",
+    "recent": "Recientes",
+    "removeFromRecents": "Quitar {{name}} de los recientes",
+    "newDialog": {
+      "title": "Nuevo presupuesto",
+      "description": "Ponle nombre y elige una moneda para mostrar.",
+      "name": "Nombre",
+      "currency": "Moneda",
+      "create": "Crear"
+    },
+    "errorFolderNotEmpty": {
+      "title": "Esta carpeta no está vacía",
+      "description": "Elige una carpeta vacía para empezar un presupuesto nuevo."
+    },
+    "errorNoBudget": {
+      "title": "No hay ningún presupuesto en esta carpeta",
+      "description": "Elige una carpeta que ya tenga un presupuesto, o una carpeta vacía para empezar uno nuevo."
+    },
+    "pickAnother": "Elegir otra carpeta",
+    "defaultName": "Mi presupuesto",
+    "toast": {
+      "folderGone": "Esta carpeta ya no existe.",
+      "folderGoneDescription": "Quitada de los recientes.",
+      "openFailed": "No se pudo abrir el presupuesto",
+      "createFailed": "No se pudo crear el presupuesto",
+      "created": "Presupuesto nuevo creado"
+    }
+  },
+  "shell": {
+    "revealInFinder": "Mostrar en el Finder",
+    "closeBudget": "Cerrar presupuesto",
+    "newTransaction": "Nueva transacción",
+    "addTransaction": "Añadir transacción",
+    "closeTransactionForm": "Cerrar el formulario de transacción",
+    "getDesktopApp": "Descargar la app de escritorio",
+    "viewSource": "Ver el código en GitHub",
+    "github": "GitHub",
+    "expandSidebar": "Expandir la barra lateral",
+    "collapseSidebar": "Contraer la barra lateral"
+  },
+  "account": {
+    "dialog": {
+      "addTitle": "Añadir cuenta",
+      "editTitle": "Editar cuenta",
+      "name": "Nombre",
+      "namePlaceholder": "p. ej. Cuenta corriente BofA",
+      "nameRequired": "El nombre de la cuenta es obligatorio",
+      "type": "Tipo",
+      "openingBalance": "Saldo inicial",
+      "create": "Crear cuenta"
+    },
+    "toast": {
+      "created": "Cuenta creada",
+      "updated": "Cuenta actualizada",
+      "archived": "{{name}} archivada",
+      "unarchived": "{{name}} desarchivada",
+      "deleted": "{{name}} eliminada"
+    },
+    "selector": {
+      "placeholder": "Selecciona una cuenta…",
+      "search": "Buscar cuentas…",
+      "empty": "No se encontraron cuentas.",
+      "all": "Todas las cuentas",
+      "unset": "Sin asignar",
+      "to": "A…",
+      "clearFilter": "Quitar el filtro de cuenta"
+    },
+    "fallbackLabel": "cuenta",
+    "notFound": "Cuenta no encontrada",
+    "cannotArchive": {
+      "title": "No se puede archivar la cuenta",
+      "description": "{{name}} todavía tiene un saldo de {{balance}}. Añade una transacción para dejarlo en cero primero — las cuentas archivadas se ocultan de tu presupuesto."
+    },
+    "cannotDelete": {
+      "title": "No se puede eliminar la cuenta",
+      "description": "{{name}} tiene transacciones que se perderían. Elimínalas o muévelas primero, o archiva la cuenta en su lugar."
+    }
+  },
+  "sidebar": {
+    "label": "Cuentas",
+    "netWorth": "Patrimonio neto",
+    "allAccounts": "Todas las cuentas",
+    "archived": "Archivadas",
+    "addAccount": "Añadir cuenta"
+  },
+  "allAccounts": {
+    "title": "Todas las cuentas",
+    "transactionCount_one": "{{count}} transacción",
+    "transactionCount_many": "{{count}} transacciones",
+    "transactionCount_other": "{{count}} transacciones"
+  },
+  "netWorthFilter": {
+    "trigger": "Elegir cuentas en Patrimonio neto",
+    "title": "El patrimonio neto incluye",
+    "subtitle": "Desmarca para excluir de los totales",
+    "empty": "No hay cuentas activas."
+  },
+  "canonicalCategory": {
+    "Paycheck": "Nómina",
+    "Other Income": "Otros ingresos",
+    "Housing": "Vivienda",
+    "Bills & Utilities": "Facturas y suministros",
+    "Subscriptions": "Suscripciones",
+    "Groceries": "Alimentación",
+    "Dining Out": "Comer fuera",
+    "Transportation": "Transporte",
+    "Alcohol & Smoking": "Alcohol y tabaco",
+    "Health & Beauty": "Salud y belleza",
+    "Clothing": "Ropa",
+    "Fun & Hobbies": "Ocio y aficiones",
+    "Allowances": "Asignaciones",
+    "Education & Business": "Educación y negocios",
+    "Gifts & Giving": "Regalos y donaciones",
+    "Housekeeping & Maintenance": "Hogar y mantenimiento",
+    "Big Purchases": "Compras grandes",
+    "Travel": "Viajes",
+    "Taxes & Fees": "Impuestos y comisiones"
+  },
+  "canonicalGroup": {
+    "Income": "Ingresos",
+    "Fixed": "Fijos",
+    "Daily Living": "Día a día",
+    "Personal": "Personal",
+    "Irregular": "Irregulares",
+    "Archived": "Archivados"
+  },
+  "accountType": {
+    "cash": "Efectivo",
+    "checking": "Cuenta corriente",
+    "savings": "Ahorros",
+    "credit_card": "Tarjeta de crédito",
+    "loan": "Préstamos",
+    "asset": "Activos",
+    "crypto": "Cripto"
+  },
+  "category": {
+    "panel": {
+      "groupNamePlaceholder": "Nombre del grupo",
+      "addGroup": "Añadir grupo",
+      "categoryNamePlaceholder": "Nombre de la categoría",
+      "newCategoryName": "Nueva categoría"
+    },
+    "uncategorized": "Sin categoría",
+    "archivedGroup": "Archivados",
+    "menu": {
+      "rename": "Renombrar",
+      "archive": "Archivar"
+    },
+    "toast": {
+      "added": "Categoría añadida",
+      "renamed": "Categoría renombrada",
+      "archived": "{{name}} archivada",
+      "unarchived": "{{name}} desarchivada",
+      "deleted": "{{name}} eliminada",
+      "groupCreated": "Grupo «{{name}}» creado"
+    },
+    "archiveDialog": {
+      "title": "Archivar {{name}}",
+      "description": "Las categorías archivadas no aparecerán en los selectores."
+    },
+    "deleteDialog": {
+      "title": "Eliminar {{name}}",
+      "description": "Esto eliminará la categoría. Las transacciones que la usen quedarán sin categoría."
+    },
+    "selector": {
+      "placeholder": "Selecciona una categoría…",
+      "search": "Buscar categorías…",
+      "empty": "No se encontraron categorías.",
+      "all": "Todas las categorías",
+      "uncategorized": "Sin categoría",
+      "clearFilter": "Quitar el filtro de categoría"
+    }
+  },
+  "currency": {
+    "search": "Buscar moneda…",
+    "empty": "No se encontraron monedas."
+  },
+  "currencyName": {
+    "USD": "Dólar estadounidense",
+    "EUR": "Euro",
+    "GBP": "Libra esterlina",
+    "JPY": "Yen japonés",
+    "CNY": "Yuan chino",
+    "CHF": "Franco suizo",
+    "CAD": "Dólar canadiense",
+    "AUD": "Dólar australiano",
+    "NZD": "Dólar neozelandés",
+    "HKD": "Dólar de Hong Kong",
+    "SGD": "Dólar de Singapur",
+    "INR": "Rupia india",
+    "KRW": "Won surcoreano",
+    "TWD": "Dólar taiwanés",
+    "THB": "Baht tailandés",
+    "MYR": "Ringgit malayo",
+    "IDR": "Rupia indonesia",
+    "PHP": "Peso filipino",
+    "VND": "Dong vietnamita",
+    "PKR": "Rupia pakistaní",
+    "BDT": "Taka bangladesí",
+    "RUB": "Rublo ruso",
+    "UAH": "Grivna ucraniana",
+    "KZT": "Tenge kazajo",
+    "GEL": "Lari georgiano",
+    "AMD": "Dram armenio",
+    "AZN": "Manat azerbaiyano",
+    "UZS": "Som uzbeko",
+    "TRY": "Lira turca",
+    "PLN": "Esloti polaco",
+    "CZK": "Corona checa",
+    "HUF": "Forinto húngaro",
+    "RON": "Leu rumano",
+    "SEK": "Corona sueca",
+    "NOK": "Corona noruega",
+    "DKK": "Corona danesa",
+    "ILS": "Séquel israelí",
+    "AED": "Dírham de los EAU",
+    "SAR": "Riyal saudí",
+    "ZAR": "Rand sudafricano",
+    "EGP": "Libra egipcia",
+    "NGN": "Naira nigeriana",
+    "MXN": "Peso mexicano",
+    "BRL": "Real brasileño",
+    "ARS": "Peso argentino",
+    "CLP": "Peso chileno",
+    "COP": "Peso colombiano"
+  },
+  "transaction": {
+    "type": {
+      "expense": "Gasto",
+      "income": "Ingreso",
+      "transfer": "Transferencia"
+    },
+    "form": {
+      "addPrompt": "Añadir transacción…",
+      "merchantPlaceholder": "Comercio",
+      "categoryPlaceholder": "Categoría",
+      "notesPlaceholder": "Notas (opcional)",
+      "selectAccount": "Selecciona una cuenta",
+      "selectBothAccounts": "Selecciona ambas cuentas"
+    },
+    "toast": {
+      "added": "Transacción añadida",
+      "updated": "Transacción actualizada",
+      "deleted": "Transacción eliminada"
+    },
+    "list": {
+      "date": "Fecha",
+      "account": "Cuenta",
+      "merchant": "Comercio",
+      "category": "Categoría",
+      "amount": "Importe",
+      "selectAll": "Seleccionar todas las transacciones",
+      "select": "Seleccionar transacción",
+      "emptyTitle": "Aún no hay transacciones",
+      "emptyDescription": "Las transacciones aparecerán aquí en cuanto las añadas.",
+      "noMatchTitle": "No hay transacciones que coincidan",
+      "noMatchDescription": "Prueba a ajustar la búsqueda o los filtros."
+    },
+    "row": {
+      "uncategorized": "Sin categoría",
+      "transfer": "Transferencia",
+      "unknownAccount": "Desconocida",
+      "editNote": "Editar la nota de la transacción"
+    },
+    "delete": {
+      "titleTransaction": "Eliminar transacción",
+      "titleTransfer": "Eliminar transferencia",
+      "transferDescription": "Esto eliminará las dos partes de la transferencia.",
+      "transactionDescription": "Esta acción no se puede deshacer."
+    }
+  },
+  "bulk": {
+    "selected": "{{count}} seleccionadas",
+    "delete": "Eliminar",
+    "moveToAccount": "Mover a una cuenta",
+    "changeDate": "Cambiar la fecha",
+    "changeMerchant": "Cambiar el comercio",
+    "clearSelection": "Quitar la selección",
+    "merchantPlaceholder": "Nombre del comercio",
+    "apply": "Aplicar",
+    "uncategorized": "Sin categoría",
+    "mixedCategories": "Categorías mixtas",
+    "toast": {
+      "deleted_one": "Se eliminó {{count}} transacción",
+      "deleted_many": "Se eliminaron {{count}} transacciones",
+      "deleted_other": "Se eliminaron {{count}} transacciones",
+      "categorized_one": "Se categorizó {{count}} transacción como {{label}}",
+      "categorized_many": "Se categorizaron {{count}} transacciones como {{label}}",
+      "categorized_other": "Se categorizaron {{count}} transacciones como {{label}}",
+      "moved_one": "Se movió {{count}} transacción a {{label}}",
+      "moved_many": "Se movieron {{count}} transacciones a {{label}}",
+      "moved_other": "Se movieron {{count}} transacciones a {{label}}",
+      "dateChanged_one": "Se cambió la fecha de {{count}} transacción a {{date}}",
+      "dateChanged_many": "Se cambió la fecha de {{count}} transacciones a {{date}}",
+      "dateChanged_other": "Se cambió la fecha de {{count}} transacciones a {{date}}",
+      "merchantChanged_one": "Se cambió el comercio de {{count}} transacción",
+      "merchantChanged_many": "Se cambió el comercio de {{count}} transacciones",
+      "merchantChanged_other": "Se cambió el comercio de {{count}} transacciones"
+    },
+    "deleteDialog": {
+      "title_one": "¿Eliminar {{count}} transacción?",
+      "title_many": "¿Eliminar {{count}} transacciones?",
+      "title_other": "¿Eliminar {{count}} transacciones?",
+      "description_one": "Esto eliminará permanentemente {{count}} transacción por un total de {{total}}.",
+      "description_many": "Esto eliminará permanentemente {{count}} transacciones por un total de {{total}}.",
+      "description_other": "Esto eliminará permanentemente {{count}} transacciones por un total de {{total}}.",
+      "transferNote": " Las parejas de transferencia se eliminarán por ambos lados.",
+      "confirm_one": "Eliminar {{count}} transacción",
+      "confirm_many": "Eliminar {{count}} transacciones",
+      "confirm_other": "Eliminar {{count}} transacciones"
+    },
+    "moveDialog": {
+      "title": "Mover a una cuenta",
+      "description_one": "Mueve {{count}} transacción a otra cuenta.",
+      "description_many": "Mueve {{count}} transacciones a otra cuenta.",
+      "description_other": "Mueve {{count}} transacciones a otra cuenta.",
+      "transferNote": " Las transferencias se omitirán."
+    },
+    "dateDialog": {
+      "title": "Cambiar la fecha",
+      "description_one": "Fija una fecha nueva para {{count}} transacción.",
+      "description_many": "Fija una fecha nueva para {{count}} transacciones.",
+      "description_other": "Fija una fecha nueva para {{count}} transacciones."
+    },
+    "merchantDialog": {
+      "title": "Cambiar el comercio",
+      "description_one": "Fija un nombre de comercio nuevo para {{count}} transacción.",
+      "description_many": "Fija un nombre de comercio nuevo para {{count}} transacciones.",
+      "description_other": "Fija un nombre de comercio nuevo para {{count}} transacciones.",
+      "transferNote": " Las transferencias se omitirán."
+    }
+  },
+  "filter": {
+    "type": "Tipo",
+    "showOnly": "Mostrar solo",
+    "uncategorized": "Sin categoría",
+    "noMerchant": "Sin comercio",
+    "expense": "Gasto",
+    "income": "Ingreso",
+    "transfer": "Transferencia"
+  },
+  "toolbar": {
+    "search": "Buscar transacciones…",
+    "clearSearch": "Limpiar búsqueda",
+    "clearFilters": "Quitar todos los filtros",
+    "clear": "Limpiar",
+    "moreFilters": "Más filtros"
+  },
+  "dateRange": {
+    "allTime": "Todo el tiempo",
+    "thisWeek": "Esta semana",
+    "thisMonth": "Este mes",
+    "lastMonth": "El mes pasado",
+    "last30Days": "Últimos 30 días",
+    "last90Days": "Últimos 90 días",
+    "last365Days": "Últimos 365 días",
+    "thisYear": "Este año",
+    "customRange": "Rango personalizado…",
+    "presets": "Predefinidos",
+    "apply": "Aplicar",
+    "clearFilter": "Quitar el filtro de fecha"
+  },
+  "browser": {
+    "search": "Buscar transacciones…",
+    "clearSearch": "Limpiar búsqueda",
+    "searchAria": "Buscar transacciones",
+    "categoriesChip_one": "{{count}} categoría",
+    "categoriesChip_many": "{{count}} categorías",
+    "categoriesChip_other": "{{count}} categorías",
+    "unknown": "Desconocido",
+    "uncategorized": "Sin categoría",
+    "noMatch": "No hay transacciones que coincidan"
+  }
+}
