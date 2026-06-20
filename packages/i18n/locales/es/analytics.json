@@ -108,7 +108,7 @@
     "spentThisMonth": "Gastado este mes",
     "trackingToward": "Previsión",
     "overBudget": "Te has pasado del presupuesto",
-    "noCategoriesTitle": "No hay categorías que presupuestar",
+    "noCategoriesTitle": "No hay categorías para presupuestar",
     "addCategories": "Añade categorías para empezar a hacer seguimiento.",
     "showOnlyTracked": "Mostrar solo con seguimiento",
     "trackedCount": "({{targeted}} de {{total}})",

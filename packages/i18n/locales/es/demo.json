@@ -5,11 +5,11 @@
   },
   "scenarios": {
     "underwater": {
-      "name": "Bajo el agua",
+      "name": "Con el agua al cuello",
       "description": "Muchas deudas, patrimonio neto negativo, el saldo va por mal camino"
     },
     "paycheck-to-paycheck": {
-      "name": "Al día",
+      "name": "Viviendo al día",
       "description": "Los ingresos igualan los gastos, colchón de ahorro mínimo, patrimonio neto estancado"
     },
     "no-stress": {
