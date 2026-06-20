@@ -213,7 +213,7 @@ export function TransactionsBrowser({
 
       {/* List — `overflow-auto` here handles the small-list (non-virtualized)
        *  case where `TransactionList` doesn't wrap in its own scroll container.
-       *  In the virtualized branch the inner scroller's `calc(100vh - 220px)`
+       *  In the virtualized branch the inner scroller's `calc(100dvh - 220px)`
        *  cap exceeds the modal's 80vh-minus-chrome budget, so this div scrolls
        *  too — harmless when invisible, but with a styled gutter on both it
        *  reads as two scrollbars. Gate the gutter on who actually owns the

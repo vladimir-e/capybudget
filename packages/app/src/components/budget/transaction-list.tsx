@@ -289,7 +289,13 @@ export function TransactionList({
     <div
       ref={scrollContainerRef}
       className="list-scroll w-full overflow-auto"
-      style={{ maxHeight: "calc(100vh - 220px)" }}
+      // `dvh`, not `vh`: the 220px budgets the app header + view title + toolbar
+      // so the list fills the rest without the page scrolling. On iPad Safari
+      // the demo locks body scroll and pins to the dynamic viewport, so `100vh`
+      // (the larger toolbar-collapsed height) overshoots the visible area and
+      // pushes the title up under the header. `dvh` tracks what's actually
+      // visible; on the desktop app dvh == vh, so nothing changes there.
+      style={{ maxHeight: "calc(100dvh - 220px)" }}
     >
       <table
         data-slot="table"
