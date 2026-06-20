@@ -9,6 +9,10 @@ CHANGELOG PHILOSOPHY:
 - Resist the urge to be thorough here. Thoroughness goes in specs, not changelog.
 -->
 
+## Unreleased
+
+- **Language** - Spanish UI, with region-aware number, date, and calendar formatting.
+
 ## 1.1.0 — 2026-06-18
 
 - **Currency** - Configurable display currency (Settings + new-budget picker), 48 currencies; display-only, no conversion.
