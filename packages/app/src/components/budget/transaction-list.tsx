@@ -286,16 +286,13 @@ export function TransactionList({
   const paddingBottom = virtualItems.length > 0 ? totalSize - virtualItems[virtualItems.length - 1].end : 0;
 
   return (
+    // Fill the parent and own the vertical scroll. Callers (the account view,
+    // the drilldown modal) hand this a bounded flex height, so the list scrolls
+    // internally while the surrounding chrome stays put — no viewport-math
+    // height cap to mis-budget and no second scroller in the ancestor chain.
     <div
       ref={scrollContainerRef}
-      className="list-scroll w-full overflow-auto"
-      // `dvh`, not `vh`: the 220px budgets the app header + view title + toolbar
-      // so the list fills the rest without the page scrolling. On iPad Safari
-      // the demo locks body scroll and pins to the dynamic viewport, so `100vh`
-      // (the larger toolbar-collapsed height) overshoots the visible area and
-      // pushes the title up under the header. `dvh` tracks what's actually
-      // visible; on the desktop app dvh == vh, so nothing changes there.
-      style={{ maxHeight: "calc(100dvh - 220px)" }}
+      className="list-scroll h-full w-full overflow-auto"
     >
       <table
         data-slot="table"
