@@ -107,7 +107,10 @@
   "monthlyBudget": {
     "spentThisMonth": "Gastado este mes",
     "trackingToward": "Previsión",
-    "overBudget": "Te has pasado del presupuesto",
+    "overBudget": "Fuera de presupuesto",
+    "overBudgetUnit_one": "categoría",
+    "overBudgetUnit_many": "categorías",
+    "overBudgetUnit_other": "categorías",
     "noCategoriesTitle": "No hay categorías para presupuestar",
     "addCategories": "Añade categorías para empezar a hacer seguimiento.",
     "showOnlyTracked": "Mostrar solo con seguimiento",
