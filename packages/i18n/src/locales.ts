@@ -1,5 +1,5 @@
 export interface LocaleMeta {
-  /** i18next language code, also the BCP-47 tag passed to Intl formatters. */
+  /** i18next catalog language code; the base of any region-bearing format tag. */
   code: string;
   /** Endonym shown in the language picker. */
   label: string;
@@ -22,10 +22,15 @@ export function isSupportedLocale(value: string): value is Locale {
   return SUPPORTED_CODES.has(value);
 }
 
+/** The catalog-language subtag of a BCP-47 tag: "en-GB" → "en". */
+export function primarySubtag(tag: string): string {
+  return tag.toLowerCase().split("-")[0];
+}
+
 // Matches on the primary subtag so "ru-RU" and "en-GB" resolve; unknown → en.
 export function normalizeLocale(tag: string | null | undefined): Locale {
   if (!tag) return DEFAULT_LOCALE;
-  const primary = tag.toLowerCase().split("-")[0];
+  const primary = primarySubtag(tag);
   return isSupportedLocale(primary) ? primary : DEFAULT_LOCALE;
 }
 

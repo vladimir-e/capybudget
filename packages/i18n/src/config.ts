@@ -3,7 +3,9 @@ import { initReactI18next } from "react-i18next";
 import { resources, NAMESPACES, DEFAULT_NAMESPACE } from "./resources";
 import {
   DEFAULT_LOCALE,
-  normalizeLocale,
+  SUPPORTED_LOCALES,
+  isSupportedLocale,
+  primarySubtag,
   type Locale,
 } from "./locales";
 
@@ -29,22 +31,37 @@ function writeStoredLocale(locale: Locale): void {
   }
 }
 
+// Resolves the full BCP-47 format tag, gated on language support: a region-
+// bearing tag is kept whole ("en-GB" stays "en-GB") only when its language is
+// supported, so i18next resolves it to the base catalog while the region drives
+// Intl formatting. An unsupported language collapses to the default — we don't
+// want es-MX number formatting under an English UI. The stored value may be a
+// legacy bare code or a full tag; both work, a bare code just means no region.
+//
 // Synchronous so the first paint already has the right language — no flash of
 // English. On the Tauri shell `navigator.language` is the OS locale, so no
 // separate native call is needed.
-function detectInitialLocale(): Locale {
+function detectInitialLocale(): string {
   const stored = readStoredLocale();
-  if (stored) return normalizeLocale(stored);
+  if (stored) return gateToSupported(stored);
   if (typeof navigator !== "undefined") {
-    return normalizeLocale(navigator.language);
+    return gateToSupported(navigator.language);
   }
   return DEFAULT_LOCALE;
+}
+
+function gateToSupported(tag: string): string {
+  return isSupportedLocale(primarySubtag(tag)) ? tag : DEFAULT_LOCALE;
 }
 
 void i18n.use(initReactI18next).init({
   resources,
   lng: detectInitialLocale(),
   fallbackLng: DEFAULT_LOCALE,
+  // A region-bearing tag ("en-GB") resolves to its base catalog ("en") while
+  // i18n.language keeps the region for Intl; nonExplicit covers any region.
+  supportedLngs: SUPPORTED_LOCALES.map((l) => l.code),
+  nonExplicitSupportedLngs: true,
   ns: NAMESPACES,
   defaultNS: DEFAULT_NAMESPACE,
   interpolation: {
