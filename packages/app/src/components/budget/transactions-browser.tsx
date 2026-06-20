@@ -6,6 +6,7 @@ import { useLocale, useTranslation } from "@capybudget/i18n";
 import { Input } from "@/components/ui/input";
 import { EmptyState } from "@/components/ui/empty-state";
 import { TransactionList } from "@/components/budget/transaction-list";
+import { VIRTUALIZE_THRESHOLD } from "@/components/budget/transaction-list-utils";
 import { useAccounts, useCategories } from "@/hooks/use-budget-data";
 import { useCategoryDisplayName } from "@/lib/display-names";
 import {
@@ -167,6 +168,13 @@ export function TransactionsBrowser({
   const hasSearchQuery = search.trim().length > 0;
   const emptyFromSearch = hasSearchQuery && visible.length === 0;
 
+  // Who owns the scroll decides who carries the styled `.list-scroll` gutter.
+  // Below the virtualize threshold `TransactionList` renders a plain table and
+  // this outer div is the scroller; at/above it the list wraps its own inner
+  // scroller (which carries `.list-scroll`) and this div should stay plain —
+  // otherwise both scroll and you get two reserved gutters side by side.
+  const outerOwnsScroll = visible.length < VIRTUALIZE_THRESHOLD;
+
   return (
     <div className="flex flex-col gap-3 min-h-0 flex-1">
       {/* Header */}
@@ -204,12 +212,15 @@ export function TransactionsBrowser({
       )}
 
       {/* List — `overflow-auto` here handles the small-list (non-virtualized)
-       *  case where `TransactionList` doesn't wrap in its own scroll
-       *  container. The virtualized branch has its own inner scroller capped
-       *  at `calc(100vh - 220px)`, which is comfortably larger than the
-       *  modal's 80vh budget minus chrome, so the inner cap effectively
-       *  defers to the parent flex height in modal context. */}
-      <div className="list-scroll flex-1 min-h-0 overflow-auto">
+       *  case where `TransactionList` doesn't wrap in its own scroll container.
+       *  In the virtualized branch the inner scroller's `calc(100vh - 220px)`
+       *  cap exceeds the modal's 80vh-minus-chrome budget, so this div scrolls
+       *  too — harmless when invisible, but with a styled gutter on both it
+       *  reads as two scrollbars. Gate the gutter on who actually owns the
+       *  scroll (see `outerOwnsScroll`). */}
+      <div
+        className={`flex-1 min-h-0 overflow-auto ${outerOwnsScroll ? "list-scroll" : ""}`}
+      >
         {emptyFromSearch ? (
           <EmptyState
             title={
