@@ -5,16 +5,13 @@ import {
   DayPicker,
   getDefaultClassNames,
   type DayButton,
-  type Locale,
 } from "react-day-picker"
-import { enUS, ru } from "react-day-picker/locale"
-import { useLocale } from "@capybudget/i18n"
+import { useFormatLocale } from "@capybudget/i18n"
 
 import { cn } from "@/lib/utils"
 import { Button, buttonVariants } from "@/components/ui/button"
 import { ChevronLeftIcon, ChevronRightIcon, ChevronDownIcon } from "lucide-react"
-
-const DAY_PICKER_LOCALES: Record<string, Locale> = { en: enUS, ru }
+import { resolveCalendarLocale } from "@/components/ui/calendar-locale"
 
 function Calendar({
   className,
@@ -30,12 +27,14 @@ function Calendar({
   buttonVariant?: React.ComponentProps<typeof Button>["variant"]
 }) {
   const defaultClassNames = getDefaultClassNames()
-  const activeLocale = useLocale()
-  const resolvedLocale = locale ?? DAY_PICKER_LOCALES[activeLocale]
+  const formatTag = useFormatLocale()
+  const resolved = resolveCalendarLocale(formatTag)
+  const resolvedLocale = locale ?? resolved.locale
 
   return (
     <DayPicker
       showOutsideDays={showOutsideDays}
+      weekStartsOn={resolved.weekStartsOn}
       className={cn(
         "group/calendar bg-background p-2 [--cell-radius:var(--radius-md)] [--cell-size:--spacing(7)] in-data-[slot=card-content]:bg-transparent in-data-[slot=popover-content]:bg-transparent",
         String.raw`rtl:**:[.rdp-button\_next>svg]:rotate-180`,
@@ -46,7 +45,7 @@ function Calendar({
       locale={resolvedLocale}
       formatters={{
         formatMonthDropdown: (date) =>
-          date.toLocaleString(resolvedLocale?.code, { month: "short" }),
+          date.toLocaleString(formatTag, { month: "short" }),
         ...formatters,
       }}
       classNames={{
@@ -168,7 +167,7 @@ function Calendar({
           )
         },
         DayButton: ({ ...props }) => (
-          <CalendarDayButton locale={locale} {...props} />
+          <CalendarDayButton formatTag={formatTag} {...props} />
         ),
         WeekNumber: ({ children, ...props }) => {
           return (
@@ -190,9 +189,9 @@ function CalendarDayButton({
   className,
   day,
   modifiers,
-  locale,
+  formatTag,
   ...props
-}: React.ComponentProps<typeof DayButton> & { locale?: Partial<Locale> }) {
+}: React.ComponentProps<typeof DayButton> & { formatTag?: string }) {
   const defaultClassNames = getDefaultClassNames()
 
   const ref = React.useRef<HTMLButtonElement>(null)
@@ -204,7 +203,7 @@ function CalendarDayButton({
     <Button
       variant="ghost"
       size="icon"
-      data-day={day.date.toLocaleDateString(locale?.code)}
+      data-day={day.date.toLocaleDateString(formatTag)}
       data-selected-single={
         modifiers.selected &&
         !modifiers.range_start &&
