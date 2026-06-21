@@ -102,6 +102,10 @@ export function resolveRate(
   defaultCurrency: string,
   table: SeedRateTable = SEED_RATES,
 ): ResolvedRate {
+  // The default is the base — definitionally 1.0, from neither the table nor an
+  // override. No provenance tag truly fits, but a foreign row never renders for
+  // the default and `buildTodayRates` reads only `.rate`, so no UI surfaces this
+  // tag; "seed" is the inert placeholder, not a claim the table supplied it.
   if (currency === defaultCurrency) return { rate: 1, source: "seed" };
 
   const entry = currencies[currency];
