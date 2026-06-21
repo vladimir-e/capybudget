@@ -47,6 +47,9 @@ export function useBudgetFile<T>(
       const prev = queryClient.getQueryData<T>(queryKey) ?? data ?? defaultValue
       const next =
         typeof update === "function" ? (update as (prev: T) => T)(prev) : update
+      // A functional updater that returns its input unchanged is a no-op — skip
+      // the disk write so a "seed if missing" caller is free to call every render.
+      if (next === prev) return Promise.resolve()
       // Update the cache before awaiting so a back-to-back save composes from
       // this value, not the stale render-time snapshot.
       queryClient.setQueryData(queryKey, next)

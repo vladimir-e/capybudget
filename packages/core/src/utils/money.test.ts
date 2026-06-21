@@ -263,7 +263,7 @@ describe("resolveBudgetCurrency", () => {
     ).toBe(2);
   });
 
-  it("keeps only the default entry — foreign entries are U3b's concern", () => {
+  it("carries foreign entries through with their rate and rateSource intact", () => {
     expect(
       resolveBudgetCurrency({
         defaultCurrency: "USD",
@@ -274,8 +274,42 @@ describe("resolveBudgetCurrency", () => {
       }),
     ).toEqual({
       defaultCurrency: "USD",
-      currencies: { USD: { decimals: 2, symbolPosition: "before" } },
+      currencies: {
+        USD: { decimals: 2, symbolPosition: "before" },
+        EUR: { decimals: 2, symbolPosition: "before", rate: 1.1, rateSource: "manual" },
+      },
     });
+  });
+
+  it("backfills a foreign entry's missing display knobs from its curated defaults", () => {
+    expect(
+      resolveBudgetCurrency({
+        defaultCurrency: "USD",
+        currencies: {
+          USD: { decimals: 2, symbolPosition: "before" },
+          RUB: { rate: 0.011, rateSource: "manual" } as never,
+        },
+      }),
+    ).toEqual({
+      defaultCurrency: "USD",
+      currencies: {
+        USD: { decimals: 2, symbolPosition: "before" },
+        RUB: { decimals: 0, symbolPosition: "after", rate: 0.011, rateSource: "manual" },
+      },
+    });
+  });
+
+  it("retains a foreign entry even when no account uses it (persist-when-empty)", () => {
+    // The map keeps unused entries; only the rows are gated on in-use currencies.
+    const round1 = resolveBudgetCurrency({
+      defaultCurrency: "USD",
+      currencies: {
+        USD: { decimals: 2, symbolPosition: "before" },
+        EUR: { decimals: 2, symbolPosition: "before", rate: 1.07, rateSource: "manual" },
+      },
+    });
+    const round2 = resolveBudgetCurrency(round1);
+    expect(round2).toEqual(round1);
   });
 });
 

@@ -2,13 +2,17 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { cleanup, render, screen } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { open as shellOpen } from "@tauri-apps/plugin-shell"
-import type { BudgetMeta, CurrencySettings } from "@capybudget/core"
+import { makeAccount } from "@/test/factories"
+import type { Account, BudgetMeta, CurrencySettings } from "@capybudget/core"
 import { CurrencySection } from "./currency-section"
 
 const setCurrency = vi.fn()
 const setBudgetFormat = vi.fn()
+const ensureCurrency = vi.fn()
+const setCurrencyEntry = vi.fn()
 
 let meta: BudgetMeta
+let accounts: Account[]
 
 vi.mock("@/hooks/use-budget-meta", () => ({
   useBudgetMeta: () => ({
@@ -16,8 +20,14 @@ vi.mock("@/hooks/use-budget-meta", () => ({
     isLoading: false,
     setCurrency,
     setBudgetFormat,
+    ensureCurrency,
+    setCurrencyEntry,
     save: vi.fn(),
   }),
+}))
+
+vi.mock("@/hooks/use-budget-data", () => ({
+  useAccounts: () => ({ data: accounts }),
 }))
 
 // A single-currency budget whose default entry carries the given display
@@ -25,12 +35,13 @@ vi.mock("@/hooks/use-budget-meta", () => ({
 function metaWith(
   currency = "USD",
   settings: CurrencySettings = { decimals: 2, symbolPosition: "before" },
+  foreign: Record<string, CurrencySettings> = {},
 ): BudgetMeta {
   return {
     schemaVersion: 4,
     name: "My Budget",
     defaultCurrency: currency,
-    currencies: { [currency]: settings },
+    currencies: { [currency]: settings, ...foreign },
     createdAt: "",
     lastModified: "",
   }
@@ -39,6 +50,7 @@ function metaWith(
 beforeEach(() => {
   vi.clearAllMocks()
   meta = metaWith()
+  accounts = [makeAccount({ currency: "USD" })]
 })
 
 afterEach(cleanup)
@@ -92,6 +104,7 @@ describe("CurrencySection", () => {
   it("disables the symbol toggle for a symbol-less currency with a hint", async () => {
     const user = userEvent.setup()
     meta = metaWith("CHF")
+    accounts = [makeAccount({ currency: "CHF" })]
     render(<CurrencySection budgetPath="/b" />)
 
     await openFormatSettings(user)
@@ -125,5 +138,79 @@ describe("CurrencySection", () => {
 
     await user.click(screen.getByRole("button", { name: /Request currency/i }))
     expect(shellOpen).toHaveBeenCalledWith("https://github.com/vladimir-e/capybudget")
+  })
+
+  it("renders no foreign rows for a USD-only budget (the invariant)", () => {
+    accounts = [makeAccount({ currency: "USD" }), makeAccount({ currency: "USD" })]
+    render(<CurrencySection budgetPath="/b" />)
+
+    expect(screen.queryByText(/Exchange rates/i)).not.toBeInTheDocument()
+    expect(ensureCurrency).not.toHaveBeenCalled()
+  })
+
+  it("renders a foreign row with the seed rate and 'our estimate' provenance", () => {
+    // A EUR account against a USD default, with no entry in the map yet.
+    accounts = [makeAccount({ currency: "USD" }), makeAccount({ currency: "EUR" })]
+    render(<CurrencySection budgetPath="/b" />)
+
+    expect(screen.getByText(/Exchange rates to USD/i)).toBeInTheDocument()
+    expect(screen.getByText("1 EUR =")).toBeInTheDocument()
+    expect(screen.getByText(/our estimate/i)).toBeInTheDocument()
+    // 1 EUR in USD = 1/0.92 ≈ 1.08696, trimmed to 6 sig digits.
+    expect(screen.getByLabelText("1 EUR =")).toHaveValue("1.08696")
+  })
+
+  it("seeds an in-use foreign currency that has no entry yet", () => {
+    accounts = [makeAccount({ currency: "EUR" })]
+    render(<CurrencySection budgetPath="/b" />)
+    expect(ensureCurrency).toHaveBeenCalledWith("EUR")
+  })
+
+  it("does not re-seed a foreign currency that already has an entry", () => {
+    meta = metaWith("USD", { decimals: 2, symbolPosition: "before" }, {
+      EUR: { decimals: 2, symbolPosition: "before", rate: 1.1, rateSource: "manual" },
+    })
+    accounts = [makeAccount({ currency: "EUR" })]
+    render(<CurrencySection budgetPath="/b" />)
+    expect(ensureCurrency).not.toHaveBeenCalled()
+  })
+
+  it("shows a manual rate with 'your rate' provenance", () => {
+    meta = metaWith("USD", { decimals: 2, symbolPosition: "before" }, {
+      EUR: { decimals: 2, symbolPosition: "before", rate: 1.2, rateSource: "manual" },
+    })
+    accounts = [makeAccount({ currency: "EUR" })]
+    render(<CurrencySection budgetPath="/b" />)
+
+    expect(screen.getByLabelText("1 EUR =")).toHaveValue("1.2")
+    expect(screen.getByText(/your rate/i)).toBeInTheDocument()
+  })
+
+  it("commits an edited rate as a manual override", async () => {
+    const user = userEvent.setup()
+    accounts = [makeAccount({ currency: "EUR" })]
+    meta = metaWith("USD", { decimals: 2, symbolPosition: "before" }, {
+      EUR: { decimals: 2, symbolPosition: "before" },
+    })
+    render(<CurrencySection budgetPath="/b" />)
+
+    const input = screen.getByLabelText("1 EUR =")
+    await user.clear(input)
+    await user.type(input, "1.15")
+    await user.tab()
+
+    expect(setCurrencyEntry).toHaveBeenCalledWith("EUR", { rate: 1.15, rateSource: "manual" })
+  })
+
+  it("keeps a foreign row for a persisted currency no account currently uses", () => {
+    // Persist-when-empty: the entry stays in the map, but only in-use currencies
+    // get a row — a deleted-last-account EUR with no EUR account shows nothing.
+    meta = metaWith("USD", { decimals: 2, symbolPosition: "before" }, {
+      EUR: { decimals: 2, symbolPosition: "before", rate: 1.1, rateSource: "manual" },
+    })
+    accounts = [makeAccount({ currency: "USD" })]
+    render(<CurrencySection budgetPath="/b" />)
+
+    expect(screen.queryByText("1 EUR =")).not.toBeInTheDocument()
   })
 })

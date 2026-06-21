@@ -249,6 +249,18 @@ export {
   createConverter,
 } from "./analytics/converter";
 
+// Exchange rates (resolver fallback chain + bundled seed table)
+export type {
+  SeedRateTable,
+  RateProvenance,
+  ResolvedRate,
+} from "./utils/rates";
+export {
+  SEED_RATES,
+  resolveRate,
+  buildTodayRates,
+} from "./utils/rates";
+
 // Transaction search (fuzzy cross-field + money matcher)
 export type { SearchContext } from "./analytics/search";
 export {

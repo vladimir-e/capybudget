@@ -5,6 +5,7 @@ import {
   resolveBudgetCurrency,
   type BudgetCurrencyFields,
   type BudgetMeta,
+  type CurrencySettings,
   type MoneyFormat,
 } from "@capybudget/core";
 import { useBudgetFile } from "@/hooks/use-budget-file";
@@ -38,6 +39,14 @@ interface UseBudgetMetaReturn {
   setName: (name: string) => Promise<void>;
   setCurrency: (currency: string) => Promise<void>;
   setBudgetFormat: (format: MoneyFormat) => Promise<void>;
+  /** Seed a foreign currency's entry from its curated defaults if it isn't in
+   *  the map yet; a no-op once it exists. Drives persist-when-empty — a used
+   *  currency gets an entry that survives even after the last account on it is
+   *  deleted. */
+  ensureCurrency: (currency: string) => Promise<void>;
+  /** Merge a partial update into a foreign currency's entry (rate + provenance
+   *  or display knobs). Backfills display defaults if the entry is absent. */
+  setCurrencyEntry: (currency: string, update: Partial<CurrencySettings>) => Promise<void>;
   save: (meta: BudgetMeta) => Promise<void>;
 }
 
@@ -83,5 +92,45 @@ export function useBudgetMeta(budgetPath: string): UseBudgetMetaReturn {
     [save],
   );
 
-  return { data, isLoading, setName, setCurrency, setBudgetFormat, save };
+  const ensureCurrency = useCallback(
+    (currency: string) =>
+      save((prev) =>
+        prev.currencies[currency]
+          ? prev
+          : {
+              ...prev,
+              currencies: { ...prev.currencies, [currency]: formatDefaultsFor(currency) },
+              lastModified: new Date().toISOString(),
+            },
+      ),
+    [save],
+  );
+
+  const setCurrencyEntry = useCallback(
+    (currency: string, update: Partial<CurrencySettings>) =>
+      save((prev) => ({
+        ...prev,
+        currencies: {
+          ...prev.currencies,
+          [currency]: {
+            ...formatDefaultsFor(currency),
+            ...prev.currencies[currency],
+            ...update,
+          },
+        },
+        lastModified: new Date().toISOString(),
+      })),
+    [save],
+  );
+
+  return {
+    data,
+    isLoading,
+    setName,
+    setCurrency,
+    setBudgetFormat,
+    ensureCurrency,
+    setCurrencyEntry,
+    save,
+  };
 }

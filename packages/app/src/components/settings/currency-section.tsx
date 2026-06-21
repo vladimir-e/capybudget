@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { open as shellOpen } from "@tauri-apps/plugin-shell"
 import { ChevronDown, ExternalLink } from "lucide-react"
 import { useTranslation } from "@capybudget/i18n"
@@ -6,6 +6,9 @@ import {
   currencySymbol,
   defaultCurrencySettings,
   formatDefaultsFor,
+  resolveRate,
+  type CurrencySettings,
+  type RateProvenance,
   type SymbolPosition,
 } from "@capybudget/core"
 import {
@@ -15,6 +18,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import {
@@ -29,7 +33,9 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible"
+import type { SettingsKey } from "@/lib/i18n-keys"
 import { CurrencyCombobox } from "@/components/budget/currency-combobox"
+import { useAccounts } from "@/hooks/use-budget-data"
 import { useBudgetMeta } from "@/hooks/use-budget-meta"
 import { useFormatters } from "@/hooks/use-formatters"
 
@@ -47,18 +53,39 @@ const PREVIEW_EXPENSE_CENTS = -128900
 
 export function CurrencySection({ budgetPath }: { budgetPath: string }) {
   const { t } = useTranslation("settings")
-  const { data, setCurrency, setBudgetFormat } = useBudgetMeta(budgetPath)
+  const { data, setCurrency, setBudgetFormat, ensureCurrency, setCurrencyEntry } =
+    useBudgetMeta(budgetPath)
   const { money: formatPreview } = useFormatters()
+  const { data: accounts } = useAccounts()
   const [formatOpen, setFormatOpen] = useState(false)
 
   const currency = data.defaultCurrency
   const { decimals, symbolPosition } = defaultCurrencySettings(data)
-  const hasSymbol = currencySymbol(currency) !== ""
 
   const defaultFormat = formatDefaultsFor(currency)
   const isDefaultFormat =
     decimals === defaultFormat.decimals &&
     symbolPosition === defaultFormat.symbolPosition
+
+  // Foreign currencies an account actually uses, distinct and stable-ordered.
+  // The default is always handled above; only non-default account currencies
+  // earn a row.
+  const foreignCurrencies = useMemo(() => {
+    const used = new Set<string>()
+    for (const account of accounts ?? []) {
+      if (account.currency !== currency) used.add(account.currency)
+    }
+    return [...used].sort()
+  }, [accounts, currency])
+
+  // Lazily seed an entry the first time a currency is in use, so its rate +
+  // display settings persist thereafter — even after the last account on it is
+  // deleted (persist-when-empty). A no-op once the entry exists.
+  useEffect(() => {
+    for (const code of foreignCurrencies) {
+      if (!data.currencies[code]) void ensureCurrency(code)
+    }
+  }, [foreignCurrencies, data.currencies, ensureCurrency])
 
   return (
     <Card>
@@ -103,64 +130,12 @@ export function CurrencySection({ budgetPath }: { budgetPath: string }) {
           </div>
 
           <CollapsibleContent className="space-y-4 pt-2">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>{t("currency.symbol")}</Label>
-                <ToggleGroup
-                  variant="outline"
-                  spacing={2}
-                  value={[symbolPosition]}
-                  onValueChange={(v) => {
-                    if (v.length === 0) return
-                    void setBudgetFormat({
-                      decimals,
-                      symbolPosition: v[v.length - 1] as SymbolPosition,
-                    })
-                  }}
-                  disabled={!hasSymbol}
-                >
-                  {SYMBOL_POSITIONS.map((p) => (
-                    <ToggleGroupItem
-                      key={p}
-                      value={p}
-                      className="aria-pressed:bg-brand aria-pressed:text-white aria-pressed:border-brand"
-                    >
-                      {t(`currency.symbolPosition.${p}`)}
-                    </ToggleGroupItem>
-                  ))}
-                </ToggleGroup>
-                {!hasSymbol && (
-                  <p className="text-xs text-muted-foreground">
-                    {t("currency.noSymbol", { currency })}
-                  </p>
-                )}
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="precision">{t("currency.decimals")}</Label>
-                <Select
-                  value={String(decimals)}
-                  onValueChange={(v) => {
-                    if (typeof v !== "string") return
-                    void setBudgetFormat({
-                      decimals: Number(v),
-                      symbolPosition,
-                    })
-                  }}
-                >
-                  <SelectTrigger id="precision" className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {PRECISIONS.map((n) => (
-                      <SelectItem key={n} value={String(n)}>
-                        {n}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
+            <FormatControls
+              currency={currency}
+              decimals={decimals}
+              symbolPosition={symbolPosition}
+              onChange={(format) => void setBudgetFormat(format)}
+            />
 
             {!isDefaultFormat && (
               <div className="flex justify-end">
@@ -175,7 +150,182 @@ export function CurrencySection({ budgetPath }: { budgetPath: string }) {
             )}
           </CollapsibleContent>
         </Collapsible>
+
+        {foreignCurrencies.length > 0 && (
+          <div className="space-y-3 border-t pt-4">
+            <Label className="text-xs text-muted-foreground">
+              {t("currency.exchangeRates", { currency })}
+            </Label>
+            {foreignCurrencies.map((code) => (
+              <ForeignCurrencyRow
+                key={code}
+                code={code}
+                defaultCurrency={currency}
+                currencies={data.currencies}
+                onChange={(update) => void setCurrencyEntry(code, update)}
+              />
+            ))}
+          </div>
+        )}
       </CardContent>
     </Card>
+  )
+}
+
+// Symbol-position + decimals controls, shared by the default and foreign rows.
+function FormatControls({
+  currency,
+  decimals,
+  symbolPosition,
+  onChange,
+}: {
+  currency: string
+  decimals: number
+  symbolPosition: SymbolPosition
+  onChange: (format: { decimals: number; symbolPosition: SymbolPosition }) => void
+}) {
+  const { t } = useTranslation("settings")
+  const hasSymbol = currencySymbol(currency) !== ""
+
+  return (
+    <div className="grid grid-cols-2 gap-4">
+      <div className="space-y-2">
+        <Label>{t("currency.symbol")}</Label>
+        <ToggleGroup
+          variant="outline"
+          spacing={2}
+          value={[symbolPosition]}
+          onValueChange={(v) => {
+            if (v.length === 0) return
+            onChange({ decimals, symbolPosition: v[v.length - 1] as SymbolPosition })
+          }}
+          disabled={!hasSymbol}
+        >
+          {SYMBOL_POSITIONS.map((p) => (
+            <ToggleGroupItem
+              key={p}
+              value={p}
+              className="aria-pressed:bg-brand aria-pressed:text-white aria-pressed:border-brand"
+            >
+              {t(`currency.symbolPosition.${p}`)}
+            </ToggleGroupItem>
+          ))}
+        </ToggleGroup>
+        {!hasSymbol && (
+          <p className="text-xs text-muted-foreground">
+            {t("currency.noSymbol", { currency })}
+          </p>
+        )}
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor={`precision-${currency}`}>{t("currency.decimals")}</Label>
+        <Select
+          value={String(decimals)}
+          onValueChange={(v) => {
+            if (typeof v !== "string") return
+            onChange({ decimals: Number(v), symbolPosition })
+          }}
+        >
+          <SelectTrigger id={`precision-${currency}`} className="w-full">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {PRECISIONS.map((n) => (
+              <SelectItem key={n} value={String(n)}>
+                {n}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+    </div>
+  )
+}
+
+const PROVENANCE_KEY = {
+  manual: "currency.rateManual",
+  seed: "currency.rateSeed",
+  unset: "currency.rateUnset",
+} satisfies Record<RateProvenance, SettingsKey>
+
+// Trim a seed-derived rate to a sane number of significant digits so the
+// pre-filled input doesn't read like a float artifact (0.0109890109…).
+function rateInputValue(rate: number): string {
+  return String(Number(rate.toPrecision(6)))
+}
+
+function ForeignCurrencyRow({
+  code,
+  defaultCurrency,
+  currencies,
+  onChange,
+}: {
+  code: string
+  defaultCurrency: string
+  currencies: Record<string, CurrencySettings>
+  onChange: (update: Partial<CurrencySettings>) => void
+}) {
+  const { t } = useTranslation("settings")
+  const entry = currencies[code] ?? formatDefaultsFor(code)
+  const resolved = resolveRate(code, currencies, defaultCurrency)
+
+  // The input holds local edits until commit (blur/Enter) so an in-progress
+  // "0." doesn't round-trip. Resetting the draft to the resolved value during
+  // render — when the resolved rate changes out from under us — keeps the input
+  // in sync without an effect.
+  const [draft, setDraft] = useState(() => rateInputValue(resolved.rate))
+  const [syncedRate, setSyncedRate] = useState(resolved.rate)
+  if (resolved.rate !== syncedRate) {
+    setSyncedRate(resolved.rate)
+    setDraft(rateInputValue(resolved.rate))
+  }
+
+  const commitRate = () => {
+    const parsed = Number(draft)
+    if (!Number.isFinite(parsed) || parsed <= 0) {
+      setDraft(rateInputValue(resolved.rate))
+      return
+    }
+    if (parsed === resolved.rate) return
+    onChange({ rate: parsed, rateSource: "manual" })
+  }
+
+  return (
+    <div className="space-y-2 rounded-md border bg-muted/20 px-3 py-2.5">
+      <div className="flex items-center justify-between gap-3">
+        <span className="text-sm font-medium">
+          {code}{" "}
+          <span className="text-muted-foreground">{currencySymbol(code)}</span>
+        </span>
+        <span className="text-xs text-muted-foreground">{t(PROVENANCE_KEY[resolved.source])}</span>
+      </div>
+
+      <div className="flex items-center gap-2 text-sm">
+        <Label htmlFor={`rate-${code}`} className="shrink-0 text-muted-foreground">
+          {t("currency.rateLabel", { code })}
+        </Label>
+        <Input
+          id={`rate-${code}`}
+          type="text"
+          inputMode="decimal"
+          className="h-8 w-28 tabular-nums"
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onBlur={commitRate}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") e.currentTarget.blur()
+          }}
+        />
+        <span className="shrink-0 text-muted-foreground">{defaultCurrency}</span>
+      </div>
+
+      <FormatControls
+        currency={code}
+        decimals={entry.decimals}
+        symbolPosition={entry.symbolPosition}
+        onChange={onChange}
+      />
+    </div>
   )
 }

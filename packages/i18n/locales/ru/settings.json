@@ -46,7 +46,12 @@
     },
     "noSymbol": "У валюты {{currency}} нет символа, поэтому его положение ни на что не влияет.",
     "decimals": "Знаки после запятой",
-    "resetDefaults": "Сбросить к умолчаниям {{currency}}"
+    "resetDefaults": "Сбросить к умолчаниям {{currency}}",
+    "exchangeRates": "Курсы обмена к {{currency}}",
+    "rateLabel": "1 {{code}} =",
+    "rateManual": "ваш курс",
+    "rateSeed": "наша оценка",
+    "rateUnset": "курс не задан"
   },
   "provider": {
     "title": "Поставщик ИИ",

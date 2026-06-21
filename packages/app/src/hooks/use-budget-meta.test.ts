@@ -125,6 +125,50 @@ describe("useBudgetMeta", () => {
     });
   });
 
+  it("ensureCurrency seeds a foreign entry once, then is a no-op", async () => {
+    mockReadTextFile.mockResolvedValue(JSON.stringify(STORED_META));
+
+    const { result } = renderHook(() => useBudgetMeta("/b"), { wrapper });
+    await waitFor(() => expect(result.current.data.name).toBe("My Budget"));
+
+    await act(async () => {
+      await result.current.ensureCurrency("RUB");
+    });
+    const seeded = JSON.parse((mockWriteTextFile.mock.calls[0] as [string, string])[1]);
+    // The foreign entry lands from RUB's curated display defaults, no rate yet.
+    expect(seeded.currencies.RUB).toEqual({ decimals: 0, symbolPosition: "after" });
+
+    await waitFor(() => expect(result.current.data.currencies.RUB).toBeDefined());
+    mockWriteTextFile.mockClear();
+
+    // Already present — must not rewrite the file.
+    await act(async () => {
+      await result.current.ensureCurrency("RUB");
+    });
+    expect(mockWriteTextFile).not.toHaveBeenCalled();
+  });
+
+  it("setCurrencyEntry stamps a manual rate while backfilling display defaults", async () => {
+    mockReadTextFile.mockResolvedValue(JSON.stringify(STORED_META));
+
+    const { result } = renderHook(() => useBudgetMeta("/b"), { wrapper });
+    await waitFor(() => expect(result.current.data.name).toBe("My Budget"));
+
+    await act(async () => {
+      await result.current.setCurrencyEntry("EUR", { rate: 1.08, rateSource: "manual" });
+    });
+
+    const written = JSON.parse((mockWriteTextFile.mock.calls[0] as [string, string])[1]);
+    expect(written.currencies.EUR).toEqual({
+      decimals: 2,
+      symbolPosition: "before",
+      rate: 1.08,
+      rateSource: "manual",
+    });
+    // The default entry is untouched.
+    expect(written.currencies.USD).toEqual({ decimals: 2, symbolPosition: "before" });
+  });
+
   it("normalizes an old flat-shape budget.json into the unified map", async () => {
     // A budget.json from before the unified map: flat currency fields, no
     // `currencies`. The hook lifts them into the default entry and backfills

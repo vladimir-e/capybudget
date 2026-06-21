@@ -46,7 +46,12 @@
     },
     "noSymbol": "{{currency}} no tiene símbolo, así que su posición no tiene efecto.",
     "decimals": "Decimales",
-    "resetDefaults": "Restablecer los valores por defecto de {{currency}}"
+    "resetDefaults": "Restablecer los valores por defecto de {{currency}}",
+    "exchangeRates": "Tipos de cambio a {{currency}}",
+    "rateLabel": "1 {{code}} =",
+    "rateManual": "tu tipo",
+    "rateSeed": "nuestra estimación",
+    "rateUnset": "tipo sin definir"
   },
   "provider": {
     "title": "Proveedor de IA",

@@ -146,22 +146,39 @@ const MAX_DISPLAY_DECIMALS = 2;
 // (app meta parse, migrations, MCP server) so the contract can't drift. Reads
 // the unified shape when present, otherwise lifts the old flat fields into a
 // default entry, and always backfills missing display knobs from the currency's
-// curated defaults.
+// curated defaults. Foreign entries are preserved with their stored rate /
+// rateSource, so a currency's settings survive a load/save round-trip even
+// while no account currently uses it (persist-when-empty).
 export function resolveBudgetCurrency(raw: BudgetCurrencyFields): BudgetCurrency {
   const defaultCurrency = raw.defaultCurrency ?? raw.currency ?? DEFAULT_CURRENCY;
   const stored = raw.currencies?.[defaultCurrency] ?? {
     decimals: raw.currencyDecimals,
     symbolPosition: raw.currencySymbolPosition,
   };
-  const defaults = formatDefaultsFor(defaultCurrency);
+  const currencies: Record<string, CurrencySettings> = {
+    [defaultCurrency]: normalizeEntry(defaultCurrency, stored),
+  };
+  for (const [code, entry] of Object.entries(raw.currencies ?? {})) {
+    if (code === defaultCurrency) continue;
+    currencies[code] = normalizeEntry(code, entry, { rate: entry.rate, rateSource: entry.rateSource });
+  }
+  return { defaultCurrency, currencies };
+}
+
+// Backfill an entry's display knobs from the currency's curated defaults,
+// clamping decimals to the integer-cents ceiling, and carry any rate fields
+// through unchanged. The default entry passes no rate fields — it is the base.
+function normalizeEntry(
+  currency: string,
+  stored: Partial<CurrencySettings>,
+  rate?: Pick<CurrencySettings, "rate" | "rateSource">,
+): CurrencySettings {
+  const defaults = formatDefaultsFor(currency);
   return {
-    defaultCurrency,
-    currencies: {
-      [defaultCurrency]: {
-        decimals: clampDecimals(stored.decimals ?? defaults.decimals),
-        symbolPosition: stored.symbolPosition ?? defaults.symbolPosition,
-      },
-    },
+    decimals: clampDecimals(stored.decimals ?? defaults.decimals),
+    symbolPosition: stored.symbolPosition ?? defaults.symbolPosition,
+    ...(rate?.rate !== undefined ? { rate: rate.rate } : {}),
+    ...(rate?.rateSource !== undefined ? { rateSource: rate.rateSource } : {}),
   };
 }
 

@@ -42,6 +42,13 @@ vi.mock("@tauri-apps/api/app", () => ({
   getVersion: vi.fn().mockResolvedValue("1.0.0"),
 }))
 
+// The Currency section (under General) reads accounts to derive in-use foreign
+// currencies; this screen test isn't about account data, so stub it empty —
+// a USD-only budget with no foreign rows.
+vi.mock("@/hooks/use-budget-data", () => ({
+  useAccounts: () => ({ data: [] }),
+}))
+
 import { SettingsScreen } from "./settings-screen"
 import {
   useIntelligenceStore,

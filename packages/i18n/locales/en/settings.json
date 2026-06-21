@@ -46,7 +46,12 @@
     },
     "noSymbol": "{{currency}} has no symbol, so position has no effect.",
     "decimals": "Decimals",
-    "resetDefaults": "Reset to {{currency}} defaults"
+    "resetDefaults": "Reset to {{currency}} defaults",
+    "exchangeRates": "Exchange rates to {{currency}}",
+    "rateLabel": "1 {{code}} =",
+    "rateManual": "your rate",
+    "rateSeed": "our estimate",
+    "rateUnset": "rate unset"
   },
   "provider": {
     "title": "AI Provider",

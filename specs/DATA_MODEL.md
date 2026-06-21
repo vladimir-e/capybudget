@@ -33,7 +33,19 @@ The schema version enables future migrations. On load, the app checks the versio
 
 Currency lives in two fields: `defaultCurrency`, the ISO code everything rolls up into and the value an account or transaction takes when it carries none of its own; and `currencies`, a map keyed by ISO code holding each currency's settings. **The default currency is just another entry of the same shape** — no split between "the default's settings here, foreign settings there."
 
-Each entry carries display settings: `decimals` (0–2) and `symbolPosition` (`before` · `after` · `off`). A non-default entry additionally carries its `rate` against the default and a `rateSource` tag (`manual` · `seed`) recording where the rate came from; the default entry carries neither — it is the base, an implicit rate of 1.0.
+Each entry carries display settings: `decimals` (0–2) and `symbolPosition` (`before` · `after` · `off`). A non-default entry additionally carries its `rate` against the default and a `rateSource` tag (`manual` · `seed`) recording where the rate came from; the default entry carries neither — it is the base, an implicit rate of 1.0. `rate` is `rate(currency → default)`: the value of one unit of the currency in default units. Money is integer ×100 for every currency, so the same ratio values cents: `defaultCents = round(nativeCents × rate)`.
+
+A currency earns a settings row once an account uses it, but its entry is kept even after the last account on it is deleted — re-adding the currency restores its rate and display settings intact (persist-when-empty). The entry is seeded lazily from the currency's display defaults the first time it is used; the rows shown are gated on in-use currencies, while the map retains unused entries.
+
+### Exchange rates
+
+A currency's rate against the default is resolved through a fallback chain, yielding the rate **and** a provenance tag the UI shows (whose number it is):
+
+1. **`manual`** — the user's override (`rate` with `rateSource: "manual"`).
+2. **`seed`** — derived from a bundled, USD-anchored seed table by division: `rate(X → D) = usdRates[D] / usdRates[X]`, where `usdRates[c]` is units of `c` per 1 USD. This handles any base, including a non-USD default. `rate(X → X) = 1`.
+3. **`unset`** — 1.0 with a quiet "rate unset" state, when the currency is absent from the seed table.
+
+The seed table ships as `{ base: "USD", rates: { CODE: numberPerUSD, … } }` — deliberately the same shape the checkpoint-3 rate Lambda will serve, so it later becomes the offline floor under the fetched rates with no reshape. Its values are overridable fallbacks (reasonable mid-market figures), not live data. A `todayRates` map of every currency in the budget keyed to its resolved rate against the default feeds the analytics converter; flows value at the rate stamped on each transaction, balances at today's resolved rate.
 
 Display settings are seeded from the currency's curated defaults — `{ 0, after }` for RUB, `{ 2, before }` for USD — so a user whose exact currency isn't listed can pick a near one and match their real formatting. The symbol is currency-driven; all amounts are integers in the minor unit regardless. Decimals only rounds the rendered figure; money on disk stays ×100, so 2 is the ceiling — a third decimal could only ever render zero, and a stored value above 2 is clamped to 2 on load. The default entry's knobs are re-seeded on a currency switch — changing the default lands on the new currency's conventional formatting rather than carrying the prior tweaks; a "reset to defaults" control restores the current currency's defaults on demand (e.g. after manual tweaks).
 
