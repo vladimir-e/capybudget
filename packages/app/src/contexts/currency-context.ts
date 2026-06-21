@@ -38,10 +38,17 @@ export function useCurrency(): string {
   return useContext(CurrencyContext).currency;
 }
 
-/** The full per-currency settings map for the active budget. */
+/** The full per-currency settings map for the active budget. The absent-map
+ *  fallback is memoized on `currency` so it returns a stable reference across
+ *  renders — otherwise a fresh object each render would bust the `useConverter`
+ *  memo for single-currency budgets. */
 export function useCurrencies(): Record<string, CurrencySettings> {
   const { currency, currencies } = useContext(CurrencyContext);
-  return currencies ?? { [currency]: formatDefaultsFor(currency) };
+  const fallback = useMemo(
+    () => ({ [currency]: formatDefaultsFor(currency) }),
+    [currency],
+  );
+  return currencies ?? fallback;
 }
 
 /**

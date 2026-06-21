@@ -20,6 +20,7 @@ import {
 import { getAccountBalance, getNetWorth } from "./queries";
 import { groupTransactions } from "./group";
 import { IDENTITY_CONVERTER, createConverter } from "./converter";
+import { buildTodayRates } from "../utils/rates";
 import type { Account, Category, Transaction } from "../entities/types";
 
 const range: DateRange = {
@@ -188,5 +189,22 @@ describe("conversion wiring — flows by stamp, holdings by today", () => {
     expect(holding).toBe(110_000);
     expect(lastCost).toBe(160_000);
     expect(holding - lastCost).toBe(-50_000);
+  });
+
+  // Regression: getNetWorthOverTime must read the per-transaction *stamp*, never
+  // today's resolved rate. Drives the converter off the real seed table (RUB
+  // seed = 91/USD → today ≈ 0.01099) so the stamp (0.016) and today's rate are
+  // genuinely different numbers — the highest-stakes don't-swap-the-rate site.
+  it("(regression) accumulates the stamp even when today's seed rate differs", () => {
+    const seedConverter = createConverter(
+      buildTodayRates({ RUB: { decimals: 0, symbolPosition: "after" } }, "USD"),
+      "USD",
+    );
+    const points = getNetWorthOverTime([rubAccount], rubTxns, range, undefined, seedConverter);
+    const last = points[points.length - 1].netWorth;
+    // Cost basis = stamp: 100k ₽ × 0.016 = $1,600. The seed-derived today rate
+    // (≈0.011) would give ≈$1,099 — proving the series ignores it.
+    expect(last).toBe(160_000);
+    expect(seedConverter.holdingToDefault(10_000_000, "RUB")).not.toBe(last);
   });
 });
