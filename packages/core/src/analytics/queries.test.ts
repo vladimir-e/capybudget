@@ -4,8 +4,10 @@ import {
   getAccountsByGroup,
   getTransactionsForAccount,
   getNetWorth,
+  getNetWorthBreakdown,
   resolveTransferPair,
 } from "./queries";
+import { IDENTITY_CONVERTER, createConverter } from "./converter";
 import type { Account, Transaction } from "../entities/types";
 
 // ── Test fixtures (self-contained, no external deps) ─────
@@ -125,6 +127,87 @@ describe("getNetWorth", () => {
     );
     const netWorth = getNetWorth(accounts, TRANSACTIONS);
     expect(netWorth).toBe(16500 + 450000 + 100000 + -73798 + -50000);
+  });
+});
+
+describe("getNetWorthBreakdown", () => {
+  it("a single-currency budget: fxDelta is 0 and byAccount is empty", () => {
+    const breakdown = getNetWorthBreakdown(ACCOUNTS, TRANSACTIONS);
+    expect(breakdown.fxDelta).toBe(0);
+    expect(breakdown.byAccount).toEqual([]);
+  });
+
+  it("spot reconciles with getNetWorth and with costBasis + fxDelta", () => {
+    const breakdown = getNetWorthBreakdown(ACCOUNTS, TRANSACTIONS);
+    expect(breakdown.spot).toBe(getNetWorth(ACCOUNTS, TRANSACTIONS));
+    expect(breakdown.spot).toBe(breakdown.costBasis + breakdown.fxDelta);
+  });
+
+  it("an explicit identity converter matches the default arg", () => {
+    expect(getNetWorthBreakdown(ACCOUNTS, TRANSACTIONS)).toEqual(
+      getNetWorthBreakdown(ACCOUNTS, TRANSACTIONS, IDENTITY_CONVERTER),
+    );
+  });
+
+  // The plan's worked example: default USD, a ruble account with +100,000 ₽
+  // stamped at 0.016 ($1,600 cost), worth $1,100 spot today at 0.011 — a −$500
+  // unrealized FX loss.
+  describe("the ruble worked example (foreign account lights it up)", () => {
+    const converter = createConverter(new Map([["RUB", 0.011]]), "USD");
+    const rubAccount: Account = {
+      id: "acc-rub", name: "Tinkoff", type: "checking", archived: false,
+      excludeFromNetWorth: false, sortOrder: 1, createdAt: "2019-01-01T00:00:00.000Z",
+      currency: "RUB",
+    };
+    const rubTxns: Transaction[] = [
+      txn({ id: "r1", amount: 10_000_000, type: "income", accountId: "acc-rub", fxRate: 0.016 }),
+    ];
+
+    it("splits net worth into cost basis, spot, and the −$500 FX delta", () => {
+      const breakdown = getNetWorthBreakdown([rubAccount], rubTxns, converter);
+      expect(breakdown.costBasis).toBe(160_000); // 100k ₽ × 0.016
+      expect(breakdown.spot).toBe(110_000); //      100k ₽ × 0.011
+      expect(breakdown.fxDelta).toBe(-50_000);
+    });
+
+    it("reconciles: spot === costBasis + fxDelta === getNetWorth", () => {
+      const breakdown = getNetWorthBreakdown([rubAccount], rubTxns, converter);
+      expect(breakdown.spot).toBe(breakdown.costBasis + breakdown.fxDelta);
+      expect(breakdown.spot).toBe(getNetWorth([rubAccount], rubTxns, converter));
+    });
+
+    it("reports the per-account delta for the foreign account", () => {
+      const { byAccount } = getNetWorthBreakdown([rubAccount], rubTxns, converter);
+      expect(byAccount).toEqual([
+        { accountId: "acc-rub", costBasis: 160_000, spot: 110_000, fxDelta: -50_000 },
+      ]);
+    });
+
+    it("a default-currency account alongside a foreign one stays out of byAccount", () => {
+      const usdAccount: Account = {
+        id: "acc-usd", name: "Checking", type: "checking", archived: false,
+        excludeFromNetWorth: false, sortOrder: 0, createdAt: "2026-01-01T00:00:00.000Z",
+        currency: "USD",
+      };
+      const usdTxns: Transaction[] = [
+        txn({ id: "u1", amount: 500_00, type: "income", accountId: "acc-usd" }),
+      ];
+      const breakdown = getNetWorthBreakdown(
+        [usdAccount, rubAccount], [...usdTxns, ...rubTxns], converter,
+      );
+      // Only the ruble account moves; USD cost === spot.
+      expect(breakdown.byAccount.map((a) => a.accountId)).toEqual(["acc-rub"]);
+      expect(breakdown.fxDelta).toBe(-50_000);
+      expect(breakdown.spot).toBe(breakdown.costBasis + breakdown.fxDelta);
+      expect(breakdown.spot).toBe(getNetWorth([usdAccount, rubAccount], [...usdTxns, ...rubTxns], converter));
+    });
+
+    it("excludes archived and excludeFromNetWorth accounts, matching getNetWorth", () => {
+      const archived = { ...rubAccount, archived: true };
+      expect(getNetWorthBreakdown([archived], rubTxns, converter).spot).toBe(
+        getNetWorth([archived], rubTxns, converter),
+      );
+    });
   });
 });
 

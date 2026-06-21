@@ -15,14 +15,16 @@ import {
 import {
   ensureMinMonths,
   getNetWorthOverTime,
+  getNetWorthBreakdown,
 } from "@capybudget/core";
 import type { Account, Transaction, DateRange } from "@capybudget/core";
 import { useTranslation } from "@capybudget/i18n";
-import { useConverter } from "@/contexts/currency-context";
+import { useConverter, useCurrency } from "@/contexts/currency-context";
 import { useFormatters } from "@/hooks/use-formatters";
 import { ChartSwitcher } from "./chart-switcher";
 import { useThemeColors } from "./use-theme-colors";
 import { NetWorthAccountFilter } from "./net-worth-account-filter";
+import { NetWorthFxCallout } from "./net-worth-fx-callout";
 import { computeIncludedIds } from "./net-worth-account-filter-utils";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useAnalyticsStore } from "@/stores/analytics-store";
@@ -63,6 +65,7 @@ export function NetWorthTab({ accounts, transactions, dateRange, hasAnyTransacti
   const { money, moneyCompact, monthShort } = useFormatters();
   const { t } = useTranslation("analytics");
   const converter = useConverter();
+  const defaultCurrency = useCurrency();
   const [chartMode, setChartMode] = useState<ChartMode>("bar");
 
   const chartOptions: Array<{ value: ChartMode; label: string }> = [
@@ -75,6 +78,21 @@ export function NetWorthTab({ accounts, transactions, dateRange, hasAnyTransacti
   const includedIds = useMemo(
     () => computeIncludedIds(accounts, netWorthExcludedIds),
     [accounts, netWorthExcludedIds],
+  );
+
+  const includedAccounts = useMemo(
+    () => accounts.filter((a) => includedIds.has(a.id)),
+    [accounts, includedIds],
+  );
+
+  // The FX callout explains why the spot net worth (today's rate) differs from
+  // the cost-basis chart endpoint. Shown whenever an included account is
+  // foreign — even at a zero delta, since the relationship is what's being
+  // explained. A USD-only budget has no foreign account, so nothing renders.
+  const hasForeignAccount = includedAccounts.some((a) => a.currency !== defaultCurrency);
+  const fxBreakdown = useMemo(
+    () => getNetWorthBreakdown(includedAccounts, transactions, converter),
+    [includedAccounts, transactions, converter],
   );
 
   // Defer heavy inputs so the tab shell renders immediately
@@ -248,6 +266,8 @@ export function NetWorthTab({ accounts, transactions, dateRange, hasAnyTransacti
           </AreaChart>
         )}
       </ResponsiveContainer>
+
+      {hasForeignAccount && <NetWorthFxCallout breakdown={fxBreakdown} />}
     </div>
   );
 }

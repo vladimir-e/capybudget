@@ -71,7 +71,12 @@
     "noAccountsTitle": "No hay cuentas seleccionadas",
     "noAccountsDescription": "Selecciona al menos una cuenta para graficar tu patrimonio neto.",
     "noData": "No hay datos disponibles",
-    "monthLabel": "{{month}} {{year}}"
+    "monthLabel": "{{month}} {{year}}",
+    "fx": {
+      "label": "Cambio no realizado",
+      "relation": "Valor actual {{spot}} = coste base {{cost}}",
+      "explanation": "Tus saldos en moneda extranjera valen ahora más o menos de lo que entró, porque los tipos de cambio han variado desde entonces."
+    }
   },
   "accountFilter": {
     "allAccounts": "Todas las cuentas",

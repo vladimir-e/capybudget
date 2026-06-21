@@ -102,13 +102,14 @@ export {
 } from "./utils/merchant";
 
 // Queries
-export type { TransferPair } from "./analytics/queries";
+export type { TransferPair, NetWorthBreakdown, AccountFxDelta } from "./analytics/queries";
 export {
   CATEGORY_GROUP_ORDER,
   getAccountBalance,
   getAccountsByGroup,
   getTransactionsForAccount,
   getNetWorth,
+  getNetWorthBreakdown,
   resolveTransferPair,
 } from "./analytics/queries";
 

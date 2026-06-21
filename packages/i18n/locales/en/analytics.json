@@ -70,7 +70,12 @@
     "noAccountsTitle": "No accounts selected",
     "noAccountsDescription": "Select at least one account to chart your net worth.",
     "noData": "No data available",
-    "monthLabel": "{{month}} {{year}}"
+    "monthLabel": "{{month}} {{year}}",
+    "fx": {
+      "label": "Unrealized FX",
+      "relation": "Current value {{spot}} = cost basis {{cost}}",
+      "explanation": "Your foreign balances are worth this much more or less than what flowed in, as exchange rates have moved since."
+    }
   },
   "accountFilter": {
     "allAccounts": "All accounts",

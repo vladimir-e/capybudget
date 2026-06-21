@@ -69,6 +69,70 @@ export function getNetWorth(
     );
 }
 
+/** One foreign account's contribution to the net-worth FX delta. */
+export interface AccountFxDelta {
+  accountId: string;
+  /** Stamped flow value of the account's transactions — what it cost in the
+   *  default currency at the rates on the days money moved. */
+  costBasis: number;
+  /** Today's-rate value of the account's native balance. */
+  spot: number;
+  /** `spot - costBasis`: positive is an unrealized FX gain, negative a loss. */
+  fxDelta: number;
+}
+
+/** Net worth split into its cost-basis and unrealized-FX components.
+ *
+ *  `spot` is current net worth at today's rate — byte-identical to
+ *  `getNetWorth`. `costBasis` accumulates each transaction at its stamped flow
+ *  rate (the cost-basis line the over-time chart draws). Their gap is
+ *  `fxDelta`, the unrealized FX gain/loss from rates moving while balances were
+ *  held. Reconciles exactly: `spot === costBasis + fxDelta`.
+ *
+ *  Default-currency accounts have `costBasis === spot`, so they contribute
+ *  nothing to `fxDelta` and never appear in `byAccount`: a single-currency
+ *  budget yields `fxDelta === 0` and an empty `byAccount`. Same account filter
+ *  as `getNetWorth` (non-archived, not excluded from net worth). */
+export interface NetWorthBreakdown {
+  costBasis: number;
+  fxDelta: number;
+  spot: number;
+  /** Per-account deltas, foreign accounts with a non-zero delta only. */
+  byAccount: AccountFxDelta[];
+}
+
+export function getNetWorthBreakdown(
+  accounts: Account[],
+  transactions: Transaction[],
+  converter: CurrencyConverter = IDENTITY_CONVERTER,
+): NetWorthBreakdown {
+  let costBasis = 0;
+  let spot = 0;
+  const byAccount: AccountFxDelta[] = [];
+
+  for (const account of accounts) {
+    if (account.archived || account.excludeFromNetWorth) continue;
+
+    const accountTxns = transactions.filter((t) => t.accountId === account.id);
+    const accountCost = accountTxns.reduce(
+      (sum, t) => sum + converter.flowToDefault(t.amount, t.fxRate),
+      0,
+    );
+    const native = accountTxns.reduce((sum, t) => sum + t.amount, 0);
+    const accountSpot = converter.holdingToDefault(native, account.currency);
+
+    costBasis += accountCost;
+    spot += accountSpot;
+
+    const fxDelta = accountSpot - accountCost;
+    if (fxDelta !== 0) {
+      byAccount.push({ accountId: account.id, costBasis: accountCost, spot: accountSpot, fxDelta });
+    }
+  }
+
+  return { costBasis, fxDelta: spot - costBasis, spot, byAccount };
+}
+
 /** Resolve the from/to account IDs for a transfer transaction. */
 export interface TransferPair {
   fromAccountId: string;
