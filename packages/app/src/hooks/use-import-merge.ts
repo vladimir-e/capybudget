@@ -7,7 +7,7 @@ import { useImportRepository } from "@/hooks/use-import-repository";
 import { prepareMerge } from "@capybudget/core";
 import type { Account, Transaction } from "@capybudget/core";
 import type { MergeInput } from "@capybudget/core";
-import { useCurrency } from "@/contexts/currency-context";
+import { useCurrency, useCurrencies } from "@/contexts/currency-context";
 
 export type { MergeInput };
 
@@ -25,6 +25,7 @@ export function useImportMerge(budgetPath: string) {
   const { captureSnapshot } = useUndoRedo();
   const importRepo = useImportRepository(budgetPath);
   const defaultCurrency = useCurrency();
+  const currencies = useCurrencies();
 
   const merge = useCallback(
     async (input: MergeInput): Promise<MergeResult> => {
@@ -49,6 +50,7 @@ export function useImportMerge(budgetPath: string) {
         prevAccounts,
         prevTxns,
         defaultCurrency,
+        currencies,
         existingAliases,
       );
 
@@ -86,6 +88,7 @@ export function useImportMerge(budgetPath: string) {
       captureSnapshot,
       importRepo,
       defaultCurrency,
+      currencies,
     ],
   );
 

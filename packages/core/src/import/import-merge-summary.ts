@@ -28,6 +28,7 @@ export function summarizeMerge(
     prevAccounts,
     prevTransactions,
     defaultCurrency,
+    {},
     existingAliases,
   );
   return { unmappedTransferCount: result.downgradedTransferCount };

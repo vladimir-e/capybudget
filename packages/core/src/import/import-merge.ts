@@ -1,5 +1,7 @@
 import { createAccount } from "../entities/accounts";
 import type { Account, Transaction } from "../entities/types";
+import type { CurrencySettings } from "../utils/money";
+import { stampFxRate } from "../utils/rates";
 import type { ImportTransaction, ImportAliases } from "./import-types";
 
 export interface MergeInput {
@@ -86,12 +88,18 @@ function linkTransferPairs(txns: Transaction[]): void {
  * Accounts with mapping "__create__" or no mapping are auto-created as
  * "checking" — the most common type for imported bank data, in the budget
  * default currency.
+ *
+ * Each merged row is valued in the default currency by stamping today's rate
+ * onto its `fxRate` (the plan's "imported data takes today's rate"). Rows
+ * landing on a default-currency account — including every auto-created one —
+ * leave `fxRate` empty, so a same-currency import is byte-identical.
  */
 export function prepareMerge(
   input: MergeInput,
   prevAccounts: Account[],
   prevTransactions: Transaction[],
   defaultCurrency: string,
+  currencies: Record<string, CurrencySettings> = {},
   existingAliases: ImportAliases = { accounts: {} },
 ): MergeOutput {
   const { transactions, selectedIds, accountMapping } = input;
@@ -129,6 +137,17 @@ export function prepareMerge(
     return t.targetAccountId;
   };
 
+  // Today's native→default rate for the account a row lands on, frozen onto each
+  // merged row so foreign imports value correctly and stay reconciled with the
+  // preview total. Default-currency accounts return undefined (empty fxRate).
+  const accountById = new Map(nextAccounts.map((a) => [a.id, a]));
+  const rowFxRate = (accountId: string): number | undefined => {
+    const account = accountById.get(accountId);
+    return account
+      ? stampFxRate(account.currency, currencies, defaultCurrency)
+      : undefined;
+  };
+
   // ── Convert to budget transactions ────────────────────────
   const createdAt = new Date().toISOString();
   const newTxns: Transaction[] = [];
@@ -137,23 +156,29 @@ export function prepareMerge(
     const accountId = resolveAccount(t);
 
     if (t.type === "transfer" && resolveTargetAccount(t)) {
-      // Single-leg transfer with known target → create proper paired transactions
+      // Single-leg transfer with known target → create proper paired
+      // transactions. The import supplies one amount mirrored across both legs,
+      // so there's no genuine second amount to derive the executed rate from —
+      // each leg stamps its own account's today rate (empty for a default leg),
+      // exactly like a standalone foreign row.
       const targetId = resolveTargetAccount(t);
       const fromId = crypto.randomUUID();
       const toId = crypto.randomUUID();
       const note = t.description;
+      const accountRate = rowFxRate(accountId);
+      const targetRate = rowFxRate(targetId);
 
       if (t.amount < 0) {
         // Outflow: money leaves accountId, arrives at targetId
         newTxns.push(
-          { id: fromId, datetime: `${t.date}T00:00:00.000`, type: "transfer", amount: t.amount, categoryId: "", accountId, transferPairId: toId, merchant: "", note, createdAt },
-          { id: toId, datetime: `${t.date}T00:00:00.000`, type: "transfer", amount: -t.amount, categoryId: "", accountId: targetId, transferPairId: fromId, merchant: "", note, createdAt },
+          { id: fromId, datetime: `${t.date}T00:00:00.000`, type: "transfer", amount: t.amount, categoryId: "", accountId, transferPairId: toId, merchant: "", note, createdAt, fxRate: accountRate },
+          { id: toId, datetime: `${t.date}T00:00:00.000`, type: "transfer", amount: -t.amount, categoryId: "", accountId: targetId, transferPairId: fromId, merchant: "", note, createdAt, fxRate: targetRate },
         );
       } else {
         // Inflow: money arrives at accountId, leaves targetId
         newTxns.push(
-          { id: toId, datetime: `${t.date}T00:00:00.000`, type: "transfer", amount: t.amount, categoryId: "", accountId, transferPairId: fromId, merchant: "", note, createdAt },
-          { id: fromId, datetime: `${t.date}T00:00:00.000`, type: "transfer", amount: -t.amount, categoryId: "", accountId: targetId, transferPairId: toId, merchant: "", note, createdAt },
+          { id: toId, datetime: `${t.date}T00:00:00.000`, type: "transfer", amount: t.amount, categoryId: "", accountId, transferPairId: fromId, merchant: "", note, createdAt, fxRate: accountRate },
+          { id: fromId, datetime: `${t.date}T00:00:00.000`, type: "transfer", amount: -t.amount, categoryId: "", accountId: targetId, transferPairId: toId, merchant: "", note, createdAt, fxRate: targetRate },
         );
       }
     } else {
@@ -169,6 +194,7 @@ export function prepareMerge(
         merchant: t.type === "transfer" ? "" : (t.merchant || ""),
         note: t.description,
         createdAt,
+        fxRate: rowFxRate(accountId),
       });
     }
   }
