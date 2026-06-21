@@ -137,6 +137,64 @@ export function stampFxRate(
   return resolveRate(accountCurrency, currencies, defaultCurrency, table).rate;
 }
 
+/** The two per-leg rates a transfer stamps — each leg's native→default rate,
+ *  `undefined` when that leg is in the default currency (an implicit 1.0). */
+export interface TransferRates {
+  fromRate: number | undefined;
+  toRate: number | undefined;
+}
+
+/**
+ * The rates to freeze on a cross-currency transfer's two legs, one per leg, at
+ * entry time. The from leg holds `fromCurrency` (the outflow), the to leg holds
+ * `toCurrency` (the inflow); `fromAmount` / `toAmount` are the positive native
+ * magnitudes moved on each side.
+ *
+ * Each leg is valued in the default currency the same way a standalone
+ * transaction is — its own rate, or empty for a default-currency leg. The one
+ * special case is when **exactly one** leg is the default: the two amounts then
+ * pin the real rate this transfer executed at, more accurate than the table, so
+ * we derive the foreign leg's rate from them rather than resolving it. For
+ * `-fromAmount × fromRate + toAmount × toRate` to net to ~0 (no phantom FX), the
+ * foreign side must take the counter-amount over its own:
+ *   - from=default → `toRate = fromAmount / toAmount`   (value of 1 toUnit in default)
+ *   - to=default   → `fromRate = toAmount / fromAmount` (value of 1 fromUnit in default)
+ *
+ * A same-currency transfer (both default, or both the same foreign) takes the
+ * one shared resolver rate on both legs — byte-identical to the single-amount
+ * path. When neither leg is the default, the amounts give the X↔Y rate but not
+ * either →default rate, so each leg stamps its own resolver rate.
+ */
+export function stampTransferRates(
+  fromCurrency: string,
+  toCurrency: string,
+  fromAmount: number,
+  toAmount: number,
+  currencies: Record<string, CurrencySettings>,
+  defaultCurrency: string,
+  table: SeedRateTable = SEED_RATES,
+): TransferRates {
+  if (fromCurrency === toCurrency) {
+    const shared = stampFxRate(fromCurrency, currencies, defaultCurrency, table);
+    return { fromRate: shared, toRate: shared };
+  }
+
+  const fromIsDefault = fromCurrency === defaultCurrency;
+  const toIsDefault = toCurrency === defaultCurrency;
+
+  if (fromIsDefault && toAmount !== 0) {
+    return { fromRate: undefined, toRate: fromAmount / toAmount };
+  }
+  if (toIsDefault && fromAmount !== 0) {
+    return { fromRate: toAmount / fromAmount, toRate: undefined };
+  }
+
+  return {
+    fromRate: stampFxRate(fromCurrency, currencies, defaultCurrency, table),
+    toRate: stampFxRate(toCurrency, currencies, defaultCurrency, table),
+  };
+}
+
 /**
  * The `todayRates` map U4 feeds into `createConverter`: every currency in the
  * budget's map keyed to its resolved rate against the default. Each rate walks

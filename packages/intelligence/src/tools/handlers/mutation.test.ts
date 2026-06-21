@@ -76,6 +76,55 @@ describe("handleCreateTransaction", () => {
     expect(result.created[1].amount).toBe("$100.00")
   })
 
+  it("creates a cross-currency transfer with independent legs and per-leg rates", async () => {
+    const repo = createMockRepo({
+      accounts: [
+        makeAccount({ id: "acc-usd", currency: "USD" }),
+        makeAccount({ id: "acc-eur", currency: "EUR" }),
+      ],
+    })
+    await handleCreateTransaction(
+      repo,
+      "USD",
+      { USD: { decimals: 2, symbolPosition: "before" }, EUR: { decimals: 2, symbolPosition: "before" } },
+      {
+        type: "transfer",
+        amount: 10000,
+        accountId: "acc-usd",
+        toAccountId: "acc-eur",
+        toAmount: 9200,
+        date: "2026-03-14",
+      },
+    )
+    const saved = (repo.saveTransactions as ReturnType<typeof vi.fn>).mock.calls[0][0] as Transaction[]
+    const from = saved.find((t) => t.accountId === "acc-usd")!
+    const to = saved.find((t) => t.accountId === "acc-eur")!
+    expect(from.amount).toBe(-10000)
+    expect(from.fxRate).toBeUndefined() // default leg
+    expect(to.amount).toBe(9200)
+    expect(to.fxRate).toBeCloseTo(10000 / 9200, 12) // derived bank rate
+  })
+
+  it("infers the received amount from today's rate when toAmount is omitted", async () => {
+    const repo = createMockRepo({
+      accounts: [
+        makeAccount({ id: "acc-usd", currency: "USD" }),
+        makeAccount({ id: "acc-eur", currency: "EUR" }),
+      ],
+    })
+    await handleCreateTransaction(
+      repo,
+      "USD",
+      { USD: { decimals: 2, symbolPosition: "before" }, EUR: { decimals: 2, symbolPosition: "before" } },
+      { type: "transfer", amount: 10000, accountId: "acc-usd", toAccountId: "acc-eur", date: "2026-03-14" },
+    )
+    const saved = (repo.saveTransactions as ReturnType<typeof vi.fn>).mock.calls[0][0] as Transaction[]
+    const to = saved.find((t) => t.accountId === "acc-eur")!
+    // rate(USD→EUR) = 1 / (1/0.92) = 0.92, so $100 → €92.
+    expect(to.amount).toBe(9200)
+    expect(to.fxRate).toBeCloseTo(10000 / 9200, 10)
+  })
+
   it("creates income with positive amount", async () => {
     const repo = createMockRepo({})
     const result = JSON.parse(
@@ -128,7 +177,7 @@ describe("handleUpdateTransaction", () => {
       transactions: [makeTxn({ id: "txn-1", amount: -5000, merchant: "Old" })],
     })
     const result = JSON.parse(
-      await handleUpdateTransaction(repo, {
+      await handleUpdateTransaction(repo, "USD", undefined, {
         id: "txn-1",
         merchant: "New Merchant",
         amount: 7500,
@@ -144,7 +193,7 @@ describe("handleUpdateTransaction", () => {
   it("returns error for missing transaction", async () => {
     const repo = createMockRepo({})
     const result = JSON.parse(
-      await handleUpdateTransaction(repo, { id: "nonexistent" }),
+      await handleUpdateTransaction(repo, "USD", undefined, { id: "nonexistent" }),
     )
     expect(result.error).toMatch(/not found/)
   })

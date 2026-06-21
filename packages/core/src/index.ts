@@ -255,12 +255,14 @@ export type {
   SeedRateTable,
   RateProvenance,
   ResolvedRate,
+  TransferRates,
 } from "./utils/rates";
 export {
   SEED_RATES,
   resolveRate,
   buildTodayRates,
   stampFxRate,
+  stampTransferRates,
 } from "./utils/rates";
 
 // Transaction search (fuzzy cross-field + money matcher)

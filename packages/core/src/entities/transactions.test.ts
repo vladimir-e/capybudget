@@ -134,6 +134,50 @@ describe("createTransaction", () => {
       expect(result[0].fxRate).toBe(0.011);
       expect(result[1].fxRate).toBe(0.011);
     });
+
+    it("mirrors the amount on the to leg when toAmount is absent (same-currency)", () => {
+      const result = createTransaction(transferInput, []);
+      expect(result[0].amount).toBe(-25000);
+      expect(result[1].amount).toBe(25000);
+    });
+
+    describe("cross-currency", () => {
+      // $100 (USD, default) → €92 (EUR), the EUR leg carrying its derived bank
+      // rate 100/92, the USD leg empty (1.0).
+      const crossInput: TransactionFormData = {
+        type: "transfer",
+        amount: 10000,
+        categoryId: "",
+        accountId: "acc-usd",
+        toAccountId: "acc-eur",
+        date: "2026-03-05",
+        merchant: "",
+        note: "",
+        toAmount: 9200,
+        fxRate: undefined,
+        toFxRate: 10000 / 9200,
+      };
+
+      it("each leg carries its own native amount", () => {
+        const [from, to] = createTransaction(crossInput, []);
+        expect(from.amount).toBe(-10000);
+        expect(from.accountId).toBe("acc-usd");
+        expect(to.amount).toBe(9200);
+        expect(to.accountId).toBe("acc-eur");
+      });
+
+      it("each leg carries its own stamped rate", () => {
+        const [from, to] = createTransaction(crossInput, []);
+        expect(from.fxRate).toBeUndefined();
+        expect(to.fxRate).toBeCloseTo(10000 / 9200, 12);
+      });
+
+      it("the two legs net to ~0 in the default at the stamped rates", () => {
+        const [from, to] = createTransaction(crossInput, []);
+        const net = from.amount * (from.fxRate ?? 1) + to.amount * (to.fxRate ?? 1);
+        expect(net).toBeCloseTo(0, 6);
+      });
+    });
   });
 
   describe("fxRate stamping", () => {
@@ -370,6 +414,33 @@ describe("updateTransaction", () => {
       const result = updateTransaction(input, [fromLeg, toLeg]);
       expect(result[0].merchant).toBe("");
       expect(result[1].merchant).toBe("");
+    });
+
+    it("round-trips a cross-currency transfer: independent amounts and re-stamped rates", () => {
+      const crossFrom = makeTxn({
+        id: "xc-from", type: "transfer", amount: -10000, accountId: "acc-usd",
+        transferPairId: "xc-to", merchant: "", categoryId: "", fxRate: undefined,
+      });
+      const crossTo = makeTxn({
+        id: "xc-to", type: "transfer", amount: 9200, accountId: "acc-eur",
+        transferPairId: "xc-from", merchant: "", categoryId: "", fxRate: 10000 / 9200,
+      });
+      // Edit both amounts: $120 → €110, new derived rate 12000/11000.
+      const input: TransactionFormData = {
+        id: "xc-from", type: "transfer", amount: 12000, categoryId: "",
+        accountId: "acc-usd", toAccountId: "acc-eur", date: "2026-05-01",
+        merchant: "", note: "", toAmount: 11000, fxRate: undefined, toFxRate: 12000 / 11000,
+      };
+
+      const result = updateTransaction(input, [crossFrom, crossTo]);
+      const from = result.find((t) => t.id === "xc-from")!;
+      const to = result.find((t) => t.id === "xc-to")!;
+      expect(from.amount).toBe(-12000);
+      expect(from.fxRate).toBeUndefined();
+      expect(to.amount).toBe(11000);
+      expect(to.fxRate).toBeCloseTo(12000 / 11000, 12);
+      // Still nets to ~0 at the re-stamped rates.
+      expect(from.amount * (from.fxRate ?? 1) + to.amount * (to.fxRate ?? 1)).toBeCloseTo(0, 6);
     });
   });
 

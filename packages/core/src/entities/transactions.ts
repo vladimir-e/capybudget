@@ -11,10 +11,18 @@ export interface TransactionFormData {
   merchant: string;
   note: string;
   /** The native→default rate to freeze on creation, resolved by the caller
-   *  from the account's currency (see `stampFxRate`). Undefined leaves the
-   *  field empty — a default-currency transaction at an implicit 1.0. Stamped
-   *  on create only; updates never re-rate. */
+   *  from the account's currency (see `stampFxRate`). For a transfer this is the
+   *  from-leg's rate. Undefined leaves the field empty — a default-currency
+   *  transaction at an implicit 1.0. Stamped on create *and* re-stamped on
+   *  update (a transfer's amounts and currencies can change). */
   fxRate?: number;
+  /** Cross-currency transfer only: the inflow magnitude in the to-account's
+   *  currency, when it differs from the from-account's. Absent means a
+   *  same-currency transfer — the to leg mirrors `amount`. */
+  toAmount?: number;
+  /** Cross-currency transfer only: the to-leg's native→default rate (see
+   *  `stampTransferRates`). Absent means the to leg shares `fxRate`. */
+  toFxRate?: number;
 }
 
 /** Create one (or two, for transfers) new transactions. Returns the new full list. */
@@ -37,6 +45,10 @@ export function createTransaction(
   if (input.type === "transfer") {
     const fromId = crypto.randomUUID();
     const toId = crypto.randomUUID();
+    // A same-currency transfer leaves toAmount/toFxRate unset, so the to leg
+    // mirrors the from leg and both share the one stamped rate. A cross-currency
+    // transfer carries an independent to-side amount and its own per-leg rate.
+    const toAmount = input.toAmount ?? input.amount;
     const base = {
       datetime,
       type: "transfer" as const,
@@ -44,14 +56,11 @@ export function createTransaction(
       merchant: "",
       note: input.note,
       createdAt,
-      // Same-currency transfer: both legs share one rate. Cross-currency
-      // legs stamp their own rates — that's U5.
-      fxRate: input.fxRate,
     };
     return [
       ...existing,
-      { ...base, id: fromId, amount: -input.amount, accountId: input.accountId, transferPairId: toId },
-      { ...base, id: toId, amount: input.amount, accountId: input.toAccountId!, transferPairId: fromId },
+      { ...base, id: fromId, amount: -input.amount, accountId: input.accountId, transferPairId: toId, fxRate: input.fxRate },
+      { ...base, id: toId, amount: toAmount, accountId: input.toAccountId!, transferPairId: fromId, fxRate: input.toFxRate ?? input.fxRate },
     ];
   }
 
@@ -88,10 +97,14 @@ export function updateTransaction(
   if (input.type === "transfer") {
     // The form resolves transfer pairs so input.accountId = from (outflow),
     // input.toAccountId = to (inflow), regardless of which leg was clicked.
-    // Both legs are fully rewritten based on the resolved from/to.
+    // Both legs are fully rewritten based on the resolved from/to. Same-currency
+    // transfers leave toAmount/toFxRate unset, so the to leg mirrors the from
+    // leg's amount and shares its rate; cross-currency edits carry both.
     const original = existing.find((t) => t.id === input.id);
     const pairId = original?.transferPairId;
     const datetime = resolveDateTime(input.date, original?.datetime ?? "");
+    const toAmount = input.toAmount ?? input.amount;
+    const toFxRate = input.toFxRate ?? input.fxRate;
 
     if (!pairId && input.toAccountId) {
       // Unpaired transfer gaining a pair — create the missing leg.
@@ -105,9 +118,10 @@ export function updateTransaction(
           t.id === input.id
             ? {
                 ...t,
-                amount: originalIsFrom ? -input.amount : input.amount,
+                amount: originalIsFrom ? -input.amount : toAmount,
                 accountId: originalIsFrom ? input.accountId : toAcct,
                 transferPairId: newPairId,
+                fxRate: originalIsFrom ? input.fxRate : toFxRate,
                 datetime, merchant: "", note: input.note,
               }
             : t,
@@ -116,23 +130,24 @@ export function updateTransaction(
           id: newPairId,
           datetime,
           type: "transfer" as const,
-          amount: originalIsFrom ? input.amount : -input.amount,
+          amount: originalIsFrom ? toAmount : -input.amount,
           categoryId: "",
           accountId: originalIsFrom ? toAcct : input.accountId,
           transferPairId: input.id!,
           merchant: "",
           note: input.note,
           createdAt: new Date().toISOString(),
+          fxRate: originalIsFrom ? toFxRate : input.fxRate,
         },
       ];
     }
 
     return existing.map((t) => {
       if (t.id === input.id) {
-        return { ...t, amount: -input.amount, accountId: input.accountId, datetime, merchant: "", note: input.note };
+        return { ...t, amount: -input.amount, accountId: input.accountId, fxRate: input.fxRate, datetime, merchant: "", note: input.note };
       }
       if (pairId && t.id === pairId) {
-        return { ...t, amount: input.amount, accountId: input.toAccountId!, datetime, merchant: "", note: input.note };
+        return { ...t, amount: toAmount, accountId: input.toAccountId!, fxRate: toFxRate, datetime, merchant: "", note: input.note };
       }
       return t;
     });

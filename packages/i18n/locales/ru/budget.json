@@ -247,7 +247,8 @@
       "categoryPlaceholder": "Категория",
       "notesPlaceholder": "Заметка (необязательно)",
       "selectAccount": "Выбери счёт",
-      "selectBothAccounts": "Выбери оба счёта"
+      "selectBothAccounts": "Выбери оба счёта",
+      "receivedAmount": "Сумма зачисления"
     },
     "toast": {
       "added": "Операция добавлена",

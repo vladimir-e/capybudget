@@ -98,7 +98,8 @@ const HANDLERS: Record<string, ToolHandler> = {
   // Mutations
   create_transaction: ({ repo, currency, currencies }, args) =>
     handleCreateTransaction(repo, currency, currencies, args),
-  update_transaction: ({ repo }, args) => handleUpdateTransaction(repo, args),
+  update_transaction: ({ repo, currency, currencies }, args) =>
+    handleUpdateTransaction(repo, currency, currencies, args),
   delete_transactions: ({ repo }, args) => handleDeleteTransactions(repo, args),
   create_account: ({ repo, currency, currencies }, args) =>
     handleCreateAccount(repo, currency, currencies, args),

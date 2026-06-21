@@ -246,7 +246,8 @@
       "categoryPlaceholder": "Categoría",
       "notesPlaceholder": "Notas (opcional)",
       "selectAccount": "Selecciona una cuenta",
-      "selectBothAccounts": "Selecciona ambas cuentas"
+      "selectBothAccounts": "Selecciona ambas cuentas",
+      "receivedAmount": "Importe recibido"
     },
     "toast": {
       "added": "Transacción añadida",

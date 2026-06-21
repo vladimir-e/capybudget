@@ -26,10 +26,30 @@ import {
   bulkChangeMerchant,
   formatMoney,
   stampFxRate,
+  stampTransferRates,
+  resolveRate,
+  type Account,
   type AccountType,
   type CurrencySettings,
   type TransactionType,
 } from "@capybudget/core"
+
+// The inflow magnitude in the destination's currency for a cross-currency
+// transfer when the model didn't supply one: the source amount at today's
+// display cross-rate, rate(from→to) = rate(from→default) / rate(to→default).
+// Same-currency transfers mirror the source amount unchanged.
+function inferToAmount(
+  fromAmount: number,
+  from: Account,
+  to: Account,
+  currencies: Record<string, CurrencySettings>,
+  defaultCurrency: string,
+): number {
+  if (from.currency === to.currency) return fromAmount
+  const fromToDefault = resolveRate(from.currency, currencies, defaultCurrency).rate
+  const toToDefault = resolveRate(to.currency, currencies, defaultCurrency).rate
+  return Math.round((fromAmount * fromToDefault) / toToDefault)
+}
 
 export async function handleCreateTransaction(
   repo: BudgetRepository,
@@ -43,27 +63,46 @@ export async function handleCreateTransaction(
   }
 
   const accountId = args.accountId as string
-  // Stamp today's rate on a foreign-account transaction at entry (same as the
-  // UI create path), so AI-created flows freeze their rate too. The source
-  // account drives the rate; cross-currency transfers are U5.
+  const amount = args.amount as number
+  const toAccountId = args.toAccountId as string | undefined
+  // Stamp today's rate at entry (same as the UI create path), so AI-created
+  // flows freeze their rate too. A transfer stamps each leg from its own
+  // account's currency, deriving the bank rate from the two amounts when one
+  // side is the default (see stampTransferRates); a plain flow stamps just its
+  // source account's rate.
   const accounts = await repo.getAccounts()
-  const account = accounts.find((a) => a.id === accountId)
-  const fxRate = account
-    ? stampFxRate(account.currency, currencies ?? {}, currency)
-    : undefined
+  const cur = currencies ?? {}
+  let fxRate: number | undefined
+  let toFxRate: number | undefined
+  let toAmount: number | undefined
+  if (type === "transfer") {
+    const from = accounts.find((a) => a.id === accountId)
+    const to = accounts.find((a) => a.id === toAccountId)
+    if (from && to) {
+      toAmount = (args.toAmount as number | undefined) ?? inferToAmount(amount, from, to, cur, currency)
+      const rates = stampTransferRates(from.currency, to.currency, amount, toAmount, cur, currency)
+      fxRate = rates.fromRate
+      toFxRate = rates.toRate
+    }
+  } else {
+    const account = accounts.find((a) => a.id === accountId)
+    fxRate = account ? stampFxRate(account.currency, cur, currency) : undefined
+  }
 
   const existing = await repo.getTransactions()
   const next = createTransaction(
     {
       type,
-      amount: args.amount as number,
+      amount,
       accountId,
       categoryId: (args.categoryId as string) ?? "",
-      toAccountId: args.toAccountId as string | undefined,
+      toAccountId,
       date: args.date as string,
       merchant: (args.merchant as string) ?? "",
       note: (args.note as string) ?? "",
       fxRate,
+      toAmount,
+      toFxRate,
     },
     existing,
   )
@@ -83,6 +122,8 @@ export async function handleCreateTransaction(
 
 export async function handleUpdateTransaction(
   repo: BudgetRepository,
+  currency: string,
+  currencies: Record<string, CurrencySettings> | undefined,
   args: Record<string, unknown>,
 ): Promise<string> {
   const existing = await repo.getTransactions()
@@ -90,6 +131,8 @@ export async function handleUpdateTransaction(
   if (!original) return JSON.stringify({ error: `Transaction ${args.id} not found` })
 
   const effectiveType = (args.type as TransactionType) ?? original.type
+  const accountId = (args.accountId as string) ?? original.accountId
+  const amount = (args.amount as number) ?? Math.abs(original.amount)
 
   // Infer toAccountId from the existing transfer pair if not provided
   let toAccountId = args.toAccountId as string | undefined
@@ -101,17 +144,39 @@ export async function handleUpdateTransaction(
     return JSON.stringify({ error: "toAccountId is required for transfers" })
   }
 
+  // Re-stamp a transfer's per-leg rates from the edited legs (amounts or the
+  // destination currency may have changed). Plain flows never re-rate —
+  // updateTransaction preserves their original stamp.
+  let fxRate: number | undefined
+  let toFxRate: number | undefined
+  let toAmount: number | undefined
+  if (effectiveType === "transfer") {
+    const accounts = await repo.getAccounts()
+    const from = accounts.find((a) => a.id === accountId)
+    const to = accounts.find((a) => a.id === toAccountId)
+    if (from && to) {
+      const cur = currencies ?? {}
+      toAmount = (args.toAmount as number | undefined) ?? inferToAmount(amount, from, to, cur, currency)
+      const rates = stampTransferRates(from.currency, to.currency, amount, toAmount, cur, currency)
+      fxRate = rates.fromRate
+      toFxRate = rates.toRate
+    }
+  }
+
   const next = updateTransaction(
     {
       id: args.id as string,
       type: effectiveType,
-      amount: (args.amount as number) ?? Math.abs(original.amount),
-      accountId: (args.accountId as string) ?? original.accountId,
+      amount,
+      accountId,
       categoryId: (args.categoryId as string) ?? original.categoryId,
       toAccountId,
       date: (args.date as string) ?? original.datetime.slice(0, 10),
       merchant: (args.merchant as string) ?? original.merchant,
       note: (args.note as string) ?? original.note,
+      fxRate,
+      toAmount,
+      toFxRate,
     },
     existing,
   )

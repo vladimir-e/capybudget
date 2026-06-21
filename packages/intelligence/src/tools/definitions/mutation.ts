@@ -31,6 +31,12 @@ export const MUTATION_TOOL_DEFS = [
           type: "string",
           description: "Destination account ID (required for transfers)",
         },
+        toAmount: {
+          type: "integer",
+          minimum: 0,
+          description:
+            "Cross-currency transfers only: positive cents received in the destination account's currency, when it differs from the source's. Omit for same-currency transfers; if omitted across currencies, today's rate is used.",
+        },
         date: {
           type: "string",
           description: "Date in YYYY-MM-DD format",
@@ -79,6 +85,12 @@ export const MUTATION_TOOL_DEFS = [
         toAccountId: {
           type: "string",
           description: "New destination account (for transfers)",
+        },
+        toAmount: {
+          type: "integer",
+          minimum: 0,
+          description:
+            "Cross-currency transfers only: positive cents received in the destination account's currency, when it differs from the source's.",
         },
         date: {
           type: "string",

@@ -205,6 +205,38 @@ describe("getNetWorthBreakdown", () => {
     });
   });
 
+  describe("cross-currency transfer is net-worth-neutral at its stamped rates", () => {
+    // $100 USD → €92 EUR. The from leg is the default (empty rate); the EUR leg
+    // stamps the bank rate 100/92. Net worth walks both legs via flowToDefault.
+    const converter = createConverter(new Map([["USD", 1], ["EUR", 1 / 0.92]]), "USD");
+    const usdAccount: Account = {
+      id: "acc-usd", name: "Checking", type: "checking", archived: false,
+      excludeFromNetWorth: false, sortOrder: 0, createdAt: "2026-01-01T00:00:00.000Z",
+      currency: "USD",
+    };
+    const eurAccount: Account = {
+      ...usdAccount, id: "acc-eur", name: "Revolut EUR", currency: "EUR", sortOrder: 1,
+    };
+    // Seed each account so the transfer doesn't drive a balance negative.
+    const txns: Transaction[] = [
+      txn({ id: "seed-usd", type: "income", amount: 50_000, accountId: "acc-usd" }),
+      txn({ id: "seed-eur", type: "income", amount: 50_000, accountId: "acc-eur", fxRate: 1 / 0.92 }),
+      txn({ id: "xc-from", type: "transfer", amount: -10_000, accountId: "acc-usd", transferPairId: "xc-to" }),
+      txn({ id: "xc-to", type: "transfer", amount: 9_200, accountId: "acc-eur", transferPairId: "xc-from", fxRate: 10_000 / 9_200 }),
+    ];
+
+    it("the transfer legs alone contribute ~0 to cost-basis net worth", () => {
+      const withTransfer = getNetWorthBreakdown([usdAccount, eurAccount], txns, converter).costBasis;
+      const withoutTransfer = getNetWorthBreakdown(
+        [usdAccount, eurAccount],
+        txns.filter((t) => t.type !== "transfer"),
+        converter,
+      ).costBasis;
+      // Adding the transfer moved nothing meaningful — only the genuine spread.
+      expect(withTransfer).toBeCloseTo(withoutTransfer, 0);
+    });
+  });
+
   // The correctness anchor: the callout's cost basis must equal the chart
   // endpoint it sits under, for the SAME account set and a window ending now.
   // Includes an archived-but-included foreign account — the chart counts it

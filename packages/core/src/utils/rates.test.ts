@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { SEED_RATES, resolveRate, buildTodayRates, stampFxRate } from "./rates";
+import { SEED_RATES, resolveRate, buildTodayRates, stampFxRate, stampTransferRates } from "./rates";
 import type { CurrencySettings } from "./money";
 
 const fmt = (rate?: number, rateSource?: "manual" | "seed"): CurrencySettings => ({
@@ -82,6 +82,73 @@ describe("stampFxRate — the rate frozen on a foreign transaction at entry", ()
 
   it("falls back to the unset floor (1.0) for a currency absent from the seed table", () => {
     expect(stampFxRate("XYZ", { XYZ: fmt(), USD: fmt() }, "USD")).toBe(1);
+  });
+});
+
+describe("stampTransferRates — per-leg rates for a transfer", () => {
+  const usdEurRub = {
+    USD: fmt(),
+    EUR: fmt(),
+    RUB: fmt(),
+  };
+
+  // The money-correctness invariant: at the stamped per-leg rates the two legs
+  // net to ~0 in the default currency (any residue is the real FX spread).
+  const netDefault = (
+    fromAmount: number,
+    toAmount: number,
+    fromRate: number | undefined,
+    toRate: number | undefined,
+  ) => -fromAmount * (fromRate ?? 1) + toAmount * (toRate ?? 1);
+
+  describe("same-currency transfer (unchanged: one shared rate)", () => {
+    it("both legs undefined for an all-default transfer", () => {
+      expect(stampTransferRates("USD", "USD", 10000, 10000, usdEurRub, "USD")).toEqual({
+        fromRate: undefined,
+        toRate: undefined,
+      });
+    });
+
+    it("both legs share the one resolver rate for a same-foreign transfer", () => {
+      const { fromRate, toRate } = stampTransferRates("RUB", "RUB", 10000, 10000, usdEurRub, "USD");
+      expect(fromRate).toBeCloseTo(1 / SEED_RATES.rates.RUB, 10);
+      expect(toRate).toBe(fromRate);
+    });
+  });
+
+  describe("one side is the default — rate derived from the two amounts (the bank rate)", () => {
+    it("default→foreign: the foreign (to) leg's rate is fromAmount / toAmount", () => {
+      // $100 → €92: rate(EUR→USD) = 100/92 ≈ 1.087, more accurate than the table.
+      const { fromRate, toRate } = stampTransferRates("USD", "EUR", 10000, 9200, usdEurRub, "USD");
+      expect(fromRate).toBeUndefined();
+      expect(toRate).toBeCloseTo(10000 / 9200, 12);
+      expect(netDefault(10000, 9200, fromRate, toRate)).toBeCloseTo(0, 6);
+    });
+
+    it("foreign→default: the foreign (from) leg's rate is toAmount / fromAmount", () => {
+      // €92 → $100: rate(EUR→USD) = 100/92, the to leg is the default (empty).
+      const { fromRate, toRate } = stampTransferRates("EUR", "USD", 9200, 10000, usdEurRub, "USD");
+      expect(toRate).toBeUndefined();
+      expect(fromRate).toBeCloseTo(10000 / 9200, 12);
+      expect(netDefault(9200, 10000, fromRate, toRate)).toBeCloseTo(0, 6);
+    });
+
+    it("the derived rate is the true executed rate, not the seed table's", () => {
+      // The user got a worse rate (€90 for $100) than the seed (≈€92); we stamp
+      // the rate they actually got, 100/90, not 1/0.92.
+      const { toRate } = stampTransferRates("USD", "EUR", 10000, 9000, usdEurRub, "USD");
+      expect(toRate).toBeCloseTo(10000 / 9000, 12);
+      expect(toRate).not.toBeCloseTo(1 / SEED_RATES.rates.EUR, 4);
+    });
+  });
+
+  describe("neither side is the default — each leg stamps its resolver rate", () => {
+    it("foreign→foreign uses the table for both legs", () => {
+      // Default USD, EUR→RUB. The amounts give EUR↔RUB but not either →USD rate.
+      const { fromRate, toRate } = stampTransferRates("EUR", "RUB", 9200, 836000, usdEurRub, "USD");
+      expect(fromRate).toBeCloseTo(1 / SEED_RATES.rates.EUR, 10);
+      expect(toRate).toBeCloseTo(1 / SEED_RATES.rates.RUB, 10);
+    });
   });
 });
 

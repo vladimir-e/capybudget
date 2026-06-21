@@ -8,9 +8,9 @@ import { AccountSelector } from "@/components/budget/account-selector";
 import { MerchantInput } from "@/components/budget/merchant-input";
 import { useAccounts, useCategories, useTransactions } from "@/hooks/use-budget-data";
 import type { Transaction, TransactionType, TransactionFormData } from "@capybudget/core";
-import { findCategoryForMerchant, resolveTransferPair, parseMoney, getToday, parseLocalDate, toDateString } from "@capybudget/core";
+import { findCategoryForMerchant, resolveTransferPair, parseMoney, getToday, parseLocalDate, toDateString, currencySymbol, resolveRate, centsToEditString } from "@capybudget/core";
 import { useTranslation } from "@capybudget/i18n";
-import { useFormatMoney } from "@/contexts/currency-context";
+import { useFormatMoney, useCurrency, useCurrencies } from "@/contexts/currency-context";
 import { useFormatters } from "@/hooks/use-formatters";
 import { Minus, Plus, ArrowLeftRight, Check, CalendarDays } from "lucide-react";
 
@@ -57,6 +57,8 @@ export function TransactionForm({
 }: TransactionFormProps) {
   const { t } = useTranslation(["budget", "common"]);
   const { symbol } = useFormatMoney();
+  const defaultCurrency = useCurrency();
+  const currencies = useCurrencies();
   const { date: formatDate } = useFormatters();
   const { data: accounts = [] } = useAccounts();
   const { data: categories = [] } = useCategories();
@@ -79,6 +81,18 @@ export function TransactionForm({
   const [amount, setAmount] = useState(() =>
     editingTransaction ? (Math.abs(editingTransaction.amount) / 100).toFixed(2) : "",
   );
+  // The received amount in the to-account's currency, shown only for a
+  // cross-currency transfer. Seeded from the edited transfer's inflow leg (its
+  // stored, real received amount) and treated as already-set so the prefill
+  // doesn't overwrite it; for a new transfer it auto-prefills from the display
+  // cross-rate until the user types into it.
+  const editingInflowAmount = (() => {
+    const pair = initialTransfer?.pairTransaction;
+    const inflow = pair && pair.amount > 0 ? pair : editingTransaction && editingTransaction.amount > 0 ? editingTransaction : undefined;
+    return inflow ? (Math.abs(inflow.amount) / 100).toFixed(2) : "";
+  })();
+  const [toAmount, setToAmount] = useState(editingInflowAmount);
+  const [toAmountEdited, setToAmountEdited] = useState(editingInflowAmount !== "");
   const [type, setType] = useState<TransactionType>(
     editingTransaction?.type ?? "expense",
   );
@@ -105,8 +119,38 @@ export function TransactionForm({
     }
   }
 
+  // Per-leg currencies drive the cross-currency UX: when a transfer's two
+  // accounts hold different currencies, a second "received" amount appears in
+  // the to-account's currency. Everything below collapses to the
+  // single-currency UX when they match — and an all-default budget always
+  // matches, so it never changes.
+  const fromCurrency = accounts.find((a) => a.id === accountId)?.currency ?? defaultCurrency;
+  const toCurrency = accounts.find((a) => a.id === toAccountId)?.currency ?? defaultCurrency;
+  const isCrossCurrency = type === "transfer" && !!toAccountId && fromCurrency !== toCurrency;
+  const fromSymbol = type === "transfer" ? currencySymbol(fromCurrency) : symbol;
+  const toSymbol = currencySymbol(toCurrency);
+
+  // Prefill the received amount from the display cross-rate
+  // rate(from→to) = rate(from→default) / rate(to→default), until the user
+  // overrides it. Reads through the live `amount`, so editing either side
+  // keeps the other in sync while untouched.
+  let displayToAmount = toAmount;
+  if (isCrossCurrency && !toAmountEdited) {
+    const fromCents = parseMoney(amount);
+    if (fromCents > 0) {
+      const crossRate =
+        resolveRate(fromCurrency, currencies, defaultCurrency).rate /
+        resolveRate(toCurrency, currencies, defaultCurrency).rate;
+      displayToAmount = centsToEditString(Math.round(fromCents * crossRate));
+    } else {
+      displayToAmount = "";
+    }
+  }
+
   function resetForm() {
     setAmount("");
+    setToAmount("");
+    setToAmountEdited(false);
     setType("expense");
     setCategoryId(null);
     setAccountId(defaultAccountId);
@@ -146,6 +190,9 @@ export function TransactionForm({
       categoryId: type === "transfer" ? "" : (categoryId ?? ""),
       accountId,
       toAccountId: type === "transfer" ? toAccountId : undefined,
+      // Only a cross-currency transfer carries an independent received amount;
+      // same-currency transfers mirror the from amount (toAmount stays absent).
+      toAmount: isCrossCurrency ? parseMoney(displayToAmount) : undefined,
       date,
       merchant: type === "transfer" ? "" : merchant.trim(),
       note: note.trim(),
@@ -160,6 +207,15 @@ export function TransactionForm({
     if (parts.length > 2) return;
     if (parts[1] && parts[1].length > 2) return;
     setAmount(cleaned);
+  }
+
+  function handleToAmountChange(raw: string) {
+    const cleaned = raw.replace(/[^0-9.]/g, "");
+    const parts = cleaned.split(".");
+    if (parts.length > 2) return;
+    if (parts[1] && parts[1].length > 2) return;
+    setToAmountEdited(true);
+    setToAmount(cleaned);
   }
 
   const colors = TYPE_COLORS[type];
@@ -231,8 +287,8 @@ export function TransactionForm({
               is a full-width entry field, so a trailing symbol would float far
               from the left-aligned number. The display formatter still honors
               position everywhere money is rendered read-only. */}
-          {symbol && (
-            <span className={`text-2xl font-bold transition-colors ${colors.text}`}>{symbol}</span>
+          {fromSymbol && (
+            <span className={`text-2xl font-bold transition-colors ${colors.text}`}>{fromSymbol}</span>
           )}
           <input
             ref={amountRef}
@@ -347,6 +403,28 @@ export function TransactionForm({
             <p className="text-xs text-destructive">{accountError && toAccountError ? t("transaction.form.selectBothAccounts") : t("transaction.form.selectAccount")}</p>
           )}
           </div>
+
+          {/* Received amount — only when the two accounts differ in currency.
+              Prefilled from the display cross-rate, fully editable (the user
+              enters what actually landed). */}
+          {isCrossCurrency && (
+            <div className="space-y-1">
+              <label className="text-xs text-muted-foreground">{t("transaction.form.receivedAmount")}</label>
+              <div className="flex items-baseline gap-0.5">
+                {toSymbol && (
+                  <span className={`text-lg font-semibold ${colors.text}`}>{toSymbol}</span>
+                )}
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  value={displayToAmount}
+                  onChange={(e) => handleToAmountChange(e.target.value)}
+                  placeholder="0.00"
+                  className={`bg-transparent text-lg font-semibold tabular-nums outline-none w-full placeholder:text-muted-foreground/20 ${colors.text}`}
+                />
+              </div>
+            </div>
+          )}
         </>
       )}
 

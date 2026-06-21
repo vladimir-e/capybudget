@@ -245,7 +245,8 @@
       "categoryPlaceholder": "Category",
       "notesPlaceholder": "Notes (optional)",
       "selectAccount": "Please select an account",
-      "selectBothAccounts": "Please select both accounts"
+      "selectBothAccounts": "Please select both accounts",
+      "receivedAmount": "Received amount"
     },
     "toast": {
       "added": "Transaction added",

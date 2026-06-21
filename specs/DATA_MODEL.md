@@ -113,7 +113,7 @@ The core entity. Every financial event is a transaction.
 | `merchant`       | string  | Optional. Who you paid or received from.                        |
 | `note`           | string  | Optional. Additional context.                                   |
 | `createdAt`      | string  | ISO 8601                                                        |
-| `fxRate`         | number  | Optional. The account's native→default rate stamped the day the transaction happened, so flows never re-rate as rates move. Empty = a default-currency transaction = an implicit rate of 1.0. Amounts are always stored in the account's native currency; this rate values them in the default at read time. |
+| `fxRate`         | number  | Optional. The account's native→default rate stamped the day the transaction happened, so flows never re-rate as rates move. Empty = a default-currency transaction = an implicit rate of 1.0. Amounts are always stored in the account's native currency; this rate values them in the default at read time. A transfer's two legs each carry their own `fxRate` (see Transfer Architecture § Cross-currency transfers). |
 
 ### Sign Convention
 
@@ -138,6 +138,18 @@ A transfer is **two linked transactions** with mutual `transferPairId` reference
 - Deleting either leg **cascades** to delete both.
 - Updating a transfer **propagates** amount and date changes to the paired transaction.
 - **Type changes between income ↔ expense are allowed.** Changing to/from transfer is NOT — delete and recreate. This avoids orphaned pair references.
+
+#### Cross-currency transfers
+
+When the two accounts hold different currencies, the legs cannot be equal and opposite — $100 leaving a USD account does not arrive as $100 in a EUR account. So a cross-currency transfer carries **two independent native amounts**, one per leg in that account's currency, and **each leg stamps its own `fxRate`** (its native→default rate), exactly as a standalone flow does. The form shows a second "received" amount field, prefilled from the display cross-rate and fully editable (the user enters what actually landed). A same-currency transfer is unchanged: one amount, mirrored, both legs sharing the one stamped rate.
+
+Per-leg rate rules:
+
+- A leg in the **default currency** leaves `fxRate` empty (an implicit 1.0).
+- When **exactly one** leg is the default, the foreign leg's rate is **derived from the two amounts** — the real rate the transfer executed at, more accurate than the table. From default→foreign, `toRate = fromAmount / toAmount`; from foreign→default, `fromRate = toAmount / fromAmount`.
+- When **neither** leg is the default, the amounts pin the X↔Y rate but not either →default rate, so each leg stamps its own resolver rate.
+
+The two legs net to ~0 in the default currency at the stamped rates (any residue is the genuine FX spread), so a cross-currency transfer fabricates no net-worth gain or loss. Editing a transfer re-stamps both legs from the edited amounts and currencies.
 
 ## Referential Integrity
 
