@@ -88,8 +88,6 @@ export interface GroupKeyPart {
 export interface GroupContext {
   accounts: Account[];
   categories: Category[];
-  /** Values each transaction's amount in the default currency at its stamped
-   *  flow rate before any metric or bucketing. Defaults to identity. */
   converter?: CurrencyConverter;
 }
 
@@ -273,8 +271,6 @@ const KEY_SEP = String.fromCharCode(0);
 interface Bucket {
   key: GroupKeyPart[];
   txns: Transaction[];
-  /** Default-currency amounts, parallel to `txns`, valued at each
-   *  transaction's stamped flow rate. Drives every amount-based metric. */
   amounts: number[];
 }
 

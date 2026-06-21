@@ -59,6 +59,12 @@ describe("createConverter", () => {
     it("falls back to 1.0 for a currency with no rate", () => {
       expect(converter.holdingToDefault(50_000, "JPY")).toBe(50_000);
     });
+
+    it("rounds a non-even product to integer cents", () => {
+      // 333 × 0.011 = 3.663 → 4
+      expect(converter.holdingToDefault(333, "RUB")).toBe(Math.round(333 * 0.011));
+      expect(converter.holdingToDefault(333, "RUB")).toBe(4);
+    });
   });
 
   it("flows and holdings on the same balance diverge by the FX delta", () => {

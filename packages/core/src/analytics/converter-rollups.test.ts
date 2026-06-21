@@ -13,6 +13,8 @@ import {
   getCategoryTrends,
   getCategoryHistoricalStats,
   getNetWorthOverTime,
+  getPeriodSummary,
+  getMonthlyBudgetSummary,
   type DateRange,
 } from "./analytics";
 import { getAccountBalance, getNetWorth } from "./queries";
@@ -91,6 +93,12 @@ describe("identity invariant — single-currency budgets are byte-identical", ()
     );
     expect(getNetWorthOverTime(accounts, txns, range)).toEqual(
       getNetWorthOverTime(accounts, txns, range, undefined, IDENTITY_CONVERTER),
+    );
+    expect(getPeriodSummary(txns)).toEqual(
+      getPeriodSummary(txns, IDENTITY_CONVERTER),
+    );
+    expect(getMonthlyBudgetSummary(txns, categories, range)).toEqual(
+      getMonthlyBudgetSummary(txns, categories, range, IDENTITY_CONVERTER),
     );
   });
 

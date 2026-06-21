@@ -196,13 +196,15 @@ export function getNetWorthOverTime(
 /** Sum income and expenses separately. Excludes transfers. */
 export function getPeriodSummary(
   transactions: Transaction[],
+  converter: CurrencyConverter = IDENTITY_CONVERTER,
 ): { totalIncome: number; totalExpenses: number; net: number } {
   let totalIncome = 0;
   let totalExpenses = 0;
 
   for (const t of transactions) {
-    if (t.type === "income") totalIncome += t.amount;
-    else if (t.type === "expense") totalExpenses += t.amount;
+    const value = converter.flowToDefault(t.amount, t.fxRate);
+    if (t.type === "income") totalIncome += value;
+    else if (t.type === "expense") totalExpenses += value;
     // transfers excluded
   }
 
@@ -662,6 +664,7 @@ export function getMonthlyBudgetSummary(
   transactions: Transaction[],
   categories: Category[],
   range: DateRange,
+  converter: CurrencyConverter = IDENTITY_CONVERTER,
 ): MonthlyBudgetSummary {
   const startMs = range.start.getTime();
   const endMs = range.end.getTime();
@@ -675,7 +678,7 @@ export function getMonthlyBudgetSummary(
     if (ms < startMs || ms >= endMs) continue;
     spentByCategory.set(
       t.categoryId,
-      (spentByCategory.get(t.categoryId) ?? 0) + Math.abs(t.amount),
+      (spentByCategory.get(t.categoryId) ?? 0) + Math.abs(converter.flowToDefault(t.amount, t.fxRate)),
     );
   }
 
