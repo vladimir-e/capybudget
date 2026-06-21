@@ -8,6 +8,7 @@ import {
   resolveTransferPair,
 } from "./queries";
 import { IDENTITY_CONVERTER, createConverter } from "./converter";
+import { getNetWorthOverTime, type DateRange } from "./analytics";
 import type { Account, Transaction } from "../entities/types";
 
 // ── Test fixtures (self-contained, no external deps) ─────
@@ -131,15 +132,12 @@ describe("getNetWorth", () => {
 });
 
 describe("getNetWorthBreakdown", () => {
-  it("a single-currency budget: fxDelta is 0 and byAccount is empty", () => {
-    const breakdown = getNetWorthBreakdown(ACCOUNTS, TRANSACTIONS);
-    expect(breakdown.fxDelta).toBe(0);
-    expect(breakdown.byAccount).toEqual([]);
+  it("a single-currency budget: fxDelta is 0", () => {
+    expect(getNetWorthBreakdown(ACCOUNTS, TRANSACTIONS).fxDelta).toBe(0);
   });
 
-  it("spot reconciles with getNetWorth and with costBasis + fxDelta", () => {
+  it("spot === costBasis + fxDelta (the internal reconciliation)", () => {
     const breakdown = getNetWorthBreakdown(ACCOUNTS, TRANSACTIONS);
-    expect(breakdown.spot).toBe(getNetWorth(ACCOUNTS, TRANSACTIONS));
     expect(breakdown.spot).toBe(breakdown.costBasis + breakdown.fxDelta);
   });
 
@@ -147,6 +145,19 @@ describe("getNetWorthBreakdown", () => {
     expect(getNetWorthBreakdown(ACCOUNTS, TRANSACTIONS)).toEqual(
       getNetWorthBreakdown(ACCOUNTS, TRANSACTIONS, IDENTITY_CONVERTER),
     );
+  });
+
+  it("counts exactly the accounts passed — no internal archived/excluded filter", () => {
+    // ACCOUNTS includes an archived account (acc-checking-old, no txns → $0)
+    // and getNetWorth drops it; the breakdown counts whatever it's handed. With
+    // these $0 fixtures the totals coincide, but an archived account carrying a
+    // balance is the real divergence — covered by the chart-endpoint test below.
+    const breakdown = getNetWorthBreakdown(ACCOUNTS, TRANSACTIONS);
+    const byHand = ACCOUNTS.reduce(
+      (sum, a) => sum + getAccountBalance(a.id, TRANSACTIONS, IDENTITY_CONVERTER, a.currency),
+      0,
+    );
+    expect(breakdown.spot).toBe(byHand);
   });
 
   // The plan's worked example: default USD, a ruble account with +100,000 ₽
@@ -170,20 +181,12 @@ describe("getNetWorthBreakdown", () => {
       expect(breakdown.fxDelta).toBe(-50_000);
     });
 
-    it("reconciles: spot === costBasis + fxDelta === getNetWorth", () => {
+    it("reconciles: spot === costBasis + fxDelta", () => {
       const breakdown = getNetWorthBreakdown([rubAccount], rubTxns, converter);
       expect(breakdown.spot).toBe(breakdown.costBasis + breakdown.fxDelta);
-      expect(breakdown.spot).toBe(getNetWorth([rubAccount], rubTxns, converter));
     });
 
-    it("reports the per-account delta for the foreign account", () => {
-      const { byAccount } = getNetWorthBreakdown([rubAccount], rubTxns, converter);
-      expect(byAccount).toEqual([
-        { accountId: "acc-rub", costBasis: 160_000, spot: 110_000, fxDelta: -50_000 },
-      ]);
-    });
-
-    it("a default-currency account alongside a foreign one stays out of byAccount", () => {
+    it("a default-currency account alongside a foreign one contributes nothing to fxDelta", () => {
       const usdAccount: Account = {
         id: "acc-usd", name: "Checking", type: "checking", archived: false,
         excludeFromNetWorth: false, sortOrder: 0, createdAt: "2026-01-01T00:00:00.000Z",
@@ -195,18 +198,67 @@ describe("getNetWorthBreakdown", () => {
       const breakdown = getNetWorthBreakdown(
         [usdAccount, rubAccount], [...usdTxns, ...rubTxns], converter,
       );
-      // Only the ruble account moves; USD cost === spot.
-      expect(breakdown.byAccount.map((a) => a.accountId)).toEqual(["acc-rub"]);
+      // Only the ruble account moves; USD cost === spot, so the delta is the
+      // ruble's alone.
       expect(breakdown.fxDelta).toBe(-50_000);
       expect(breakdown.spot).toBe(breakdown.costBasis + breakdown.fxDelta);
-      expect(breakdown.spot).toBe(getNetWorth([usdAccount, rubAccount], [...usdTxns, ...rubTxns], converter));
+    });
+  });
+
+  // The correctness anchor: the callout's cost basis must equal the chart
+  // endpoint it sits under, for the SAME account set and a window ending now.
+  // Includes an archived-but-included foreign account — the chart counts it
+  // (getNetWorthOverTime never re-filters archived), so the breakdown must too.
+  describe("cost basis === getNetWorthOverTime endpoint", () => {
+    const converter = createConverter(new Map([["RUB", 0.011]]), "USD");
+    const range: DateRange = {
+      start: new Date(2019, 0, 1),
+      end: new Date(2027, 0, 1), // ends in the future → window reaches "now"
+    };
+
+    const liveAccount: Account = {
+      id: "acc-rub", name: "Tinkoff", type: "checking", archived: false,
+      excludeFromNetWorth: false, sortOrder: 0, createdAt: "2019-01-01T00:00:00.000Z",
+      currency: "RUB",
+    };
+    // Archived but in the include-set: a foreign credit card that ran a balance
+    // then was paid off — still counted by the chart at the points it carried one.
+    const archivedAccount: Account = {
+      ...liveAccount, id: "acc-rub-old", name: "Old RUB card", archived: true,
+    };
+
+    const txns: Transaction[] = [
+      txn({ id: "r1", amount: 10_000_000, type: "income", accountId: "acc-rub", fxRate: 0.016, datetime: "2024-02-15T12:00:00.000Z" }),
+      txn({ id: "r2", amount: 5_000_000, type: "income", accountId: "acc-rub-old", fxRate: 0.014, datetime: "2024-03-15T12:00:00.000Z" }),
+    ];
+
+    it("matches the chart endpoint with an archived-but-included account", () => {
+      const includeAll = new Set(["acc-rub", "acc-rub-old"]);
+      const points = getNetWorthOverTime(
+        [liveAccount, archivedAccount], txns, range, includeAll, converter,
+      );
+      const endpoint = points[points.length - 1].netWorth;
+
+      const breakdown = getNetWorthBreakdown([liveAccount, archivedAccount], txns, converter);
+      expect(breakdown.costBasis).toBe(endpoint);
+      // Both legs accumulate at their stamps: 100k×0.016 + 50k×0.014.
+      expect(breakdown.costBasis).toBe(160_000 + 70_000);
     });
 
-    it("excludes archived and excludeFromNetWorth accounts, matching getNetWorth", () => {
-      const archived = { ...rubAccount, archived: true };
-      expect(getNetWorthBreakdown([archived], rubTxns, converter).spot).toBe(
-        getNetWorth([archived], rubTxns, converter),
+    it("a clamped window: cost basis counts only transactions before range.end", () => {
+      const clampedRange: DateRange = { start: new Date(2024, 0, 1), end: new Date(2024, 2, 1) };
+      const includeAll = new Set(["acc-rub", "acc-rub-old"]);
+      const points = getNetWorthOverTime(
+        [liveAccount, archivedAccount], txns, clampedRange, includeAll, converter,
       );
+      const endpoint = points[points.length - 1].netWorth;
+
+      // r2 (Mar) is after the Feb-end window; the breakdown must drop it too to
+      // match — the tab filters transactions to < range.end before calling.
+      const inWindow = txns.filter((t) => new Date(t.datetime) < clampedRange.end);
+      const breakdown = getNetWorthBreakdown([liveAccount, archivedAccount], inWindow, converter);
+      expect(breakdown.costBasis).toBe(endpoint);
+      expect(breakdown.costBasis).toBe(160_000); // only r1
     });
   });
 });

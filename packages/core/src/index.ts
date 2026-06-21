@@ -102,7 +102,7 @@ export {
 } from "./utils/merchant";
 
 // Queries
-export type { TransferPair, NetWorthBreakdown, AccountFxDelta } from "./analytics/queries";
+export type { TransferPair, NetWorthBreakdown } from "./analytics/queries";
 export {
   CATEGORY_GROUP_ORDER,
   getAccountBalance,

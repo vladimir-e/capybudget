@@ -18,7 +18,12 @@ export function NetWorthFxCallout({ breakdown }: NetWorthFxCalloutProps) {
   const { t } = useTranslation("analytics");
   const { costBasis, fxDelta, spot } = breakdown;
   const deltaClass =
-    fxDelta > 0 ? "text-amount-income" : fxDelta < 0 ? "text-amount-expense" : "text-muted-foreground";
+    fxDelta > 0
+      ? "text-amount-income"
+      : fxDelta < 0
+        ? "text-amount-expense"
+        : "text-muted-foreground";
+  const sign = fxDelta > 0 ? "+" : fxDelta < 0 ? "−" : "";
 
   return (
     <div className="rounded-lg border bg-card px-5 py-4">
@@ -28,7 +33,7 @@ export function NetWorthFxCallout({ breakdown }: NetWorthFxCalloutProps) {
             {t("netWorth.fx.label")}
           </div>
           <div className={`text-xl font-bold tabular-nums mt-0.5 ${deltaClass}`}>
-            {fxDelta > 0 ? "+" : fxDelta < 0 ? "−" : ""}
+            {sign}
             {money(Math.abs(fxDelta))}
           </div>
         </div>

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { ReactNode } from "react";
 import { renderHook } from "@testing-library/react";
 import { formatDefaultsFor, SEED_RATES, type CurrencySettings } from "@capybudget/core";
-import { CurrencyContext, type CurrencyConfig, useConverter } from "./currency-context";
+import { CurrencyContext, type CurrencyConfig, useConverter, useCurrencies } from "./currency-context";
 
 function wrapper(currencies?: Record<string, CurrencySettings>) {
   const config: CurrencyConfig = {
@@ -43,5 +43,19 @@ describe("useConverter — the cardinal invariant", () => {
     // Holding values at today's resolved rate (1/91 from the seed table).
     const today = 1 / SEED_RATES.rates.RUB;
     expect(result.current.holdingToDefault(100_000, "RUB")).toBe(Math.round(100_000 * today));
+  });
+});
+
+describe("useCurrencies — absent-map fallback is referentially stable", () => {
+  // Guards the memoized fallback: an inline `{ [currency]: ... }` each render
+  // would return a fresh object and bust the useConverter memo. A revert to the
+  // inline fallback fails this, not just perf.
+  it("returns the same reference across renders when currencies is undefined", () => {
+    const { result, rerender } = renderHook(() => useCurrencies(), {
+      wrapper: wrapper(undefined),
+    });
+    const first = result.current;
+    rerender();
+    expect(result.current).toBe(first);
   });
 });

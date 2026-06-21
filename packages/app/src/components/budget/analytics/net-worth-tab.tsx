@@ -80,21 +80,6 @@ export function NetWorthTab({ accounts, transactions, dateRange, hasAnyTransacti
     [accounts, netWorthExcludedIds],
   );
 
-  const includedAccounts = useMemo(
-    () => accounts.filter((a) => includedIds.has(a.id)),
-    [accounts, includedIds],
-  );
-
-  // The FX callout explains why the spot net worth (today's rate) differs from
-  // the cost-basis chart endpoint. Shown whenever an included account is
-  // foreign — even at a zero delta, since the relationship is what's being
-  // explained. A USD-only budget has no foreign account, so nothing renders.
-  const hasForeignAccount = includedAccounts.some((a) => a.currency !== defaultCurrency);
-  const fxBreakdown = useMemo(
-    () => getNetWorthBreakdown(includedAccounts, transactions, converter),
-    [includedAccounts, transactions, converter],
-  );
-
   // Defer heavy inputs so the tab shell renders immediately
   const deferredTransactions = useDeferredValue(transactions);
   const deferredRange = useDeferredValue(dateRange);
@@ -104,16 +89,45 @@ export function NetWorthTab({ accounts, transactions, dateRange, hasAnyTransacti
     deferredRange !== dateRange ||
     deferredIncludedIds !== includedIds;
 
+  // The chart's actual window — the cost-basis line clamps to this end.
+  const chartRange = useMemo(() => ensureMinMonths(deferredRange, 12), [deferredRange]);
+
   const netWorthData = useMemo(
     () =>
       getNetWorthOverTime(
         accounts,
         deferredTransactions,
-        ensureMinMonths(deferredRange, 12),
+        chartRange,
         deferredIncludedIds,
         converter,
       ),
-    [accounts, deferredTransactions, deferredRange, deferredIncludedIds, converter],
+    [accounts, deferredTransactions, chartRange, deferredIncludedIds, converter],
+  );
+
+  // The FX callout sits under the chart, so its cost basis must equal the
+  // chart's endpoint: same include-set, same transactions clamped to the same
+  // window end. Then `current value (spot) = cost basis (chart endpoint) +
+  // unrealized FX` reads true. Spot is a today's-rate number, so it's only
+  // honest while the window reaches the present — scrub to a historical range
+  // and the callout hides (we have no spot at a past date). A USD-only budget
+  // has no foreign account, so nothing renders.
+  const includedAccounts = useMemo(
+    () => accounts.filter((a) => deferredIncludedIds.has(a.id)),
+    [accounts, deferredIncludedIds],
+  );
+  const hasForeignAccount = includedAccounts.some((a) => a.currency !== defaultCurrency);
+  // Captured once at mount: a stable "now" keeps the render pure, and the gate is
+  // month-coarse so mount-time drift never matters.
+  const [now] = useState(() => Date.now());
+  const rangeIsCurrent = chartRange.end.getTime() > now;
+  const fxBreakdown = useMemo(
+    () =>
+      getNetWorthBreakdown(
+        includedAccounts,
+        deferredTransactions.filter((t) => new Date(t.datetime).getTime() < chartRange.end.getTime()),
+        converter,
+      ),
+    [includedAccounts, deferredTransactions, chartRange, converter],
   );
 
   const chartData = useMemo(
@@ -267,7 +281,7 @@ export function NetWorthTab({ accounts, transactions, dateRange, hasAnyTransacti
         )}
       </ResponsiveContainer>
 
-      {hasForeignAccount && <NetWorthFxCallout breakdown={fxBreakdown} />}
+      {hasForeignAccount && rangeIsCurrent && <NetWorthFxCallout breakdown={fxBreakdown} />}
     </div>
   );
 }
