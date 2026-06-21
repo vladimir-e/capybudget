@@ -137,6 +137,28 @@ export function stampFxRate(
   return resolveRate(accountCurrency, currencies, defaultCurrency, table).rate;
 }
 
+/**
+ * The received amount, in `toCurrency` cents, that `fromCents` of `fromCurrency`
+ * converts to at today's display cross-rate `rate(from→to) = rate(from→default)
+ * / rate(to→default)`. The single rounding convention behind both the transfer
+ * form's prefill and the MCP handler's inferred `toAmount`, so the two can't
+ * drift. This is a default — the real received amount the user enters overrides
+ * it; the executed rate then derives from the two amounts (`stampTransferRates`).
+ */
+export function crossRateAmount(
+  fromCents: number,
+  fromCurrency: string,
+  toCurrency: string,
+  currencies: Record<string, CurrencySettings>,
+  defaultCurrency: string,
+  table: SeedRateTable = SEED_RATES,
+): number {
+  const crossRate =
+    resolveRate(fromCurrency, currencies, defaultCurrency, table).rate /
+    resolveRate(toCurrency, currencies, defaultCurrency, table).rate;
+  return Math.round(fromCents * crossRate);
+}
+
 /** The two per-leg rates a transfer stamps — each leg's native→default rate,
  *  `undefined` when that leg is in the default currency (an implicit 1.0). */
 export interface TransferRates {

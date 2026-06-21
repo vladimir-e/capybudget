@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { SEED_RATES, resolveRate, buildTodayRates, stampFxRate, stampTransferRates } from "./rates";
+import { SEED_RATES, resolveRate, buildTodayRates, stampFxRate, stampTransferRates, crossRateAmount } from "./rates";
 import type { CurrencySettings } from "./money";
 
 const fmt = (rate?: number, rateSource?: "manual" | "seed"): CurrencySettings => ({
@@ -149,6 +149,20 @@ describe("stampTransferRates — per-leg rates for a transfer", () => {
       expect(fromRate).toBeCloseTo(1 / SEED_RATES.rates.EUR, 10);
       expect(toRate).toBeCloseTo(1 / SEED_RATES.rates.RUB, 10);
     });
+  });
+});
+
+describe("crossRateAmount — the shared prefill convention", () => {
+  it("converts at the display cross-rate rate(from→to)", () => {
+    // $100 USD → EUR at rate(USD→EUR) = 1 / (1/0.92) = 0.92 → €92.
+    const got = crossRateAmount(10000, "USD", "EUR", { USD: fmt(), EUR: fmt() }, "USD");
+    expect(got).toBe(9200);
+  });
+
+  it("is the inverse direction of resolveRate(from→default)", () => {
+    // EUR → USD: 1 EUR ≈ $1.087, so €92 → ~$100.
+    const got = crossRateAmount(9200, "EUR", "USD", { USD: fmt(), EUR: fmt() }, "USD");
+    expect(got).toBe(Math.round(9200 * (1 / 0.92)));
   });
 });
 

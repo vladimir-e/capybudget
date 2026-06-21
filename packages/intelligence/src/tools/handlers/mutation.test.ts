@@ -197,6 +197,61 @@ describe("handleUpdateTransaction", () => {
     )
     expect(result.error).toMatch(/not found/)
   })
+
+  it("leaves both legs of a cross-currency transfer untouched on an unrelated edit", async () => {
+    // Executed at €90-for-$100 (toFxRate 10000/9000 ≈ 1.111), worse than today's
+    // seed (1/0.92 ≈ 1.087). A note-only edit must NOT re-rate to today's rate —
+    // the received amount and its derived rate are real history.
+    const repo = createMockRepo({
+      accounts: [
+        makeAccount({ id: "acc-usd", currency: "USD" }),
+        makeAccount({ id: "acc-eur", currency: "EUR" }),
+      ],
+      transactions: [
+        makeTxn({ id: "xc-from", type: "transfer", amount: -10000, accountId: "acc-usd", transferPairId: "xc-to", fxRate: undefined }),
+        makeTxn({ id: "xc-to", type: "transfer", amount: 9000, accountId: "acc-eur", transferPairId: "xc-from", fxRate: 10000 / 9000 }),
+      ],
+    })
+    await handleUpdateTransaction(
+      repo,
+      "USD",
+      { USD: { decimals: 2, symbolPosition: "before" }, EUR: { decimals: 2, symbolPosition: "before" } },
+      { id: "xc-from", note: "vacation cash" },
+    )
+    const saved = (repo.saveTransactions as ReturnType<typeof vi.fn>).mock.calls[0][0] as Transaction[]
+    const from = saved.find((t) => t.id === "xc-from")!
+    const to = saved.find((t) => t.id === "xc-to")!
+    expect(from.amount).toBe(-10000)
+    expect(from.fxRate).toBeUndefined()
+    expect(to.amount).toBe(9000) // stored received amount preserved, not re-inferred
+    expect(to.fxRate).toBeCloseTo(10000 / 9000, 12) // real executed rate, not today's
+    expect(to.note).toBe("vacation cash")
+  })
+
+  it("re-derives both legs when the from-amount of a cross-currency transfer changes", async () => {
+    const repo = createMockRepo({
+      accounts: [
+        makeAccount({ id: "acc-usd", currency: "USD" }),
+        makeAccount({ id: "acc-eur", currency: "EUR" }),
+      ],
+      transactions: [
+        makeTxn({ id: "xc-from", type: "transfer", amount: -10000, accountId: "acc-usd", transferPairId: "xc-to", fxRate: undefined }),
+        makeTxn({ id: "xc-to", type: "transfer", amount: 9000, accountId: "acc-eur", transferPairId: "xc-from", fxRate: 10000 / 9000 }),
+      ],
+    })
+    // Change the from-amount to $200 with no explicit toAmount → infer at today's
+    // rate (0.92) → €184, and re-derive the to-leg rate from the two amounts.
+    await handleUpdateTransaction(
+      repo,
+      "USD",
+      { USD: { decimals: 2, symbolPosition: "before" }, EUR: { decimals: 2, symbolPosition: "before" } },
+      { id: "xc-from", type: "transfer", amount: 20000, accountId: "acc-usd", toAccountId: "acc-eur" },
+    )
+    const saved = (repo.saveTransactions as ReturnType<typeof vi.fn>).mock.calls[0][0] as Transaction[]
+    const to = saved.find((t) => t.id === "xc-to")!
+    expect(to.amount).toBe(18400) // $200 at today's 0.92
+    expect(to.fxRate).toBeCloseTo(20000 / 18400, 12)
+  })
 })
 
 describe("handleDeleteTransactions", () => {

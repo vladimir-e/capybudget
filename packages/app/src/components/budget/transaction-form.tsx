@@ -8,7 +8,7 @@ import { AccountSelector } from "@/components/budget/account-selector";
 import { MerchantInput } from "@/components/budget/merchant-input";
 import { useAccounts, useCategories, useTransactions } from "@/hooks/use-budget-data";
 import type { Transaction, TransactionType, TransactionFormData } from "@capybudget/core";
-import { findCategoryForMerchant, resolveTransferPair, parseMoney, getToday, parseLocalDate, toDateString, currencySymbol, resolveRate, centsToEditString } from "@capybudget/core";
+import { findCategoryForMerchant, resolveTransferPair, parseMoney, getToday, parseLocalDate, toDateString, currencySymbol, crossRateAmount, centsToEditString } from "@capybudget/core";
 import { useTranslation } from "@capybudget/i18n";
 import { useFormatMoney, useCurrency, useCurrencies } from "@/contexts/currency-context";
 import { useFormatters } from "@/hooks/use-formatters";
@@ -137,14 +137,9 @@ export function TransactionForm({
   let displayToAmount = toAmount;
   if (isCrossCurrency && !toAmountEdited) {
     const fromCents = parseMoney(amount);
-    if (fromCents > 0) {
-      const crossRate =
-        resolveRate(fromCurrency, currencies, defaultCurrency).rate /
-        resolveRate(toCurrency, currencies, defaultCurrency).rate;
-      displayToAmount = centsToEditString(Math.round(fromCents * crossRate));
-    } else {
-      displayToAmount = "";
-    }
+    displayToAmount = fromCents > 0
+      ? centsToEditString(crossRateAmount(fromCents, fromCurrency, toCurrency, currencies, defaultCurrency))
+      : "";
   }
 
   function resetForm() {

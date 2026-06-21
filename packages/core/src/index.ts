@@ -263,6 +263,7 @@ export {
   buildTodayRates,
   stampFxRate,
   stampTransferRates,
+  crossRateAmount,
 } from "./utils/rates";
 
 // Transaction search (fuzzy cross-field + money matcher)

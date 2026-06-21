@@ -27,7 +27,7 @@ import {
   formatMoney,
   stampFxRate,
   stampTransferRates,
-  resolveRate,
+  crossRateAmount,
   type Account,
   type AccountType,
   type CurrencySettings,
@@ -35,9 +35,9 @@ import {
 } from "@capybudget/core"
 
 // The inflow magnitude in the destination's currency for a cross-currency
-// transfer when the model didn't supply one: the source amount at today's
-// display cross-rate, rate(from→to) = rate(from→default) / rate(to→default).
-// Same-currency transfers mirror the source amount unchanged.
+// transfer when the model didn't supply one — today's display cross-rate, the
+// same convention the form's prefill uses. Same-currency transfers mirror the
+// source amount unchanged.
 function inferToAmount(
   fromAmount: number,
   from: Account,
@@ -46,9 +46,7 @@ function inferToAmount(
   defaultCurrency: string,
 ): number {
   if (from.currency === to.currency) return fromAmount
-  const fromToDefault = resolveRate(from.currency, currencies, defaultCurrency).rate
-  const toToDefault = resolveRate(to.currency, currencies, defaultCurrency).rate
-  return Math.round((fromAmount * fromToDefault) / toToDefault)
+  return crossRateAmount(fromAmount, from.currency, to.currency, currencies, defaultCurrency)
 }
 
 export async function handleCreateTransaction(
@@ -144,22 +142,46 @@ export async function handleUpdateTransaction(
     return JSON.stringify({ error: "toAccountId is required for transfers" })
   }
 
-  // Re-stamp a transfer's per-leg rates from the edited legs (amounts or the
-  // destination currency may have changed). Plain flows never re-rate —
-  // updateTransaction preserves their original stamp.
+  // A transfer's per-leg amounts and rates must survive an unrelated edit (a
+  // note or date change). The received amount is real history — what landed —
+  // not something to recompute at today's rate. So default toAmount/toFxRate to
+  // the stored inflow leg, and only re-derive when the transfer's shape
+  // genuinely changed: an explicit toAmount, a different destination, or a
+  // changed from-amount. Plain flows never re-rate (updateTransaction keeps
+  // their stamp).
   let fxRate: number | undefined
   let toFxRate: number | undefined
   let toAmount: number | undefined
   if (effectiveType === "transfer") {
-    const accounts = await repo.getAccounts()
-    const from = accounts.find((a) => a.id === accountId)
-    const to = accounts.find((a) => a.id === toAccountId)
-    if (from && to) {
-      const cur = currencies ?? {}
-      toAmount = (args.toAmount as number | undefined) ?? inferToAmount(amount, from, to, cur, currency)
-      const rates = stampTransferRates(from.currency, to.currency, amount, toAmount, cur, currency)
-      fxRate = rates.fromRate
-      toFxRate = rates.toRate
+    const pair = original.transferPairId
+      ? existing.find((t) => t.id === original.transferPairId)
+      : undefined
+    const inflowLeg = original.amount > 0 ? original : pair
+    const outflowLeg = original.amount > 0 ? pair : original
+    const storedToAmount = inflowLeg ? Math.abs(inflowLeg.amount) : undefined
+
+    const shapeChanged =
+      args.toAmount !== undefined ||
+      (args.accountId !== undefined && accountId !== outflowLeg?.accountId) ||
+      (args.toAccountId !== undefined && toAccountId !== inflowLeg?.accountId) ||
+      (args.amount !== undefined && amount !== Math.abs(outflowLeg?.amount ?? amount))
+
+    if (!shapeChanged && storedToAmount !== undefined) {
+      // Untouched shape: carry both legs' stored amounts and rates verbatim.
+      toAmount = storedToAmount
+      fxRate = outflowLeg?.fxRate
+      toFxRate = inflowLeg?.fxRate
+    } else {
+      const accounts = await repo.getAccounts()
+      const from = accounts.find((a) => a.id === accountId)
+      const to = accounts.find((a) => a.id === toAccountId)
+      if (from && to) {
+        const cur = currencies ?? {}
+        toAmount = (args.toAmount as number | undefined) ?? inferToAmount(amount, from, to, cur, currency)
+        const rates = stampTransferRates(from.currency, to.currency, amount, toAmount, cur, currency)
+        fxRate = rates.fromRate
+        toFxRate = rates.toRate
+      }
     }
   }
 
