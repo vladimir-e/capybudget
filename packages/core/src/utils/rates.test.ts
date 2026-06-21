@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { SEED_RATES, resolveRate, buildTodayRates } from "./rates";
+import { SEED_RATES, resolveRate, buildTodayRates, stampFxRate } from "./rates";
 import type { CurrencySettings } from "./money";
 
 const fmt = (rate?: number, rateSource?: "manual" | "seed"): CurrencySettings => ({
@@ -64,6 +64,24 @@ describe("resolveRate — cross-rate division for a non-USD default", () => {
     // 100,000 RUB cents (1000.00 ₽) into EUR cents at 0.92/91 ≈ 1011 cents.
     const { rate } = resolveRate("RUB", { EUR: fmt(), RUB: fmt() }, "EUR");
     expect(Math.round(100_000 * rate)).toBe(Math.round(100_000 * (0.92 / 91)));
+  });
+});
+
+describe("stampFxRate — the rate frozen on a foreign transaction at entry", () => {
+  it("returns undefined for a default-currency account (leaves fxRate empty = 1.0)", () => {
+    expect(stampFxRate("USD", { USD: fmt() }, "USD")).toBeUndefined();
+  });
+
+  it("resolves today's rate for a foreign account through the same chain", () => {
+    expect(stampFxRate("EUR", { EUR: fmt(1.5, "manual"), USD: fmt() }, "USD")).toBe(1.5);
+    expect(stampFxRate("RUB", { RUB: fmt(), USD: fmt() }, "USD")).toBeCloseTo(
+      1 / SEED_RATES.rates.RUB,
+      10,
+    );
+  });
+
+  it("falls back to the unset floor (1.0) for a currency absent from the seed table", () => {
+    expect(stampFxRate("XYZ", { XYZ: fmt(), USD: fmt() }, "USD")).toBe(1);
   });
 });
 

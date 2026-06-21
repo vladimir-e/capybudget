@@ -1,5 +1,5 @@
 import { formatMonthLabel, formatMonthShort, toDateString } from "@capybudget/core";
-import type { DateRange, Transaction } from "@capybudget/core";
+import type { CurrencyConverter, DateRange, Transaction } from "@capybudget/core";
 import type { TFunction } from "i18next";
 import type { PeriodType } from "@/stores/analytics-store";
 
@@ -48,17 +48,23 @@ export function formatRangeLabel(
   return `${formatMonthShort(start, locale)} ${startYear} – ${formatMonthShort(endDate, locale)} ${endYear}`;
 }
 
-// Per-transaction `Math.abs` keeps the total reconciled with the pie-slice /
-// merchant-row / chart figure that opened the modal, instead of netting out.
+// Per-transaction `Math.abs` (on the converted flow) keeps the total reconciled
+// with the pie-slice / merchant-row / chart figure that opened the modal,
+// instead of netting out — and converts so a foreign account's drilldown total
+// matches the default-currency figure above it.
 export function formatCountAndTotal(
   transactions: Transaction[],
   format: (cents: number) => string,
+  converter: CurrencyConverter,
   t: Translate,
 ): string {
   const count = transactions.length;
   const base = t("drilldown.transactionCount", { count });
   if (count <= 1) return base;
-  const total = transactions.reduce((sum, tx) => sum + Math.abs(tx.amount), 0);
+  const total = transactions.reduce(
+    (sum, tx) => sum + Math.abs(converter.flowToDefault(tx.amount, tx.fxRate)),
+    0,
+  );
   return `${base} · ${format(total)}`;
 }
 
@@ -67,8 +73,9 @@ export function formatDrilldownSubtitle(
   periodType: PeriodType,
   transactions: Transaction[],
   format: (cents: number) => string,
+  converter: CurrencyConverter,
   locale: string,
   t: Translate,
 ): string {
-  return `${formatRangeLabel(range, periodType, locale, t)} · ${formatCountAndTotal(transactions, format, t)}`;
+  return `${formatRangeLabel(range, periodType, locale, t)} · ${formatCountAndTotal(transactions, format, converter, t)}`;
 }

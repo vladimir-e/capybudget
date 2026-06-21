@@ -5,6 +5,11 @@ import {
   formatMoney,
   formatMoneyCompact,
   currencySymbol,
+  createConverter,
+  buildTodayRates,
+  SEED_RATES,
+  type CurrencyConverter,
+  type CurrencySettings,
   type MoneyFormat,
   type SymbolPosition,
 } from "@capybudget/core";
@@ -13,11 +18,17 @@ import { useFormatLocale } from "@capybudget/i18n";
 export { DEFAULT_CURRENCY };
 
 export interface CurrencyConfig extends MoneyFormat {
+  /** The budget's default currency — what every roll-up rolls up into. */
   currency: string;
+  /** The full per-currency settings map, so the converter can resolve each
+   *  foreign currency's rate against the default. Absent → a single-currency
+   *  budget; the converter is the identity. */
+  currencies?: Record<string, CurrencySettings>;
 }
 
 const DEFAULT_CONFIG: CurrencyConfig = {
   currency: DEFAULT_CURRENCY,
+  currencies: { [DEFAULT_CURRENCY]: formatDefaultsFor(DEFAULT_CURRENCY) },
   ...formatDefaultsFor(DEFAULT_CURRENCY),
 };
 
@@ -25,6 +36,27 @@ export const CurrencyContext = createContext<CurrencyConfig>(DEFAULT_CONFIG);
 
 export function useCurrency(): string {
   return useContext(CurrencyContext).currency;
+}
+
+/** The full per-currency settings map for the active budget. */
+export function useCurrencies(): Record<string, CurrencySettings> {
+  const { currency, currencies } = useContext(CurrencyContext);
+  return currencies ?? { [currency]: formatDefaultsFor(currency) };
+}
+
+/**
+ * The analytics converter for the active budget — flows value at each
+ * transaction's stamped rate, holdings at today's resolved rate. A
+ * single-currency budget yields all-1.0 rates, so this is the identity
+ * function and nothing moves. Pass it into every core analytics roll-up.
+ */
+export function useConverter(): CurrencyConverter {
+  const { currency } = useContext(CurrencyContext);
+  const currencies = useCurrencies();
+  return useMemo(
+    () => createConverter(buildTodayRates(currencies, currency, SEED_RATES), currency),
+    [currencies, currency],
+  );
 }
 
 export interface CurrencyFormatters {

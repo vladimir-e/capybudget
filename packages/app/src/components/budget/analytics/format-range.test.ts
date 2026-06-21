@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { formatMoney } from "@capybudget/core";
+import { formatMoney, IDENTITY_CONVERTER } from "@capybudget/core";
 import type { DateRange, Transaction } from "@capybudget/core";
 import { i18n } from "@capybudget/i18n";
 import { formatRangeLabel, formatDrilldownSubtitle } from "./format-range";
@@ -48,22 +48,22 @@ describe("formatRangeLabel", () => {
 
 describe("formatDrilldownSubtitle", () => {
   it("omits the total for a single transaction", () => {
-    const result = formatDrilldownSubtitle(MAY_2026, "month", [txn(4567)], format, "en", tEn);
+    const result = formatDrilldownSubtitle(MAY_2026, "month", [txn(4567)], format, IDENTITY_CONVERTER, "en", tEn);
     expect(result).toBe("May 2026 · 1 transaction");
   });
 
   it("appends the abs-summed total for two or more transactions", () => {
-    const result = formatDrilldownSubtitle(MAY_2026, "month", [txn(1000), txn(2500)], format, "en", tEn);
+    const result = formatDrilldownSubtitle(MAY_2026, "month", [txn(1000), txn(2500)], format, IDENTITY_CONVERTER, "en", tEn);
     expect(result).toBe(`May 2026 · 2 transactions · ${format(3500)}`);
   });
 
   it("uses each transaction's absolute amount so the total reconciles with the clicked figure", () => {
-    const result = formatDrilldownSubtitle(MAY_2026, "month", [txn(1000), txn(-2500)], format, "en", tEn);
+    const result = formatDrilldownSubtitle(MAY_2026, "month", [txn(1000), txn(-2500)], format, IDENTITY_CONVERTER, "en", tEn);
     expect(result).toBe(`May 2026 · 2 transactions · ${format(3500)}`);
   });
 
   it("localizes the range label and the transaction count", () => {
-    const result = formatDrilldownSubtitle(MAY_2026, "month", [txn(4567)], format, "ru", tRu);
+    const result = formatDrilldownSubtitle(MAY_2026, "month", [txn(4567)], format, IDENTITY_CONVERTER, "ru", tRu);
     expect(result).toBe("май 2026 г. · 1 операция");
   });
 });

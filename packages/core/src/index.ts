@@ -259,6 +259,7 @@ export {
   SEED_RATES,
   resolveRate,
   buildTodayRates,
+  stampFxRate,
 } from "./utils/rates";
 
 // Transaction search (fuzzy cross-field + money matcher)

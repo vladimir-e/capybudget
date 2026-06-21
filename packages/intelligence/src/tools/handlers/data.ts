@@ -8,6 +8,7 @@ import type {
   Account,
   Category,
   Transaction,
+  CurrencySettings,
   GroupDimension,
   GroupMetric,
 } from "@capybudget/core"
@@ -18,16 +19,21 @@ import {
   groupTransactions,
 } from "@capybudget/core"
 import type { BudgetRepository } from "@capybudget/persistence"
+import { toolConverter } from "./currency"
 
 export async function handleListAccounts(
   repo: BudgetRepository,
   currency: string,
+  currencies?: Record<string, CurrencySettings>,
 ): Promise<string> {
   const accounts = await repo.getAccounts()
   const transactions = await repo.getTransactions()
+  const converter = toolConverter(currency, currencies)
 
   const result = accounts.map((a: Account) => {
-    const bal = getAccountBalance(a.id, transactions)
+    // Holding: the account's native balance valued in the default at today's
+    // rate, so the model sees totals it can compare across currencies.
+    const bal = getAccountBalance(a.id, transactions, converter, a.currency)
     return {
       id: a.id,
       name: a.name,
@@ -201,6 +207,8 @@ export async function handleSearchTransactions(
 
 export async function handleGroupTransactions(
   repo: BudgetRepository,
+  currency: string,
+  currencies: Record<string, CurrencySettings> | undefined,
   args: Record<string, unknown>,
 ): Promise<string> {
   const allTxns = await repo.getTransactions()
@@ -214,6 +222,8 @@ export async function handleGroupTransactions(
     ? searchTransactions(filtered, args.query as string, { accounts, categories })
     : filtered
 
+  // Sums roll up into the default currency so the model reasons in one unit.
+  const converter = toolConverter(currency, currencies)
   const groups = groupTransactions(
     scoped,
     {
@@ -224,7 +234,7 @@ export async function handleGroupTransactions(
       sortDir: args.sortDir as "asc" | "desc" | undefined,
       limit: args.limit as number | undefined,
     },
-    { accounts, categories },
+    { accounts, categories, converter },
   )
 
   return JSON.stringify(groups, null, 2)

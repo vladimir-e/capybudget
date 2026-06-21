@@ -20,6 +20,7 @@
  */
 
 import type { BudgetRepository, FileAdapter } from "@capybudget/persistence"
+import type { CurrencySettings } from "@capybudget/core"
 import {
   handleListAccounts,
   handleListTransactions,
@@ -49,9 +50,14 @@ export interface ToolContext {
   repo: BudgetRepository
   fileAdapter: FileAdapter
   budgetPath: string
-  /** Budget's display currency (ISO 4217). Tool-result money is formatted in
-   *  its default convention, not the user's UI overrides. */
+  /** Budget's default currency (ISO 4217). Tool-result money is formatted in
+   *  its default convention and every total rolls up into it. */
   currency: string
+  /** Per-currency settings keyed by ISO code, driving FX conversion: foreign
+   *  transactions stamp the resolved rate on create, and money totals roll up
+   *  into the default. Absent → a single-currency budget (everything is the
+   *  default, so conversion is the identity). */
+  currencies?: Record<string, CurrencySettings>
   /**
    * Attachments on the in-flight chat turn — the bytes `start_import` stages.
    * Threaded by the API adapters from the message that triggered the tool call;
@@ -80,19 +86,22 @@ type ToolHandler = (
 
 const HANDLERS: Record<string, ToolHandler> = {
   // Data
-  list_accounts: ({ repo, currency }) => handleListAccounts(repo, currency),
+  list_accounts: ({ repo, currency, currencies }) =>
+    handleListAccounts(repo, currency, currencies),
   list_transactions: ({ repo, currency }, args) =>
     handleListTransactions(repo, currency, args),
   search_transactions: ({ repo }, args) => handleSearchTransactions(repo, args),
-  group_transactions: ({ repo }, args) => handleGroupTransactions(repo, args),
+  group_transactions: ({ repo, currency, currencies }, args) =>
+    handleGroupTransactions(repo, currency, currencies, args),
   list_categories: ({ repo }) => handleListCategories(repo),
 
   // Mutations
-  create_transaction: ({ repo, currency }, args) =>
-    handleCreateTransaction(repo, currency, args),
+  create_transaction: ({ repo, currency, currencies }, args) =>
+    handleCreateTransaction(repo, currency, currencies, args),
   update_transaction: ({ repo }, args) => handleUpdateTransaction(repo, args),
   delete_transactions: ({ repo }, args) => handleDeleteTransactions(repo, args),
-  create_account: ({ repo, currency }, args) => handleCreateAccount(repo, currency, args),
+  create_account: ({ repo, currency, currencies }, args) =>
+    handleCreateAccount(repo, currency, currencies, args),
   update_account: ({ repo }, args) => handleUpdateAccount(repo, args),
   delete_account: ({ repo }, args) => handleDeleteAccount(repo, args),
   create_category: ({ repo }, args) => handleCreateCategory(repo, args),

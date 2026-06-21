@@ -2,6 +2,7 @@ import type {
   BudgetBasis,
   Category,
   CategoryHistoricalStatsResult,
+  CurrencyConverter,
   DateRange,
   MonthlyBudgetSummary,
   Transaction,
@@ -61,9 +62,10 @@ export function buildBudgetView(
   categories: Category[],
   range: DateRange,
   basis: BudgetBasis = "trailing3",
+  converter?: CurrencyConverter,
 ): BudgetView {
-  const summary = getMonthlyBudgetSummary(transactions, categories, range);
-  const stats = getCategoryHistoricalStats(transactions, categories, range, basis);
+  const summary = getMonthlyBudgetSummary(transactions, categories, range, converter);
+  const stats = getCategoryHistoricalStats(transactions, categories, range, basis, converter);
   return mergeBudgetView(summary, stats);
 }
 

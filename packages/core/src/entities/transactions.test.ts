@@ -128,6 +128,34 @@ describe("createTransaction", () => {
         expect(leg.note).toBe("monthly savings");
       }
     });
+
+    it("stamps the same rate on both legs (same-currency transfer)", () => {
+      const result = createTransaction({ ...transferInput, fxRate: 0.011 }, []);
+      expect(result[0].fxRate).toBe(0.011);
+      expect(result[1].fxRate).toBe(0.011);
+    });
+  });
+
+  describe("fxRate stamping", () => {
+    const base: TransactionFormData = {
+      type: "expense",
+      amount: 5000,
+      categoryId: "cat-food",
+      accountId: "acc-rub",
+      date: "2026-03-02",
+      merchant: "Pyaterochka",
+      note: "",
+    };
+
+    it("writes the caller's stamped rate onto the created transaction", () => {
+      const [txn] = createTransaction({ ...base, fxRate: 0.011 }, []);
+      expect(txn.fxRate).toBe(0.011);
+    });
+
+    it("leaves fxRate empty when the caller passes none (default-currency = 1.0)", () => {
+      const [txn] = createTransaction(base, []);
+      expect(txn.fxRate).toBeUndefined();
+    });
   });
 });
 

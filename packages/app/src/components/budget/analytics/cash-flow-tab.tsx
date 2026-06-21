@@ -17,6 +17,7 @@ import {
 } from "@capybudget/core";
 import type { Transaction, DateRange } from "@capybudget/core";
 import { useTranslation } from "@capybudget/i18n";
+import { useConverter } from "@/contexts/currency-context";
 import { useFormatters } from "@/hooks/use-formatters";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useMonthLabel } from "./use-analytics-labels";
@@ -68,13 +69,14 @@ export function CashFlowTab({ transactions, dateRange, hasAnyTransactions }: Cas
   const { moneyCompact } = useFormatters();
   const { t } = useTranslation("analytics");
   const monthLabel = useMonthLabel();
+  const converter = useConverter();
   const cashFlowData = useMemo(
     () =>
-      getCashFlow(transactions, ensureMinMonths(dateRange, 12)).map((p) => ({
+      getCashFlow(transactions, ensureMinMonths(dateRange, 12), converter).map((p) => ({
         ...p,
         monthLabel: monthLabel(p.date),
       })),
-    [transactions, dateRange, monthLabel],
+    [transactions, dateRange, monthLabel, converter],
   );
 
   const { incomeColor, expenseColor } = useThemeColors({

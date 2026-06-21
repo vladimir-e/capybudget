@@ -8,10 +8,14 @@ import {
   unarchiveAccount,
   reorderAccounts,
   setNetWorthExclusions,
+  stampFxRate,
 } from "@capybudget/core";
 import { useBudgetMutation } from "@/hooks/use-budget-mutation";
+import { useCurrency, useCurrencies } from "@/contexts/currency-context";
 
 export function useCreateAccount() {
+  const defaultCurrency = useCurrency();
+  const currencies = useCurrencies();
   return useBudgetMutation<AccountFormData, Account>(async (data, { accounts, transactions }) => {
     const prev = accounts.get();
     const account = createAccount(data, prev);
@@ -20,7 +24,8 @@ export function useCreateAccount() {
     await accounts.save(nextAccounts);
 
     if (data.openingBalance && data.openingBalance !== 0) {
-      const nextTxns = createOpeningBalanceTransaction(account, data.openingBalance, transactions.get());
+      const fxRate = stampFxRate(account.currency, currencies, defaultCurrency);
+      const nextTxns = createOpeningBalanceTransaction(account, data.openingBalance, transactions.get(), fxRate);
       transactions.set(nextTxns);
       await transactions.save(nextTxns);
     }

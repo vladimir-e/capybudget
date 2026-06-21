@@ -25,13 +25,16 @@ import {
   bulkChangeDate,
   bulkChangeMerchant,
   formatMoney,
+  stampFxRate,
   type AccountType,
+  type CurrencySettings,
   type TransactionType,
 } from "@capybudget/core"
 
 export async function handleCreateTransaction(
   repo: BudgetRepository,
   currency: string,
+  currencies: Record<string, CurrencySettings> | undefined,
   args: Record<string, unknown>,
 ): Promise<string> {
   const type = args.type as TransactionType
@@ -39,17 +42,28 @@ export async function handleCreateTransaction(
     return JSON.stringify({ error: "toAccountId is required for transfers" })
   }
 
+  const accountId = args.accountId as string
+  // Stamp today's rate on a foreign-account transaction at entry (same as the
+  // UI create path), so AI-created flows freeze their rate too. The source
+  // account drives the rate; cross-currency transfers are U5.
+  const accounts = await repo.getAccounts()
+  const account = accounts.find((a) => a.id === accountId)
+  const fxRate = account
+    ? stampFxRate(account.currency, currencies ?? {}, currency)
+    : undefined
+
   const existing = await repo.getTransactions()
   const next = createTransaction(
     {
       type,
       amount: args.amount as number,
-      accountId: args.accountId as string,
+      accountId,
       categoryId: (args.categoryId as string) ?? "",
       toAccountId: args.toAccountId as string | undefined,
       date: args.date as string,
       merchant: (args.merchant as string) ?? "",
       note: (args.note as string) ?? "",
+      fxRate,
     },
     existing,
   )
@@ -126,6 +140,7 @@ export async function handleDeleteTransactions(
 export async function handleCreateAccount(
   repo: BudgetRepository,
   currency: string,
+  currencies: Record<string, CurrencySettings> | undefined,
   args: Record<string, unknown>,
 ): Promise<string> {
   const accounts = await repo.getAccounts()
@@ -145,10 +160,12 @@ export async function handleCreateAccount(
 
   if (args.openingBalance && (args.openingBalance as number) !== 0) {
     const transactions = await repo.getTransactions()
+    const fxRate = stampFxRate(account.currency, currencies ?? {}, currency)
     const nextTransactions = createOpeningBalanceTransaction(
       account,
       args.openingBalance as number,
       transactions,
+      fxRate,
     )
     await repo.saveTransactions(nextTransactions)
   }

@@ -81,6 +81,18 @@ describe("createOpeningBalanceTransaction", () => {
     expect(result).toHaveLength(3);
     expect(result[2].merchant).toBe("Opening Balance");
   });
+
+  it("stamps the caller's fxRate when the opening balance is on a foreign account", () => {
+    const account = makeAccount({ id: "acc-rub", currency: "RUB" });
+    const [txn] = createOpeningBalanceTransaction(account, 10000, [], 0.011);
+    expect(txn.fxRate).toBe(0.011);
+  });
+
+  it("leaves fxRate empty for a default-currency opening balance", () => {
+    const account = makeAccount({ id: "acc-new" });
+    const [txn] = createOpeningBalanceTransaction(account, 10000, []);
+    expect(txn.fxRate).toBeUndefined();
+  });
 });
 
 describe("updateAccount", () => {

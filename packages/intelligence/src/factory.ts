@@ -21,6 +21,7 @@ import type { CapySession } from "./session"
 import type { StreamEvent } from "./types"
 import { canImport, canReadPdf } from "./import/session-factory"
 import type { BudgetRepository, FileAdapter } from "@capybudget/persistence"
+import type { CurrencySettings } from "@capybudget/core"
 
 export interface ClaudeCliAdapterOptions {
   budgetPath: string
@@ -49,8 +50,10 @@ export interface ApiAdapterOptions {
   onEvent: (event: StreamEvent) => void
   repo: BudgetRepository
   fileAdapter: FileAdapter
-  /** Budget's display currency (ISO 4217), threaded into the tool dispatch context. */
+  /** Budget's default currency (ISO 4217), threaded into the tool dispatch context. */
   currency: string
+  /** Per-currency settings, threaded into tool dispatch for FX stamping + roll-up. */
+  currencies?: Record<string, CurrencySettings>
   /**
    * Whether the active provider can run the import pipeline — passed to
    * `start_import` so it gates cleanly. Always true for the API adapters that
@@ -84,9 +87,12 @@ export interface SessionOptions {
   onExit?: () => void
   repo?: BudgetRepository
   fileAdapter?: FileAdapter
-  /** Budget's display currency (ISO 4217). Consumed by the API adapters'
+  /** Budget's default currency (ISO 4217). Consumed by the API adapters'
    *  tool dispatch; the Claude CLI reads it from `budget.json` via MCP. */
   currency: string
+  /** Per-currency settings. Consumed by the API adapters' tool dispatch for FX
+   *  stamping + roll-up; the Claude CLI reads them from `budget.json` via MCP. */
+  currencies?: Record<string, CurrencySettings>
   /** Claude-CLI-only `--model` value; ignored by API adapters. */
   claudeCliModel?: string
 }
@@ -138,6 +144,7 @@ export function createIntelligenceSession(
         repo: options.repo,
         fileAdapter: options.fileAdapter,
         currency: options.currency,
+        currencies: options.currencies,
         importSupported: canImport(provider),
         pdfSupported: canReadPdf(provider),
       })
@@ -157,6 +164,7 @@ export function createIntelligenceSession(
         repo: options.repo,
         fileAdapter: options.fileAdapter,
         currency: options.currency,
+        currencies: options.currencies,
         importSupported: canImport(provider),
         pdfSupported: canReadPdf(provider),
       })

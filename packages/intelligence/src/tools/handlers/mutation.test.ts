@@ -40,7 +40,7 @@ describe("handleCreateTransaction", () => {
   it("creates an expense transaction", async () => {
     const repo = createMockRepo({})
     const result = JSON.parse(
-      await handleCreateTransaction(repo, "USD", {
+      await handleCreateTransaction(repo, "USD", undefined, {
         type: "expense",
         amount: 2500,
         accountId: "acc-1",
@@ -61,7 +61,7 @@ describe("handleCreateTransaction", () => {
   it("creates a transfer with two legs", async () => {
     const repo = createMockRepo({})
     const result = JSON.parse(
-      await handleCreateTransaction(repo, "USD", {
+      await handleCreateTransaction(repo, "USD", undefined, {
         type: "transfer",
         amount: 10000,
         accountId: "acc-1",
@@ -79,7 +79,7 @@ describe("handleCreateTransaction", () => {
   it("creates income with positive amount", async () => {
     const repo = createMockRepo({})
     const result = JSON.parse(
-      await handleCreateTransaction(repo, "USD", {
+      await handleCreateTransaction(repo, "USD", undefined, {
         type: "income",
         amount: 500000,
         accountId: "acc-1",
@@ -90,6 +90,35 @@ describe("handleCreateTransaction", () => {
     )
 
     expect(result.created[0].amount).toBe("$5,000.00")
+  })
+
+  it("stamps today's rate on a transaction created for a foreign account", async () => {
+    const repo = createMockRepo({
+      accounts: [makeAccount({ id: "acc-rub", currency: "RUB" })],
+    })
+    await handleCreateTransaction(
+      repo,
+      "USD",
+      { USD: { decimals: 2, symbolPosition: "before" }, RUB: { decimals: 0, symbolPosition: "after" } },
+      { type: "expense", amount: 500000, accountId: "acc-rub", categoryId: "cat-1", date: "2026-03-14" },
+    )
+    const saved = (repo.saveTransactions as ReturnType<typeof vi.fn>).mock.calls[0][0] as Transaction[]
+    // RUB→USD via the seed table (1/91), frozen on the transaction.
+    expect(saved[0].fxRate).toBeCloseTo(1 / 91, 10)
+  })
+
+  it("leaves fxRate empty for a default-currency account", async () => {
+    const repo = createMockRepo({
+      accounts: [makeAccount({ id: "acc-usd", currency: "USD" })],
+    })
+    await handleCreateTransaction(
+      repo,
+      "USD",
+      { USD: { decimals: 2, symbolPosition: "before" } },
+      { type: "expense", amount: 2500, accountId: "acc-usd", categoryId: "cat-1", date: "2026-03-14" },
+    )
+    const saved = (repo.saveTransactions as ReturnType<typeof vi.fn>).mock.calls[0][0] as Transaction[]
+    expect(saved[0].fxRate).toBeUndefined()
   })
 })
 
@@ -165,7 +194,7 @@ describe("handleCreateAccount", () => {
   it("creates an account in the budget default currency", async () => {
     const repo = createMockRepo({})
     const result = JSON.parse(
-      await handleCreateAccount(repo, "EUR", {
+      await handleCreateAccount(repo, "EUR", undefined, {
         name: "Savings",
         type: "savings",
       }),
@@ -181,7 +210,7 @@ describe("handleCreateAccount", () => {
 
   it("creates opening balance transaction when provided", async () => {
     const repo = createMockRepo({})
-    await handleCreateAccount(repo, "USD", {
+    await handleCreateAccount(repo, "USD", undefined, {
       name: "Checking",
       type: "checking",
       openingBalance: 50000,
@@ -193,7 +222,7 @@ describe("handleCreateAccount", () => {
 
   it("skips opening balance when zero", async () => {
     const repo = createMockRepo({})
-    await handleCreateAccount(repo, "USD", {
+    await handleCreateAccount(repo, "USD", undefined, {
       name: "Checking",
       type: "checking",
       openingBalance: 0,

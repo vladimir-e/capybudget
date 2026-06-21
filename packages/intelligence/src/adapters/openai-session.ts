@@ -360,6 +360,7 @@ export class OpenAiSession implements CapySession, StructuredSession {
             fileAdapter: this.opts.fileAdapter,
             budgetPath: this.opts.budgetPath,
             currency: this.opts.currency,
+            currencies: this.opts.currencies,
             attachments: [...this.turnAttachments],
             importSupported: this.opts.importSupported,
             pdfSupported: this.opts.pdfSupported,

@@ -8,6 +8,7 @@ import type {
   Transaction,
 } from "@capybudget/core";
 import { useFormatLocale, useTranslation } from "@capybudget/i18n";
+import { useConverter } from "@/contexts/currency-context";
 import { useFormatters } from "@/hooks/use-formatters";
 import { useCategoryDisplayName } from "@/lib/display-names";
 import { useBudgetBasis } from "./use-budget-basis";
@@ -44,6 +45,7 @@ export function MonthlyBudgetTab({
   const { t } = useTranslation("analytics");
   const basisLabel = useBasisLabel();
   const categoryDisplay = useCategoryDisplayName();
+  const converter = useConverter();
   const [hideUntargeted, setHideUntargeted] = useState(false);
   const [drilldown, setDrilldown] = useState<MonthlyBudgetDrilldown | null>(null);
 
@@ -57,8 +59,8 @@ export function MonthlyBudgetTab({
   );
 
   const view = useMemo(
-    () => buildBudgetView(transactions, categories, dateRange, basis),
-    [transactions, categories, dateRange, basis],
+    () => buildBudgetView(transactions, categories, dateRange, basis, converter),
+    [transactions, categories, dateRange, basis, converter],
   );
 
   // Per-category lookup so each row gets its enriched data without scanning.
@@ -246,7 +248,7 @@ export function MonthlyBudgetTab({
             : {}
         }
         title={drilldown ? budgetDrilldownTitle(drilldown, t, categoryDisplay) : ""}
-        subtitle={drilldown ? formatDrilldownSubtitle(dateRange, "month", drilldownTransactions, money, locale, t) : undefined}
+        subtitle={drilldown ? formatDrilldownSubtitle(dateRange, "month", drilldownTransactions, money, converter, locale, t) : undefined}
       />
     </div>
   );

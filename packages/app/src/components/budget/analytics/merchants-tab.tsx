@@ -13,6 +13,7 @@ import {
 } from "@capybudget/core";
 import type { Transaction, DateRange } from "@capybudget/core";
 import { useFormatLocale, useTranslation } from "@capybudget/i18n";
+import { useConverter } from "@/contexts/currency-context";
 import { useFormatters } from "@/hooks/use-formatters";
 import { useThemeColors } from "./use-theme-colors";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -77,13 +78,14 @@ export function MerchantsTab({
   const { money, moneyCompact, percent } = useFormatters();
   const locale = useFormatLocale();
   const { t } = useTranslation("analytics");
+  const converter = useConverter();
   const merchants = useMemo<MerchantRow[]>(
     () =>
-      getTopMerchants(transactions, 15).map((m) => ({
+      getTopMerchants(transactions, 15, converter).map((m) => ({
         ...m,
         displayMerchant: m.isUnknown ? t("fallback.unknown") : m.merchant,
       })),
-    [transactions, t],
+    [transactions, t, converter],
   );
 
   const [drilldown, setDrilldown] = useState<MerchantDrilldownTarget | null>(null);
@@ -206,7 +208,7 @@ export function MerchantsTab({
             : {}
         }
         title={drilldown?.kind === "unknown" ? t("fallback.unknown") : (drilldown?.value ?? "")}
-        subtitle={drilldown ? formatDrilldownSubtitle(dateRange, periodType, drilldownTransactions, money, locale, t) : undefined}
+        subtitle={drilldown ? formatDrilldownSubtitle(dateRange, periodType, drilldownTransactions, money, converter, locale, t) : undefined}
       />
     </div>
   );

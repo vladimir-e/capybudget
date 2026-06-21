@@ -12,6 +12,7 @@ import {
 } from "@capybudget/core";
 import type { Transaction, Category, DateRange } from "@capybudget/core";
 import { useFormatLocale, useTranslation } from "@capybudget/i18n";
+import { useConverter } from "@/contexts/currency-context";
 import { useFormatters } from "@/hooks/use-formatters";
 import { ChartSwitcher } from "./chart-switcher";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -106,6 +107,7 @@ export function SpendingTab({
   const locale = useFormatLocale();
   const { t } = useTranslation("analytics");
   const categorySeriesLabel = useCategorySeriesLabel();
+  const converter = useConverter();
   const [viewMode, setViewMode] = useState<ViewMode>("expenses");
 
   const viewOptions: Array<{ value: ViewMode; label: string }> = [
@@ -115,13 +117,13 @@ export function SpendingTab({
   const [drilldown, setDrilldown] = useState<SliceDrilldown | null>(null);
 
   const spending = useMemo(
-    () => getSpendingByCategory(transactions, categories),
-    [transactions, categories],
+    () => getSpendingByCategory(transactions, categories, converter),
+    [transactions, categories, converter],
   );
 
   const income = useMemo(
-    () => getIncomeByCategory(transactions, categories),
-    [transactions, categories],
+    () => getIncomeByCategory(transactions, categories, converter),
+    [transactions, categories, converter],
   );
 
   const breakdown = viewMode === "expenses" ? spending : income;
@@ -234,7 +236,7 @@ export function SpendingTab({
             : {}
         }
         title={drilldown ? categorySeriesLabel(drilldown.categoryId, drilldown.categoryName) : ""}
-        subtitle={drilldown ? formatDrilldownSubtitle(dateRange, periodType, drilldownTransactions, money, locale, t) : undefined}
+        subtitle={drilldown ? formatDrilldownSubtitle(dateRange, periodType, drilldownTransactions, money, converter, locale, t) : undefined}
       />
     </div>
   );

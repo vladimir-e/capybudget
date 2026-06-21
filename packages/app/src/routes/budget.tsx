@@ -81,13 +81,14 @@ function BudgetLayout() {
       customInstructions: customInstructions.instructions,
       getBudgetSnapshot,
       currency,
+      currencies: meta.currencies,
       language,
       onDataChanged,
       onImportStarted,
       repo,
       fileAdapter: tauriFileAdapter,
     }),
-    [path, budgetName, customInstructions.instructions, getBudgetSnapshot, currency, language, onDataChanged, onImportStarted, repo],
+    [path, budgetName, customInstructions.instructions, getBudgetSnapshot, currency, meta.currencies, language, onDataChanged, onImportStarted, repo],
   );
 
   return (

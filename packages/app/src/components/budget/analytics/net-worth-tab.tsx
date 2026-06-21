@@ -18,6 +18,7 @@ import {
 } from "@capybudget/core";
 import type { Account, Transaction, DateRange } from "@capybudget/core";
 import { useTranslation } from "@capybudget/i18n";
+import { useConverter } from "@/contexts/currency-context";
 import { useFormatters } from "@/hooks/use-formatters";
 import { ChartSwitcher } from "./chart-switcher";
 import { useThemeColors } from "./use-theme-colors";
@@ -61,6 +62,7 @@ type ChartMode = "bar" | "area";
 export function NetWorthTab({ accounts, transactions, dateRange, hasAnyTransactions }: NetWorthTabProps) {
   const { money, moneyCompact, monthShort } = useFormatters();
   const { t } = useTranslation("analytics");
+  const converter = useConverter();
   const [chartMode, setChartMode] = useState<ChartMode>("bar");
 
   const chartOptions: Array<{ value: ChartMode; label: string }> = [
@@ -91,8 +93,9 @@ export function NetWorthTab({ accounts, transactions, dateRange, hasAnyTransacti
         deferredTransactions,
         ensureMinMonths(deferredRange, 12),
         deferredIncludedIds,
+        converter,
       ),
-    [accounts, deferredTransactions, deferredRange, deferredIncludedIds],
+    [accounts, deferredTransactions, deferredRange, deferredIncludedIds, converter],
   );
 
   const chartData = useMemo(

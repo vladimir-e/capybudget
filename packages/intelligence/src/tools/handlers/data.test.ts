@@ -84,6 +84,22 @@ describe("handleListAccounts", () => {
     expect(result[0].balance).toBe("$0.00")
     expect(result[0].balanceCents).toBe(0)
   })
+
+  it("values a foreign account's balance in the default at today's rate", async () => {
+    const repo = createMockRepo({
+      accounts: [makeAccount({ id: "acc-rub", currency: "RUB" })],
+      transactions: [makeTxn({ accountId: "acc-rub", amount: 100000 })],
+    })
+
+    const result = JSON.parse(
+      await handleListAccounts(repo, "USD", {
+        USD: { decimals: 2, symbolPosition: "before" },
+        RUB: { decimals: 0, symbolPosition: "after" },
+      }),
+    )
+    // 100,000 RUB cents × (1/91) ≈ 1099 USD cents.
+    expect(result[0].balanceCents).toBe(Math.round(100000 / 91))
+  })
 })
 
 // ── handleListCategories ────────────────────────────────────────
@@ -720,7 +736,7 @@ describe("read handlers do not reorder the source array", () => {
   it("handleGroupTransactions leaves the cached array untouched (bare {})", async () => {
     const txns = source()
     const repo = sharedRefRepo(txns)
-    await handleGroupTransactions(repo, { groupBy: ["month"], metrics: ["count"] })
+    await handleGroupTransactions(repo, "USD", undefined, { groupBy: ["month"], metrics: ["count"] })
     expect(txns.map((t) => t.id)).toEqual(["t-a", "t-c", "t-b"])
   })
 })
@@ -752,7 +768,7 @@ describe("handleGroupTransactions", () => {
 
   it("groups spending by category with signed sums", async () => {
     const groups = JSON.parse(
-      await handleGroupTransactions(buildRepo(), {
+      await handleGroupTransactions(buildRepo(), "USD", undefined, {
         groupBy: ["category"],
         metrics: ["sum", "count"],
         type: "expense",
@@ -768,7 +784,7 @@ describe("handleGroupTransactions", () => {
 
   it("applies a free-text query before grouping", async () => {
     const groups = JSON.parse(
-      await handleGroupTransactions(buildRepo(), {
+      await handleGroupTransactions(buildRepo(), "USD", undefined, {
         query: "whole foods",
         groupBy: ["merchant"],
         metrics: ["count"],
@@ -780,7 +796,7 @@ describe("handleGroupTransactions", () => {
 
   it("applies a date filter before grouping", async () => {
     const groups = JSON.parse(
-      await handleGroupTransactions(buildRepo(), {
+      await handleGroupTransactions(buildRepo(), "USD", undefined, {
         startDate: "2026-01-01",
         endDate: "2026-01-31",
         groupBy: ["month"],
@@ -794,7 +810,7 @@ describe("handleGroupTransactions", () => {
 
   it("sorts groups by a metric and caps to a limit", async () => {
     const groups = JSON.parse(
-      await handleGroupTransactions(buildRepo(), {
+      await handleGroupTransactions(buildRepo(), "USD", undefined, {
         groupBy: ["merchant"],
         metrics: ["sum"],
         type: "expense",
@@ -818,7 +834,7 @@ describe("handleGroupTransactions", () => {
       ],
     })
     const groups = JSON.parse(
-      await handleGroupTransactions(repo, { groupBy: ["merchant"], metrics: ["cadence"] }),
+      await handleGroupTransactions(repo, "USD", undefined, { groupBy: ["merchant"], metrics: ["cadence"] }),
     )
     expect(groups[0].cadence.occurrences).toBe(3)
     expect(groups[0].cadence.medianGapDays).toBeGreaterThanOrEqual(28)
@@ -827,7 +843,7 @@ describe("handleGroupTransactions", () => {
 
   it("returns an empty array when nothing survives filtering", async () => {
     const groups = JSON.parse(
-      await handleGroupTransactions(buildRepo(), {
+      await handleGroupTransactions(buildRepo(), "USD", undefined, {
         query: "zzz-nope",
         groupBy: ["category"],
         metrics: ["sum"],

@@ -38,6 +38,7 @@ import {
 } from "@/components/ui/dialog";
 import { getAccountBalance, getAccountsByGroup, getNetWorth, isOpeningBalanceTxn } from "@capybudget/core";
 import { useTranslation } from "@capybudget/i18n";
+import { useConverter } from "@/contexts/currency-context";
 import { useAccountTypeLabel } from "@/lib/display-names";
 import { useFormatters } from "@/hooks/use-formatters";
 import { useAccounts, useTransactions } from "@/hooks/use-budget-data";
@@ -67,6 +68,7 @@ export function Sidebar({
   const { t } = useTranslation("budget");
   const accountTypeLabel = useAccountTypeLabel();
   const { money, moneyCompact } = useFormatters();
+  const converter = useConverter();
   const { data: accounts = [] } = useAccounts();
   const { data: transactions = [] } = useTransactions();
   const deleteAccount = useDeleteAccount();
@@ -80,7 +82,7 @@ export function Sidebar({
     return found ?? (params.accountId as string | undefined);
   }, undefined);
 
-  const netWorth = getNetWorth(accounts, transactions);
+  const netWorth = getNetWorth(accounts, transactions, converter);
   const groupedAccounts = getAccountsByGroup(accounts);
   const archivedAccounts = accounts.filter((a) => a.archived);
 
@@ -113,6 +115,9 @@ export function Sidebar({
         onSuccess: () => toast.success(t("account.toast.unarchived", { name: account.name })),
       });
     } else {
+      // Archive eligibility is the native derived balance being zero (what core
+      // enforces) — currency-invariant, so this guard stays unconverted; a
+      // converted near-zero must never round a non-empty foreign account to OK.
       const balance = getAccountBalance(account.id, transactions);
       if (balance !== 0) {
         setErrorDialog({
@@ -189,7 +194,7 @@ export function Sidebar({
               const showGroupTotal = accts.length > 1;
               const groupBalance = showGroupTotal
                 ? accts.reduce(
-                    (sum, a) => sum + getAccountBalance(a.id, transactions),
+                    (sum, a) => sum + getAccountBalance(a.id, transactions, converter, a.currency),
                     0,
                   )
                 : 0;
@@ -216,7 +221,7 @@ export function Sidebar({
                         <SortableAccountRow
                           key={account.id}
                           account={account}
-                          balance={getAccountBalance(account.id, transactions)}
+                          balance={getAccountBalance(account.id, transactions, converter, account.currency)}
                           budgetPath={budgetPath}
                           budgetName={budgetName}
                           isActive={activeAccountId === account.id}
@@ -254,7 +259,7 @@ export function Sidebar({
                     <AccountRow
                       key={account.id}
                       account={account}
-                      balance={getAccountBalance(account.id, transactions)}
+                      balance={getAccountBalance(account.id, transactions, converter, account.currency)}
                       budgetPath={budgetPath}
                       budgetName={budgetName}
                       isActive={activeAccountId === account.id}

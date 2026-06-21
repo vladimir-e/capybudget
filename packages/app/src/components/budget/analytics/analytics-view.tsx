@@ -5,6 +5,7 @@ import {
 } from "@capybudget/core";
 import type { DateRange } from "@capybudget/core";
 import { useTranslation } from "@capybudget/i18n";
+import { useConverter } from "@/contexts/currency-context";
 import { useTransactions, useCategories, useAccounts } from "@/hooks/use-budget-data";
 import { useAnalyticsStore, type PeriodType, type TabId } from "@/stores/analytics-store";
 import { DateRangeNav } from "./date-range-nav";
@@ -38,6 +39,7 @@ export function AnalyticsView() {
   const { data: transactions = [] } = useTransactions();
   const { data: categories = [] } = useCategories();
   const { data: accounts = [] } = useAccounts();
+  const converter = useConverter();
 
   // Per-tab store
   const activeTab = useAnalyticsStore((s) => s.activeTab);
@@ -73,7 +75,7 @@ export function AnalyticsView() {
   );
 
   // Summary
-  const summary = useMemo(() => getPeriodSummary(filtered), [filtered]);
+  const summary = useMemo(() => getPeriodSummary(filtered, converter), [filtered, converter]);
 
   // Current tab definition
   const currentTab = TABS.find((t) => t.id === activeTab) ?? TABS[0];

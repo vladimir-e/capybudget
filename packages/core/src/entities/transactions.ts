@@ -10,6 +10,11 @@ export interface TransactionFormData {
   date: string;
   merchant: string;
   note: string;
+  /** The native→default rate to freeze on creation, resolved by the caller
+   *  from the account's currency (see `stampFxRate`). Undefined leaves the
+   *  field empty — a default-currency transaction at an implicit 1.0. Stamped
+   *  on create only; updates never re-rate. */
+  fxRate?: number;
 }
 
 /** Create one (or two, for transfers) new transactions. Returns the new full list. */
@@ -39,6 +44,9 @@ export function createTransaction(
       merchant: "",
       note: input.note,
       createdAt,
+      // Same-currency transfer: both legs share one rate. Cross-currency
+      // legs stamp their own rates — that's U5.
+      fxRate: input.fxRate,
     };
     return [
       ...existing,
@@ -60,6 +68,7 @@ export function createTransaction(
       merchant: input.merchant,
       note: input.note,
       createdAt,
+      fxRate: input.fxRate,
     },
   ];
 }

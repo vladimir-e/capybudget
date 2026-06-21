@@ -28,13 +28,17 @@ import {
   type ContentBlock,
 } from "@capybudget/intelligence"
 import type { BudgetRepository, FileAdapter } from "@capybudget/persistence"
+import type { CurrencySettings } from "@capybudget/core"
 
 export interface UseCapySessionOptions {
   budgetPath: string
   budgetName: string
   mcpServerPath: string
-  /** Budget's display currency (ISO 4217), baked into the prompt + snapshot. */
+  /** Budget's default currency (ISO 4217), baked into the prompt + snapshot. */
   currency: string
+  /** Per-currency settings, threaded into tool dispatch so AI-created foreign
+   *  transactions stamp their rate and money totals roll up into the default. */
+  currencies?: Record<string, CurrencySettings>
   /** English name of the active UI language, baked into the prompt; joins the
    *  session signature so a switch rebuilds. */
   language?: string

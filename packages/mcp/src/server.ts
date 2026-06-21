@@ -5,7 +5,12 @@ import {
   ListToolsRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js"
 import { createCsvRepository } from "@capybudget/persistence"
-import { DEFAULT_CURRENCY, resolveBudgetCurrency } from "@capybudget/core"
+import {
+  DEFAULT_CURRENCY,
+  formatDefaultsFor,
+  resolveBudgetCurrency,
+  type BudgetCurrency,
+} from "@capybudget/core"
 import {
   getToolDefinitions,
   runTool,
@@ -22,13 +27,16 @@ if (!BUDGET_PATH) {
 
 // ── Currency ─────────────────────────────────────────────────────
 
-async function readBudgetCurrency(budgetPath: string): Promise<string> {
+async function readBudgetCurrency(budgetPath: string): Promise<BudgetCurrency> {
   try {
     const metaPath = await nodeFileAdapter.join(budgetPath, "budget.json")
     const text = await nodeFileAdapter.readFile(metaPath)
-    return resolveBudgetCurrency(JSON.parse(text)).defaultCurrency
+    return resolveBudgetCurrency(JSON.parse(text))
   } catch {
-    return DEFAULT_CURRENCY
+    return {
+      defaultCurrency: DEFAULT_CURRENCY,
+      currencies: { [DEFAULT_CURRENCY]: formatDefaultsFor(DEFAULT_CURRENCY) },
+    }
   }
 }
 
@@ -36,12 +44,13 @@ async function readBudgetCurrency(budgetPath: string): Promise<string> {
 
 const repo = createCsvRepository(BUDGET_PATH, nodeFileAdapter, { immediate: true })
 
-const currency = await readBudgetCurrency(BUDGET_PATH)
+const { defaultCurrency, currencies } = await readBudgetCurrency(BUDGET_PATH)
 const dispatchCtx: ToolContext = {
   repo,
   fileAdapter: nodeFileAdapter,
   budgetPath: BUDGET_PATH,
-  currency,
+  currency: defaultCurrency,
+  currencies,
 }
 
 // ── Server setup ─────────────────────────────────────────────────

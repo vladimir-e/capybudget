@@ -14,8 +14,13 @@ export function CurrencyProvider({
   const { decimals, symbolPosition } = defaultCurrencySettings(data);
 
   const config = useMemo<CurrencyConfig>(
-    () => ({ currency: data.defaultCurrency, decimals, symbolPosition }),
-    [data.defaultCurrency, decimals, symbolPosition],
+    () => ({
+      currency: data.defaultCurrency,
+      currencies: data.currencies,
+      decimals,
+      symbolPosition,
+    }),
+    [data.defaultCurrency, data.currencies, decimals, symbolPosition],
   );
 
   return <CurrencyContext.Provider value={config}>{children}</CurrencyContext.Provider>;

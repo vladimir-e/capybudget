@@ -13,8 +13,9 @@ import {
   CATEGORY_GROUP_ORDER,
   getCategoryTrends,
 } from "@capybudget/core";
-import type { Category, DateRange, Transaction } from "@capybudget/core";
+import type { Category, CurrencyConverter, DateRange, Transaction } from "@capybudget/core";
 import { useTranslation } from "@capybudget/i18n";
+import { useConverter } from "@/contexts/currency-context";
 import { useFormatters } from "@/hooks/use-formatters";
 import { useGroupDisplayName } from "@/lib/display-names";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -120,18 +121,20 @@ function buildCategoryRows(
   categories: Category[],
   dateRange: DateRange,
   type: ViewMode,
+  converter: CurrencyConverter,
 ): CategoryRow[] {
   const startMs = dateRange.start.getTime();
   const endMs = dateRange.end.getTime();
 
-  // categoryId → period total (uncategorized keyed as "")
+  // categoryId → period total (uncategorized keyed as ""). Totals must match
+  // the converted chart series, so flows value at their stamped rate here too.
   const totals = new Map<string, number>();
   for (const t of transactions) {
     if (t.type !== type) continue;
     const ms = new Date(t.datetime).getTime();
     if (ms < startMs || ms >= endMs) continue;
     const key = t.categoryId || "";
-    totals.set(key, (totals.get(key) ?? 0) + Math.abs(t.amount));
+    totals.set(key, (totals.get(key) ?? 0) + Math.abs(converter.flowToDefault(t.amount, t.fxRate)));
   }
 
   // Active categories only (archived stay hidden by default).
@@ -245,10 +248,11 @@ function CompareTabBody({ transactions, categories, dateRange, viewMode, hasAnyT
   const groupDisplay = useGroupDisplayName();
   const monthLabel = useMonthLabel();
   const weekLabel = useWeekLabel();
+  const converter = useConverter();
   // Build category rows for current period + view mode.
   const rows = useMemo(
-    () => buildCategoryRows(transactions, categories, dateRange, viewMode),
-    [transactions, categories, dateRange, viewMode],
+    () => buildCategoryRows(transactions, categories, dateRange, viewMode, converter),
+    [transactions, categories, dateRange, viewMode, converter],
   );
 
   const [pick, setPick] = useState<PickState>(() => {
@@ -329,8 +333,8 @@ function CompareTabBody({ transactions, categories, dateRange, viewMode, hasAnyT
         type: viewMode,
         categoryIds: selectedIdsForCore,
         granularity,
-      }),
-    [transactions, categories, dateRange, viewMode, selectedIdsForCore, granularity],
+      }, converter),
+    [transactions, categories, dateRange, viewMode, selectedIdsForCore, granularity, converter],
   );
 
   const periodHasData = rows.length > 0;
@@ -553,7 +557,7 @@ function CompareTabBody({ transactions, categories, dateRange, viewMode, hasAnyT
         title={drilldown?.label ?? ""}
         // The bucket's date label is already the modal title, so the subtitle
         // is just count/total — no range label prefix.
-        subtitle={drilldown ? formatCountAndTotal(drilldownTransactions, money, t) : undefined}
+        subtitle={drilldown ? formatCountAndTotal(drilldownTransactions, money, converter, t) : undefined}
       />
     </div>
   );

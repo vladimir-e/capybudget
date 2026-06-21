@@ -120,6 +120,24 @@ export function resolveRate(
 }
 
 /**
+ * The rate to freeze on a transaction created on an account holding
+ * `accountCurrency`, stamped at entry time so the flow never re-rates as rates
+ * move. A default-currency account returns `undefined` — its `fxRate` stays
+ * empty (an implicit 1.0), keeping single-currency budgets byte-identical.
+ * A foreign account stamps today's resolved rate from the same fallback chain
+ * as `resolveRate`.
+ */
+export function stampFxRate(
+  accountCurrency: string,
+  currencies: Record<string, CurrencySettings>,
+  defaultCurrency: string,
+  table: SeedRateTable = SEED_RATES,
+): number | undefined {
+  if (accountCurrency === defaultCurrency) return undefined;
+  return resolveRate(accountCurrency, currencies, defaultCurrency, table).rate;
+}
+
+/**
  * The `todayRates` map U4 feeds into `createConverter`: every currency in the
  * budget's map keyed to its resolved rate against the default. Each rate walks
  * the same fallback chain as `resolveRate`. The default currency resolves to

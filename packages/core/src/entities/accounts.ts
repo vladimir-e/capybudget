@@ -38,6 +38,7 @@ export function createOpeningBalanceTransaction(
   account: Account,
   amount: number,
   existing: Transaction[],
+  fxRate?: number,
 ): Transaction[] {
   if (amount === 0) return existing;
 
@@ -52,6 +53,7 @@ export function createOpeningBalanceTransaction(
     merchant: "Opening Balance",
     note: "",
     createdAt: new Date().toISOString(),
+    fxRate,
   };
 
   return [...existing, txn];
