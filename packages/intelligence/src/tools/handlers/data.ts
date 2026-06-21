@@ -122,18 +122,24 @@ function compactRow(t: Transaction) {
   }
 }
 
-/** Verbose, name-resolved row — `list_transactions`' default shape. */
+/**
+ * Verbose, name-resolved row — `list_transactions`' default shape. The amount
+ * is the transaction's native value rendered in its account's own currency
+ * (the truth of the row); `group_transactions` is the path for totals rolled
+ * up into the budget default.
+ */
 function verboseRow(
   t: Transaction,
   accountMap: Map<string, string>,
   categoryMap: Map<string, string>,
-  currency: string,
+  accountCurrency: Map<string, string>,
+  defaultCurrency: string,
 ) {
   return {
     id: t.id,
     date: t.datetime.slice(0, 10),
     type: t.type,
-    amount: formatMoney(t.amount, currency),
+    amount: formatMoney(t.amount, accountCurrency.get(t.accountId) ?? defaultCurrency),
     amountCents: t.amount,
     account: accountMap.get(t.accountId) ?? t.accountId,
     category: categoryMap.get(t.categoryId) ?? (t.categoryId || "Uncategorized"),
@@ -152,6 +158,7 @@ export async function handleListTransactions(
   const categories = await repo.getCategories()
 
   const accountMap = new Map(accounts.map((a: Account) => [a.id, a.name]))
+  const accountCurrency = new Map(accounts.map((a: Account) => [a.id, a.currency]))
   const categoryMap = new Map(categories.map((c: Category) => [c.id, c.name]))
 
   let txns: Transaction[]
@@ -178,7 +185,9 @@ export async function handleListTransactions(
   const result =
     args.format === "compact"
       ? txns.map(compactRow)
-      : txns.map((t) => verboseRow(t, accountMap, categoryMap, currency))
+      : txns.map((t) =>
+          verboseRow(t, accountMap, categoryMap, accountCurrency, currency),
+        )
 
   return JSON.stringify(result, null, 2)
 }

@@ -31,6 +31,7 @@ describe("summarizeMerge — unmappedTransferCount", () => {
         { transactions: [txn], selectedIds: new Set(), accountMapping: {} },
         [],
         [],
+        "USD",
       ),
     ).toEqual({ unmappedTransferCount: 0 });
   });
@@ -47,6 +48,7 @@ describe("summarizeMerge — unmappedTransferCount", () => {
       },
       [acct],
       [],
+      "USD",
     );
 
     expect(unmappedTransferCount).toBe(0);
@@ -67,6 +69,7 @@ describe("summarizeMerge — unmappedTransferCount", () => {
       },
       [chk, sav],
       [],
+      "USD",
     );
 
     expect(unmappedTransferCount).toBe(0);
@@ -91,6 +94,7 @@ describe("summarizeMerge — unmappedTransferCount", () => {
       },
       [chk, sav],
       [],
+      "USD",
     );
 
     expect(unmappedTransferCount).toBe(0);
@@ -115,6 +119,7 @@ describe("summarizeMerge — unmappedTransferCount", () => {
       },
       [chk],
       [],
+      "USD",
     );
 
     expect(unmappedTransferCount).toBe(1);
@@ -147,6 +152,7 @@ describe("summarizeMerge — unmappedTransferCount", () => {
       },
       [chk, sav],
       [],
+      "USD",
     );
 
     expect(unmappedTransferCount).toBe(1);
@@ -184,6 +190,7 @@ describe("summarizeMerge — unmappedTransferCount", () => {
       },
       [chk, sav],
       [],
+      "USD",
     );
 
     expect(unmappedTransferCount).toBe(1);

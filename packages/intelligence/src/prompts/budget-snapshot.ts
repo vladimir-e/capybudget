@@ -21,6 +21,9 @@ export interface BudgetSnapshot {
   latestDate: string | null
   /** Non-archived category names keyed by group, in group order. */
   categoriesByGroup: Array<{ group: string; names: string[] }>
+  /** Non-archived accounts whose currency differs from the budget default —
+   *  empty for a single-currency budget, so the snapshot stays identical. */
+  foreignAccounts: Array<{ name: string; currency: string }>
 }
 
 export function buildBudgetSnapshot(
@@ -60,6 +63,9 @@ export function buildBudgetSnapshot(
       group,
       names: byGroup.get(group) ?? [],
     })),
+    foreignAccounts: accounts
+      .filter((a) => !a.archived && a.currency !== currency)
+      .map((a) => ({ name: a.name, currency: a.currency })),
   }
 }
 
@@ -74,10 +80,21 @@ export function formatBudgetSnapshot(snapshot: BudgetSnapshot): string {
     `Currency: ${snapshot.currency}`,
     `Accounts: ${snapshot.accountCount} active`,
     `Transactions: ${snapshot.transactionCount} (${range})`,
+  ]
+
+  if (snapshot.foreignAccounts.length > 0) {
+    lines.push(
+      "Foreign-currency accounts:",
+      ...snapshot.foreignAccounts.map((a) => `  ${a.name}: ${a.currency}`),
+      `Aggregate totals (group_transactions, list_accounts balances) are in the default currency (${snapshot.currency}); per-row amounts in list_transactions are each account's own currency.`,
+    )
+  }
+
+  lines.push(
     "Categories:",
     ...snapshot.categoriesByGroup.map(
       ({ group, names }) => `  ${group}: ${names.join(", ")}`,
     ),
-  ]
+  )
   return lines.join("\n")
 }

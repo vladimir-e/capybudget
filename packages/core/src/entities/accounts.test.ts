@@ -15,19 +15,19 @@ import {
 
 describe("createAccount", () => {
   it("assigns a UUID and createdAt", () => {
-    const account = createAccount({ name: "Cash", type: "cash" }, []);
+    const account = createAccount({ name: "Cash", type: "cash" }, [], "USD");
     expect(account.id).toBeTruthy();
     expect(account.createdAt).toBeTruthy();
     expect(account.archived).toBe(false);
   });
 
   it("defaults excludeFromNetWorth to false", () => {
-    const account = createAccount({ name: "Cash", type: "cash" }, []);
+    const account = createAccount({ name: "Cash", type: "cash" }, [], "USD");
     expect(account.excludeFromNetWorth).toBe(false);
   });
 
   it("sets sortOrder to 1 when no accounts of that type exist", () => {
-    const account = createAccount({ name: "Cash", type: "cash" }, []);
+    const account = createAccount({ name: "Cash", type: "cash" }, [], "USD");
     expect(account.sortOrder).toBe(1);
   });
 
@@ -40,6 +40,7 @@ describe("createAccount", () => {
     const account = createAccount(
       { name: "New Checking", type: "checking" },
       existing,
+      "USD",
     );
     expect(account.sortOrder).toBe(8);
   });
@@ -49,8 +50,23 @@ describe("createAccount", () => {
     const account = createAccount(
       { name: "Cash", type: "cash" },
       existing,
+      "USD",
     );
     expect(account.sortOrder).toBe(1);
+  });
+
+  it("falls back to the budget default currency when none is given", () => {
+    const account = createAccount({ name: "Rubles", type: "cash" }, [], "RUB");
+    expect(account.currency).toBe("RUB");
+  });
+
+  it("honors an explicit currency over the budget default", () => {
+    const account = createAccount(
+      { name: "Euros", type: "checking", currency: "EUR" },
+      [],
+      "USD",
+    );
+    expect(account.currency).toBe("EUR");
   });
 });
 

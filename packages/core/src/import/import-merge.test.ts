@@ -32,6 +32,7 @@ describe("prepareMerge", () => {
         { transactions: [txn], selectedIds: new Set(), accountMapping: {} },
         [],
         [],
+        "USD",
       ),
     ).toThrow("No transactions selected");
   });
@@ -42,6 +43,7 @@ describe("prepareMerge", () => {
       { transactions: [txn], selectedIds: new Set([txn.id]), accountMapping: {} },
       [],
       [],
+      "USD",
     );
 
     expect(result.sourcesToCreate).toEqual(["Chase Checking"]);
@@ -60,6 +62,7 @@ describe("prepareMerge", () => {
       },
       [],
       [],
+      "USD",
     );
 
     expect(result.sourcesToCreate).toEqual(["Amex Gold"]);
@@ -79,6 +82,7 @@ describe("prepareMerge", () => {
       },
       [existingAcct],
       [],
+      "USD",
     );
 
     expect(result.sourcesToCreate).toEqual([]);
@@ -100,6 +104,7 @@ describe("prepareMerge", () => {
       },
       [],
       [],
+      "USD",
     );
 
     expect(result.transactions[0].accountId).toBe("acct-fallback");
@@ -117,6 +122,7 @@ describe("prepareMerge", () => {
       },
       [],
       [],
+      "USD",
     );
 
     expect(result.sourcesToCreate).toEqual(["Chase Checking"]);
@@ -136,6 +142,7 @@ describe("prepareMerge", () => {
       },
       [],
       [],
+      "USD",
     );
 
     expect(result.transactions[0].note).toBe("GROCERY STORE #123");
@@ -152,6 +159,7 @@ describe("prepareMerge", () => {
       },
       [],
       [],
+      "USD",
     );
 
     expect(result.transactions[0].note).toBe("");
@@ -174,6 +182,7 @@ describe("prepareMerge", () => {
       },
       [],
       [],
+      "USD",
     );
 
     const out = result.transactions[0];
@@ -210,6 +219,7 @@ describe("prepareMerge", () => {
       },
       [],
       [existingTxn],
+      "USD",
     );
 
     expect(result.transactions).toHaveLength(2);
@@ -228,6 +238,7 @@ describe("prepareMerge", () => {
       },
       [],
       [],
+      "USD",
     );
 
     expect(result.transactions).toHaveLength(1);
@@ -245,6 +256,7 @@ describe("prepareMerge", () => {
       },
       [],
       [],
+      "USD",
     );
 
     const createdId = result.createdAccountIds["New Bank"];
@@ -262,6 +274,7 @@ describe("prepareMerge", () => {
       },
       [],
       [],
+      "USD",
     );
 
     expect(result.aliases.accounts["Chase"]).toBe("acct-existing");
@@ -278,6 +291,7 @@ describe("prepareMerge", () => {
       },
       [],
       [],
+      "USD",
       { accounts: { "Old Bank": "acct-old" } },
     );
 
@@ -297,6 +311,7 @@ describe("prepareMerge", () => {
       },
       [],
       [],
+      "USD",
     );
 
     expect(result.aliases.accounts["Chase"]).toBe("acct-1");
@@ -314,6 +329,7 @@ describe("prepareMerge", () => {
       },
       [],
       [],
+      "USD",
     );
 
     expect(result.transactions[0].categoryId).toBe("");
@@ -343,6 +359,7 @@ describe("prepareMerge", () => {
         },
         [],
         [],
+      "USD",
       );
 
       const [out, inTxn] = result.transactions;
@@ -378,6 +395,7 @@ describe("prepareMerge", () => {
         },
         [],
         [],
+      "USD",
       );
 
       const [out1, in1, out2] = result.transactions;
@@ -410,6 +428,7 @@ describe("prepareMerge", () => {
         },
         [],
         [],
+      "USD",
       );
 
       const [a1, a2, b1, b2] = result.transactions;
@@ -435,6 +454,7 @@ describe("prepareMerge", () => {
         },
         [],
         [],
+      "USD",
       );
 
       expect(result.transactions[0].transferPairId).toBe("");
@@ -457,6 +477,7 @@ describe("prepareMerge", () => {
         },
         [],
         [],
+      "USD",
       );
 
       expect(result.transactions[0].transferPairId).toBe("");
@@ -479,6 +500,7 @@ describe("prepareMerge", () => {
         },
         [],
         [],
+      "USD",
       );
 
       expect(result.transactions[0].transferPairId).toBe("");
@@ -501,6 +523,7 @@ describe("prepareMerge", () => {
         },
         [],
         [],
+      "USD",
       );
 
       expect(result.transactions[0].transferPairId).toBe("");
@@ -526,6 +549,7 @@ describe("prepareMerge", () => {
         },
         [],
         [],
+      "USD",
       );
 
       // Should create two transactions (the pair)
@@ -564,6 +588,7 @@ describe("prepareMerge", () => {
         },
         [],
         [],
+      "USD",
       );
 
       expect(result.transactions).toHaveLength(2);
@@ -600,6 +625,7 @@ describe("prepareMerge", () => {
         },
         [],
         [],
+      "USD",
       );
 
       for (const t of result.transactions) {
@@ -625,6 +651,7 @@ describe("prepareMerge", () => {
         },
         [],
         [],
+      "USD",
       );
 
       for (const t of result.transactions) {
@@ -652,6 +679,7 @@ describe("prepareMerge", () => {
         },
         [],
         [],
+      "USD",
       );
 
       expect(result.transactions).toHaveLength(1);
@@ -677,6 +705,7 @@ describe("prepareMerge", () => {
         },
         [],
         [],
+      "USD",
       );
 
       expect(result.transactions).toHaveLength(1);
@@ -716,6 +745,7 @@ describe("prepareMerge", () => {
         },
         [],
         [],
+      "USD",
       );
 
       // 2 from single-leg pair + 2 from YNAB pair = 4

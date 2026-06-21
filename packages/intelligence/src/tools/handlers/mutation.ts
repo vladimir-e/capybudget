@@ -235,11 +235,10 @@ export async function handleCreateAccount(
     {
       name: args.name as string,
       type: args.type as AccountType,
-      // AI-created accounts always get the budget default; a model-facing
-      // currency parameter on the tool is U6's job.
-      currency,
+      currency: args.currency as string | undefined,
     },
     accounts,
+    currency,
   )
 
   const nextAccounts = [...accounts, account]

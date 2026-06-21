@@ -19,9 +19,16 @@ export function summarizeMerge(
   input: MergeInput,
   prevAccounts: Account[],
   prevTransactions: Transaction[],
+  defaultCurrency: string,
   existingAliases: ImportAliases = { accounts: {} },
 ): MergeSummary {
   if (input.selectedIds.size === 0) return { unmappedTransferCount: 0 };
-  const result = prepareMerge(input, prevAccounts, prevTransactions, existingAliases);
+  const result = prepareMerge(
+    input,
+    prevAccounts,
+    prevTransactions,
+    defaultCurrency,
+    existingAliases,
+  );
   return { unmappedTransferCount: result.downgradedTransferCount };
 }

@@ -29,6 +29,7 @@ import type { Transaction } from "@capybudget/core";
 import { toDateString } from "@capybudget/core";
 import { useTranslation } from "@capybudget/i18n";
 import { useFormatters } from "@/hooks/use-formatters";
+import { useConverter } from "@/contexts/currency-context";
 import { useCategoryDisplayName } from "@/lib/display-names";
 import {
   CalendarDays,
@@ -51,6 +52,7 @@ interface BulkActionBarProps {
 export function BulkActionBar({ selectedIds, transactions, onClear }: BulkActionBarProps) {
   const { t } = useTranslation(["budget", "common"]);
   const { money, date: formatDate } = useFormatters();
+  const converter = useConverter();
   const categoryDisplay = useCategoryDisplayName();
   const { data: accounts = [] } = useAccounts();
   const { data: categories = [] } = useCategories();
@@ -67,7 +69,12 @@ export function BulkActionBar({ selectedIds, transactions, onClear }: BulkAction
 
   const selected = transactions.filter((t) => selectedIds.has(t.id));
   const count = selected.length;
-  const totalAmount = selected.reduce((sum, t) => sum + t.amount, 0);
+  // Flows roll up into the default at each row's stamped rate, so a mixed-currency
+  // selection sums to a true default-currency total (identity for a USD budget).
+  const totalAmount = selected.reduce(
+    (sum, t) => sum + converter.flowToDefault(t.amount, t.fxRate),
+    0,
+  );
 
   const categoryIds = new Set(selected.filter((t) => t.type !== "transfer").map((t) => t.categoryId));
   const hasTransfers = selected.some((t) => t.type === "transfer");

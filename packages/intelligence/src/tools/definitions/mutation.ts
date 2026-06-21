@@ -147,6 +147,11 @@ export const MUTATION_TOOL_DEFS = [
           minimum: 0,
           description: "Opening balance in positive cents (optional)",
         },
+        currency: {
+          type: "string",
+          description:
+            "ISO 4217 code for the account's currency (e.g. EUR, RUB). Omit for the budget default. Set it for a foreign account — its balance and flows then roll up into the default currency at the resolved rate.",
+        },
       },
       required: ["name", "type"],
     },

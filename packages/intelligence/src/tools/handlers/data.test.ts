@@ -187,6 +187,19 @@ describe("handleListTransactions", () => {
     expect(result[0].amountCents).toBe(-150000)
   })
 
+  it("renders a foreign row's amount in the account's own currency", async () => {
+    const repo = createMockRepo({
+      accounts: [makeAccount({ id: "acc-rub", name: "Tinkoff", currency: "RUB" })],
+      categories: baseCategories,
+      transactions: [makeTxn({ accountId: "acc-rub", amount: -100000 })],
+    })
+
+    const result = JSON.parse(await handleListTransactions(repo, "USD", {}))
+    // Native RUB value, RUB convention (0 decimals, trailing symbol) — not "$".
+    expect(result[0].amount).toBe("-1,000 ₽")
+    expect(result[0].amountCents).toBe(-100000)
+  })
+
   it("falls back to ID when account or category is unknown", async () => {
     const repo = createMockRepo({
       accounts: [],

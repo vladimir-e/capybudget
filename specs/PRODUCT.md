@@ -25,6 +25,14 @@ Balances are always derived from transactions — never stored. Net worth is the
 
 Accounts can be archived (zero balance required) or deleted (only if no real transaction history).
 
+### Multi-currency
+
+Each account holds one currency, chosen at creation and locked once it has transactions (re-denominating historical amounts is meaningless — make a new account instead). The budget has a default currency that every roll-up reports in; an account left unspecified takes that default.
+
+Money is stored native and never re-rated. Conversion happens only at read time, with two rates for two questions: **flows** — what was spent or earned — are valued at the rate stamped on the day each transaction happened, so history never moves as rates drift; **holdings** — what an account is worth now — are valued at today's rate. Rates resolve per currency from a manual override, else a bundled rate table, else 1.0. Cross-currency transfers carry a second amount field — one per leg — so moving money between currencies records the real rate on both sides.
+
+The two rates don't reconcile, and the gap is real: a foreign balance's spot value (today's rate) minus its cost value (stamped flows) is unrealized FX gain or loss, surfaced as a **net-worth FX delta** rather than hidden. A single-currency budget has every rate at 1.0, so conversion is the identity and none of the multi-currency surfaces appear — no per-currency settings, no FX line, no extra transfer field.
+
 ### Transactions
 
 Three types: expense, income, and transfer. Amounts are signed (negative = outflow, positive = inflow) with semantic coloring in the UI.

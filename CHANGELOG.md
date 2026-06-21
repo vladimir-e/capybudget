@@ -9,6 +9,10 @@ CHANGELOG PHILOSOPHY:
 - Resist the urge to be thorough here. Thoroughness goes in specs, not changelog.
 -->
 
+## 1.3.0 — 2026-06-21
+
+- **Currency** - Go worldwide: give any account its own currency and everything rolls up into your default — flows at the rate when they happened, balances at today's, with the holding gap shown as a net-worth FX delta and cross-currency transfers that record the real rate on both legs.
+
 ## 1.2.0 — 2026-06-19
 
 - **Language** - The whole app speaks English, Russian, and Spanish now — pick your language in Settings, and the UI, Capy's chat, the help guide, and the demo all follow.

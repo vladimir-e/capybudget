@@ -84,12 +84,14 @@ function linkTransferPairs(txns: Transaction[]): void {
  * the next budget state. No I/O — the caller is responsible for persistence.
  *
  * Accounts with mapping "__create__" or no mapping are auto-created as
- * "checking" — the most common type for imported bank data.
+ * "checking" — the most common type for imported bank data, in the budget
+ * default currency.
  */
 export function prepareMerge(
   input: MergeInput,
   prevAccounts: Account[],
   prevTransactions: Transaction[],
+  defaultCurrency: string,
   existingAliases: ImportAliases = { accounts: {} },
 ): MergeOutput {
   const { transactions, selectedIds, accountMapping } = input;
@@ -110,6 +112,7 @@ export function prepareMerge(
     const acct = createAccount(
       { name: source, type: "checking" },
       nextAccounts,
+      defaultCurrency,
     );
     nextAccounts.push(acct);
     createdAccountIds[source] = acct.id;

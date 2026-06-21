@@ -13,10 +13,11 @@ import {
 import { useImportMerge } from "@/hooks/use-import-merge";
 import { useImportData } from "@/hooks/use-import-data";
 import { useTransactions } from "@/hooks/use-budget-data";
-import { summarizeMerge } from "@capybudget/core";
+import { summarizeMerge, resolveAccountId } from "@capybudget/core";
 import type { StagingStore } from "@capybudget/intelligence";
 import { useTranslation } from "@capybudget/i18n";
 import { useFormatters } from "@/hooks/use-formatters";
+import { useConverter, useCurrency } from "@/contexts/currency-context";
 import { ImportTable } from "./import-table";
 import {
   sortImportTransactions,
@@ -59,6 +60,8 @@ export function ImportPreview({
 }: ImportPreviewProps) {
   const { t } = useTranslation(["import", "common"]);
   const { money } = useFormatters();
+  const converter = useConverter();
+  const defaultCurrency = useCurrency();
   const { data: budgetTransactions = [] } = useTransactions();
   const [sort, setSort] = useState<ImportSortConfig>({ column: "date", direction: "asc" });
   const [search, setSearch] = useState("");
@@ -151,7 +154,17 @@ export function ImportPreview({
   const selected = transactions.filter((t) => selectedIds.has(t.id));
   const selectedCount = selected.length;
   const totalCount = transactions.length;
-  const selectedTotal = selected.reduce((sum, t) => sum + t.amount, 0);
+  // A row's native amount rolls up via its destination account's currency at
+  // today's rate; rows landing on a fresh (yet-uncreated) account take the budget
+  // default. Identity for a same-currency import, so a USD budget never moves.
+  const accountCurrency = useMemo(
+    () => new Map(accounts.map((a) => [a.id, a.currency])),
+    [accounts],
+  );
+  const selectedTotal = selected.reduce((sum, t) => {
+    const accountId = resolveAccountId(t, {}, accountMapping);
+    return sum + converter.holdingToDefault(t.amount, accountCurrency.get(accountId));
+  }, 0);
   const certainDuplicateCount = duplicateIds.size - possibleDuplicateCount;
 
   // ── Merge ──────────────────────────────────────────────────────
@@ -188,8 +201,9 @@ export function ImportPreview({
       { transactions, selectedIds, accountMapping },
       accounts,
       budgetTransactions,
+      defaultCurrency,
     );
-  }, [showMergeDialog, transactions, selectedIds, accountMapping, accounts, budgetTransactions]);
+  }, [showMergeDialog, transactions, selectedIds, accountMapping, accounts, budgetTransactions, defaultCurrency]);
 
   const handleMerge = useCallback(async () => {
     setShowMergeDialog(false);

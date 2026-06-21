@@ -18,7 +18,7 @@ export function useCreateAccount() {
   const currencies = useCurrencies();
   return useBudgetMutation<AccountFormData, Account>(async (data, { accounts, transactions }) => {
     const prev = accounts.get();
-    const account = createAccount(data, prev);
+    const account = createAccount(data, prev, defaultCurrency);
     const nextAccounts = [...prev, account];
     accounts.set(nextAccounts);
     await accounts.save(nextAccounts);
