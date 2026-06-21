@@ -1,4 +1,5 @@
 import type { Transaction, Category, Account, BudgetBasis } from "../entities/types";
+import { IDENTITY_CONVERTER, type CurrencyConverter } from "./converter";
 
 export interface DateRange {
   start: Date;
@@ -48,10 +49,12 @@ export function filterTransactionsByDateRange(
 export function getSpendingByCategory(
   transactions: Transaction[],
   categories: Category[],
+  converter: CurrencyConverter = IDENTITY_CONVERTER,
 ): CategoryBreakdown[] {
   return breakdownByCategory(
     transactions.filter((t) => t.type === "expense"),
     categories,
+    converter,
   );
 }
 
@@ -59,16 +62,19 @@ export function getSpendingByCategory(
 export function getIncomeByCategory(
   transactions: Transaction[],
   categories: Category[],
+  converter: CurrencyConverter = IDENTITY_CONVERTER,
 ): CategoryBreakdown[] {
   return breakdownByCategory(
     transactions.filter((t) => t.type === "income"),
     categories,
+    converter,
   );
 }
 
 function breakdownByCategory(
   transactions: Transaction[],
   categories: Category[],
+  converter: CurrencyConverter,
 ): CategoryBreakdown[] {
   const catMap = new Map(categories.map((c) => [c.id, c]));
 
@@ -76,7 +82,7 @@ function breakdownByCategory(
   for (const t of transactions) {
     const key = t.categoryId || "__uncategorized__";
     const entry = groups.get(key) ?? { total: 0, count: 0 };
-    entry.total += Math.abs(t.amount);
+    entry.total += Math.abs(converter.flowToDefault(t.amount, t.fxRate));
     entry.count += 1;
     groups.set(key, entry);
   }
@@ -111,12 +117,18 @@ function breakdownByCategory(
  *
  *  `includeAccountIds`, when provided, is the source of truth for which accounts
  *  to count — `archived`/`excludeFromNetWorth` are ignored, since the caller has
- *  already decided. */
+ *  already decided.
+ *
+ *  This is a cost-basis line: each transaction accumulates at its stamped flow
+ *  rate (not today's), so the series reconciles with cash flow. The spot-vs-cost
+ *  gap (today's-rate holdings minus this) is the unrealized FX delta, surfaced
+ *  separately. */
 export function getNetWorthOverTime(
   accounts: Account[],
   transactions: Transaction[],
   range: DateRange,
   includeAccountIds?: Set<string>,
+  converter: CurrencyConverter = IDENTITY_CONVERTER,
 ): NetWorthPoint[] {
   const activeAccountIds =
     includeAccountIds ??
@@ -157,7 +169,8 @@ export function getNetWorthOverTime(
     while (txIdx < sorted.length && txTimestamps[txIdx] < threshold) {
       const t = sorted[txIdx];
       if (activeAccountIds.has(t.accountId)) {
-        balances[t.accountId] = (balances[t.accountId] ?? 0) + t.amount;
+        balances[t.accountId] =
+          (balances[t.accountId] ?? 0) + converter.flowToDefault(t.amount, t.fxRate);
       }
       txIdx++;
     }
@@ -215,6 +228,7 @@ const MONTH_LABELS = [
 export function getCashFlow(
   transactions: Transaction[],
   range: DateRange,
+  converter: CurrencyConverter = IDENTITY_CONVERTER,
 ): CashFlowPoint[] {
   const startMs = range.start.getTime();
   const endMs = range.end.getTime();
@@ -229,11 +243,12 @@ export function getCashFlow(
     const d = new Date(t.datetime);
     const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
     const bucket = buckets.get(key) ?? { income: 0, expenses: 0 };
+    const value = converter.flowToDefault(t.amount, t.fxRate);
 
     if (t.type === "income") {
-      bucket.income += t.amount;
+      bucket.income += value;
     } else if (t.type === "expense") {
-      bucket.expenses += Math.abs(t.amount);
+      bucket.expenses += Math.abs(value);
     }
 
     buckets.set(key, bucket);
@@ -285,6 +300,7 @@ const UNKNOWN_KEY = "__unknown__";
 export function getTopMerchants(
   transactions: Transaction[],
   limit: number = 15,
+  converter: CurrencyConverter = IDENTITY_CONVERTER,
 ): MerchantSpending[] {
   const expenses = transactions.filter((t) => t.type === "expense");
 
@@ -295,7 +311,7 @@ export function getTopMerchants(
     const raw = t.merchant.trim();
     const key = raw === "" ? UNKNOWN_KEY : raw.toLowerCase();
     const entry = groups.get(key) ?? { displayName: raw === "" ? "Unknown" : raw, total: 0, count: 0 };
-    entry.total += Math.abs(t.amount);
+    entry.total += Math.abs(converter.flowToDefault(t.amount, t.fxRate));
     entry.count += 1;
     groups.set(key, entry);
   }
@@ -370,6 +386,7 @@ export function getCategoryTrends(
   categories: Category[],
   range: DateRange,
   options?: { type?: "expense" | "income"; limit?: number; categoryIds?: string[]; granularity?: "month" | "week" },
+  converter: CurrencyConverter = IDENTITY_CONVERTER,
 ): CategoryTrendsResult {
   const type = options?.type ?? "expense";
   const limit = options?.limit ?? 8;
@@ -405,7 +422,7 @@ export function getCategoryTrends(
       bucketKey = monthKey(d);
     }
     const catId = t.categoryId || "__uncategorized__";
-    const amt = Math.abs(t.amount);
+    const amt = Math.abs(converter.flowToDefault(t.amount, t.fxRate));
 
     if (!buckets.has(bucketKey)) buckets.set(bucketKey, new Map());
     const bucket = buckets.get(bucketKey)!;
@@ -564,6 +581,7 @@ export function getCategoryHistoricalStats(
   categories: Category[],
   range: DateRange,
   basis: BudgetBasis = "trailing3",
+  converter: CurrencyConverter = IDENTITY_CONVERTER,
 ): CategoryHistoricalStatsResult {
   const eligible = categories.filter((c) => !c.archived && c.group !== "Income");
   const eligibleIds = new Set(eligible.map((c) => c.id));
@@ -588,7 +606,7 @@ export function getCategoryHistoricalStats(
       months = new Map();
       byCatMonth.set(t.categoryId, months);
     }
-    months.set(key, (months.get(key) ?? 0) + Math.abs(t.amount));
+    months.set(key, (months.get(key) ?? 0) + Math.abs(converter.flowToDefault(t.amount, t.fxRate)));
   }
 
   const byCategory = new Map<string, CategoryHistoricalStats>();

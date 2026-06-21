@@ -14,6 +14,7 @@
  */
 
 import type { Account, Category, Transaction } from "../entities/types";
+import { IDENTITY_CONVERTER, type CurrencyConverter } from "./converter";
 
 export type GroupDimension =
   | "merchant"
@@ -87,6 +88,9 @@ export interface GroupKeyPart {
 export interface GroupContext {
   accounts: Account[];
   categories: Category[];
+  /** Values each transaction's amount in the default currency at its stamped
+   *  flow rate before any metric or bucketing. Defaults to identity. */
+  converter?: CurrencyConverter;
 }
 
 export interface GroupOptions {
@@ -228,6 +232,7 @@ function amountBucketPart(amount: number, size: number): GroupKeyPart {
 function keyPart(
   dimension: GroupDimension,
   txn: Transaction,
+  amount: number,
   maps: NameMaps,
   amountBucketCents: number,
 ): GroupKeyPart {
@@ -255,7 +260,7 @@ function keyPart(
     case "dayOfMonth":
       return { dimension, label: dayOfMonthKey(txn.datetime) };
     case "amountBucket":
-      return amountBucketPart(txn.amount, amountBucketCents);
+      return amountBucketPart(amount, amountBucketCents);
   }
 }
 
@@ -268,6 +273,9 @@ const KEY_SEP = String.fromCharCode(0);
 interface Bucket {
   key: GroupKeyPart[];
   txns: Transaction[];
+  /** Default-currency amounts, parallel to `txns`, valued at each
+   *  transaction's stamped flow rate. Drives every amount-based metric. */
+  amounts: number[];
 }
 
 function computeMetrics(
@@ -275,7 +283,7 @@ function computeMetrics(
   metrics: GroupMetric[],
 ): TransactionGroup {
   const txns = bucket.txns;
-  const amounts = txns.map((t) => t.amount);
+  const amounts = bucket.amounts;
   const group: TransactionGroup = { key: bucket.key };
 
   for (const metric of metrics) {
@@ -342,6 +350,7 @@ export function groupTransactions(
   ctx: GroupContext,
 ): TransactionGroup[] {
   const maps = buildNameMaps(ctx);
+  const converter = ctx.converter ?? IDENTITY_CONVERTER;
   const bucketSize = opts.amountBucketCents ?? 0;
 
   // Composite key id: prefer each part's entity id (so two accounts sharing a
@@ -349,14 +358,16 @@ export function groupTransactions(
   // separator so a free-form merchant name can't collide multi-key combos.
   const buckets = new Map<string, Bucket>();
   for (const txn of transactions) {
-    const key = opts.groupBy.map((dim) => keyPart(dim, txn, maps, bucketSize));
+    const amount = converter.flowToDefault(txn.amount, txn.fxRate);
+    const key = opts.groupBy.map((dim) => keyPart(dim, txn, amount, maps, bucketSize));
     const id = key.map((p) => p.id ?? p.label).join(KEY_SEP);
     let bucket = buckets.get(id);
     if (!bucket) {
-      bucket = { key, txns: [] };
+      bucket = { key, txns: [], amounts: [] };
       buckets.set(id, bucket);
     }
     bucket.txns.push(txn);
+    bucket.amounts.push(amount);
   }
 
   let groups = [...buckets.values()].map((b) => computeMetrics(b, opts.metrics));

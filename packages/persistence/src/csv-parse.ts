@@ -10,11 +10,19 @@ export type Coerce = (v: string | undefined) => unknown;
  *  absent — that's how new fields get their default for older CSVs. */
 export type CoercionMap<T> = Partial<Record<keyof T, Coerce>>;
 
-/** Build a readonly column tuple for T. Compile error if a key is unknown or
- *  missing — adding a field to the model forces a column-order decision here. */
+/** The keys an entity must persist: its required fields. Optional fields are
+ *  not-yet-persisted by design — a field gets a column only once it's stored on
+ *  disk, which the migration that introduces it decides. */
+type RequiredKeys<T> = {
+  [K in keyof T]-?: undefined extends T[K] ? never : K;
+}[keyof T];
+
+/** Build a readonly column tuple for T. Compile error if a key is unknown or a
+ *  required field is missing — adding a stored field to the model forces a
+ *  column-order decision here. Optional fields may be listed or omitted. */
 function columns<T>() {
   return <const C extends readonly (keyof T)[]>(
-    cols: C & ([Exclude<keyof T, C[number]>] extends [never] ? unknown : never),
+    cols: C & ([Exclude<RequiredKeys<T>, C[number]>] extends [never] ? unknown : never),
   ): C => cols;
 }
 

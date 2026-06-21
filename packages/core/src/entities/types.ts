@@ -61,6 +61,10 @@ export interface Account {
   excludeFromNetWorth: boolean;
   sortOrder: number;
   createdAt: string;
+  /** ISO currency code the account holds. Absent → the budget default; balances
+   *  in the default currency convert as the identity. Locked once the account
+   *  has any transaction. */
+  currency?: string;
 }
 
 export type CategoryGroup =
@@ -94,4 +98,7 @@ export interface Transaction {
   merchant: string;
   note: string;
   createdAt: string;
+  /** Native→default rate stamped the day a foreign transaction happened, so
+   *  flows never re-rate. Absent → 1.0 (a default-currency transaction). */
+  fxRate?: number;
 }

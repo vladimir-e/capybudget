@@ -1,5 +1,6 @@
 import type { Account, AccountType, CategoryGroup, Transaction } from "../entities/types";
 import { ACCOUNT_TYPE_ORDER } from "../constants/account-type-labels";
+import { IDENTITY_CONVERTER, type CurrencyConverter } from "./converter";
 
 export const CATEGORY_GROUP_ORDER: CategoryGroup[] = [
   "Income",
@@ -9,14 +10,20 @@ export const CATEGORY_GROUP_ORDER: CategoryGroup[] = [
   "Irregular",
 ];
 
-/** Sum of all transaction amounts for a given account. */
+/** Sum of all transaction amounts for a given account, valued in the default
+ *  currency at today's rate (a holding). `currency` is the account's native
+ *  currency; pass it together with a converter to value a foreign account.
+ *  Native sum first, single conversion. */
 export function getAccountBalance(
   accountId: string,
   transactions: Transaction[],
+  converter: CurrencyConverter = IDENTITY_CONVERTER,
+  currency?: string,
 ): number {
-  return transactions
+  const native = transactions
     .filter((t) => t.accountId === accountId)
     .reduce((sum, t) => sum + t.amount, 0);
+  return converter.holdingToDefault(native, currency);
 }
 
 /** Group accounts by type, ordered by ACCOUNT_TYPE_ORDER. Only includes groups that have accounts. */
@@ -47,14 +54,19 @@ export function getTransactionsForAccount(
 }
 
 /** Net worth = sum of balances for accounts that are neither archived nor
- *  excluded from net worth. */
+ *  excluded from net worth. Each account's native balance converts once at
+ *  today's rate (a holding) before being summed. */
 export function getNetWorth(
   accounts: Account[],
   transactions: Transaction[],
+  converter: CurrencyConverter = IDENTITY_CONVERTER,
 ): number {
   return accounts
     .filter((a) => !a.archived && !a.excludeFromNetWorth)
-    .reduce((sum, a) => sum + getAccountBalance(a.id, transactions), 0);
+    .reduce(
+      (sum, a) => sum + getAccountBalance(a.id, transactions, converter, a.currency),
+      0,
+    );
 }
 
 /** Resolve the from/to account IDs for a transfer transaction. */

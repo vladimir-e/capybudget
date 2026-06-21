@@ -234,6 +234,13 @@ export {
   basisMonths,
 } from "./analytics/analytics";
 
+// Currency conversion (native → default, for analytics roll-ups)
+export type { CurrencyConverter } from "./analytics/converter";
+export {
+  IDENTITY_CONVERTER,
+  createConverter,
+} from "./analytics/converter";
+
 // Transaction search (fuzzy cross-field + money matcher)
 export type { SearchContext } from "./analytics/search";
 export {
