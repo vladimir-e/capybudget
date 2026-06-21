@@ -6,7 +6,7 @@ All data lives in a user-chosen folder as plain CSV files. A `budget.json` metad
 
 ```
 ~/MyBudget/
-  budget.json            ← metadata: schema version, name, currency, formatting
+  budget.json            ← metadata: schema version, name, currency settings
   accounts.csv
   categories.csv
   transactions.csv
@@ -18,9 +18,10 @@ All data lives in a user-chosen folder as plain CSV files. A `budget.json` metad
 {
   "schemaVersion": 4,
   "name": "My Budget",
-  "currency": "USD",
-  "currencyDecimals": 2,
-  "currencySymbolPosition": "before",
+  "defaultCurrency": "USD",
+  "currencies": {
+    "USD": { "decimals": 2, "symbolPosition": "before" }
+  },
   "createdAt": "2026-03-07T12:00:00.000Z",
   "lastModified": "2026-03-07T12:00:00.000Z"
 }
@@ -28,7 +29,15 @@ All data lives in a user-chosen folder as plain CSV files. A `budget.json` metad
 
 The schema version enables future migrations. On load, the app checks the version and runs any necessary transformations before proceeding.
 
-The `currency` field is the budget's **default currency** — the unit every roll-up converts into and the value an account or transaction takes when it carries none of its own. It also selects the display symbol; all amounts are integers in the minor unit regardless. `currencyDecimals` (0–2) and `currencySymbolPosition` (`before` · `after` · `off`) are user-tunable display knobs, seeded from the currency's curated defaults — `{ 0, after }` for RUB, `{ 2, before }` for USD — so a user whose exact currency isn't listed can pick a near one and match their real formatting. Decimals only rounds the rendered figure; money on disk stays ×100, so 2 is the ceiling — a third decimal could only ever render zero, and a stored value above 2 is clamped to 2 on load. Both knobs are seeded from the currency's defaults and re-seeded on a currency switch — changing currency lands on the new currency's conventional formatting rather than carrying the prior tweaks; a "reset to defaults" control restores the current currency's defaults on demand (e.g. after manual tweaks). `currency`, `currencyDecimals`, and `currencySymbolPosition` are additive `budget.json` fields with no schema bump; a budget written before they existed backfills from the currency's defaults on load.
+### Currency settings
+
+Currency lives in two fields: `defaultCurrency`, the ISO code everything rolls up into and the value an account or transaction takes when it carries none of its own; and `currencies`, a map keyed by ISO code holding each currency's settings. **The default currency is just another entry of the same shape** — no split between "the default's settings here, foreign settings there."
+
+Each entry carries display settings: `decimals` (0–2) and `symbolPosition` (`before` · `after` · `off`). A non-default entry additionally carries its `rate` against the default and a `rateSource` tag (`manual` · `seed`) recording where the rate came from; the default entry carries neither — it is the base, an implicit rate of 1.0.
+
+Display settings are seeded from the currency's curated defaults — `{ 0, after }` for RUB, `{ 2, before }` for USD — so a user whose exact currency isn't listed can pick a near one and match their real formatting. The symbol is currency-driven; all amounts are integers in the minor unit regardless. Decimals only rounds the rendered figure; money on disk stays ×100, so 2 is the ceiling — a third decimal could only ever render zero, and a stored value above 2 is clamped to 2 on load. The default entry's knobs are re-seeded on a currency switch — changing the default lands on the new currency's conventional formatting rather than carrying the prior tweaks; a "reset to defaults" control restores the current currency's defaults on demand (e.g. after manual tweaks).
+
+The currency settings carry no schema bump: they are normalized at load time, not by a numbered migration. A budget written before they existed — whether missing them entirely or carrying the older flat `currency` / `currencyDecimals` / `currencySymbolPosition` fields — is read into the unified shape, lifting any flat fields into the default entry and backfilling missing knobs from the currency's defaults. The normalized shape is written back on the next save, which rewrites every existing budget.json (single-currency ones included); only the shape moves, so the rendered numbers and formatting are unchanged.
 
 ## Accounts
 

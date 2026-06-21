@@ -13,12 +13,20 @@ export type {
 export { BUDGET_BASES, BASIS_OPTION_LABELS } from "./entities/types";
 
 // Money utilities
-export type { MoneyFormat, SymbolPosition, BudgetFormatFields } from "./utils/money";
+export type {
+  MoneyFormat,
+  SymbolPosition,
+  RateSource,
+  CurrencySettings,
+  BudgetCurrencyFields,
+  BudgetCurrency,
+} from "./utils/money";
 export {
   DEFAULT_CURRENCY,
   CURRENCY_FORMAT_DEFAULTS,
   formatDefaultsFor,
-  resolveBudgetFormat,
+  resolveBudgetCurrency,
+  defaultCurrencySettings,
   formatMoney,
   formatMoneyCompact,
   currencySymbol,

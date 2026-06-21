@@ -2,7 +2,7 @@ import { exists, readTextFile, writeTextFile, readDir } from "@tauri-apps/plugin
 import { join } from "@tauri-apps/api/path";
 import type { BudgetMeta, Category } from "@capybudget/core";
 import { DEFAULT_CATEGORIES, DEFAULT_CURRENCY, formatDefaultsFor } from "@capybudget/core";
-import { withFormatDefaults, migrateBudgetFolder } from "./budget-migrations";
+import { withCurrencyShape, migrateBudgetFolder } from "./budget-migrations";
 import {
   unparseCsv,
   ACCOUNT_COLUMNS,
@@ -61,7 +61,7 @@ export async function detectBudget(folderPath: string): Promise<BudgetMeta | nul
   if (!fileExists) return null;
 
   const raw = await readTextFile(metaPath);
-  const meta = JSON.parse(raw) as BudgetMeta;
+  const meta = JSON.parse(raw) as Parameters<typeof migrateBudgetFolder>[1];
 
   if (meta.schemaVersion < SCHEMA_VERSION) {
     const migrated = await migrateBudgetFolder(folderPath, meta, SCHEMA_VERSION);
@@ -69,7 +69,7 @@ export async function detectBudget(folderPath: string): Promise<BudgetMeta | nul
     return migrated;
   }
 
-  return withFormatDefaults({ ...meta, currency: meta.currency ?? DEFAULT_CURRENCY });
+  return withCurrencyShape(meta);
 }
 
 const PROTECTED_FILES = ["budget.json", "categories.csv", "accounts.csv", "transactions.csv"];
@@ -90,13 +90,11 @@ export async function bootstrapBudget(
   }
 
   const now = new Date().toISOString();
-  const defaults = formatDefaultsFor(currency);
   const meta: BudgetMeta = {
     schemaVersion: SCHEMA_VERSION,
     name,
-    currency,
-    currencyDecimals: defaults.decimals,
-    currencySymbolPosition: defaults.symbolPosition,
+    defaultCurrency: currency,
+    currencies: { [currency]: formatDefaultsFor(currency) },
     createdAt: now,
     lastModified: now,
   };

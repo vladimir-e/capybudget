@@ -3,7 +3,8 @@ import {
   formatMoney,
   formatMoneyCompact,
   formatDefaultsFor,
-  resolveBudgetFormat,
+  resolveBudgetCurrency,
+  defaultCurrencySettings,
   CURRENCY_FORMAT_DEFAULTS,
   currencySymbol,
   getAmountClass,
@@ -205,31 +206,106 @@ describe("formatDefaultsFor", () => {
   });
 });
 
-describe("resolveBudgetFormat", () => {
-  it("backfills every missing field from the currency's curated defaults", () => {
-    expect(resolveBudgetFormat({ currency: "RUB" })).toEqual({
-      currency: "RUB",
-      decimals: 0,
-      symbolPosition: "after",
+describe("resolveBudgetCurrency", () => {
+  it("normalizes a unified-shape budget through unchanged, backfilling missing knobs", () => {
+    expect(
+      resolveBudgetCurrency({
+        defaultCurrency: "RUB",
+        currencies: { RUB: { decimals: 0, symbolPosition: "after" } },
+      }),
+    ).toEqual({
+      defaultCurrency: "RUB",
+      currencies: { RUB: { decimals: 0, symbolPosition: "after" } },
+    });
+  });
+
+  it("lifts old flat fields into the default entry", () => {
+    expect(
+      resolveBudgetCurrency({
+        currency: "RUB",
+        currencyDecimals: 0,
+        currencySymbolPosition: "after",
+      }),
+    ).toEqual({
+      defaultCurrency: "RUB",
+      currencies: { RUB: { decimals: 0, symbolPosition: "after" } },
+    });
+  });
+
+  it("backfills a flat-shape currency's missing knobs from its curated defaults", () => {
+    expect(resolveBudgetCurrency({ currency: "RUB" })).toEqual({
+      defaultCurrency: "RUB",
+      currencies: { RUB: { decimals: 0, symbolPosition: "after" } },
     });
   });
 
   it("defaults a missing currency to USD and its baseline format", () => {
-    expect(resolveBudgetFormat({})).toEqual({
-      currency: "USD",
-      decimals: 2,
-      symbolPosition: "before",
+    expect(resolveBudgetCurrency({})).toEqual({
+      defaultCurrency: "USD",
+      currencies: { USD: { decimals: 2, symbolPosition: "before" } },
     });
   });
 
-  it("preserves explicit overrides over the curated defaults", () => {
+  it("preserves explicit flat-field overrides over the curated defaults", () => {
     expect(
-      resolveBudgetFormat({ currency: "RUB", currencyDecimals: 2, currencySymbolPosition: "off" }),
-    ).toEqual({ currency: "RUB", decimals: 2, symbolPosition: "off" });
+      resolveBudgetCurrency({ currency: "RUB", currencyDecimals: 2, currencySymbolPosition: "off" }),
+    ).toEqual({
+      defaultCurrency: "RUB",
+      currencies: { RUB: { decimals: 2, symbolPosition: "off" } },
+    });
   });
 
   it("clamps a stored decimals above the integer-cents ceiling down to 2", () => {
-    expect(resolveBudgetFormat({ currency: "USD", currencyDecimals: 3 }).decimals).toBe(2);
+    expect(
+      defaultCurrencySettings(
+        resolveBudgetCurrency({ currency: "USD", currencyDecimals: 3 }),
+      ).decimals,
+    ).toBe(2);
+  });
+
+  it("keeps only the default entry — foreign entries are U3b's concern", () => {
+    expect(
+      resolveBudgetCurrency({
+        defaultCurrency: "USD",
+        currencies: {
+          USD: { decimals: 2, symbolPosition: "before" },
+          EUR: { decimals: 2, symbolPosition: "before", rate: 1.1, rateSource: "manual" },
+        },
+      }),
+    ).toEqual({
+      defaultCurrency: "USD",
+      currencies: { USD: { decimals: 2, symbolPosition: "before" } },
+    });
+  });
+});
+
+describe("display identity across the shape change", () => {
+  // THE invariant: a single-currency budget renders identically before and
+  // after the reshape. The flat trio and the unified map for the same currency
+  // must resolve to the same display settings, so every amount formats the same.
+  const amounts = [0, 5, 49, 50, 99999, 100000, 123456, -128900, 421550];
+
+  it.each([
+    ["USD", { currencyDecimals: 2, currencySymbolPosition: "before" as const }],
+    ["RUB", {}],
+    ["UAH", {}],
+    ["CHF", {}],
+    ["USD", { currencyDecimals: 0, currencySymbolPosition: "off" as const }],
+  ])("%s formats every amount identically from flat vs unified shape", (currency, flat) => {
+    const fromFlat = resolveBudgetCurrency({ currency, ...flat });
+    const fromUnified = resolveBudgetCurrency({
+      defaultCurrency: currency,
+      currencies: { [currency]: defaultCurrencySettings(fromFlat) },
+    });
+
+    for (const cents of amounts) {
+      expect(formatMoney(cents, currency, defaultCurrencySettings(fromUnified))).toBe(
+        formatMoney(cents, currency, defaultCurrencySettings(fromFlat)),
+      );
+      expect(formatMoneyCompact(cents, currency, defaultCurrencySettings(fromUnified))).toBe(
+        formatMoneyCompact(cents, currency, defaultCurrencySettings(fromFlat)),
+      );
+    }
   });
 });
 

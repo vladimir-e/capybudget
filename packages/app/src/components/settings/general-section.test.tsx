@@ -19,11 +19,10 @@ vi.mock("@/hooks/use-budget-meta", () => ({
 
 function metaWith(over: Partial<BudgetMeta> = {}): BudgetMeta {
   return {
-    schemaVersion: 3,
+    schemaVersion: 4,
     name: "My Budget",
-    currency: "USD",
-    currencyDecimals: 2,
-    currencySymbolPosition: "before",
+    defaultCurrency: "USD",
+    currencies: { USD: { decimals: 2, symbolPosition: "before" } },
     createdAt: "",
     lastModified: "",
     ...over,

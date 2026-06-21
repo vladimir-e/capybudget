@@ -1,18 +1,25 @@
 import { readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
 import { join } from "@tauri-apps/api/path";
 import Papa from "papaparse";
-import type { BudgetMeta } from "@capybudget/core";
-import { resolveBudgetFormat } from "@capybudget/core";
+import type { BudgetMeta, BudgetCurrencyFields } from "@capybudget/core";
+import { resolveBudgetCurrency } from "@capybudget/core";
 
-/** Backfill `currency` and the format fields from the currency's defaults for a
- *  budget.json written before those fields existed. Idempotent. */
-export function withFormatDefaults(meta: BudgetMeta): BudgetMeta {
-  const { currency, decimals, symbolPosition } = resolveBudgetFormat(meta);
+// The stored fields a budget.json may carry before normalization: the entity
+// identity (everything but the unified currency shape) plus the currency fields
+// in either the unified or the older flat form.
+type StoredBudgetMeta = Omit<BudgetMeta, "defaultCurrency" | "currencies"> &
+  BudgetCurrencyFields;
+
+/** Normalize a budget.json into the unified shape: keep the entity identity,
+ *  resolve the currency settings, and drop any superseded flat currency fields.
+ *  Idempotent. */
+export function withCurrencyShape(meta: StoredBudgetMeta): BudgetMeta {
   return {
-    ...meta,
-    currency,
-    currencyDecimals: decimals,
-    currencySymbolPosition: symbolPosition,
+    schemaVersion: meta.schemaVersion,
+    name: meta.name,
+    createdAt: meta.createdAt,
+    lastModified: meta.lastModified,
+    ...resolveBudgetCurrency(meta),
   };
 }
 
@@ -85,15 +92,15 @@ const MIGRATIONS: Record<number, Migration> = {
  *  stamps this onto every existing account. */
 async function readDefaultCurrency(folderPath: string): Promise<string> {
   const metaPath = await join(folderPath, "budget.json");
-  const meta = JSON.parse(await readTextFile(metaPath)) as BudgetMeta;
-  return resolveBudgetFormat(meta).currency;
+  const meta = JSON.parse(await readTextFile(metaPath)) as BudgetCurrencyFields;
+  return resolveBudgetCurrency(meta).defaultCurrency;
 }
 
 /** Run all pending migrations on `folderPath`, bringing it from
  *  `meta.schemaVersion` up to `targetVersion`. Returns the updated meta. */
 export async function migrateBudgetFolder(
   folderPath: string,
-  meta: BudgetMeta,
+  meta: StoredBudgetMeta,
   targetVersion: number,
 ): Promise<BudgetMeta> {
   let version = meta.schemaVersion;
@@ -107,7 +114,7 @@ export async function migrateBudgetFolder(
     await migration(folderPath);
     version++;
   }
-  return withFormatDefaults({
+  return withCurrencyShape({
     ...meta,
     schemaVersion: targetVersion,
     lastModified: new Date().toISOString(),

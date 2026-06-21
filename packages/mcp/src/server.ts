@@ -5,7 +5,7 @@ import {
   ListToolsRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js"
 import { createCsvRepository } from "@capybudget/persistence"
-import { DEFAULT_CURRENCY } from "@capybudget/core"
+import { DEFAULT_CURRENCY, resolveBudgetCurrency } from "@capybudget/core"
 import {
   getToolDefinitions,
   runTool,
@@ -26,8 +26,7 @@ async function readBudgetCurrency(budgetPath: string): Promise<string> {
   try {
     const metaPath = await nodeFileAdapter.join(budgetPath, "budget.json")
     const text = await nodeFileAdapter.readFile(metaPath)
-    const raw = JSON.parse(text) as { currency?: string }
-    return raw.currency ?? DEFAULT_CURRENCY
+    return resolveBudgetCurrency(JSON.parse(text)).defaultCurrency
   } catch {
     return DEFAULT_CURRENCY
   }

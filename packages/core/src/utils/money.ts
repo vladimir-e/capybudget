@@ -14,6 +14,19 @@ export interface MoneyFormat {
   symbolPosition: SymbolPosition;
 }
 
+// Where a currency's rate against the default came from, so the UI can label it.
+// The default currency carries no rate (it is the base, 1.0); U3b populates this
+// on the non-default entries.
+export type RateSource = "manual" | "seed";
+
+// One entry in the per-currency settings map. The default currency is just an
+// entry of this shape with no rate; non-default entries additionally carry their
+// rate against the default and its provenance.
+export interface CurrencySettings extends MoneyFormat {
+  rate?: number;
+  rateSource?: RateSource;
+}
+
 const decimalFormatters = new Map<string, Intl.NumberFormat>();
 
 function decimalFormatter(locale: string, decimals: number): Intl.NumberFormat {
@@ -106,30 +119,55 @@ export function formatDefaultsFor(currency: string): MoneyFormat {
   return { decimals: resolvedDecimals(currency), symbolPosition: "before" };
 }
 
-// All optional: additive `budget.json` fields with no schema bump, so any can
-// be absent in a budget written before it existed.
-export interface BudgetFormatFields {
+// The currency fields of a stored budget.json, in either shape: the unified
+// `defaultCurrency` + `currencies` map, or the older flat trio. A budget written
+// before currency settings existed carries none of them. Load-time
+// normalization reads whichever is present and produces the unified shape.
+export interface BudgetCurrencyFields {
+  defaultCurrency?: string;
+  currencies?: Record<string, CurrencySettings>;
+  // Pre-unification flat fields, read only when `currencies` is absent.
   currency?: string;
   currencyDecimals?: number;
   currencySymbolPosition?: SymbolPosition;
 }
 
+// The unified currency settings of a normalized budget: the code everything
+// rolls up into, plus a per-currency map keyed by code (the default included).
+export interface BudgetCurrency {
+  defaultCurrency: string;
+  currencies: Record<string, CurrencySettings>;
+}
+
 // Money is stored as integer ×100, so a third display decimal always renders zero.
 const MAX_DISPLAY_DECIMALS = 2;
 
-// Single source of truth for the no-schema-bump backfill, shared by every reader
-// (app meta parse, migrations, MCP server) so the contract can't drift.
-export function resolveBudgetFormat(
-  raw: BudgetFormatFields,
-): { currency: string; decimals: number; symbolPosition: SymbolPosition } {
-  const currency = raw.currency ?? DEFAULT_CURRENCY;
-  const defaults = formatDefaultsFor(currency);
-  const decimals = raw.currencyDecimals ?? defaults.decimals;
-  return {
-    currency,
-    decimals: clampDecimals(decimals),
-    symbolPosition: raw.currencySymbolPosition ?? defaults.symbolPosition,
+// Single source of truth for currency normalization, shared by every reader
+// (app meta parse, migrations, MCP server) so the contract can't drift. Reads
+// the unified shape when present, otherwise lifts the old flat fields into a
+// default entry, and always backfills missing display knobs from the currency's
+// curated defaults.
+export function resolveBudgetCurrency(raw: BudgetCurrencyFields): BudgetCurrency {
+  const defaultCurrency = raw.defaultCurrency ?? raw.currency ?? DEFAULT_CURRENCY;
+  const stored = raw.currencies?.[defaultCurrency] ?? {
+    decimals: raw.currencyDecimals,
+    symbolPosition: raw.currencySymbolPosition,
   };
+  const defaults = formatDefaultsFor(defaultCurrency);
+  return {
+    defaultCurrency,
+    currencies: {
+      [defaultCurrency]: {
+        decimals: clampDecimals(stored.decimals ?? defaults.decimals),
+        symbolPosition: stored.symbolPosition ?? defaults.symbolPosition,
+      },
+    },
+  };
+}
+
+/** The default currency's display settings from a normalized budget. */
+export function defaultCurrencySettings(meta: BudgetCurrency): CurrencySettings {
+  return meta.currencies[meta.defaultCurrency];
 }
 
 function clampDecimals(decimals: number): number {

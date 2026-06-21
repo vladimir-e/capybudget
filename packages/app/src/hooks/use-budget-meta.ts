@@ -2,34 +2,33 @@ import { useCallback } from "react";
 import {
   DEFAULT_CURRENCY,
   formatDefaultsFor,
-  resolveBudgetFormat,
+  resolveBudgetCurrency,
+  type BudgetCurrencyFields,
   type BudgetMeta,
   type MoneyFormat,
 } from "@capybudget/core";
 import { useBudgetFile } from "@/hooks/use-budget-file";
 import { SCHEMA_VERSION } from "../../../../src/services/budget";
 
-const DEFAULT_FORMAT = formatDefaultsFor(DEFAULT_CURRENCY);
-
 const DEFAULT_META: BudgetMeta = {
   schemaVersion: SCHEMA_VERSION,
   name: "",
-  currency: DEFAULT_CURRENCY,
-  currencyDecimals: DEFAULT_FORMAT.decimals,
-  currencySymbolPosition: DEFAULT_FORMAT.symbolPosition,
+  defaultCurrency: DEFAULT_CURRENCY,
+  currencies: { [DEFAULT_CURRENCY]: formatDefaultsFor(DEFAULT_CURRENCY) },
   createdAt: "",
   lastModified: "",
 };
 
 function parseMeta(text: string): BudgetMeta {
-  const raw = JSON.parse(text) as Partial<BudgetMeta>;
-  const { currency, decimals, symbolPosition } = resolveBudgetFormat(raw);
+  const stored = JSON.parse(text) as BudgetCurrencyFields & Partial<BudgetMeta>;
+  // Pick the entity identity explicitly and resolve the currency settings —
+  // any superseded flat currency fields are left behind, never re-saved.
   return {
-    ...DEFAULT_META,
-    ...raw,
-    currency,
-    currencyDecimals: decimals,
-    currencySymbolPosition: symbolPosition,
+    schemaVersion: stored.schemaVersion ?? DEFAULT_META.schemaVersion,
+    name: stored.name ?? DEFAULT_META.name,
+    createdAt: stored.createdAt ?? DEFAULT_META.createdAt,
+    lastModified: stored.lastModified ?? DEFAULT_META.lastModified,
+    ...resolveBudgetCurrency(stored),
   };
 }
 
@@ -58,18 +57,16 @@ export function useBudgetMeta(budgetPath: string): UseBudgetMetaReturn {
   );
 
   const setCurrency = useCallback(
-    (currency: string) => {
-      // Switching currency re-seeds format from the new currency's defaults,
-      // discarding any manual tweaks the user had on the prior currency.
-      const format = formatDefaultsFor(currency);
-      return save((prev) => ({
+    (currency: string) =>
+      // Switching the default currency re-seeds its display from the new
+      // currency's defaults, discarding any manual tweaks the user had on the
+      // prior default.
+      save((prev) => ({
         ...prev,
-        currency,
-        currencyDecimals: format.decimals,
-        currencySymbolPosition: format.symbolPosition,
+        defaultCurrency: currency,
+        currencies: { ...prev.currencies, [currency]: formatDefaultsFor(currency) },
         lastModified: new Date().toISOString(),
-      }));
-    },
+      })),
     [save],
   );
 
@@ -77,8 +74,10 @@ export function useBudgetMeta(budgetPath: string): UseBudgetMetaReturn {
     (format: MoneyFormat) =>
       save((prev) => ({
         ...prev,
-        currencyDecimals: format.decimals,
-        currencySymbolPosition: format.symbolPosition,
+        currencies: {
+          ...prev.currencies,
+          [prev.defaultCurrency]: { ...prev.currencies[prev.defaultCurrency], ...format },
+        },
         lastModified: new Date().toISOString(),
       })),
     [save],

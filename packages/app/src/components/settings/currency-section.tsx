@@ -4,6 +4,7 @@ import { ChevronDown, ExternalLink } from "lucide-react"
 import { useTranslation } from "@capybudget/i18n"
 import {
   currencySymbol,
+  defaultCurrencySettings,
   formatDefaultsFor,
   type SymbolPosition,
 } from "@capybudget/core"
@@ -50,12 +51,14 @@ export function CurrencySection({ budgetPath }: { budgetPath: string }) {
   const { money: formatPreview } = useFormatters()
   const [formatOpen, setFormatOpen] = useState(false)
 
-  const hasSymbol = currencySymbol(data.currency) !== ""
+  const currency = data.defaultCurrency
+  const { decimals, symbolPosition } = defaultCurrencySettings(data)
+  const hasSymbol = currencySymbol(currency) !== ""
 
-  const defaultFormat = formatDefaultsFor(data.currency)
+  const defaultFormat = formatDefaultsFor(currency)
   const isDefaultFormat =
-    data.currencyDecimals === defaultFormat.decimals &&
-    data.currencySymbolPosition === defaultFormat.symbolPosition
+    decimals === defaultFormat.decimals &&
+    symbolPosition === defaultFormat.symbolPosition
 
   return (
     <Card>
@@ -67,7 +70,7 @@ export function CurrencySection({ budgetPath }: { budgetPath: string }) {
         <div className="space-y-2">
           <CurrencyCombobox
             id="currency"
-            value={data.currency}
+            value={currency}
             onChange={(code) => void setCurrency(code)}
           />
           <p className="text-xs text-muted-foreground">
@@ -106,11 +109,11 @@ export function CurrencySection({ budgetPath }: { budgetPath: string }) {
                 <ToggleGroup
                   variant="outline"
                   spacing={2}
-                  value={[data.currencySymbolPosition]}
+                  value={[symbolPosition]}
                   onValueChange={(v) => {
                     if (v.length === 0) return
                     void setBudgetFormat({
-                      decimals: data.currencyDecimals,
+                      decimals,
                       symbolPosition: v[v.length - 1] as SymbolPosition,
                     })
                   }}
@@ -128,7 +131,7 @@ export function CurrencySection({ budgetPath }: { budgetPath: string }) {
                 </ToggleGroup>
                 {!hasSymbol && (
                   <p className="text-xs text-muted-foreground">
-                    {t("currency.noSymbol", { currency: data.currency })}
+                    {t("currency.noSymbol", { currency })}
                   </p>
                 )}
               </div>
@@ -136,12 +139,12 @@ export function CurrencySection({ budgetPath }: { budgetPath: string }) {
               <div className="space-y-2">
                 <Label htmlFor="precision">{t("currency.decimals")}</Label>
                 <Select
-                  value={String(data.currencyDecimals)}
+                  value={String(decimals)}
                   onValueChange={(v) => {
                     if (typeof v !== "string") return
                     void setBudgetFormat({
                       decimals: Number(v),
-                      symbolPosition: data.currencySymbolPosition,
+                      symbolPosition,
                     })
                   }}
                 >
@@ -166,7 +169,7 @@ export function CurrencySection({ budgetPath }: { budgetPath: string }) {
                   className="text-xs text-muted-foreground underline hover:text-foreground transition-colors"
                   onClick={() => void setBudgetFormat(defaultFormat)}
                 >
-                  {t("currency.resetDefaults", { currency: data.currency })}
+                  {t("currency.resetDefaults", { currency })}
                 </button>
               </div>
             )}

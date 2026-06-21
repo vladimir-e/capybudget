@@ -30,8 +30,11 @@ describe("detectBudget", () => {
     expect(mockExists).toHaveBeenCalledWith("/path/to/folder/budget.json");
   });
 
-  it("returns parsed BudgetMeta when budget.json exists at current version", async () => {
-    const meta = {
+  it("normalizes an old flat-shape budget.json into the unified currency map", async () => {
+    // A v4 budget.json from before the unified map carries the flat currency
+    // trio. detectBudget reads it through the normalizer, lifting the trio into
+    // the default entry and dropping the superseded fields.
+    const flat = {
       schemaVersion: 4,
       name: "Test Budget",
       currency: "USD",
@@ -41,17 +44,24 @@ describe("detectBudget", () => {
       lastModified: "2026-01-01T00:00:00.000Z",
     };
     mockExists.mockResolvedValue(true);
-    mockReadTextFile.mockResolvedValue(JSON.stringify(meta));
+    mockReadTextFile.mockResolvedValue(JSON.stringify(flat));
 
     const result = await detectBudget("/budgets/test");
-    expect(result).toEqual(meta);
+    expect(result).toEqual({
+      schemaVersion: 4,
+      name: "Test Budget",
+      defaultCurrency: "USD",
+      currencies: { USD: { decimals: 2, symbolPosition: "before" } },
+      createdAt: "2026-01-01T00:00:00.000Z",
+      lastModified: "2026-01-01T00:00:00.000Z",
+    });
     expect(mockReadTextFile).toHaveBeenCalledWith("/budgets/test/budget.json");
   });
 
-  it("backfills format fields from the currency for a pre-format budget.json", async () => {
-    // A budget.json written before the format fields shipped is at the current
-    // schema version but lacks decimals + symbol position. detectBudget backfills
-    // them from the currency's defaults (RUB → 0 decimals, symbol after).
+  it("backfills a pre-format budget.json's display knobs from the currency", async () => {
+    // A budget.json written before the format fields shipped carries only a flat
+    // `currency`. detectBudget backfills the default entry's knobs from the
+    // currency's defaults (RUB → 0 decimals, symbol after).
     const preFormat = {
       schemaVersion: 4,
       name: "Pre-format",
@@ -63,14 +73,14 @@ describe("detectBudget", () => {
     mockReadTextFile.mockResolvedValue(JSON.stringify(preFormat));
 
     const result = await detectBudget("/budgets/preformat");
-    expect(result?.currencyDecimals).toBe(0);
-    expect(result?.currencySymbolPosition).toBe("after");
+    expect(result?.defaultCurrency).toBe("RUB");
+    expect(result?.currencies.RUB).toEqual({ decimals: 0, symbolPosition: "after" });
   });
 
   it("defaults currency to USD for a current-version, pre-currency budget.json", async () => {
     // A budget.json written before the currency field shipped is at the
-    // current schema version but lacks `currency`. detectBudget must return a
-    // type-complete BudgetMeta rather than `currency: undefined`.
+    // current schema version but lacks any currency. detectBudget must return a
+    // type-complete BudgetMeta with the USD default rather than undefined.
     const preCurrency = {
       schemaVersion: 4,
       name: "Legacy Budget",
@@ -81,12 +91,13 @@ describe("detectBudget", () => {
     mockReadTextFile.mockResolvedValue(JSON.stringify(preCurrency));
 
     const result = await detectBudget("/budgets/legacy");
-    expect(result?.currency).toBe("USD");
+    expect(result?.defaultCurrency).toBe("USD");
+    expect(result?.currencies.USD).toEqual({ decimals: 2, symbolPosition: "before" });
   });
 
   it("defaults currency to USD when migrating a pre-currency budget", async () => {
     // A v1 budget predates the currency field entirely. After migration the
-    // returned meta is at the current version, whose shape requires `currency`.
+    // returned meta is at the current version, in the unified currency shape.
     const oldMeta = {
       schemaVersion: 1,
       name: "Old Budget",
@@ -109,12 +120,16 @@ describe("detectBudget", () => {
 
     const result = await detectBudget("/budgets/old");
     expect(result?.schemaVersion).toBe(4);
-    expect(result?.currency).toBe("USD");
+    expect(result?.defaultCurrency).toBe("USD");
 
     const metaWrite = mockWriteTextFile.mock.calls.find((c: string[]) =>
       c[0].endsWith("budget.json"),
     );
-    expect(JSON.parse(metaWrite![1]).currency).toBe("USD");
+    const writtenMeta = JSON.parse(metaWrite![1]);
+    expect(writtenMeta.defaultCurrency).toBe("USD");
+    expect(writtenMeta.currencies.USD).toEqual({ decimals: 2, symbolPosition: "before" });
+    // The migrated file carries the unified shape, not the flat trio.
+    expect(writtenMeta).not.toHaveProperty("currency");
   });
 
   it("runs pending migrations and writes updated budget.json", async () => {
@@ -464,32 +479,30 @@ describe("bootstrapBudget", () => {
     const result = await bootstrapBudget("/new/budget", "My Budget");
     expect(result.schemaVersion).toBe(4);
     expect(result.name).toBe("My Budget");
-    expect(result.currency).toBe("USD");
-    expect(result.currencyDecimals).toBe(2);
-    expect(result.currencySymbolPosition).toBe("before");
+    expect(result.defaultCurrency).toBe("USD");
+    expect(result.currencies.USD).toEqual({ decimals: 2, symbolPosition: "before" });
     expect(result.createdAt).toBeTruthy();
     expect(result.lastModified).toBeTruthy();
   });
 
-  it("seeds format fields from the chosen currency's defaults", async () => {
+  it("seeds the default entry from the chosen currency's defaults", async () => {
     const result = await bootstrapBudget("/new/budget", "Ruble Budget", "RUB");
-    expect(result.currencyDecimals).toBe(0);
-    expect(result.currencySymbolPosition).toBe("after");
+    expect(result.currencies.RUB).toEqual({ decimals: 0, symbolPosition: "after" });
   });
 
   it("defaults currency to USD when omitted", async () => {
     const result = await bootstrapBudget("/new/budget", "My Budget");
-    expect(result.currency).toBe("USD");
+    expect(result.defaultCurrency).toBe("USD");
   });
 
   it("honors a passed currency", async () => {
     const result = await bootstrapBudget("/new/budget", "My Budget", "EUR");
-    expect(result.currency).toBe("EUR");
+    expect(result.defaultCurrency).toBe("EUR");
 
     const budgetJsonCall = mockWriteTextFile.mock.calls.find(
       (call: string[]) => call[0] === "/new/budget/budget.json",
     );
-    expect(JSON.parse(budgetJsonCall![1]).currency).toBe("EUR");
+    expect(JSON.parse(budgetJsonCall![1]).defaultCurrency).toBe("EUR");
   });
 
   it("writes budget.json", async () => {

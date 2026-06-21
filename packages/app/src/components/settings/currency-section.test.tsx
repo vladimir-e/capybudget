@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { cleanup, render, screen } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { open as shellOpen } from "@tauri-apps/plugin-shell"
-import type { BudgetMeta } from "@capybudget/core"
+import type { BudgetMeta, CurrencySettings } from "@capybudget/core"
 import { CurrencySection } from "./currency-section"
 
 const setCurrency = vi.fn()
@@ -20,16 +20,19 @@ vi.mock("@/hooks/use-budget-meta", () => ({
   }),
 }))
 
-function metaWith(over: Partial<BudgetMeta> = {}): BudgetMeta {
+// A single-currency budget whose default entry carries the given display
+// settings — the only entry the section reads.
+function metaWith(
+  currency = "USD",
+  settings: CurrencySettings = { decimals: 2, symbolPosition: "before" },
+): BudgetMeta {
   return {
-    schemaVersion: 3,
+    schemaVersion: 4,
     name: "My Budget",
-    currency: "USD",
-    currencyDecimals: 2,
-    currencySymbolPosition: "before",
+    defaultCurrency: currency,
+    currencies: { [currency]: settings },
     createdAt: "",
     lastModified: "",
-    ...over,
   }
 }
 
@@ -53,7 +56,7 @@ describe("CurrencySection", () => {
   })
 
   it("renders a live preview with a positive and a negative sample", () => {
-    meta = metaWith({ currency: "USD", currencyDecimals: 2, currencySymbolPosition: "before" })
+    meta = metaWith("USD", { decimals: 2, symbolPosition: "before" })
     render(<CurrencySection budgetPath="/b" />)
 
     // The preview reads from the CurrencyContext (USD default outside a provider),
@@ -66,7 +69,7 @@ describe("CurrencySection", () => {
 
   it("wires the precision select to setBudgetFormat, preserving symbol position", async () => {
     const user = userEvent.setup()
-    meta = metaWith({ currencySymbolPosition: "after" })
+    meta = metaWith("USD", { decimals: 2, symbolPosition: "after" })
     render(<CurrencySection budgetPath="/b" />)
 
     await openFormatSettings(user)
@@ -88,7 +91,7 @@ describe("CurrencySection", () => {
 
   it("disables the symbol toggle for a symbol-less currency with a hint", async () => {
     const user = userEvent.setup()
-    meta = metaWith({ currency: "CHF" })
+    meta = metaWith("CHF")
     render(<CurrencySection budgetPath="/b" />)
 
     await openFormatSettings(user)
@@ -107,7 +110,7 @@ describe("CurrencySection", () => {
 
   it("resets to the currency's defaults when the format diverges", async () => {
     const user = userEvent.setup()
-    meta = metaWith({ currencyDecimals: 0, currencySymbolPosition: "off" })
+    meta = metaWith("USD", { decimals: 0, symbolPosition: "off" })
     render(<CurrencySection budgetPath="/b" />)
 
     await openFormatSettings(user)

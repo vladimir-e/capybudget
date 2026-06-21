@@ -48,7 +48,7 @@ function BudgetLayout() {
   const provider = useIntelligenceStore((s) => s.config.provider);
   const customInstructions = useCustomInstructions(path);
   const { data: meta } = useBudgetMeta(path);
-  const currency = meta.currency;
+  const currency = meta.defaultCurrency;
   // Live name comes from budget.json so a rename reflects without a reopen;
   // fall back to the search param only while meta is still loading.
   const budgetName = meta.name || name;

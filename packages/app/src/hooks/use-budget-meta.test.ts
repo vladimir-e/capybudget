@@ -15,12 +15,12 @@ function wrapper({ children }: { children: ReactNode }) {
   return createElement(QueryClientProvider, { client }, children);
 }
 
+// The unified currency shape: a single USD budget with the default entry only.
 const STORED_META = {
-  schemaVersion: 3,
+  schemaVersion: 4,
   name: "My Budget",
-  currency: "USD",
-  currencyDecimals: 2,
-  currencySymbolPosition: "before",
+  defaultCurrency: "USD",
+  currencies: { USD: { decimals: 2, symbolPosition: "before" } },
   createdAt: "2026-01-01T00:00:00.000Z",
   lastModified: "2026-01-01T00:00:00.000Z",
 };
@@ -35,7 +35,7 @@ afterEach(() => {
 });
 
 describe("useBudgetMeta", () => {
-  it("setCurrency re-seeds the format from the new currency's defaults, preserving identity fields", async () => {
+  it("setCurrency re-seeds the default entry from the new currency's defaults, preserving identity fields", async () => {
     mockReadTextFile.mockResolvedValue(JSON.stringify(STORED_META));
 
     const { result } = renderHook(() => useBudgetMeta("/b"), { wrapper });
@@ -52,18 +52,17 @@ describe("useBudgetMeta", () => {
     expect(path).toBe("/b/budget.json");
 
     const written = JSON.parse(contents);
-    expect(written.currency).toBe("RUB");
-    // Format re-seeds from RUB's defaults — no minor unit, trailing symbol —
-    // overwriting the prior USD formatting.
-    expect(written.currencyDecimals).toBe(0);
-    expect(written.currencySymbolPosition).toBe("after");
+    expect(written.defaultCurrency).toBe("RUB");
+    // The new default's entry re-seeds from RUB's defaults — no minor unit,
+    // trailing symbol.
+    expect(written.currencies.RUB).toEqual({ decimals: 0, symbolPosition: "after" });
     expect(written.name).toBe("My Budget");
-    expect(written.schemaVersion).toBe(3);
+    expect(written.schemaVersion).toBe(4);
     expect(written.createdAt).toBe("2026-01-01T00:00:00.000Z");
     expect(written.lastModified).not.toBe("2026-01-01T00:00:00.000Z");
   });
 
-  it("setBudgetFormat persists decimals + symbol position without touching currency", async () => {
+  it("setBudgetFormat persists the default entry's decimals + symbol position without touching the currency", async () => {
     mockReadTextFile.mockResolvedValue(JSON.stringify(STORED_META));
 
     const { result } = renderHook(() => useBudgetMeta("/b"), { wrapper });
@@ -74,9 +73,8 @@ describe("useBudgetMeta", () => {
     });
 
     const written = JSON.parse((mockWriteTextFile.mock.calls[0] as [string, string])[1]);
-    expect(written.currency).toBe("USD");
-    expect(written.currencyDecimals).toBe(0);
-    expect(written.currencySymbolPosition).toBe("off");
+    expect(written.defaultCurrency).toBe("USD");
+    expect(written.currencies.USD).toEqual({ decimals: 0, symbolPosition: "off" });
   });
 
   it("setName renames the budget while preserving the rest", async () => {
@@ -91,8 +89,8 @@ describe("useBudgetMeta", () => {
 
     const written = JSON.parse((mockWriteTextFile.mock.calls[0] as [string, string])[1]);
     expect(written.name).toBe("Renamed");
-    expect(written.currency).toBe("USD");
-    expect(written.currencyDecimals).toBe(2);
+    expect(written.defaultCurrency).toBe("USD");
+    expect(written.currencies.USD.decimals).toBe(2);
   });
 
   it("composes back-to-back field edits from the latest value, not a stale snapshot", async () => {
@@ -112,24 +110,28 @@ describe("useBudgetMeta", () => {
     });
 
     // Last write wins on disk, and the chain serializes so the file carries
-    // both edits — currency from the first, format from the second.
+    // both edits — the new default from the first, its format from the second.
     const lastCall = mockWriteTextFile.mock.calls.at(-1) as [string, string];
     const persisted = JSON.parse(lastCall[1]);
-    expect(persisted.currency).toBe("EUR");
-    expect(persisted.currencyDecimals).toBe(1);
-    expect(persisted.currencySymbolPosition).toBe("off");
+    expect(persisted.defaultCurrency).toBe("EUR");
+    expect(persisted.currencies.EUR).toEqual({ decimals: 1, symbolPosition: "off" });
 
     await waitFor(() => {
-      expect(result.current.data.currency).toBe("EUR");
-      expect(result.current.data.currencyDecimals).toBe(1);
-      expect(result.current.data.currencySymbolPosition).toBe("off");
+      expect(result.current.data.defaultCurrency).toBe("EUR");
+      expect(result.current.data.currencies.EUR).toEqual({
+        decimals: 1,
+        symbolPosition: "off",
+      });
     });
   });
 
-  it("backfills format and currency for a pre-format budget.json without crashing", async () => {
+  it("normalizes an old flat-shape budget.json into the unified map", async () => {
+    // A budget.json from before the unified map: flat currency fields, no
+    // `currencies`. The hook lifts them into the default entry and backfills
+    // anything missing from the currency's defaults.
     mockReadTextFile.mockResolvedValue(
       JSON.stringify({
-        schemaVersion: 2,
+        schemaVersion: 4,
         name: "Legacy",
         currency: "RUB",
         createdAt: "2026-01-01T00:00:00.000Z",
@@ -139,9 +141,14 @@ describe("useBudgetMeta", () => {
 
     const { result } = renderHook(() => useBudgetMeta("/b"), { wrapper });
     await waitFor(() => expect(result.current.data.name).toBe("Legacy"));
-    expect(result.current.data.currency).toBe("RUB");
+    expect(result.current.data.defaultCurrency).toBe("RUB");
     // RUB has no minor unit and a trailing symbol — backfilled from defaults.
-    expect(result.current.data.currencyDecimals).toBe(0);
-    expect(result.current.data.currencySymbolPosition).toBe("after");
+    expect(result.current.data.currencies.RUB).toEqual({
+      decimals: 0,
+      symbolPosition: "after",
+    });
+    // The superseded flat fields are dropped from the normalized shape.
+    expect(result.current.data).not.toHaveProperty("currency");
+    expect(result.current.data).not.toHaveProperty("currencyDecimals");
   });
 });
