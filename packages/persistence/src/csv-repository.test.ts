@@ -28,7 +28,8 @@ function createMockFileAdapter() {
 let mockAdapter: ReturnType<typeof createMockFileAdapter>;
 
 function makeAccountCsv(accounts: Partial<Account>[]): string {
-  const headers = "id,name,type,archived,excludeFromNetWorth,sortOrder,createdAt";
+  const headers =
+    "id,name,type,archived,excludeFromNetWorth,sortOrder,createdAt,currency";
   const rows = accounts.map((a) => {
     const full: Account = {
       id: "acc-1",
@@ -38,9 +39,10 @@ function makeAccountCsv(accounts: Partial<Account>[]): string {
       excludeFromNetWorth: false,
       sortOrder: 1,
       createdAt: "2026-01-01T00:00:00.000Z",
+      currency: "USD",
       ...a,
     };
-    return `${full.id},${full.name},${full.type},${full.archived},${full.excludeFromNetWorth},${full.sortOrder},${full.createdAt}`;
+    return `${full.id},${full.name},${full.type},${full.archived},${full.excludeFromNetWorth},${full.sortOrder},${full.createdAt},${full.currency}`;
   });
   return [headers, ...rows].join("\n");
 }
@@ -261,6 +263,7 @@ describe("createCsvRepository", () => {
           excludeFromNetWorth: false,
           sortOrder: 1,
           createdAt: "2026-02-01T00:00:00.000Z",
+          currency: "USD",
         },
       ];
       await repo.saveAccounts(newAccounts);
@@ -338,6 +341,7 @@ describe("createCsvRepository", () => {
           excludeFromNetWorth: false,
           sortOrder: 1,
           createdAt: "2026-01-01T00:00:00.000Z",
+          currency: "USD",
         },
       ]);
 
@@ -358,6 +362,7 @@ describe("createCsvRepository", () => {
           excludeFromNetWorth: false,
           sortOrder: 1,
           createdAt: "2026-01-01T00:00:00.000Z",
+          currency: "USD",
         },
       ]);
 
@@ -381,6 +386,7 @@ describe("createCsvRepository", () => {
           excludeFromNetWorth: false,
           sortOrder: 1,
           createdAt: "",
+          currency: "USD",
         },
       ]);
       await repo.saveCategories([
@@ -440,6 +446,7 @@ describe("createCsvRepository", () => {
           excludeFromNetWorth: false,
           sortOrder: 1,
           createdAt: "",
+          currency: "USD",
         },
       ]);
 

@@ -1,5 +1,6 @@
 import type { Account, Category, Transaction } from "./entities/types";
 import type { ImportTransaction } from "./import/import-types";
+import { DEFAULT_CURRENCY } from "./utils/money";
 
 /** Create a test account with sensible defaults. Override any field. */
 export function makeAccount(overrides: Partial<Account> = {}): Account {
@@ -11,6 +12,7 @@ export function makeAccount(overrides: Partial<Account> = {}): Account {
     excludeFromNetWorth: false,
     sortOrder: 1,
     createdAt: "2026-01-01T00:00:00.000Z",
+    currency: DEFAULT_CURRENCY,
     ...overrides,
   };
 }

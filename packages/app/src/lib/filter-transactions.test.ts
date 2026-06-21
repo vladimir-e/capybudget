@@ -10,8 +10,8 @@ import {
 import type { Account, Category, Transaction } from "@capybudget/core";
 
 const accounts: Account[] = [
-  { id: "acc-1", name: "Checking", type: "checking", archived: false, excludeFromNetWorth: false, sortOrder: 0, createdAt: "" },
-  { id: "acc-2", name: "Savings", type: "savings", archived: false, excludeFromNetWorth: false, sortOrder: 0, createdAt: "" },
+  { id: "acc-1", name: "Checking", type: "checking", archived: false, excludeFromNetWorth: false, sortOrder: 0, createdAt: "", currency: "USD" },
+  { id: "acc-2", name: "Savings", type: "savings", archived: false, excludeFromNetWorth: false, sortOrder: 0, createdAt: "", currency: "USD" },
 ];
 
 const categories: Category[] = [
@@ -293,8 +293,8 @@ describe("hasActiveFilters", () => {
 
 describe("sortTransactions", () => {
   const sortAccounts: Account[] = [
-    { id: "acc-a", name: "Alpha", type: "checking", archived: false, excludeFromNetWorth: false, sortOrder: 0, createdAt: "" },
-    { id: "acc-b", name: "Beta", type: "savings", archived: false, excludeFromNetWorth: false, sortOrder: 0, createdAt: "" },
+    { id: "acc-a", name: "Alpha", type: "checking", archived: false, excludeFromNetWorth: false, sortOrder: 0, createdAt: "", currency: "USD" },
+    { id: "acc-b", name: "Beta", type: "savings", archived: false, excludeFromNetWorth: false, sortOrder: 0, createdAt: "", currency: "USD" },
   ];
 
   const sortCategories: Category[] = [

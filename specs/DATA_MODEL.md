@@ -16,7 +16,7 @@ All data lives in a user-chosen folder as plain CSV files. A `budget.json` metad
 
 ```json
 {
-  "schemaVersion": 3,
+  "schemaVersion": 4,
   "name": "My Budget",
   "currency": "USD",
   "currencyDecimals": 2,
@@ -28,7 +28,7 @@ All data lives in a user-chosen folder as plain CSV files. A `budget.json` metad
 
 The schema version enables future migrations. On load, the app checks the version and runs any necessary transformations before proceeding.
 
-The `currency` field selects the display symbol; all amounts are integers in the minor unit regardless. `currencyDecimals` (0–2) and `currencySymbolPosition` (`before` · `after` · `off`) are user-tunable display knobs, seeded from the currency's curated defaults — `{ 0, after }` for RUB, `{ 2, before }` for USD — so a user whose exact currency isn't listed can pick a near one and match their real formatting. Decimals only rounds the rendered figure; money on disk stays ×100, so 2 is the ceiling — a third decimal could only ever render zero, and a stored value above 2 is clamped to 2 on load. Both knobs are seeded from the currency's defaults and re-seeded on a currency switch — changing currency lands on the new currency's conventional formatting rather than carrying the prior tweaks; a "reset to defaults" control restores the current currency's defaults on demand (e.g. after manual tweaks). `currency`, `currencyDecimals`, and `currencySymbolPosition` are additive `budget.json` fields with no schema bump; a budget written before they existed backfills from the currency's defaults on load.
+The `currency` field is the budget's **default currency** — the unit every roll-up converts into and the value an account or transaction takes when it carries none of its own. It also selects the display symbol; all amounts are integers in the minor unit regardless. `currencyDecimals` (0–2) and `currencySymbolPosition` (`before` · `after` · `off`) are user-tunable display knobs, seeded from the currency's curated defaults — `{ 0, after }` for RUB, `{ 2, before }` for USD — so a user whose exact currency isn't listed can pick a near one and match their real formatting. Decimals only rounds the rendered figure; money on disk stays ×100, so 2 is the ceiling — a third decimal could only ever render zero, and a stored value above 2 is clamped to 2 on load. Both knobs are seeded from the currency's defaults and re-seeded on a currency switch — changing currency lands on the new currency's conventional formatting rather than carrying the prior tweaks; a "reset to defaults" control restores the current currency's defaults on demand (e.g. after manual tweaks). `currency`, `currencyDecimals`, and `currencySymbolPosition` are additive `budget.json` fields with no schema bump; a budget written before they existed backfills from the currency's defaults on load.
 
 ## Accounts
 
@@ -43,6 +43,7 @@ Every financial entity is an account.
 | `excludeFromNetWorth`  | boolean | Excluded from Net Worth calculations when true                    |
 | `sortOrder`            | integer | Display ordering                                                  |
 | `createdAt`            | string  | ISO 8601                                                          |
+| `currency`             | string  | ISO 4217 code the account holds natively. Set when the account is created, defaulting to the budget default; editable only while the account has no transactions, then locked. Balances roll up into the default at conversion time; a default-currency account converts as the identity. |
 
 **No stored balance.** Balance is always derived: sum of all transactions where `accountId` matches. See Architecture for rationale.
 
@@ -91,6 +92,7 @@ The core entity. Every financial event is a transaction.
 | `merchant`       | string  | Optional. Who you paid or received from.                        |
 | `note`           | string  | Optional. Additional context.                                   |
 | `createdAt`      | string  | ISO 8601                                                        |
+| `fxRate`         | number  | Optional. The account's native→default rate stamped the day the transaction happened, so flows never re-rate as rates move. Empty = a default-currency transaction = an implicit rate of 1.0. Amounts are always stored in the account's native currency; this rate values them in the default at read time. |
 
 ### Sign Convention
 
@@ -139,6 +141,7 @@ Each migration `n → n+1` is a pure-ish function on the budget folder, idempote
 |-----------|--------|
 | 1 → 2     | Add `excludeFromNetWorth` column to accounts.csv (default `false`). |
 | 2 → 3     | Add `assigned` column to categories.csv (empty cell = `null` = untracked). |
+| 3 → 4     | Add `currency` column to accounts.csv (stamped with the budget default for every existing account) and `fxRate` column to transactions.csv (empty everywhere). Behavior-identical: every account lands in the default currency, every transaction has an implicit 1.0 rate, so a single-currency budget reads back unchanged. |
 
 ## Import Staging
 

@@ -35,6 +35,7 @@ export const ACCOUNT_COLUMNS = columns<Account>()([
   "excludeFromNetWorth",
   "sortOrder",
   "createdAt",
+  "currency",
 ]);
 export const CATEGORY_COLUMNS = columns<Category>()([
   "id",
@@ -55,6 +56,7 @@ export const TRANSACTION_COLUMNS = columns<Transaction>()([
   "merchant",
   "note",
   "createdAt",
+  "fxRate",
 ]);
 
 const toBool: Coerce = (v) => v === "true";
@@ -63,6 +65,10 @@ const toInt: Coerce = (v) => (v === undefined || v === "" ? 0 : parseInt(v, 10))
  *  Used for {@link Category.assigned} (monthly budget target in cents). */
 const toNullableInt: Coerce = (v) =>
   v === undefined || v === "" ? null : parseInt(v, 10);
+/** Optional float: `undefined` for missing/empty, otherwise parsed.
+ *  Used for {@link Transaction.fxRate} (empty = default currency = 1.0). */
+const toOptionalFloat: Coerce = (v) =>
+  v === undefined || v === "" ? undefined : parseFloat(v);
 
 export const ACCOUNT_COERCE: CoercionMap<Account> = {
   archived: toBool,
@@ -74,7 +80,10 @@ export const CATEGORY_COERCE: CoercionMap<Category> = {
   sortOrder: toInt,
   assigned: toNullableInt,
 } as const;
-export const TRANSACTION_COERCE: CoercionMap<Transaction> = { amount: toInt } as const;
+export const TRANSACTION_COERCE: CoercionMap<Transaction> = {
+  amount: toInt,
+  fxRate: toOptionalFloat,
+} as const;
 
 /** Parse CSV content and coerce fields to their typed values. */
 export function parseCsv<T>(content: string, coerce: CoercionMap<T>): T[] {

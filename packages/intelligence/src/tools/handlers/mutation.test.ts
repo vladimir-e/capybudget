@@ -162,10 +162,10 @@ describe("handleDeleteTransactions", () => {
 // ── Accounts ────────────────────────────────────────────────────
 
 describe("handleCreateAccount", () => {
-  it("creates an account", async () => {
+  it("creates an account in the budget default currency", async () => {
     const repo = createMockRepo({})
     const result = JSON.parse(
-      await handleCreateAccount(repo, {
+      await handleCreateAccount(repo, "EUR", {
         name: "Savings",
         type: "savings",
       }),
@@ -175,11 +175,13 @@ describe("handleCreateAccount", () => {
     expect(result.account.name).toBe("Savings")
     expect(result.account.type).toBe("savings")
     expect(repo.saveAccounts).toHaveBeenCalledOnce()
+    const saved = (repo.saveAccounts as ReturnType<typeof vi.fn>).mock.calls[0][0]
+    expect(saved[0].currency).toBe("EUR")
   })
 
   it("creates opening balance transaction when provided", async () => {
     const repo = createMockRepo({})
-    await handleCreateAccount(repo, {
+    await handleCreateAccount(repo, "USD", {
       name: "Checking",
       type: "checking",
       openingBalance: 50000,
@@ -191,7 +193,7 @@ describe("handleCreateAccount", () => {
 
   it("skips opening balance when zero", async () => {
     const repo = createMockRepo({})
-    await handleCreateAccount(repo, {
+    await handleCreateAccount(repo, "USD", {
       name: "Checking",
       type: "checking",
       openingBalance: 0,

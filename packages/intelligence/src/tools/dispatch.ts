@@ -92,7 +92,7 @@ const HANDLERS: Record<string, ToolHandler> = {
     handleCreateTransaction(repo, currency, args),
   update_transaction: ({ repo }, args) => handleUpdateTransaction(repo, args),
   delete_transactions: ({ repo }, args) => handleDeleteTransactions(repo, args),
-  create_account: ({ repo }, args) => handleCreateAccount(repo, args),
+  create_account: ({ repo, currency }, args) => handleCreateAccount(repo, currency, args),
   update_account: ({ repo }, args) => handleUpdateAccount(repo, args),
   delete_account: ({ repo }, args) => handleDeleteAccount(repo, args),
   create_category: ({ repo }, args) => handleCreateCategory(repo, args),

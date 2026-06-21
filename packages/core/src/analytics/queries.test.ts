@@ -11,13 +11,13 @@ import type { Account, Transaction } from "../entities/types";
 // ── Test fixtures (self-contained, no external deps) ─────
 
 const ACCOUNTS: Account[] = [
-  { id: "acc-cash-01", name: "Cash Wallet", type: "cash", archived: false, excludeFromNetWorth: false, sortOrder: 0, createdAt: "2026-01-01T00:00:00.000Z" },
-  { id: "acc-checking-01", name: "BofA Checking", type: "checking", archived: false, excludeFromNetWorth: false, sortOrder: 0, createdAt: "2026-01-01T00:00:00.000Z" },
-  { id: "acc-savings-01", name: "High Yield Savings", type: "savings", archived: false, excludeFromNetWorth: false, sortOrder: 0, createdAt: "2026-01-01T00:00:00.000Z" },
-  { id: "acc-credit-01", name: "Chase Sapphire", type: "credit_card", archived: false, excludeFromNetWorth: false, sortOrder: 0, createdAt: "2026-01-01T00:00:00.000Z" },
-  { id: "acc-loan-01", name: "Student Loan", type: "loan", archived: false, excludeFromNetWorth: false, sortOrder: 0, createdAt: "2026-01-01T00:00:00.000Z" },
-  { id: "acc-crypto-01", name: "Coinbase", type: "crypto", archived: false, excludeFromNetWorth: false, sortOrder: 0, createdAt: "2026-01-01T00:00:00.000Z" },
-  { id: "acc-checking-old", name: "Old Wells Fargo", type: "checking", archived: true, excludeFromNetWorth: false, sortOrder: 0, createdAt: "2025-06-01T00:00:00.000Z" },
+  { id: "acc-cash-01", name: "Cash Wallet", type: "cash", archived: false, excludeFromNetWorth: false, sortOrder: 0, createdAt: "2026-01-01T00:00:00.000Z", currency: "USD" },
+  { id: "acc-checking-01", name: "BofA Checking", type: "checking", archived: false, excludeFromNetWorth: false, sortOrder: 0, createdAt: "2026-01-01T00:00:00.000Z", currency: "USD" },
+  { id: "acc-savings-01", name: "High Yield Savings", type: "savings", archived: false, excludeFromNetWorth: false, sortOrder: 0, createdAt: "2026-01-01T00:00:00.000Z", currency: "USD" },
+  { id: "acc-credit-01", name: "Chase Sapphire", type: "credit_card", archived: false, excludeFromNetWorth: false, sortOrder: 0, createdAt: "2026-01-01T00:00:00.000Z", currency: "USD" },
+  { id: "acc-loan-01", name: "Student Loan", type: "loan", archived: false, excludeFromNetWorth: false, sortOrder: 0, createdAt: "2026-01-01T00:00:00.000Z", currency: "USD" },
+  { id: "acc-crypto-01", name: "Coinbase", type: "crypto", archived: false, excludeFromNetWorth: false, sortOrder: 0, createdAt: "2026-01-01T00:00:00.000Z", currency: "USD" },
+  { id: "acc-checking-old", name: "Old Wells Fargo", type: "checking", archived: true, excludeFromNetWorth: false, sortOrder: 0, createdAt: "2025-06-01T00:00:00.000Z", currency: "USD" },
 ];
 
 const txn = (overrides: Partial<Transaction> & Pick<Transaction, "id" | "amount" | "accountId">): Transaction => ({
@@ -81,7 +81,7 @@ describe("getAccountsByGroup", () => {
   it("excludes archived accounts", () => {
     const archived = [
       ...ACCOUNTS,
-      { id: "arc-1", name: "Old", type: "checking" as const, archived: true, excludeFromNetWorth: false, sortOrder: 99, createdAt: "" },
+      { id: "arc-1", name: "Old", type: "checking" as const, archived: true, excludeFromNetWorth: false, sortOrder: 99, createdAt: "", currency: "USD" },
     ];
     const groups = getAccountsByGroup(archived);
     const checking = groups.get("checking")!;

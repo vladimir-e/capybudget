@@ -54,6 +54,8 @@
       "namePlaceholder": "e.g. BofA Checking",
       "nameRequired": "Account name is required",
       "type": "Type",
+      "currency": "Currency",
+      "currencyLocked": "Locked once the account has transactions. Make a new account to change currency.",
       "openingBalance": "Opening Balance",
       "create": "Create Account"
     },

@@ -61,10 +61,9 @@ export interface Account {
   excludeFromNetWorth: boolean;
   sortOrder: number;
   createdAt: string;
-  /** ISO currency code the account holds. Absent → the budget default; balances
-   *  in the default currency convert as the identity. Locked once the account
-   *  has any transaction. */
-  currency?: string;
+  /** ISO currency code the account holds. Balances in the default currency
+   *  convert as the identity. Locked once the account has any transaction. */
+  currency: string;
 }
 
 export type CategoryGroup =

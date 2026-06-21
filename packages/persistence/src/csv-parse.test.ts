@@ -287,15 +287,17 @@ describe("round-trip: parseCsv(unparseCsv(data))", () => {
         excludeFromNetWorth: false,
         sortOrder: 1,
         createdAt: "2026-01-01T00:00:00.000Z",
+        currency: "USD",
       },
       {
         id: "acc-2",
-        name: "Savings",
+        name: "Euro Savings",
         type: "savings",
         archived: true,
         excludeFromNetWorth: true,
         sortOrder: 2,
         createdAt: "2026-02-01T00:00:00.000Z",
+        currency: "EUR",
       },
     ];
 
@@ -331,12 +333,29 @@ describe("round-trip: parseCsv(unparseCsv(data))", () => {
         note: "Weekly shopping",
         createdAt: "2026-01-15T12:00:00.000Z",
       },
+      {
+        id: "txn-2",
+        datetime: "2026-01-16T12:00:00.000Z",
+        type: "expense",
+        amount: -100000,
+        categoryId: "cat-1",
+        accountId: "acc-2",
+        transferPairId: "",
+        merchant: "Магазин",
+        note: "",
+        createdAt: "2026-01-16T12:00:00.000Z",
+        fxRate: 0.011,
+      },
     ];
 
     const csv = unparseCsv(transactions, TRANSACTION_COLUMNS);
     const restored = parseCsv<Transaction>(csv, TRANSACTION_COERCE);
 
     expect(restored).toEqual(transactions);
+    // A default-currency transaction leaves fxRate empty → undefined on read.
+    expect(restored[0].fxRate).toBeUndefined();
+    // A stamped foreign rate round-trips as a number.
+    expect(restored[1].fxRate).toBe(0.011);
   });
 
   it("preserves fields with special characters through round-trip", () => {

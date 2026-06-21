@@ -125,6 +125,7 @@ export async function handleDeleteTransactions(
 
 export async function handleCreateAccount(
   repo: BudgetRepository,
+  currency: string,
   args: Record<string, unknown>,
 ): Promise<string> {
   const accounts = await repo.getAccounts()
@@ -132,6 +133,9 @@ export async function handleCreateAccount(
     {
       name: args.name as string,
       type: args.type as AccountType,
+      // AI-created accounts always get the budget default; a model-facing
+      // currency parameter on the tool is U6's job.
+      currency,
     },
     accounts,
   )

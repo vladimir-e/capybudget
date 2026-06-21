@@ -10,11 +10,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { CurrencyCombobox } from "@/components/budget/currency-combobox";
 import type { Account, AccountType } from "@capybudget/core";
 import { ACCOUNT_TYPE_ORDER, parseMoney } from "@capybudget/core";
 import { useTranslation } from "@capybudget/i18n";
 import { useAccountTypeLabel } from "@/lib/display-names";
-import { useFormatMoney } from "@/contexts/currency-context";
+import { useFormatMoney, useCurrency } from "@/contexts/currency-context";
+import { useTransactions } from "@/hooks/use-budget-data";
 import { useCreateAccount, useUpdateAccount } from "@/hooks/use-account-mutations";
 import { toast } from "sonner";
 
@@ -28,19 +30,29 @@ export function AccountDialog({ open, onOpenChange, editingAccount }: AccountDia
   const { t } = useTranslation(["budget", "common"]);
   const accountTypeLabel = useAccountTypeLabel();
   const { symbol } = useFormatMoney();
+  const defaultCurrency = useCurrency();
+  const { data: transactions = [] } = useTransactions();
   const isEditing = !!editingAccount;
   const [name, setName] = useState(editingAccount?.name ?? "");
   const [type, setType] = useState<AccountType>(editingAccount?.type ?? "checking");
   const [balance, setBalance] = useState("");
+  const [currency, setCurrency] = useState(editingAccount?.currency ?? defaultCurrency);
   const [nameError, setNameError] = useState(false);
   const createAccount = useCreateAccount();
   const updateAccount = useUpdateAccount();
+
+  // Currency locks once the account carries any transaction — an opening
+  // balance counts. Changing it under historical amounts is meaningless, so the
+  // honest move is a new account.
+  const currencyLocked =
+    isEditing && transactions.some((tx) => tx.accountId === editingAccount.id);
 
   function handleClose(nextOpen: boolean) {
     if (!nextOpen) {
       setName("");
       setType("checking");
       setBalance("");
+      setCurrency(defaultCurrency);
       setNameError(false);
     }
     onOpenChange(nextOpen);
@@ -53,7 +65,7 @@ export function AccountDialog({ open, onOpenChange, editingAccount }: AccountDia
     }
     if (isEditing) {
       updateAccount.mutate(
-        { id: editingAccount.id, name: name.trim(), type },
+        { id: editingAccount.id, name: name.trim(), type, currency },
         {
           onSuccess: () => {
             toast.success(t("account.toast.updated"));
@@ -64,7 +76,7 @@ export function AccountDialog({ open, onOpenChange, editingAccount }: AccountDia
     } else {
       const openingBalance = balance.trim() ? parseMoney(balance) : 0;
       createAccount.mutate(
-        { name: name.trim(), type, openingBalance },
+        { name: name.trim(), type, openingBalance, currency },
         {
           onSuccess: () => {
             toast.success(t("account.toast.created"));
@@ -117,6 +129,21 @@ export function AccountDialog({ open, onOpenChange, editingAccount }: AccountDia
                   </ToggleGroupItem>
                 ))}
               </ToggleGroup>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="account-currency">{t("account.dialog.currency")}</Label>
+              <CurrencyCombobox
+                id="account-currency"
+                value={currency}
+                onChange={setCurrency}
+                disabled={currencyLocked}
+              />
+              {currencyLocked && (
+                <p className="text-xs text-muted-foreground">
+                  {t("account.dialog.currencyLocked")}
+                </p>
+              )}
             </div>
 
             {!isEditing && (

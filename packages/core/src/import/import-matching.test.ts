@@ -3,7 +3,7 @@ import { matchAccountsByName } from "./import-matching";
 import type { Account } from "../entities/types";
 
 function acct(id: string, name: string): Account {
-  return { id, name, type: "checking", archived: false, excludeFromNetWorth: false, sortOrder: 1, createdAt: "" };
+  return { id, name, type: "checking", archived: false, excludeFromNetWorth: false, sortOrder: 1, createdAt: "", currency: "USD" };
 }
 
 describe("matchAccountsByName", () => {

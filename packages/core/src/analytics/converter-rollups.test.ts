@@ -33,7 +33,7 @@ const categories: Category[] = [
 ];
 
 const accounts: Account[] = [
-  { id: "acc-usd", name: "USD Checking", type: "checking", archived: false, excludeFromNetWorth: false, sortOrder: 0, createdAt: "2026-01-01T00:00:00.000Z" },
+  { id: "acc-usd", name: "USD Checking", type: "checking", archived: false, excludeFromNetWorth: false, sortOrder: 0, createdAt: "2026-01-01T00:00:00.000Z", currency: "USD" },
 ];
 
 const txn = (

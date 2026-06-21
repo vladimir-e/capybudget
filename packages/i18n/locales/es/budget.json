@@ -54,6 +54,8 @@
       "namePlaceholder": "p. ej. Cuenta corriente BofA",
       "nameRequired": "El nombre de la cuenta es obligatorio",
       "type": "Tipo",
+      "currency": "Moneda",
+      "currencyLocked": "Se bloquea cuando la cuenta tiene transacciones. Crea una cuenta nueva para cambiar la moneda.",
       "openingBalance": "Saldo inicial",
       "create": "Crear cuenta"
     },

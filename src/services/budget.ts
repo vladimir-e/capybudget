@@ -10,7 +10,7 @@ import {
   TRANSACTION_COLUMNS,
 } from "@capybudget/persistence";
 
-export const SCHEMA_VERSION = 3;
+export const SCHEMA_VERSION = 4;
 const BUDGET_FILE = "budget.json";
 
 export interface FolderInfo {

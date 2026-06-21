@@ -39,9 +39,9 @@ const CATEGORIES: Category[] = [
 ];
 
 const ACCOUNTS: Account[] = [
-  { id: "acc-checking", name: "Checking", type: "checking", archived: false, excludeFromNetWorth: false, sortOrder: 0, createdAt: "2026-01-01T00:00:00.000Z" },
-  { id: "acc-savings", name: "Savings", type: "savings", archived: false, excludeFromNetWorth: false, sortOrder: 1, createdAt: "2026-01-01T00:00:00.000Z" },
-  { id: "acc-archived", name: "Old Account", type: "checking", archived: true, excludeFromNetWorth: false, sortOrder: 2, createdAt: "2025-01-01T00:00:00.000Z" },
+  { id: "acc-checking", name: "Checking", type: "checking", archived: false, excludeFromNetWorth: false, sortOrder: 0, createdAt: "2026-01-01T00:00:00.000Z", currency: "USD" },
+  { id: "acc-savings", name: "Savings", type: "savings", archived: false, excludeFromNetWorth: false, sortOrder: 1, createdAt: "2026-01-01T00:00:00.000Z", currency: "USD" },
+  { id: "acc-archived", name: "Old Account", type: "checking", archived: true, excludeFromNetWorth: false, sortOrder: 2, createdAt: "2025-01-01T00:00:00.000Z", currency: "USD" },
 ];
 
 const TRANSACTIONS: Transaction[] = [
@@ -252,7 +252,7 @@ describe("getNetWorthOverTime", () => {
   // bar, never on M+1's.
   it("reflects a transaction in the SAME month's point, not the next month's", () => {
     const accounts: Account[] = [
-      { id: "acc-checking", name: "Checking", type: "checking", archived: false, excludeFromNetWorth: false, sortOrder: 0, createdAt: "2023-01-01T00:00:00.000Z" },
+      { id: "acc-checking", name: "Checking", type: "checking", archived: false, excludeFromNetWorth: false, sortOrder: 0, createdAt: "2023-01-01T00:00:00.000Z", currency: "USD" },
     ];
     // A single deposit in August 2023.
     const transactions: Transaction[] = [
@@ -280,7 +280,7 @@ describe("getNetWorthOverTime", () => {
   // the full cumulative total — no phantom trailing future-month bar.
   it("ends on the latest data month with the full total, no trailing future-month point", () => {
     const accounts: Account[] = [
-      { id: "acc-checking", name: "Checking", type: "checking", archived: false, excludeFromNetWorth: false, sortOrder: 0, createdAt: "2024-01-01T00:00:00.000Z" },
+      { id: "acc-checking", name: "Checking", type: "checking", archived: false, excludeFromNetWorth: false, sortOrder: 0, createdAt: "2024-01-01T00:00:00.000Z", currency: "USD" },
     ];
     const transactions: Transaction[] = [
       txn({ id: "p1", type: "income", amount: 100000, accountId: "acc-checking", datetime: "2024-05-10T10:00:00.000Z" }),
@@ -323,8 +323,8 @@ describe("getNetWorthOverTime", () => {
   // and then closed should pull early net worth down without touching today's total.
   it("counts an archived account's historical balance while leaving the latest point unchanged", () => {
     const accounts: Account[] = [
-      { id: "acc-checking", name: "Checking", type: "checking", archived: false, excludeFromNetWorth: false, sortOrder: 0, createdAt: "2019-01-01T00:00:00.000Z" },
-      { id: "acc-card", name: "Old Credit Card", type: "credit_card", archived: true, excludeFromNetWorth: false, sortOrder: 1, createdAt: "2019-01-01T00:00:00.000Z" },
+      { id: "acc-checking", name: "Checking", type: "checking", archived: false, excludeFromNetWorth: false, sortOrder: 0, createdAt: "2019-01-01T00:00:00.000Z", currency: "USD" },
+      { id: "acc-card", name: "Old Credit Card", type: "credit_card", archived: true, excludeFromNetWorth: false, sortOrder: 1, createdAt: "2019-01-01T00:00:00.000Z", currency: "USD" },
     ];
     const transactions: Transaction[] = [
       // Card runs -500000 in January, then is paid back to zero in March.
@@ -373,8 +373,8 @@ describe("getNetWorthOverTime", () => {
   // when it carries excludeFromNetWorth.
   it("counts an excludeFromNetWorth account when it is in the include set", () => {
     const accounts: Account[] = [
-      { id: "acc-checking", name: "Checking", type: "checking", archived: false, excludeFromNetWorth: false, sortOrder: 0, createdAt: "2026-01-01T00:00:00.000Z" },
-      { id: "acc-vault", name: "Vault", type: "asset", archived: false, excludeFromNetWorth: true, sortOrder: 1, createdAt: "2026-01-01T00:00:00.000Z" },
+      { id: "acc-checking", name: "Checking", type: "checking", archived: false, excludeFromNetWorth: false, sortOrder: 0, createdAt: "2026-01-01T00:00:00.000Z", currency: "USD" },
+      { id: "acc-vault", name: "Vault", type: "asset", archived: false, excludeFromNetWorth: true, sortOrder: 1, createdAt: "2026-01-01T00:00:00.000Z", currency: "USD" },
     ];
     const transactions: Transaction[] = [
       txn({ id: "k1", type: "income", amount: 200000, accountId: "acc-checking", datetime: "2026-01-05T10:00:00.000Z" }),
@@ -395,8 +395,8 @@ describe("getNetWorthOverTime", () => {
   // is dropped when the caller leaves it out of the set.
   it("drops an otherwise-includable account when it is absent from the include set", () => {
     const accounts: Account[] = [
-      { id: "acc-checking", name: "Checking", type: "checking", archived: false, excludeFromNetWorth: false, sortOrder: 0, createdAt: "2026-01-01T00:00:00.000Z" },
-      { id: "acc-savings", name: "Savings", type: "savings", archived: false, excludeFromNetWorth: false, sortOrder: 1, createdAt: "2026-01-01T00:00:00.000Z" },
+      { id: "acc-checking", name: "Checking", type: "checking", archived: false, excludeFromNetWorth: false, sortOrder: 0, createdAt: "2026-01-01T00:00:00.000Z", currency: "USD" },
+      { id: "acc-savings", name: "Savings", type: "savings", archived: false, excludeFromNetWorth: false, sortOrder: 1, createdAt: "2026-01-01T00:00:00.000Z", currency: "USD" },
     ];
     const transactions: Transaction[] = [
       txn({ id: "k1", type: "income", amount: 200000, accountId: "acc-checking", datetime: "2026-01-05T10:00:00.000Z" }),

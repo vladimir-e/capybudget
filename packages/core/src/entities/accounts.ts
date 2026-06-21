@@ -1,11 +1,15 @@
 import type { Account, AccountType, Transaction } from "./types";
 import { localDateTime } from "../utils/date-utils";
+import { DEFAULT_CURRENCY } from "../utils/money";
 
 export interface AccountFormData {
   id?: string;
   name: string;
   type: AccountType;
   openingBalance?: number;
+  /** The account's native currency. Omitted → the budget default. Editable in
+   *  the dialog only while the account has no transactions. */
+  currency?: string;
 }
 
 export function createAccount(
@@ -26,6 +30,7 @@ export function createAccount(
     excludeFromNetWorth: false,
     sortOrder: maxSort + 1,
     createdAt: new Date().toISOString(),
+    currency: input.currency ?? DEFAULT_CURRENCY,
   };
 }
 
@@ -57,7 +62,9 @@ export function updateAccount(
   existing: Account[],
 ): Account[] {
   return existing.map((a) =>
-    a.id === input.id ? { ...a, name: input.name, type: input.type } : a,
+    a.id === input.id
+      ? { ...a, name: input.name, type: input.type, currency: input.currency ?? a.currency }
+      : a,
   );
 }
 
