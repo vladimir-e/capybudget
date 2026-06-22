@@ -147,8 +147,9 @@ export async function handleUpdateTransaction(
   // not something to recompute at today's rate. So default toAmount/toFxRate to
   // the stored inflow leg, and only re-derive when the transfer's shape
   // genuinely changed: an explicit toAmount, a different destination, or a
-  // changed from-amount. Plain flows never re-rate (updateTransaction keeps
-  // their stamp).
+  // changed from-amount. A plain flow likewise keeps its stamp through an
+  // unrelated edit and only re-stamps when it moves to a different account —
+  // the one edit that changes its currency (see the else branch).
   let fxRate: number | undefined
   let toFxRate: number | undefined
   let toAmount: number | undefined
@@ -183,6 +184,15 @@ export async function handleUpdateTransaction(
         toFxRate = rates.toRate
       }
     }
+  } else if (accountId === original.accountId) {
+    // Same account → carry the historical stamp verbatim.
+    fxRate = original.fxRate
+  } else {
+    // Moved to another account → re-stamp at that account's resolved (today's)
+    // rate; undefined for a default-currency target.
+    const accounts = await repo.getAccounts()
+    const account = accounts.find((a) => a.id === accountId)
+    fxRate = account ? stampFxRate(account.currency, currencies ?? {}, currency) : undefined
   }
 
   const next = updateTransaction(

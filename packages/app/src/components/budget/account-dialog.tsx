@@ -14,6 +14,7 @@ import { CurrencyCombobox } from "@/components/budget/currency-combobox";
 import type { Account, AccountType } from "@capybudget/core";
 import { ACCOUNT_TYPE_ORDER, parseMoney } from "@capybudget/core";
 import { useTranslation } from "@capybudget/i18n";
+import { useSearch } from "@tanstack/react-router";
 import { useAccountTypeLabel } from "@/lib/display-names";
 import { useFormatMoney, useCurrency } from "@/contexts/currency-context";
 import { useTransactions } from "@/hooks/use-budget-data";
@@ -28,6 +29,7 @@ interface AccountDialogProps {
 
 export function AccountDialog({ open, onOpenChange, editingAccount }: AccountDialogProps) {
   const { t } = useTranslation(["budget", "common"]);
+  const { path } = useSearch({ from: "/budget" });
   const accountTypeLabel = useAccountTypeLabel();
   const { symbol } = useFormatMoney();
   const defaultCurrency = useCurrency();
@@ -38,7 +40,7 @@ export function AccountDialog({ open, onOpenChange, editingAccount }: AccountDia
   const [balance, setBalance] = useState("");
   const [currency, setCurrency] = useState(editingAccount?.currency ?? defaultCurrency);
   const [nameError, setNameError] = useState(false);
-  const createAccount = useCreateAccount();
+  const createAccount = useCreateAccount(path);
   const updateAccount = useUpdateAccount();
 
   // Currency locks once the account carries any transaction — an opening

@@ -88,16 +88,39 @@ function transferEditRates(
   return resolveRates(data, accounts, currencies, defaultCurrency);
 }
 
+// The rate to write on a plain (non-transfer) flow edit. A flow's stamp is the
+// rate on the day it happened, so an amount/merchant/date edit that leaves the
+// account untouched carries the stored rate verbatim — never re-rate history.
+// Moving the flow to a different account is the one case that changes its
+// currency, so re-stamp to the new account's resolved (today's) rate; an
+// undefined target rate clears it (a default-currency account). Mirrors the MCP
+// `handleUpdateTransaction` so both write paths behave identically.
+function flowEditRates(
+  data: TransactionFormData,
+  accounts: Account[],
+  transactions: Transaction[],
+  currencies: Record<string, CurrencySettings>,
+  defaultCurrency: string,
+): Pick<TransactionFormData, "fxRate"> {
+  const original = transactions.find((t) => t.id === data.id);
+  if (original && data.accountId === original.accountId) {
+    return { fxRate: original.fxRate };
+  }
+  const account = accounts.find((a) => a.id === data.accountId);
+  return { fxRate: account ? stampFxRate(account.currency, currencies, defaultCurrency) : undefined };
+}
+
 export function useUpdateTransaction() {
   const defaultCurrency = useCurrency();
   const currencies = useCurrencies();
   return useBudgetMutation<TransactionFormData>(async (data, { accounts, transactions }) => {
-    // Plain flows never re-rate — `updateTransaction` preserves their original
-    // stamp. Transfers re-derive only when their shape actually changed; an
-    // unrelated edit carries the stored per-leg rates verbatim.
+    // Both paths preserve a stamp through an unrelated edit and only re-derive on
+    // a real change: a transfer when its shape changes, a plain flow when it
+    // moves to a different-currency account. `updateTransaction` writes the
+    // resolved rate verbatim, so the hook is the single resolution seam.
     const rates = data.type === "transfer"
       ? transferEditRates(data, accounts.get(), transactions.get(), currencies, defaultCurrency)
-      : {};
+      : flowEditRates(data, accounts.get(), transactions.get(), currencies, defaultCurrency);
     const next = updateTransaction({ ...data, ...rates }, transactions.get());
     transactions.set(next);
     await transactions.save(next);

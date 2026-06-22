@@ -11,14 +11,23 @@ import {
   stampFxRate,
 } from "@capybudget/core";
 import { useBudgetMutation } from "@/hooks/use-budget-mutation";
+import { useBudgetMeta } from "@/hooks/use-budget-meta";
 import { useCurrency, useCurrencies } from "@/contexts/currency-context";
 
-export function useCreateAccount() {
+export function useCreateAccount(budgetPath: string) {
   const defaultCurrency = useCurrency();
   const currencies = useCurrencies();
+  const { ensureCurrency } = useBudgetMeta(budgetPath);
   return useBudgetMutation<AccountFormData, Account>(async (data, { accounts, transactions }) => {
     const prev = accounts.get();
     const account = createAccount(data, prev, defaultCurrency);
+    // Register a foreign account's currency in budget.json so the converter has
+    // a rate for it immediately — without this, holdings value 1:1 until the
+    // user opens Settings. Same lazy-seed the Settings panel runs; a no-op once
+    // the entry exists.
+    if (account.currency !== defaultCurrency) {
+      await ensureCurrency(account.currency);
+    }
     const nextAccounts = [...prev, account];
     accounts.set(nextAccounts);
     await accounts.save(nextAccounts);

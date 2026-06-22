@@ -228,6 +228,68 @@ describe("handleUpdateTransaction", () => {
     expect(to.note).toBe("vacation cash")
   })
 
+  it("preserves a plain flow's stamp on an amount/merchant edit when the account is unchanged", async () => {
+    // RUB account, stamped the day it happened at a rate deliberately off today's
+    // seed (1/91). An amount + merchant edit must carry that historical stamp.
+    const repo = createMockRepo({
+      accounts: [makeAccount({ id: "acc-rub", currency: "RUB" })],
+      transactions: [
+        makeTxn({ id: "t1", amount: -100000, accountId: "acc-rub", merchant: "Old", fxRate: 1 / 80 }),
+      ],
+    })
+    await handleUpdateTransaction(
+      repo,
+      "USD",
+      { USD: { decimals: 2, symbolPosition: "before" }, RUB: { decimals: 0, symbolPosition: "after" } },
+      { id: "t1", amount: 1500, merchant: "New" },
+    )
+    const saved = (repo.saveTransactions as ReturnType<typeof vi.fn>).mock.calls[0][0] as Transaction[]
+    const t = saved.find((x) => x.id === "t1")!
+    expect(t.merchant).toBe("New")
+    expect(t.amount).toBe(-1500)
+    expect(t.fxRate).toBe(1 / 80) // historical stamp, not re-rated to today's seed
+  })
+
+  it("re-stamps a plain flow at the target's rate when moved to a different-currency account", async () => {
+    const repo = createMockRepo({
+      accounts: [
+        makeAccount({ id: "acc-usd", currency: "USD" }),
+        makeAccount({ id: "acc-rub", currency: "RUB" }),
+      ],
+      transactions: [makeTxn({ id: "t1", amount: -5000, accountId: "acc-usd", fxRate: undefined })],
+    })
+    await handleUpdateTransaction(
+      repo,
+      "USD",
+      { USD: { decimals: 2, symbolPosition: "before" }, RUB: { decimals: 0, symbolPosition: "after" } },
+      { id: "t1", accountId: "acc-rub" },
+    )
+    const saved = (repo.saveTransactions as ReturnType<typeof vi.fn>).mock.calls[0][0] as Transaction[]
+    const t = saved.find((x) => x.id === "t1")!
+    expect(t.accountId).toBe("acc-rub")
+    expect(t.fxRate).toBeCloseTo(1 / 91, 12) // RUB's resolved seed rate
+  })
+
+  it("clears a plain flow's stamp when moved to a default-currency account", async () => {
+    const repo = createMockRepo({
+      accounts: [
+        makeAccount({ id: "acc-usd", currency: "USD" }),
+        makeAccount({ id: "acc-rub", currency: "RUB" }),
+      ],
+      transactions: [makeTxn({ id: "t1", amount: -5000, accountId: "acc-rub", fxRate: 1 / 91 })],
+    })
+    await handleUpdateTransaction(
+      repo,
+      "USD",
+      { USD: { decimals: 2, symbolPosition: "before" }, RUB: { decimals: 0, symbolPosition: "after" } },
+      { id: "t1", accountId: "acc-usd" },
+    )
+    const saved = (repo.saveTransactions as ReturnType<typeof vi.fn>).mock.calls[0][0] as Transaction[]
+    const t = saved.find((x) => x.id === "t1")!
+    expect(t.accountId).toBe("acc-usd")
+    expect(t.fxRate).toBeUndefined()
+  })
+
   it("re-derives both legs when the from-amount of a cross-currency transfer changes", async () => {
     const repo = createMockRepo({
       accounts: [

@@ -169,3 +169,109 @@ describe("useUpdateTransaction — both-foreign transfer rate preservation", () 
     expect(to.fxRate).not.toBe(TO_RATE);
   });
 });
+
+// A plain EUR flow stamped the day it happened, deliberately off today's seed
+// (1/0.92 ≈ 1.087) so a re-rate would visibly move it.
+const PLAIN_RATE = 1.05; // 1 EUR in USD back then
+const PLAIN_FLOW: Transaction = {
+  id: "flow-1",
+  datetime: "2024-06-01T10:00:00.000",
+  type: "expense",
+  amount: -10_000, // 100.00 € out
+  categoryId: "cat-1",
+  accountId: "acct-eur",
+  transferPairId: "",
+  merchant: "Café",
+  note: "",
+  createdAt: "2024-06-01T10:00:00.000Z",
+  fxRate: PLAIN_RATE,
+};
+
+const plainForm: TransactionFormData = {
+  id: "flow-1",
+  type: "expense",
+  amount: 10_000,
+  categoryId: "cat-1",
+  accountId: "acct-eur",
+  date: "2024-06-01",
+  merchant: "Café",
+  note: "",
+};
+
+function setupPlain() {
+  const saved: Transaction[][] = [];
+  const repo = {
+    saveTransactions: vi.fn(async (next: Transaction[]) => {
+      saved.push(next);
+    }),
+    saveAccounts: vi.fn(async () => {}),
+    saveCategories: vi.fn(async () => {}),
+  } as unknown as Parameters<typeof RepositoryProvider>[0]["value"];
+
+  const USD_ACCT: Account = { ...EUR_ACCT, id: "acct-usd", name: "USD account", currency: "USD", sortOrder: 3 };
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  client.setQueryData(budgetKeys.accounts(), [EUR_ACCT, RUB_ACCT, USD_ACCT]);
+  client.setQueryData(budgetKeys.transactions(), [PLAIN_FLOW]);
+
+  const currencies: Record<string, CurrencySettings> = {
+    USD: formatDefaultsFor("USD"),
+    EUR: formatDefaultsFor("EUR"),
+    RUB: formatDefaultsFor("RUB"),
+  };
+  const config: CurrencyConfig = { currency: "USD", currencies, ...formatDefaultsFor("USD") };
+
+  const wrapper = ({ children }: { children: ReactNode }) =>
+    createElement(
+      QueryClientProvider,
+      { client },
+      createElement(
+        RepositoryProvider,
+        { value: repo },
+        createElement(CurrencyContext.Provider, { value: config }, children),
+      ),
+    );
+
+  return { saved, wrapper };
+}
+
+describe("useUpdateTransaction — plain flow rate resolution", () => {
+  it("preserves the original stamp on an amount/merchant edit with the account unchanged", async () => {
+    const { saved, wrapper } = setupPlain();
+    const { result } = renderHook(() => useUpdateTransaction(), { wrapper });
+
+    await act(async () => {
+      await result.current.mutateAsync({ ...plainForm, amount: 15_000, merchant: "Café — updated" });
+    });
+
+    const flow = saved.at(-1)!.find((t) => t.id === "flow-1")!;
+    expect(flow.fxRate).toBe(PLAIN_RATE); // historical stamp, never re-rated
+    expect(flow.amount).toBe(-15_000);
+    expect(flow.merchant).toBe("Café — updated");
+  });
+
+  it("re-stamps at the target's resolved rate when moved to a different-currency account", async () => {
+    const { saved, wrapper } = setupPlain();
+    const { result } = renderHook(() => useUpdateTransaction(), { wrapper });
+
+    await act(async () => {
+      await result.current.mutateAsync({ ...plainForm, accountId: "acct-rub" });
+    });
+
+    const flow = saved.at(-1)!.find((t) => t.id === "flow-1")!;
+    expect(flow.accountId).toBe("acct-rub");
+    expect(flow.fxRate).toBeCloseTo(1 / 91, 12); // RUB's resolved seed rate, not the EUR stamp
+  });
+
+  it("clears the stamp when moved to a default-currency account", async () => {
+    const { saved, wrapper } = setupPlain();
+    const { result } = renderHook(() => useUpdateTransaction(), { wrapper });
+
+    await act(async () => {
+      await result.current.mutateAsync({ ...plainForm, accountId: "acct-usd" });
+    });
+
+    const flow = saved.at(-1)!.find((t) => t.id === "flow-1")!;
+    expect(flow.accountId).toBe("acct-usd");
+    expect(flow.fxRate).toBeUndefined();
+  });
+});
