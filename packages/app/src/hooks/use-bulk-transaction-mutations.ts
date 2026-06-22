@@ -5,7 +5,9 @@ import {
   bulkMoveAccount,
   bulkChangeDate,
   bulkChangeMerchant,
+  stampFxRate,
 } from "@capybudget/core";
+import { useCurrency, useCurrencies } from "@/contexts/currency-context";
 
 export function useBulkDeleteTransactions() {
   return useBudgetMutation<Set<string>>(async (ids, { transactions }) => {
@@ -26,9 +28,16 @@ export function useBulkAssignCategory() {
 }
 
 export function useBulkMoveAccount() {
+  const defaultCurrency = useCurrency();
+  const currencies = useCurrencies();
   return useBudgetMutation<{ ids: Set<string>; accountId: string }>(
-    async ({ ids, accountId }, { transactions }) => {
-      const next = bulkMoveAccount(ids, accountId, transactions.get());
+    async ({ ids, accountId }, { accounts, transactions }) => {
+      // All moved transactions land in one account, so they share its one rate.
+      const target = accounts.get().find((a) => a.id === accountId);
+      const fxRate = target
+        ? stampFxRate(target.currency, currencies, defaultCurrency)
+        : undefined;
+      const next = bulkMoveAccount(ids, accountId, fxRate, transactions.get());
       transactions.set(next);
       await transactions.save(next);
     },

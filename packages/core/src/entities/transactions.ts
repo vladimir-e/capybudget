@@ -13,8 +13,10 @@ export interface TransactionFormData {
   /** The native→default rate to freeze on creation, resolved by the caller
    *  from the account's currency (see `stampFxRate`). For a transfer this is the
    *  from-leg's rate. Undefined leaves the field empty — a default-currency
-   *  transaction at an implicit 1.0. Stamped on create *and* re-stamped on
-   *  update (a transfer's amounts and currencies can change). */
+   *  transaction at an implicit 1.0. Applied verbatim on create *and* update:
+   *  the caller resolves the rate for the (possibly changed) account; core just
+   *  writes it, so moving a transaction to a different-currency account re-rates
+   *  it correctly. */
   fxRate?: number;
   /** Cross-currency transfer only: the inflow magnitude in the to-account's
    *  currency, when it differs from the from-account's. Absent means a
@@ -158,7 +160,7 @@ export function updateTransaction(
 
   return existing.map((t) =>
     t.id === input.id
-      ? { ...t, type: input.type, amount: input.type === "expense" ? -input.amount : input.amount, categoryId: input.categoryId, accountId: input.accountId, datetime, merchant: input.merchant, note: input.note }
+      ? { ...t, type: input.type, amount: input.type === "expense" ? -input.amount : input.amount, categoryId: input.categoryId, accountId: input.accountId, fxRate: input.fxRate, datetime, merchant: input.merchant, note: input.note }
       : t,
   );
 }

@@ -400,6 +400,8 @@ export async function handleDeleteCategory(
 
 export async function handleBulkUpdateTransactions(
   repo: BudgetRepository,
+  currency: string,
+  currencies: Record<string, CurrencySettings> | undefined,
   args: Record<string, unknown>,
 ): Promise<string> {
   const transactionIds = args.transactionIds as string[] | undefined
@@ -454,12 +456,15 @@ export async function handleBulkUpdateTransactions(
   }
   if (accountId !== undefined) {
     const accounts = await repo.getAccounts()
-    if (!accounts.some((a) => a.id === accountId)) {
+    const target = accounts.find((a) => a.id === accountId)
+    if (!target) {
       return JSON.stringify({
         error: `Invalid accountId "${accountId}". Call list_accounts to see valid IDs.`,
       })
     }
-    transactions = bulkMoveAccount(ids, accountId, transactions)
+    // All moved transactions land in one account, so they share its one rate.
+    const fxRate = stampFxRate(target.currency, currencies ?? {}, currency)
+    transactions = bulkMoveAccount(ids, accountId, fxRate, transactions)
     counts.accountId = nonTransferTargeted
   }
   if (date !== undefined) {

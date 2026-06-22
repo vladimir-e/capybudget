@@ -108,7 +108,8 @@ const HANDLERS: Record<string, ToolHandler> = {
   create_category: ({ repo }, args) => handleCreateCategory(repo, args),
   update_category: ({ repo }, args) => handleUpdateCategory(repo, args),
   delete_category: ({ repo }, args) => handleDeleteCategory(repo, args),
-  bulk_update_transactions: ({ repo }, args) => handleBulkUpdateTransactions(repo, args),
+  bulk_update_transactions: ({ repo, currency, currencies }, args) =>
+    handleBulkUpdateTransactions(repo, currency, currencies, args),
 
   // Chat on-ramp into the import pipeline (stages the turn's attachments;
   // gated to Anthropic / OpenAI via ctx.importSupported)

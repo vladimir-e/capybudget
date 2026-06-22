@@ -598,7 +598,7 @@ describe("handleBulkUpdateTransactions", () => {
       ],
     })
     const result = JSON.parse(
-      await handleBulkUpdateTransactions(repo, {
+      await handleBulkUpdateTransactions(repo, "USD", undefined, {
         transactionIds: ["txn-1", "txn-2", "txn-3"],
         set: { categoryId: "cat-1" },
       }),
@@ -618,7 +618,7 @@ describe("handleBulkUpdateTransactions", () => {
       transactions: [makeTxn({ id: "txn-1", categoryId: "" })],
     })
     const result = JSON.parse(
-      await handleBulkUpdateTransactions(repo, {
+      await handleBulkUpdateTransactions(repo, "USD", undefined, {
         transactionIds: ["txn-1"],
         set: { categoryId: "ghost" },
       }),
@@ -639,7 +639,7 @@ describe("handleBulkUpdateTransactions", () => {
       ],
     })
     const result = JSON.parse(
-      await handleBulkUpdateTransactions(repo, {
+      await handleBulkUpdateTransactions(repo, "USD", undefined, {
         transactionIds: ["t1", "t2", "t3"],
         set: { accountId: "acc-2" },
       }),
@@ -660,7 +660,7 @@ describe("handleBulkUpdateTransactions", () => {
       ],
     })
     const result = JSON.parse(
-      await handleBulkUpdateTransactions(repo, {
+      await handleBulkUpdateTransactions(repo, "USD", undefined, {
         transactionIds: ["t1", "t2"],
         set: { date: "2025-06-01" },
       }),
@@ -688,7 +688,7 @@ describe("handleBulkUpdateTransactions", () => {
         }),
       ],
     })
-    await handleBulkUpdateTransactions(repo, {
+    await handleBulkUpdateTransactions(repo, "USD", undefined, {
       transactionIds: ["t1"],
       set: { date: "2025-06-01" },
     })
@@ -711,7 +711,7 @@ describe("handleBulkUpdateTransactions", () => {
       ],
     })
     const result = JSON.parse(
-      await handleBulkUpdateTransactions(repo, {
+      await handleBulkUpdateTransactions(repo, "USD", undefined, {
         transactionIds: ["t1", "t2"],
         set: { merchant: "Costco" },
       }),
@@ -728,7 +728,7 @@ describe("handleBulkUpdateTransactions", () => {
       transactions: [makeTxn({ id: "t1", merchant: "Old", accountId: "acc-1" })],
     })
     const result = JSON.parse(
-      await handleBulkUpdateTransactions(repo, {
+      await handleBulkUpdateTransactions(repo, "USD", undefined, {
         transactionIds: ["t1"],
         set: { accountId: "acc-2", merchant: "Costco", date: "2026-04-01" },
       }),
@@ -748,7 +748,7 @@ describe("handleBulkUpdateTransactions", () => {
       transactions: [makeTxn({ id: "t1" })],
     })
     const result = JSON.parse(
-      await handleBulkUpdateTransactions(repo, {
+      await handleBulkUpdateTransactions(repo, "USD", undefined, {
         transactionIds: ["t1"],
         set: {},
       }),
@@ -760,7 +760,7 @@ describe("handleBulkUpdateTransactions", () => {
   it("rejects empty transactionIds", async () => {
     const repo = createMockRepo({})
     const result = JSON.parse(
-      await handleBulkUpdateTransactions(repo, {
+      await handleBulkUpdateTransactions(repo, "USD", undefined, {
         transactionIds: [],
         set: { merchant: "X" },
       }),
@@ -774,7 +774,7 @@ describe("handleBulkUpdateTransactions", () => {
       transactions: [makeTxn({ id: "t1", accountId: "acc-1" })],
     })
     const result = JSON.parse(
-      await handleBulkUpdateTransactions(repo, {
+      await handleBulkUpdateTransactions(repo, "USD", undefined, {
         transactionIds: ["t1"],
         set: { accountId: "ghost" },
       }),
@@ -788,7 +788,7 @@ describe("handleBulkUpdateTransactions", () => {
       transactions: [makeTxn({ id: "t1" })],
     })
     const result = JSON.parse(
-      await handleBulkUpdateTransactions(repo, {
+      await handleBulkUpdateTransactions(repo, "USD", undefined, {
         transactionIds: ["t1"],
         set: { date: "06/01/2025" },
       }),
@@ -802,7 +802,7 @@ describe("handleBulkUpdateTransactions", () => {
       transactions: [makeTxn({ id: "t1" })],
     })
     const result = JSON.parse(
-      await handleBulkUpdateTransactions(repo, {
+      await handleBulkUpdateTransactions(repo, "USD", undefined, {
         transactionIds: ["ghost"],
         set: { merchant: "X" },
       }),
