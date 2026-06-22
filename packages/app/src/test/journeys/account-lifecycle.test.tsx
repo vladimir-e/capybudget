@@ -93,6 +93,31 @@ describe("Account lifecycle", () => {
     expect(repo.data.transactions[0].type).toBe("income");
   }, TIMEOUT);
 
+  it("opening-balance field shows the picked currency's symbol", async () => {
+    const { user } = await renderApp({
+      seed: { accounts: [], categories: [], transactions: [] },
+    });
+    await waitForApp();
+
+    const sidebar = screen.getByRole("complementary", { name: "Accounts" });
+    await user.click(within(sidebar).getByRole("button", { name: /add account/i }));
+    const dialog = await screen.findByRole("dialog");
+
+    // Default budget is USD — the opening-balance field starts on the $ symbol.
+    const balanceField = within(dialog).getByLabelText("Opening Balance").parentElement!;
+    expect(within(balanceField).getByText("$")).toBeInTheDocument();
+
+    // Pick a foreign currency; the field's symbol must follow it, not the default.
+    await user.click(document.getElementById("account-currency")!);
+    await user.type(await screen.findByRole("combobox"), "RUB");
+    await user.click(await screen.findByText("Russian Ruble"));
+
+    await waitFor(() => {
+      expect(within(balanceField).getByText("₽")).toBeInTheDocument();
+    });
+    expect(within(balanceField).queryByText("$")).not.toBeInTheDocument();
+  }, TIMEOUT);
+
   // ── Deleting ──────────────────────────────────────────────
 
   it("deletes an empty account", async () => {

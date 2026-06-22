@@ -12,11 +12,11 @@ import { Label } from "@/components/ui/label";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { CurrencyCombobox } from "@/components/budget/currency-combobox";
 import type { Account, AccountType } from "@capybudget/core";
-import { ACCOUNT_TYPE_ORDER, parseMoney } from "@capybudget/core";
+import { ACCOUNT_TYPE_ORDER, parseMoney, currencySymbol } from "@capybudget/core";
 import { useTranslation } from "@capybudget/i18n";
 import { useSearch } from "@tanstack/react-router";
 import { useAccountTypeLabel } from "@/lib/display-names";
-import { useFormatMoney, useCurrency } from "@/contexts/currency-context";
+import { useCurrency } from "@/contexts/currency-context";
 import { useTransactions } from "@/hooks/use-budget-data";
 import { useCreateAccount, useUpdateAccount } from "@/hooks/use-account-mutations";
 import { toast } from "sonner";
@@ -31,7 +31,6 @@ export function AccountDialog({ open, onOpenChange, editingAccount }: AccountDia
   const { t } = useTranslation(["budget", "common"]);
   const { path } = useSearch({ from: "/budget" });
   const accountTypeLabel = useAccountTypeLabel();
-  const { symbol } = useFormatMoney();
   const defaultCurrency = useCurrency();
   const { data: transactions = [] } = useTransactions();
   const isEditing = !!editingAccount;
@@ -48,6 +47,7 @@ export function AccountDialog({ open, onOpenChange, editingAccount }: AccountDia
   // honest move is a new account.
   const currencyLocked =
     isEditing && transactions.some((tx) => tx.accountId === editingAccount.id);
+  const balanceSymbol = currencySymbol(currency);
 
   function handleClose(nextOpen: boolean) {
     if (!nextOpen) {
@@ -152,9 +152,9 @@ export function AccountDialog({ open, onOpenChange, editingAccount }: AccountDia
               <div className="space-y-2">
                 <Label htmlFor="opening-balance">{t("account.dialog.openingBalance")}</Label>
                 <div className="relative">
-                  {symbol && (
+                  {balanceSymbol && (
                     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
-                      {symbol}
+                      {balanceSymbol}
                     </span>
                   )}
                   <Input
@@ -162,7 +162,7 @@ export function AccountDialog({ open, onOpenChange, editingAccount }: AccountDia
                     type="text"
                     inputMode="decimal"
                     placeholder="0.00"
-                    className={`tabular-nums ${symbol ? "pl-7" : ""}`}
+                    className={`tabular-nums ${balanceSymbol ? "pl-7" : ""}`}
                     value={balance}
                     onChange={(e) => setBalance(e.target.value)}
                   />

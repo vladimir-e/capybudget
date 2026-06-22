@@ -7,10 +7,10 @@ import { CategorySelector } from "@/components/budget/category-selector";
 import { AccountSelector } from "@/components/budget/account-selector";
 import { MerchantInput } from "@/components/budget/merchant-input";
 import { useAccounts, useCategories, useTransactions } from "@/hooks/use-budget-data";
-import type { Transaction, TransactionType, TransactionFormData } from "@capybudget/core";
+import type { Transaction, TransactionType, TransactionFormData, TransferPair } from "@capybudget/core";
 import { findCategoryForMerchant, resolveTransferPair, parseMoney, getToday, parseLocalDate, toDateString, currencySymbol, crossRateAmount, centsToEditString } from "@capybudget/core";
 import { useTranslation } from "@capybudget/i18n";
-import { useFormatMoney, useCurrency, useCurrencies } from "@/contexts/currency-context";
+import { useCurrency, useCurrencies } from "@/contexts/currency-context";
 import { useFormatters } from "@/hooks/use-formatters";
 import { Minus, Plus, ArrowLeftRight, Check, CalendarDays } from "lucide-react";
 
@@ -47,6 +47,31 @@ const TYPE_COLORS: Record<TransactionType, { text: string; pill: string }> = {
   },
 };
 
+const editString = (cents: number) => (Math.abs(cents) / 100).toFixed(2);
+
+/** Seed values for the amount fields when editing, resolved by sign from the
+ *  transfer pair so they never depend on which leg opened the editor.
+ *  `outflowAmount` always seeds the from-leg amount; `inflowAmount` seeds the
+ *  received amount and is non-empty only for a transfer (a non-transfer mirrors
+ *  the from leg and shows no received field). */
+function resolveEditLegs(
+  editing: Transaction | null | undefined,
+  pair: TransferPair | null,
+): { outflowAmount: string; inflowAmount: string } {
+  if (!editing) return { outflowAmount: "", inflowAmount: "" };
+  if (editing.type !== "transfer") {
+    return { outflowAmount: editString(editing.amount), inflowAmount: "" };
+  }
+
+  const legs = [editing, pair?.pairTransaction].filter(Boolean) as Transaction[];
+  const outflow = legs.find((t) => t.amount < 0) ?? editing;
+  const inflow = legs.find((t) => t.amount > 0) ?? editing;
+  return {
+    outflowAmount: editString(outflow.amount),
+    inflowAmount: editString(inflow.amount),
+  };
+}
+
 export function TransactionForm({
   editingTransaction,
   defaultAccountId: defaultAccountIdProp,
@@ -56,7 +81,6 @@ export function TransactionForm({
   onDismiss,
 }: TransactionFormProps) {
   const { t } = useTranslation(["budget", "common"]);
-  const { symbol } = useFormatMoney();
   const defaultCurrency = useCurrency();
   const currencies = useCurrencies();
   const { date: formatDate } = useFormatters();
@@ -78,21 +102,16 @@ export function TransactionForm({
   const initialFrom = initialTransfer?.fromAccountId ?? defaultAccountId;
   const initialTo = initialTransfer?.toAccountId ?? "";
 
-  const [amount, setAmount] = useState(() =>
-    editingTransaction ? (Math.abs(editingTransaction.amount) / 100).toFixed(2) : "",
-  );
-  // The received amount in the to-account's currency, shown only for a
-  // cross-currency transfer. Seeded from the edited transfer's inflow leg (its
-  // stored, real received amount) and treated as already-set so the prefill
-  // doesn't overwrite it; for a new transfer it auto-prefills from the display
-  // cross-rate until the user types into it.
-  const editingInflowAmount = (() => {
-    const pair = initialTransfer?.pairTransaction;
-    const inflow = pair && pair.amount > 0 ? pair : editingTransaction && editingTransaction.amount > 0 ? editingTransaction : undefined;
-    return inflow ? (Math.abs(inflow.amount) / 100).toFixed(2) : "";
-  })();
-  const [toAmount, setToAmount] = useState(editingInflowAmount);
-  const [toAmountEdited, setToAmountEdited] = useState(editingInflowAmount !== "");
+  // Both leg magnitudes resolved by sign from the transfer pair, never from
+  // which row opened the editor: `amount` must always seed from the outflow
+  // (from) leg and the received amount from the inflow (to) leg, or editing a
+  // cross-currency transfer from the inflow row writes the inflow magnitude
+  // back onto the from-leg and corrupts it. For a same-currency transfer the
+  // legs are equal; for a non-transfer the inflow magnitude stays empty.
+  const editLegs = resolveEditLegs(editingTransaction, initialTransfer);
+  const [amount, setAmount] = useState(editLegs.outflowAmount);
+  const [toAmount, setToAmount] = useState(editLegs.inflowAmount);
+  const [toAmountEdited, setToAmountEdited] = useState(editLegs.inflowAmount !== "");
   const [type, setType] = useState<TransactionType>(
     editingTransaction?.type ?? "expense",
   );
@@ -127,7 +146,7 @@ export function TransactionForm({
   const fromCurrency = accounts.find((a) => a.id === accountId)?.currency ?? defaultCurrency;
   const toCurrency = accounts.find((a) => a.id === toAccountId)?.currency ?? defaultCurrency;
   const isCrossCurrency = type === "transfer" && !!toAccountId && fromCurrency !== toCurrency;
-  const fromSymbol = type === "transfer" ? currencySymbol(fromCurrency) : symbol;
+  const fromSymbol = currencySymbol(fromCurrency);
   const toSymbol = currencySymbol(toCurrency);
 
   // Prefill the received amount from the display cross-rate
