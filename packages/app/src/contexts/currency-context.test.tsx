@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { ReactNode } from "react";
 import { renderHook } from "@testing-library/react";
-import { formatDefaultsFor, formatMoney, SEED_RATES, type CurrencySettings } from "@capybudget/core";
+import { formatDefaultsFor, formatMoney, SEED_RATES, type CurrencySettings, type MoneyFormat } from "@capybudget/core";
 import {
   CurrencyContext,
   type CurrencyConfig,
@@ -12,11 +12,14 @@ import {
   useFormatMoney,
 } from "./currency-context";
 
-function wrapper(currencies?: Record<string, CurrencySettings>) {
+function wrapper(
+  currencies?: Record<string, CurrencySettings>,
+  format: MoneyFormat = formatDefaultsFor("USD"),
+) {
   const config: CurrencyConfig = {
     currency: "USD",
     currencies,
-    ...formatDefaultsFor("USD"),
+    ...format,
   };
   return ({ children }: { children: ReactNode }) => (
     <CurrencyContext.Provider value={config}>{children}</CurrencyContext.Provider>
@@ -71,15 +74,28 @@ describe("useCurrencies — absent-map fallback is referentially stable", () => 
 describe("useAccountMoney — per-row amounts in the account's own currency", () => {
   const wrap = wrapper({ USD: formatDefaultsFor("USD"), RUB: formatDefaultsFor("RUB") });
 
-  it("renders a default-currency amount byte-identical to the default formatter", () => {
+  it("renders a default-currency amount with the *configured* default format, not the seed defaults", () => {
+    // A budget whose USD default format diverges from formatDefaultsFor("USD")
+    // (which is { decimals: 2, before }). This pins the regression the test
+    // guards: a default-currency row must honor the user's configured format,
+    // not fall back to the currency's seed defaults.
+    const tuned: MoneyFormat = { decimals: 0, symbolPosition: "after" };
+    const tunedWrap = wrapper({ USD: { ...tuned } }, tuned);
     const { result } = renderHook(
       () => ({ account: useAccountMoney(), def: useFormatMoney() }),
-      { wrapper: wrap },
+      { wrapper: tunedWrap },
     );
+
+    // The configured format, which differs from formatDefaultsFor("USD") — so a
+    // regression to formatDefaultsFor(default) would change this string.
+    const expected = formatMoney(123_45, "USD", tuned, "en-US");
+    expect(expected).not.toBe(formatMoney(123_45, "USD", formatDefaultsFor("USD"), "en-US"));
+
     // account.currency === default → exactly the configured default formatter.
+    expect(result.current.account(123_45, "USD")).toBe(expected);
     expect(result.current.account(123_45, "USD")).toBe(result.current.def.format(123_45));
     // undefined currency routes the same way (no account resolved).
-    expect(result.current.account(123_45, undefined)).toBe(result.current.def.format(123_45));
+    expect(result.current.account(123_45, undefined)).toBe(expected);
   });
 
   it("renders a foreign amount in that currency's own symbol and display defaults", () => {
