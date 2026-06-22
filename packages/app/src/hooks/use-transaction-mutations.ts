@@ -70,9 +70,9 @@ function transferEditRates(
     ? transactions.find((t) => t.id === original.transferPairId)
     : undefined;
   // The form resolves accountId=from (outflow), toAccountId=to (inflow); the
-  // stored legs split by sign.
-  const outflowLeg = original && original.amount < 0 ? original : pair;
-  const inflowLeg = original && original.amount >= 0 ? original : pair;
+  // stored legs split by sign (matching the MCP handler's inflow = amount > 0).
+  const inflowLeg = original && original.amount > 0 ? original : pair;
+  const outflowLeg = original && original.amount > 0 ? pair : original;
 
   const storedToAmount = inflowLeg ? Math.abs(inflowLeg.amount) : undefined;
   const editToAmount = data.toAmount ?? data.amount;
