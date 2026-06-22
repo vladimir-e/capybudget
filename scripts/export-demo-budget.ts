@@ -107,6 +107,7 @@ function toBudgetFolderData(data: ScenarioData, idNamespace: string): ScenarioDa
         id: mapId(a.id),
         name: a.name,
         type: a.type,
+        currency: "USD",
         archived: a.archived,
         excludeFromNetWorth: a.excludeFromNetWorth,
         sortOrder: a.sortOrder,
@@ -190,11 +191,10 @@ const nowIso = new Date().toISOString();
 const currency = "USD";
 const format = formatDefaultsFor(currency);
 const meta: BudgetMeta = {
-  schemaVersion: 3,
+  schemaVersion: 4,
   name,
-  currency,
-  currencyDecimals: format.decimals,
-  currencySymbolPosition: format.symbolPosition,
+  defaultCurrency: currency,
+  currencies: { [currency]: format },
   createdAt: nowIso,
   lastModified: nowIso,
 };

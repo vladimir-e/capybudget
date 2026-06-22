@@ -1,5 +1,5 @@
 import type { Account, AccountType, Category } from "@capybudget/core";
-import { DEFAULT_CATEGORIES } from "@capybudget/core";
+import { DEFAULT_CATEGORIES, DEFAULT_CURRENCY } from "@capybudget/core";
 
 /** The demo's category set — the app's default taxonomy with stable ids. Shared
  *  by every profile so generated transactions reference the same categories the
@@ -20,6 +20,7 @@ export function account(
     id,
     name,
     type,
+    currency: DEFAULT_CURRENCY,
     archived: false,
     excludeFromNetWorth: false,
     sortOrder,

@@ -35,14 +35,15 @@ function AccountView() {
   }
 
   const accountTransactions = getTransactionsForAccount(accountId, transactions);
-  const balance = getAccountBalance(accountId, transactions, converter, account.currency);
+  const nativeBalance = getAccountBalance(accountId, transactions);
+  const defaultBalance = getAccountBalance(accountId, transactions, converter, account.currency);
 
   return (
     <TransactionView
       transactions={accountTransactions}
       showAccountColumn={false}
       readOnly={account.archived}
-      header={<AccountHeader account={account} balance={balance} />}
+      header={<AccountHeader account={account} nativeBalance={nativeBalance} defaultBalance={defaultBalance} />}
     />
   );
 }

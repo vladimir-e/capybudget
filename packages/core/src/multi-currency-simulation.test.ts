@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createTransaction, updateTransaction } from "./entities/transactions";
+import { createTransaction, updateTransaction, type TransactionFormData } from "./entities/transactions";
 import { bulkMoveAccount } from "./entities/bulk-transactions";
 import { rebaseDefaultCurrency } from "./utils/rebase-currency";
 import {
@@ -12,7 +12,7 @@ import { createConverter } from "./analytics/converter";
 import { getNetWorthBreakdown } from "./analytics/queries";
 import { getNetWorthOverTime } from "./analytics/analytics";
 import { makeAccount } from "./test-factories";
-import type { Account, BudgetMeta, Transaction, TransactionFormData } from "./entities/types";
+import type { Account, BudgetMeta, Transaction } from "./entities/types";
 import type { CurrencySettings } from "./utils/money";
 
 // ─────────────────────────────────────────────────────────────────────────────
