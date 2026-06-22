@@ -11,6 +11,7 @@ import type { Transaction } from "@capybudget/core";
 import { resolveTransferPair } from "@capybudget/core";
 import { useTranslation } from "@capybudget/i18n";
 import { useFormatters } from "@/hooks/use-formatters";
+import { useAccountMoney } from "@/contexts/currency-context";
 import { useCategoryDisplayName } from "@/lib/display-names";
 import { useAccounts, useCategories, useTransactions } from "@/hooks/use-budget-data";
 import { ArrowRight } from "lucide-react";
@@ -28,7 +29,8 @@ export function DeleteTransactionDialog({
 }: DeleteTransactionDialogProps) {
   const { t } = useTranslation(["budget", "common"]);
   const categoryDisplay = useCategoryDisplayName();
-  const { money, date } = useFormatters();
+  const { date } = useFormatters();
+  const accountMoney = useAccountMoney();
   const { data: accounts = [] } = useAccounts();
   const { data: categories = [] } = useCategories();
   const { data: allTransactions = [] } = useTransactions();
@@ -37,6 +39,7 @@ export function DeleteTransactionDialog({
 
   const isTransfer = transaction.type === "transfer";
   const category = categories.find((c) => c.id === transaction.categoryId);
+  const accountCurrency = accounts.find((a) => a.id === transaction.accountId)?.currency;
 
   let transferLabel: React.ReactNode = null;
   if (isTransfer) {
@@ -74,7 +77,7 @@ export function DeleteTransactionDialog({
                   ? "text-amount-expense"
                   : "text-amount-income"
             }`}>
-              {money(Math.abs(transaction.amount))}
+              {accountMoney(Math.abs(transaction.amount), accountCurrency)}
             </span>
           </div>
           <div className="text-foreground">

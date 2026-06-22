@@ -75,6 +75,9 @@
       "to": "Куда…",
       "clearFilter": "Сбросить фильтр по счёту"
     },
+    "header": {
+      "inDefault": "≈ {{amount}}"
+    },
     "fallbackLabel": "счёт",
     "notFound": "Счёт не найден",
     "cannotArchive": {

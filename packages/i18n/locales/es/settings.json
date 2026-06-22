@@ -35,6 +35,11 @@
     "title": "Moneda",
     "description": "Cómo se muestran los importes.",
     "changeNotice": "Solo cambia la visualización; tus saldos no se convierten.",
+    "switchWarning": {
+      "title": "¿Cambiar la moneda predeterminada?",
+      "description": "Este presupuesto tiene cuentas en otras monedas. Sus tipos de cambio se guardan respecto a la predeterminada actual, así que al cambiarla se revalorizan al tipo de hoy — no es una conversión exacta y se pierde el detalle histórico de cambio. Si te mudas, cambia la moneda mientras el presupuesto siga en una sola moneda y luego añade las nuevas cuentas.",
+      "confirm": "Cambiar de todos modos"
+    },
     "requestCurrency": "Solicitar una moneda",
     "preview": "Vista previa",
     "formatSettings": "Ajustes de formato",

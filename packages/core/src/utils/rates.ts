@@ -218,7 +218,7 @@ export function stampTransferRates(
 }
 
 /**
- * The `todayRates` map U4 feeds into `createConverter`: every currency in the
+ * The `todayRates` map `createConverter` consumes: every currency in the
  * budget's map keyed to its resolved rate against the default. Each rate walks
  * the same fallback chain as `resolveRate`. The default currency resolves to
  * 1.0 like any other; the converter treats it as identity regardless.

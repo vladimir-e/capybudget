@@ -33,6 +33,15 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { Button } from "@/components/ui/button"
 import type { SettingsKey } from "@/lib/i18n-keys"
 import { CurrencyCombobox } from "@/components/budget/currency-combobox"
 import { useAccounts } from "@/hooks/use-budget-data"
@@ -52,12 +61,15 @@ const PREVIEW_INCOME_CENTS = 421550
 const PREVIEW_EXPENSE_CENTS = -128900
 
 export function CurrencySection({ budgetPath }: { budgetPath: string }) {
-  const { t } = useTranslation("settings")
+  const { t } = useTranslation(["settings", "common"])
   const { data, setCurrency, setBudgetFormat, ensureCurrency, setCurrencyEntry } =
     useBudgetMeta(budgetPath)
   const { money: formatPreview } = useFormatters()
   const { data: accounts } = useAccounts()
   const [formatOpen, setFormatOpen] = useState(false)
+  // The currency the user picked while foreign accounts exist — held until they
+  // confirm, since switching the default re-bases every foreign stamp.
+  const [pendingCurrency, setPendingCurrency] = useState<string | null>(null)
 
   const currency = data.defaultCurrency
   const { decimals, symbolPosition } = defaultCurrencySettings(data)
@@ -87,6 +99,17 @@ export function CurrencySection({ budgetPath }: { budgetPath: string }) {
     }
   }, [foreignCurrencies, data.currencies, ensureCurrency])
 
+  // A single-currency budget re-denominates cleanly, so it switches with no
+  // gate. With foreign accounts the switch is a lossy re-base — warn first.
+  const handleCurrencyChange = (code: string) => {
+    if (code === currency) return
+    if (foreignCurrencies.length > 0) {
+      setPendingCurrency(code)
+      return
+    }
+    void setCurrency(code)
+  }
+
   return (
     <Card>
       <CardHeader>
@@ -98,7 +121,7 @@ export function CurrencySection({ budgetPath }: { budgetPath: string }) {
           <CurrencyCombobox
             id="currency"
             value={currency}
-            onChange={(code) => void setCurrency(code)}
+            onChange={handleCurrencyChange}
           />
           <p className="text-xs text-muted-foreground">
             {t("currency.changeNotice")}{" "}
@@ -168,6 +191,32 @@ export function CurrencySection({ budgetPath }: { budgetPath: string }) {
           </div>
         )}
       </CardContent>
+
+      <Dialog
+        open={pendingCurrency !== null}
+        onOpenChange={(open) => { if (!open) setPendingCurrency(null) }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>{t("currency.switchWarning.title")}</DialogTitle>
+            <DialogDescription>{t("currency.switchWarning.description")}</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPendingCurrency(null)}>
+              {t("common:actions.cancel")}
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => {
+                if (pendingCurrency) void setCurrency(pendingCurrency)
+                setPendingCurrency(null)
+              }}
+            >
+              {t("currency.switchWarning.confirm")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Card>
   )
 }

@@ -33,6 +33,8 @@ Money is stored native and never re-rated. Conversion happens only at read time,
 
 The two rates don't reconcile, and the gap is real: a foreign balance's spot value (today's rate) minus its cost value (stamped flows) is unrealized FX gain or loss, surfaced as a **net-worth FX delta** rather than hidden. A single-currency budget has every rate at 1.0, so conversion is the identity and none of the multi-currency surfaces appear — no per-currency settings, no FX line, no extra transfer field.
 
+Per-row amounts render in each account's own currency — the native truth of the row — so a foreign transaction shows under its own symbol, never the default's. A single account's page leads with its native balance in its own currency; for a foreign account it also shows the default-currency equivalent at today's rate as a secondary line. Aggregates across accounts (net worth, category and cash-flow roll-ups) report in the default.
+
 ### Transactions
 
 Three types: expense, income, and transfer. Amounts are signed (negative = outflow, positive = inflow) with semantic coloring in the UI.

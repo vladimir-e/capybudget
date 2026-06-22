@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
-import { cleanup, render, screen } from "@testing-library/react"
+import { cleanup, render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { open as shellOpen } from "@tauri-apps/plugin-shell"
 import { makeAccount } from "@/test/factories"
@@ -200,6 +200,52 @@ describe("CurrencySection", () => {
     await user.tab()
 
     expect(setCurrencyEntry).toHaveBeenCalledWith("EUR", { rate: 1.15, rateSource: "manual" })
+  })
+
+  const openCurrencyPicker = (user: ReturnType<typeof userEvent.setup>) =>
+    user.click(screen.getByRole("button", { name: /^USD/ }))
+
+  it("switches with no warning for a single-currency budget", async () => {
+    const user = userEvent.setup()
+    accounts = [makeAccount({ currency: "USD" })]
+    render(<CurrencySection budgetPath="/b" />)
+
+    await openCurrencyPicker(user)
+    await user.click(await screen.findByRole("option", { name: /Euro/i }))
+
+    expect(screen.queryByText(/Change the default currency\?/i)).not.toBeInTheDocument()
+    expect(setCurrency).toHaveBeenCalledWith("EUR")
+  })
+
+  it("warns before switching when a foreign account exists, and only commits on confirm", async () => {
+    const user = userEvent.setup()
+    accounts = [makeAccount({ currency: "USD" }), makeAccount({ currency: "EUR" })]
+    render(<CurrencySection budgetPath="/b" />)
+
+    await openCurrencyPicker(user)
+    await user.click(await screen.findByRole("option", { name: /British Pound/i }))
+
+    // Warning shown, nothing committed yet.
+    expect(screen.getByText(/Change the default currency\?/i)).toBeInTheDocument()
+    expect(setCurrency).not.toHaveBeenCalled()
+
+    await user.click(screen.getByRole("button", { name: /Change anyway/i }))
+    expect(setCurrency).toHaveBeenCalledWith("GBP")
+  })
+
+  it("cancelling the warning leaves the default currency unchanged", async () => {
+    const user = userEvent.setup()
+    accounts = [makeAccount({ currency: "USD" }), makeAccount({ currency: "EUR" })]
+    render(<CurrencySection budgetPath="/b" />)
+
+    await openCurrencyPicker(user)
+    await user.click(await screen.findByRole("option", { name: /British Pound/i }))
+    await user.click(screen.getByRole("button", { name: /Cancel/i }))
+
+    expect(setCurrency).not.toHaveBeenCalled()
+    await waitFor(() =>
+      expect(screen.queryByText(/Change the default currency\?/i)).not.toBeInTheDocument(),
+    )
   })
 
   it("keeps a foreign row for a persisted currency no account currently uses", () => {

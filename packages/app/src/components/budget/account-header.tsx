@@ -1,16 +1,26 @@
 import { Badge } from "@/components/ui/badge";
 import type { Account } from "@capybudget/core";
+import { useTranslation } from "@capybudget/i18n";
 import { useFormatters } from "@/hooks/use-formatters";
+import { useAccountMoney, useCurrency } from "@/contexts/currency-context";
 import { useAccountTypeLabel } from "@/lib/display-names";
 
 interface AccountHeaderProps {
   account: Account;
-  balance: number;
+  /** Balance in the account's own currency — the headline figure. */
+  nativeBalance: number;
+  /** The same balance valued in the budget default at today's rate, for the
+   *  secondary line a foreign account shows. */
+  defaultBalance: number;
 }
 
-export function AccountHeader({ account, balance }: AccountHeaderProps) {
+export function AccountHeader({ account, nativeBalance, defaultBalance }: AccountHeaderProps) {
+  const { t } = useTranslation("budget");
   const { money } = useFormatters();
+  const accountMoney = useAccountMoney();
+  const defaultCurrency = useCurrency();
   const accountTypeLabel = useAccountTypeLabel();
+  const isForeign = account.currency !== defaultCurrency;
   return (
     <div className="px-6 py-5 border-b bg-gradient-to-b from-brand-subtle/40 to-transparent">
       <div className="flex items-center gap-2.5">
@@ -20,10 +30,15 @@ export function AccountHeader({ account, balance }: AccountHeaderProps) {
         </Badge>
       </div>
       <div className={`text-3xl font-bold tabular-nums mt-1 ${
-        balance < 0 ? "text-amount-expense" : "text-foreground"
+        nativeBalance < 0 ? "text-amount-expense" : "text-foreground"
       }`}>
-        {money(balance)}
+        {accountMoney(nativeBalance, account.currency)}
       </div>
+      {isForeign && (
+        <div className="text-sm text-muted-foreground tabular-nums mt-0.5">
+          {t("account.header.inDefault", { amount: money(defaultBalance) })}
+        </div>
+      )}
     </div>
   );
 }

@@ -90,3 +90,42 @@ export function useFormatMoney(): CurrencyFormatters {
     };
   }, [currency, decimals, symbolPosition, locale]);
 }
+
+/**
+ * Format a native amount in a given account's own currency — used wherever a
+ * per-row figure is shown in the currency it's actually stored in, rather than
+ * the budget default. An account in the default currency (or `undefined`) routes
+ * to the configured default formatter, so a single-currency budget is
+ * byte-identical; a foreign account uses that currency's display defaults.
+ */
+export function useAccountMoney(): (cents: number, currency?: string) => string {
+  const { currency: defaultCurrency, decimals, symbolPosition } = useContext(CurrencyContext);
+  const locale = useFormatLocale();
+  return useMemo(() => {
+    const defaultFormat: MoneyFormat = { decimals, symbolPosition };
+    return (cents: number, currency?: string) => {
+      if (currency === undefined || currency === defaultCurrency) {
+        return formatMoney(cents, defaultCurrency, defaultFormat, locale);
+      }
+      return formatMoney(cents, currency, formatDefaultsFor(currency), locale);
+    };
+  }, [defaultCurrency, decimals, symbolPosition, locale]);
+}
+
+/** The symbol + position to render for an account's own currency — the inline
+ *  amount editor's affix. Matches `useAccountMoney`: the default currency uses
+ *  the configured position, a foreign currency its display defaults. */
+export function useAccountSymbol(
+  currency?: string,
+): { symbol: string; symbolPosition: SymbolPosition } {
+  const { currency: defaultCurrency, symbolPosition } = useContext(CurrencyContext);
+  return useMemo(() => {
+    if (currency === undefined || currency === defaultCurrency) {
+      return { symbol: currencySymbol(defaultCurrency), symbolPosition };
+    }
+    return {
+      symbol: currencySymbol(currency),
+      symbolPosition: formatDefaultsFor(currency).symbolPosition,
+    };
+  }, [currency, defaultCurrency, symbolPosition]);
+}

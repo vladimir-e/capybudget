@@ -75,6 +75,9 @@
       "to": "To…",
       "clearFilter": "Clear account filter"
     },
+    "header": {
+      "inDefault": "≈ {{amount}}"
+    },
     "fallbackLabel": "account",
     "notFound": "Account not found",
     "cannotArchive": {

@@ -35,6 +35,11 @@
     "title": "Currency",
     "description": "How amounts are displayed.",
     "changeNotice": "Changes display only — your balances aren’t converted.",
+    "switchWarning": {
+      "title": "Change the default currency?",
+      "description": "This budget has accounts in other currencies. Their exchange rates are stored against the current default, so switching re-values them at today’s rate — not a lossless conversion, and historical FX detail is lost. If you’re relocating, switch while the budget is still single-currency, then add the new accounts.",
+      "confirm": "Change anyway"
+    },
     "requestCurrency": "Request currency",
     "preview": "Preview",
     "formatSettings": "Format settings",

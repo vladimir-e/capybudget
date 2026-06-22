@@ -15,8 +15,8 @@ export interface MoneyFormat {
 }
 
 // Where a currency's rate against the default came from, so the UI can label it.
-// The default currency carries no rate (it is the base, 1.0); U3b populates this
-// on the non-default entries.
+// The default currency carries no rate (it is the base, 1.0); only the
+// non-default entries carry this.
 export type RateSource = "manual" | "seed";
 
 // One entry in the per-currency settings map. The default currency is just an
