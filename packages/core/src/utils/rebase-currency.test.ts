@@ -106,24 +106,65 @@ describe("rebaseDefaultCurrency — case B (multi-currency value-preserving reba
     return { meta, accounts, transactions };
   }
 
-  it("rebases by k = rate(OLD→NEW), preserving each transaction's default value (the oracle)", () => {
+  it("scales a NON-home transaction's default value by k (the oracle)", () => {
     const { meta, accounts, transactions } = multiCurrencyFixture();
     const k = 1 / resolveRate("USD", meta.currencies, "RUB").rate;
 
     const result = rebaseDefaultCurrency(meta, accounts, transactions, "USD");
 
     expect(result.meta.defaultCurrency).toBe("USD");
-    for (let i = 0; i < transactions.length; i++) {
-      const before = transactions[i];
-      const after = result.transactions[i];
-      // Native amount never moves.
-      expect(after.amount).toBe(before.amount);
-      // round(amount × newStamp) ≈ round(amount × oldStamp) × k, within ±1 cent.
+    // RUB and IDR flows are foreign to the new USD default — their default value
+    // scales by k: round(amount × newStamp) ≈ round(amount × oldStamp) × k.
+    for (const id of ["r1", "r2", "i1"]) {
+      const before = transactions.find((t) => t.id === id)!;
+      const after = result.transactions.find((t) => t.id === id)!;
+      expect(after.amount).toBe(before.amount); // native amount never moves
       const valueInOld = Math.round(before.amount * (before.fxRate ?? 1));
       const valueInNew = Math.round(after.amount * (after.fxRate ?? 1));
       expect(valueInNew).toBeCloseTo(valueInOld * k, 0);
       expect(Math.abs(valueInNew - valueInOld * k)).toBeLessThanOrEqual(1);
     }
+  });
+
+  it("snaps a HOME transaction to its native face amount, with fxRate cleared", () => {
+    const { meta, accounts, transactions } = multiCurrencyFixture();
+    const result = rebaseDefaultCurrency(meta, accounts, transactions, "USD");
+
+    // The USD account's flows are now home-currency: face value, no stamp.
+    for (const id of ["u1"]) {
+      const before = transactions.find((t) => t.id === id)!;
+      const after = result.transactions.find((t) => t.id === id)!;
+      expect(after.amount).toBe(before.amount);
+      expect(after.fxRate).toBeUndefined();
+      // Default value === native face amount (no FX against itself).
+      expect(Math.round(after.amount * (after.fxRate ?? 1))).toBe(before.amount);
+    }
+  });
+
+  it("clears a home-currency stamp even when it was stamped at a HISTORICAL rate", () => {
+    // The crux: a USD deposit recorded months ago at 80 ₽/$ (not today's 91).
+    // Under the new default USD it must read its $1000 face value, NOT old × k
+    // (which the prior epsilon-clearing impl left at a scaled, wrong value).
+    const meta = metaWith("RUB", { RUB: fmt(), USD: fmt() });
+    const accounts = [
+      makeAccount({ id: "rub", currency: "RUB" }),
+      makeAccount({ id: "usd", currency: "USD" }),
+    ];
+    const historicalRate = 80; // ₽ per $ on the day it happened — not today's seed.
+    const transactions = [
+      makeTransaction({ id: "u-hist", accountId: "usd", amount: 100_000, fxRate: historicalRate }),
+    ];
+
+    const result = rebaseDefaultCurrency(meta, accounts, transactions, "USD");
+    const k = 1 / resolveRate("USD", meta.currencies, "RUB").rate;
+
+    const after = result.transactions.find((t) => t.id === "u-hist")!;
+    expect(after.fxRate).toBeUndefined();
+    // Face: $1000.00 (100_000 cents), not the scaled old × k it would have been.
+    expect(Math.round(after.amount * (after.fxRate ?? 1))).toBe(100_000);
+    expect(Math.round(after.amount * (after.fxRate ?? 1))).not.toBe(
+      Math.round(100_000 * historicalRate * k),
+    );
   });
 
   it("keeps native currencies on every account (the rebase touches no account)", () => {
@@ -132,14 +173,6 @@ describe("rebaseDefaultCurrency — case B (multi-currency value-preserving reba
     // Accounts are returned untouched by reference — only stamps and the map move.
     expect(result.accounts).toBe(accounts);
     expect(result.accounts.map((a) => a.currency)).toEqual(["RUB", "USD", "IDR"]);
-  });
-
-  it("clears a NEW-currency account's stamps so its flows become the default", () => {
-    const { meta, accounts, transactions } = multiCurrencyFixture();
-    const result = rebaseDefaultCurrency(meta, accounts, transactions, "USD");
-
-    const usdTxn = result.transactions.find((t) => t.id === "u1");
-    expect(usdTxn?.fxRate).toBeUndefined();
   });
 
   it("re-stamps the formerly-default RUB flows at k (they are now foreign)", () => {
@@ -188,6 +221,11 @@ describe("rebaseDefaultCurrency — case B (multi-currency value-preserving reba
   });
 
   it("keeps net-worth-over-time the same shape, uniformly scaled by k", () => {
+    // The fixture stamps the USD (home) flows at TODAY's rate, so home-currency
+    // face value and old × k coincide for them (face = amount, and old × k =
+    // amount × usdToRub × 1/usdToRub = amount). The whole series therefore scales
+    // by k uniformly. A historically-stamped home flow breaks that uniformity by
+    // design — that's the dedicated crux test above, not this shape check.
     const { meta, accounts, transactions } = multiCurrencyFixture();
     const k = 1 / resolveRate("USD", meta.currencies, "RUB").rate;
     const result = rebaseDefaultCurrency(meta, accounts, transactions, "USD");

@@ -14,17 +14,6 @@ export interface RebaseResult {
   transactions: Transaction[];
 }
 
-// A stamp this close to 1.0 is a default-currency flow — a NEW-currency account's
-// old stamp `rate(NEW→OLD)` collapses to exactly `1/k`, so `oldStamp × k` lands on
-// 1.0 to float precision. Clearing it (undefined) makes those flows default, the
-// byte-identical state a fresh NEW budget would have. The window is tight enough
-// that no genuinely foreign post-rebase rate is mistaken for the default.
-const DEFAULT_RATE_EPSILON = 1e-9;
-
-function isDefaultRate(rate: number): boolean {
-  return Math.abs(rate - 1) < DEFAULT_RATE_EPSILON;
-}
-
 /**
  * Rebase a budget's default currency from its current value to `newCurrency`,
  * value-preservingly. Money is never re-written: native amounts stay put and
@@ -39,9 +28,12 @@ function isDefaultRate(rate: number): boolean {
  *
  * **B — multi-currency (≥1 foreign account).** A value-preserving rebase by one
  * constant `k = rate(OLD→NEW) = 1 / resolveRate(NEW→OLD)`:
- *   - Every transaction's stored fxRate ⇒ `(oldStamp ?? 1) × k`. An OLD-default
- *     transaction (no stamp = 1.0) becomes `k`; a NEW-currency transaction's
- *     stamp collapses to 1.0 and is cleared (now default). Native amounts untouched.
+ *   - A transaction whose account holds `newCurrency` is now a home-currency
+ *     flow: its fxRate is cleared (face value), whatever it was stamped at —
+ *     dollars have no rate against themselves, so a $1000 deposit must read
+ *     $1000 and reconcile with its account's balance.
+ *   - Every other transaction's stored fxRate ⇒ `(oldStamp ?? 1) × k`. An
+ *     OLD-default transaction (no stamp = 1.0) becomes `k`. Native amounts untouched.
  *   - The rate map is re-expressed against NEW: NEW becomes the default entry
  *     (its display knobs preserved if it had a foreign row, its rate dropped),
  *     OLD gains a rate of `k`, and each surviving foreign currency's manual rate
@@ -49,9 +41,10 @@ function isDefaultRate(rate: number): boolean {
  *     against NEW from the seed table.
  *   - Accounts keep their native currencies.
  *
- * The invariant in both cases: `round(amount × newStamp) ≈ round(amount × oldStamp)
- * × k` per transaction, and holding value scales uniformly by `k` — so every chart
- * keeps its shape, restated in the new unit (case A is `k = 1`).
+ * The invariant: a non-home transaction's default value scales by `k`
+ * (`round(amount × newStamp) ≈ round(amount × oldStamp) × k`); a home transaction
+ * snaps to its native face amount. Holdings value at 1.0 = face for the new
+ * default. Case A is the degenerate `k = 1`.
  */
 export function rebaseDefaultCurrency(
   meta: BudgetMeta,
@@ -86,6 +79,8 @@ export function rebaseDefaultCurrency(
   const newToOld = resolveRate(newCurrency, meta.currencies, oldCurrency, table);
   const k = 1 / newToOld.rate;
 
+  const accountCurrency = new Map(accounts.map((a) => [a.id, a.currency]));
+
   return {
     meta: {
       ...meta,
@@ -94,19 +89,24 @@ export function rebaseDefaultCurrency(
       lastModified: now,
     },
     accounts,
-    transactions: transactions.map((txn) => rebaseTransaction(txn, k)),
+    transactions: transactions.map((txn) =>
+      rebaseTransaction(txn, k, accountCurrency.get(txn.accountId) === newCurrency),
+    ),
   };
 }
 
-function rebaseTransaction(txn: Transaction, k: number): Transaction {
-  const newRate = (txn.fxRate ?? 1) * k;
-  if (isDefaultRate(newRate)) {
+// A home-currency flow (its account holds the new default) takes face value: its
+// fxRate is cleared, whatever it was stamped at. Otherwise the stamp rescales by
+// k into the new unit. A transfer's two legs are separate transactions, so the
+// home leg clears while the foreign leg rescales — each by its own account.
+function rebaseTransaction(txn: Transaction, k: number, isHome: boolean): Transaction {
+  if (isHome) {
     if (txn.fxRate === undefined) return txn;
     const cleared = { ...txn };
     delete cleared.fxRate;
     return cleared;
   }
-  return { ...txn, fxRate: newRate };
+  return { ...txn, fxRate: (txn.fxRate ?? 1) * k };
 }
 
 /**
