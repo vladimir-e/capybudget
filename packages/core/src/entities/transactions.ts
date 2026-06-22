@@ -49,8 +49,14 @@ export function createTransaction(
     const toId = crypto.randomUUID();
     // A same-currency transfer leaves toAmount/toFxRate unset, so the to leg
     // mirrors the from leg and both share the one stamped rate. A cross-currency
-    // transfer carries an independent to-side amount and its own per-leg rate.
+    // transfer carries an independent to-side amount and its own per-leg rate —
+    // and `input.toAmount` being present is exactly what marks it cross-currency,
+    // so the to-leg's rate is taken verbatim then, including a deliberate
+    // `undefined` for a default-currency to-leg (which must carry no stamp; the
+    // `?? fxRate` fallback would otherwise clobber it with the from leg's rate).
+    const isCrossCurrency = input.toAmount !== undefined;
     const toAmount = input.toAmount ?? input.amount;
+    const toFxRate = isCrossCurrency ? input.toFxRate : input.fxRate;
     const base = {
       datetime,
       type: "transfer" as const,
@@ -62,7 +68,7 @@ export function createTransaction(
     return [
       ...existing,
       { ...base, id: fromId, amount: -input.amount, accountId: input.accountId, transferPairId: toId, fxRate: input.fxRate },
-      { ...base, id: toId, amount: toAmount, accountId: input.toAccountId!, transferPairId: fromId, fxRate: input.toFxRate ?? input.fxRate },
+      { ...base, id: toId, amount: toAmount, accountId: input.toAccountId!, transferPairId: fromId, fxRate: toFxRate },
     ];
   }
 
@@ -101,12 +107,15 @@ export function updateTransaction(
     // input.toAccountId = to (inflow), regardless of which leg was clicked.
     // Both legs are fully rewritten based on the resolved from/to. Same-currency
     // transfers leave toAmount/toFxRate unset, so the to leg mirrors the from
-    // leg's amount and shares its rate; cross-currency edits carry both.
+    // leg's amount and shares its rate; cross-currency edits carry both — and an
+    // `input.toAmount` marks the edit cross-currency, so the to-leg rate is taken
+    // verbatim then (a default-currency to-leg's deliberate `undefined` survives
+    // instead of being clobbered by the from leg's rate).
     const original = existing.find((t) => t.id === input.id);
     const pairId = original?.transferPairId;
     const datetime = resolveDateTime(input.date, original?.datetime ?? "");
     const toAmount = input.toAmount ?? input.amount;
-    const toFxRate = input.toFxRate ?? input.fxRate;
+    const toFxRate = input.toAmount !== undefined ? input.toFxRate : input.fxRate;
 
     if (!pairId && input.toAccountId) {
       // Unpaired transfer gaining a pair — create the missing leg.
