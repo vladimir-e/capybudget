@@ -263,6 +263,49 @@ describe("rebaseDefaultCurrency — case B (multi-currency value-preserving reba
     }
   });
 
+  it("rebases a cross-currency transfer PAIR: the NEW-currency leg clears, the other-foreign leg rescales by k", () => {
+    // A USD→IDR transfer pair in the RUB-default budget — neither leg is RUB, so
+    // each carries its own resolver stamp. Switch RUB → USD: the USD leg becomes
+    // home (stamp cleared to face), and the IDR leg stays foreign (its stamp × k).
+    const meta = metaWith("RUB", { RUB: fmt(), USD: fmt(), IDR: fmt() });
+    const accounts = [
+      makeAccount({ id: "usd", currency: "USD" }),
+      makeAccount({ id: "idr", currency: "IDR" }),
+    ];
+    const usdToRub = resolveRate("USD", meta.currencies, "RUB").rate;
+    const idrToRub = resolveRate("IDR", meta.currencies, "RUB").rate;
+    const transactions = [
+      makeTransaction({
+        id: "leg-usd",
+        accountId: "usd",
+        amount: -9_000, // 90.00 USD out
+        transferPairId: "leg-idr",
+        fxRate: usdToRub,
+      }),
+      makeTransaction({
+        id: "leg-idr",
+        accountId: "idr",
+        amount: 157_500_000, // 1,575,000 IDR in
+        transferPairId: "leg-usd",
+        fxRate: idrToRub,
+      }),
+    ];
+
+    const result = rebaseDefaultCurrency(meta, accounts, transactions, "USD");
+    const k = 1 / resolveRate("USD", meta.currencies, "RUB").rate;
+
+    const usdLeg = result.transactions.find((t) => t.id === "leg-usd")!;
+    const idrLeg = result.transactions.find((t) => t.id === "leg-idr")!;
+
+    // The NEW-currency (USD) leg is home now: stamp cleared, reads face value.
+    expect(usdLeg.fxRate).toBeUndefined();
+    expect(usdLeg.amount).toBe(-9_000);
+
+    // The other foreign (IDR) leg keeps its native amount and rescales its stamp by k.
+    expect(idrLeg.amount).toBe(157_500_000);
+    expect(idrLeg.fxRate).toBeCloseTo(idrToRub * k, 15);
+  });
+
   it("carries a manual foreign rate across as manual × k, preserving the user's intent", () => {
     // Default RUB, USD foreign with a hand-set rate of 100 RUB per USD.
     const meta = metaWith("RUB", {

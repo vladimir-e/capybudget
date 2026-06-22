@@ -161,6 +161,11 @@ export async function handleUpdateTransaction(
     const outflowLeg = original.amount > 0 ? pair : original
     const storedToAmount = inflowLeg ? Math.abs(inflowLeg.amount) : undefined
 
+    // This predicate keys off whether each arg was *provided* (the MCP caller
+    // omits unchanged fields); the UI path (`transferEditRates` in the app's
+    // use-transaction-mutations hook) compares resolved values against the stored
+    // legs instead — different inputs, same intended outcome. The two must stay
+    // behaviorally aligned: keep this in sync with that.
     const shapeChanged =
       args.toAmount !== undefined ||
       (args.accountId !== undefined && accountId !== outflowLeg?.accountId) ||

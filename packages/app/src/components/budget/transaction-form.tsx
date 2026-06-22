@@ -47,8 +47,6 @@ const TYPE_COLORS: Record<TransactionType, { text: string; pill: string }> = {
   },
 };
 
-const editString = (cents: number) => (Math.abs(cents) / 100).toFixed(2);
-
 /** Seed values for the amount fields when editing, resolved by sign from the
  *  transfer pair so they never depend on which leg opened the editor.
  *  `outflowAmount` always seeds the from-leg amount; `inflowAmount` seeds the
@@ -60,15 +58,15 @@ function resolveEditLegs(
 ): { outflowAmount: string; inflowAmount: string } {
   if (!editing) return { outflowAmount: "", inflowAmount: "" };
   if (editing.type !== "transfer") {
-    return { outflowAmount: editString(editing.amount), inflowAmount: "" };
+    return { outflowAmount: centsToEditString(editing.amount), inflowAmount: "" };
   }
 
   const legs = [editing, pair?.pairTransaction].filter(Boolean) as Transaction[];
   const outflow = legs.find((t) => t.amount < 0) ?? editing;
   const inflow = legs.find((t) => t.amount > 0) ?? editing;
   return {
-    outflowAmount: editString(outflow.amount),
-    inflowAmount: editString(inflow.amount),
+    outflowAmount: centsToEditString(outflow.amount),
+    inflowAmount: centsToEditString(inflow.amount),
   };
 }
 

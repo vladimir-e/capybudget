@@ -51,6 +51,10 @@ Display settings are seeded from the currency's curated defaults — `{ 0, after
 
 The currency settings carry no schema bump: they are normalized at load time, not by a numbered migration. A budget written before they existed — whether missing them entirely or carrying the older flat `currency` / `currencyDecimals` / `currencySymbolPosition` fields — is read into the unified shape, lifting any flat fields into the default entry and backfilling missing knobs from the currency's defaults. The normalized shape is written back on the next save, which rewrites every existing budget.json (single-currency ones included); only the shape moves, so the rendered numbers and formatting are unchanged.
 
+### Switching the default currency
+
+Changing the default currency is a **value-preserving rebase**: native amounts are never rewritten — only the unit of account moves. A single-currency budget (no foreign account) is relabeled to the new currency with every stored number unchanged: a balance of 1000 stays 1000, just read in the new currency. A multi-currency budget rescales every stored `fxRate` by the constant `k = rate(OLD → NEW)` — the old default valued in the new — so each foreign flow's value scales uniformly into the new unit; a flow with no stamp (an old-default-currency flow at an implicit 1.0) becomes `k`. The exception is transactions already in the new currency: they are naturalized to face value, their stamp cleared, because the home currency has no exchange rate with itself — a $1000 deposit must read $1000 once dollars are the default, whatever historical rate it once carried. A transfer's two legs are separate transactions, so each rebases by its own account: a leg in the new currency clears, a leg in any other currency rescales by `k`. The rate map is re-expressed against the new default — the new currency becomes the rate-free base, the old default gains a rate of `k`, and each surviving foreign manual rate carries across as `rate × k` (seed-sourced entries re-resolve from the table). Holdings then value at today's resolved rates relative to the new default.
+
 ## Accounts
 
 Every financial entity is an account.
@@ -125,6 +129,10 @@ The core entity. Every financial event is a transaction.
 Zero-amount transactions are allowed — useful for tracking non-monetary events or placeholder entries.
 
 An account's balance = `sum(amount)` for all its transactions. No special cases.
+
+### Stamping a flow's rate
+
+A flow's `fxRate` is the rate on the day it happened — frozen history, not a live figure. It is set once at entry from the account's native→default rate (cleared when the account is the default currency), and an ordinary edit (amount, merchant, date, note) carries the stored stamp through verbatim, never re-rating to today. The one edit that changes a flow's currency is **moving it to a different account**: that re-stamps the `fxRate` at the target account's rate — cleared when the target holds the default currency. A bulk move re-stamps every moved flow the same way. (A transfer's per-leg rates follow the same principle: an edit that does not change the transfer's shape preserves both legs' historical stamps; see Transfer Architecture § Cross-currency transfers.)
 
 ### Transfer Architecture
 

@@ -281,6 +281,67 @@ describe("multi-currency simulation — transfer conservation (the owner's bug)"
     expect(net).toBe(-810_000 + 900_000); // exact: spread is +90,000 cents = 900 RUB
   });
 
+  it("editing a both-foreign transfer's received amount re-stamps resolver rates, NOT a netting bank rate", () => {
+    // Intended both-foreign behavior: when neither leg is the default, editing the
+    // received toAmount re-derives via stampTransferRates, which stamps each leg's
+    // OWN resolver rate (USD→RUB, IDR→RUB) — it does NOT derive a bank rate from the
+    // two amounts. So the legs do NOT net to ~0; the residual is a genuine FX spread
+    // (the amounts pin only the USD↔IDR cross rate, not either →default rate). This
+    // is correct per design — not the default-touching conservation case.
+    const meta = rubBudget();
+    let txns = create(
+      {
+        type: "transfer",
+        amount: 9_000, // 90.00 USD
+        toAmount: 157_500_000, // 1,575,000 IDR
+        accountId: "usd",
+        toAccountId: "idr",
+        categoryId: "",
+        date: "2026-02-03",
+        merchant: "",
+        note: "",
+      },
+      meta,
+      [],
+    );
+    const fromId = txns.find((t) => t.amount < 0)!.id;
+
+    // Edit only the received IDR amount to a new settlement (1,600,000 IDR).
+    const editData: TransactionFormData = {
+      id: fromId,
+      type: "transfer",
+      amount: 9_000, // outflow unchanged: still 90.00 USD
+      toAmount: 160_000_000, // received re-settled to 1,600,000 IDR
+      accountId: "usd",
+      toAccountId: "idr",
+      categoryId: "",
+      date: "2026-02-03",
+      merchant: "",
+      note: "",
+    };
+    txns = updateTransaction({ ...editData, ...resolveRates(editData, meta) }, txns);
+
+    const from = txns.find((t) => t.amount < 0)!;
+    const to = txns.find((t) => t.amount > 0)!;
+
+    // Leg amounts update to the edited values.
+    expect(from.amount).toBe(-9_000); // USD outflow unchanged
+    expect(to.amount).toBe(160_000_000); // IDR inflow is the new received amount
+
+    // Each leg carries its OWN resolver rate — NOT a derived rate that would make
+    // the legs net to zero.
+    expect(from.fxRate).toBeCloseTo(USD_RUB, 12); // USD→RUB resolver rate
+    expect(to.fxRate).toBeCloseTo(IDR_RUB, 12); // IDR→RUB resolver rate
+    expect(to.fxRate).not.toBeCloseTo(from.amount / to.amount, 12); // not a netting bank rate
+
+    // The legs deliberately do NOT net to ~0: 90 USD ≈ 8,100 RUB out, 1,600,000 IDR
+    // ≈ 9,142.86 RUB in. The residue is the genuine FX spread, asserted exactly.
+    const conv = converterFor(meta);
+    const net = conv.flowToDefault(from.amount, from.fxRate) + conv.flowToDefault(to.amount, to.fxRate);
+    expect(net).toBe(-810_000 + Math.round(160_000_000 * IDR_RUB));
+    expect(Math.abs(net)).toBeGreaterThan(1); // a real spread, not conservation
+  });
+
   it("a same-currency foreign transfer mirrors one amount and shares one rate", () => {
     // 5 USD between two USD accounts (modeled here as usd→usd via a second id):
     // a same-currency transfer leaves toAmount unset, so the to leg mirrors the

@@ -168,6 +168,40 @@ describe("useUpdateTransaction — both-foreign transfer rate preservation", () 
     expect(to.accountId).toBe("acct-rub2");
     expect(to.fxRate).not.toBe(TO_RATE);
   });
+
+  it("a received-amount change re-stamps both legs at resolver rates that do NOT net to zero", async () => {
+    // Editing only the received toAmount is a shape change → re-derive. Since
+    // neither leg is the default (USD), stampTransferRates stamps each leg's OWN
+    // resolver rate (EUR→USD, RUB→USD) — it does NOT derive a bank rate from the
+    // two amounts. So the legs do NOT net to ~0 in the default; the residual is a
+    // genuine FX spread. This is the intended both-foreign edit behavior.
+    const { saved, wrapper } = setup();
+    const { result } = renderHook(() => useUpdateTransaction(), { wrapper });
+
+    await act(async () => {
+      // Received 10,500.00 ₽ instead of 10,000.00 ₽ (a different settlement).
+      await result.current.mutateAsync({ ...baseForm, toAmount: 1_050_000 });
+    });
+
+    const next = saved.at(-1)!;
+    const from = next.find((t) => t.id === "leg-from")!;
+    const to = next.find((t) => t.id === "leg-to")!;
+
+    // Leg amounts update to the edited values.
+    expect(from.amount).toBe(-10_000); // outflow unchanged
+    expect(to.amount).toBe(1_050_000); // inflow is the new received amount
+
+    // Both re-stamped at today's resolver rates, off the historical stamps.
+    expect(from.fxRate).not.toBe(FROM_RATE);
+    expect(to.fxRate).not.toBe(TO_RATE);
+    // Crucially NOT a derived bank rate: a netting rate would be toRate such that
+    // -fromAmount × fromRate + toAmount × toRate ≈ 0. The resolver rate is the
+    // currency's own →default rate, independent of the counter-leg's amount.
+    expect(to.fxRate).not.toBe((from.amount / to.amount) * (from.fxRate ?? 1));
+    // The legs deliberately do NOT net to ~0 — a real FX spread, not conservation.
+    const net = from.amount * (from.fxRate ?? 1) + to.amount * (to.fxRate ?? 1);
+    expect(Math.abs(net)).toBeGreaterThan(1);
+  });
 });
 
 // A plain EUR flow stamped the day it happened, deliberately off today's seed

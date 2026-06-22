@@ -74,6 +74,10 @@ function transferEditRates(
   const inflowLeg = original && original.amount > 0 ? original : pair;
   const outflowLeg = original && original.amount > 0 ? pair : original;
 
+  // This predicate compares resolved edit values against the stored legs; the MCP
+  // path (`handleUpdateTransaction` in intelligence's mutation handler) keys off
+  // whether each arg was *provided* instead — different inputs, same intended
+  // outcome. The two must stay behaviorally aligned: keep this in sync with that.
   const storedToAmount = inflowLeg ? Math.abs(inflowLeg.amount) : undefined;
   const editToAmount = data.toAmount ?? data.amount;
   const shapeChanged =
