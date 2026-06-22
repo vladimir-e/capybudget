@@ -266,6 +266,10 @@ export {
   crossRateAmount,
 } from "./utils/rates";
 
+// Default-currency rebase (value-preserving unit-of-account switch)
+export type { RebaseResult } from "./utils/rebase-currency";
+export { rebaseDefaultCurrency } from "./utils/rebase-currency";
+
 // Transaction search (fuzzy cross-field + money matcher)
 export type { SearchContext } from "./analytics/search";
 export {

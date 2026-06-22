@@ -46,6 +46,7 @@ import type { SettingsKey } from "@/lib/i18n-keys"
 import { CurrencyCombobox } from "@/components/budget/currency-combobox"
 import { useAccounts } from "@/hooks/use-budget-data"
 import { useBudgetMeta } from "@/hooks/use-budget-meta"
+import { useRebaseCurrency } from "@/hooks/use-rebase-currency"
 import { useFormatters } from "@/hooks/use-formatters"
 
 // The plain repo page rather than `issues/new` — the latter bounces signed-out
@@ -62,13 +63,14 @@ const PREVIEW_EXPENSE_CENTS = -128900
 
 export function CurrencySection({ budgetPath }: { budgetPath: string }) {
   const { t } = useTranslation(["settings", "common"])
-  const { data, setCurrency, setBudgetFormat, ensureCurrency, setCurrencyEntry } =
+  const { data, setBudgetFormat, ensureCurrency, setCurrencyEntry } =
     useBudgetMeta(budgetPath)
+  const rebaseCurrency = useRebaseCurrency(budgetPath)
   const { money: formatPreview } = useFormatters()
   const { data: accounts } = useAccounts()
   const [formatOpen, setFormatOpen] = useState(false)
   // The currency the user picked while foreign accounts exist — held until they
-  // confirm, since switching the default re-bases every foreign stamp.
+  // confirm, since switching the default restates every stored rate into it.
   const [pendingCurrency, setPendingCurrency] = useState<string | null>(null)
 
   const currency = data.defaultCurrency
@@ -99,15 +101,16 @@ export function CurrencySection({ budgetPath }: { budgetPath: string }) {
     }
   }, [foreignCurrencies, data.currencies, ensureCurrency])
 
-  // A single-currency budget re-denominates cleanly, so it switches with no
-  // gate. With foreign accounts the switch is a lossy re-base — warn first.
+  // A single-currency budget is a plain relabel (no conversion), so it switches
+  // with no gate. With foreign accounts the switch restates every stored rate
+  // into the new unit — value-preserving but lossy in cents — so warn first.
   const handleCurrencyChange = (code: string) => {
     if (code === currency) return
     if (foreignCurrencies.length > 0) {
       setPendingCurrency(code)
       return
     }
-    void setCurrency(code)
+    void rebaseCurrency(code)
   }
 
   return (
@@ -199,7 +202,9 @@ export function CurrencySection({ budgetPath }: { budgetPath: string }) {
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>{t("currency.switchWarning.title")}</DialogTitle>
-            <DialogDescription>{t("currency.switchWarning.description")}</DialogDescription>
+            <DialogDescription>
+              {t("currency.switchWarning.description", { currency: pendingCurrency ?? "" })}
+            </DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <Button variant="outline" onClick={() => setPendingCurrency(null)}>
@@ -208,11 +213,11 @@ export function CurrencySection({ budgetPath }: { budgetPath: string }) {
             <Button
               variant="destructive"
               onClick={() => {
-                if (pendingCurrency) void setCurrency(pendingCurrency)
+                if (pendingCurrency) void rebaseCurrency(pendingCurrency)
                 setPendingCurrency(null)
               }}
             >
-              {t("currency.switchWarning.confirm")}
+              {t("currency.switchWarning.confirm", { currency: pendingCurrency ?? "" })}
             </Button>
           </DialogFooter>
         </DialogContent>

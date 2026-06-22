@@ -37,8 +37,8 @@
     "changeNotice": "Solo cambia la visualización; tus saldos no se convierten.",
     "switchWarning": {
       "title": "¿Cambiar la moneda predeterminada?",
-      "description": "Este presupuesto tiene cuentas en otras monedas. Sus tipos de cambio se guardan respecto a la predeterminada actual, así que al cambiarla se revalorizan al tipo de hoy — no es una conversión exacta y se pierde el detalle histórico de cambio. Si te mudas, cambia la moneda mientras el presupuesto siga en una sola moneda y luego añade las nuevas cuentas.",
-      "confirm": "Cambiar de todos modos"
+      "description": "Este presupuesto tiene cuentas en otras monedas. Al cambiarla se reexpresan todos los tipos de cambio guardados en {{currency}} — tu historial conserva su forma, pero los valores quedan reexpresados en la nueva moneda y los céntimos pueden variar ligeramente. Para empezar de cero, suele ser mejor crear un presupuesto nuevo en {{currency}}. ¿Continuar?",
+      "confirm": "Cambiar a {{currency}}"
     },
     "requestCurrency": "Solicitar una moneda",
     "preview": "Vista previa",

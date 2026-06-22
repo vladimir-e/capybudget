@@ -49,6 +49,12 @@ vi.mock("@/hooks/use-budget-data", () => ({
   useAccounts: () => ({ data: [] }),
 }))
 
+// The Currency section's switch path uses the rebase hook, which reaches for the
+// repository; this screen test has no RepositoryProvider, so stub it inert.
+vi.mock("@/hooks/use-rebase-currency", () => ({
+  useRebaseCurrency: () => vi.fn(),
+}))
+
 import { SettingsScreen } from "./settings-screen"
 import {
   useIntelligenceStore,

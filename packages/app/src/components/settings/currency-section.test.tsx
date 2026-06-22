@@ -6,10 +6,10 @@ import { makeAccount } from "@/test/factories"
 import type { Account, BudgetMeta, CurrencySettings } from "@capybudget/core"
 import { CurrencySection } from "./currency-section"
 
-const setCurrency = vi.fn()
 const setBudgetFormat = vi.fn()
 const ensureCurrency = vi.fn()
 const setCurrencyEntry = vi.fn()
+const rebaseCurrency = vi.fn()
 
 let meta: BudgetMeta
 let accounts: Account[]
@@ -18,12 +18,15 @@ vi.mock("@/hooks/use-budget-meta", () => ({
   useBudgetMeta: () => ({
     data: meta,
     isLoading: false,
-    setCurrency,
     setBudgetFormat,
     ensureCurrency,
     setCurrencyEntry,
     save: vi.fn(),
   }),
+}))
+
+vi.mock("@/hooks/use-rebase-currency", () => ({
+  useRebaseCurrency: () => rebaseCurrency,
 }))
 
 vi.mock("@/hooks/use-budget-data", () => ({
@@ -213,8 +216,8 @@ describe("CurrencySection", () => {
     await openCurrencyPicker(user)
     await user.click(await screen.findByRole("option", { name: /Euro/i }))
 
-    expect(screen.queryByText(/Change the default currency\?/i)).not.toBeInTheDocument()
-    expect(setCurrency).toHaveBeenCalledWith("EUR")
+    expect(screen.queryByText(/Switch default currency\?/i)).not.toBeInTheDocument()
+    expect(rebaseCurrency).toHaveBeenCalledWith("EUR")
   })
 
   it("warns before switching when a foreign account exists, and only commits on confirm", async () => {
@@ -226,11 +229,11 @@ describe("CurrencySection", () => {
     await user.click(await screen.findByRole("option", { name: /British Pound/i }))
 
     // Warning shown, nothing committed yet.
-    expect(screen.getByText(/Change the default currency\?/i)).toBeInTheDocument()
-    expect(setCurrency).not.toHaveBeenCalled()
+    expect(screen.getByText(/Switch default currency\?/i)).toBeInTheDocument()
+    expect(rebaseCurrency).not.toHaveBeenCalled()
 
-    await user.click(screen.getByRole("button", { name: /Change anyway/i }))
-    expect(setCurrency).toHaveBeenCalledWith("GBP")
+    await user.click(screen.getByRole("button", { name: /Switch to GBP/i }))
+    expect(rebaseCurrency).toHaveBeenCalledWith("GBP")
   })
 
   it("cancelling the warning leaves the default currency unchanged", async () => {
@@ -242,9 +245,9 @@ describe("CurrencySection", () => {
     await user.click(await screen.findByRole("option", { name: /British Pound/i }))
     await user.click(screen.getByRole("button", { name: /Cancel/i }))
 
-    expect(setCurrency).not.toHaveBeenCalled()
+    expect(rebaseCurrency).not.toHaveBeenCalled()
     await waitFor(() =>
-      expect(screen.queryByText(/Change the default currency\?/i)).not.toBeInTheDocument(),
+      expect(screen.queryByText(/Switch default currency\?/i)).not.toBeInTheDocument(),
     )
   })
 
