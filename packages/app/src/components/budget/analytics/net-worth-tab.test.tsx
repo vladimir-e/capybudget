@@ -55,7 +55,7 @@ describe("NetWorthTab — FX delta callout", () => {
     renderTab({ USD: formatDefaultsFor("USD") }, (
       <NetWorthTab accounts={[usd]} transactions={txns} dateRange={currentRange} hasAnyTransactions />
     ));
-    expect(screen.queryByText("Unrealized FX")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "What is this?" })).not.toBeInTheDocument();
   });
 
   it("lights up for a foreign account with the −$500 worked example", () => {
@@ -63,12 +63,13 @@ describe("NetWorthTab — FX delta callout", () => {
       <NetWorthTab accounts={[rubAccount]} transactions={rubTxns} dateRange={currentRange} hasAnyTransactions />
     ));
 
-    expect(screen.getByText("Unrealized FX")).toBeInTheDocument();
+    // A loss, so the sign-aware label reads "Currency loss".
+    expect(screen.getByText("Currency loss")).toBeInTheDocument();
     // The −$500 loss, rendered with the minus glyph in the expense token.
     expect(screen.getByText("−$500.00")).toBeInTheDocument();
-    // The relationship: current value (spot) = cost basis (chart endpoint).
+    // The relationship: cost basis (chart endpoint) in → spot value now.
     expect(
-      screen.getByText("Current value $1,100.00 = cost basis $1,600.00"),
+      screen.getByText("$1,600.00 in → $1,100.00 now"),
     ).toBeInTheDocument();
   });
 
@@ -79,6 +80,6 @@ describe("NetWorthTab — FX delta callout", () => {
     renderTab(RUB_CURRENCIES, (
       <NetWorthTab accounts={[rubAccount]} transactions={rubTxns} dateRange={pastRange} hasAnyTransactions />
     ));
-    expect(screen.queryByText("Unrealized FX")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "What is this?" })).not.toBeInTheDocument();
   });
 });

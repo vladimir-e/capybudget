@@ -72,9 +72,14 @@
     "noData": "No data available",
     "monthLabel": "{{month}} {{year}}",
     "fx": {
-      "label": "Unrealized FX",
-      "relation": "Current value {{spot}} = cost basis {{cost}}",
-      "explanation": "Your foreign balances are worth this much more or less than what flowed in, as exchange rates have moved since."
+      "label": {
+        "gain": "Currency gain",
+        "loss": "Currency loss",
+        "flat": "Currency change"
+      },
+      "relation": "{{cost}} in → {{spot}} now",
+      "whatIsThis": "What is this?",
+      "explanation": "Exchange rates have moved since this foreign money came in, so it’s worth more or less in your currency now. The gain or loss is unrealized — you only lock it in by converting back."
     }
   },
   "accountFilter": {

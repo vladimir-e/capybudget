@@ -73,9 +73,14 @@
     "noData": "No hay datos disponibles",
     "monthLabel": "{{month}} {{year}}",
     "fx": {
-      "label": "Cambio no realizado",
-      "relation": "Valor actual {{spot}} = coste base {{cost}}",
-      "explanation": "Tus saldos en moneda extranjera valen ahora más o menos de lo que entró, porque los tipos de cambio han variado desde entonces."
+      "label": {
+        "gain": "Ganancia cambiaria",
+        "loss": "Pérdida cambiaria",
+        "flat": "Diferencia cambiaria"
+      },
+      "relation": "{{cost}} al entrar → {{spot}} ahora",
+      "whatIsThis": "¿Qué es esto?",
+      "explanation": "Los tipos de cambio han variado desde que entró este dinero extranjero, así que ahora vale más o menos en tu moneda. La ganancia o pérdida no está realizada: solo se concreta al convertir de vuelta."
     }
   },
   "accountFilter": {
