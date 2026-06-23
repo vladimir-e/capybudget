@@ -32,7 +32,7 @@ export function AccountDialog({ open, onOpenChange, editingAccount }: AccountDia
   const { path } = useSearch({ from: "/budget" });
   const accountTypeLabel = useAccountTypeLabel();
   const defaultCurrency = useCurrency();
-  const { data: transactions = [] } = useTransactions();
+  const { data: transactions = [], isSuccess: transactionsLoaded } = useTransactions();
   const isEditing = !!editingAccount;
   const [name, setName] = useState(editingAccount?.name ?? "");
   const [type, setType] = useState<AccountType>(editingAccount?.type ?? "checking");
@@ -44,9 +44,13 @@ export function AccountDialog({ open, onOpenChange, editingAccount }: AccountDia
 
   // Currency locks once the account carries any transaction — an opening
   // balance counts. Changing it under historical amounts is meaningless, so the
-  // honest move is a new account.
+  // honest move is a new account. Core enforces this authoritatively; the lock
+  // here is UX only, so it must stay conservative: until the transaction list has
+  // actually loaded, keep an edited account locked rather than offering a change
+  // that a cold cache would let through and core would then reject.
   const currencyLocked =
-    isEditing && transactions.some((tx) => tx.accountId === editingAccount.id);
+    isEditing &&
+    (!transactionsLoaded || transactions.some((tx) => tx.accountId === editingAccount.id));
   const balanceSymbol = currencySymbol(currency);
 
   function handleClose(nextOpen: boolean) {
@@ -72,6 +76,12 @@ export function AccountDialog({ open, onOpenChange, editingAccount }: AccountDia
           onSuccess: () => {
             toast.success(t("account.toast.updated"));
             handleClose(false);
+          },
+          onError: (error) => {
+            // Core rejects a currency change on an account with transactions; a
+            // stale UI that slipped past the lock surfaces the thrown reason here
+            // instead of failing silently.
+            toast.error(error instanceof Error ? error.message : String(error));
           },
         },
       );

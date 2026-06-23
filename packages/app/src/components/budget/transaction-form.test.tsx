@@ -199,6 +199,37 @@ describe("TransactionForm — same-currency-only account move on edit", () => {
   });
 });
 
+describe("TransactionForm — transfer type boundary is locked on edit", () => {
+  // Converting to/from transfer would orphan a paired leg, so the spec mandates
+  // delete + recreate. The type buttons enforce it symmetrically.
+  const RUB_EXPENSE: Transaction = {
+    id: "exp-1",
+    datetime: "2026-06-01T10:00:00.000",
+    type: "expense",
+    amount: -100_000,
+    categoryId: "",
+    accountId: "acct-rub",
+    transferPairId: "",
+    merchant: "Store",
+    note: "",
+    createdAt: "2026-06-01T10:00:00.000Z",
+  };
+
+  it("disables Transfer when editing an existing expense, keeps Income enabled", () => {
+    renderForm({ accounts: [RUB_ACCT], editingTransaction: RUB_EXPENSE });
+    expect(screen.getByRole("button", { name: "Transfer" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Income" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Expense" })).toBeEnabled();
+  });
+
+  it("disables Expense and Income when editing an existing transfer", () => {
+    renderForm({ ...transferSeed, editingTransaction: OUTFLOW_LEG });
+    expect(screen.getByRole("button", { name: "Expense" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Income" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Transfer" })).toBeEnabled();
+  });
+});
+
 describe("TransactionForm — entry symbol follows the account currency", () => {
   it("shows the foreign account's symbol for an expense into it", () => {
     const usd = makeAcct({ id: "acct-usd", name: "USD Account", currency: "USD" });

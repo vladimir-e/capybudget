@@ -129,38 +129,47 @@ export async function handleUpdateTransaction(
   if (!original) return JSON.stringify({ error: `Transaction ${args.id} not found` })
 
   const effectiveType = (args.type as TransactionType) ?? original.type
-  const accountId = (args.accountId as string) ?? original.accountId
-  const amount = (args.amount as number) ?? Math.abs(original.amount)
 
-  // Infer toAccountId from the existing transfer pair if not provided
-  let toAccountId = args.toAccountId as string | undefined
-  if (effectiveType === "transfer" && !toAccountId && original.transferPairId) {
-    const pair = existing.find((t) => t.id === original.transferPairId)
-    if (pair) toAccountId = pair.accountId
-  }
-  if (effectiveType === "transfer" && !toAccountId) {
-    return JSON.stringify({ error: "toAccountId is required for transfers" })
+  // A transfer can't be converted to/from a plain flow: the legs are paired and
+  // a cross-boundary change would orphan the partner. The spec mandates delete +
+  // recreate (DATA_MODEL.md, Transfer Architecture).
+  if ((effectiveType === "transfer") !== (original.type === "transfer")) {
+    return JSON.stringify({
+      error: "Cannot change a transaction's type to or from transfer — transfers are paired, so delete this transaction and create a new one of the desired type instead.",
+    })
   }
 
-  // A transfer's per-leg amounts and rates must survive an unrelated edit (a
-  // note or date change). The received amount is real history — what landed —
-  // not something to recompute at today's rate. So default toAmount/toFxRate to
-  // the stored inflow leg, and only re-derive when the transfer's shape
-  // genuinely changed: an explicit toAmount, a different destination, or a
-  // changed from-amount. A plain flow likewise keeps its stamp through an
-  // unrelated edit and only re-stamps when it moves to a different account —
-  // the one edit that changes its currency (see the else branch).
-  let fxRate: number | undefined
-  let toFxRate: number | undefined
-  let toAmount: number | undefined
   if (effectiveType === "transfer") {
+    // `args.id` may target either leg, but core always treats input.id as the
+    // from (outflow) leg and rewrites the inflow as the to leg. Normalize here so
+    // core receives outflow-as-from / inflow-as-to regardless of which leg the
+    // caller targeted — without this, editing the inflow leg flips both legs'
+    // signs/accounts and, cross-currency, writes the inflow magnitude onto the
+    // from leg.
     const pair = original.transferPairId
       ? existing.find((t) => t.id === original.transferPairId)
       : undefined
     const inflowLeg = original.amount > 0 ? original : pair
     const outflowLeg = original.amount > 0 ? pair : original
+
+    // For a transfer, args.accountId/toAccountId name the from/to accounts
+    // directly (not "the targeted leg's account"), so they map cleanly onto the
+    // outflow/inflow legs whichever leg args.id points at.
+    const fromAccountId = (args.accountId as string) ?? outflowLeg?.accountId ?? original.accountId
+    let toAccountId = args.toAccountId as string | undefined
+    if (!toAccountId) toAccountId = inflowLeg?.accountId
+    if (!toAccountId) {
+      return JSON.stringify({ error: "toAccountId is required for transfers" })
+    }
+    const fromAmount = (args.amount as number) ?? Math.abs(outflowLeg?.amount ?? original.amount)
     const storedToAmount = inflowLeg ? Math.abs(inflowLeg.amount) : undefined
 
+    // A transfer's per-leg amounts and rates are real history — what actually
+    // landed — and must survive an unrelated edit (a note or date change). Carry
+    // the stored legs verbatim, and only re-derive when the transfer's shape
+    // genuinely changed: an explicit toAmount, a different from/to account, or a
+    // changed from-amount.
+    //
     // This predicate keys off whether each arg was *provided* (the MCP caller
     // omits unchanged fields); the UI path (`transferEditRates` in the app's
     // use-transaction-mutations hook) compares resolved values against the stored
@@ -168,10 +177,13 @@ export async function handleUpdateTransaction(
     // behaviorally aligned: keep this in sync with that.
     const shapeChanged =
       args.toAmount !== undefined ||
-      (args.accountId !== undefined && accountId !== outflowLeg?.accountId) ||
+      (args.accountId !== undefined && fromAccountId !== outflowLeg?.accountId) ||
       (args.toAccountId !== undefined && toAccountId !== inflowLeg?.accountId) ||
-      (args.amount !== undefined && amount !== Math.abs(outflowLeg?.amount ?? amount))
+      (args.amount !== undefined && fromAmount !== Math.abs(outflowLeg?.amount ?? fromAmount))
 
+    let fxRate: number | undefined
+    let toFxRate: number | undefined
+    let toAmount: number | undefined
     if (!shapeChanged && storedToAmount !== undefined) {
       // Untouched shape: carry both legs' stored amounts and rates verbatim.
       toAmount = storedToAmount
@@ -179,17 +191,45 @@ export async function handleUpdateTransaction(
       toFxRate = inflowLeg?.fxRate
     } else {
       const accounts = await repo.getAccounts()
-      const from = accounts.find((a) => a.id === accountId)
+      const from = accounts.find((a) => a.id === fromAccountId)
       const to = accounts.find((a) => a.id === toAccountId)
       if (from && to) {
         const cur = currencies ?? {}
-        toAmount = (args.toAmount as number | undefined) ?? inferToAmount(amount, from, to, cur, currency)
-        const rates = stampTransferRates(from.currency, to.currency, amount, toAmount, cur, currency)
+        toAmount = (args.toAmount as number | undefined) ?? inferToAmount(fromAmount, from, to, cur, currency)
+        const rates = stampTransferRates(from.currency, to.currency, fromAmount, toAmount, cur, currency)
         fxRate = rates.fromRate
         toFxRate = rates.toRate
       }
     }
-  } else if (accountId === original.accountId) {
+
+    const next = updateTransaction(
+      {
+        id: outflowLeg?.id ?? (args.id as string),
+        type: effectiveType,
+        amount: fromAmount,
+        accountId: fromAccountId,
+        categoryId: "",
+        toAccountId,
+        date: (args.date as string) ?? original.datetime.slice(0, 10),
+        merchant: "",
+        note: (args.note as string) ?? original.note,
+        fxRate,
+        toAmount,
+        toFxRate,
+      },
+      existing,
+    )
+    await repo.saveTransactions(next)
+    return JSON.stringify({ success: true, id: args.id })
+  }
+
+  const accountId = (args.accountId as string) ?? original.accountId
+  const amount = (args.amount as number) ?? Math.abs(original.amount)
+
+  // A plain flow keeps its stamp through an unrelated edit and only re-stamps
+  // when it moves to a different account — the one edit that changes its currency.
+  let fxRate: number | undefined
+  if (accountId === original.accountId) {
     // Same account → carry the historical stamp verbatim.
     fxRate = original.fxRate
   } else {
@@ -218,13 +258,10 @@ export async function handleUpdateTransaction(
       amount,
       accountId,
       categoryId: (args.categoryId as string) ?? original.categoryId,
-      toAccountId,
       date: (args.date as string) ?? original.datetime.slice(0, 10),
       merchant: (args.merchant as string) ?? original.merchant,
       note: (args.note as string) ?? original.note,
       fxRate,
-      toAmount,
-      toFxRate,
     },
     existing,
   )
@@ -301,6 +338,12 @@ export async function handleUpdateAccount(
   const existing = accounts.find((a) => a.id === id)
   if (!existing) return JSON.stringify({ error: `Account ${id} not found` })
 
+  const transactions = await repo.getTransactions()
+
+  // No currency arg here by design — the model can rename/retype/archive an
+  // account, but never re-denominate it (its amounts are stored in its
+  // currency). updateAccount only guards a currency *change*, so omitting it is
+  // always allowed; the transaction list satisfies the signature.
   let next = updateAccount(
     {
       id,
@@ -308,13 +351,13 @@ export async function handleUpdateAccount(
       type: (args.type as AccountType) ?? existing.type,
     },
     accounts,
+    transactions,
   )
 
   // archiveAccount throws on a non-zero balance; running it before saving
   // means a rejected archive never persists the name/type/exclusion edits.
   if (typeof args.archived === "boolean") {
     if (args.archived) {
-      const transactions = await repo.getTransactions()
       next = archiveAccount(id, next, transactions)
     } else {
       next = unarchiveAccount(id, next)

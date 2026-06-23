@@ -117,42 +117,6 @@ export function updateTransaction(
     const toAmount = input.toAmount ?? input.amount;
     const toFxRate = input.toAmount !== undefined ? input.toFxRate : input.fxRate;
 
-    if (!pairId && input.toAccountId) {
-      // Unpaired transfer gaining a pair — create the missing leg.
-      // Preserve the original's role: if it was outflow (negative), keep it as the
-      // from-leg; if inflow (positive), keep it as the to-leg.
-      const newPairId = crypto.randomUUID();
-      const originalIsFrom = (original?.amount ?? 0) < 0;
-      const toAcct = input.toAccountId!;
-      return [
-        ...existing.map((t) =>
-          t.id === input.id
-            ? {
-                ...t,
-                amount: originalIsFrom ? -input.amount : toAmount,
-                accountId: originalIsFrom ? input.accountId : toAcct,
-                transferPairId: newPairId,
-                fxRate: originalIsFrom ? input.fxRate : toFxRate,
-                datetime, merchant: "", note: input.note,
-              }
-            : t,
-        ),
-        {
-          id: newPairId,
-          datetime,
-          type: "transfer" as const,
-          amount: originalIsFrom ? toAmount : -input.amount,
-          categoryId: "",
-          accountId: originalIsFrom ? toAcct : input.accountId,
-          transferPairId: input.id!,
-          merchant: "",
-          note: input.note,
-          createdAt: new Date().toISOString(),
-          fxRate: originalIsFrom ? toFxRate : input.fxRate,
-        },
-      ];
-    }
-
     return existing.map((t) => {
       if (t.id === input.id) {
         return { ...t, amount: -input.amount, accountId: input.accountId, fxRate: input.fxRate, datetime, merchant: "", note: input.note };

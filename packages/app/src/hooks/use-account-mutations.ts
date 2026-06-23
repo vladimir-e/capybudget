@@ -44,8 +44,8 @@ export function useCreateAccount(budgetPath: string) {
 }
 
 export function useUpdateAccount() {
-  return useBudgetMutation<AccountFormData>(async (data, { accounts }) => {
-    const next = updateAccount(data, accounts.get());
+  return useBudgetMutation<AccountFormData>(async (data, { accounts, transactions }) => {
+    const next = updateAccount(data, accounts.get(), transactions.get());
     accounts.set(next);
     await accounts.save(next);
   });

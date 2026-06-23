@@ -282,7 +282,12 @@ export function TransactionForm({
         <div className="flex gap-0.5 rounded-lg bg-muted/50 p-0.5">
           {TYPES.map(({ value, icon: Icon }) => {
             const active = type === value;
-            const locked = isEditing && editingTransaction?.type === "transfer" && value !== "transfer";
+            // Editing can't cross the transfer boundary in either direction — the
+            // legs are paired and a conversion would orphan the partner (spec:
+            // delete and recreate instead). An existing transfer locks to
+            // "transfer"; an existing income/expense locks "transfer" out.
+            const locked =
+              isEditing && (editingTransaction?.type === "transfer") !== (value === "transfer");
             return (
               <button
                 key={value}
