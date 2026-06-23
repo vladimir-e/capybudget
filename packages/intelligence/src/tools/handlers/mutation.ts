@@ -185,7 +185,6 @@ export async function handleUpdateTransaction(
     let toFxRate: number | undefined
     let toAmount: number | undefined
     if (!shapeChanged && storedToAmount !== undefined) {
-      // Untouched shape: carry both legs' stored amounts and rates verbatim.
       toAmount = storedToAmount
       fxRate = outflowLeg?.fxRate
       toFxRate = inflowLeg?.fxRate
@@ -226,18 +225,12 @@ export async function handleUpdateTransaction(
   const accountId = (args.accountId as string) ?? original.accountId
   const amount = (args.amount as number) ?? Math.abs(original.amount)
 
-  // A plain flow keeps its stamp through an unrelated edit and only re-stamps
-  // when it moves to a different account — the one edit that changes its currency.
-  let fxRate: number | undefined
-  if (accountId === original.accountId) {
-    // Same account → carry the historical stamp verbatim.
-    fxRate = original.fxRate
-  } else {
-    // Moved to another account. A transaction's amount is native to its
-    // account's currency, so a move is a same-currency operation — reading the
-    // number in a different currency would silently revalue it. Reject a
-    // cross-currency move; cross-currency value movement is what transfers are
-    // for.
+  // A plain flow keeps its stamp through an unrelated edit and never re-rates: a
+  // same-account edit and a same-currency move both leave its currency intact, so
+  // the historical stamp still values it. The only move that would change its
+  // currency — a different-currency target — is rejected outright; cross-currency
+  // value movement is what transfers are for.
+  if (accountId !== original.accountId) {
     const accounts = await repo.getAccounts()
     const source = accounts.find((a) => a.id === original.accountId)
     const target = accounts.find((a) => a.id === accountId)
@@ -246,10 +239,8 @@ export async function handleUpdateTransaction(
         error: `Cannot move a ${source.currency} transaction to a ${target.currency} account. Moving keeps the amount native, so it must stay the same currency — create a transfer to move money between currencies.`,
       })
     }
-    // Same-currency move → the flow's currency is unchanged, so its historical
-    // stamp still values it correctly; carry it through verbatim.
-    fxRate = original.fxRate
   }
+  const fxRate = original.fxRate
 
   const next = updateTransaction(
     {

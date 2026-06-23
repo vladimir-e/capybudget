@@ -315,6 +315,38 @@ describe("handleUpdateTransaction", () => {
     expect(to.fxRate).toBeCloseTo(20000 / 18400, 12)
   })
 
+  it("mirrors the amount and shares one rate across both legs of a same-currency transfer edit", async () => {
+    // RUB → RUB: an amount edit re-derives the shape, but a same-currency
+    // transfer takes the one resolver rate on both legs (no cross-rate from the
+    // amounts) and mirrors the from-amount onto the to leg.
+    const repo = createMockRepo({
+      accounts: [
+        makeAccount({ id: "acc-rub1", currency: "RUB" }),
+        makeAccount({ id: "acc-rub2", currency: "RUB" }),
+      ],
+      transactions: [
+        makeTxn({ id: "rr-from", type: "transfer", amount: -500000, accountId: "acc-rub1", transferPairId: "rr-to", fxRate: 1 / 80 }),
+        makeTxn({ id: "rr-to", type: "transfer", amount: 500000, accountId: "acc-rub2", transferPairId: "rr-from", fxRate: 1 / 80 }),
+      ],
+    })
+    await handleUpdateTransaction(
+      repo,
+      "USD",
+      { USD: { decimals: 2, symbolPosition: "before" }, RUB: { decimals: 0, symbolPosition: "after" } },
+      { id: "rr-from", amount: 700000 },
+    )
+    const saved = (repo.saveTransactions as ReturnType<typeof vi.fn>).mock.calls[0][0] as Transaction[]
+    const from = saved.find((t) => t.id === "rr-from")!
+    const to = saved.find((t) => t.id === "rr-to")!
+    expect(from.amount).toBe(-700000)
+    expect(to.amount).toBe(700000) // mirrored, not cross-rated
+    // Both legs share the resolver rate (RUB→USD seed 1/91), re-derived from the
+    // edit — not the old 1/80 stamp, and not a rate split from the two amounts.
+    expect(from.fxRate).toBeCloseTo(1 / 91, 12)
+    expect(to.fxRate).toBeCloseTo(1 / 91, 12)
+    expect(to.fxRate).toBe(from.fxRate) // same-currency → both legs the same rate
+  })
+
   it("leaves both legs untouched when a note-only edit targets the INFLOW leg of a cross-currency transfer", async () => {
     // The model can target either leg. A note-only edit on the inflow (positive)
     // leg must normalize to outflow-as-from / inflow-as-to before core sees it —
