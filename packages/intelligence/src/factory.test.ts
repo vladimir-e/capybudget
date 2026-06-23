@@ -169,4 +169,19 @@ describe("createIntelligenceSession", () => {
       pdfSupported: false,
     })
   })
+
+  it("threads the live getCurrencies getter through to the API adapter", () => {
+    const ctor = vi.fn().mockImplementation(() => makeStubSession())
+    const getCurrencies = vi.fn(() => ({ USD: { decimals: 2, symbolPosition: "before" as const } }))
+    createIntelligenceSession({
+      config: {
+        ...DEFAULT_INTELLIGENCE_CONFIG,
+        provider: "anthropic",
+        anthropic: { apiKey: "sk-ant-1", model: "claude-sonnet-4-6" },
+      },
+      adapters: { anthropic: ctor },
+      options: { ...makeOptions(), getCurrencies },
+    })
+    expect(ctor).toHaveBeenCalledWith(expect.objectContaining({ getCurrencies }))
+  })
 })

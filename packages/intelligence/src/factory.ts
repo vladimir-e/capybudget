@@ -55,6 +55,13 @@ export interface ApiAdapterOptions {
   /** Per-currency settings, threaded into tool dispatch for FX stamping + roll-up. */
   currencies?: Record<string, CurrencySettings>
   /**
+   * Live read of the per-currency settings, resolved at tool-execution time
+   * rather than session creation. The rate map isn't part of the cached prompt,
+   * so a manual rate edit must reach the next tool call without rebuilding the
+   * session — the adapter prefers this over the frozen `currencies` snapshot.
+   */
+  getCurrencies?: () => Record<string, CurrencySettings> | undefined
+  /**
    * Whether the active provider can run the import pipeline — passed to
    * `start_import` so it gates cleanly. Always true for the API adapters that
    * support structured import; the field exists so the dispatch context carries
@@ -93,6 +100,10 @@ export interface SessionOptions {
   /** Per-currency settings. Consumed by the API adapters' tool dispatch for FX
    *  stamping + roll-up; the Claude CLI reads them from `budget.json` via MCP. */
   currencies?: Record<string, CurrencySettings>
+  /** Live read of the per-currency settings — see `ApiAdapterOptions.getCurrencies`.
+   *  Lets a manual rate edit reach the running session's next tool call without
+   *  a chat reset. Consumed by the API adapters only. */
+  getCurrencies?: () => Record<string, CurrencySettings> | undefined
   /** Claude-CLI-only `--model` value; ignored by API adapters. */
   claudeCliModel?: string
 }
@@ -145,6 +156,7 @@ export function createIntelligenceSession(
         fileAdapter: options.fileAdapter,
         currency: options.currency,
         currencies: options.currencies,
+        getCurrencies: options.getCurrencies,
         importSupported: canImport(provider),
         pdfSupported: canReadPdf(provider),
       })
@@ -165,6 +177,7 @@ export function createIntelligenceSession(
         fileAdapter: options.fileAdapter,
         currency: options.currency,
         currencies: options.currencies,
+        getCurrencies: options.getCurrencies,
         importSupported: canImport(provider),
         pdfSupported: canReadPdf(provider),
       })

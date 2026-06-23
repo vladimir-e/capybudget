@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest"
 import type { StreamEvent } from "@capybudget/intelligence"
+import type { CurrencySettings } from "@capybudget/core"
 import type { BudgetRepository, FileAdapter } from "@capybudget/persistence"
 import { getToolDefinitions } from "../tools"
 
@@ -294,6 +295,51 @@ describe("OpenAiSession", () => {
     const secondSystem = (turn2.messages as Array<unknown>)[0]
     expect(firstSystem).toEqual({ role: "system", content: "you are capy" })
     expect(secondSystem).toEqual(firstSystem)
+  })
+
+  it("reads currencies live at tool-run time, so a rate edit lands without a session rebuild", async () => {
+    // Mirrors the Anthropic adapter: the live `getCurrencies` getter wins over
+    // the construction-time snapshot, so a manual rate edit reaches the next
+    // tool call without rebuilding the session.
+    const liveCurrencies: { ref: Record<string, CurrencySettings> } = {
+      ref: { USD: { decimals: 2, symbolPosition: "before" } },
+    }
+
+    queueTurn({
+      toolCallDeltas: [
+        { index: 0, id: "call_1", name: "create_transaction", argFragments: ["{}"] },
+      ],
+      finish_reason: "tool_calls",
+    })
+    queueTurn({ textDeltas: ["Added."], finish_reason: "stop" })
+    mockRunTool.mockResolvedValueOnce(JSON.stringify({ success: true }))
+
+    const events: StreamEvent[] = []
+    const session = new OpenAiSession({
+      budgetPath: "/budget",
+      systemPrompt: "you are capy",
+      apiKey: "sk-openai-test",
+      model: "gpt-4o",
+      onEvent: (e) => events.push(e),
+      repo: {} as BudgetRepository,
+      fileAdapter: {} as FileAdapter,
+      currency: "EUR",
+      currencies: { EUR: { decimals: 2, symbolPosition: "before" } },
+      getCurrencies: () => liveCurrencies.ref,
+    })
+
+    liveCurrencies.ref = {
+      EUR: { decimals: 2, symbolPosition: "before" },
+      RUB: { decimals: 0, symbolPosition: "after", rate: 0.0125, rateSource: "manual" },
+    }
+
+    await session.send("Add a RUB expense")
+
+    expect(mockRunTool).toHaveBeenCalledWith(
+      "create_transaction",
+      {},
+      expect.objectContaining({ currencies: liveCurrencies.ref }),
+    )
   })
 
   it("dispatches a tool call (arguments arrive across many deltas), threads tool_call_id, and continues the loop", async () => {

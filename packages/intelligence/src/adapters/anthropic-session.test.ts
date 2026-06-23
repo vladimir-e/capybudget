@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest"
 import type { StreamEvent } from "@capybudget/intelligence"
+import type { CurrencySettings } from "@capybudget/core"
 import type { BudgetRepository, FileAdapter } from "@capybudget/persistence"
 import { getToolDefinitions } from "../tools"
 
@@ -306,6 +307,51 @@ describe("AnthropicSession", () => {
     expect(toolActivityFound).toBe(true)
 
     expect(events[events.length - 1]).toEqual({ type: "done" })
+  })
+
+  it("reads currencies live at tool-run time, so a rate edit lands without a session rebuild", async () => {
+    // The session is constructed with a frozen snapshot, but `getCurrencies`
+    // is the live source. A manual rate edit after construction must reach the
+    // next tool call — the adapter must prefer the getter over the snapshot.
+    const liveCurrencies: { ref: Record<string, CurrencySettings> } = {
+      ref: { USD: { decimals: 2, symbolPosition: "before" } },
+    }
+
+    queueTurn({
+      toolUses: [{ id: "tu1", name: "create_transaction", input: {} }],
+      stop_reason: "tool_use",
+    })
+    queueTurn({ textDeltas: ["Added."], stop_reason: "end_turn" })
+    mockRunTool.mockResolvedValueOnce(JSON.stringify({ success: true }))
+
+    const events: StreamEvent[] = []
+    const session = new AnthropicSession({
+      budgetPath: "/budget",
+      systemPrompt: "you are capy",
+      apiKey: "sk-ant-test",
+      model: "claude-sonnet-4-6",
+      onEvent: (e) => events.push(e),
+      repo: {} as BudgetRepository,
+      fileAdapter: {} as FileAdapter,
+      currency: "EUR",
+      currencies: { EUR: { decimals: 2, symbolPosition: "before" } },
+      getCurrencies: () => liveCurrencies.ref,
+    })
+
+    // The user edits a rate before sending — the live map now differs from the
+    // construction-time snapshot.
+    liveCurrencies.ref = {
+      EUR: { decimals: 2, symbolPosition: "before" },
+      RUB: { decimals: 0, symbolPosition: "after", rate: 0.0125, rateSource: "manual" },
+    }
+
+    await session.send("Add a RUB expense")
+
+    expect(mockRunTool).toHaveBeenCalledWith(
+      "create_transaction",
+      {},
+      expect.objectContaining({ currencies: liveCurrencies.ref }),
+    )
   })
 
   it("emits a render-tool ContentBlock without a tool-activity block", async () => {
