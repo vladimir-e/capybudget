@@ -29,8 +29,10 @@ import type { CurrencySettings } from "./utils/money";
 //   2. Native balance integrity — each account's native cents sum to what the
 //      operations imply, asserted directly across the sequence.
 //   3. No silent 1:1 — a foreign holding/flow converts at its real rate.
-//   4. Move re-stamps — moving a flow to a different-currency account re-rates
-//      its default value; to a default account clears it to face.
+//   4. Move is same-currency — a move keeps each amount native to its account's
+//      currency, so it only ever lands in a same-currency account and preserves
+//      the flow's stamp. Cross-currency value movement is a transfer, not a move
+//      (the entry points reject a cross-currency move; see the MCP guard tests).
 //   5. Rebase — switching the default rescales non-home flows by k and snaps
 //      home flows to native face value.
 //
@@ -447,8 +449,8 @@ describe("multi-currency simulation — native balance integrity & no silent 1:1
   });
 });
 
-describe("multi-currency simulation — moving a flow re-stamps its rate", () => {
-  it("moving a plain flow to a different-currency account re-rates its default value", () => {
+describe("multi-currency simulation — a move is same-currency and preserves the stamp", () => {
+  it("moving a foreign flow between same-currency accounts keeps its amount and stamp", () => {
     const meta = rubBudget();
     // A 100 USD expense, stamped USD→RUB = 90 → default value 9,000 RUB.
     let txns = create(
@@ -460,81 +462,52 @@ describe("multi-currency simulation — moving a flow re-stamps its rate", () =>
     const conv = converterFor(meta);
     expect(conv.flowToDefault(txns[0].amount, txns[0].fxRate)).toBe(-Math.round(10_000 * USD_RUB)); // -900,000
 
-    // Move to the IDR account: re-stamp to IDR→RUB. The hook resolves the target
-    // rate; here it's the IDR resolver rate. Native amount is unchanged (the move
-    // doesn't convert the number, only re-labels its currency).
-    const idrRate = stampFxRate("IDR", meta.currencies, meta.defaultCurrency);
+    // Move to another USD account (usd2). Same currency, so the historical stamp
+    // carries through verbatim — the entry points pass the stored rate, not a
+    // re-resolved one — and the default value is unchanged.
     txns = updateTransaction(
       {
         id,
         type: "expense",
-        amount: 10_000, // native magnitude unchanged; only the account moves
-        accountId: "idr",
+        amount: 10_000,
+        accountId: "usd2",
         categoryId: "c",
         date: "2026-04-01",
         merchant: "X",
         note: "",
-        fxRate: idrRate,
+        fxRate: txns[0].fxRate, // same-currency move preserves the stamp
       },
       txns,
     );
     const moved = txns.find((t) => t.id === id)!;
-    expect(moved.accountId).toBe("idr");
-    expect(moved.fxRate).toBeCloseTo(IDR_RUB, 15);
-    // Default value re-derives: 10,000 IDR cents × IDR→RUB ≈ 57 RUB, not 900,000.
-    expect(conv.flowToDefault(moved.amount, moved.fxRate)).toBe(-Math.round(10_000 * IDR_RUB));
-    expect(conv.flowToDefault(moved.amount, moved.fxRate)).not.toBe(-Math.round(10_000 * USD_RUB));
+    expect(moved.accountId).toBe("usd2");
+    expect(moved.fxRate).toBeCloseTo(USD_RUB, 12);
+    expect(conv.flowToDefault(moved.amount, moved.fxRate)).toBe(-Math.round(10_000 * USD_RUB)); // unchanged
   });
 
-  it("moving a flow to a default-currency account clears fxRate to face value", () => {
+  it("bulkMoveAccount moves same-currency flows, leaving every stamp intact", () => {
     const meta = rubBudget();
+    // Two USD-account expenses, each stamped USD→RUB.
     let txns = create(
-      { type: "expense", amount: 10_000, accountId: "usd", categoryId: "c", date: "2026-04-02", merchant: "Y", note: "" },
-      meta,
-      [],
-    );
-    const id = txns[0].id;
-    expect(txns[0].fxRate).toBeCloseTo(USD_RUB, 12);
-
-    // Move to the RUB (default) account → stampFxRate returns undefined → cleared.
-    const rubRate = stampFxRate("RUB", meta.currencies, meta.defaultCurrency);
-    expect(rubRate).toBeUndefined();
-    txns = updateTransaction(
-      { id, type: "expense", amount: 10_000, accountId: "rub", categoryId: "c", date: "2026-04-02", merchant: "Y", note: "", fxRate: rubRate },
-      txns,
-    );
-    const moved = txns.find((t) => t.id === id)!;
-    expect(moved.accountId).toBe("rub");
-    expect(moved.fxRate).toBeUndefined();
-    const conv = converterFor(meta);
-    expect(conv.flowToDefault(moved.amount, moved.fxRate)).toBe(-10_000); // face value
-  });
-
-  it("bulkMoveAccount re-stamps every moved flow to the target's rate", () => {
-    const meta = rubBudget();
-    // Two RUB-account expenses (default, no stamp).
-    let txns = create(
-      { type: "expense", amount: 30_000, accountId: "rub", categoryId: "c", date: "2026-04-03", merchant: "A", note: "" },
+      { type: "expense", amount: 30_000, accountId: "usd", categoryId: "c", date: "2026-04-03", merchant: "A", note: "" },
       meta,
       [],
     );
     txns = create(
-      { type: "expense", amount: 70_000, accountId: "rub", categoryId: "c", date: "2026-04-04", merchant: "B", note: "" },
+      { type: "expense", amount: 70_000, accountId: "usd", categoryId: "c", date: "2026-04-04", merchant: "B", note: "" },
       meta,
       txns,
     );
-    expect(txns.every((t) => t.fxRate === undefined)).toBe(true);
+    expect(txns.every((t) => t.fxRate === USD_RUB)).toBe(true);
 
-    // Bulk-move both to the USD account. The hook resolves the target's rate once
-    // (USD→RUB) and core writes it to every moved row.
-    const usdRate = stampFxRate("USD", meta.currencies, meta.defaultCurrency);
+    // Bulk-move both to the second USD account. Same currency, so only the
+    // account changes — every stamp is preserved.
     const ids = new Set(txns.map((t) => t.id));
-    txns = bulkMoveAccount(ids, "usd", usdRate, txns);
+    txns = bulkMoveAccount(ids, "usd2", txns);
 
-    expect(txns.every((t) => t.accountId === "usd")).toBe(true);
+    expect(txns.every((t) => t.accountId === "usd2")).toBe(true);
     expect(txns.every((t) => t.fxRate === USD_RUB)).toBe(true);
     const conv = converterFor(meta);
-    // -30,000 and -70,000 native cents now value at ×90 in default.
     expect(conv.flowToDefault(txns[0].amount, txns[0].fxRate)).toBe(-Math.round(30_000 * USD_RUB));
     expect(conv.flowToDefault(txns[1].amount, txns[1].fxRate)).toBe(-Math.round(70_000 * USD_RUB));
   });

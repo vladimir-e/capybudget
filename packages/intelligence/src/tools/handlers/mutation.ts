@@ -193,11 +193,22 @@ export async function handleUpdateTransaction(
     // Same account → carry the historical stamp verbatim.
     fxRate = original.fxRate
   } else {
-    // Moved to another account → re-stamp at that account's resolved (today's)
-    // rate; undefined for a default-currency target.
+    // Moved to another account. A transaction's amount is native to its
+    // account's currency, so a move is a same-currency operation — reading the
+    // number in a different currency would silently revalue it. Reject a
+    // cross-currency move; cross-currency value movement is what transfers are
+    // for.
     const accounts = await repo.getAccounts()
-    const account = accounts.find((a) => a.id === accountId)
-    fxRate = account ? stampFxRate(account.currency, currencies ?? {}, currency) : undefined
+    const source = accounts.find((a) => a.id === original.accountId)
+    const target = accounts.find((a) => a.id === accountId)
+    if (source && target && source.currency !== target.currency) {
+      return JSON.stringify({
+        error: `Cannot move a ${source.currency} transaction to a ${target.currency} account. Moving keeps the amount native, so it must stay the same currency — create a transfer to move money between currencies.`,
+      })
+    }
+    // Same-currency move → the flow's currency is unchanged, so its historical
+    // stamp still values it correctly; carry it through verbatim.
+    fxRate = original.fxRate
   }
 
   const next = updateTransaction(
@@ -415,8 +426,6 @@ export async function handleDeleteCategory(
 
 export async function handleBulkUpdateTransactions(
   repo: BudgetRepository,
-  currency: string,
-  currencies: Record<string, CurrencySettings> | undefined,
   args: Record<string, unknown>,
 ): Promise<string> {
   const transactionIds = args.transactionIds as string[] | undefined
@@ -477,9 +486,23 @@ export async function handleBulkUpdateTransactions(
         error: `Invalid accountId "${accountId}". Call list_accounts to see valid IDs.`,
       })
     }
-    // All moved transactions land in one account, so they share its one rate.
-    const fxRate = stampFxRate(target.currency, currencies ?? {}, currency)
-    transactions = bulkMoveAccount(ids, accountId, fxRate, transactions)
+    // A move keeps each amount native to its currency, so every moved (non-
+    // transfer) flow must already be in the target's currency — reading the
+    // number in a different one would silently revalue it. Reject the whole
+    // call if any moved flow's source account differs in currency.
+    const currencyOf = new Map(accounts.map((a) => [a.id, a.currency]))
+    const mismatch = targeted.find(
+      (t) => t.type !== "transfer" && currencyOf.get(t.accountId) !== target.currency,
+    )
+    if (mismatch) {
+      const from = currencyOf.get(mismatch.accountId)
+      return JSON.stringify({
+        error: `Cannot move a ${from} transaction to a ${target.currency} account. Moving keeps the amount native, so it must stay the same currency — create a transfer to move money between currencies.`,
+      })
+    }
+    // Same currency throughout → each flow's amount and historical stamp stay
+    // valid in the new account; only the account changes.
+    transactions = bulkMoveAccount(ids, accountId, transactions)
     counts.accountId = nonTransferTargeted
   }
   if (date !== undefined) {

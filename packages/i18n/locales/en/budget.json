@@ -249,7 +249,8 @@
       "notesPlaceholder": "Notes (optional)",
       "selectAccount": "Please select an account",
       "selectBothAccounts": "Please select both accounts",
-      "receivedAmount": "Received amount"
+      "receivedAmount": "Received amount",
+      "sameCurrencyTip": "Only same-currency accounts — use a transfer to move money between currencies."
     },
     "toast": {
       "added": "Transaction added",
@@ -289,10 +290,12 @@
     "changeDate": "Change date",
     "changeMerchant": "Change merchant",
     "clearSelection": "Clear selection",
+    "moreActions": "More actions",
     "merchantPlaceholder": "Merchant name",
     "apply": "Apply",
     "uncategorized": "Uncategorized",
     "mixedCategories": "Mixed categories",
+    "moveMixedCurrency": "Selection mixes currencies — a move keeps each amount in its own currency, so use a transfer to move money between currencies.",
     "toast": {
       "deleted_one": "Deleted {{count}} transaction",
       "deleted_other": "Deleted {{count}} transactions",
@@ -318,7 +321,8 @@
       "title": "Move to account",
       "description_one": "Move {{count}} transaction to another account.",
       "description_other": "Move {{count}} transactions to another account.",
-      "transferNote": " Transfers will be skipped."
+      "transferNote": " Transfers will be skipped.",
+      "sameCurrencyTip": "Only same-currency accounts — use a transfer to move money between currencies."
     },
     "dateDialog": {
       "title": "Change date",

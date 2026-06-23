@@ -154,6 +154,51 @@ describe("TransactionForm — cross-currency transfer edit", () => {
   });
 });
 
+describe("TransactionForm — same-currency-only account move on edit", () => {
+  // A plain RUB expense being edited.
+  const RUB_FLOW: Transaction = {
+    id: "flow-1",
+    datetime: "2026-06-01T10:00:00.000",
+    type: "expense",
+    amount: -100_000,
+    categoryId: "",
+    accountId: "acct-rub",
+    transferPairId: "",
+    merchant: "Store",
+    note: "",
+    createdAt: "2026-06-01T10:00:00.000Z",
+  };
+  const RUB_ACCT_2 = makeAcct({ id: "acct-rub2", name: "RUB Savings", currency: "RUB", type: "savings", sortOrder: 4 });
+
+  it("disables different-currency accounts, keeps same-currency ones enabled", async () => {
+    const { user } = renderForm({
+      accounts: [RUB_ACCT, RUB_ACCT_2, IDR_ACCT],
+      editingTransaction: RUB_FLOW,
+    });
+
+    // The account selector is the trigger showing the current account name.
+    await user.click(screen.getByRole("button", { name: /RUB Checking/i }));
+    const idrOption = await screen.findByRole("option", { name: "IDR Wallet" });
+    const rubOption = screen.getByRole("option", { name: "RUB Savings" });
+    expect(idrOption).toHaveAttribute("aria-disabled", "true"); // different currency
+    expect(rubOption).not.toHaveAttribute("aria-disabled", "true"); // same currency
+  });
+
+  it("does not restrict a transfer's account selectors", async () => {
+    // A cross-currency transfer legitimately spans currencies, so neither leg's
+    // selector disables the other currency's accounts.
+    const { user } = renderForm({
+      ...transferSeed,
+      editingTransaction: OUTFLOW_LEG,
+    });
+
+    // The from-leg selector (RUB Checking) must still offer the IDR account.
+    await user.click(screen.getByRole("button", { name: /RUB Checking/i }));
+    const idrOption = await screen.findByRole("option", { name: "IDR Wallet" });
+    expect(idrOption).not.toHaveAttribute("aria-disabled", "true");
+  });
+});
+
 describe("TransactionForm — entry symbol follows the account currency", () => {
   it("shows the foreign account's symbol for an expense into it", () => {
     const usd = makeAcct({ id: "acct-usd", name: "USD Account", currency: "USD" });

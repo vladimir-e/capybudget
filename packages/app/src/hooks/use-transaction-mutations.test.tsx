@@ -243,8 +243,9 @@ function setupPlain() {
   } as unknown as Parameters<typeof RepositoryProvider>[0]["value"];
 
   const USD_ACCT: Account = { ...EUR_ACCT, id: "acct-usd", name: "USD account", currency: "USD", sortOrder: 3 };
+  const EUR_ACCT_2: Account = { ...EUR_ACCT, id: "acct-eur2", name: "EUR account 2", currency: "EUR", sortOrder: 4 };
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  client.setQueryData(budgetKeys.accounts(), [EUR_ACCT, RUB_ACCT, USD_ACCT]);
+  client.setQueryData(budgetKeys.accounts(), [EUR_ACCT, RUB_ACCT, USD_ACCT, EUR_ACCT_2]);
   client.setQueryData(budgetKeys.transactions(), [PLAIN_FLOW]);
 
   const currencies: Record<string, CurrencySettings> = {
@@ -283,29 +284,19 @@ describe("useUpdateTransaction — plain flow rate resolution", () => {
     expect(flow.merchant).toBe("Café — updated");
   });
 
-  it("re-stamps at the target's resolved rate when moved to a different-currency account", async () => {
+  it("preserves the stamp when moved between same-currency accounts", async () => {
+    // A move is same-currency only (the form disables cross-currency targets),
+    // so the flow's currency never changes — its historical stamp carries through
+    // verbatim rather than re-rating to today's resolved rate.
     const { saved, wrapper } = setupPlain();
     const { result } = renderHook(() => useUpdateTransaction(), { wrapper });
 
     await act(async () => {
-      await result.current.mutateAsync({ ...plainForm, accountId: "acct-rub" });
+      await result.current.mutateAsync({ ...plainForm, accountId: "acct-eur2" });
     });
 
     const flow = saved.at(-1)!.find((t) => t.id === "flow-1")!;
-    expect(flow.accountId).toBe("acct-rub");
-    expect(flow.fxRate).toBeCloseTo(1 / 91, 12); // RUB's resolved seed rate, not the EUR stamp
-  });
-
-  it("clears the stamp when moved to a default-currency account", async () => {
-    const { saved, wrapper } = setupPlain();
-    const { result } = renderHook(() => useUpdateTransaction(), { wrapper });
-
-    await act(async () => {
-      await result.current.mutateAsync({ ...plainForm, accountId: "acct-usd" });
-    });
-
-    const flow = saved.at(-1)!.find((t) => t.id === "flow-1")!;
-    expect(flow.accountId).toBe("acct-usd");
-    expect(flow.fxRate).toBeUndefined();
+    expect(flow.accountId).toBe("acct-eur2");
+    expect(flow.fxRate).toBe(PLAIN_RATE); // historical stamp, not re-resolved
   });
 });

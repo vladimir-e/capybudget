@@ -28,20 +28,17 @@ export function bulkAssignCategory(
   );
 }
 
-/** Move multiple transactions to a different account, re-stamping each to the
- *  target account's rate. Skips transfers. All moved transactions land in one
- *  account, so they all take one `fxRate`: the caller resolves the target's
- *  native→default rate (`undefined` for a default-currency target, which clears
- *  the field). */
+/** Move multiple transactions to a different account. Skips transfers. A move
+ *  is same-currency only (the caller enforces it), so each flow's amount and its
+ *  historical `fxRate` stay valid in the new account — only `accountId` changes. */
 export function bulkMoveAccount(
   ids: Set<string>,
   accountId: string,
-  fxRate: number | undefined,
   existing: Transaction[],
 ): Transaction[] {
   return existing.map((t) =>
     ids.has(t.id) && t.type !== "transfer"
-      ? { ...t, accountId, fxRate }
+      ? { ...t, accountId }
       : t,
   );
 }

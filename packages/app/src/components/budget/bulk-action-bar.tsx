@@ -17,6 +17,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useAccounts, useCategories } from "@/hooks/use-budget-data";
 import {
   useBulkDeleteTransactions,
@@ -78,7 +79,20 @@ export function BulkActionBar({ selectedIds, transactions, onClear }: BulkAction
 
   const categoryIds = new Set(selected.filter((t) => t.type !== "transfer").map((t) => t.categoryId));
   const hasTransfers = selected.some((t) => t.type === "transfer");
-  const nonTransferCount = selected.filter((t) => t.type !== "transfer").length;
+  const nonTransfers = selected.filter((t) => t.type !== "transfer");
+  const nonTransferCount = nonTransfers.length;
+
+  // A move keeps each amount native to its account's currency, so it's a
+  // same-currency operation: the moved flows must share one currency, and only
+  // accounts in that currency are valid targets. A selection spanning multiple
+  // currencies can't move to any single account — the Move action disables.
+  const accountCurrency = (id: string) => accounts.find((a) => a.id === id)?.currency;
+  const movedCurrencies = new Set(nonTransfers.map((t) => accountCurrency(t.accountId)));
+  const isMixedCurrency = movedCurrencies.size > 1;
+  const moveCurrency = movedCurrencies.size === 1 ? [...movedCurrencies][0] : undefined;
+  const moveDisabledIds = accounts
+    .filter((a) => a.currency !== moveCurrency)
+    .map((a) => a.id);
 
   const handleDelete = () => {
     bulkDelete.mutate(selectedIds);
@@ -171,16 +185,40 @@ export function BulkActionBar({ selectedIds, transactions, onClear }: BulkAction
           <DropdownMenu>
             <DropdownMenuTrigger
               render={
-                <Button variant="outline" size="icon-sm" className="text-muted-foreground" />
+                <Button
+                  variant="outline"
+                  size="icon-sm"
+                  className="text-muted-foreground"
+                  aria-label={t("bulk.moreActions")}
+                />
               }
             >
               <MoreHorizontal className="h-3.5 w-3.5" />
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" side="top" className="min-w-48">
-              <DropdownMenuItem onClick={() => setOverflowDialog("move")}>
-                <FolderInput className="h-3.5 w-3.5" />
-                {t("bulk.moveToAccount")}
-              </DropdownMenuItem>
+              {isMixedCurrency ? (
+                <Tooltip>
+                  <TooltipTrigger
+                    render={
+                      <DropdownMenuItem
+                        aria-disabled
+                        closeOnClick={false}
+                        onClick={(e) => e.preventDefault()}
+                        className="cursor-not-allowed opacity-50"
+                      />
+                    }
+                  >
+                    <FolderInput className="h-3.5 w-3.5" />
+                    {t("bulk.moveToAccount")}
+                  </TooltipTrigger>
+                  <TooltipContent>{t("bulk.moveMixedCurrency")}</TooltipContent>
+                </Tooltip>
+              ) : (
+                <DropdownMenuItem onClick={() => setOverflowDialog("move")}>
+                  <FolderInput className="h-3.5 w-3.5" />
+                  {t("bulk.moveToAccount")}
+                </DropdownMenuItem>
+              )}
               <DropdownMenuItem onClick={() => setOverflowDialog("date")}>
                 <CalendarDays className="h-3.5 w-3.5" />
                 {t("bulk.changeDate")}
@@ -237,10 +275,12 @@ export function BulkActionBar({ selectedIds, transactions, onClear }: BulkAction
                 {hasTransfers && t("bulk.moveDialog.transferNote")}
               </DialogDescription>
             </DialogHeader>
+            <p className="text-xs text-muted-foreground">{t("bulk.moveDialog.sameCurrencyTip")}</p>
             <AccountSelector
               accounts={accounts}
               value=""
               onChange={handleMoveAccount}
+              disableIds={moveDisabledIds}
               defaultOpen
             />
           </DialogContent>

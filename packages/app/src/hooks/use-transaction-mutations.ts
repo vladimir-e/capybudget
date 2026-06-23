@@ -93,25 +93,16 @@ function transferEditRates(
 }
 
 // The rate to write on a plain (non-transfer) flow edit. A flow's stamp is the
-// rate on the day it happened, so an amount/merchant/date edit that leaves the
-// account untouched carries the stored rate verbatim — never re-rate history.
-// Moving the flow to a different account is the one case that changes its
-// currency, so re-stamp to the new account's resolved (today's) rate; an
-// undefined target rate clears it (a default-currency account). Mirrors the MCP
-// `handleUpdateTransaction` so both write paths behave identically.
+// rate on the day it happened, so it always carries through verbatim. A move is
+// same-currency only (the form disables cross-currency targets), so the flow's
+// currency never changes on a move either — its historical stamp stays valid.
+// Mirrors the MCP `handleUpdateTransaction` so both write paths behave identically.
 function flowEditRates(
   data: TransactionFormData,
-  accounts: Account[],
   transactions: Transaction[],
-  currencies: Record<string, CurrencySettings>,
-  defaultCurrency: string,
 ): Pick<TransactionFormData, "fxRate"> {
   const original = transactions.find((t) => t.id === data.id);
-  if (original && data.accountId === original.accountId) {
-    return { fxRate: original.fxRate };
-  }
-  const account = accounts.find((a) => a.id === data.accountId);
-  return { fxRate: account ? stampFxRate(account.currency, currencies, defaultCurrency) : undefined };
+  return { fxRate: original?.fxRate };
 }
 
 export function useUpdateTransaction() {
@@ -124,7 +115,7 @@ export function useUpdateTransaction() {
     // resolved rate verbatim, so the hook is the single resolution seam.
     const rates = data.type === "transfer"
       ? transferEditRates(data, accounts.get(), transactions.get(), currencies, defaultCurrency)
-      : flowEditRates(data, accounts.get(), transactions.get(), currencies, defaultCurrency);
+      : flowEditRates(data, transactions.get());
     const next = updateTransaction({ ...data, ...rates }, transactions.get());
     transactions.set(next);
     await transactions.save(next);

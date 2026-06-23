@@ -250,7 +250,8 @@
       "notesPlaceholder": "Notas (opcional)",
       "selectAccount": "Selecciona una cuenta",
       "selectBothAccounts": "Selecciona ambas cuentas",
-      "receivedAmount": "Importe recibido"
+      "receivedAmount": "Importe recibido",
+      "sameCurrencyTip": "Solo cuentas de la misma moneda — usa una transferencia para mover dinero entre monedas."
     },
     "toast": {
       "added": "Transacción añadida",
@@ -290,10 +291,12 @@
     "changeDate": "Cambiar la fecha",
     "changeMerchant": "Cambiar el comercio",
     "clearSelection": "Quitar la selección",
+    "moreActions": "Más acciones",
     "merchantPlaceholder": "Nombre del comercio",
     "apply": "Aplicar",
     "uncategorized": "Sin categoría",
     "mixedCategories": "Categorías mixtas",
+    "moveMixedCurrency": "La selección mezcla monedas — mover mantiene cada importe en su moneda, así que usa una transferencia para mover dinero entre monedas.",
     "toast": {
       "deleted_one": "Se eliminó {{count}} transacción",
       "deleted_many": "Se eliminaron {{count}} transacciones",
@@ -328,7 +331,8 @@
       "description_one": "Mueve {{count}} transacción a otra cuenta.",
       "description_many": "Mueve {{count}} transacciones a otra cuenta.",
       "description_other": "Mueve {{count}} transacciones a otra cuenta.",
-      "transferNote": " Las transferencias se omitirán."
+      "transferNote": " Las transferencias se omitirán.",
+      "sameCurrencyTip": "Solo cuentas de la misma moneda — usa una transferencia para mover dinero entre monedas."
     },
     "dateDialog": {
       "title": "Cambiar la fecha",

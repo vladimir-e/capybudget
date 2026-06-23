@@ -250,7 +250,7 @@ describe("handleUpdateTransaction", () => {
     expect(t.fxRate).toBe(1 / 80) // historical stamp, not re-rated to today's seed
   })
 
-  it("re-stamps a plain flow at the target's rate when moved to a different-currency account", async () => {
+  it("rejects moving a plain flow to a different-currency account", async () => {
     const repo = createMockRepo({
       accounts: [
         makeAccount({ id: "acc-usd", currency: "USD" }),
@@ -258,36 +258,36 @@ describe("handleUpdateTransaction", () => {
       ],
       transactions: [makeTxn({ id: "t1", amount: -5000, accountId: "acc-usd", fxRate: undefined })],
     })
-    await handleUpdateTransaction(
-      repo,
-      "USD",
-      { USD: { decimals: 2, symbolPosition: "before" }, RUB: { decimals: 0, symbolPosition: "after" } },
-      { id: "t1", accountId: "acc-rub" },
+    const result = JSON.parse(
+      await handleUpdateTransaction(
+        repo,
+        "USD",
+        { USD: { decimals: 2, symbolPosition: "before" }, RUB: { decimals: 0, symbolPosition: "after" } },
+        { id: "t1", accountId: "acc-rub" },
+      ),
     )
-    const saved = (repo.saveTransactions as ReturnType<typeof vi.fn>).mock.calls[0][0] as Transaction[]
-    const t = saved.find((x) => x.id === "t1")!
-    expect(t.accountId).toBe("acc-rub")
-    expect(t.fxRate).toBeCloseTo(1 / 91, 12) // RUB's resolved seed rate
+    expect(result.error).toMatch(/same currency|transfer/i)
+    expect(repo.saveTransactions).not.toHaveBeenCalled()
   })
 
-  it("clears a plain flow's stamp when moved to a default-currency account", async () => {
+  it("preserves a plain flow's stamp when moved between same-currency accounts", async () => {
     const repo = createMockRepo({
       accounts: [
         makeAccount({ id: "acc-usd", currency: "USD" }),
-        makeAccount({ id: "acc-rub", currency: "RUB" }),
+        makeAccount({ id: "acc-usd2", currency: "USD" }),
       ],
-      transactions: [makeTxn({ id: "t1", amount: -5000, accountId: "acc-rub", fxRate: 1 / 91 })],
+      transactions: [makeTxn({ id: "t1", amount: -5000, accountId: "acc-usd", fxRate: 1 / 91 })],
     })
     await handleUpdateTransaction(
       repo,
-      "USD",
-      { USD: { decimals: 2, symbolPosition: "before" }, RUB: { decimals: 0, symbolPosition: "after" } },
-      { id: "t1", accountId: "acc-usd" },
+      "RUB",
+      { RUB: { decimals: 0, symbolPosition: "after" }, USD: { decimals: 2, symbolPosition: "before" } },
+      { id: "t1", accountId: "acc-usd2" },
     )
     const saved = (repo.saveTransactions as ReturnType<typeof vi.fn>).mock.calls[0][0] as Transaction[]
     const t = saved.find((x) => x.id === "t1")!
-    expect(t.accountId).toBe("acc-usd")
-    expect(t.fxRate).toBeUndefined()
+    expect(t.accountId).toBe("acc-usd2")
+    expect(t.fxRate).toBe(1 / 91) // historical stamp, not re-resolved to today's
   })
 
   it("re-derives both legs when the from-amount of a cross-currency transfer changes", async () => {
@@ -660,7 +660,7 @@ describe("handleBulkUpdateTransactions", () => {
       ],
     })
     const result = JSON.parse(
-      await handleBulkUpdateTransactions(repo, "USD", undefined, {
+      await handleBulkUpdateTransactions(repo, {
         transactionIds: ["txn-1", "txn-2", "txn-3"],
         set: { categoryId: "cat-1" },
       }),
@@ -680,7 +680,7 @@ describe("handleBulkUpdateTransactions", () => {
       transactions: [makeTxn({ id: "txn-1", categoryId: "" })],
     })
     const result = JSON.parse(
-      await handleBulkUpdateTransactions(repo, "USD", undefined, {
+      await handleBulkUpdateTransactions(repo, {
         transactionIds: ["txn-1"],
         set: { categoryId: "ghost" },
       }),
@@ -701,7 +701,7 @@ describe("handleBulkUpdateTransactions", () => {
       ],
     })
     const result = JSON.parse(
-      await handleBulkUpdateTransactions(repo, "USD", undefined, {
+      await handleBulkUpdateTransactions(repo, {
         transactionIds: ["t1", "t2", "t3"],
         set: { accountId: "acc-2" },
       }),
@@ -714,6 +714,50 @@ describe("handleBulkUpdateTransactions", () => {
     expect(saved.find((t: Transaction) => t.id === "t3").accountId).toBe("acc-1") // transfer untouched
   })
 
+  it("rejects a bulk move when any flow's currency differs from the target", async () => {
+    const repo = createMockRepo({
+      accounts: [
+        makeAccount({ id: "acc-usd", currency: "USD" }),
+        makeAccount({ id: "acc-rub", currency: "RUB" }),
+      ],
+      transactions: [
+        makeTxn({ id: "t1", accountId: "acc-usd" }),
+        makeTxn({ id: "t2", accountId: "acc-rub" }),
+      ],
+    })
+    const result = JSON.parse(
+      await handleBulkUpdateTransactions(repo, {
+        transactionIds: ["t1", "t2"],
+        set: { accountId: "acc-rub" }, // t1 is USD → mismatch
+      }),
+    )
+    expect(result.error).toMatch(/same currency|transfer/i)
+    expect(repo.saveTransactions).not.toHaveBeenCalled()
+  })
+
+  it("preserves every stamp on a same-currency bulk move", async () => {
+    const repo = createMockRepo({
+      accounts: [
+        makeAccount({ id: "acc-usd", currency: "USD" }),
+        makeAccount({ id: "acc-usd2", currency: "USD" }),
+      ],
+      transactions: [
+        makeTxn({ id: "t1", accountId: "acc-usd", fxRate: 1 / 91 }),
+        makeTxn({ id: "t2", accountId: "acc-usd", fxRate: 1 / 90 }),
+      ],
+    })
+    const result = JSON.parse(
+      await handleBulkUpdateTransactions(repo, {
+        transactionIds: ["t1", "t2"],
+        set: { accountId: "acc-usd2" },
+      }),
+    )
+    expect(result.success).toBe(true)
+    const saved = (repo.saveTransactions as ReturnType<typeof vi.fn>).mock.calls[0][0]
+    expect(saved.find((t: Transaction) => t.id === "t1").fxRate).toBe(1 / 91) // each kept
+    expect(saved.find((t: Transaction) => t.id === "t2").fxRate).toBe(1 / 90)
+  })
+
   it("changes date and preserves time-of-day", async () => {
     const repo = createMockRepo({
       transactions: [
@@ -722,7 +766,7 @@ describe("handleBulkUpdateTransactions", () => {
       ],
     })
     const result = JSON.parse(
-      await handleBulkUpdateTransactions(repo, "USD", undefined, {
+      await handleBulkUpdateTransactions(repo, {
         transactionIds: ["t1", "t2"],
         set: { date: "2025-06-01" },
       }),
@@ -750,7 +794,7 @@ describe("handleBulkUpdateTransactions", () => {
         }),
       ],
     })
-    await handleBulkUpdateTransactions(repo, "USD", undefined, {
+    await handleBulkUpdateTransactions(repo, {
       transactionIds: ["t1"],
       set: { date: "2025-06-01" },
     })
@@ -773,7 +817,7 @@ describe("handleBulkUpdateTransactions", () => {
       ],
     })
     const result = JSON.parse(
-      await handleBulkUpdateTransactions(repo, "USD", undefined, {
+      await handleBulkUpdateTransactions(repo, {
         transactionIds: ["t1", "t2"],
         set: { merchant: "Costco" },
       }),
@@ -790,7 +834,7 @@ describe("handleBulkUpdateTransactions", () => {
       transactions: [makeTxn({ id: "t1", merchant: "Old", accountId: "acc-1" })],
     })
     const result = JSON.parse(
-      await handleBulkUpdateTransactions(repo, "USD", undefined, {
+      await handleBulkUpdateTransactions(repo, {
         transactionIds: ["t1"],
         set: { accountId: "acc-2", merchant: "Costco", date: "2026-04-01" },
       }),
@@ -810,7 +854,7 @@ describe("handleBulkUpdateTransactions", () => {
       transactions: [makeTxn({ id: "t1" })],
     })
     const result = JSON.parse(
-      await handleBulkUpdateTransactions(repo, "USD", undefined, {
+      await handleBulkUpdateTransactions(repo, {
         transactionIds: ["t1"],
         set: {},
       }),
@@ -822,7 +866,7 @@ describe("handleBulkUpdateTransactions", () => {
   it("rejects empty transactionIds", async () => {
     const repo = createMockRepo({})
     const result = JSON.parse(
-      await handleBulkUpdateTransactions(repo, "USD", undefined, {
+      await handleBulkUpdateTransactions(repo, {
         transactionIds: [],
         set: { merchant: "X" },
       }),
@@ -836,7 +880,7 @@ describe("handleBulkUpdateTransactions", () => {
       transactions: [makeTxn({ id: "t1", accountId: "acc-1" })],
     })
     const result = JSON.parse(
-      await handleBulkUpdateTransactions(repo, "USD", undefined, {
+      await handleBulkUpdateTransactions(repo, {
         transactionIds: ["t1"],
         set: { accountId: "ghost" },
       }),
@@ -850,7 +894,7 @@ describe("handleBulkUpdateTransactions", () => {
       transactions: [makeTxn({ id: "t1" })],
     })
     const result = JSON.parse(
-      await handleBulkUpdateTransactions(repo, "USD", undefined, {
+      await handleBulkUpdateTransactions(repo, {
         transactionIds: ["t1"],
         set: { date: "06/01/2025" },
       }),
@@ -864,7 +908,7 @@ describe("handleBulkUpdateTransactions", () => {
       transactions: [makeTxn({ id: "t1" })],
     })
     const result = JSON.parse(
-      await handleBulkUpdateTransactions(repo, "USD", undefined, {
+      await handleBulkUpdateTransactions(repo, {
         transactionIds: ["ghost"],
         set: { merchant: "X" },
       }),

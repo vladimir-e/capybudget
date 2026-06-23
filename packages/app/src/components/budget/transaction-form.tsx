@@ -147,6 +147,16 @@ export function TransactionForm({
   const fromSymbol = currencySymbol(fromCurrency);
   const toSymbol = currencySymbol(toCurrency);
 
+  // A plain flow's amount is native to its account's currency, so moving it to a
+  // different-currency account would silently revalue the number. Lock the
+  // selector to same-currency accounts while editing an existing non-transfer
+  // (a transfer legitimately spans currencies; a fresh entry has no amount to
+  // preserve, so any account is valid).
+  const lockCurrency = isEditing && type !== "transfer";
+  const sameCurrencyDisabledIds = lockCurrency
+    ? accounts.filter((a) => a.currency !== fromCurrency).map((a) => a.id)
+    : [];
+
   // Prefill the received amount from the display cross-rate
   // rate(from→to) = rate(from→default) / rate(to→default), until the user
   // overrides it. Reads through the live `amount`, so editing either side
@@ -382,11 +392,14 @@ export function TransactionForm({
                 accounts={accounts}
                 value={accountId}
                 onChange={(id) => { setAccountId(id); setAccountError(false); }}
+                disableIds={sameCurrencyDisabledIds}
               />
             </div>
-            {accountError && (
+            {accountError ? (
               <p className="text-xs text-destructive">{t("transaction.form.selectAccount")}</p>
-            )}
+            ) : lockCurrency ? (
+              <p className="text-xs text-muted-foreground">{t("transaction.form.sameCurrencyTip")}</p>
+            ) : null}
           </div>
         </>
       ) : (

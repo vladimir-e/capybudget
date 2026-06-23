@@ -139,11 +139,17 @@ function AccountEditCell({ txn, accounts, onSave, onCancel }: {
   txn: Transaction; accounts: Account[];
   onSave: (accountId: string) => void; onCancel: () => void;
 }) {
+  // Only non-transfers reach the inline editor (a transfer cell opens the full
+  // form). A flow's amount is native to its account's currency, so a move must
+  // stay same-currency — disable different-currency targets.
+  const currency = accounts.find((a) => a.id === txn.accountId)?.currency;
+  const disableIds = accounts.filter((a) => a.currency !== currency).map((a) => a.id);
   return (
     <AccountSelector
       accounts={accounts}
       value={txn.accountId}
       defaultOpen
+      disableIds={disableIds}
       onChange={(id) => onSave(id)}
       onOpenChange={(open) => { if (!open) onCancel(); }}
     />
