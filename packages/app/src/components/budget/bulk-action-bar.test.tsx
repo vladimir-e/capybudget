@@ -122,3 +122,36 @@ describe("BulkActionBar — same-currency-only move", () => {
     expect(moveItem).toHaveAttribute("aria-disabled", "true");
   });
 });
+
+describe("BulkActionBar — selection total currency", () => {
+  it("totals a single-currency foreign selection in that currency", () => {
+    renderBar({
+      selectedIds: new Set(["t1", "t2"]),
+      transactions: [
+        txn({ id: "t1", accountId: "acct-idr", amount: -10_000 }),
+        txn({ id: "t2", accountId: "acct-idr", amount: -10_000 }),
+      ],
+    });
+
+    // Native IDR sum (-20,000 minor units → Rp200), shown with the IDR symbol,
+    // not the default ₽.
+    expect(screen.getByText("-Rp200")).toBeInTheDocument();
+    expect(screen.queryByText(/₽/)).not.toBeInTheDocument();
+  });
+
+  it("totals a mixed-currency selection in the budget default", () => {
+    renderBar({
+      selectedIds: new Set(["t1", "t2"]),
+      transactions: [
+        txn({ id: "t1", accountId: "acct-rub", amount: -10_000 }),
+        txn({ id: "t2", accountId: "acct-idr", amount: -10_000 }),
+      ],
+    });
+
+    // No single native currency → the rollup converts into the default (₽),
+    // and never reads as IDR (Rp).
+    const total = screen.getByText(/₽/);
+    expect(total).toBeInTheDocument();
+    expect(total.textContent).not.toContain("Rp");
+  });
+});

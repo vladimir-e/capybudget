@@ -20,6 +20,7 @@ vi.mock("@/hooks/use-budget-data", () => ({
   useAccounts: () => ({ data: mockAccounts }),
   useCategories: () => ({ data: mockCategories }),
   useTransactions: () => ({ data: mockAllTransactions }),
+  useIsMultiCurrency: () => false,
 }));
 
 // The comparison basis is a localStorage-backed preference; mock the hook so

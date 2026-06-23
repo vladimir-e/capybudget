@@ -16,6 +16,7 @@ import { useTranslation } from "@capybudget/i18n";
 import { useFormatters } from "@/hooks/use-formatters";
 import { useAccountMoney } from "@/contexts/currency-context";
 import { useCategoryDisplayName } from "@/lib/display-names";
+import { CurrencyBadge } from "@/components/budget/currency-badge";
 import { ArrowRight, Info, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
 
 export interface TransactionRowProps {
@@ -31,6 +32,7 @@ export interface TransactionRowProps {
   isSelected: boolean;
   hasSelection: boolean;
   hasActions: boolean;
+  showCurrency: boolean;
   onToggleSelect?: (txnId: string, shiftKey: boolean) => void;
   onCellClick: (txn: Transaction, column: EditableColumn) => void;
   onInlineSave: (data: TransactionFormData) => void;
@@ -52,6 +54,7 @@ export const TransactionRowMemo = memo(function TransactionRow({
   isSelected,
   hasSelection,
   hasActions,
+  showCurrency,
   onToggleSelect,
   onCellClick,
   onInlineSave,
@@ -175,7 +178,14 @@ export const TransactionRowMemo = memo(function TransactionRow({
       >
         {activeCol === "amount" ? (
           <InlineEditCell txn={txn} column="amount" accounts={accounts} categories={categories} onSave={onInlineSave} onCancel={onInlineCancel} />
-        ) : accountMoney(txn.amount, account?.currency)}
+        ) : showCurrency && account ? (
+          <span className="inline-flex items-center justify-end gap-1.5">
+            <CurrencyBadge currency={account.currency} />
+            {accountMoney(txn.amount, account.currency)}
+          </span>
+        ) : (
+          accountMoney(txn.amount, account?.currency)
+        )}
       </TableCell>
       {hasActions && (
         <TableCell className="px-1">

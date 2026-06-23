@@ -65,6 +65,17 @@ async function waitForApp() {
   });
 }
 
+/** The budget meta (RUB default) loads async from the mocked fs, so on first
+ *  paint the currency context is still the USD fallback. Wait until net worth
+ *  renders in ₽ — the signal that RUB is the resolved default — before asserting
+ *  anything that turns on the default currency (native balances, badges). */
+async function waitForRubDefault() {
+  const sidebar = screen.getByRole("complementary", { name: "Accounts" });
+  await waitFor(() => {
+    expect(within(sidebar).getByText("Net Worth").parentElement!.parentElement!.textContent).toContain("₽");
+  });
+}
+
 /** Open the transaction form via the shell toggle and wait for focus. Both the
  *  toggle and the empty-state inline prompt share the accessible name "Add
  *  transaction"; the toggle is the one whose visible text is "New Transaction". */
@@ -143,12 +154,15 @@ describe("Multi-currency journeys", () => {
     expect(repo.data.transactions[0].fxRate).toBeCloseTo(91 / 16000, 12);
 
     // Net worth values the holding at the seed rate. RUB is symbol-after,
-    // zero-decimal: "91,000 ₽". Crucially NOT the 1:1 "16,000,000 ₽".
+    // zero-decimal: "91,000 ₽". Crucially NOT the 1:1 "16,000,000 ₽". (The
+    // account row itself now shows the native Rp16,000,000, so scope the 1:1
+    // guard to the net-worth callout where the bug lived.)
     const sidebar = screen.getByRole("complementary", { name: "Accounts" });
+    const netWorth = within(sidebar).getByText("Net Worth").parentElement!.parentElement!;
     await waitFor(() => {
-      expect(sidebar.textContent).toContain("91,000");
+      expect(netWorth.textContent).toContain("91,000");
     });
-    expect(sidebar.textContent).not.toContain("16,000,000");
+    expect(netWorth.textContent).not.toContain("16,000,000");
   }, TIMEOUT);
 
   it("P1#4: the owner's repro — editing the received IDR amount from the inflow row leaves the RUB balance correct, not swung negative by millions", async () => {
@@ -231,6 +245,104 @@ describe("Multi-currency journeys", () => {
       .filter((t) => t.accountId === "rub")
       .reduce((s, t) => s + t.amount, 0);
     expect(rubNative).toBe(9_000_000);
+  }, TIMEOUT);
+
+  it("displays each sidebar account balance in its own currency while the net-worth aggregate stays in the default", async () => {
+    // RUB default + an IDR account. The RUB row reads in ₽, the IDR row in its
+    // native Rp (NOT converted to ₽), and the net-worth rollup — which can't sum
+    // native amounts across currencies — stays in ₽.
+    const rub = makeAccount({ id: "rub", name: "Tinkoff", currency: "RUB" });
+    const idr = makeAccount({ id: "idr", name: "Jago", currency: "IDR", type: "cash", sortOrder: 2 });
+    const rubOpen = makeTransaction({
+      id: "rub-open", type: "income", amount: 10_000_000, // 100,000 ₽
+      accountId: "rub", categoryId: "", merchant: "Opening Balance",
+    });
+    // 16,000,000 IDR native, seed-stamped (91/16000 RUB per IDR → 91,000 ₽).
+    const idrOpen = makeTransaction({
+      id: "idr-open", type: "income", amount: 1_600_000_000, fxRate: 91 / 16000,
+      accountId: "idr", categoryId: "", merchant: "Opening Balance",
+    });
+
+    await renderApp({
+      seed: { accounts: [rub, idr], categories: [], transactions: [rubOpen, idrOpen] },
+    });
+    await waitForApp();
+    await waitForRubDefault();
+
+    const sidebar = screen.getByRole("complementary", { name: "Accounts" });
+    const idrRow = within(sidebar).getAllByText("Jago").find((el) => el.closest("a"))!.closest("a")!;
+    const rubRow = within(sidebar).getAllByText("Tinkoff").find((el) => el.closest("a"))!.closest("a")!;
+
+    // IDR row is native: "Rp16,000,000", never the converted "91,000 ₽".
+    expect(idrRow.textContent).toContain("Rp16,000,000");
+    expect(idrRow.textContent).not.toContain("₽");
+    // RUB row in ₽.
+    expect(rubRow.textContent).toContain("₽");
+
+    // Net worth aggregate (100,000 + 91,000 = 191,000 ₽) stays in the default,
+    // and never leaks the un-converted IDR magnitude.
+    const netWorth = within(sidebar).getByText("Net Worth").parentElement!.parentElement!;
+    expect(netWorth.textContent).toContain("₽");
+    expect(netWorth.textContent).not.toContain("16,000,000");
+  }, TIMEOUT);
+
+  it("badges accounts and transaction rows with their currency in a multi-currency budget", async () => {
+    const rub = makeAccount({ id: "rub", name: "Tinkoff", currency: "RUB" });
+    const idr = makeAccount({ id: "idr", name: "Jago", currency: "IDR", type: "cash", sortOrder: 2 });
+    const idrTxn = makeTransaction({
+      id: "idr-exp", type: "expense", amount: -50_000_000, fxRate: 91 / 16000,
+      accountId: "idr", categoryId: "", merchant: "Warung",
+    });
+
+    const { user } = await renderApp({
+      seed: { accounts: [rub, idr], categories: [], transactions: [idrTxn] },
+    });
+    await waitForApp();
+    await waitForRubDefault();
+
+    // Sidebar: the IDR account name carries an "IDR" badge, the RUB one "RUB".
+    const sidebar = screen.getByRole("complementary", { name: "Accounts" });
+    const idrRow = within(sidebar).getAllByText("Jago").find((el) => el.closest("a"))!.closest("a")!;
+    const rubRow = within(sidebar).getAllByText("Tinkoff").find((el) => el.closest("a"))!.closest("a")!;
+    expect(within(idrRow as HTMLElement).getByText("IDR")).toBeInTheDocument();
+    expect(within(rubRow as HTMLElement).getByText("RUB")).toBeInTheDocument();
+
+    // Transaction list: the IDR row's amount carries the IDR badge.
+    await user.click(idrRow);
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: "Jago" })).toBeInTheDocument();
+    });
+    const table = screen.getByRole("table");
+    const txnRow = within(table).getByText("Warung").closest("tr")!;
+    expect(within(txnRow).getByText("IDR")).toBeInTheDocument();
+  }, TIMEOUT);
+
+  it("renders no currency badge when every account is in the budget default", async () => {
+    // A single-currency (RUB-only) budget: no account is foreign, so the badges
+    // never appear and the surface stays as it was before the display pass.
+    const rub = makeAccount({ id: "rub", name: "Tinkoff", currency: "RUB" });
+    const txn = makeTransaction({
+      id: "exp", type: "expense", amount: -150_000, accountId: "rub",
+      categoryId: "", merchant: "Pyaterochka",
+    });
+
+    const { user } = await renderApp({
+      seed: { accounts: [rub], categories: [], transactions: [txn] },
+    });
+    await waitForApp();
+    await waitForRubDefault();
+
+    const sidebar = screen.getByRole("complementary", { name: "Accounts" });
+    expect(within(sidebar).queryByText("RUB")).not.toBeInTheDocument();
+
+    const rubRow = within(sidebar).getAllByText("Tinkoff").find((el) => el.closest("a"))!.closest("a")!;
+    await user.click(rubRow);
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: "Tinkoff" })).toBeInTheDocument();
+    });
+    const table = screen.getByRole("table");
+    const txnRow = within(table).getByText("Pyaterochka").closest("tr")!;
+    expect(within(txnRow).queryByText("RUB")).not.toBeInTheDocument();
   }, TIMEOUT);
 
   it("P2: entering an expense into a foreign account shows that account's currency symbol, not the budget default's", async () => {

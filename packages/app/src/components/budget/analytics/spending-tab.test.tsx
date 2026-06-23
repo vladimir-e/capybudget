@@ -20,6 +20,7 @@ vi.mock("@/hooks/use-budget-data", () => ({
   useAccounts: () => ({ data: mockAccounts }),
   useCategories: () => ({ data: mockCategories }),
   useTransactions: () => ({ data: mockAllTransactions }),
+  useIsMultiCurrency: () => false,
 }));
 
 function renderWithProviders(ui: React.ReactElement) {

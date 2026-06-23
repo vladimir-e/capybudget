@@ -12,7 +12,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { type EditableColumn } from "@/components/budget/inline-edit-cells";
 import type { Transaction, TransactionFormData } from "@capybudget/core";
 import { useTranslation } from "@capybudget/i18n";
-import { useAccounts, useCategories, useTransactions } from "@/hooks/use-budget-data";
+import { useAccounts, useCategories, useTransactions, useIsMultiCurrency } from "@/hooks/use-budget-data";
 import type { SortColumn, SortConfig } from "@/lib/filter-transactions";
 import { TransactionRowMemo } from "@/components/budget/transaction-row";
 import {
@@ -127,6 +127,7 @@ export function TransactionList({
   const categoryMap = useMemo(() => new Map(categories.map((c) => [c.id, c])), [categories]);
   const hasActions = !!(onEdit || onDelete || onInlineSave);
   const hasSelection = !!(selectedIds && onToggleSelect);
+  const showCurrency = useIsMultiCurrency();
 
   const [editingCell, setEditingCell] = useState<{ txnId: string; column: EditableColumn } | null>(null);
 
@@ -224,6 +225,7 @@ export function TransactionList({
         isSelected={isSelected}
         hasSelection={hasSelection}
         hasActions={hasActions}
+        showCurrency={showCurrency}
         onToggleSelect={onToggleSelect}
         onCellClick={handleCellClick}
         onInlineSave={handleInlineSave}

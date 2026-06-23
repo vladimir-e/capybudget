@@ -6,6 +6,7 @@ import {
 } from "@capybudget/intelligence";
 import type { Account, Category, Transaction } from "@capybudget/core";
 import { useBudgetRepository } from "@/contexts/repository-context";
+import { useCurrency } from "@/contexts/currency-context";
 
 export const budgetKeys = {
   all: ["budget"] as const,
@@ -39,6 +40,20 @@ export function useTransactions() {
     queryFn: () => repo.getTransactions(),
     staleTime: Infinity,
   });
+}
+
+/**
+ * Whether the budget actually holds money in more than one currency — true iff
+ * some account's currency differs from the budget default. The currency badges
+ * on accounts and transaction rows key off this: a single-currency budget has
+ * no foreign account, so it renders none and stays byte-identical. Derived from
+ * live accounts, not the persisted currencies map, so a deleted foreign account
+ * (whose rate persists) doesn't keep the badges around.
+ */
+export function useIsMultiCurrency(): boolean {
+  const defaultCurrency = useCurrency();
+  const { data: accounts = [] } = useAccounts();
+  return accounts.some((a) => a.currency !== defaultCurrency);
 }
 
 /**
