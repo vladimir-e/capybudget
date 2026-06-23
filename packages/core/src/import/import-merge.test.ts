@@ -908,7 +908,7 @@ describe("prepareMerge", () => {
       expect(from.fxRate).toBe(resolveRate("RUB", currencies, "USD").rate);
     });
 
-    it("a USD-only import leaves every row's fxRate empty (byte-identical)", () => {
+    it("a USD-only import leaves every row's fxRate empty", () => {
       const txn = makeImportTxn({ sourceAccount: "Chase", amount: -2500 });
 
       const result = prepareMerge(

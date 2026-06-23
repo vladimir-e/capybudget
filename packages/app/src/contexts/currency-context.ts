@@ -95,8 +95,8 @@ export function useFormatMoney(): CurrencyFormatters {
  * Format a native amount in a given account's own currency — used wherever a
  * per-row figure is shown in the currency it's actually stored in, rather than
  * the budget default. An account in the default currency (or `undefined`) routes
- * to the configured default formatter, so a single-currency budget is
- * byte-identical; a foreign account uses that currency's display defaults.
+ * to the configured default formatter, so a single-currency budget renders
+ * identically; a foreign account uses that currency's display defaults.
  */
 export function useAccountMoney(): (cents: number, currency?: string) => string {
   const { currency: defaultCurrency, decimals, symbolPosition } = useContext(CurrencyContext);

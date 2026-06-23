@@ -92,7 +92,7 @@ function linkTransferPairs(txns: Transaction[]): void {
  * Each merged row is valued in the default currency by stamping today's rate
  * onto its `fxRate` (the plan's "imported data takes today's rate"). Rows
  * landing on a default-currency account — including every auto-created one —
- * leave `fxRate` empty, so a same-currency import is byte-identical.
+ * leave `fxRate` empty (value-identical).
  */
 export function prepareMerge(
   input: MergeInput,

@@ -46,7 +46,7 @@ export function useTransactions() {
  * Whether the budget actually holds money in more than one currency — true iff
  * some account's currency differs from the budget default. The currency badges
  * on accounts and transaction rows key off this: a single-currency budget has
- * no foreign account, so it renders none and stays byte-identical. Derived from
+ * no foreign account, so it renders none and formats identically. Derived from
  * live accounts, not the persisted currencies map, so a deleted foreign account
  * (whose rate persists) doesn't keep the badges around.
  */

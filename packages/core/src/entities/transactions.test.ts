@@ -610,7 +610,7 @@ describe("updateTransaction", () => {
       const from = result.find((t) => t.id === "ri-from")!;
       const to = result.find((t) => t.id === "ri-to")!;
 
-      // The RUB from-leg is byte-identical: same amount, still no stamp.
+      // The RUB from-leg is unchanged: same amount, still no stamp.
       expect(from.amount).toBe(-RUB_OUT);
       expect(from.fxRate).toBeUndefined();
       // Only the IDR leg moved — new amount and new derived rate.

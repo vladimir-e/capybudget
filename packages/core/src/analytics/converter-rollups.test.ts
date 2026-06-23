@@ -58,7 +58,7 @@ const txns: Transaction[] = [
 
 // ── Identity: no converter == identity converter == today's behavior ─────────
 
-describe("identity invariant — single-currency budgets are byte-identical", () => {
+describe("identity invariant — single-currency roll-ups compute identically", () => {
   it("getAccountBalance: default arg matches the identity converter", () => {
     expect(getAccountBalance("acc-usd", txns)).toBe(
       getAccountBalance("acc-usd", txns, IDENTITY_CONVERTER),

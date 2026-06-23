@@ -8,9 +8,7 @@ export interface CurrencyConverter {
   holdingToDefault(nativeCents: number, currency?: string): number;
 }
 
-// The rate===1 short-circuit returns the exact input rather than
-// Math.round(n * 1), so a single-currency budget never makes a float round-trip
-// and stays byte-identical.
+// The rate===1 short-circuit returns the exact input — never a float round-trip.
 function convert(nativeCents: number, rate: number): number {
   return rate === 1 ? nativeCents : Math.round(nativeCents * rate);
 }

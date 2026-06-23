@@ -123,7 +123,7 @@ export function resolveRate(
  * The rate to freeze on a transaction created on an account holding
  * `accountCurrency`, stamped at entry time so the flow never re-rates as rates
  * move. A default-currency account returns `undefined` — its `fxRate` stays
- * empty (an implicit 1.0), keeping single-currency budgets byte-identical.
+ * empty (an implicit 1.0), so single-currency values are unchanged.
  * A foreign account stamps today's resolved rate from the same fallback chain
  * as `resolveRate`.
  */
@@ -183,7 +183,7 @@ export interface TransferRates {
  *   - to=default   → `fromRate = toAmount / fromAmount` (value of 1 fromUnit in default)
  *
  * A same-currency transfer (both default, or both the same foreign) takes the
- * one shared resolver rate on both legs — byte-identical to the single-amount
+ * one shared resolver rate on both legs — value-identical to the single-amount
  * path. When neither leg is the default, the amounts give the X↔Y rate but not
  * either →default rate, so each leg stamps its own resolver rate.
  */
