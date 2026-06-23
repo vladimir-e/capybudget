@@ -117,6 +117,7 @@ describe("updateAccount", () => {
     const result = updateAccount(
       { id: "acc-1", name: "New", type: "savings" },
       [acc],
+      [],
     );
     expect(result[0].name).toBe("New");
     expect(result[0].type).toBe("savings");
@@ -132,6 +133,7 @@ describe("updateAccount", () => {
     const result = updateAccount(
       { id: "acc-1", name: "Updated", type: "cash" },
       [acc],
+      [],
     );
     expect(result[0].sortOrder).toBe(5);
     expect(result[0].archived).toBe(true);
@@ -144,8 +146,42 @@ describe("updateAccount", () => {
     const result = updateAccount(
       { id: "acc-1", name: "Changed", type: "cash" },
       [target, other],
+      [],
     );
     expect(result[1].name).toBe("Other");
+  });
+
+  it("rejects a currency change on an account that has transactions", () => {
+    const acc = makeAccount({ id: "acc-1", currency: "USD" });
+    const txns = [makeTxn({ accountId: "acc-1", amount: -5000 })];
+    expect(() =>
+      updateAccount({ id: "acc-1", name: acc.name, type: acc.type, currency: "EUR" }, [acc], txns),
+    ).toThrow(/currency/i);
+  });
+
+  it("allows a currency change on an account with no transactions", () => {
+    const acc = makeAccount({ id: "acc-1", currency: "USD" });
+    const txns = [makeTxn({ accountId: "acc-2", amount: -5000 })]; // different account
+    const result = updateAccount(
+      { id: "acc-1", name: acc.name, type: acc.type, currency: "EUR" },
+      [acc],
+      txns,
+    );
+    expect(result[0].currency).toBe("EUR");
+  });
+
+  it("allows name/type edits on an account with transactions when currency is unchanged", () => {
+    const acc = makeAccount({ id: "acc-1", name: "Old", type: "checking", currency: "USD" });
+    const txns = [makeTxn({ accountId: "acc-1", amount: -5000 })];
+    // No currency arg → no re-denomination, so the guard never fires even with rows.
+    const result = updateAccount(
+      { id: "acc-1", name: "New", type: "savings" },
+      [acc],
+      txns,
+    );
+    expect(result[0].name).toBe("New");
+    expect(result[0].type).toBe("savings");
+    expect(result[0].currency).toBe("USD");
   });
 });
 

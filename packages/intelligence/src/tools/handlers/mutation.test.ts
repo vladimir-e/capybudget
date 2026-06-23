@@ -314,6 +314,73 @@ describe("handleUpdateTransaction", () => {
     expect(to.amount).toBe(18400) // $200 at today's 0.92
     expect(to.fxRate).toBeCloseTo(20000 / 18400, 12)
   })
+
+  it("leaves both legs untouched when a note-only edit targets the INFLOW leg of a cross-currency transfer", async () => {
+    // The model can target either leg. A note-only edit on the inflow (positive)
+    // leg must normalize to outflow-as-from / inflow-as-to before core sees it —
+    // otherwise core writes the inflow account/magnitude onto the from leg and
+    // corrupts the pair. RUB out → USD in.
+    const repo = createMockRepo({
+      accounts: [
+        makeAccount({ id: "acc-rub", currency: "RUB" }),
+        makeAccount({ id: "acc-usd", currency: "USD" }),
+      ],
+      transactions: [
+        makeTxn({ id: "rub-from", type: "transfer", amount: -900000, accountId: "acc-rub", transferPairId: "usd-to", fxRate: 1 / 90 }),
+        makeTxn({ id: "usd-to", type: "transfer", amount: 10000, accountId: "acc-usd", transferPairId: "rub-from", fxRate: undefined }),
+      ],
+    })
+    await handleUpdateTransaction(
+      repo,
+      "USD",
+      { USD: { decimals: 2, symbolPosition: "before" }, RUB: { decimals: 0, symbolPosition: "after" } },
+      { id: "usd-to", note: "moving day" }, // targets the inflow leg
+    )
+    const saved = (repo.saveTransactions as ReturnType<typeof vi.fn>).mock.calls[0][0] as Transaction[]
+    const from = saved.find((t) => t.id === "rub-from")!
+    const to = saved.find((t) => t.id === "usd-to")!
+    // Both legs' amounts, accounts, and rates are byte-identical — only the note moved.
+    expect(from.amount).toBe(-900000)
+    expect(from.accountId).toBe("acc-rub")
+    expect(from.fxRate).toBe(1 / 90)
+    expect(to.amount).toBe(10000)
+    expect(to.accountId).toBe("acc-usd")
+    expect(to.fxRate).toBeUndefined()
+    expect(from.note).toBe("moving day")
+    expect(to.note).toBe("moving day")
+  })
+
+  it("rejects converting a plain flow to a transfer", async () => {
+    const repo = createMockRepo({
+      transactions: [makeTxn({ id: "exp-1", type: "expense", amount: -5000, accountId: "acc-1" })],
+    })
+    const result = JSON.parse(
+      await handleUpdateTransaction(repo, "USD", undefined, {
+        id: "exp-1",
+        type: "transfer",
+        toAccountId: "acc-2",
+      }),
+    )
+    expect(result.error).toMatch(/delete .* create|to or from transfer/i)
+    expect(repo.saveTransactions).not.toHaveBeenCalled()
+  })
+
+  it("rejects converting a transfer to a plain flow", async () => {
+    const repo = createMockRepo({
+      transactions: [
+        makeTxn({ id: "tf-from", type: "transfer", amount: -5000, accountId: "acc-1", transferPairId: "tf-to" }),
+        makeTxn({ id: "tf-to", type: "transfer", amount: 5000, accountId: "acc-2", transferPairId: "tf-from" }),
+      ],
+    })
+    const result = JSON.parse(
+      await handleUpdateTransaction(repo, "USD", undefined, {
+        id: "tf-from",
+        type: "expense",
+      }),
+    )
+    expect(result.error).toMatch(/delete .* create|to or from transfer/i)
+    expect(repo.saveTransactions).not.toHaveBeenCalled()
+  })
 })
 
 describe("handleDeleteTransactions", () => {

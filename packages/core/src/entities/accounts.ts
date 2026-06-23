@@ -62,7 +62,20 @@ export function createOpeningBalanceTransaction(
 export function updateAccount(
   input: AccountFormData,
   existing: Account[],
+  transactions: Transaction[],
 ): Account[] {
+  const current = existing.find((a) => a.id === input.id);
+  if (
+    current &&
+    input.currency !== undefined &&
+    input.currency !== current.currency &&
+    transactions.some((t) => t.accountId === input.id)
+  ) {
+    throw new Error(
+      "Cannot change the currency of an account with transactions. Their amounts are stored in the account's currency — create a new account instead.",
+    );
+  }
+
   return existing.map((a) =>
     a.id === input.id
       ? { ...a, name: input.name, type: input.type, currency: input.currency ?? a.currency }
