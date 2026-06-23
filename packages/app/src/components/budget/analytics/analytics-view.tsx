@@ -99,17 +99,21 @@ export function AnalyticsView() {
   // month-coarse so mount-time drift never matters.
   const [now] = useState(() => Date.now());
   const rangeIsCurrent = chartRange.end.getTime() > now;
+  // Only the net-worth tab shows this, so skip the over-all-transactions
+  // breakdown entirely on other tabs — otherwise scrubbing dates anywhere
+  // recomputes it for nothing.
   const fxBreakdown = useMemo(
     () =>
-      getNetWorthBreakdown(
-        includedAccounts,
-        transactions.filter((t) => new Date(t.datetime).getTime() < chartRange.end.getTime()),
-        converter,
-      ),
-    [includedAccounts, transactions, chartRange, converter],
+      activeTab === "netWorth"
+        ? getNetWorthBreakdown(
+            includedAccounts,
+            transactions.filter((t) => new Date(t.datetime).getTime() < chartRange.end.getTime()),
+            converter,
+          )
+        : null,
+    [activeTab, includedAccounts, transactions, chartRange, converter],
   );
-  const fx =
-    activeTab === "netWorth" && hasForeignAccount && rangeIsCurrent ? fxBreakdown : null;
+  const fx = fxBreakdown && hasForeignAccount && rangeIsCurrent ? fxBreakdown : null;
 
   // Current tab definition
   const currentTab = TABS.find((t) => t.id === activeTab) ?? TABS[0];
