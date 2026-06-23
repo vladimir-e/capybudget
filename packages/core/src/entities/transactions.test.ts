@@ -4,6 +4,7 @@ import {
   createTransaction,
   updateTransaction,
   deleteTransaction,
+  splitTransferLegs,
   type TransactionFormData,
 } from "./transactions";
 
@@ -619,6 +620,27 @@ describe("updateTransaction", () => {
       // Still nets to exactly 0 ₽ at the re-stamped rates.
       expect(from.amount * (from.fxRate ?? 1) + to.amount * (to.fxRate ?? 1)).toBe(0);
     });
+  });
+});
+
+describe("splitTransferLegs", () => {
+  const outflow = makeTxn({ id: "out", type: "transfer", amount: -5000, accountId: "acc-a", transferPairId: "in" });
+  const inflow = makeTxn({ id: "in", type: "transfer", amount: 5000, accountId: "acc-b", transferPairId: "out" });
+  const all = [outflow, inflow];
+
+  it("splits by sign regardless of which leg is targeted", () => {
+    expect(splitTransferLegs(outflow, all)).toEqual({ outflowLeg: outflow, inflowLeg: inflow });
+    expect(splitTransferLegs(inflow, all)).toEqual({ outflowLeg: outflow, inflowLeg: inflow });
+  });
+
+  it("leaves the pair undefined when the partner isn't in the list", () => {
+    expect(splitTransferLegs(outflow, [outflow])).toEqual({ outflowLeg: outflow, inflowLeg: undefined });
+    expect(splitTransferLegs(inflow, [inflow])).toEqual({ outflowLeg: undefined, inflowLeg: inflow });
+  });
+
+  it("leaves the pair undefined when there's no transferPairId", () => {
+    const lone = makeTxn({ id: "lone", type: "transfer", amount: -5000, transferPairId: "" });
+    expect(splitTransferLegs(lone, [lone])).toEqual({ outflowLeg: lone, inflowLeg: undefined });
   });
 });
 

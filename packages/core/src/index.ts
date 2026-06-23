@@ -78,11 +78,12 @@ export {
 } from "./entities/categories";
 
 // Transaction operations
-export type { TransactionFormData } from "./entities/transactions";
+export type { TransactionFormData, TransferLegs } from "./entities/transactions";
 export {
   createTransaction,
   updateTransaction,
   deleteTransaction,
+  splitTransferLegs,
 } from "./entities/transactions";
 
 // Bulk transaction operations

@@ -3,6 +3,7 @@ import {
   createTransaction,
   updateTransaction,
   deleteTransaction,
+  splitTransferLegs,
   stampFxRate,
   stampTransferRates,
 } from "@capybudget/core";
@@ -56,8 +57,7 @@ export function useCreateTransaction() {
 // leaves the shape (amounts + accounts) untouched must carry the stored rates
 // verbatim. Re-deriving would silently re-rate a both-foreign transfer (neither
 // leg the default) to today on an unrelated note/date edit, rewriting history.
-// Only a genuine shape change re-derives. Mirrors the MCP `handleUpdateTransaction`
-// guard so both write paths behave identically.
+// Only a genuine shape change re-derives.
 function transferEditRates(
   data: TransactionFormData,
   accounts: Account[],
@@ -66,18 +66,13 @@ function transferEditRates(
   defaultCurrency: string,
 ): Pick<TransactionFormData, "fxRate" | "toFxRate"> {
   const original = transactions.find((t) => t.id === data.id);
-  const pair = original?.transferPairId
-    ? transactions.find((t) => t.id === original.transferPairId)
-    : undefined;
-  // The form resolves accountId=from (outflow), toAccountId=to (inflow); the
-  // stored legs split by sign (matching the MCP handler's inflow = amount > 0).
-  const inflowLeg = original && original.amount > 0 ? original : pair;
-  const outflowLeg = original && original.amount > 0 ? pair : original;
+  const { outflowLeg, inflowLeg } = original
+    ? splitTransferLegs(original, transactions)
+    : { outflowLeg: undefined, inflowLeg: undefined };
 
-  // This predicate compares resolved edit values against the stored legs; the MCP
-  // path (`handleUpdateTransaction` in intelligence's mutation handler) keys off
-  // whether each arg was *provided* instead — different inputs, same intended
-  // outcome. The two must stay behaviorally aligned: keep this in sync with that.
+  // The form resolves accountId=from (outflow), toAccountId=to (inflow), so the
+  // shape change is decided by comparing those resolved values against the stored
+  // legs.
   const storedToAmount = inflowLeg ? Math.abs(inflowLeg.amount) : undefined;
   const editToAmount = data.toAmount ?? data.amount;
   const shapeChanged =

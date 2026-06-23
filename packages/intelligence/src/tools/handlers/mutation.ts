@@ -20,6 +20,7 @@ import {
   createTransaction,
   updateTransaction,
   deleteTransaction,
+  splitTransferLegs,
   bulkAssignCategory,
   bulkMoveAccount,
   bulkChangeDate,
@@ -146,11 +147,7 @@ export async function handleUpdateTransaction(
     // caller targeted — without this, editing the inflow leg flips both legs'
     // signs/accounts and, cross-currency, writes the inflow magnitude onto the
     // from leg.
-    const pair = original.transferPairId
-      ? existing.find((t) => t.id === original.transferPairId)
-      : undefined
-    const inflowLeg = original.amount > 0 ? original : pair
-    const outflowLeg = original.amount > 0 ? pair : original
+    const { outflowLeg, inflowLeg } = splitTransferLegs(original, existing)
 
     // For a transfer, args.accountId/toAccountId name the from/to accounts
     // directly (not "the targeted leg's account"), so they map cleanly onto the
@@ -167,14 +164,9 @@ export async function handleUpdateTransaction(
     // A transfer's per-leg amounts and rates are real history — what actually
     // landed — and must survive an unrelated edit (a note or date change). Carry
     // the stored legs verbatim, and only re-derive when the transfer's shape
-    // genuinely changed: an explicit toAmount, a different from/to account, or a
-    // changed from-amount.
-    //
-    // This predicate keys off whether each arg was *provided* (the MCP caller
-    // omits unchanged fields); the UI path (`transferEditRates` in the app's
-    // use-transaction-mutations hook) compares resolved values against the stored
-    // legs instead — different inputs, same intended outcome. The two must stay
-    // behaviorally aligned: keep this in sync with that.
+    // genuinely changed. This predicate keys off whether each arg was *provided*
+    // (the MCP caller omits unchanged fields): an explicit toAmount, a different
+    // from/to account, or a changed from-amount.
     const shapeChanged =
       args.toAmount !== undefined ||
       (args.accountId !== undefined && fromAccountId !== outflowLeg?.accountId) ||

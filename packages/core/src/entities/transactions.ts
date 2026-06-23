@@ -138,6 +138,35 @@ export function updateTransaction(
   );
 }
 
+/** A transfer's two legs, identified by sign. Either may be `undefined` when the
+ *  targeted transaction has no resolvable pair (no `transferPairId`, or the
+ *  partner isn't in the list). */
+export interface TransferLegs {
+  outflowLeg: Transaction | undefined;
+  inflowLeg: Transaction | undefined;
+}
+
+/**
+ * Split a transfer into its outflow (amount < 0) and inflow (amount > 0) legs,
+ * given either leg as `targeted` and the full transaction list. The form and the
+ * MCP handler both let an edit target *either* leg, so both must map the targeted
+ * leg + its pair onto from/to (outflow/inflow) the same way before deciding what
+ * to re-stamp — this is that one shared mapping.
+ */
+export function splitTransferLegs(
+  targeted: Transaction,
+  existing: Transaction[],
+): TransferLegs {
+  const pair = targeted.transferPairId
+    ? existing.find((t) => t.id === targeted.transferPairId)
+    : undefined;
+  const inflow = targeted.amount > 0;
+  return {
+    outflowLeg: inflow ? pair : targeted,
+    inflowLeg: inflow ? targeted : pair,
+  };
+}
+
 /** Delete a transaction (and its transfer pair if applicable). Returns the new full list. */
 export function deleteTransaction(
   txn: Transaction,
