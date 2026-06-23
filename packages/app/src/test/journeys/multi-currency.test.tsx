@@ -352,6 +352,49 @@ describe("Multi-currency journeys", () => {
     expect(within(txnRow).queryByText("RUB")).not.toBeInTheDocument();
   }, TIMEOUT);
 
+  it("P1#1: switching the default currency from Settings (transactions query cold) preserves every transaction", async () => {
+    // The data-loss repro. Land directly on Settings — the budget table never
+    // rendered, so the transactions query is cold. Switching a multi-currency
+    // default rewrites transactions.csv; a cache-reading rebase would persist an
+    // empty `[]` and wipe the file. The rebase must read authoritative repo state.
+    const rub = makeAccount({ id: "rub", name: "Tinkoff", currency: "RUB" });
+    const idr = makeAccount({ id: "idr", name: "Jago", currency: "IDR", type: "cash", sortOrder: 2 });
+    const rubTxn = makeTransaction({
+      id: "rub-open", type: "income", amount: 10_000_000, // 100,000 ₽
+      accountId: "rub", categoryId: "", merchant: "Opening Balance",
+    });
+    const idrTxn = makeTransaction({
+      id: "idr-open", type: "income", amount: 1_600_000_000, fxRate: 91 / 16000,
+      accountId: "idr", categoryId: "", merchant: "Opening Balance",
+    });
+
+    const { user, repo, queryClient } = await renderApp({
+      seed: { accounts: [rub, idr], categories: [], transactions: [rubTxn, idrTxn] },
+      url: "/budget/settings?path=/test-budget&name=Test+Budget&section=general",
+    });
+
+    // The currency picker lives in Settings; wait for it to resolve to the RUB
+    // default (the meta loads async from the mocked fs).
+    const currencyTrigger = await screen.findByRole("button", { name: /^RUB/ }, { timeout: TIMEOUT });
+    // Precondition: the transactions query never warmed — this is the bug surface.
+    expect(queryClient.getQueryData(["budget", "transactions"])).toBeUndefined();
+
+    // Switch the default to USD. A foreign IDR account exists, so the confirm
+    // dialog gates the (lossy-in-cents but value-preserving) rebase.
+    await user.click(currencyTrigger);
+    await user.click(await screen.findByRole("option", { name: /US Dollar/i }));
+    await user.click(await screen.findByRole("button", { name: /Switch to USD/i }));
+
+    // The crux: both transactions survive the switch. Native amounts never move.
+    await waitFor(() => {
+      expect(repo.data.transactions).toHaveLength(2);
+    });
+    const ids = repo.data.transactions.map((t) => t.id).sort();
+    expect(ids).toEqual(["idr-open", "rub-open"]);
+    expect(repo.data.transactions.find((t) => t.id === "rub-open")!.amount).toBe(10_000_000);
+    expect(repo.data.transactions.find((t) => t.id === "idr-open")!.amount).toBe(1_600_000_000);
+  }, TIMEOUT);
+
   it("P2: entering an expense into a foreign account shows that account's currency symbol, not the budget default's", async () => {
     // RUB default budget, one IDR account (auto-selected as the sole account).
     // Opening the form must show the IDR "Rp" on the amount field, never "₽".

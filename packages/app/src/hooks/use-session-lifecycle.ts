@@ -132,6 +132,10 @@ export function useSessionLifecycle<TOpts extends SessionLifecycleOptions>(
         systemPrompt,
         currency: o.currency,
         currencies: o.currencies,
+        // Live read through the ref: the rate map isn't baked into the prompt,
+        // so a manual rate edit reaches the running session's next tool call
+        // without a rebuild. `o` is a snapshot; `optsRef.current` stays fresh.
+        getCurrencies: () => optsRef.current.currencies,
         onEvent: handleStreamEvent,
         onExit: handleExit,
         repo: o.repo,

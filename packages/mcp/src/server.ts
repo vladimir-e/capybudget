@@ -44,14 +44,14 @@ async function readBudgetCurrency(budgetPath: string): Promise<BudgetCurrency> {
 
 const repo = createCsvRepository(BUDGET_PATH, nodeFileAdapter, { immediate: true })
 
-const { defaultCurrency, currencies } = await readBudgetCurrency(BUDGET_PATH)
-const dispatchCtx: ToolContext = {
+// Currency is read per tool call (below), not frozen here: this server is a
+// long-running process serving an external agent, so a manual rate edit in the
+// app must reach the next tool call. budget.json is a tiny file.
+const dispatchCtxBase = {
   repo,
   fileAdapter: nodeFileAdapter,
   budgetPath: BUDGET_PATH,
-  currency: defaultCurrency,
-  currencies,
-}
+} satisfies Partial<ToolContext>
 
 // ── Server setup ─────────────────────────────────────────────────
 
@@ -74,7 +74,12 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
   const { name, arguments: args } = request.params
 
   try {
-    const text = await runTool(name, args ?? {}, dispatchCtx)
+    const { defaultCurrency, currencies } = await readBudgetCurrency(BUDGET_PATH)
+    const text = await runTool(name, args ?? {}, {
+      ...dispatchCtxBase,
+      currency: defaultCurrency,
+      currencies,
+    })
     return { content: [{ type: "text", text }] }
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)

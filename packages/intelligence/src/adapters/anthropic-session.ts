@@ -298,7 +298,9 @@ export class AnthropicSession implements CapySession, StructuredSession {
               fileAdapter: this.opts.fileAdapter,
               budgetPath: this.opts.budgetPath,
               currency: this.opts.currency,
-              currencies: this.opts.currencies,
+              // Live read so a manual rate edit lands on this call's stamping,
+              // without rebuilding the session.
+              currencies: this.opts.getCurrencies?.() ?? this.opts.currencies,
               attachments: [...this.turnAttachments],
               importSupported: this.opts.importSupported,
               pdfSupported: this.opts.pdfSupported,

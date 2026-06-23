@@ -1,7 +1,6 @@
 import { useCallback } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { rebaseDefaultCurrency } from "@capybudget/core";
-import type { Account, Transaction } from "@capybudget/core";
 import { useBudgetRepository } from "@/contexts/repository-context";
 import { budgetKeys } from "@/hooks/use-budget-data";
 import { useBudgetMeta } from "@/hooks/use-budget-meta";
@@ -20,10 +19,12 @@ export function useRebaseCurrency(budgetPath: string) {
 
   return useCallback(
     async (newCurrency: string) => {
-      const accounts =
-        queryClient.getQueryData<Account[]>(budgetKeys.accounts()) ?? [];
-      const transactions =
-        queryClient.getQueryData<Transaction[]>(budgetKeys.transactions()) ?? [];
+      // Read the authoritative state from disk, not the query cache: this op is
+      // destructive (a multi-currency switch rewrites transactions.csv), and the
+      // trigger surface only warms `accounts`. A cold transactions query would
+      // hand the transform `[]` and persist it back — wiping the file.
+      const accounts = await repo.getAccounts();
+      const transactions = await repo.getTransactions();
 
       const result = rebaseDefaultCurrency(meta, accounts, transactions, newCurrency);
 
@@ -33,14 +34,17 @@ export function useRebaseCurrency(budgetPath: string) {
       // no rewriting a large transactions.csv on a single-currency relabel.
       const writes: Promise<void>[] = [saveMeta(result.meta)];
       if (result.accounts !== accounts) {
-        queryClient.setQueryData(budgetKeys.accounts(), result.accounts);
         writes.push(repo.saveAccounts(result.accounts));
       }
       if (result.transactions !== transactions) {
-        queryClient.setQueryData(budgetKeys.transactions(), result.transactions);
         writes.push(repo.saveTransactions(result.transactions));
       }
       await Promise.all(writes);
+
+      // Reflect the persisted state in the cache so the UI updates without a
+      // refetch. Seeds the transactions entry too, even if it was cold before.
+      queryClient.setQueryData(budgetKeys.accounts(), result.accounts);
+      queryClient.setQueryData(budgetKeys.transactions(), result.transactions);
     },
     [queryClient, repo, meta, saveMeta],
   );
