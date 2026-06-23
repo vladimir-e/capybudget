@@ -395,11 +395,9 @@ export function TransactionForm({
                 disableIds={sameCurrencyDisabledIds}
               />
             </div>
-            {accountError ? (
+            {accountError && (
               <p className="text-xs text-destructive">{t("transaction.form.selectAccount")}</p>
-            ) : lockCurrency ? (
-              <p className="text-xs text-muted-foreground">{t("transaction.form.sameCurrencyTip")}</p>
-            ) : null}
+            )}
           </div>
         </>
       ) : (

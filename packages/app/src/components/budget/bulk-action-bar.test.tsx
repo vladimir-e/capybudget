@@ -1,5 +1,5 @@
 import { describe, expect, it, afterEach } from "vitest";
-import { render, screen, cleanup } from "@testing-library/react";
+import { render, screen, cleanup, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { createElement, type ReactNode } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -108,7 +108,7 @@ describe("BulkActionBar — same-currency-only move", () => {
     expect(rubOption).not.toHaveAttribute("aria-disabled", "true"); // same currency
   });
 
-  it("disables the Move action when the selection mixes currencies", async () => {
+  it("on a mixed-currency selection, Move opens a modal with the warning and no account picker", async () => {
     const { user } = renderBar({
       selectedIds: new Set(["t1", "t2"]),
       transactions: [
@@ -119,7 +119,13 @@ describe("BulkActionBar — same-currency-only move", () => {
 
     await user.click(screen.getByRole("button", { name: "More actions" }));
     const moveItem = await screen.findByRole("menuitem", { name: /move to account/i });
-    expect(moveItem).toHaveAttribute("aria-disabled", "true");
+    expect(moveItem).not.toHaveAttribute("aria-disabled", "true"); // clickable now
+    await user.click(moveItem);
+
+    // The modal explains the mix and offers no account picker.
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByText(/mixes currencies/i)).toBeInTheDocument();
+    expect(within(dialog).queryByRole("option")).not.toBeInTheDocument();
   });
 });
 

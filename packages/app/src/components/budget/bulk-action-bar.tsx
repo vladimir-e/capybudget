@@ -17,7 +17,6 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useAccounts, useCategories } from "@/hooks/use-budget-data";
 import {
   useBulkDeleteTransactions,
@@ -203,29 +202,10 @@ export function BulkActionBar({ selectedIds, transactions, onClear }: BulkAction
               <MoreHorizontal className="h-3.5 w-3.5" />
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" side="top" className="min-w-48">
-              {isMixedCurrency ? (
-                <Tooltip>
-                  <TooltipTrigger
-                    render={
-                      <DropdownMenuItem
-                        aria-disabled
-                        closeOnClick={false}
-                        onClick={(e) => e.preventDefault()}
-                        className="cursor-not-allowed opacity-50"
-                      />
-                    }
-                  >
-                    <FolderInput className="h-3.5 w-3.5" />
-                    {t("bulk.moveToAccount")}
-                  </TooltipTrigger>
-                  <TooltipContent>{t("bulk.moveMixedCurrency")}</TooltipContent>
-                </Tooltip>
-              ) : (
-                <DropdownMenuItem onClick={() => setOverflowDialog("move")}>
-                  <FolderInput className="h-3.5 w-3.5" />
-                  {t("bulk.moveToAccount")}
-                </DropdownMenuItem>
-              )}
+              <DropdownMenuItem onClick={() => setOverflowDialog("move")}>
+                <FolderInput className="h-3.5 w-3.5" />
+                {t("bulk.moveToAccount")}
+              </DropdownMenuItem>
               <DropdownMenuItem onClick={() => setOverflowDialog("date")}>
                 <CalendarDays className="h-3.5 w-3.5" />
                 {t("bulk.changeDate")}
@@ -278,18 +258,24 @@ export function BulkActionBar({ selectedIds, transactions, onClear }: BulkAction
             <DialogHeader>
               <DialogTitle>{t("bulk.moveDialog.title")}</DialogTitle>
               <DialogDescription>
-                {t("bulk.moveDialog.description", { count: nonTransferCount })}
-                {hasTransfers && t("bulk.moveDialog.transferNote")}
+                {isMixedCurrency
+                  ? t("bulk.moveMixedCurrency")
+                  : t("bulk.moveDialog.description", { count: nonTransferCount })}
+                {!isMixedCurrency && hasTransfers && t("bulk.moveDialog.transferNote")}
               </DialogDescription>
             </DialogHeader>
-            <p className="text-xs text-muted-foreground">{t("bulk.moveDialog.sameCurrencyTip")}</p>
-            <AccountSelector
-              accounts={accounts}
-              value=""
-              onChange={handleMoveAccount}
-              disableIds={moveDisabledIds}
-              defaultOpen
-            />
+            {!isMixedCurrency && (
+              <>
+                <p className="text-xs text-muted-foreground">{t("bulk.moveDialog.sameCurrencyTip")}</p>
+                <AccountSelector
+                  accounts={accounts}
+                  value=""
+                  onChange={handleMoveAccount}
+                  disableIds={moveDisabledIds}
+                  defaultOpen
+                />
+              </>
+            )}
           </DialogContent>
         </Dialog>
       )}

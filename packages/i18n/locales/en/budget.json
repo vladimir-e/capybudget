@@ -249,8 +249,7 @@
       "notesPlaceholder": "Notes (optional)",
       "selectAccount": "Please select an account",
       "selectBothAccounts": "Please select both accounts",
-      "receivedAmount": "Received amount",
-      "sameCurrencyTip": "Only same-currency accounts — use a transfer to move money between currencies."
+      "receivedAmount": "Received amount"
     },
     "toast": {
       "added": "Transaction added",

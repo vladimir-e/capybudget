@@ -250,8 +250,7 @@
       "notesPlaceholder": "Notas (opcional)",
       "selectAccount": "Selecciona una cuenta",
       "selectBothAccounts": "Selecciona ambas cuentas",
-      "receivedAmount": "Importe recibido",
-      "sameCurrencyTip": "Solo cuentas de la misma moneda — usa una transferencia para mover dinero entre monedas."
+      "receivedAmount": "Importe recibido"
     },
     "toast": {
       "added": "Transacción añadida",

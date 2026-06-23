@@ -251,8 +251,7 @@
       "notesPlaceholder": "Заметка (необязательно)",
       "selectAccount": "Выбери счёт",
       "selectBothAccounts": "Выбери оба счёта",
-      "receivedAmount": "Сумма зачисления",
-      "sameCurrencyTip": "Только счета в той же валюте — для перевода денег между валютами используй перевод."
+      "receivedAmount": "Сумма зачисления"
     },
     "toast": {
       "added": "Операция добавлена",
