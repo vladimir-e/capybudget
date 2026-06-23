@@ -1,11 +1,14 @@
+import type { NetWorthBreakdown } from "@capybudget/core";
 import { useTranslation } from "@capybudget/i18n";
 import { useFormatters } from "@/hooks/use-formatters";
+import { NetWorthFxStat } from "./net-worth-fx-stat";
 
 interface SummaryStripProps {
   summary: { totalIncome: number; totalExpenses: number; net: number };
+  fx?: NetWorthBreakdown | null;
 }
 
-export function SummaryStrip({ summary }: SummaryStripProps) {
+export function SummaryStrip({ summary, fx }: SummaryStripProps) {
   const { money } = useFormatters();
   const { t } = useTranslation("analytics");
   return (
@@ -41,6 +44,12 @@ export function SummaryStrip({ summary }: SummaryStripProps) {
           {money(Math.abs(summary.net))}
         </div>
       </div>
+      {fx && (
+        <>
+          <div className="h-8 w-px bg-border" />
+          <NetWorthFxStat breakdown={fx} />
+        </>
+      )}
     </div>
   );
 }

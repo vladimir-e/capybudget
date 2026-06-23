@@ -15,16 +15,14 @@ import {
 import {
   ensureMinMonths,
   getNetWorthOverTime,
-  getNetWorthBreakdown,
 } from "@capybudget/core";
 import type { Account, Transaction, DateRange } from "@capybudget/core";
 import { useTranslation } from "@capybudget/i18n";
-import { useConverter, useCurrency } from "@/contexts/currency-context";
+import { useConverter } from "@/contexts/currency-context";
 import { useFormatters } from "@/hooks/use-formatters";
 import { ChartSwitcher } from "./chart-switcher";
 import { useThemeColors } from "./use-theme-colors";
 import { NetWorthAccountFilter } from "./net-worth-account-filter";
-import { NetWorthFxCallout } from "./net-worth-fx-callout";
 import { computeIncludedIds } from "./net-worth-account-filter-utils";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useAnalyticsStore } from "@/stores/analytics-store";
@@ -65,7 +63,6 @@ export function NetWorthTab({ accounts, transactions, dateRange, hasAnyTransacti
   const { money, moneyCompact, monthShort } = useFormatters();
   const { t } = useTranslation("analytics");
   const converter = useConverter();
-  const defaultCurrency = useCurrency();
   const [chartMode, setChartMode] = useState<ChartMode>("bar");
 
   const chartOptions: Array<{ value: ChartMode; label: string }> = [
@@ -102,32 +99,6 @@ export function NetWorthTab({ accounts, transactions, dateRange, hasAnyTransacti
         converter,
       ),
     [accounts, deferredTransactions, chartRange, deferredIncludedIds, converter],
-  );
-
-  // The FX callout sits under the chart, so its cost basis must equal the
-  // chart's endpoint: same include-set, same transactions clamped to the same
-  // window end. Then `current value (spot) = cost basis (chart endpoint) +
-  // unrealized FX` reads true. Spot is a today's-rate number, so it's only
-  // honest while the window reaches the present — scrub to a historical range
-  // and the callout hides (we have no spot at a past date). A USD-only budget
-  // has no foreign account, so nothing renders.
-  const includedAccounts = useMemo(
-    () => accounts.filter((a) => deferredIncludedIds.has(a.id)),
-    [accounts, deferredIncludedIds],
-  );
-  const hasForeignAccount = includedAccounts.some((a) => a.currency !== defaultCurrency);
-  // Captured once at mount: a stable "now" keeps the render pure, and the gate is
-  // month-coarse so mount-time drift never matters.
-  const [now] = useState(() => Date.now());
-  const rangeIsCurrent = chartRange.end.getTime() > now;
-  const fxBreakdown = useMemo(
-    () =>
-      getNetWorthBreakdown(
-        includedAccounts,
-        deferredTransactions.filter((t) => new Date(t.datetime).getTime() < chartRange.end.getTime()),
-        converter,
-      ),
-    [includedAccounts, deferredTransactions, chartRange, converter],
   );
 
   const chartData = useMemo(
@@ -280,8 +251,6 @@ export function NetWorthTab({ accounts, transactions, dateRange, hasAnyTransacti
           </AreaChart>
         )}
       </ResponsiveContainer>
-
-      {hasForeignAccount && rangeIsCurrent && <NetWorthFxCallout breakdown={fxBreakdown} />}
     </div>
   );
 }
