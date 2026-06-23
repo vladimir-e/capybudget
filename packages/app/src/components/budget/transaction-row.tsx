@@ -128,7 +128,12 @@ export const TransactionRowMemo = memo(function TransactionRow({
         >
           {activeCol === "account" ? (
             <InlineEditCell txn={txn} column="account" accounts={accounts} categories={categories} onSave={onInlineSave} onCancel={onInlineCancel} />
-          ) : account?.name ?? t("transaction.row.unknownAccount")}
+          ) : (
+            <span className="inline-flex items-center gap-1.5">
+              {account?.name ?? t("transaction.row.unknownAccount")}
+              {showCurrency && account && <CurrencyBadge currency={account.currency} />}
+            </span>
+          )}
         </TableCell>
       )}
       <TableCell
@@ -178,11 +183,6 @@ export const TransactionRowMemo = memo(function TransactionRow({
       >
         {activeCol === "amount" ? (
           <InlineEditCell txn={txn} column="amount" accounts={accounts} categories={categories} onSave={onInlineSave} onCancel={onInlineCancel} />
-        ) : showCurrency && account ? (
-          <span className="inline-flex items-center justify-end gap-1.5">
-            <CurrencyBadge currency={account.currency} />
-            {accountMoney(txn.amount, account.currency)}
-          </span>
         ) : (
           accountMoney(txn.amount, account?.currency)
         )}

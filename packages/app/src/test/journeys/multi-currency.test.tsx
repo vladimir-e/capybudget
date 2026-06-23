@@ -307,14 +307,21 @@ describe("Multi-currency journeys", () => {
     expect(within(idrRow as HTMLElement).getByText("IDR")).toBeInTheDocument();
     expect(within(rubRow as HTMLElement).getByText("RUB")).toBeInTheDocument();
 
-    // Transaction list: the IDR row's amount carries the IDR badge.
+    // Transaction list (all-accounts view): the IDR row carries an "IDR" badge
+    // by its account — not by the amount, which already shows the Rp symbol.
+    const table = screen.getByRole("table");
+    const txnRow = within(table).getByText("Warung").closest("tr")!;
+    expect(within(txnRow).getByText("IDR")).toBeInTheDocument();
+
+    // On a single-account page the account column is hidden, so the per-row
+    // badge doesn't show — the page is already scoped to one currency.
     await user.click(idrRow);
     await waitFor(() => {
       expect(screen.getByRole("heading", { name: "Jago" })).toBeInTheDocument();
     });
-    const table = screen.getByRole("table");
-    const txnRow = within(table).getByText("Warung").closest("tr")!;
-    expect(within(txnRow).getByText("IDR")).toBeInTheDocument();
+    const accountTable = screen.getByRole("table");
+    const accountTxnRow = within(accountTable).getByText("Warung").closest("tr")!;
+    expect(within(accountTxnRow).queryByText("IDR")).not.toBeInTheDocument();
   }, TIMEOUT);
 
   it("renders no currency badge when every account is in the budget default", async () => {
