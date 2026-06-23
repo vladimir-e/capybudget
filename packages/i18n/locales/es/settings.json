@@ -56,7 +56,8 @@
     "rateLabel": "1 {{code}} =",
     "rateManual": "tu tipo",
     "rateSeed": "nuestra estimación",
-    "rateUnset": "tipo sin definir"
+    "rateUnset": "tipo sin definir",
+    "rateReset": "usar nuestra estimación"
   },
   "provider": {
     "title": "Proveedor de IA",

@@ -205,6 +205,29 @@ describe("CurrencySection", () => {
     expect(setCurrencyEntry).toHaveBeenCalledWith("EUR", { rate: 1.15, rateSource: "manual" })
   })
 
+  it("offers 'use our estimate' on a manual rate and clears the override on click", async () => {
+    const user = userEvent.setup()
+    meta = metaWith("USD", { decimals: 2, symbolPosition: "before" }, {
+      EUR: { decimals: 2, symbolPosition: "before", rate: 1.2, rateSource: "manual" },
+    })
+    accounts = [makeAccount({ currency: "EUR" })]
+    render(<CurrencySection budgetPath="/b" />)
+
+    await user.click(screen.getByRole("button", { name: /use our estimate/i }))
+    expect(setCurrencyEntry).toHaveBeenCalledWith("EUR", { rate: undefined, rateSource: undefined })
+  })
+
+  it("shows no reset link when the rate is already our estimate", () => {
+    meta = metaWith("USD", { decimals: 2, symbolPosition: "before" }, {
+      EUR: { decimals: 2, symbolPosition: "before" }, // no manual rate → seed estimate
+    })
+    accounts = [makeAccount({ currency: "EUR" })]
+    render(<CurrencySection budgetPath="/b" />)
+
+    expect(screen.getByText(/our estimate/i)).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: /use our estimate/i })).not.toBeInTheDocument()
+  })
+
   const openCurrencyPicker = (user: ReturnType<typeof userEvent.setup>) =>
     user.click(screen.getByRole("button", { name: /^USD/ }))
 

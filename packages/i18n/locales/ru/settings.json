@@ -56,7 +56,8 @@
     "rateLabel": "1 {{code}} =",
     "rateManual": "ваш курс",
     "rateSeed": "наша оценка",
-    "rateUnset": "курс не задан"
+    "rateUnset": "курс не задан",
+    "rateReset": "вернуть нашу оценку"
   },
   "provider": {
     "title": "Поставщик ИИ",

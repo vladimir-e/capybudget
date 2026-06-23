@@ -323,6 +323,15 @@ function ForeignCurrencyRow({
   const { t } = useTranslation("settings")
   const entry = currencies[code] ?? formatDefaultsFor(code)
   const resolved = resolveRate(code, currencies, defaultCurrency)
+  // A manual override can be reset to Capy's estimate — but only when one
+  // exists (the currency is in the seed table); otherwise clearing it would
+  // just unset the rate, not reveal an estimate.
+  const seedRate = resolveRate(
+    code,
+    { ...currencies, [code]: { ...entry, rate: undefined, rateSource: undefined } },
+    defaultCurrency,
+  )
+  const canResetToEstimate = resolved.source === "manual" && seedRate.source === "seed"
 
   // The input holds local edits until commit (blur/Enter) so an in-progress
   // "0." doesn't round-trip. Resetting the draft to the resolved value during
@@ -352,7 +361,18 @@ function ForeignCurrencyRow({
           {code}{" "}
           <span className="text-muted-foreground">{currencySymbol(code)}</span>
         </span>
-        <span className="text-xs text-muted-foreground">{t(PROVENANCE_KEY[resolved.source])}</span>
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-muted-foreground">{t(PROVENANCE_KEY[resolved.source])}</span>
+          {canResetToEstimate && (
+            <button
+              type="button"
+              className="text-xs text-muted-foreground underline hover:text-foreground transition-colors"
+              onClick={() => onChange({ rate: undefined, rateSource: undefined })}
+            >
+              {t("currency.rateReset")}
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="flex items-center gap-2 text-sm">

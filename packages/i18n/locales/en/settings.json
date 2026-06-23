@@ -56,7 +56,8 @@
     "rateLabel": "1 {{code}} =",
     "rateManual": "your rate",
     "rateSeed": "our estimate",
-    "rateUnset": "rate unset"
+    "rateUnset": "rate unset",
+    "rateReset": "use our estimate"
   },
   "provider": {
     "title": "AI Provider",
