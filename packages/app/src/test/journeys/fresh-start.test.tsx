@@ -26,8 +26,8 @@ describe("Fresh start", () => {
     await waitForApp();
     const header = screen.getByRole("banner");
 
-    // Step 1: Click "Add transaction" → account dialog opens (no accounts yet)
-    await user.click(within(header).getByRole("button", { name: /add transaction/i }));
+    // Step 1: Click the header's "New Transaction" pill → account dialog opens (no accounts yet)
+    await user.click(within(header).getByRole("button", { name: "New Transaction" }));
     const dialog = await screen.findByRole("dialog");
 
     // Step 2: Create an account
@@ -41,8 +41,8 @@ describe("Fresh start", () => {
     expect(repo.data.accounts).toHaveLength(1);
     expect(repo.data.accounts[0].name).toBe("My Checking");
 
-    // Step 3: Now "Add transaction" opens the form
-    await user.click(within(header).getByRole("button", { name: /add transaction/i }));
+    // Step 3: Now the pill opens the form
+    await user.click(within(header).getByRole("button", { name: "New Transaction" }));
     const amountInput = screen.getByPlaceholderText("0.00");
     await waitFor(() => expect(amountInput).toHaveFocus());
 

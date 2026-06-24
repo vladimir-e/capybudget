@@ -76,14 +76,9 @@ async function waitForRubDefault() {
   });
 }
 
-/** Open the transaction form via the shell toggle and wait for focus. Both the
- *  toggle and the empty-state inline prompt share the accessible name "Add
- *  transaction"; the toggle is the one whose visible text is "New Transaction". */
+/** Open the transaction form via the shell's center toggle pill and wait for focus. */
 async function openTransactionForm(user: UserEvent): Promise<HTMLInputElement> {
-  const toggle = screen
-    .getAllByRole("button", { name: "Add transaction" })
-    .find((b) => b.textContent?.includes("New Transaction"))!;
-  await user.click(toggle);
+  await user.click(screen.getByRole("button", { name: "New Transaction" }));
   const amountInput = screen.getByPlaceholderText("0.00") as HTMLInputElement;
   await waitFor(() => expect(amountInput).toHaveFocus());
   return amountInput;

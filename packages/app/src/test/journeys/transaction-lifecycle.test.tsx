@@ -47,12 +47,7 @@ function getSidebarAccountLink(name: string): HTMLElement {
 
 /** Open the transaction form and wait for the auto-focus timer to settle. */
 async function openTransactionForm(user: ReturnType<typeof import("@testing-library/user-event").default.setup>) {
-  // Both the header CTA and the center pill expose the "Add transaction"
-  // accessible name; the pill's visible text is "New Transaction", so the CTA
-  // is the remaining match.
-  const cta = screen
-    .getAllByRole("button", { name: /add transaction/i })
-    .find((b) => !b.textContent?.includes("New Transaction"))!;
+  const cta = within(screen.getByRole("main")).getByRole("button", { name: /add transaction/i });
   await user.click(cta);
   // BudgetShell has a setTimeout(80ms) to auto-focus the amount input.
   // React.StrictMode double-mounts the effect, creating a second timer.

@@ -252,12 +252,13 @@ export function BudgetShell() {
                 <button
                   type="button"
                   onClick={toggleForm}
+                  aria-expanded={effectiveFormOpen}
                   className={`group flex items-center gap-2 rounded-full px-3 py-1 text-xs font-medium transition-all ${
                     effectiveFormOpen
                       ? "bg-muted text-foreground"
                       : "text-muted-foreground hover:text-foreground hover:bg-muted/30"
                   }`}
-                  aria-label={effectiveFormOpen ? t("shell.closeTransactionForm") : t("shell.addTransaction")}
+                  aria-label={effectiveFormOpen ? t("shell.closeTransactionForm") : undefined}
                 >
                   <ChevronDown className={`h-3.5 w-3.5 transition-transform duration-200 ${effectiveFormOpen ? "rotate-180" : ""}`} />
                   <span>{t("shell.newTransaction")}</span>
