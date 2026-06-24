@@ -18,7 +18,7 @@ export const paycheckToPaycheck: DemoProfile = {
     account(CHECKING, "Checking", "checking", 0),
     account(SAVINGS, "Savings", "savings", 1),
     account(CREDIT, "Visa Card", "credit_card", 2),
-    account(HOME, "Payments Home", "checking", 3, "KZT"),
+    account(HOME, "Kaspi Gold", "checking", 3, "KZT"),
   ],
   categories: createCategories(),
   openingBalances: {
