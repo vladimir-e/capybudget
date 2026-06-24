@@ -274,6 +274,61 @@ describe("CurrencySection", () => {
     )
   })
 
+  it("previews a foreign row in that currency's own format, not the default's", () => {
+    // RUB defaults to symbol-after, 0 decimals — visibly distinct from USD's
+    // "$4,215.50". The preview box is always shown, so no expand needed.
+    accounts = [makeAccount({ currency: "USD" }), makeAccount({ currency: "RUB" })]
+    render(<CurrencySection budgetPath="/b" />)
+
+    expect(screen.getByText("4,216 ₽")).toHaveClass("text-amount-income")
+    expect(screen.getByText("-1,289 ₽")).toHaveClass("text-amount-expense")
+  })
+
+  it("resets a diverged foreign format to that currency's defaults, leaving the rate untouched", async () => {
+    // RUB account whose stored format diverges from RUB defaults (symbol before,
+    // 2 decimals) and carries a manual rate.
+    const user = userEvent.setup()
+    meta = metaWith("USD", { decimals: 2, symbolPosition: "before" }, {
+      RUB: { decimals: 2, symbolPosition: "before", rate: 90, rateSource: "manual" },
+    })
+    accounts = [makeAccount({ currency: "RUB" })]
+    render(<CurrencySection budgetPath="/b" />)
+
+    // The RUB row owns the only Format settings trigger (USD is single-account → no
+    // exchange section, but its default trigger is still present, so target the row's).
+    const triggers = screen.getAllByRole("button", { name: /Format settings/i })
+    await user.click(triggers[triggers.length - 1])
+    await user.click(screen.getByRole("button", { name: /Reset to RUB defaults/i }))
+
+    // Only the display knobs reset; rate/rateSource are absent from the partial.
+    expect(setCurrencyEntry).toHaveBeenCalledWith("RUB", { decimals: 0, symbolPosition: "after" })
+  })
+
+  it("hides the foreign-format reset link when the format already matches the currency's defaults", async () => {
+    const user = userEvent.setup()
+    meta = metaWith("USD", { decimals: 2, symbolPosition: "before" }, {
+      RUB: { decimals: 0, symbolPosition: "after", rate: 90, rateSource: "manual" },
+    })
+    accounts = [makeAccount({ currency: "RUB" })]
+    render(<CurrencySection budgetPath="/b" />)
+
+    const triggers = screen.getAllByRole("button", { name: /Format settings/i })
+    await user.click(triggers[triggers.length - 1])
+    expect(screen.queryByRole("button", { name: /Reset to RUB defaults/i })).not.toBeInTheDocument()
+  })
+
+  it("shows the rate-history note only when foreign currencies exist", () => {
+    const note = /past transactions keep the rate from the day they happened/i
+
+    const single = render(<CurrencySection budgetPath="/b" />)
+    expect(screen.queryByText(note)).not.toBeInTheDocument()
+    single.unmount()
+
+    accounts = [makeAccount({ currency: "USD" }), makeAccount({ currency: "EUR" })]
+    render(<CurrencySection budgetPath="/b" />)
+    expect(screen.getByText(note)).toBeInTheDocument()
+  })
+
   it("keeps a foreign row for a persisted currency no account currently uses", () => {
     // Persist-when-empty: the entry stays in the map, but only in-use currencies
     // get a row — a deleted-last-account EUR with no EUR account shows nothing.

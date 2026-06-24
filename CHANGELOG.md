@@ -12,6 +12,7 @@ CHANGELOG PHILOSOPHY:
 ## Unreleased
 
 - **Transactions** - Editing an income now shows its account and currency instead of an empty selector.
+- **Currency** - Single-account groups roll up to your currency, per-currency formatting previews in Settings, and clearer "your rate" vs "our estimate" exchange-rate labels.
 
 ## 1.3.0 — 2026-06-21
 
