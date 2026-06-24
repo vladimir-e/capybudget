@@ -15,10 +15,16 @@ import { SettingsScreen } from "@/components/settings/settings-screen"
 // Runs under the demo vite config, so __IS_DEMO__ is true here.
 
 // The Currency section (under General) reads accounts to derive in-use foreign
-// currencies, which needs a RepositoryProvider this screen test doesn't mount.
-// Stub it empty — a USD-only budget with no foreign rows.
+// currencies; this screen test isn't about account data, so stub it empty —
+// a USD-only budget with no foreign rows.
 vi.mock("@/hooks/use-budget-data", () => ({
   useAccounts: () => ({ data: [] }),
+}))
+
+// The Currency section's switch path uses the rebase hook, which reaches for the
+// repository; this screen test has no RepositoryProvider, so stub it inert.
+vi.mock("@/hooks/use-rebase-currency", () => ({
+  useRebaseCurrency: () => vi.fn(),
 }))
 
 afterEach(cleanup)
