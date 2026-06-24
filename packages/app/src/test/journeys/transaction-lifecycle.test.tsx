@@ -20,11 +20,20 @@ const existingTxn = makeTransaction({
   datetime: "2026-01-15T12:00:00.000Z",
 });
 
+const archived = makeAccount({ id: "acc-old", name: "Old Savings", type: "savings", archived: true });
+
 const seed = {
   accounts: [checking],
   categories: [groceries, salary],
   transactions: [existingTxn],
 };
+
+const seedWithArchived = {
+  ...seed,
+  accounts: [checking, archived],
+};
+
+const budgetSearch = "?path=/test-budget&name=Test+Budget";
 
 // ── Helpers ─────────────────────────────────────────────────
 
@@ -178,5 +187,27 @@ describe("Transaction lifecycle", () => {
       const formPanel = screen.getByPlaceholderText("0.00").closest("[class*='translate']");
       expect(formPanel?.className).toContain("-translate-y-full");
     });
+  }, TIMEOUT);
+
+  it("shows the Add transaction CTA on a live account view", async () => {
+    await renderApp({ seed: seedWithArchived, url: `/budget/account/acc-checking${budgetSearch}` });
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: "Checking" })).toBeInTheDocument();
+    });
+
+    expect(
+      within(screen.getByRole("main")).getByRole("button", { name: /add transaction/i }),
+    ).toBeInTheDocument();
+  }, TIMEOUT);
+
+  it("hides the Add transaction CTA on an archived account view", async () => {
+    await renderApp({ seed: seedWithArchived, url: `/budget/account/acc-old${budgetSearch}` });
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: "Old Savings" })).toBeInTheDocument();
+    });
+
+    expect(
+      within(screen.getByRole("main")).queryByRole("button", { name: /add transaction/i }),
+    ).toBeNull();
   }, TIMEOUT);
 });
