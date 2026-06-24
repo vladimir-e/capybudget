@@ -230,6 +230,50 @@ describe("TransactionForm — transfer type boundary is locked on edit", () => {
   });
 });
 
+describe("TransactionForm — editing a flow seeds its own account", () => {
+  // Regression: an income flow's account lives in `accountId`, but the editor
+  // used to route every edit through the transfer-pair resolver, which parks a
+  // positive (income) amount in `toAccountId` and leaves the from-account empty —
+  // so the selector fell back to its "Select account…" placeholder.
+  const USD_ACCT = makeAcct({ id: "acct-usd", name: "USD Account", currency: "USD", sortOrder: 3 });
+
+  const INCOME: Transaction = {
+    id: "inc-1",
+    datetime: "2026-06-01T10:00:00.000",
+    type: "income",
+    amount: 500_000, // positive: the sign that broke pair resolution
+    categoryId: "",
+    accountId: "acct-usd",
+    transferPairId: "",
+    merchant: "Paycheck",
+    note: "",
+    createdAt: "2026-06-01T10:00:00.000Z",
+  };
+
+  const EXPENSE: Transaction = {
+    ...INCOME,
+    id: "exp-1",
+    type: "expense",
+    amount: -100_000,
+    accountId: "acct-rub",
+    merchant: "Store",
+  };
+
+  it("populates the account selector when editing an income", () => {
+    renderForm({ accounts: [RUB_ACCT, USD_ACCT], editingTransaction: INCOME });
+
+    expect(screen.getByRole("button", { name: /USD Account/i })).toBeInTheDocument();
+    expect(screen.queryByText("Select account…")).not.toBeInTheDocument();
+  });
+
+  it("populates the account selector when editing an expense", () => {
+    renderForm({ accounts: [RUB_ACCT, USD_ACCT], editingTransaction: EXPENSE });
+
+    expect(screen.getByRole("button", { name: /RUB Checking/i })).toBeInTheDocument();
+    expect(screen.queryByText("Select account…")).not.toBeInTheDocument();
+  });
+});
+
 describe("TransactionForm — entry symbol follows the account currency", () => {
   it("shows the foreign account's symbol for an expense into it", () => {
     const usd = makeAcct({ id: "acct-usd", name: "USD Account", currency: "USD" });

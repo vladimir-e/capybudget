@@ -94,10 +94,15 @@ export function TransactionForm({
 
   const [expanded, setExpanded] = useState(isEditing);
 
-  const initialTransfer = editingTransaction
+  // `resolveTransferPair` assigns an unpaired leg's account by amount sign, so a
+  // positive (income) flow lands in `toAccountId` and leaves `fromAccountId` "".
+  // That's correct only for transfers; a plain flow's account is simply its own,
+  // so seed it from `accountId` and reserve the pair logic for actual transfers.
+  const initialTransfer = editingTransaction?.type === "transfer"
     ? resolveTransferPair(editingTransaction, allTransactions)
     : null;
-  const initialFrom = initialTransfer?.fromAccountId ?? defaultAccountId;
+  const initialFrom =
+    initialTransfer?.fromAccountId ?? editingTransaction?.accountId ?? defaultAccountId;
   const initialTo = initialTransfer?.toAccountId ?? "";
 
   // Both leg magnitudes resolved by sign from the transfer pair, never from
