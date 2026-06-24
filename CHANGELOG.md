@@ -11,6 +11,7 @@ CHANGELOG PHILOSOPHY:
 
 ## Unreleased
 
+- **Transactions** - A prominent "Add transaction" button in the accounts header makes logging a transaction obvious.
 - **Multi-Currency** - give any account its own currency
 - **Demo** - Each scenario gains a foreign-currency account, showing multi-currency net worth.
 

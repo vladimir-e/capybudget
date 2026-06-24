@@ -584,6 +584,12 @@ const demoUrl = "https://demo.capybudget.app";
                   <h4 class="pane-title">All Accounts</h4>
                   <p class="pane-sub">2,034 transactions</p>
                 </div>
+                <div class="pane-add">
+                  <svg class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 5v14M5 12h14" />
+                  </svg>
+                  Add transaction
+                </div>
               </header>
 
               <div class="filter-row">
@@ -2486,6 +2492,18 @@ const demoUrl = "https://demo.capybudget.app";
     color: rgba(254, 243, 199, 0.45);
     margin-top: 0.1rem;
     letter-spacing: 0.02em;
+  }
+  .pane-add {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0.35rem 0.7rem;
+    border-radius: 7px;
+    font-size: 11px;
+    font-weight: 600;
+    color: oklch(0.22 0.04 50);
+    background: var(--color-terra);
+    white-space: nowrap;
   }
 
   .filter-row {
