@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   getAccountBalance,
   getAccountsByGroup,
+  shouldShowGroupTotal,
   getTransactionsForAccount,
   getNetWorth,
   getNetWorthBreakdown,
@@ -89,6 +90,27 @@ describe("getAccountsByGroup", () => {
     const groups = getAccountsByGroup(archived);
     const checking = groups.get("checking")!;
     expect(checking.every((a) => !a.archived)).toBe(true);
+  });
+});
+
+describe("shouldShowGroupTotal", () => {
+  const usd = ACCOUNTS[0]; // acc-cash-01, USD
+  const eur: Account = { ...usd, id: "acc-eur", currency: "EUR" };
+
+  it("hides the rollup for a lone account in the default currency", () => {
+    expect(shouldShowGroupTotal([usd], "USD")).toBe(false);
+  });
+
+  it("shows the rollup for a lone account in a foreign currency", () => {
+    expect(shouldShowGroupTotal([eur], "USD")).toBe(true);
+  });
+
+  it("shows the rollup for two or more accounts regardless of currency", () => {
+    expect(shouldShowGroupTotal([usd, { ...usd, id: "acc-cash-02" }], "USD")).toBe(true);
+  });
+
+  it("hides the rollup for an empty group", () => {
+    expect(shouldShowGroupTotal([], "USD")).toBe(false);
   });
 });
 

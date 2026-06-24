@@ -36,7 +36,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { getAccountBalance, getAccountsByGroup, getNetWorth, isOpeningBalanceTxn } from "@capybudget/core";
+import { getAccountBalance, getAccountsByGroup, getNetWorth, isOpeningBalanceTxn, shouldShowGroupTotal } from "@capybudget/core";
 import { useTranslation } from "@capybudget/i18n";
 import { useConverter, useAccountMoney, useCurrency } from "@/contexts/currency-context";
 import { useAccountTypeLabel } from "@/lib/display-names";
@@ -195,13 +195,7 @@ export function Sidebar({
             onDragEnd={handleDragEnd}
           >
             {[...groupedAccounts.entries()].map(([type, accts]) => {
-              // Show the group rollup for 2+ accounts, or for a lone account
-              // whose currency differs from the display currency — the converted
-              // total is information the native-currency row doesn't already show.
-              // A lone account already in the display currency would just duplicate
-              // its own row, so it stays hidden (single-currency budgets unchanged).
-              const showGroupTotal =
-                accts.length > 1 || accts.some((a) => a.currency !== defaultCurrency);
+              const showGroupTotal = shouldShowGroupTotal(accts, defaultCurrency);
               const groupBalance = showGroupTotal
                 ? accts.reduce(
                     (sum, a) => sum + getAccountBalance(a.id, transactions, converter, a.currency),

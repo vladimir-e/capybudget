@@ -108,6 +108,7 @@ export {
   CATEGORY_GROUP_ORDER,
   getAccountBalance,
   getAccountsByGroup,
+  shouldShowGroupTotal,
   getTransactionsForAccount,
   getNetWorth,
   getNetWorthBreakdown,
