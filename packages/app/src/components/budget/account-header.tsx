@@ -31,16 +31,18 @@ export function AccountHeader({ account, nativeBalance, defaultBalance }: Accoun
             {accountTypeLabel(account.type)}
           </Badge>
         </div>
-        <div className={`text-3xl font-bold tabular-nums mt-1 ${
-          nativeBalance < 0 ? "text-amount-expense" : "text-foreground"
-        }`}>
-          {accountMoney(nativeBalance, account.currency)}
+        <div className="mt-1 flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+          <span className={`text-3xl font-bold tabular-nums ${
+            nativeBalance < 0 ? "text-amount-expense" : "text-foreground"
+          }`}>
+            {accountMoney(nativeBalance, account.currency)}
+          </span>
+          {isForeign && (
+            <span className="text-sm text-muted-foreground tabular-nums">
+              {t("account.header.inDefault", { amount: money(defaultBalance) })}
+            </span>
+          )}
         </div>
-        {isForeign && (
-          <div className="text-sm text-muted-foreground tabular-nums mt-0.5">
-            {t("account.header.inDefault", { amount: money(defaultBalance) })}
-          </div>
-        )}
       </div>
       {!account.archived && <AddTransactionButton />}
     </div>
