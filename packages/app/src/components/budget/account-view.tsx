@@ -29,9 +29,6 @@ export function AccountView({ accountId }: { accountId: string }) {
   }
 
   const accountTransactions = getTransactionsForAccount(accountId, transactions);
-  // The account page is the account's own view, so the header leads with the
-  // native balance in the account's currency. The converter values it in the
-  // default for the secondary line a foreign account shows.
   const nativeBalance = getAccountBalance(accountId, transactions);
   const defaultBalance = getAccountBalance(accountId, transactions, converter, account.currency);
 
