@@ -44,11 +44,8 @@ export function getAccountsByGroup(
   return grouped;
 }
 
-/** Whether a group's rolled-up total is worth showing. Only when it conveys
- *  something the per-account rows don't: more than one account to sum, OR a lone
- *  account in a non-default currency (whose converted display-currency total
- *  differs from its native-currency row). A single default-currency account
- *  would just duplicate its own row, so it stays hidden. */
+/** Whether a group's rollup total adds info beyond the rows: 2+ accounts to
+ *  sum, or a lone account in a non-default currency. */
 export function shouldShowGroupTotal(
   accounts: Account[],
   defaultCurrency: string,
