@@ -122,9 +122,6 @@ export function CurrencySection({ budgetPath }: { budgetPath: string }) {
             value={currency}
             onChange={handleCurrencyChange}
           />
-          {/* A switch only relabels a single-currency budget — true. With foreign
-              accounts it rebases every rate (a real conversion), so the notice
-              would be false; the switch-warning dialog covers that case instead. */}
           {foreignCurrencies.length === 0 && (
             <p className="text-xs text-muted-foreground">
               {t("currency.changeNotice")}
