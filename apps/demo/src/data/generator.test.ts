@@ -157,6 +157,45 @@ describe("generateScenarioData", () => {
           );
           expect(unstamped).toEqual([]);
         });
+
+        // The foreign balance must read like a real account across the window:
+        // never negative at any day's close (a persistently-negative balance
+        // reads as broken demo data), and — for an account meant to be spent
+        // down — never ballooning far past its funding (a runaway balance
+        // betrays a magnitude error, e.g. spends entered 100× too small). A
+        // savings/asset account legitimately accumulates, so only the
+        // non-negative floor applies to it. One band, across several seeds.
+        it("keeps its native balance in a sane band at every day's close", () => {
+          const opening = profile.openingBalances[accountId] ?? 0;
+          const type = profile.accounts.find((a) => a.id === accountId)!.type;
+          const accumulates = type === "savings" || type === "asset";
+          for (const seed of [1, 5, 21, 42, 99]) {
+            const { transactions } = generateScenarioData(profile, {
+              now: NOW,
+              yearsBack: 3,
+              seed,
+            });
+            const rows = transactions.filter((t) => t.accountId === accountId);
+            let balance = 0;
+            let minClose = 0;
+            let maxClose = opening;
+            for (let i = 0; i < rows.length; i++) {
+              balance += rows[i].amount;
+              const lastOfDay =
+                i === rows.length - 1 ||
+                rows[i + 1].datetime.slice(0, 10) !==
+                  rows[i].datetime.slice(0, 10);
+              if (lastOfDay) {
+                minClose = Math.min(minClose, balance);
+                maxClose = Math.max(maxClose, balance);
+              }
+            }
+            expect(minClose).toBeGreaterThanOrEqual(0);
+            if (!accumulates) {
+              expect(maxClose).toBeLessThanOrEqual(opening * 5);
+            }
+          }
+        });
       },
     );
 

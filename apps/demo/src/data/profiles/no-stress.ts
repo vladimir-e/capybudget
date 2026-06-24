@@ -55,7 +55,7 @@ export const noStress: DemoProfile = {
       dayOfMonth: 28,
     },
     {
-      // Quarterly-ish interest on the franc balance. ~40 CHF/mo.
+      // Interest on the franc balance. ~40 CHF/mo.
       merchant: "UBS",
       category: "Other Income",
       accountId: SWISS,

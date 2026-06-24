@@ -29,7 +29,7 @@ export const underwater: DemoProfile = {
     [CREDIT]: -420_000,
     [LOAN]: -2_650_000,
     [CASH]: 20_000,
-    [BALI]: 200_000_000, // 2,000,000 Rp
+    [BALI]: 300_000_000, // 3,000,000 Rp
   },
 
   incomeStreams: [
@@ -137,28 +137,32 @@ export const underwater: DemoProfile = {
       perMonth: [2, 4],
       amountRange: [1_500, 3_500],
     },
-    // Bali wallet spend-down, all in rupiah. Travel dining, transport, and
-    // shopping that quietly bleeds the trip cash.
+    // Bali wallet spend, all in rupiah (integer cents, ×100). Travel dining,
+    // transport, and shopping that runs through the trip cash; sized to track
+    // the monthly top-up so the wallet hovers near its funding, never negative.
     {
+      // 400–1,000 Rp/100 → 40,000–100,000 Rp/meal (~$2.50–$6.25).
       category: "Dining Out",
       accountId: BALI,
       merchants: ["Warung Bu Mi", "Sari Organik", "La Favela", "Kopi Kenangan"],
-      perMonth: [3, 5],
-      amountRange: [60_000, 150_000],
+      perMonth: [4, 6],
+      amountRange: [4_000_000, 10_000_000],
     },
     {
+      // 30,000–70,000 Rp/ride (~$1.90–$4.40).
       category: "Transportation",
       accountId: BALI,
       merchants: ["Gojek", "Grab", "Blue Bird"],
       perMonth: [2, 3],
-      amountRange: [40_000, 90_000],
+      amountRange: [3_000_000, 7_000_000],
     },
     {
+      // 120,000–280,000 Rp/item (~$7.50–$17.50).
       category: "Fun & Hobbies",
       accountId: BALI,
       merchants: ["Ubud Market", "Pantai Surf Shop", "Bintang Supermarket"],
       perMonth: [1, 2],
-      amountRange: [100_000, 250_000],
+      amountRange: [12_000_000, 28_000_000],
     },
   ],
 
@@ -253,13 +257,14 @@ export const underwater: DemoProfile = {
       amount: 13_000,
       note: "ATM withdrawal",
     },
-    // Tops up the Bali wallet from USD checking: $50 → ~800,000 Rp, biweekly,
-    // sized to clear the rupiah spend-down above without going negative.
+    // Tops up the Bali wallet from USD checking: $50 → ~800,000 Rp, monthly,
+    // sized to track the rupiah spend above so the wallet stays positive.
     {
       fromAccountId: CHECKING,
       toAccountId: BALI,
-      cadence: "biweekly",
+      cadence: "monthly",
       amount: 5_000,
+      dayOfMonth: 5,
       note: "Travel cash",
     },
   ],

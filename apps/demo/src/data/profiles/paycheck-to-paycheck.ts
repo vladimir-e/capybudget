@@ -26,7 +26,7 @@ export const paycheckToPaycheck: DemoProfile = {
     [CHECKING]: 120_000,
     [SAVINGS]: 60_000,
     [CREDIT]: -55_000,
-    [HOME]: 4_000_000, // 40,000 ₸
+    [HOME]: 60_000_000, // 600,000 ₸
   },
 
   incomeStreams: [
@@ -94,13 +94,14 @@ export const paycheckToPaycheck: DemoProfile = {
       note: "Car insurance",
     },
     {
-      // Family support back home, paid out of the tenge account. 70,000 ₸/mo.
+      // Family support back home, paid out of the tenge account. 70,000 ₸/mo,
+      // after the remittance lands so the account never dips negative.
       merchant: "Family Support",
       category: "Gifts & Giving",
       accountId: HOME,
       cadence: "monthly",
       amount: 7_000_000,
-      dayOfMonth: 3,
+      dayOfMonth: 20,
     },
   ],
 
@@ -161,8 +162,8 @@ export const paycheckToPaycheck: DemoProfile = {
       amountRange: [2_000, 5_000],
     },
     {
-      // Rent/groceries for family back home, in tenge. ~60,000 ₸/mo across a
-      // couple of payments.
+      // Rent/groceries for family back home, in tenge. 25,000–35,000 ₸ per
+      // payment, one or two a month.
       category: "Housing",
       accountId: HOME,
       merchants: ["Halyk Bank", "Kaspi"],
@@ -271,13 +272,14 @@ export const paycheckToPaycheck: DemoProfile = {
       note: "Covering the gap",
     },
     {
-      // Monthly remittance: $300 from USD checking lands as ~141,000 ₸.
+      // Monthly remittance: $300 from USD checking lands as ~141,000 ₸, early
+      // in the month so it funds the family-support and housing outflows.
       fromAccountId: CHECKING,
       toAccountId: HOME,
       cadence: "monthly",
       amount: 30_000,
       jitterPct: 0.05,
-      dayOfMonth: 15,
+      dayOfMonth: 1,
       note: "Remittance home",
     },
   ],
