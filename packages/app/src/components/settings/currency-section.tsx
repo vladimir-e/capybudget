@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from "react"
 import { open as shellOpen } from "@tauri-apps/plugin-shell"
-import { ChevronDown, ExternalLink } from "lucide-react"
-import { useTranslation } from "@capybudget/i18n"
+import { ChevronDown, ExternalLink, RotateCcw } from "lucide-react"
+import { useFormatLocale, useTranslation } from "@capybudget/i18n"
 import {
   currencySymbol,
   defaultCurrencySettings,
   formatDefaultsFor,
+  formatMoney,
   resolveRate,
   type CurrencySettings,
   type RateProvenance,
@@ -139,49 +140,28 @@ export function CurrencySection({ budgetPath }: { budgetPath: string }) {
           </p>
         </div>
 
-        <Collapsible open={formatOpen} onOpenChange={setFormatOpen} className="space-y-2">
-          <div className="flex h-4 items-center justify-between">
-            <Label className="text-xs text-muted-foreground">{t("currency.preview")}</Label>
-            <CollapsibleTrigger className="flex items-center gap-1 text-xs text-muted-foreground underline hover:text-foreground transition-colors">
-              {t("currency.formatSettings")}
-              <ChevronDown
-                className={`size-3 transition-transform ${formatOpen ? "rotate-180" : ""}`}
-              />
-            </CollapsibleTrigger>
-          </div>
-
-          <div className="flex items-center gap-6 rounded-md border bg-muted/30 px-3 py-2 text-sm font-semibold tabular-nums">
-            <span className="text-amount-income">{formatPreview(PREVIEW_INCOME_CENTS)}</span>
-            <span className="text-amount-expense">{formatPreview(PREVIEW_EXPENSE_CENTS)}</span>
-          </div>
-
-          <CollapsibleContent className="space-y-4 pt-2">
-            <FormatControls
-              currency={currency}
-              decimals={decimals}
-              symbolPosition={symbolPosition}
-              onChange={(format) => void setBudgetFormat(format)}
-            />
-
-            {!isDefaultFormat && (
-              <div className="flex justify-end">
-                <button
-                  type="button"
-                  className="text-xs text-muted-foreground underline hover:text-foreground transition-colors"
-                  onClick={() => void setBudgetFormat(defaultFormat)}
-                >
-                  {t("currency.resetDefaults", { currency })}
-                </button>
-              </div>
-            )}
-          </CollapsibleContent>
-        </Collapsible>
+        <FormatSection
+          open={formatOpen}
+          onOpenChange={setFormatOpen}
+          previewIncome={formatPreview(PREVIEW_INCOME_CENTS)}
+          previewExpense={formatPreview(PREVIEW_EXPENSE_CENTS)}
+          currency={currency}
+          decimals={decimals}
+          symbolPosition={symbolPosition}
+          onChange={(format) => void setBudgetFormat(format)}
+          onReset={isDefaultFormat ? undefined : () => void setBudgetFormat(defaultFormat)}
+        />
 
         {foreignCurrencies.length > 0 && (
           <div className="space-y-3 border-t pt-4">
-            <Label className="text-xs text-muted-foreground">
-              {t("currency.exchangeRates", { currency })}
-            </Label>
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">
+                {t("currency.exchangeRates", { currency })}
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                {t("currency.rateHistoryNote")}
+              </p>
+            </div>
             {foreignCurrencies.map((code) => (
               <ForeignCurrencyRow
                 key={code}
@@ -223,6 +203,74 @@ export function CurrencySection({ budgetPath }: { budgetPath: string }) {
         </DialogContent>
       </Dialog>
     </Card>
+  )
+}
+
+// Always-visible format preview plus a collapsible block holding the
+// symbol/decimals controls and an optional reset link. Shared verbatim by the
+// default currency and each foreign row; the caller renders the preview figures
+// in that currency's own format and owns the open state.
+function FormatSection({
+  open,
+  onOpenChange,
+  previewIncome,
+  previewExpense,
+  currency,
+  decimals,
+  symbolPosition,
+  onChange,
+  onReset,
+}: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  previewIncome: string
+  previewExpense: string
+  currency: string
+  decimals: number
+  symbolPosition: SymbolPosition
+  onChange: (format: { decimals: number; symbolPosition: SymbolPosition }) => void
+  onReset?: () => void
+}) {
+  const { t } = useTranslation("settings")
+
+  return (
+    <Collapsible open={open} onOpenChange={onOpenChange} className="space-y-2">
+      <div className="flex h-4 items-center justify-between">
+        <Label className="text-xs text-muted-foreground">{t("currency.preview")}</Label>
+        <CollapsibleTrigger className="flex items-center gap-1 text-xs text-muted-foreground underline hover:text-foreground transition-colors">
+          {t("currency.formatSettings")}
+          <ChevronDown
+            className={`size-3 transition-transform ${open ? "rotate-180" : ""}`}
+          />
+        </CollapsibleTrigger>
+      </div>
+
+      <div className="flex items-center gap-6 rounded-md border bg-muted/30 px-3 py-2 text-sm font-semibold tabular-nums">
+        <span className="text-amount-income">{previewIncome}</span>
+        <span className="text-amount-expense">{previewExpense}</span>
+      </div>
+
+      <CollapsibleContent className="space-y-4 pt-2">
+        <FormatControls
+          currency={currency}
+          decimals={decimals}
+          symbolPosition={symbolPosition}
+          onChange={onChange}
+        />
+
+        {onReset && (
+          <div className="flex justify-end">
+            <button
+              type="button"
+              className="text-xs text-muted-foreground underline hover:text-foreground transition-colors"
+              onClick={onReset}
+            >
+              {t("currency.resetDefaults", { currency })}
+            </button>
+          </div>
+        )}
+      </CollapsibleContent>
+    </Collapsible>
   )
 }
 
@@ -309,6 +357,51 @@ function rateInputValue(rate: number): string {
   return String(Number(rate.toPrecision(6)))
 }
 
+// Pill styling per provenance: a manual override reads warm-orange, our
+// estimate reads green (the income/amount family), and an unset rate stays
+// neutral — it's neither user-set nor estimated.
+const PROVENANCE_PILL = {
+  manual: "bg-rate-manual/10 text-rate-manual",
+  seed: "bg-amount-income/10 text-amount-income",
+  unset: "bg-muted text-muted-foreground",
+} satisfies Record<RateProvenance, string>
+
+// Where a foreign currency's rate against the default came from, shown as a
+// small pill. A manual override pairs with a reset-to-estimate icon button when
+// an estimate is available to fall back to.
+function RateProvenanceIndicator({
+  source,
+  canResetToEstimate,
+  onReset,
+}: {
+  source: RateProvenance
+  canResetToEstimate: boolean
+  onReset: () => void
+}) {
+  const { t } = useTranslation("settings")
+
+  return (
+    <div className="flex items-center gap-1.5">
+      <span
+        className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${PROVENANCE_PILL[source]}`}
+      >
+        {t(PROVENANCE_KEY[source])}
+      </span>
+      {canResetToEstimate && (
+        <button
+          type="button"
+          className="text-muted-foreground hover:text-foreground transition-colors"
+          onClick={onReset}
+          aria-label={t("currency.rateReset")}
+          title={t("currency.rateReset")}
+        >
+          <RotateCcw className="size-3.5" />
+        </button>
+      )}
+    </div>
+  )
+}
+
 function ForeignCurrencyRow({
   code,
   defaultCurrency,
@@ -321,6 +414,8 @@ function ForeignCurrencyRow({
   onChange: (update: Partial<CurrencySettings>) => void
 }) {
   const { t } = useTranslation("settings")
+  const locale = useFormatLocale()
+  const [formatOpen, setFormatOpen] = useState(false)
   const entry = currencies[code] ?? formatDefaultsFor(code)
   const resolved = resolveRate(code, currencies, defaultCurrency)
   // A manual override can be reset to Capy's estimate — but only when one
@@ -332,6 +427,15 @@ function ForeignCurrencyRow({
     defaultCurrency,
   )
   const canResetToEstimate = resolved.source === "manual" && seedRate.source === "seed"
+
+  // The preview reads in this currency's own format, not the budget default, so
+  // it can't ride the context formatter — format directly against the row's
+  // decimals/symbolPosition.
+  const previewFormat = { decimals: entry.decimals, symbolPosition: entry.symbolPosition }
+  const codeDefaultFormat = formatDefaultsFor(code)
+  const isDefaultFormat =
+    entry.decimals === codeDefaultFormat.decimals &&
+    entry.symbolPosition === codeDefaultFormat.symbolPosition
 
   // The input holds local edits until commit (blur/Enter) so an in-progress
   // "0." doesn't round-trip. Resetting the draft to the resolved value during
@@ -361,18 +465,11 @@ function ForeignCurrencyRow({
           {code}{" "}
           <span className="text-muted-foreground">{currencySymbol(code)}</span>
         </span>
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-muted-foreground">{t(PROVENANCE_KEY[resolved.source])}</span>
-          {canResetToEstimate && (
-            <button
-              type="button"
-              className="text-xs text-muted-foreground underline hover:text-foreground transition-colors"
-              onClick={() => onChange({ rate: undefined, rateSource: undefined })}
-            >
-              {t("currency.rateReset")}
-            </button>
-          )}
-        </div>
+        <RateProvenanceIndicator
+          source={resolved.source}
+          canResetToEstimate={canResetToEstimate}
+          onReset={() => onChange({ rate: undefined, rateSource: undefined })}
+        />
       </div>
 
       <div className="flex items-center gap-2 text-sm">
@@ -394,11 +491,16 @@ function ForeignCurrencyRow({
         <span className="shrink-0 text-muted-foreground">{defaultCurrency}</span>
       </div>
 
-      <FormatControls
+      <FormatSection
+        open={formatOpen}
+        onOpenChange={setFormatOpen}
+        previewIncome={formatMoney(PREVIEW_INCOME_CENTS, code, previewFormat, locale)}
+        previewExpense={formatMoney(PREVIEW_EXPENSE_CENTS, code, previewFormat, locale)}
         currency={code}
         decimals={entry.decimals}
         symbolPosition={entry.symbolPosition}
         onChange={onChange}
+        onReset={isDefaultFormat ? undefined : () => onChange(codeDefaultFormat)}
       />
     </div>
   )

@@ -53,6 +53,7 @@
     "decimals": "Decimales",
     "resetDefaults": "Restablecer los valores por defecto de {{currency}}",
     "exchangeRates": "Tipos de cambio a {{currency}}",
+    "rateHistoryNote": "Actualizar un tipo solo cambia los saldos de hoy — las transacciones pasadas conservan el tipo del día en que ocurrieron.",
     "rateLabel": "1 {{code}} =",
     "rateManual": "tu tipo",
     "rateSeed": "nuestra estimación",

@@ -53,6 +53,7 @@
     "decimals": "Decimals",
     "resetDefaults": "Reset to {{currency}} defaults",
     "exchangeRates": "Exchange rates to {{currency}}",
+    "rateHistoryNote": "Updating a rate only changes today’s balances — past transactions keep the rate from the day they happened.",
     "rateLabel": "1 {{code}} =",
     "rateManual": "your rate",
     "rateSeed": "our estimate",

@@ -11,6 +11,10 @@
     --amount-income: oklch(0.50 0.14 152);
     --amount-transfer: oklch(0.52 0.02 55);
 
+    /* A manual exchange-rate override — warm orange, distinct from brand amber.
+       Stable across themes like the other semantic amounts. */
+    --rate-manual: oklch(0.62 0.15 50);
+
     /* Warm brand amber */
     --brand: oklch(0.58 0.14 55);
     --brand-subtle: oklch(0.92 0.04 60);
@@ -66,6 +70,8 @@
     --amount-expense: oklch(0.72 0.14 20);
     --amount-income: oklch(0.72 0.12 152);
     --amount-transfer: oklch(0.62 0.02 55);
+
+    --rate-manual: oklch(0.74 0.13 50);
 
     --brand: oklch(0.74 0.11 58);
     --brand-subtle: oklch(0.28 0.04 55);
@@ -468,6 +474,7 @@
     --color-amount-expense: var(--amount-expense);
     --color-amount-income: var(--amount-income);
     --color-amount-transfer: var(--amount-transfer);
+    --color-rate-manual: var(--rate-manual);
     --color-brand: var(--brand);
     --color-brand-subtle: var(--brand-subtle);
     --color-sidebar-ring: var(--sidebar-ring);
