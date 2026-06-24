@@ -5,6 +5,7 @@ const CHECKING = "uw-checking";
 const CREDIT = "uw-credit";
 const LOAN = "uw-loan";
 const CASH = "uw-cash";
+const BALI = "uw-bali";
 
 /** Underwater: a service-industry earner whose two semimonthly paychecks barely
  *  cover the bills. The credit card carries everyday spend and only gets a small
@@ -19,6 +20,8 @@ export const underwater: DemoProfile = {
     account(CREDIT, "Credit Card", "credit_card", 1),
     account(LOAN, "Student Loan", "loan", 2),
     account(CASH, "Cash", "cash", 3),
+    // Travel cash from a trip to Bali, in rupiah. (1 USD ≈ 16,000 Rp.)
+    account(BALI, "Bali Wallet", "cash", 4, "IDR"),
   ],
   categories: createCategories(),
   openingBalances: {
@@ -26,6 +29,7 @@ export const underwater: DemoProfile = {
     [CREDIT]: -420_000,
     [LOAN]: -2_650_000,
     [CASH]: 20_000,
+    [BALI]: 200_000_000, // 2,000,000 Rp
   },
 
   incomeStreams: [
@@ -133,6 +137,29 @@ export const underwater: DemoProfile = {
       perMonth: [2, 4],
       amountRange: [1_500, 3_500],
     },
+    // Bali wallet spend-down, all in rupiah. Travel dining, transport, and
+    // shopping that quietly bleeds the trip cash.
+    {
+      category: "Dining Out",
+      accountId: BALI,
+      merchants: ["Warung Bu Mi", "Sari Organik", "La Favela", "Kopi Kenangan"],
+      perMonth: [3, 5],
+      amountRange: [60_000, 150_000],
+    },
+    {
+      category: "Transportation",
+      accountId: BALI,
+      merchants: ["Gojek", "Grab", "Blue Bird"],
+      perMonth: [2, 3],
+      amountRange: [40_000, 90_000],
+    },
+    {
+      category: "Fun & Hobbies",
+      accountId: BALI,
+      merchants: ["Ubud Market", "Pantai Surf Shop", "Bintang Supermarket"],
+      perMonth: [1, 2],
+      amountRange: [100_000, 250_000],
+    },
   ],
 
   occasionalExpenses: [
@@ -225,6 +252,15 @@ export const underwater: DemoProfile = {
       cadence: "biweekly",
       amount: 13_000,
       note: "ATM withdrawal",
+    },
+    // Tops up the Bali wallet from USD checking: $50 → ~800,000 Rp, biweekly,
+    // sized to clear the rupiah spend-down above without going negative.
+    {
+      fromAccountId: CHECKING,
+      toAccountId: BALI,
+      cadence: "biweekly",
+      amount: 5_000,
+      note: "Travel cash",
     },
   ],
 };

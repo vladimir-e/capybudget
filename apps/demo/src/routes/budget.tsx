@@ -14,6 +14,9 @@ import { DEFAULT_CURRENCY } from "@capybudget/core";
 import { PROFILES } from "../data/profiles";
 import { generateScenarioData } from "../data/generator";
 import { seedFromString } from "../data/rng";
+// Side-effect: pre-seed each scenario's budget.json (default + foreign
+// currencies) into the fs stub before CurrencyProvider's query reads it.
+import "../data/seed-budget-meta";
 import { DemoSeedingScreen } from "../components/demo-seeding-screen";
 import { hasEnteredScenario } from "../session-entry";
 

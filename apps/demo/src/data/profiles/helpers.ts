@@ -15,12 +15,13 @@ export function account(
   name: string,
   type: AccountType,
   sortOrder: number,
+  currency: string = DEFAULT_CURRENCY,
 ): Account {
   return {
     id,
     name,
     type,
-    currency: DEFAULT_CURRENCY,
+    currency,
     archived: false,
     excludeFromNetWorth: false,
     sortOrder,

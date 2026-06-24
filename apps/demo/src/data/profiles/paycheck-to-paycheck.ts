@@ -4,6 +4,7 @@ import { account, createCategories } from "./helpers";
 const CHECKING = "p2p-checking";
 const SAVINGS = "p2p-savings";
 const CREDIT = "p2p-credit";
+const HOME = "p2p-home";
 
 /** Paycheck to paycheck: a steady salaried earner whose income roughly matches
  *  outflow. A small fixed sweep to savings goes out each month but most of it is
@@ -17,12 +18,15 @@ export const paycheckToPaycheck: DemoProfile = {
     account(CHECKING, "Checking", "checking", 0),
     account(SAVINGS, "Savings", "savings", 1),
     account(CREDIT, "Visa Card", "credit_card", 2),
+    // Tenge account back home — money remitted to family. (1 USD ≈ 470 ₸.)
+    account(HOME, "Payments Home", "checking", 3, "KZT"),
   ],
   categories: createCategories(),
   openingBalances: {
     [CHECKING]: 120_000,
     [SAVINGS]: 60_000,
     [CREDIT]: -55_000,
+    [HOME]: 4_000_000, // 40,000 ₸
   },
 
   incomeStreams: [
@@ -89,6 +93,15 @@ export const paycheckToPaycheck: DemoProfile = {
       dayOfMonth: 7,
       note: "Car insurance",
     },
+    {
+      // Family support back home, paid out of the tenge account. 70,000 ₸/mo.
+      merchant: "Family Support",
+      category: "Gifts & Giving",
+      accountId: HOME,
+      cadence: "monthly",
+      amount: 7_000_000,
+      dayOfMonth: 3,
+    },
   ],
 
   variableBills: [
@@ -146,6 +159,15 @@ export const paycheckToPaycheck: DemoProfile = {
       merchants: ["CVS Pharmacy", "Walgreens", "Ulta Beauty"],
       perMonth: [1, 3],
       amountRange: [2_000, 5_000],
+    },
+    {
+      // Rent/groceries for family back home, in tenge. ~60,000 ₸/mo across a
+      // couple of payments.
+      category: "Housing",
+      accountId: HOME,
+      merchants: ["Halyk Bank", "Kaspi"],
+      perMonth: [1, 2],
+      amountRange: [2_500_000, 3_500_000],
     },
   ],
 
@@ -247,6 +269,16 @@ export const paycheckToPaycheck: DemoProfile = {
       amount: 6_000,
       dayOfMonth: 26,
       note: "Covering the gap",
+    },
+    {
+      // Monthly remittance: $300 from USD checking lands as ~141,000 ₸.
+      fromAccountId: CHECKING,
+      toAccountId: HOME,
+      cadence: "monthly",
+      amount: 30_000,
+      jitterPct: 0.05,
+      dayOfMonth: 15,
+      note: "Remittance home",
     },
   ],
 };

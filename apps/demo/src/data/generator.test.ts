@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import type { Transaction } from "@capybudget/core";
+import { SEED_RATES } from "@capybudget/core";
 import { generateScenarioData } from "./generator";
 import { PROFILE_LIST } from "./profiles";
+import type { DemoProfile } from "./profiles/types";
 import { underwater } from "./profiles/underwater";
 import { paycheckToPaycheck } from "./profiles/paycheck-to-paycheck";
 import { noStress } from "./profiles/no-stress";
@@ -12,11 +14,30 @@ function gen(profile = underwater, yearsBack = 1, seed = 1) {
   return generateScenarioData(profile, { now: NOW, yearsBack, seed });
 }
 
-/** Net worth at the end of the window = sum of every account's signed balance,
- *  i.e. the sum of all transaction amounts (opening balances included, transfers
- *  net to zero across their pairs). */
+/** Net worth at the end of the window, in the default currency: each flow valued
+ *  at its stamped `fxRate` (mirroring `flowToDefault`), so foreign amounts roll
+ *  up correctly and a cross-currency transfer's two legs net to ~0. Default and
+ *  unstamped flows pass through at face value. With the demo's single seed table
+ *  the stamped rate equals today's rate, so this also values foreign holdings. */
 function netWorth(transactions: Transaction[]): number {
-  return transactions.reduce((sum, t) => sum + t.amount, 0);
+  return transactions.reduce(
+    (sum, t) => sum + Math.round(t.amount * (t.fxRate ?? 1)),
+    0,
+  );
+}
+
+/** Opening net worth in the default currency: each account's opening balance is
+ *  native to its currency, so value it at the seed rate before summing — a raw
+ *  cent-sum would read a foreign opening (e.g. 40,000 ₸) as that many dollars. */
+function openingNetWorth(profile: DemoProfile): number {
+  const currencyByAccount = new Map(
+    profile.accounts.map((a) => [a.id, a.currency]),
+  );
+  return Object.entries(profile.openingBalances).reduce((sum, [id, bal]) => {
+    const currency = currencyByAccount.get(id) ?? "USD";
+    const rate = SEED_RATES.rates.USD / SEED_RATES.rates[currency];
+    return sum + Math.round(bal * rate);
+  }, 0);
 }
 
 function daysBetween(a: string, b: string): number {
@@ -86,8 +107,107 @@ describe("generateScenarioData", () => {
       const mate = byId.get(t.transferPairId);
       expect(mate).toBeDefined();
       expect(mate!.transferPairId).toBe(t.id);
-      expect(mate!.amount).toBe(-t.amount);
+      // A same-currency pair mirrors exactly; a cross-currency pair carries two
+      // independent native magnitudes that instead net to ~0 in the default.
+      if ((t.fxRate ?? 1) === (mate!.fxRate ?? 1)) {
+        expect(mate!.amount).toBe(-t.amount);
+      } else {
+        const usd = (x: Transaction) => x.amount * (x.fxRate ?? 1);
+        expect(Math.abs(usd(t) + usd(mate!))).toBeLessThan(100);
+      }
     }
+  });
+
+  describe("multi-currency", () => {
+    // Each profile carries exactly one foreign account; the rest are USD.
+    const foreignByProfile = [
+      { profile: paycheckToPaycheck, accountId: "p2p-home", currency: "KZT" },
+      { profile: underwater, accountId: "uw-bali", currency: "IDR" },
+      { profile: noStress, accountId: "ns-swiss", currency: "CHF" },
+    ] as const;
+
+    describe.each(foreignByProfile)(
+      "$currency account in $profile.id",
+      ({ profile, accountId, currency }) => {
+        const seedRate = SEED_RATES.rates.USD / SEED_RATES.rates[currency];
+
+        it("stamps the seed rate on every standalone foreign flow", () => {
+          const { transactions } = generateScenarioData(profile, {
+            now: NOW,
+            yearsBack: 2,
+            seed: 5,
+          });
+          const flows = transactions.filter(
+            (t) => t.accountId === accountId && t.type !== "transfer",
+          );
+          expect(flows.length).toBeGreaterThan(0);
+          for (const t of flows) {
+            expect(t.fxRate).toBeCloseTo(seedRate, 12);
+          }
+        });
+
+        it("leaves no foreign flow valued 1:1 (would skip the stamp)", () => {
+          const { transactions } = generateScenarioData(profile, {
+            now: NOW,
+            yearsBack: 2,
+            seed: 5,
+          });
+          const unstamped = transactions.filter(
+            (t) => t.accountId === accountId && t.fxRate === undefined,
+          );
+          expect(unstamped).toEqual([]);
+        });
+      },
+    );
+
+    it("USD (default-currency) transactions never carry an fxRate", () => {
+      for (const { profile } of foreignByProfile) {
+        const usdAccountIds = new Set(
+          profile.accounts
+            .filter((a) => a.currency === "USD")
+            .map((a) => a.id),
+        );
+        const { transactions } = generateScenarioData(profile, {
+          now: NOW,
+          yearsBack: 2,
+          seed: 5,
+        });
+        for (const t of transactions) {
+          if (usdAccountIds.has(t.accountId)) {
+            expect(t.fxRate).toBeUndefined();
+          }
+        }
+      }
+    });
+
+    it("cross-currency transfer legs carry per-leg rates and net to ~0 in USD", () => {
+      // The remittance (USD checking → KZT home) is a cross-currency pair.
+      const { transactions } = generateScenarioData(paycheckToPaycheck, {
+        now: NOW,
+        yearsBack: 1,
+        seed: 5,
+      });
+      const byId = new Map(transactions.map((t) => [t.id, t]));
+      const remittances = transactions.filter(
+        (t) => t.type === "transfer" && t.accountId === "p2p-home",
+      );
+      expect(remittances.length).toBeGreaterThan(0);
+
+      for (const credit of remittances) {
+        const debit = byId.get(credit.transferPairId)!;
+        // From leg is USD (default) — no stamp; to leg is KZT — seed-stamped.
+        expect(debit.accountId).toBe("p2p-checking");
+        expect(debit.fxRate).toBeUndefined();
+        expect(credit.fxRate).toBeCloseTo(
+          SEED_RATES.rates.USD / SEED_RATES.rates.KZT,
+          12,
+        );
+        // Native magnitudes differ, but the pair nets to ~0 in USD.
+        expect(Math.abs(debit.amount)).not.toBe(Math.abs(credit.amount));
+        const usd = (t: Transaction) => t.amount * (t.fxRate ?? 1);
+        expect(Math.abs(usd(debit) + usd(credit))).toBeLessThan(100);
+      }
+    });
   });
 
   describe.each(PROFILE_LIST)("profile: $id", (profile) => {
@@ -199,10 +319,7 @@ describe("generateScenarioData", () => {
 
   describe("per-scenario balance trajectory", () => {
     it("no-stress grows net worth over three years", () => {
-      const opening = Object.values(noStress.openingBalances).reduce(
-        (a, b) => a + b,
-        0,
-      );
+      const opening = openingNetWorth(noStress);
       const { transactions } = generateScenarioData(noStress, {
         now: NOW,
         yearsBack: 3,
@@ -240,9 +357,7 @@ describe("generateScenarioData", () => {
     });
 
     it("paycheck-to-paycheck ends near where it started", () => {
-      const opening = Object.values(
-        paycheckToPaycheck.openingBalances,
-      ).reduce((a, b) => a + b, 0);
+      const opening = openingNetWorth(paycheckToPaycheck);
       const { transactions } = generateScenarioData(paycheckToPaycheck, {
         now: NOW,
         yearsBack: 3,

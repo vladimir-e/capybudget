@@ -6,6 +6,7 @@ const SAVINGS = "ns-savings";
 const BROKERAGE = "ns-brokerage";
 const CREDIT = "ns-credit";
 const CASH = "ns-cash";
+const SWISS = "ns-swiss";
 
 /** No stress: a high earner whose income comfortably clears a generous lifestyle.
  *  Every month a large fixed sweep moves to high-yield savings and a brokerage
@@ -21,6 +22,8 @@ export const noStress: DemoProfile = {
     account(BROKERAGE, "Brokerage", "asset", 2),
     account(CREDIT, "Amex Platinum", "credit_card", 3),
     account(CASH, "Cash", "cash", 4),
+    // Offshore franc savings. (1 USD ≈ 0.88 CHF.)
+    account(SWISS, "Swiss Account", "savings", 5, "CHF"),
   ],
   categories: createCategories(),
   openingBalances: {
@@ -29,6 +32,7 @@ export const noStress: DemoProfile = {
     [BROKERAGE]: 18_000_000,
     [CREDIT]: -350_000,
     [CASH]: 50_000,
+    [SWISS]: 1_000_000, // 10,000 CHF
   },
 
   incomeStreams: [
@@ -48,6 +52,16 @@ export const noStress: DemoProfile = {
       cadence: "monthly",
       amount: 22_000,
       jitterPct: 0.25,
+      dayOfMonth: 28,
+    },
+    {
+      // Quarterly-ish interest on the franc balance. ~40 CHF/mo.
+      merchant: "UBS",
+      category: "Other Income",
+      accountId: SWISS,
+      cadence: "monthly",
+      amount: 4_000,
+      jitterPct: 0.2,
       dayOfMonth: 28,
     },
   ],
@@ -246,6 +260,16 @@ export const noStress: DemoProfile = {
       amount: 25_000,
       dayOfMonth: 10,
       note: "ATM withdrawal",
+    },
+    {
+      // Monthly offshore sweep: $2,000 from USD checking lands as ~1,760 CHF,
+      // so the franc holdings climb across the window.
+      fromAccountId: CHECKING,
+      toAccountId: SWISS,
+      cadence: "monthly",
+      amount: 200_000,
+      dayOfMonth: 16,
+      note: "Swiss sweep",
     },
   ],
 };

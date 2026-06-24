@@ -12,6 +12,7 @@ CHANGELOG PHILOSOPHY:
 ## Unreleased
 
 - **Multi-Currency** - give any account its own currency
+- **Demo** - Each scenario gains a foreign-currency account (KZT remittances, IDR travel cash, CHF offshore savings) so the live demo shows multi-currency rolling into a USD net worth.
 
 ## 1.2.0 — 2026-06-19
 

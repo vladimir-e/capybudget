@@ -1,4 +1,11 @@
 import type { Account, Category, Transaction } from "@capybudget/core";
+import {
+  DEFAULT_CURRENCY,
+  SEED_RATES,
+  crossRateAmount,
+  stampFxRate,
+  stampTransferRates,
+} from "@capybudget/core";
 import { Rng } from "./rng";
 import type {
   Cadence,
@@ -59,6 +66,11 @@ interface Engine {
   start: Date;
   now: Date;
   catId: (name: string) => string;
+  /** The currency the account `id` holds. Used to stamp `fxRate` on foreign
+   *  flows; absent ids fall back to the default (so a missing account is
+   *  same-currency, never a phantom conversion). */
+  accCurrency: (id: string) => string;
+  defaultCurrency: string;
   txns: Transaction[];
   counter: number;
 }
@@ -69,6 +81,19 @@ function emit(
     Partial<Transaction>,
 ): Transaction {
   engine.counter += 1;
+  // A foreign account's flow stamps today's seed rate so analytics value it in
+  // the default currency; a default-currency account leaves it empty (1.0).
+  // Transfer legs pass their own per-leg rate explicitly — honored verbatim,
+  // since the cross-currency case can't be re-derived from one leg alone.
+  const fxRate =
+    "fxRate" in fields
+      ? fields.fxRate
+      : stampFxRate(
+          engine.accCurrency(fields.accountId),
+          {},
+          engine.defaultCurrency,
+          SEED_RATES,
+        );
   const txn: Transaction = {
     id: `gen-txn-${engine.counter}`,
     datetime: fields.datetime,
@@ -80,6 +105,7 @@ function emit(
     merchant: fields.merchant ?? "",
     note: fields.note ?? "",
     createdAt: `${fields.datetime}Z`,
+    ...(fxRate !== undefined ? { fxRate } : {}),
   };
   engine.txns.push(txn);
   return txn;
@@ -257,10 +283,36 @@ function fireOccasional(
 
 function emitTransfer(engine: Engine, transfer: TransferStream): void {
   const dom = transfer.dayOfMonth ?? 28;
+  const fromCurrency = engine.accCurrency(transfer.fromAccountId);
+  const toCurrency = engine.accCurrency(transfer.toAccountId);
   for (const day of occurrences(engine, transfer.cadence, dom)) {
+    // `transfer.amount` is native to the FROM account; jitter it first, then
+    // convert into the TO account's currency at the seed cross-rate. Same
+    // currency → the legs mirror; different → the received amount differs and
+    // each leg stamps its own rate so the pair nets to ~0 in the default.
     const amount = transfer.jitterPct
       ? engine.rng.jitter(transfer.amount, transfer.jitterPct)
       : transfer.amount;
+    const toAmount =
+      fromCurrency === toCurrency
+        ? amount
+        : crossRateAmount(
+            amount,
+            fromCurrency,
+            toCurrency,
+            {},
+            engine.defaultCurrency,
+            SEED_RATES,
+          );
+    const { fromRate, toRate } = stampTransferRates(
+      fromCurrency,
+      toCurrency,
+      amount,
+      toAmount,
+      {},
+      engine.defaultCurrency,
+      SEED_RATES,
+    );
     const datetime = datetimeString(day, HMS(12, 0, 0));
     const debit = emit(engine, {
       datetime,
@@ -268,13 +320,15 @@ function emitTransfer(engine: Engine, transfer: TransferStream): void {
       amount: -amount,
       accountId: transfer.fromAccountId,
       note: transfer.note ?? "",
+      fxRate: fromRate,
     });
     const credit = emit(engine, {
       datetime,
       type: "transfer",
-      amount,
+      amount: toAmount,
       accountId: transfer.toAccountId,
       note: transfer.note ?? "",
+      fxRate: toRate,
     });
     debit.transferPairId = credit.id;
     credit.transferPairId = debit.id;
@@ -292,11 +346,17 @@ export function generateScenarioData(
   const start = new Date(opts.now);
   start.setFullYear(start.getFullYear() - opts.yearsBack);
 
+  const currencyByAccount = new Map(
+    profile.accounts.map((a) => [a.id, a.currency]),
+  );
+
   const engine: Engine = {
     rng: new Rng(opts.seed),
     start,
     now: new Date(opts.now),
     catId: categoryByName(categories),
+    accCurrency: (id) => currencyByAccount.get(id) ?? DEFAULT_CURRENCY,
+    defaultCurrency: DEFAULT_CURRENCY,
     txns: [],
     counter: 0,
   };
