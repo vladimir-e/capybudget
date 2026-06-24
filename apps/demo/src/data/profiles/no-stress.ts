@@ -22,7 +22,6 @@ export const noStress: DemoProfile = {
     account(BROKERAGE, "Brokerage", "asset", 2),
     account(CREDIT, "Amex Platinum", "credit_card", 3),
     account(CASH, "Cash", "cash", 4),
-    // Offshore yen savings. (1 USD ≈ 152 JPY.)
     account(JAPAN, "Japan Savings", "savings", 5, "JPY"),
   ],
   categories: createCategories(),
@@ -55,7 +54,6 @@ export const noStress: DemoProfile = {
       dayOfMonth: 28,
     },
     {
-      // Interest on the yen balance. ~¥6,000/mo.
       merchant: "MUFG Bank",
       category: "Other Income",
       accountId: JAPAN,
@@ -262,8 +260,6 @@ export const noStress: DemoProfile = {
       note: "ATM withdrawal",
     },
     {
-      // Monthly offshore sweep: $2,000 from USD checking lands as ~¥304,000,
-      // so the yen holdings climb across the window.
       fromAccountId: CHECKING,
       toAccountId: JAPAN,
       cadence: "monthly",

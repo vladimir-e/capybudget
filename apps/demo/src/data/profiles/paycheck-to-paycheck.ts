@@ -18,7 +18,6 @@ export const paycheckToPaycheck: DemoProfile = {
     account(CHECKING, "Checking", "checking", 0),
     account(SAVINGS, "Savings", "savings", 1),
     account(CREDIT, "Visa Card", "credit_card", 2),
-    // Tenge account back home — money remitted to family. (1 USD ≈ 470 ₸.)
     account(HOME, "Payments Home", "checking", 3, "KZT"),
   ],
   categories: createCategories(),
@@ -94,8 +93,6 @@ export const paycheckToPaycheck: DemoProfile = {
       note: "Car insurance",
     },
     {
-      // Family support back home, paid out of the tenge account. 70,000 ₸/mo,
-      // after the remittance lands so the account never dips negative.
       merchant: "Family Support",
       category: "Gifts & Giving",
       accountId: HOME,
@@ -162,8 +159,6 @@ export const paycheckToPaycheck: DemoProfile = {
       amountRange: [2_000, 5_000],
     },
     {
-      // Rent/groceries for family back home, in tenge. 25,000–35,000 ₸ per
-      // payment, one or two a month.
       category: "Housing",
       accountId: HOME,
       merchants: ["Halyk Bank", "Kaspi"],
@@ -272,8 +267,6 @@ export const paycheckToPaycheck: DemoProfile = {
       note: "Covering the gap",
     },
     {
-      // Monthly remittance: $300 from USD checking lands as ~141,000 ₸, early
-      // in the month so it funds the family-support and housing outflows.
       fromAccountId: CHECKING,
       toAccountId: HOME,
       cadence: "monthly",

@@ -20,7 +20,6 @@ export const underwater: DemoProfile = {
     account(CREDIT, "Credit Card", "credit_card", 1),
     account(LOAN, "Student Loan", "loan", 2),
     account(CASH, "Cash", "cash", 3),
-    // Travel cash from a trip to Bali, in rupiah. (1 USD ≈ 16,000 Rp.)
     account(BALI, "Bali Wallet", "cash", 4, "IDR"),
   ],
   categories: createCategories(),
@@ -137,11 +136,7 @@ export const underwater: DemoProfile = {
       perMonth: [2, 4],
       amountRange: [1_500, 3_500],
     },
-    // Bali wallet spend, all in rupiah (integer cents, ×100). Travel dining,
-    // transport, and shopping that runs through the trip cash; sized to track
-    // the monthly top-up so the wallet hovers near its funding, never negative.
     {
-      // 400–1,000 Rp/100 → 40,000–100,000 Rp/meal (~$2.50–$6.25).
       category: "Dining Out",
       accountId: BALI,
       merchants: ["Warung Bu Mi", "Sari Organik", "La Favela", "Kopi Kenangan"],
@@ -149,7 +144,6 @@ export const underwater: DemoProfile = {
       amountRange: [4_000_000, 10_000_000],
     },
     {
-      // 30,000–70,000 Rp/ride (~$1.90–$4.40).
       category: "Transportation",
       accountId: BALI,
       merchants: ["Gojek", "Grab", "Blue Bird"],
@@ -157,7 +151,6 @@ export const underwater: DemoProfile = {
       amountRange: [3_000_000, 7_000_000],
     },
     {
-      // 120,000–280,000 Rp/item (~$7.50–$17.50).
       category: "Fun & Hobbies",
       accountId: BALI,
       merchants: ["Ubud Market", "Pantai Surf Shop", "Bintang Supermarket"],
@@ -257,8 +250,6 @@ export const underwater: DemoProfile = {
       amount: 13_000,
       note: "ATM withdrawal",
     },
-    // Tops up the Bali wallet from USD checking: $50 → ~800,000 Rp, monthly,
-    // sized to track the rupiah spend above so the wallet stays positive.
     {
       fromAccountId: CHECKING,
       toAccountId: BALI,
