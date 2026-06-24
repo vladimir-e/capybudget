@@ -454,7 +454,10 @@ function ForeignCurrencyRow({
       setDraft(rateInputValue(resolved.rate))
       return
     }
-    if (parsed === resolved.rate) return
+    // Compare at the input's display precision: blurring an unedited rate (shown
+    // trimmed) must not register as a change — otherwise tabbing past a seed
+    // estimate silently rewrites it as a manual override a hair off the real seed.
+    if (rateInputValue(parsed) === rateInputValue(resolved.rate)) return
     onChange({ rate: parsed, rateSource: "manual" })
   }
 

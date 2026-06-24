@@ -205,6 +205,42 @@ describe("CurrencySection", () => {
     expect(setCurrencyEntry).toHaveBeenCalledWith("EUR", { rate: 1.15, rateSource: "manual" })
   })
 
+  it("does not rewrite a seed estimate as manual when the rate field is focused and blurred unedited", async () => {
+    const user = userEvent.setup()
+    accounts = [makeAccount({ currency: "EUR" })]
+    meta = metaWith("USD", { decimals: 2, symbolPosition: "before" }, {
+      EUR: { decimals: 2, symbolPosition: "before" }, // no manual rate → seed estimate
+    })
+    render(<CurrencySection budgetPath="/b" />)
+
+    // The shown value is the seed estimate trimmed to 6 sig digits (1.08696),
+    // narrower than the full-precision resolved rate. Tabbing past it must be a
+    // no-op, not a silent manual override a hair off the real seed.
+    const input = screen.getByLabelText("1 EUR =")
+    expect(input).toHaveValue("1.08696")
+    await user.click(input)
+    await user.tab()
+
+    expect(setCurrencyEntry).not.toHaveBeenCalled()
+    expect(screen.getByText(/our estimate/i)).toBeInTheDocument()
+  })
+
+  it("still commits a genuinely edited seed rate as a manual override", async () => {
+    const user = userEvent.setup()
+    accounts = [makeAccount({ currency: "EUR" })]
+    meta = metaWith("USD", { decimals: 2, symbolPosition: "before" }, {
+      EUR: { decimals: 2, symbolPosition: "before" }, // seed estimate baseline
+    })
+    render(<CurrencySection budgetPath="/b" />)
+
+    const input = screen.getByLabelText("1 EUR =")
+    await user.clear(input)
+    await user.type(input, "2")
+    await user.tab()
+
+    expect(setCurrencyEntry).toHaveBeenCalledWith("EUR", { rate: 2, rateSource: "manual" })
+  })
+
   it("offers 'use our estimate' on a manual rate and clears the override on click", async () => {
     const user = userEvent.setup()
     meta = metaWith("USD", { decimals: 2, symbolPosition: "before" }, {
