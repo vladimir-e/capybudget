@@ -116,20 +116,15 @@ export interface TransferPair {
   pairTransaction: Transaction | undefined;
 }
 
-/** Resolve a transfer leg into its from/to accounts.
- *
- *  Precondition: `txn` must be a `type === "transfer"` transaction. For any
- *  other type the from/to split is meaningless — a plain flow has a single
- *  account, and this function's sign-based guess would strand it on one side and
- *  leave the other empty (which is how the income-edit bug slipped in). Callers
- *  editing a non-transfer should read `txn.accountId` directly. */
+/** Resolves a transfer leg into its from/to accounts. Pass only transfers — for
+ *  a plain flow the sign-based split is meaningless; read `txn.accountId`. */
 export function resolveTransferPair(
   txn: Transaction,
   allTransactions: Transaction[],
 ): TransferPair {
   if (txn.type !== "transfer") {
     console.warn(
-      `resolveTransferPair called on a non-transfer transaction (type="${txn.type}"); the from/to split is undefined for plain flows — read txn.accountId instead.`,
+      `resolveTransferPair called on non-transfer (type="${txn.type}") — read txn.accountId instead`,
     );
   }
 
