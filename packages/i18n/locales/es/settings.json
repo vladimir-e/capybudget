@@ -40,7 +40,6 @@
       "description": "Este presupuesto tiene cuentas en otras monedas. Al cambiarla se reexpresan todos los tipos de cambio guardados en {{currency}} — tu historial conserva su forma, pero los valores quedan reexpresados en la nueva moneda y los céntimos pueden variar ligeramente. Para empezar de cero, suele ser mejor crear un presupuesto nuevo en {{currency}}. ¿Continuar?",
       "confirm": "Cambiar a {{currency}}"
     },
-    "requestCurrency": "Solicitar una moneda",
     "preview": "Vista previa",
     "formatSettings": "Ajustes de formato",
     "symbol": "Símbolo",

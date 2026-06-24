@@ -1,7 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { cleanup, render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
-import { open as shellOpen } from "@tauri-apps/plugin-shell"
 import { makeAccount } from "@/test/factories"
 import type { Account, BudgetMeta, CurrencySettings } from "@capybudget/core"
 import { CurrencySection } from "./currency-section"
@@ -135,12 +134,18 @@ describe("CurrencySection", () => {
     expect(setBudgetFormat).toHaveBeenCalledWith({ decimals: 2, symbolPosition: "before" })
   })
 
-  it("points the request-currency link at the plain repo page", async () => {
-    const user = userEvent.setup()
-    render(<CurrencySection budgetPath="/b" />)
+  it("shows the display-only notice for a single-currency budget but hides it once a foreign account exists", () => {
+    const notice = /Changes display only/i
 
-    await user.click(screen.getByRole("button", { name: /Request currency/i }))
-    expect(shellOpen).toHaveBeenCalledWith("https://github.com/vladimir-e/capybudget")
+    const single = render(<CurrencySection budgetPath="/b" />)
+    expect(screen.getByText(notice)).toBeInTheDocument()
+    single.unmount()
+
+    // With a foreign account a switch rebases (a real conversion), so the
+    // "balances aren't converted" line would be false — it's hidden.
+    accounts = [makeAccount({ currency: "USD" }), makeAccount({ currency: "EUR" })]
+    render(<CurrencySection budgetPath="/b" />)
+    expect(screen.queryByText(notice)).not.toBeInTheDocument()
   })
 
   it("renders no foreign rows for a USD-only budget (the invariant)", () => {

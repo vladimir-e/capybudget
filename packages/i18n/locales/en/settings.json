@@ -40,7 +40,6 @@
       "description": "This budget has accounts in other currencies. Switching re-expresses every stored exchange rate into {{currency}} — your history keeps its shape but values are restated in the new currency, and cents may shift slightly. For a clean start you’re usually better off creating a new budget in {{currency}}. Continue?",
       "confirm": "Switch to {{currency}}"
     },
-    "requestCurrency": "Request currency",
     "preview": "Preview",
     "formatSettings": "Format settings",
     "symbol": "Symbol",

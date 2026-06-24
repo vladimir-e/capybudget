@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from "react"
-import { open as shellOpen } from "@tauri-apps/plugin-shell"
-import { ChevronDown, ExternalLink, RotateCcw } from "lucide-react"
+import { ChevronDown, RotateCcw } from "lucide-react"
 import { useFormatLocale, useTranslation } from "@capybudget/i18n"
 import {
   currencySymbol,
@@ -49,10 +48,6 @@ import { useAccounts } from "@/hooks/use-budget-data"
 import { useBudgetMeta } from "@/hooks/use-budget-meta"
 import { useRebaseCurrency } from "@/hooks/use-rebase-currency"
 import { useFormatters } from "@/hooks/use-formatters"
-
-// The plain repo page rather than `issues/new` — the latter bounces signed-out
-// users to a GitHub login wall, which reads as a dead end.
-const CURRENCY_REQUEST_URL = "https://github.com/vladimir-e/capybudget"
 
 const SYMBOL_POSITIONS: SymbolPosition[] = ["before", "after", "off"]
 
@@ -127,17 +122,14 @@ export function CurrencySection({ budgetPath }: { budgetPath: string }) {
             value={currency}
             onChange={handleCurrencyChange}
           />
-          <p className="text-xs text-muted-foreground">
-            {t("currency.changeNotice")}{" "}
-            <button
-              type="button"
-              className="inline-flex items-center gap-1 underline hover:text-foreground transition-colors"
-              onClick={() => void shellOpen(CURRENCY_REQUEST_URL)}
-            >
-              {t("currency.requestCurrency")}
-              <ExternalLink className="size-3" />
-            </button>
-          </p>
+          {/* A switch only relabels a single-currency budget — true. With foreign
+              accounts it rebases every rate (a real conversion), so the notice
+              would be false; the switch-warning dialog covers that case instead. */}
+          {foreignCurrencies.length === 0 && (
+            <p className="text-xs text-muted-foreground">
+              {t("currency.changeNotice")}
+            </p>
+          )}
         </div>
 
         <FormatSection
