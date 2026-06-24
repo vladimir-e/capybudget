@@ -45,15 +45,16 @@ export function LanguageSelect({
       >
         {withIcon && <Globe className="text-muted-foreground" />}
         <SelectValue>
-          {(value: string | null) =>
-            SUPPORTED_LOCALES.find((l) => l.code === value)?.label ?? value
-          }
+          {(value: string | null) => {
+            const l = SUPPORTED_LOCALES.find((l) => l.code === value)
+            return l ? `${l.code.toUpperCase()} · ${l.label}` : value
+          }}
         </SelectValue>
       </SelectTrigger>
       <SelectContent>
         {SUPPORTED_LOCALES.map((l) => (
           <SelectItem key={l.code} value={l.code}>
-            {l.label}
+            {`${l.code.toUpperCase()} · ${l.label}`}
           </SelectItem>
         ))}
       </SelectContent>

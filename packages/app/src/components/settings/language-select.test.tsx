@@ -23,23 +23,24 @@ afterEach(async () => {
 })
 
 describe("LanguageSelect", () => {
-  it("shows the active endonym in the closed trigger for both locales", async () => {
+  it("shows the active code and endonym in the closed trigger for both locales", async () => {
     const { rerender } = render(<LanguageSelect />)
-    expect(screen.getByRole("combobox")).toHaveTextContent("English")
+    expect(screen.getByRole("combobox")).toHaveTextContent("EN · English")
 
     await i18n.changeLanguage("ru")
     rerender(<LanguageSelect />)
-    expect(screen.getByRole("combobox")).toHaveTextContent("Русский")
+    expect(screen.getByRole("combobox")).toHaveTextContent("RU · Русский")
   })
 
-  it("lists every supported language by its endonym", async () => {
+  it("lists every supported language by its code and endonym", async () => {
     const user = userEvent.setup()
     render(<LanguageSelect />)
 
     await user.click(screen.getByRole("combobox"))
     const listbox = await screen.findByRole("listbox")
-    expect(within(listbox).getByRole("option", { name: "English" })).toBeInTheDocument()
-    expect(within(listbox).getByRole("option", { name: "Русский" })).toBeInTheDocument()
+    expect(within(listbox).getByRole("option", { name: "EN · English" })).toBeInTheDocument()
+    expect(within(listbox).getByRole("option", { name: "ES · Español" })).toBeInTheDocument()
+    expect(within(listbox).getByRole("option", { name: "RU · Русский" })).toBeInTheDocument()
   })
 
   it("applies the chosen language through setLocale", async () => {
@@ -47,7 +48,7 @@ describe("LanguageSelect", () => {
     render(<LanguageSelect />)
 
     await user.click(screen.getByRole("combobox"))
-    await user.click(await screen.findByRole("option", { name: "Русский" }))
+    await user.click(await screen.findByRole("option", { name: "RU · Русский" }))
 
     expect(setLocaleMock).toHaveBeenCalledWith("ru")
   })
