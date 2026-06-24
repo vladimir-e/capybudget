@@ -123,7 +123,7 @@ describe("generateScenarioData", () => {
     const foreignByProfile = [
       { profile: paycheckToPaycheck, accountId: "p2p-home", currency: "KZT" },
       { profile: underwater, accountId: "uw-bali", currency: "IDR" },
-      { profile: noStress, accountId: "ns-swiss", currency: "CHF" },
+      { profile: noStress, accountId: "ns-japan", currency: "JPY" },
     ] as const;
 
     describe.each(foreignByProfile)(

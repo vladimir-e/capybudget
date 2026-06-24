@@ -6,7 +6,7 @@ const SAVINGS = "ns-savings";
 const BROKERAGE = "ns-brokerage";
 const CREDIT = "ns-credit";
 const CASH = "ns-cash";
-const SWISS = "ns-swiss";
+const JAPAN = "ns-japan";
 
 /** No stress: a high earner whose income comfortably clears a generous lifestyle.
  *  Every month a large fixed sweep moves to high-yield savings and a brokerage
@@ -22,8 +22,8 @@ export const noStress: DemoProfile = {
     account(BROKERAGE, "Brokerage", "asset", 2),
     account(CREDIT, "Amex Platinum", "credit_card", 3),
     account(CASH, "Cash", "cash", 4),
-    // Offshore franc savings. (1 USD ≈ 0.88 CHF.)
-    account(SWISS, "Swiss Account", "savings", 5, "CHF"),
+    // Offshore yen savings. (1 USD ≈ 152 JPY.)
+    account(JAPAN, "Japan Savings", "savings", 5, "JPY"),
   ],
   categories: createCategories(),
   openingBalances: {
@@ -32,7 +32,7 @@ export const noStress: DemoProfile = {
     [BROKERAGE]: 18_000_000,
     [CREDIT]: -350_000,
     [CASH]: 50_000,
-    [SWISS]: 1_000_000, // 10,000 CHF
+    [JAPAN]: 152_000_000, // ¥1,520,000
   },
 
   incomeStreams: [
@@ -55,12 +55,12 @@ export const noStress: DemoProfile = {
       dayOfMonth: 28,
     },
     {
-      // Interest on the franc balance. ~40 CHF/mo.
-      merchant: "UBS",
+      // Interest on the yen balance. ~¥6,000/mo.
+      merchant: "MUFG Bank",
       category: "Other Income",
-      accountId: SWISS,
+      accountId: JAPAN,
       cadence: "monthly",
-      amount: 4_000,
+      amount: 600_000,
       jitterPct: 0.2,
       dayOfMonth: 28,
     },
@@ -262,14 +262,14 @@ export const noStress: DemoProfile = {
       note: "ATM withdrawal",
     },
     {
-      // Monthly offshore sweep: $2,000 from USD checking lands as ~1,760 CHF,
-      // so the franc holdings climb across the window.
+      // Monthly offshore sweep: $2,000 from USD checking lands as ~¥304,000,
+      // so the yen holdings climb across the window.
       fromAccountId: CHECKING,
-      toAccountId: SWISS,
+      toAccountId: JAPAN,
       cadence: "monthly",
       amount: 200_000,
       dayOfMonth: 16,
-      note: "Swiss sweep",
+      note: "Japan sweep",
     },
   ],
 };
