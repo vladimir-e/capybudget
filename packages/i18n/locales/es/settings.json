@@ -25,7 +25,11 @@
   "general": {
     "title": "General",
     "description": "Ajustes básicos de todo el presupuesto.",
-    "budgetName": "Nombre del presupuesto"
+    "budgetName": "Nombre del presupuesto",
+    "openOnLaunch": {
+      "label": "Abrir este presupuesto al iniciar",
+      "description": "Omite el selector y abre este presupuesto automáticamente al iniciar la app."
+    }
   },
   "language": {
     "title": "Idioma",

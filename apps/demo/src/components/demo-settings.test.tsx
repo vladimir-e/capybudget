@@ -95,4 +95,9 @@ describe("SettingsScreen in the demo", () => {
       screen.queryByRole("button", { name: /updates/i }),
     ).not.toBeInTheDocument()
   })
+
+  it("omits the open-on-launch toggle — auto-launch is desktop-only", async () => {
+    await renderSettings()
+    expect(screen.queryByLabelText(/open this budget on launch/i)).not.toBeInTheDocument()
+  })
 })

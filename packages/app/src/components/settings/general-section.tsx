@@ -8,13 +8,18 @@ import {
 } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Switch } from "@/components/ui/switch"
 import { useBudgetMeta } from "@/hooks/use-budget-meta"
 import { useAppStore } from "@/stores/app-store"
+
+declare const __IS_DEMO__: boolean
 
 export function GeneralSection({ budgetPath }: { budgetPath: string }) {
   const { t } = useTranslation("settings")
   const { data, setName } = useBudgetMeta(budgetPath)
   const renameRecentBudget = useAppStore((s) => s.renameRecentBudget)
+  const launchBudgetPath = useAppStore((s) => s.launchBudgetPath)
+  const setLaunchBudgetPath = useAppStore((s) => s.setLaunchBudgetPath)
 
   // Uncontrolled, keyed on the stored name so an external change reseeds the
   // field. Committed on blur / Enter, so a rename is one file write, not one per keystroke.
@@ -47,6 +52,24 @@ export function GeneralSection({ budgetPath }: { budgetPath: string }) {
             }}
           />
         </div>
+
+        {!__IS_DEMO__ && (
+          <div className="flex items-center justify-between gap-4">
+            <div className="space-y-0.5">
+              <Label htmlFor="open-on-launch">{t("general.openOnLaunch.label")}</Label>
+              <p className="text-sm text-muted-foreground">
+                {t("general.openOnLaunch.description")}
+              </p>
+            </div>
+            <Switch
+              id="open-on-launch"
+              checked={launchBudgetPath === budgetPath}
+              onCheckedChange={(checked) =>
+                setLaunchBudgetPath(checked ? budgetPath : null)
+              }
+            />
+          </div>
+        )}
       </CardContent>
     </Card>
   )

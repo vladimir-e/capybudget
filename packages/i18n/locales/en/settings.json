@@ -25,7 +25,11 @@
   "general": {
     "title": "General",
     "description": "Budget-wide basics.",
-    "budgetName": "Budget name"
+    "budgetName": "Budget name",
+    "openOnLaunch": {
+      "label": "Open this budget on launch",
+      "description": "Skip the picker and open this budget automatically when the app starts."
+    }
   },
   "language": {
     "title": "Language",

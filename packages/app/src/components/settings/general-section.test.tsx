@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { cleanup, render, screen } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import type { BudgetMeta } from "@capybudget/core"
+import { useAppStore } from "@/stores/app-store"
 import { GeneralSection } from "./general-section"
 
 const setName = vi.fn()
@@ -32,6 +33,7 @@ function metaWith(over: Partial<BudgetMeta> = {}): BudgetMeta {
 beforeEach(() => {
   vi.clearAllMocks()
   meta = metaWith()
+  useAppStore.setState({ launchBudgetPath: null })
 })
 
 afterEach(cleanup)
@@ -62,5 +64,26 @@ describe("GeneralSection", () => {
     await user.clear(input)
     await user.tab()
     expect(setName).not.toHaveBeenCalled()
+  })
+
+  it("reflects and toggles this budget as the launch budget", async () => {
+    const user = userEvent.setup()
+    render(<GeneralSection budgetPath="/b" />)
+
+    const toggle = screen.getByLabelText("Open this budget on launch")
+    expect(toggle).not.toBeChecked()
+
+    await user.click(toggle)
+    expect(useAppStore.getState().launchBudgetPath).toBe("/b")
+    expect(toggle).toBeChecked()
+
+    await user.click(toggle)
+    expect(useAppStore.getState().launchBudgetPath).toBeNull()
+  })
+
+  it("shows unchecked when a different budget is the launch budget", () => {
+    useAppStore.setState({ launchBudgetPath: "/other" })
+    render(<GeneralSection budgetPath="/b" />)
+    expect(screen.getByLabelText("Open this budget on launch")).not.toBeChecked()
   })
 })

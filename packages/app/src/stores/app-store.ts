@@ -11,6 +11,10 @@ interface AppState {
   renameRecentBudget: (path: string, name: string) => void;
   removeRecentBudget: (path: string) => void;
 
+  // Folder the app auto-opens on cold start. Null = show the selector.
+  launchBudgetPath: string | null;
+  setLaunchBudgetPath: (path: string | null) => void;
+
   sortPreferences: Record<string, SortConfig>;
   setSortPreference: (viewKey: string, sort: SortConfig) => void;
   getSortPreference: (viewKey: string) => SortConfig;
@@ -44,6 +48,10 @@ export const useAppStore = create<AppState>()(
           recentBudgets: state.recentBudgets.filter((b) => b.path !== path),
         })),
 
+      launchBudgetPath: null,
+
+      setLaunchBudgetPath: (path) => set({ launchBudgetPath: path }),
+
       sortPreferences: {},
 
       setSortPreference: (viewKey, sort) =>
@@ -54,6 +62,13 @@ export const useAppStore = create<AppState>()(
       getSortPreference: (viewKey) =>
         get().sortPreferences[viewKey] ?? DEFAULT_SORT,
     }),
-    { name: "capybudget-app" },
+    {
+      name: "capybudget-app",
+      partialize: (state) => ({
+        recentBudgets: state.recentBudgets,
+        launchBudgetPath: state.launchBudgetPath,
+        sortPreferences: state.sortPreferences,
+      }),
+    },
   ),
 );
