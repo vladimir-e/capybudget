@@ -2,10 +2,6 @@ import { useEffect, useState } from "react"
 import { useTranslation } from "@capybudget/i18n"
 import capyMascot from "@/assets/capy-neutral.webp"
 
-// Hold the visible indicator back this long. A fast load (the common case)
-// resolves before the timer fires, so the user sees only a calm background and
-// then the shell fades in — no spinner flash. Only a genuinely slow load shows
-// the soft mascot.
 const INDICATOR_DELAY_MS = 200
 
 export function BudgetLoading() {

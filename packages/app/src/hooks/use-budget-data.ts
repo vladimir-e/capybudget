@@ -16,9 +16,6 @@ export const budgetKeys = {
   transactions: () => [...budgetKeys.all, "transactions"] as const,
 };
 
-// retry: false on all three — a local CSV read won't succeed on retry, and the
-// default retry+backoff would hold the readiness gate (BudgetShell) on the
-// loading mascot for ~3s before a corrupt/missing file surfaced its error.
 export function useAccounts() {
   const repo = useBudgetRepository();
   return useQuery({
@@ -49,17 +46,7 @@ export function useTransactions() {
   });
 }
 
-/**
- * Aggregate readiness gate for a budget. Once true, a view's `length === 0` can
- * be trusted to mean genuinely empty rather than still-loading. Settles on the
- * first fetch settling — including an error (retry is off), so a bad CSV
- * releases the gate to the error/empty views instead of hanging the loader.
- *
- * Must be called inside RepositoryProvider (the data hooks read the repo).
- */
 export function useBudgetReady(budgetPath: string): boolean {
-  // useBudgetMeta swallows read errors to a default, so it only exposes
-  // isLoading; the CSV queries surface isPending — same "first fetch settled" bit.
   const { isLoading: metaLoading } = useBudgetMeta(budgetPath);
   const { isPending: accountsPending } = useAccounts();
   const { isPending: categoriesPending } = useCategories();

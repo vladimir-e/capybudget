@@ -9,12 +9,8 @@ interface AppState {
   recentBudgets: RecentBudget[];
   addRecentBudget: (path: string, name: string) => void;
   renameRecentBudget: (path: string, name: string) => void;
-  // `forget: true` is the explicit user eviction — it also clears the launch
-  // pointer if it matched. Auto-prune (missing folder) omits it so a
-  // temporarily-unavailable launch budget keeps its pointer for next launch.
   removeRecentBudget: (path: string, opts?: { forget?: boolean }) => void;
 
-  // Folder the app auto-opens on cold start. Null = show the selector.
   launchBudgetPath: string | null;
   setLaunchBudgetPath: (path: string | null) => void;
 
