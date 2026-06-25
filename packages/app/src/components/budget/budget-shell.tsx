@@ -20,7 +20,8 @@ import {
 } from "@/hooks/use-transaction-mutations";
 import { useUndoRedo } from "@/hooks/use-undo-redo";
 import { useReorderAccounts } from "@/hooks/use-account-mutations";
-import { useAccounts } from "@/hooks/use-budget-data";
+import { useAccounts, useBudgetReady } from "@/hooks/use-budget-data";
+import { BudgetLoading } from "@/components/budget/budget-loading";
 import { useStartupUpdateCheck } from "@/hooks/use-startup-update-check";
 import { useCustomInstructions } from "@/hooks/use-custom-instructions";
 import { useCustomCommands } from "@/hooks/use-custom-commands";
@@ -65,6 +66,7 @@ export function BudgetShell() {
   const reorderAccounts = useReorderAccounts();
   const { data: accounts = [] } = useAccounts();
   const hasAccounts = accounts.some((a) => !a.archived);
+  const ready = useBudgetReady(path);
 
   useStartupUpdateCheck({ path, name, navigate });
 
@@ -213,10 +215,15 @@ export function BudgetShell() {
     startTransaction: openTransactionForm,
   }), [editingTxn?.id, editTransaction, cancelEdit, currentAccountId, hasAccounts, openAccountDialog, openTransactionForm]);
 
+  // Gate the whole shell (chrome + sidebar + content) behind a readiness check
+  // so no view mounts mid-load and flashes its empty branch. BudgetLoading
+  // holds its indicator back ~200ms, so a fast load shows no spinner at all.
+  if (!ready) return <BudgetLoading />;
+
   return (
     <BudgetUIProvider value={uiCtx}>
       <ModHintProvider>
-      <div className="flex h-screen flex-col">
+      <div className="flex h-screen flex-col animate-in fade-in duration-300">
         {/* Header — full width, top */}
         <header className="relative z-40 grid grid-cols-3 items-center border-b px-4 py-2 bg-background/80 backdrop-blur-sm">
           <div className="flex items-center">

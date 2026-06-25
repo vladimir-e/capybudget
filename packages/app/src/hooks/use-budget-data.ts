@@ -6,6 +6,7 @@ import {
 } from "@capybudget/intelligence";
 import type { Account, Category, Transaction } from "@capybudget/core";
 import { useBudgetRepository } from "@/contexts/repository-context";
+import { useBudgetMeta } from "@/hooks/use-budget-meta";
 import { useCurrency } from "@/contexts/currency-context";
 
 export const budgetKeys = {
@@ -40,6 +41,23 @@ export function useTransactions() {
     queryFn: () => repo.getTransactions(),
     staleTime: Infinity,
   });
+}
+
+/**
+ * Aggregate readiness gate for a budget. False until budget.json and all three
+ * CSV queries have resolved their first fetch — the shell renders a loading
+ * placeholder until then, so views never mount mid-load and flash their empty
+ * branch before data arrives. Once true, `length === 0` legitimately means
+ * empty and the real empty state shows.
+ *
+ * Must be called inside RepositoryProvider (the data hooks read the repo).
+ */
+export function useBudgetReady(budgetPath: string): boolean {
+  const { isLoading: metaLoading } = useBudgetMeta(budgetPath);
+  const { isPending: accountsPending } = useAccounts();
+  const { isPending: categoriesPending } = useCategories();
+  const { isPending: transactionsPending } = useTransactions();
+  return !metaLoading && !accountsPending && !categoriesPending && !transactionsPending;
 }
 
 /**

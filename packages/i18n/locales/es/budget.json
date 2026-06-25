@@ -44,7 +44,8 @@
     "viewSource": "Ver el código en GitHub",
     "github": "GitHub",
     "expandSidebar": "Expandir la barra lateral",
-    "collapseSidebar": "Contraer la barra lateral"
+    "collapseSidebar": "Contraer la barra lateral",
+    "loading": "Cargando tu presupuesto"
   },
   "account": {
     "dialog": {

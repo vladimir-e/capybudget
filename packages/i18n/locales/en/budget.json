@@ -44,7 +44,8 @@
     "viewSource": "View source on GitHub",
     "github": "GitHub",
     "expandSidebar": "Expand sidebar",
-    "collapseSidebar": "Collapse sidebar"
+    "collapseSidebar": "Collapse sidebar",
+    "loading": "Loading your budget"
   },
   "account": {
     "dialog": {

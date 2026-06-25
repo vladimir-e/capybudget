@@ -44,7 +44,8 @@
     "viewSource": "Исходный код на GitHub",
     "github": "GitHub",
     "expandSidebar": "Развернуть панель",
-    "collapseSidebar": "Свернуть панель"
+    "collapseSidebar": "Свернуть панель",
+    "loading": "Загрузка бюджета"
   },
   "account": {
     "dialog": {
