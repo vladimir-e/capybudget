@@ -18,7 +18,7 @@ describe("BudgetLoading", () => {
     render(<BudgetLoading />);
     const status = screen.getByRole("status");
 
-    // Fast load (unmounts before the delay) would never paint the mascot.
+    // Before the delay the mascot isn't painted yet.
     expect(status.querySelector("img")).toBeNull();
 
     act(() => {
@@ -26,5 +26,23 @@ describe("BudgetLoading", () => {
     });
 
     expect(status.querySelector("img")).not.toBeNull();
+  });
+
+  it("clears its timer on unmount — a fast load fires no late state update", () => {
+    vi.useFakeTimers();
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const { unmount } = render(<BudgetLoading />);
+    // Fast load: gone before the indicator delay elapses.
+    unmount();
+
+    act(() => {
+      vi.advanceTimersByTime(250);
+    });
+
+    // A leaked timer would setState on the unmounted component → React act/
+    // update-on-unmounted warning. None means clearTimeout did its job.
+    expect(consoleError).not.toHaveBeenCalled();
+    consoleError.mockRestore();
   });
 });

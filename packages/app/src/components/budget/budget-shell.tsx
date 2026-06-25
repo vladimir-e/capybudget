@@ -215,9 +215,8 @@ export function BudgetShell() {
     startTransaction: openTransactionForm,
   }), [editingTxn?.id, editTransaction, cancelEdit, currentAccountId, hasAccounts, openAccountDialog, openTransactionForm]);
 
-  // Gate the whole shell (chrome + sidebar + content) behind a readiness check
-  // so no view mounts mid-load and flashes its empty branch. BudgetLoading
-  // holds its indicator back ~200ms, so a fast load shows no spinner at all.
+  // Gate chrome + sidebar + content together so no view mounts mid-load and
+  // flashes its empty branch.
   if (!ready) return <BudgetLoading />;
 
   return (

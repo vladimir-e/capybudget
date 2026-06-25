@@ -16,12 +16,16 @@ export const budgetKeys = {
   transactions: () => [...budgetKeys.all, "transactions"] as const,
 };
 
+// retry: false on all three — a local CSV read won't succeed on retry, and the
+// default retry+backoff would hold the readiness gate (BudgetShell) on the
+// loading mascot for ~3s before a corrupt/missing file surfaced its error.
 export function useAccounts() {
   const repo = useBudgetRepository();
   return useQuery({
     queryKey: budgetKeys.accounts(),
     queryFn: () => repo.getAccounts(),
     staleTime: Infinity,
+    retry: false,
   });
 }
 
@@ -31,6 +35,7 @@ export function useCategories() {
     queryKey: budgetKeys.categories(),
     queryFn: () => repo.getCategories(),
     staleTime: Infinity,
+    retry: false,
   });
 }
 
@@ -40,19 +45,21 @@ export function useTransactions() {
     queryKey: budgetKeys.transactions(),
     queryFn: () => repo.getTransactions(),
     staleTime: Infinity,
+    retry: false,
   });
 }
 
 /**
- * Aggregate readiness gate for a budget. False until budget.json and all three
- * CSV queries have resolved their first fetch — the shell renders a loading
- * placeholder until then, so views never mount mid-load and flash their empty
- * branch before data arrives. Once true, `length === 0` legitimately means
- * empty and the real empty state shows.
+ * Aggregate readiness gate for a budget. Once true, a view's `length === 0` can
+ * be trusted to mean genuinely empty rather than still-loading. Settles on the
+ * first fetch settling — including an error (retry is off), so a bad CSV
+ * releases the gate to the error/empty views instead of hanging the loader.
  *
  * Must be called inside RepositoryProvider (the data hooks read the repo).
  */
 export function useBudgetReady(budgetPath: string): boolean {
+  // useBudgetMeta swallows read errors to a default, so it only exposes
+  // isLoading; the CSV queries surface isPending — same "first fetch settled" bit.
   const { isLoading: metaLoading } = useBudgetMeta(budgetPath);
   const { isPending: accountsPending } = useAccounts();
   const { isPending: categoriesPending } = useCategories();

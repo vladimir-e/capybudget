@@ -72,6 +72,31 @@ describe("useBudgetReady", () => {
     await waitFor(() => expect(result.current).toBe(true));
   });
 
+  it("releases the gate when a query errors, fast — query-level retry is off", async () => {
+    const repo = {
+      getAccounts: () => Promise.resolve([]),
+      getCategories: () => Promise.resolve([]),
+      // A corrupt/locked CSV rejects. The query sets retry: false, so even a
+      // retry-enabled client settles it to error immediately (no ~3s backoff).
+      getTransactions: () => Promise.reject(new Error("corrupt CSV")),
+    } as unknown as BudgetRepository;
+
+    // Deliberately NOT overriding retry here — proves the hooks' own
+    // `retry: false` is what prevents the readiness hang, not the test client.
+    const client = new QueryClient();
+    function wrapper({ children }: { children: ReactNode }) {
+      return createElement(
+        QueryClientProvider,
+        { client },
+        createElement(RepositoryProvider, { value: repo }, children),
+      );
+    }
+
+    const { result } = renderHook(() => useBudgetReady("/b"), { wrapper });
+    // pending → error flips isPending false, so the gate releases.
+    await waitFor(() => expect(result.current).toBe(true));
+  });
+
   it("is true when every query resolves immediately (empty budget still readies)", async () => {
     const repo = {
       getAccounts: () => Promise.resolve([]),
