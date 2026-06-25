@@ -9,7 +9,10 @@ interface AppState {
   recentBudgets: RecentBudget[];
   addRecentBudget: (path: string, name: string) => void;
   renameRecentBudget: (path: string, name: string) => void;
-  removeRecentBudget: (path: string) => void;
+  // `forget: true` is the explicit user eviction — it also clears the launch
+  // pointer if it matched. Auto-prune (missing folder) omits it so a
+  // temporarily-unavailable launch budget keeps its pointer for next launch.
+  removeRecentBudget: (path: string, opts?: { forget?: boolean }) => void;
 
   // Folder the app auto-opens on cold start. Null = show the selector.
   launchBudgetPath: string | null;
@@ -43,9 +46,13 @@ export const useAppStore = create<AppState>()(
           ),
         })),
 
-      removeRecentBudget: (path) =>
+      removeRecentBudget: (path, opts) =>
         set((state) => ({
           recentBudgets: state.recentBudgets.filter((b) => b.path !== path),
+          launchBudgetPath:
+            opts?.forget && state.launchBudgetPath === path
+              ? null
+              : state.launchBudgetPath,
         })),
 
       launchBudgetPath: null,

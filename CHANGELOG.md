@@ -9,10 +9,6 @@ CHANGELOG PHILOSOPHY:
 - Resist the urge to be thorough here. Thoroughness goes in specs, not changelog.
 -->
 
-## Unreleased
-
-- **General** - A settings toggle marks a budget as your launch budget, so the app opens it on cold start instead of asking every time.
-
 ## 1.3.0 — 2026-06-24
 
 - **Multi-Currency** - Give any account its own currency and Capy shows your whole budget in one display currency — each transaction converts at the rate when it happened, balances at today's rate, and the gap surfaces as a net-worth FX delta; cross-currency transfers carry a rate per leg.

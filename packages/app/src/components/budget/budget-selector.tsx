@@ -283,7 +283,7 @@ export function BudgetSelector() {
                     key={budget.path}
                     budget={budget}
                     onOpen={handleRecentOpen}
-                    onRemove={removeRecentBudget}
+                    onRemove={(path) => removeRecentBudget(path, { forget: true })}
                   />
                 ))}
               </div>

@@ -7,6 +7,7 @@ describe("app-store", () => {
     useAppStore.setState({
       recentBudgets: [],
       sortPreferences: {},
+      launchBudgetPath: null,
     });
   });
 
@@ -80,6 +81,42 @@ describe("app-store", () => {
       const second = useAppStore.getState().recentBudgets[0].lastOpened;
 
       expect(second).not.toBe(first);
+    });
+  });
+
+  describe("launchBudgetPath", () => {
+    it("explicit removal (forget) clears the launch pointer when it matches", () => {
+      const s = useAppStore.getState();
+      s.addRecentBudget("/launch", "Launch");
+      s.setLaunchBudgetPath("/launch");
+
+      s.removeRecentBudget("/launch", { forget: true });
+
+      expect(useAppStore.getState().recentBudgets).toHaveLength(0);
+      expect(useAppStore.getState().launchBudgetPath).toBeNull();
+    });
+
+    it("explicit removal of a different budget leaves the launch pointer intact", () => {
+      const s = useAppStore.getState();
+      s.addRecentBudget("/launch", "Launch");
+      s.addRecentBudget("/other", "Other");
+      s.setLaunchBudgetPath("/launch");
+
+      s.removeRecentBudget("/other", { forget: true });
+
+      expect(useAppStore.getState().launchBudgetPath).toBe("/launch");
+    });
+
+    it("auto-prune (no forget) keeps the launch pointer for a retry", () => {
+      const s = useAppStore.getState();
+      s.addRecentBudget("/launch", "Launch");
+      s.setLaunchBudgetPath("/launch");
+
+      // The mount-time prune path removes by path without `forget`.
+      s.removeRecentBudget("/launch");
+
+      expect(useAppStore.getState().recentBudgets).toHaveLength(0);
+      expect(useAppStore.getState().launchBudgetPath).toBe("/launch");
     });
   });
 
