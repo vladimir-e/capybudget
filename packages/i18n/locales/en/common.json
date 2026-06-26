@@ -45,7 +45,14 @@
     "close": "Close"
   },
   "errors": {
-    "loadFailed": "Failed to load data"
+    "loadFailed": "Failed to load data",
+    "crash": {
+      "title": "Something went wrong",
+      "message": "Capy hit an unexpected error. Restarting usually fixes it.",
+      "restart": "Restart",
+      "copyDetails": "Copy details",
+      "copied": "Copied"
+    }
   },
   "commandPalette": {
     "title": "Command Palette",

@@ -45,7 +45,14 @@
     "close": "Cerrar"
   },
   "errors": {
-    "loadFailed": "No se pudieron cargar los datos"
+    "loadFailed": "No se pudieron cargar los datos",
+    "crash": {
+      "title": "Algo salió mal",
+      "message": "Capy encontró un error inesperado. Reiniciar suele solucionarlo.",
+      "restart": "Reiniciar",
+      "copyDetails": "Copiar detalles",
+      "copied": "Copiado"
+    }
   },
   "commandPalette": {
     "title": "Paleta de comandos",

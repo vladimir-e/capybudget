@@ -5,6 +5,7 @@ import { MutationCache, QueryCache, QueryClient, QueryClientProvider } from "@ta
 import { toast } from "sonner";
 import type { AnyRoute } from "@tanstack/react-router";
 import { i18n } from "@capybudget/i18n";
+import { ErrorBoundary } from "@/components/error-boundary";
 import { useIntelligenceStore } from "@/stores/intelligence-store";
 
 export async function bootstrapApp(routeTree: AnyRoute) {
@@ -34,9 +35,11 @@ export async function bootstrapApp(routeTree: AnyRoute) {
 
   ReactDOM.createRoot(document.getElementById("root")!).render(
     <React.StrictMode>
-      <QueryClientProvider client={queryClient}>
-        <RouterProvider router={router} />
-      </QueryClientProvider>
+      <ErrorBoundary>
+        <QueryClientProvider client={queryClient}>
+          <RouterProvider router={router} />
+        </QueryClientProvider>
+      </ErrorBoundary>
     </React.StrictMode>,
   );
 }
