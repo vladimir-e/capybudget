@@ -53,8 +53,6 @@ function shortenPath(path: string, maxLen: number): string {
 }
 
 export function BudgetShell() {
-  // TEMP: testing error boundary — remove before merge
-  throw new Error("TEMP: testing error boundary — remove before merge");
   const { t } = useTranslation(["budget", "common"]);
   const { path, name: searchName } = useSearch({ from: "/budget" });
   const { data: meta } = useBudgetMeta(path);

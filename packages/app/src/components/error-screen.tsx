@@ -42,7 +42,8 @@ export function ErrorScreen({ error, componentStack }: ErrorScreenProps) {
         <p className="text-sm text-muted-foreground">{t("errors.crash.message")}</p>
       </div>
 
-      <Button onClick={() => window.location.reload()}>{t("errors.crash.restart")}</Button>
+      {/* Go to root, not reload() — reloading restores the crashing route and errors again. */}
+      <Button onClick={() => window.location.assign("/")}>{t("errors.crash.restart")}</Button>
 
       <div className="flex max-w-sm flex-col items-center gap-1.5">
         <p className="font-mono text-xs break-words text-muted-foreground/60">{error.message}</p>
