@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import type { AnyRoute } from "@tanstack/react-router";
 import { i18n } from "@capybudget/i18n";
 import { ErrorBoundary } from "@/components/error-boundary";
+import { ErrorScreen } from "@/components/error-screen";
 import { useIntelligenceStore } from "@/stores/intelligence-store";
 
 export async function bootstrapApp(routeTree: AnyRoute) {
@@ -31,7 +32,16 @@ export async function bootstrapApp(routeTree: AnyRoute) {
       },
     }),
   });
-  const router = createRouter({ routeTree });
+  // TanStack Router catches a route component's render error in its own
+  // per-route CatchBoundary before it can reach the top-level ErrorBoundary,
+  // so route crashes route through our screen here; the boundary nets only
+  // what escapes the router (provider/bootstrap errors).
+  const router = createRouter({
+    routeTree,
+    defaultErrorComponent: ({ error, info }) => (
+      <ErrorScreen error={error} componentStack={info?.componentStack} />
+    ),
+  });
 
   ReactDOM.createRoot(document.getElementById("root")!).render(
     <React.StrictMode>

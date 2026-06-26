@@ -23,7 +23,7 @@ export function ErrorScreen({ error, componentStack }: ErrorScreenProps) {
   return (
     <div
       role="alert"
-      className="flex h-screen flex-col items-center justify-center gap-6 bg-background px-6 text-center"
+      className="fixed inset-0 z-50 flex flex-col items-center justify-center gap-6 bg-background px-6 text-center"
     >
       <div
         className="relative flex h-28 w-28 items-center justify-center"
