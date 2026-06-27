@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Outlet, useMatches, useNavigate, useRouter, useSearch } from "@tanstack/react-router";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { NavigationRail, type Section } from "@/components/budget/navigation-rail";
+import { HistoryNav } from "@/components/budget/history-nav";
 import { Sidebar } from "@/components/budget/sidebar";
 
 import { AccountDialog } from "@/components/budget/account-dialog";
@@ -258,6 +259,7 @@ export function BudgetShell() {
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
+            <HistoryNav className="ml-1.5 border-l border-border/50 pl-1.5" />
           </div>
           <div className="relative flex justify-center">
             {!isArchivedView && (

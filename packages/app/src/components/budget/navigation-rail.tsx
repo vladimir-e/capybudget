@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
-import { Link, useNavigate, useRouter, useRouterState } from "@tanstack/react-router";
-import { ArrowLeft, ArrowRight, Receipt, PieChart, FileUp, Settings, BookOpen } from "lucide-react";
+import { useEffect, useMemo } from "react";
+import { Link, useNavigate, useRouterState } from "@tanstack/react-router";
+import { Receipt, PieChart, FileUp, Settings, BookOpen } from "lucide-react";
 import { useTranslation } from "@capybudget/i18n";
 import { ModHintBadge } from "@/components/budget/mod-hint-badge";
 import { useAnalyticsStore } from "@/stores/analytics-store";
@@ -68,7 +68,6 @@ export function NavigationRail({
     <>
       {/* Desktop: vertical rail */}
       <nav className="hidden md:flex w-16 flex-col items-center border-r border-sidebar-border bg-sidebar pt-3 gap-1 shrink-0">
-        <HistoryNav variant="rail" className="w-full justify-center border-b border-sidebar-border/40 pb-2 mb-1" />
         <NavItem variant="rail" to="/budget" search={search} active={isAccounts} icon={Receipt} label={t("nav.accounts")} hint="1" />
         <NavItem variant="rail" to="/budget/categories" search={budgetSearch} active={isBudget} icon={PieChart} label={t("nav.budget")} hint="2" />
         <NavItem variant="rail" to="/budget/import" search={search} active={isImport} icon={FileUp} label={t("nav.import")} indicator={hasImportData} hint="3" />
@@ -83,60 +82,11 @@ export function NavigationRail({
 
       {/* Mobile: bottom tab bar */}
       <nav className="md:hidden fixed bottom-0 inset-x-0 z-30 flex items-center justify-around border-t border-sidebar-border bg-sidebar/95 backdrop-blur-sm px-2 pb-[env(safe-area-inset-bottom)]">
-        <HistoryNav variant="tab" />
         <NavItem variant="tab" to="/budget" search={search} active={isAccounts} icon={Receipt} label={t("nav.accounts")} />
         <NavItem variant="tab" to="/budget/categories" search={budgetSearch} active={isBudget} icon={PieChart} label={t("nav.budget")} />
         <NavItem variant="tab" to="/budget/import" search={search} active={isImport} icon={FileUp} label={t("nav.import")} indicator={hasImportData} />
       </nav>
     </>
-  );
-}
-
-// ── Browser-style back/forward ────────────────────────────
-
-// Back/forward over the router's history. `__TSR_index` is the app-relative
-// position; the furthest index we've seen is the forward ceiling. We track that
-// rather than read `history.length` — in the browser demo `history.length` counts
-// session entries predating the SPA, so Forward would render enabled while
-// `history.forward()` no-ops. Subscribing to the index re-renders on every
-// push/back/forward so the disabled states stay live.
-function HistoryNav({ variant, className }: { variant: "rail" | "tab"; className?: string }) {
-  const router = useRouter();
-  const { t } = useTranslation("common");
-  const index = useRouterState({ select: (s) => s.location.state.__TSR_index ?? 0 });
-  // Track the furthest index seen by adjusting state during render (React's
-  // sanctioned alternative to a set-state effect).
-  const [maxIndex, setMaxIndex] = useState(index);
-  if (index > maxIndex) setMaxIndex(index);
-  const canGoBack = index > 0;
-  const canGoForward = index < maxIndex;
-
-  const button =
-    variant === "rail"
-      ? "h-11 w-8 rounded-lg text-sidebar-foreground/60 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
-      : "h-11 w-11 rounded-lg text-sidebar-foreground/50 hover:text-sidebar-foreground";
-
-  return (
-    <div className={`flex items-center gap-0.5 ${className ?? ""}`}>
-      <button
-        type="button"
-        onClick={() => router.history.back()}
-        disabled={!canGoBack}
-        aria-label={t("nav.back")}
-        className={`flex items-center justify-center transition-colors disabled:opacity-30 disabled:pointer-events-none ${button}`}
-      >
-        <ArrowLeft className="h-4 w-4" />
-      </button>
-      <button
-        type="button"
-        onClick={() => router.history.forward()}
-        disabled={!canGoForward}
-        aria-label={t("nav.forward")}
-        className={`flex items-center justify-center transition-colors disabled:opacity-30 disabled:pointer-events-none ${button}`}
-      >
-        <ArrowRight className="h-4 w-4" />
-      </button>
-    </div>
   );
 }
 
