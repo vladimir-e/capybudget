@@ -62,38 +62,25 @@ describe("HistoryNav", () => {
     expect(screen.getByRole("button", { name: "Back" })).toBeDisabled();
   });
 
-  // The forward ceiling is the furthest index seen, not history.length — so once
-  // we step forward back up to that ceiling, Forward disables again.
-  it("disables forward again after returning to the furthest entry", async () => {
-    const { router } = await renderHistoryNav({ initialEntries: ["/", "/"], initialIndex: 1 });
+  // Regression: a branch navigation (step back, then push a new route) truncates
+  // the forward stack, so Forward must disable even though it was enabled
+  // mid-history. The live history length self-corrects here; a max-seen ceiling
+  // would leave Forward stuck enabled over the now-discarded entries.
+  it("disables forward after a branch navigation truncates the forward stack", async () => {
+    const { router } = await renderHistoryNav({
+      initialEntries: ["/", "/", "/", "/"],
+      initialIndex: 3,
+    });
 
+    router.history.back();
     router.history.back();
     await waitFor(() => {
       expect(screen.getByRole("button", { name: "Forward" })).toBeEnabled();
     });
 
-    router.history.forward();
+    router.history.push("/");
     await waitFor(() => {
       expect(screen.getByRole("button", { name: "Forward" })).toBeDisabled();
-    });
-  });
-
-  // Mount below the top entry: the forward arrow stays disabled until we've
-  // actually advanced (max-seen ceiling grows), then re-enables on stepping back.
-  it("grows the forward ceiling as history advances", async () => {
-    const { router } = await renderHistoryNav({ initialEntries: ["/", "/"], initialIndex: 0 });
-
-    expect(screen.getByRole("button", { name: "Forward" })).toBeDisabled();
-
-    router.history.forward();
-    await waitFor(() => {
-      expect(screen.getByRole("button", { name: "Back" })).toBeEnabled();
-    });
-    expect(screen.getByRole("button", { name: "Forward" })).toBeDisabled();
-
-    router.history.back();
-    await waitFor(() => {
-      expect(screen.getByRole("button", { name: "Forward" })).toBeEnabled();
     });
   });
 });
