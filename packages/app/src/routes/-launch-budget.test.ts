@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest"
 import { useAppStore } from "@/stores/app-store"
-import { resolveLaunchRedirect, resetLaunchResolution, SKIP_LAUNCH_REDIRECT_KEY } from "./-launch-budget"
+import { resolveLaunchRedirect, resetLaunchResolution } from "./-launch-budget"
+import { markSkipLaunchRedirect, consumeSkipLaunchRedirect } from "@/lib/crash-recovery"
 
 // The resolver imports its budget service via a deep relative path; mock at
 // the same path so vi.mock can resolve it.
@@ -57,11 +58,11 @@ describe("resolveLaunchRedirect", () => {
 
   it("skips the redirect once when the error screen flagged a restart", async () => {
     useAppStore.setState({ launchBudgetPath: "/b" })
-    sessionStorage.setItem(SKIP_LAUNCH_REDIRECT_KEY, "1")
+    markSkipLaunchRedirect()
 
     expect(await resolveLaunchRedirect()).toBeNull()
-    // One-shot: cleared so the next genuine launch auto-opens again.
-    expect(sessionStorage.getItem(SKIP_LAUNCH_REDIRECT_KEY)).toBeNull()
+    // One-shot: already consumed, so nothing is left to skip on the next launch.
+    expect(consumeSkipLaunchRedirect()).toBe(false)
     expect(mockDetectBudget).not.toHaveBeenCalled()
   })
 
