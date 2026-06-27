@@ -1,7 +1,6 @@
 import { useCallback } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useBudgetRepository } from "@/contexts/repository-context";
-import { useUndoRedo } from "@/hooks/use-undo-redo";
 import { budgetKeys } from "@/hooks/use-budget-data";
 import { useImportRepository } from "@/hooks/use-import-repository";
 import { prepareMerge } from "@capybudget/core";
@@ -22,15 +21,12 @@ export interface MergeResult {
 export function useImportMerge(budgetPath: string) {
   const queryClient = useQueryClient();
   const repo = useBudgetRepository();
-  const { captureSnapshot } = useUndoRedo();
   const importRepo = useImportRepository(budgetPath);
   const defaultCurrency = useCurrency();
   const currencies = useCurrencies();
 
   const merge = useCallback(
     async (input: MergeInput): Promise<MergeResult> => {
-      captureSnapshot();
-
       const prevAccounts =
         queryClient.getQueryData<Account[]>(budgetKeys.accounts()) ?? [];
       const prevTxns =
@@ -85,7 +81,6 @@ export function useImportMerge(budgetPath: string) {
     [
       queryClient,
       repo,
-      captureSnapshot,
       importRepo,
       defaultCurrency,
       currencies,

@@ -14,6 +14,7 @@ CHANGELOG PHILOSOPHY:
 - **Navigation** - Back/forward arrows in the rail (and ⌘[ / ⌘]) step through history; the active Budget tab now lives in the URL (bookmarkable).
 - **App** - If something goes wrong, Capy now shows a friendly recovery screen with a Restart button instead of a blank window.
 - **Developer** - A dev-only Settings panel surfaces app diagnostics and a button to preview the error screen.
+- **Removed** - Dropped the never-surfaced keyboard-only undo/redo (⌘Z / ⌘⇧Z).
 
 ## 1.3.0 — 2026-06-24
 

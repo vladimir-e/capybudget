@@ -1,7 +1,6 @@
 import { useMutation } from "@tanstack/react-query";
 import { useQueryClient } from "@tanstack/react-query";
 import { useBudgetRepository } from "@/contexts/repository-context";
-import { useUndoRedo } from "@/hooks/use-undo-redo";
 import { budgetKeys } from "@/hooks/use-budget-data";
 import type { Account, Category, Transaction } from "@capybudget/core";
 
@@ -22,7 +21,6 @@ export function useBudgetMutation<TInput, TResult = void>(
 ) {
   const queryClient = useQueryClient();
   const repo = useBudgetRepository();
-  const { captureSnapshot } = useUndoRedo();
 
   const helpers: MutationHelpers = {
     accounts: {
@@ -43,9 +41,6 @@ export function useBudgetMutation<TInput, TResult = void>(
   };
 
   return useMutation({
-    mutationFn: async (input: TInput) => {
-      captureSnapshot();
-      return fn(input, helpers);
-    },
+    mutationFn: async (input: TInput) => fn(input, helpers),
   });
 }

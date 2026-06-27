@@ -10,7 +10,7 @@
 | Bundler | Vite 7 | Dev server and production builds |
 | Routing | TanStack Router | Type-safe file-based routing |
 | Data cache | TanStack Query 5 | Async cache with fetch, invalidate, loading states |
-| App state | Zustand 5 | Lightweight stores (app state, undo/redo) |
+| App state | Zustand 5 | Lightweight stores (app state) |
 | UI primitives | shadcn/ui (Radix) | Accessible components, owned by the project |
 | Styling | Tailwind CSS 4 | Utility-first CSS |
 | CSV | PapaParse | Parse/unparse CSV with type coercion |
@@ -72,10 +72,6 @@ User picks folder (or demo loads preset data)
 4. Persist via repository in the background (debounced).
 5. On write failure: show blocking error. No retry, no partial rollback.
 
-### Undo / Redo
-
-Session-scoped stack of state snapshots (past, present, future). Mutations push present to past. Undo pops past and triggers repository write to re-sync. Not persisted across sessions.
-
 ### Write Safety
 
 - Atomic writes (temp file → rename)
@@ -94,7 +90,6 @@ TanStack Router with file-based routing. Routes live in `packages/app/src/routes
 |---|---|---|
 | Budget data | TanStack Query | Repository adapter |
 | Recent budgets | Zustand | localStorage |
-| Undo/redo | Zustand | None (session only) |
 | UI state | BudgetUIContext | None (ephemeral) |
 
 ## Intelligence

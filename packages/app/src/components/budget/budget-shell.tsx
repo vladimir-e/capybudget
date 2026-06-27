@@ -19,7 +19,6 @@ import {
   useCreateTransaction,
   useUpdateTransaction,
 } from "@/hooks/use-transaction-mutations";
-import { useUndoRedo } from "@/hooks/use-undo-redo";
 import { useReorderAccounts } from "@/hooks/use-account-mutations";
 import { useAccounts, useBudgetReady } from "@/hooks/use-budget-data";
 import { BudgetLoading } from "@/components/budget/budget-loading";
@@ -64,7 +63,6 @@ export function BudgetShell() {
   const router = useRouter();
   const createTxn = useCreateTransaction();
   const updateTxn = useUpdateTransaction();
-  const { undo, redo } = useUndoRedo();
   const reorderAccounts = useReorderAccounts();
   const { data: accounts = [] } = useAccounts();
   const hasAccounts = accounts.some((a) => !a.archived);
@@ -163,17 +161,10 @@ export function BudgetShell() {
         handleDismissForm();
         return;
       }
-      if (mod && e.key === "z") {
-        const target = e.target as HTMLElement | null;
-        const tag = target?.tagName;
-        if (target?.isContentEditable || tag === "INPUT" || tag === "TEXTAREA") return;
-        e.preventDefault();
-        if (e.shiftKey) redo(); else undo();
-      }
     }
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [toggleForm, undo, redo, effectiveFormOpen, handleDismissForm, capyOpen, setCapyOpen, navigate, router, path, name]);
+  }, [toggleForm, effectiveFormOpen, handleDismissForm, capyOpen, setCapyOpen, navigate, router, path, name]);
 
   useEffect(() => {
     if (effectiveFormOpen) {

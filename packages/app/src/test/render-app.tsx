@@ -6,7 +6,6 @@ import { createMemoryHistory, createRouter, RouterProvider, type AnyRouter } fro
 import { afterEach } from "vitest";
 import { routeTree } from "../../../../src/routeTree.gen";
 import { createInMemoryRepository, type InMemoryRepository, type MemoryRepositoryData } from "@capybudget/persistence";
-import { useUndoStore } from "@/stores/undo-store";
 
 export interface RenderAppOptions {
   /** Seed data for the in-memory repository. */
@@ -33,7 +32,6 @@ afterEach(async () => {
     activeQueryClient.clear();
     activeQueryClient = null;
   }
-  useUndoStore.getState().reset();
   delete (globalThis as Record<string, unknown>).__testRepo;
 });
 
