@@ -259,7 +259,8 @@ export function BudgetShell() {
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
-            <HistoryNav className="ml-1.5 border-l border-border/50 pl-1.5" />
+            {/* Desktop only — the browser already has back/forward in the demo. */}
+            {!__IS_DEMO__ && <HistoryNav className="ml-1.5 border-l border-border/50 pl-1.5" />}
           </div>
           <div className="relative flex justify-center">
             {!isArchivedView && (
