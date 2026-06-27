@@ -21,6 +21,7 @@ const host = process.env.TAURI_DEV_HOST;
 const fullAppMountTests = [
   "packages/app/src/test/journeys/**/*.test.{ts,tsx}",
   "packages/app/src/components/budget/first-run-guide.test.tsx",
+  "packages/app/src/components/budget/budget-shell.test.tsx",
   "packages/app/src/test/performance.test.tsx",
 ];
 

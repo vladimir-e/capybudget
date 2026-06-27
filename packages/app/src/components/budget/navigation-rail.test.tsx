@@ -6,6 +6,7 @@ import {
   createRouter,
   RouterProvider,
 } from "@tanstack/react-router";
+import { useAnalyticsStore } from "@/stores/analytics-store";
 import { NavigationRail, type Section } from "./navigation-rail";
 
 async function renderRail(props: {
@@ -49,6 +50,7 @@ async function renderRail(props: {
 describe("NavigationRail", () => {
   afterEach(() => {
     cleanup();
+    useAnalyticsStore.setState({ lastTab: "spending" });
   });
 
   it("marks the active section with aria-current", async () => {
@@ -76,6 +78,24 @@ describe("NavigationRail", () => {
     expect(screen.getAllByRole("link", { name: "Accounts" }).length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByRole("link", { name: "Budget" }).length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByRole("link", { name: "Import" }).length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("Budget destination carries ?tab= for the last-viewed non-default tab", async () => {
+    useAnalyticsStore.getState().setLastTab("netWorth");
+    await renderRail({ activeSection: "accounts" });
+
+    const budgetLinks = screen.getAllByRole("link", { name: "Budget" });
+    expect(budgetLinks.length).toBeGreaterThan(0);
+    expect(budgetLinks.every((el) => el.getAttribute("href")?.includes("tab=netWorth"))).toBe(true);
+  });
+
+  it("Budget destination omits the tab key when the last tab is the default (spending)", async () => {
+    useAnalyticsStore.getState().setLastTab("spending");
+    await renderRail({ activeSection: "accounts" });
+
+    const budgetLinks = screen.getAllByRole("link", { name: "Budget" });
+    expect(budgetLinks.length).toBeGreaterThan(0);
+    expect(budgetLinks.every((el) => !el.getAttribute("href")?.includes("tab="))).toBe(true);
   });
 
   it("renders the settings gear at the bottom of the rail", async () => {
@@ -159,6 +179,27 @@ describe("NavigationRail", () => {
     router.history.forward();
     await waitFor(() => {
       expect(screen.getAllByRole("button", { name: "Forward" }).every((b) => (b as HTMLButtonElement).disabled)).toBe(true);
+    });
+  });
+
+  // Mount below the top entry: the forward arrow stays disabled until we've
+  // actually advanced (max-seen ceiling grows), then re-enables on stepping back.
+  it("grows the forward ceiling as history advances", async () => {
+    const { router } = await renderRail({ activeSection: "budget", initialEntries: ["/", "/"], initialIndex: 0 });
+
+    // A forward entry exists, but we haven't visited it — ceiling pins Forward off.
+    expect(screen.getAllByRole("button", { name: "Forward" }).every((b) => (b as HTMLButtonElement).disabled)).toBe(true);
+
+    router.history.forward();
+    // Advanced to a new furthest index (the bump branch ran); now pinned there.
+    await waitFor(() => {
+      expect(screen.getAllByRole("button", { name: "Back" }).every((b) => !(b as HTMLButtonElement).disabled)).toBe(true);
+    });
+    expect(screen.getAllByRole("button", { name: "Forward" }).every((b) => (b as HTMLButtonElement).disabled)).toBe(true);
+
+    router.history.back();
+    await waitFor(() => {
+      expect(screen.getAllByRole("button", { name: "Forward" }).every((b) => !(b as HTMLButtonElement).disabled)).toBe(true);
     });
   });
 });

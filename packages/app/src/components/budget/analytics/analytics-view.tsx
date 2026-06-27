@@ -10,7 +10,7 @@ import type { DateRange } from "@capybudget/core";
 import { useTranslation } from "@capybudget/i18n";
 import { useConverter, useCurrency } from "@/contexts/currency-context";
 import { useTransactions, useCategories, useAccounts } from "@/hooks/use-budget-data";
-import { useAnalyticsStore, validateTabSearch, type PeriodType, type TabId } from "@/stores/analytics-store";
+import { TAB_IDS, useAnalyticsStore, validateTabSearch, type PeriodType, type TabId } from "@/stores/analytics-store";
 import { DateRangeNav } from "./date-range-nav";
 import { SummaryStrip } from "./summary-strip";
 import { computeIncludedIds } from "./net-worth-account-filter-utils";
@@ -22,20 +22,17 @@ import { MerchantsTab } from "./merchants-tab";
 import { MonthlyBudgetTab } from "./monthly-budget-tab";
 
 // ── Tab definitions ──
+// Tab id set and order live in TAB_IDS (the store); this maps each to the
+// periods its date-range picker offers, so the two can't drift.
 
-interface TabDef {
-  id: TabId;
-  allowedPeriods: PeriodType[];
-}
-
-const TABS: TabDef[] = [
-  { id: "spending", allowedPeriods: ["month", "quarter", "year", "allTime", "custom"] },
-  { id: "cashFlow", allowedPeriods: ["year", "allTime", "custom"] },
-  { id: "netWorth", allowedPeriods: ["year", "allTime", "custom"] },
-  { id: "compare", allowedPeriods: ["year", "allTime", "custom"] },
-  { id: "merchants", allowedPeriods: ["month", "quarter", "year", "allTime"] },
-  { id: "monthlyBudget", allowedPeriods: ["month"] },
-];
+const ALLOWED_PERIODS: Record<TabId, PeriodType[]> = {
+  spending: ["month", "quarter", "year", "allTime", "custom"],
+  cashFlow: ["year", "allTime", "custom"],
+  netWorth: ["year", "allTime", "custom"],
+  compare: ["year", "allTime", "custom"],
+  merchants: ["month", "quarter", "year", "allTime"],
+  monthlyBudget: ["month"],
+};
 
 export function AnalyticsView() {
   const { t } = useTranslation("analytics");
@@ -139,9 +136,6 @@ export function AnalyticsView() {
   );
   const fx = fxBreakdown && hasForeignAccount && rangeIsCurrent ? fxBreakdown : null;
 
-  // Current tab definition
-  const currentTab = TABS.find((t) => t.id === activeTab) ?? TABS[0];
-
   // Handle period change
   function handlePeriodChange(type: PeriodType) {
     if (type === "allTime") {
@@ -161,18 +155,18 @@ export function AnalyticsView() {
       {/* Tab bar */}
       <div className="border-b px-6">
         <div className="flex gap-0 -mb-px min-w-0 overflow-x-auto">
-          {TABS.map((tab) => (
+          {TAB_IDS.map((id) => (
             <button
-              key={tab.id}
+              key={id}
               type="button"
-              onClick={() => selectTab(tab.id)}
+              onClick={() => selectTab(id)}
               className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
-                activeTab === tab.id
+                activeTab === id
                   ? "border-brand text-foreground"
                   : "border-transparent text-muted-foreground hover:text-foreground"
               }`}
             >
-              {t(`tabs.${tab.id}`)}
+              {t(`tabs.${id}`)}
             </button>
           ))}
         </div>
@@ -184,7 +178,7 @@ export function AnalyticsView() {
         <DateRangeNav
           periodType={periodType}
           dateRange={dateRange}
-          allowedPeriods={currentTab.allowedPeriods}
+          allowedPeriods={ALLOWED_PERIODS[activeTab]}
           onPeriodChange={handlePeriodChange}
           onBack={() => navigateBack(activeTab)}
           onForward={() => navigateForward(activeTab)}

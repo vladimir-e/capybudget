@@ -2,7 +2,7 @@ import React from "react";
 import { render, cleanup, type RenderResult } from "@testing-library/react";
 import userEvent, { type UserEvent } from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { createMemoryHistory, createRouter, RouterProvider } from "@tanstack/react-router";
+import { createMemoryHistory, createRouter, RouterProvider, type AnyRouter } from "@tanstack/react-router";
 import { afterEach } from "vitest";
 import { routeTree } from "../../../../src/routeTree.gen";
 import { createInMemoryRepository, type InMemoryRepository, type MemoryRepositoryData } from "@capybudget/persistence";
@@ -19,6 +19,7 @@ export interface RenderAppResult extends RenderResult {
   user: UserEvent;
   repo: InMemoryRepository;
   queryClient: QueryClient;
+  router: AnyRouter;
 }
 
 // Track the active QueryClient so we can tear it down between tests.
@@ -81,5 +82,6 @@ export async function renderApp(options: RenderAppOptions = {}): Promise<RenderA
     user: userEvent.setup({ delay: null }),
     repo,
     queryClient,
+    router,
   };
 }

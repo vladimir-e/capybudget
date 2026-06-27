@@ -5,8 +5,8 @@ export type PeriodType = "month" | "quarter" | "year" | "allTime" | "custom";
 
 export const TAB_IDS = [
   "spending",
-  "netWorth",
   "cashFlow",
+  "netWorth",
   "compare",
   "merchants",
   "monthlyBudget",
@@ -137,8 +137,8 @@ function computeAllTimeRange(transactions: { datetime: string }[]): DateRange {
 
 const DEFAULT_TABS: Record<TabId, TabState> = {
   spending: { periodType: "month", dateRange: getCurrentMonthRange() },
-  netWorth: { periodType: "allTime", dateRange: getCurrentYearRange() }, // placeholder until data loads
   cashFlow: { periodType: "year", dateRange: getCurrentYearRange() },
+  netWorth: { periodType: "allTime", dateRange: getCurrentYearRange() }, // placeholder until data loads
   compare: { periodType: "allTime", dateRange: getCurrentYearRange() },
   merchants: { periodType: "allTime", dateRange: getCurrentYearRange() },
   monthlyBudget: { periodType: "month", dateRange: getCurrentMonthRange() },
