@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react"
 import { useNavigate, useSearch } from "@tanstack/react-router"
-import { ArrowLeft, Coins, RefreshCw, Shapes, Sparkles } from "lucide-react"
+import { ArrowLeft, Coins, FlaskConical, RefreshCw, Shapes, Sparkles } from "lucide-react"
 import { useTranslation } from "@capybudget/i18n"
 import type { SettingsKey } from "@/lib/i18n-keys"
 import { Button } from "@/components/ui/button"
@@ -11,10 +11,15 @@ import { ProviderSection } from "./provider-section"
 import { ChatInstructionsSection } from "./chat-instructions-section"
 import { CategoriesSection } from "./categories-section"
 import { UpdatesSection } from "./updates-section"
+import { DevSection } from "./dev-section"
 
 declare const __IS_DEMO__: boolean
 
+// Dev tooling: present only in source/dev builds, and never in the demo.
+const SHOW_DEV = import.meta.env.DEV && !__IS_DEMO__
+
 type SettingsSection = "general" | "intelligence" | "categories" | "updates"
+type ActiveSection = SettingsSection | "dev"
 
 const SECTIONS: {
   id: SettingsSection
@@ -42,7 +47,8 @@ const SECTION_DESCRIPTION_KEY = {
 
 const SECTION_IDS = new Set(SECTIONS.map((s) => s.id))
 
-function resolveSection(section: string | undefined): SettingsSection {
+function resolveSection(section: string | undefined): ActiveSection {
+  if (section === "dev") return SHOW_DEV ? "dev" : "general"
   if (section && SECTION_IDS.has(section as SettingsSection)) {
     if (section === "updates" && __IS_DEMO__) return "general"
     return section as SettingsSection
@@ -54,7 +60,7 @@ export function SettingsScreen() {
   const navigate = useNavigate()
   const { t } = useTranslation("settings")
   const { path, name, section } = useSearch({ from: "/budget" })
-  const [active, setActive] = useState<SettingsSection>(() => resolveSection(section))
+  const [active, setActive] = useState<ActiveSection>(() => resolveSection(section))
 
   // Re-sync when a deep-link changes the param on an already-mounted screen
   // (e.g. the boot update toast navigating to ?section=updates). Sidebar
@@ -116,6 +122,15 @@ export function SettingsScreen() {
               onSelect={() => setActive(s.id)}
             />
           ))}
+          {SHOW_DEV && (
+            <SectionItem
+              icon={FlaskConical}
+              label="Developer"
+              description="Diagnostics & test tools"
+              active={active === "dev"}
+              onSelect={() => setActive("dev")}
+            />
+          )}
         </div>
       </nav>
 
@@ -137,6 +152,7 @@ export function SettingsScreen() {
           )}
           {active === "categories" && <CategoriesSection />}
           {!__IS_DEMO__ && active === "updates" && <UpdatesSection />}
+          {SHOW_DEV && active === "dev" && <DevSection />}
         </div>
       </main>
     </div>
