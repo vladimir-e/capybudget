@@ -202,18 +202,22 @@ export function BulkActionBar({ selectedIds, transactions, onClear }: BulkAction
               <MoreHorizontal className="h-3.5 w-3.5" />
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" side="top" className="min-w-48">
-              <DropdownMenuItem onClick={() => setOverflowDialog("move")}>
-                <FolderInput className="h-3.5 w-3.5" />
-                {t("bulk.moveToAccount")}
-              </DropdownMenuItem>
+              {nonTransferCount > 0 && (
+                <DropdownMenuItem onClick={() => setOverflowDialog("move")}>
+                  <FolderInput className="h-3.5 w-3.5" />
+                  {t("bulk.moveToAccount")}
+                </DropdownMenuItem>
+              )}
               <DropdownMenuItem onClick={() => setOverflowDialog("date")}>
                 <CalendarDays className="h-3.5 w-3.5" />
                 {t("bulk.changeDate")}
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setOverflowDialog("merchant")}>
-                <Store className="h-3.5 w-3.5" />
-                {t("bulk.changeMerchant")}
-              </DropdownMenuItem>
+              {nonTransferCount > 0 && (
+                <DropdownMenuItem onClick={() => setOverflowDialog("merchant")}>
+                  <Store className="h-3.5 w-3.5" />
+                  {t("bulk.changeMerchant")}
+                </DropdownMenuItem>
+              )}
             </DropdownMenuContent>
           </DropdownMenu>
 
@@ -266,7 +270,9 @@ export function BulkActionBar({ selectedIds, transactions, onClear }: BulkAction
             </DialogHeader>
             {!isMixedCurrency && (
               <>
-                <p className="text-xs text-muted-foreground">{t("bulk.moveDialog.sameCurrencyTip")}</p>
+                {moveDisabledIds.length > 0 && (
+                  <p className="text-xs text-muted-foreground">{t("bulk.moveDialog.sameCurrencyTip")}</p>
+                )}
                 <AccountSelector
                   accounts={accounts}
                   value=""

@@ -54,9 +54,9 @@ function txn(overrides: Partial<Transaction>): Transaction {
   };
 }
 
-function renderBar(opts: { selectedIds: Set<string>; transactions: Transaction[] }) {
+function renderBar(opts: { selectedIds: Set<string>; transactions: Transaction[]; accounts?: Account[] }) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  client.setQueryData(budgetKeys.accounts(), [RUB_ACCT, RUB_ACCT_2, IDR_ACCT]);
+  client.setQueryData(budgetKeys.accounts(), opts.accounts ?? [RUB_ACCT, RUB_ACCT_2, IDR_ACCT]);
   client.setQueryData(budgetKeys.categories(), []);
 
   const currencies: Record<string, CurrencySettings> = {
@@ -126,6 +126,45 @@ describe("BulkActionBar — same-currency-only move", () => {
     const dialog = await screen.findByRole("dialog");
     expect(within(dialog).getByText(/mixes currencies/i)).toBeInTheDocument();
     expect(within(dialog).queryByRole("option")).not.toBeInTheDocument();
+  });
+});
+
+describe("BulkActionBar — single-currency budget", () => {
+  it("omits the same-currency tip when no account is a different currency", async () => {
+    const { user } = renderBar({
+      accounts: [RUB_ACCT, RUB_ACCT_2], // one currency only — nothing to disable
+      selectedIds: new Set(["t1", "t2"]),
+      transactions: [
+        txn({ id: "t1", accountId: "acct-rub" }),
+        txn({ id: "t2", accountId: "acct-rub" }),
+      ],
+    });
+
+    await user.click(screen.getByRole("button", { name: "More actions" }));
+    await user.click(await screen.findByRole("menuitem", { name: /move to account/i }));
+
+    // The account picker still renders so the move can happen...
+    expect(await screen.findByRole("option", { name: "RUB Savings" })).toBeInTheDocument();
+    // ...but the multi-currency caveat is absent — nothing is a different currency.
+    expect(screen.queryByText(/same-currency/i)).not.toBeInTheDocument();
+  });
+});
+
+describe("BulkActionBar — transfer-only selection", () => {
+  it("offers only Change date; Move and Change merchant are hidden", async () => {
+    const { user } = renderBar({
+      selectedIds: new Set(["t1", "t2"]),
+      transactions: [
+        txn({ id: "t1", type: "transfer", transferPairId: "t2", merchant: "" }),
+        txn({ id: "t2", type: "transfer", transferPairId: "t1", merchant: "" }),
+      ],
+    });
+
+    await user.click(screen.getByRole("button", { name: "More actions" }));
+    expect(await screen.findByRole("menuitem", { name: /change date/i })).toBeInTheDocument();
+    // Move and merchant skip transfers, so they would be no-ops — not offered.
+    expect(screen.queryByRole("menuitem", { name: /move to account/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: /change merchant/i })).not.toBeInTheDocument();
   });
 });
 
