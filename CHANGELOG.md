@@ -9,6 +9,11 @@ CHANGELOG PHILOSOPHY:
 - Resist the urge to be thorough here. Thoroughness goes in specs, not changelog.
 -->
 
+## Unreleased
+
+- **App** - If something goes wrong, Capy now shows a friendly recovery screen with a Restart button instead of a blank window.
+- **Developer** - A dev-only Settings panel surfaces app diagnostics and a button to preview the error screen.
+
 ## 1.3.0 — 2026-06-24
 
 - **Multi-Currency** - Give any account its own currency and Capy shows your whole budget in one display currency — each transaction converts at the rate when it happened, balances at today's rate, and the gap surfaces as a net-worth FX delta; cross-currency transfers carry a rate per leg.

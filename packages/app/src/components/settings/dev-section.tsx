@@ -41,6 +41,12 @@ export function DevSection() {
     }
   }, [])
 
+  useEffect(() => {
+    if (!copied) return
+    const id = setTimeout(() => setCopied(false), 2000)
+    return () => clearTimeout(id)
+  }, [copied])
+
   // Render-time throw — error boundaries only catch render errors, not event
   // handlers, so the click flips state and the throw happens on the next render.
   if (crash) {
