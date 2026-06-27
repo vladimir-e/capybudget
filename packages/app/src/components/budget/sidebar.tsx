@@ -1,5 +1,5 @@
 import { Link, useMatches } from "@tanstack/react-router";
-import { ChevronDown, GripVertical, Layers, MoreHorizontal, Pencil, Archive, ArchiveRestore, Trash2, Plus } from "lucide-react";
+import { ChevronDown, GripVertical, Layers, MoreHorizontal, Plus } from "lucide-react";
 import { useState } from "react";
 import {
   DndContext,
@@ -23,8 +23,6 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
@@ -32,8 +30,8 @@ import {
   ContextMenuContent,
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
+import { accountMenuItems } from "@/components/budget/row-menus";
 import type { Account, AccountType } from "@capybudget/core";
-import type { TFunction } from "i18next";
 import {
   Dialog,
   DialogContent,
@@ -354,35 +352,6 @@ function SortableAccountRow(props: AccountRowProps) {
     <div ref={setNodeRef} style={style}>
       <AccountRow {...props} dragHandleProps={{ ...attributes, ...listeners }} />
     </div>
-  );
-}
-
-function accountMenuItems(
-  account: Account,
-  { onEdit, onArchive, onDelete }: Pick<AccountRowProps, "onEdit" | "onArchive" | "onDelete">,
-  t: TFunction<["budget", "common"]>,
-) {
-  return (
-    <>
-      <DropdownMenuItem onClick={() => onEdit(account)}>
-        <Pencil className="mr-2 h-4 w-4" />
-        {t("common:actions.edit")}
-      </DropdownMenuItem>
-      <DropdownMenuSeparator />
-      <DropdownMenuItem onClick={() => onArchive(account)}>
-        {account.archived ? (
-          <ArchiveRestore className="mr-2 h-4 w-4" />
-        ) : (
-          <Archive className="mr-2 h-4 w-4" />
-        )}
-        {account.archived ? t("common:actions.unarchive") : t("common:actions.archive")}
-      </DropdownMenuItem>
-      <DropdownMenuSeparator />
-      <DropdownMenuItem variant="destructive" onClick={() => onDelete(account)}>
-        <Trash2 className="mr-2 h-4 w-4" />
-        {t("common:actions.delete")}
-      </DropdownMenuItem>
-    </>
   );
 }
 

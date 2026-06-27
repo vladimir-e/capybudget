@@ -19,7 +19,8 @@ import type { Transaction, TransactionFormData } from "@capybudget/core";
 import { useTranslation } from "@capybudget/i18n";
 import { useAccounts, useCategories, useTransactions, useIsMultiCurrency } from "@/hooks/use-budget-data";
 import type { SortColumn, SortConfig } from "@/lib/filter-transactions";
-import { TransactionRowMemo, transactionMenuItems } from "@/components/budget/transaction-row";
+import { TransactionRowMemo } from "@/components/budget/transaction-row";
+import { transactionMenuItems } from "@/components/budget/row-menus";
 import { cn } from "@/lib/utils";
 import {
   defaultDirection,
@@ -275,6 +276,13 @@ export function TransactionList({
         <TableBody>
           {transactions.map((txn, i) => {
             const { rowClassName } = rowProps(txn, i);
+            if (!hasActions) {
+              return (
+                <TableRow key={txn.id} className={rowClassName}>
+                  {renderCells(txn, i)}
+                </TableRow>
+              );
+            }
             return (
               <ContextMenu key={txn.id}>
                 <ContextMenuTrigger
@@ -334,6 +342,19 @@ export function TransactionList({
           {virtualItems.map((virtualRow) => {
             const txn = transactions[virtualRow.index];
             const { rowClassName } = rowProps(txn, virtualRow.index);
+            if (!hasActions) {
+              return (
+                <tr
+                  key={txn.id}
+                  data-slot="table-row"
+                  data-index={virtualRow.index}
+                  ref={virtualizer.measureElement}
+                  className={`border-b ${rowClassName}`}
+                >
+                  {renderCells(txn, virtualRow.index)}
+                </tr>
+              );
+            }
             return (
               <ContextMenu key={txn.id}>
                 <ContextMenuTrigger

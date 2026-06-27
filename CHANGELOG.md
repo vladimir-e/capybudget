@@ -11,6 +11,7 @@ CHANGELOG PHILOSOPHY:
 
 ## Unreleased
 
+- **Transactions, Accounts, Categories** - Right-click any row for the same quick actions as its menu button.
 - **Navigation** - Back/forward arrows in the rail (and ⌘[ / ⌘]) step through history; the active Budget tab now lives in the URL (bookmarkable).
 - **App** - If something goes wrong, Capy now shows a friendly recovery screen with a Restart button instead of a blank window.
 - **Developer** - A dev-only Settings panel surfaces app diagnostics and a button to preview the error screen.

@@ -4,7 +4,6 @@ import {
   GripVertical,
   MoreHorizontal,
   Plus,
-  Trash2,
 } from "lucide-react";
 import {
   SortableContext,
@@ -31,8 +30,6 @@ import {
 import {
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
@@ -40,6 +37,7 @@ import {
   ContextMenuContent,
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
+import { categoryMenuItems } from "@/components/budget/row-menus";
 import {
   useCreateCategory,
   useUpdateCategory,
@@ -48,7 +46,6 @@ import {
   useUnarchiveCategory,
 } from "@/hooks/use-category-mutations";
 import type { Category } from "@capybudget/core";
-import type { TFunction } from "i18next";
 import { useTranslation } from "@capybudget/i18n";
 import { toast } from "sonner";
 import { useCategoryDisplayName, useGroupDisplayName } from "@/lib/display-names";
@@ -302,32 +299,6 @@ interface SortableCategoryRowProps {
   onArchive: () => void;
   onDelete: () => void;
   isArchived: boolean;
-}
-
-function categoryMenuItems(
-  { isArchived, onStartRename, onArchive, onDelete }: Pick<
-    SortableCategoryRowProps,
-    "isArchived" | "onStartRename" | "onArchive" | "onDelete"
-  >,
-  t: TFunction<["budget", "common"]>,
-) {
-  return (
-    <>
-      {!isArchived && (
-        <DropdownMenuItem onClick={onStartRename}>
-          {t("category.menu.rename")}
-        </DropdownMenuItem>
-      )}
-      <DropdownMenuItem onClick={onArchive}>
-        {isArchived ? t("common:actions.unarchive") : t("common:actions.archive")}
-      </DropdownMenuItem>
-      <DropdownMenuSeparator />
-      <DropdownMenuItem variant="destructive" onClick={onDelete}>
-        <Trash2 className="mr-2 h-4 w-4" />
-        {t("common:actions.delete")}
-      </DropdownMenuItem>
-    </>
-  );
 }
 
 function SortableCategoryRow({
