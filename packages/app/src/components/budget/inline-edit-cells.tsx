@@ -75,16 +75,16 @@ export function InlineEditCell({
   const stop = (e: React.MouseEvent) => e.stopPropagation();
 
   if (column === "date") {
-    return <div onClick={stop}><DateEditCell txn={txn} onSave={(date) => buildFormData({ date })} onCancel={onCancel} /></div>;
+    return <div onClick={stop} onContextMenu={stop}><DateEditCell txn={txn} onSave={(date) => buildFormData({ date })} onCancel={onCancel} /></div>;
   }
   if (column === "account") {
-    return <div onClick={stop}><AccountEditCell txn={txn} accounts={accounts} onSave={(accountId) => buildFormData({ accountId })} onCancel={onCancel} /></div>;
+    return <div onClick={stop} onContextMenu={stop}><AccountEditCell txn={txn} accounts={accounts} onSave={(accountId) => buildFormData({ accountId })} onCancel={onCancel} /></div>;
   }
   if (column === "category") {
-    return <div onClick={stop}><CategoryEditCell txn={txn} categories={categories} onSave={(categoryId) => buildFormData({ categoryId })} onCancel={onCancel} /></div>;
+    return <div onClick={stop} onContextMenu={stop}><CategoryEditCell txn={txn} categories={categories} onSave={(categoryId) => buildFormData({ categoryId })} onCancel={onCancel} /></div>;
   }
   if (column === "merchant") {
-    return <div onClick={stop}><MerchantEditCell txn={txn} onSave={(merchant, categoryId) => {
+    return <div onClick={stop} onContextMenu={stop}><MerchantEditCell txn={txn} onSave={(merchant, categoryId) => {
       const patch: Record<string, string> = { merchant };
       if (categoryId && !txn.categoryId) patch.categoryId = categoryId;
       buildFormData(patch);
@@ -92,7 +92,7 @@ export function InlineEditCell({
   }
   // amount
   const accountCurrency = accounts.find((a) => a.id === txn.accountId)?.currency;
-  return <div onClick={stop}><AmountEditCell txn={txn} currency={accountCurrency} onSave={(amount) => buildFormData({ amount })} onCancel={onCancel} /></div>;
+  return <div onClick={stop} onContextMenu={stop}><AmountEditCell txn={txn} currency={accountCurrency} onSave={(amount) => buildFormData({ amount })} onCancel={onCancel} /></div>;
 }
 
 // ---------------------------------------------------------------------------

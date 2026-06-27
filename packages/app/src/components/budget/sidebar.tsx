@@ -27,7 +27,13 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuTrigger,
+} from "@/components/ui/context-menu";
 import type { Account, AccountType } from "@capybudget/core";
+import type { TFunction } from "i18next";
 import {
   Dialog,
   DialogContent,
@@ -351,6 +357,35 @@ function SortableAccountRow(props: AccountRowProps) {
   );
 }
 
+function accountMenuItems(
+  account: Account,
+  { onEdit, onArchive, onDelete }: Pick<AccountRowProps, "onEdit" | "onArchive" | "onDelete">,
+  t: TFunction<["budget", "common"]>,
+) {
+  return (
+    <>
+      <DropdownMenuItem onClick={() => onEdit(account)}>
+        <Pencil className="mr-2 h-4 w-4" />
+        {t("common:actions.edit")}
+      </DropdownMenuItem>
+      <DropdownMenuSeparator />
+      <DropdownMenuItem onClick={() => onArchive(account)}>
+        {account.archived ? (
+          <ArchiveRestore className="mr-2 h-4 w-4" />
+        ) : (
+          <Archive className="mr-2 h-4 w-4" />
+        )}
+        {account.archived ? t("common:actions.unarchive") : t("common:actions.archive")}
+      </DropdownMenuItem>
+      <DropdownMenuSeparator />
+      <DropdownMenuItem variant="destructive" onClick={() => onDelete(account)}>
+        <Trash2 className="mr-2 h-4 w-4" />
+        {t("common:actions.delete")}
+      </DropdownMenuItem>
+    </>
+  );
+}
+
 function AccountRow({
   account,
   balance,
@@ -369,79 +404,68 @@ function AccountRow({
 }) {
   const { t } = useTranslation(["budget", "common"]);
   return (
-    <div className={`flex items-center rounded-lg transition-all ${
-      isActive
-        ? "bg-sidebar-accent shadow-sm"
-        : dimmed
-          ? "hover:bg-sidebar-accent/40"
-          : "hover:bg-sidebar-accent/60"
-    }`}>
-      {dragHandleProps && (
-        <button
-          className="flex h-6 w-4 shrink-0 items-center justify-center text-muted-foreground/30 hover:text-muted-foreground/60 cursor-grab active:cursor-grabbing ml-1 touch-none"
-          {...dragHandleProps}
-        >
-          <GripVertical className="h-3 w-3" />
-        </button>
-      )}
-
-      <Link
-        to="/budget/account/$accountId"
-        params={{ accountId: account.id }}
-        search={{ path: budgetPath, name: budgetName }}
-        className={`flex flex-1 min-w-0 items-center justify-between py-1.5 text-sm ${
-          dragHandleProps ? "pl-0.5 pr-3" : "px-3"
-        } ${
-          isActive
-            ? "text-sidebar-accent-foreground font-medium"
-            : dimmed
-              ? "text-sidebar-foreground/40 hover:text-sidebar-foreground/60"
-              : "text-sidebar-foreground/80 hover:text-sidebar-foreground"
-        }`}
+    <ContextMenu>
+      <ContextMenuTrigger
+        render={
+          <div className={`flex items-center rounded-lg transition-all ${
+            isActive
+              ? "bg-sidebar-accent shadow-sm"
+              : dimmed
+                ? "hover:bg-sidebar-accent/40"
+                : "hover:bg-sidebar-accent/60"
+          }`} />
+        }
       >
-        <span className="flex min-w-0 items-center gap-1.5">
-          <span className="truncate">{account.name}</span>
-          {showCurrency && <CurrencyBadge currency={account.currency} className={dimmed ? "opacity-50" : ""} />}
-        </span>
-        <span className={`ml-2 shrink-0 tabular-nums text-xs font-medium ${
-          balance < 0 ? "text-amount-expense/80" : balance > 0 ? "text-amount-income/80" : ""
-        } ${dimmed ? "opacity-50" : ""}`}>
-          {accountMoney(balance, account.currency)}
-        </span>
-      </Link>
-
-      <DropdownMenu>
-        <DropdownMenuTrigger
-          render={
-            <button className="flex h-6 w-6 shrink-0 items-center justify-center rounded text-muted-foreground/40 hover:text-foreground mr-1" />
-          }
-        >
-          <MoreHorizontal className="h-3.5 w-3.5" />
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="start" side="right" sideOffset={4}>
-          <DropdownMenuItem onClick={() => onEdit(account)}>
-            <Pencil className="mr-2 h-4 w-4" />
-            {t("common:actions.edit")}
-          </DropdownMenuItem>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem onClick={() => onArchive(account)}>
-            {account.archived ? (
-              <ArchiveRestore className="mr-2 h-4 w-4" />
-            ) : (
-              <Archive className="mr-2 h-4 w-4" />
-            )}
-            {account.archived ? t("common:actions.unarchive") : t("common:actions.archive")}
-          </DropdownMenuItem>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem
-            variant="destructive"
-            onClick={() => onDelete(account)}
+        {dragHandleProps && (
+          <button
+            className="flex h-6 w-4 shrink-0 items-center justify-center text-muted-foreground/30 hover:text-muted-foreground/60 cursor-grab active:cursor-grabbing ml-1 touch-none"
+            {...dragHandleProps}
           >
-            <Trash2 className="mr-2 h-4 w-4" />
-            {t("common:actions.delete")}
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
-    </div>
+            <GripVertical className="h-3 w-3" />
+          </button>
+        )}
+
+        <Link
+          to="/budget/account/$accountId"
+          params={{ accountId: account.id }}
+          search={{ path: budgetPath, name: budgetName }}
+          className={`flex flex-1 min-w-0 items-center justify-between py-1.5 text-sm ${
+            dragHandleProps ? "pl-0.5 pr-3" : "px-3"
+          } ${
+            isActive
+              ? "text-sidebar-accent-foreground font-medium"
+              : dimmed
+                ? "text-sidebar-foreground/40 hover:text-sidebar-foreground/60"
+                : "text-sidebar-foreground/80 hover:text-sidebar-foreground"
+          }`}
+        >
+          <span className="flex min-w-0 items-center gap-1.5">
+            <span className="truncate">{account.name}</span>
+            {showCurrency && <CurrencyBadge currency={account.currency} className={dimmed ? "opacity-50" : ""} />}
+          </span>
+          <span className={`ml-2 shrink-0 tabular-nums text-xs font-medium ${
+            balance < 0 ? "text-amount-expense/80" : balance > 0 ? "text-amount-income/80" : ""
+          } ${dimmed ? "opacity-50" : ""}`}>
+            {accountMoney(balance, account.currency)}
+          </span>
+        </Link>
+
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            render={
+              <button className="flex h-6 w-6 shrink-0 items-center justify-center rounded text-muted-foreground/40 hover:text-foreground mr-1" />
+            }
+          >
+            <MoreHorizontal className="h-3.5 w-3.5" />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start" side="right" sideOffset={4}>
+            {accountMenuItems(account, { onEdit, onArchive, onDelete }, t)}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </ContextMenuTrigger>
+      <ContextMenuContent>
+        {accountMenuItems(account, { onEdit, onArchive, onDelete }, t)}
+      </ContextMenuContent>
+    </ContextMenu>
   );
 }
