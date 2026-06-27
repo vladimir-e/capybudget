@@ -81,6 +81,21 @@ describe("bulkChangeDate", () => {
     expect(result.find((t) => t.id === "t2")!.datetime).toBe("2025-06-01T10:00:00");
     expect(result.find((t) => t.id === "t3")!.datetime).toBe("2025-01-15T10:00:00"); // unchanged
   });
+
+  it("moves both legs of a transfer when one leg is selected", () => {
+    const result = bulkChangeDate(new Set(["t4"]), "2025-06-01", txns);
+    expect(result.find((t) => t.id === "t4")!.datetime).toBe("2025-06-01T10:00:00");
+    expect(result.find((t) => t.id === "t5")!.datetime).toBe("2025-06-01T10:00:00"); // partner synced
+  });
+
+  it("syncs the transfer partner alongside selected non-transfers", () => {
+    const result = bulkChangeDate(new Set(["t1", "t4"]), "2025-06-01", txns);
+    expect(result.find((t) => t.id === "t1")!.datetime).toBe("2025-06-01T10:00:00");
+    expect(result.find((t) => t.id === "t4")!.datetime).toBe("2025-06-01T10:00:00");
+    expect(result.find((t) => t.id === "t5")!.datetime).toBe("2025-06-01T10:00:00"); // partner synced
+    expect(result.find((t) => t.id === "t2")!.datetime).toBe("2025-01-15T10:00:00"); // unchanged
+    expect(result.find((t) => t.id === "t3")!.datetime).toBe("2025-01-15T10:00:00"); // unchanged
+  });
 });
 
 describe("bulkChangeMerchant", () => {

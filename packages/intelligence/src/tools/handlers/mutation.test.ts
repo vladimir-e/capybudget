@@ -876,7 +876,7 @@ describe("handleBulkUpdateTransactions", () => {
     expect(saved.find((t: Transaction) => t.id === "t2").datetime).toBe("2025-06-01T14:45:00")
   })
 
-  it("changes date on a single transfer leg when only that leg is selected (matches UI)", async () => {
+  it("changes date on both transfer legs when only one leg is selected", async () => {
     const repo = createMockRepo({
       transactions: [
         makeTxn({
@@ -899,8 +899,8 @@ describe("handleBulkUpdateTransactions", () => {
     })
     const saved = (repo.saveTransactions as ReturnType<typeof vi.fn>).mock.calls[0][0]
     expect(saved.find((t: Transaction) => t.id === "t1").datetime).toBe("2025-06-01T10:00:00")
-    // Matches useBulkChangeDate: only the selected leg moves
-    expect(saved.find((t: Transaction) => t.id === "t2").datetime).toBe("2025-01-15T10:00:00")
+    // Both legs of a transfer stay in sync
+    expect(saved.find((t: Transaction) => t.id === "t2").datetime).toBe("2025-06-01T10:00:00")
   })
 
   it("changes merchant on non-transfers", async () => {

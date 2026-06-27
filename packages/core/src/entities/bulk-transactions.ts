@@ -43,14 +43,21 @@ export function bulkMoveAccount(
   );
 }
 
-/** Change the date for multiple transactions. */
+/** Change the date for multiple transactions. Transfers: both legs move together. */
 export function bulkChangeDate(
   ids: Set<string>,
   date: string,
   existing: Transaction[],
 ): Transaction[] {
+  // Collect transfer pair IDs so both legs stay in sync
+  const toChange = new Set(ids);
+  for (const txn of existing) {
+    if (toChange.has(txn.id) && txn.type === "transfer" && txn.transferPairId) {
+      toChange.add(txn.transferPairId);
+    }
+  }
   return existing.map((t) => {
-    if (!ids.has(t.id)) return t;
+    if (!toChange.has(t.id)) return t;
     const timePart = t.datetime.includes("T") ? t.datetime.split("T")[1] : "12:00:00";
     return { ...t, datetime: `${date}T${timePart}` };
   });
