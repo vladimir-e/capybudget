@@ -3,27 +3,36 @@ import type { DateRange } from "@capybudget/core";
 
 export type PeriodType = "month" | "quarter" | "year" | "allTime" | "custom";
 
-export type TabId = "spending" | "netWorth" | "cashFlow" | "compare" | "merchants" | "monthlyBudget";
+export const TAB_IDS = [
+  "spending",
+  "netWorth",
+  "cashFlow",
+  "compare",
+  "merchants",
+  "monthlyBudget",
+] as const;
+
+export type TabId = (typeof TAB_IDS)[number];
 
 interface TabState {
   periodType: PeriodType;
   dateRange: DateRange;
 }
 
+// The active tab lives in the URL (?tab=…), so it's the caller's job to pass it
+// in; the store owns only per-tab period/date-range state.
 interface AnalyticsState {
-  activeTab: TabId;
   tabs: Record<TabId, TabState>;
   dataBounds: DateRange | null; // earliest/latest transaction dates
   netWorthExcludedIds: Set<string>;
   setNetWorthExcludedIds: (ids: Set<string>) => void;
-  setActiveTab: (tab: TabId) => void;
-  setPeriod: (type: PeriodType, range?: DateRange) => void;
-  navigateForward: () => void;
-  navigateBack: () => void;
-  setAllTimeRange: (transactions: { datetime: string }[]) => void;
+  setPeriod: (tab: TabId, type: PeriodType, range?: DateRange) => void;
+  navigateForward: (tab: TabId) => void;
+  navigateBack: (tab: TabId) => void;
+  setAllTimeRange: (tab: TabId, transactions: { datetime: string }[]) => void;
   updateDataBounds: (transactions: { datetime: string }[]) => void;
-  canNavigateBack: () => boolean;
-  canNavigateForward: () => boolean;
+  canNavigateBack: (tab: TabId) => boolean;
+  canNavigateForward: (tab: TabId) => boolean;
 }
 
 function getCurrentMonthRange(): DateRange {
@@ -130,66 +139,63 @@ const DEFAULT_TABS: Record<TabId, TabState> = {
 };
 
 export const useAnalyticsStore = create<AnalyticsState>((set, get) => ({
-  activeTab: "spending",
   tabs: { ...DEFAULT_TABS },
   dataBounds: null,
   netWorthExcludedIds: new Set(),
 
   setNetWorthExcludedIds: (ids) => set({ netWorthExcludedIds: ids }),
 
-  setActiveTab: (tab) => set({ activeTab: tab }),
-
-  setPeriod: (type, range) => {
-    const { activeTab, tabs } = get();
+  setPeriod: (tab, type, range) => {
+    const { tabs } = get();
     const dateRange = range ?? defaultRangeForPeriod(type);
     set({
-      tabs: { ...tabs, [activeTab]: { periodType: type, dateRange } },
+      tabs: { ...tabs, [tab]: { periodType: type, dateRange } },
     });
   },
 
-  navigateForward: () => {
-    const { activeTab, tabs } = get();
-    const tab = tabs[activeTab];
-    if (tab.periodType === "allTime") return;
-    if (!get().canNavigateForward()) return;
+  navigateForward: (tab) => {
+    const { tabs } = get();
+    const state = tabs[tab];
+    if (state.periodType === "allTime") return;
+    if (!get().canNavigateForward(tab)) return;
     set({
-      tabs: { ...tabs, [activeTab]: { ...tab, dateRange: shiftRange(tab.dateRange, tab.periodType, 1) } },
+      tabs: { ...tabs, [tab]: { ...state, dateRange: shiftRange(state.dateRange, state.periodType, 1) } },
     });
   },
 
-  navigateBack: () => {
-    const { activeTab, tabs } = get();
-    const tab = tabs[activeTab];
-    if (tab.periodType === "allTime") return;
-    if (!get().canNavigateBack()) return;
+  navigateBack: (tab) => {
+    const { tabs } = get();
+    const state = tabs[tab];
+    if (state.periodType === "allTime") return;
+    if (!get().canNavigateBack(tab)) return;
     set({
-      tabs: { ...tabs, [activeTab]: { ...tab, dateRange: shiftRange(tab.dateRange, tab.periodType, -1) } },
+      tabs: { ...tabs, [tab]: { ...state, dateRange: shiftRange(state.dateRange, state.periodType, -1) } },
     });
   },
 
-  canNavigateBack: () => {
-    const { activeTab, tabs, dataBounds } = get();
-    const tab = tabs[activeTab];
-    if (tab.periodType === "allTime" || !dataBounds) return false;
-    return tab.dateRange.start.getTime() > dataBounds.start.getTime();
+  canNavigateBack: (tab) => {
+    const { tabs, dataBounds } = get();
+    const state = tabs[tab];
+    if (state.periodType === "allTime" || !dataBounds) return false;
+    return state.dateRange.start.getTime() > dataBounds.start.getTime();
   },
 
-  canNavigateForward: () => {
-    const { activeTab, tabs, dataBounds } = get();
-    const tab = tabs[activeTab];
-    if (tab.periodType === "allTime" || !dataBounds) return false;
-    if (activeTab === "monthlyBudget") {
+  canNavigateForward: (tab) => {
+    const { tabs, dataBounds } = get();
+    const state = tabs[tab];
+    if (state.periodType === "allTime" || !dataBounds) return false;
+    if (tab === "monthlyBudget") {
       const now = new Date();
-      return tab.dateRange.start.getTime() < new Date(now.getFullYear(), now.getMonth() + 1, 1).getTime();
+      return state.dateRange.start.getTime() < new Date(now.getFullYear(), now.getMonth() + 1, 1).getTime();
     }
-    return tab.dateRange.end.getTime() < dataBounds.end.getTime();
+    return state.dateRange.end.getTime() < dataBounds.end.getTime();
   },
 
-  setAllTimeRange: (transactions) => {
-    const { activeTab, tabs } = get();
+  setAllTimeRange: (tab, transactions) => {
+    const { tabs } = get();
     const range = computeAllTimeRange(transactions);
     set({
-      tabs: { ...tabs, [activeTab]: { periodType: "allTime", dateRange: range } },
+      tabs: { ...tabs, [tab]: { periodType: "allTime", dateRange: range } },
     });
   },
 

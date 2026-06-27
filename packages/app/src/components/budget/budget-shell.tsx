@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Outlet, useMatches, useNavigate, useSearch } from "@tanstack/react-router";
+import { Outlet, useMatches, useNavigate, useRouter, useSearch } from "@tanstack/react-router";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { NavigationRail, type Section } from "@/components/budget/navigation-rail";
 import { Sidebar } from "@/components/budget/sidebar";
@@ -60,6 +60,7 @@ export function BudgetShell() {
   // fresh name into nav links; the search param is the load-time fallback.
   const name = meta.name || searchName;
   const navigate = useNavigate();
+  const router = useRouter();
   const createTxn = useCreateTransaction();
   const updateTxn = useUpdateTransaction();
   const { undo, redo } = useUndoRedo();
@@ -143,6 +144,14 @@ export function BudgetShell() {
         e.preventDefault();
         navigate({ to: "/budget/settings", search: { path, name } });
       }
+      if (mod && e.key === "[") {
+        e.preventDefault();
+        router.history.back();
+      }
+      if (mod && e.key === "]") {
+        e.preventDefault();
+        router.history.forward();
+      }
       if (e.key === "Escape" && capyOpen) {
         e.preventDefault();
         setCapyOpen(false);
@@ -163,7 +172,7 @@ export function BudgetShell() {
     }
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [toggleForm, undo, redo, effectiveFormOpen, handleDismissForm, capyOpen, setCapyOpen, navigate, path, name]);
+  }, [toggleForm, undo, redo, effectiveFormOpen, handleDismissForm, capyOpen, setCapyOpen, navigate, router, path, name]);
 
   useEffect(() => {
     if (effectiveFormOpen) {

@@ -411,15 +411,21 @@ describe("SettingsScreen", () => {
     })
   })
 
-  it("lets a sidebar click switch sections without a URL change", async () => {
+  it("pushes the section to the URL on a sidebar click so back/forward steps through sections", async () => {
     const user = userEvent.setup()
-    // No section param — the click must drive local state only.
+    // No section param — defaults to General.
     const { router } = await renderSettings("/budget/settings?path=/test&name=Test")
+    expect(await screen.findByText("Budget-wide basics.")).toBeInTheDocument()
 
     await user.click(screen.getByRole("button", { name: /Updates/i }))
-
     expect(await screen.findByText("Keep Capy up to date.")).toBeInTheDocument()
-    // The click drives local state only — the deep-link param stays unset.
-    expect(router.state.location.search).not.toHaveProperty("section")
+    // The click pushes the section onto the URL — the source of truth.
+    expect(router.state.location.search).toHaveProperty("section", "updates")
+
+    // Back returns to the section that was active before the click (General).
+    router.history.back()
+    await waitFor(() => {
+      expect(screen.getByText("Budget-wide basics.")).toBeInTheDocument()
+    })
   })
 })

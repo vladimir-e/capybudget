@@ -12,6 +12,8 @@ async function renderRail(props: {
   activeSection: Section;
   hasImportData?: boolean;
   initialPath?: string;
+  initialEntries?: string[];
+  initialIndex?: number;
 }) {
   const rootRoute = createRootRoute({
     component: () => (
@@ -26,7 +28,10 @@ async function renderRail(props: {
 
   const router = createRouter({
     routeTree: rootRoute,
-    history: createMemoryHistory({ initialEntries: [props.initialPath ?? "/"] }),
+    history: createMemoryHistory({
+      initialEntries: props.initialEntries ?? [props.initialPath ?? "/"],
+      initialIndex: props.initialIndex,
+    }),
   });
 
   await router.load();
@@ -38,7 +43,7 @@ async function renderRail(props: {
     expect(screen.getAllByRole("link").length).toBeGreaterThan(0);
   });
 
-  return result;
+  return { ...result, router };
 }
 
 describe("NavigationRail", () => {
@@ -109,5 +114,35 @@ describe("NavigationRail", () => {
 
     const settingsLink = screen.getByRole("link", { name: "Settings" });
     expect(settingsLink.getAttribute("aria-current")).not.toBe("page");
+  });
+
+  it("disables both history arrows at the only history entry", async () => {
+    await renderRail({ activeSection: "budget" });
+
+    for (const b of screen.getAllByRole("button", { name: "Back" })) {
+      expect(b).toBeDisabled();
+    }
+    for (const b of screen.getAllByRole("button", { name: "Forward" })) {
+      expect(b).toBeDisabled();
+    }
+  });
+
+  it("enables back (not forward) when sitting at the latest of several entries", async () => {
+    await renderRail({ activeSection: "budget", initialEntries: ["/", "/", "/"], initialIndex: 2 });
+
+    expect(screen.getAllByRole("button", { name: "Back" }).every((b) => !(b as HTMLButtonElement).disabled)).toBe(true);
+    expect(screen.getAllByRole("button", { name: "Forward" }).every((b) => (b as HTMLButtonElement).disabled)).toBe(true);
+  });
+
+  it("enables forward after stepping back through history", async () => {
+    const { router } = await renderRail({ activeSection: "budget", initialEntries: ["/", "/"], initialIndex: 1 });
+
+    router.history.back();
+
+    await waitFor(() => {
+      expect(screen.getAllByRole("button", { name: "Forward" }).every((b) => !(b as HTMLButtonElement).disabled)).toBe(true);
+    });
+    // At the first entry now, so back is disabled.
+    expect(screen.getAllByRole("button", { name: "Back" }).every((b) => (b as HTMLButtonElement).disabled)).toBe(true);
   });
 });

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect } from "react"
 import { useNavigate, useSearch } from "@tanstack/react-router"
 import { ArrowLeft, Coins, FlaskConical, RefreshCw, Shapes, Sparkles } from "lucide-react"
 import { useTranslation } from "@capybudget/i18n"
@@ -59,15 +59,16 @@ function resolveSection(section: string | undefined): ActiveSection {
 export function SettingsScreen() {
   const navigate = useNavigate()
   const { t } = useTranslation("settings")
-  const { path, name, section } = useSearch({ from: "/budget" })
-  const [active, setActive] = useState<ActiveSection>(() => resolveSection(section))
-
-  // Re-sync when a deep-link changes the param on an already-mounted screen
-  // (e.g. the boot update toast navigating to ?section=updates). Sidebar
-  // clicks call setActive without touching the URL, so they don't trip this.
-  useEffect(() => {
-    setActive(resolveSection(section))
-  }, [section])
+  const search = useSearch({ from: "/budget" })
+  const { path, name, section } = search
+  // The URL owns the active section: sidebar clicks navigate (pushing history so
+  // back/forward steps through sections), and deep-links resolve straight here.
+  const active = resolveSection(section)
+  const selectSection = useCallback(
+    (id: ActiveSection) =>
+      navigate({ to: "/budget/settings", search: { ...search, section: id } }),
+    [navigate, search],
+  )
 
   const visibleSections = SECTIONS.filter((s) => s.id !== "updates" || !__IS_DEMO__)
 
@@ -119,7 +120,7 @@ export function SettingsScreen() {
               label={t(SECTION_LABEL_KEY[s.id])}
               description={t(SECTION_DESCRIPTION_KEY[s.id])}
               active={active === s.id}
-              onSelect={() => setActive(s.id)}
+              onSelect={() => selectSection(s.id)}
             />
           ))}
           {SHOW_DEV && (
@@ -128,7 +129,7 @@ export function SettingsScreen() {
               label="Developer"
               description="Diagnostics & test tools"
               active={active === "dev"}
-              onSelect={() => setActive("dev")}
+              onSelect={() => selectSection("dev")}
             />
           )}
         </div>

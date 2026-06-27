@@ -4,7 +4,9 @@
     "budget": "Budget",
     "import": "Import",
     "settings": "Settings",
-    "help": "Help"
+    "help": "Help",
+    "back": "Back",
+    "forward": "Forward"
   },
   "language": {
     "label": "Language"

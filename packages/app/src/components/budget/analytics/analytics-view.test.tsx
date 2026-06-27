@@ -1,7 +1,14 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, cleanup } from "@testing-library/react";
+import { render, screen, cleanup, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import {
+  createMemoryHistory,
+  createRootRoute,
+  createRoute,
+  createRouter,
+  RouterProvider,
+} from "@tanstack/react-router";
 import {
   formatDefaultsFor,
   type Account,
@@ -11,7 +18,7 @@ import {
 } from "@capybudget/core";
 import { makeAccount, makeTransaction } from "@/test/factories";
 import { CurrencyContext, type CurrencyConfig } from "@/contexts/currency-context";
-import { useAnalyticsStore, type TabId } from "@/stores/analytics-store";
+import { TAB_IDS, useAnalyticsStore, type TabId } from "@/stores/analytics-store";
 import { AnalyticsView } from "./analytics-view";
 
 // The unrealized-FX stat now lives in the shared summary strip, gated to the
@@ -30,20 +37,60 @@ vi.mock("@/hooks/use-budget-data", () => ({
   useTransactions: () => ({ data: mockTransactions }),
 }));
 
-function renderView(currencies: Record<string, CurrencySettings> | undefined) {
+// The active tab lives in the URL now, so mount AnalyticsView under a router
+// matching the real route id and drive the tab via the `?tab=` param. Per-tab
+// period state still lives in the store, set here for the tab under test.
+async function renderView(
+  currencies: Record<string, CurrencySettings> | undefined,
+  tab: TabId,
+  range: DateRange,
+) {
+  useAnalyticsStore.getState().setPeriod(tab, "custom", range);
+
+  const rootRoute = createRootRoute();
+  const budgetRoute = createRoute({
+    getParentRoute: () => rootRoute,
+    path: "/budget",
+    validateSearch: (search: Record<string, unknown>) => ({
+      path: (search.path as string) ?? "",
+      name: (search.name as string) ?? "Budget",
+    }),
+  });
+  const shellRoute = createRoute({ getParentRoute: () => budgetRoute, id: "_shell" });
+  const categoriesRoute = createRoute({
+    getParentRoute: () => shellRoute,
+    path: "/categories",
+    validateSearch: (search: Record<string, unknown>): { tab?: TabId } =>
+      TAB_IDS.includes(search.tab as TabId) ? { tab: search.tab as TabId } : {},
+    component: AnalyticsView,
+  });
+  const routeTree = rootRoute.addChildren([
+    budgetRoute.addChildren([shellRoute.addChildren([categoriesRoute])]),
+  ]);
+  const router = createRouter({
+    routeTree,
+    history: createMemoryHistory({
+      initialEntries: [`/budget/categories?path=/test&name=Test&tab=${tab}`],
+    }),
+  });
+  await router.load();
+
   const config: CurrencyConfig = {
     currency: "USD",
     currencies,
     ...formatDefaultsFor("USD"),
   };
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  return render(
-    <QueryClientProvider client={client}>
-      <CurrencyContext.Provider value={config}>
-        <AnalyticsView />
-      </CurrencyContext.Provider>
-    </QueryClientProvider>,
-  );
+  return {
+    ...render(
+      <QueryClientProvider client={client}>
+        <CurrencyContext.Provider value={config}>
+          <RouterProvider router={router} />
+        </CurrencyContext.Provider>
+      </QueryClientProvider>,
+    ),
+    router,
+  };
 }
 
 // A window whose end is in the future, so the stat's today-statement is honest
@@ -68,18 +115,8 @@ const rubTxns = [
   }),
 ];
 
-/** Drive the store into a given tab + window before render, matching what the
- *  date-range nav would set interactively. */
-function openTab(tab: TabId, range: DateRange) {
-  useAnalyticsStore.getState().setActiveTab(tab);
-  useAnalyticsStore.getState().setPeriod("custom", range);
-}
-
 beforeEach(() => {
-  useAnalyticsStore.setState({
-    activeTab: "spending",
-    netWorthExcludedIds: new Set(),
-  });
+  useAnalyticsStore.setState({ netWorthExcludedIds: new Set() });
 });
 
 afterEach(() => {
@@ -89,13 +126,12 @@ afterEach(() => {
 });
 
 describe("AnalyticsView — summary-strip FX stat", () => {
-  it("(THE invariant) a USD-only budget shows the plain 3-stat strip on the net-worth tab", () => {
+  it("(THE invariant) a USD-only budget shows the plain 3-stat strip on the net-worth tab", async () => {
     mockAccounts = [makeAccount({ id: "acc-usd", name: "Checking", currency: "USD" })];
     mockTransactions = [
       makeTransaction({ id: "u1", accountId: "acc-usd", type: "income", amount: 500_00, datetime: `${new Date().getFullYear()}-01-15T12:00:00.000Z` }),
     ];
-    openTab("netWorth", currentRange);
-    renderView({ USD: formatDefaultsFor("USD") });
+    await renderView({ USD: formatDefaultsFor("USD") }, "netWorth", currentRange);
 
     expect(screen.queryByRole("button", { name: "What is this?" })).not.toBeInTheDocument();
   });
@@ -103,8 +139,7 @@ describe("AnalyticsView — summary-strip FX stat", () => {
   it("shows the −$500 worked example on the net-worth tab with a foreign account + current range", async () => {
     mockAccounts = [rubAccount];
     mockTransactions = rubTxns;
-    openTab("netWorth", currentRange);
-    renderView(RUB_CURRENCIES);
+    await renderView(RUB_CURRENCIES, "netWorth", currentRange);
     const user = userEvent.setup();
 
     // A loss, so the sign-aware label reads "Currency loss".
@@ -118,21 +153,43 @@ describe("AnalyticsView — summary-strip FX stat", () => {
     ).toBeInTheDocument();
   });
 
-  it("hides the FX stat when scrubbed to a historical range (spot is a today statement)", () => {
+  it("hides the FX stat when scrubbed to a historical range (spot is a today statement)", async () => {
     mockAccounts = [rubAccount];
     mockTransactions = rubTxns;
-    openTab("netWorth", { start: new Date(2019, 0, 1), end: new Date(2020, 0, 1) });
-    renderView(RUB_CURRENCIES);
+    await renderView(RUB_CURRENCIES, "netWorth", { start: new Date(2019, 0, 1), end: new Date(2020, 0, 1) });
 
     expect(screen.queryByRole("button", { name: "What is this?" })).not.toBeInTheDocument();
   });
 
-  it("never shows the FX stat on a non-net-worth tab, even with a foreign account + current range", () => {
+  it("never shows the FX stat on a non-net-worth tab, even with a foreign account + current range", async () => {
     mockAccounts = [rubAccount];
     mockTransactions = rubTxns;
-    openTab("spending", currentRange);
-    renderView(RUB_CURRENCIES);
+    await renderView(RUB_CURRENCIES, "spending", currentRange);
 
     expect(screen.queryByRole("button", { name: "What is this?" })).not.toBeInTheDocument();
+  });
+});
+
+describe("AnalyticsView — URL-owned active tab", () => {
+  it("a tab click writes ?tab=, preserves path/name, and pushes history", async () => {
+    mockAccounts = [makeAccount({ id: "acc-usd", name: "Checking", currency: "USD" })];
+    mockTransactions = [];
+    const user = userEvent.setup();
+    const { router } = await renderView(undefined, "spending", currentRange);
+
+    await user.click(screen.getByRole("button", { name: "Net Worth" }));
+    await waitFor(() => {
+      expect(router.state.location.search).toMatchObject({
+        tab: "netWorth",
+        path: "/test",
+        name: "Test",
+      });
+    });
+
+    // The switch pushed an entry, so back returns to the tab we came from.
+    router.history.back();
+    await waitFor(() => {
+      expect((router.state.location.search as { tab?: string }).tab).toBe("spending");
+    });
   });
 });

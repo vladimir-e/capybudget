@@ -4,7 +4,9 @@
     "budget": "Бюджет",
     "import": "Импорт",
     "settings": "Настройки",
-    "help": "Справка"
+    "help": "Справка",
+    "back": "Назад",
+    "forward": "Вперёд"
   },
   "language": {
     "label": "Язык"

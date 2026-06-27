@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useNavigate, useSearch } from "@tanstack/react-router";
 import {
   ensureMinMonths,
   filterTransactionsByDateRange,
@@ -45,19 +46,25 @@ export function AnalyticsView() {
   const converter = useConverter();
   const defaultCurrency = useCurrency();
 
-  // Per-tab store
-  const activeTab = useAnalyticsStore((s) => s.activeTab);
+  // Active tab is URL-owned; a missing param reads as the default (spending).
+  // Spread the current search on switch so path/name are never clobbered.
+  const search = useSearch({ from: "/budget/_shell/categories" });
+  const activeTab = (search.tab as TabId | undefined) ?? "spending";
+  const navigate = useNavigate();
+  const selectTab = (next: TabId) =>
+    navigate({ to: "/budget/categories", search: { ...search, tab: next } });
+
+  // Per-tab store (period + date range; the active tab itself lives in the URL)
   const netWorthExcludedIds = useAnalyticsStore((s) => s.netWorthExcludedIds);
-  const tabState = useAnalyticsStore((s) => s.tabs[s.activeTab]);
-  const setActiveTab = useAnalyticsStore((s) => s.setActiveTab);
+  const tabState = useAnalyticsStore((s) => s.tabs[activeTab]);
   const setPeriod = useAnalyticsStore((s) => s.setPeriod);
   const navigateForward = useAnalyticsStore((s) => s.navigateForward);
   const navigateBack = useAnalyticsStore((s) => s.navigateBack);
   const setAllTimeRange = useAnalyticsStore((s) => s.setAllTimeRange);
   const updateDataBounds = useAnalyticsStore((s) => s.updateDataBounds);
   const dataBounds = useAnalyticsStore((s) => s.dataBounds);
-  const canGoBack = useAnalyticsStore((s) => s.canNavigateBack());
-  const canGoForward = useAnalyticsStore((s) => s.canNavigateForward());
+  const canGoBack = useAnalyticsStore((s) => s.canNavigateBack(activeTab));
+  const canGoForward = useAnalyticsStore((s) => s.canNavigateForward(activeTab));
 
   const { dateRange, periodType } = tabState;
 
@@ -121,15 +128,15 @@ export function AnalyticsView() {
   // Handle period change
   function handlePeriodChange(type: PeriodType) {
     if (type === "allTime") {
-      setAllTimeRange(transactions);
+      setAllTimeRange(activeTab, transactions);
     } else {
-      setPeriod(type);
+      setPeriod(activeTab, type);
     }
   }
 
   // Handle custom range
   function handleCustomRange(range: DateRange) {
-    setPeriod("custom", range);
+    setPeriod(activeTab, "custom", range);
   }
 
   return (
@@ -141,7 +148,7 @@ export function AnalyticsView() {
             <button
               key={tab.id}
               type="button"
-              onClick={() => setActiveTab(tab.id)}
+              onClick={() => selectTab(tab.id)}
               className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
                 activeTab === tab.id
                   ? "border-brand text-foreground"
@@ -162,8 +169,8 @@ export function AnalyticsView() {
           dateRange={dateRange}
           allowedPeriods={currentTab.allowedPeriods}
           onPeriodChange={handlePeriodChange}
-          onBack={navigateBack}
-          onForward={navigateForward}
+          onBack={() => navigateBack(activeTab)}
+          onForward={() => navigateForward(activeTab)}
           canGoBack={canGoBack}
           canGoForward={canGoForward}
           onCustomRange={handleCustomRange}

@@ -4,7 +4,9 @@
     "budget": "Presupuesto",
     "import": "Importar",
     "settings": "Ajustes",
-    "help": "Ayuda"
+    "help": "Ayuda",
+    "back": "Atrás",
+    "forward": "Adelante"
   },
   "language": {
     "label": "Idioma"
