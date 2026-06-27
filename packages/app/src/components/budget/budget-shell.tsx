@@ -144,13 +144,13 @@ export function BudgetShell() {
         e.preventDefault();
         navigate({ to: "/budget/settings", search: { path, name } });
       }
-      if (mod && e.key === "[") {
+      if (mod && (e.key === "[" || e.key === "]")) {
+        const target = e.target as HTMLElement | null;
+        const tag = target?.tagName;
+        if (target?.isContentEditable || tag === "INPUT" || tag === "TEXTAREA") return;
         e.preventDefault();
-        router.history.back();
-      }
-      if (mod && e.key === "]") {
-        e.preventDefault();
-        router.history.forward();
+        if (e.key === "[") router.history.back();
+        else router.history.forward();
       }
       if (e.key === "Escape" && capyOpen) {
         e.preventDefault();

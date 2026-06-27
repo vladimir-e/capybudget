@@ -18,7 +18,7 @@ import {
 } from "@capybudget/core";
 import { makeAccount, makeTransaction } from "@/test/factories";
 import { CurrencyContext, type CurrencyConfig } from "@/contexts/currency-context";
-import { TAB_IDS, useAnalyticsStore, type TabId } from "@/stores/analytics-store";
+import { validateTabSearch, useAnalyticsStore, type TabId } from "@/stores/analytics-store";
 import { AnalyticsView } from "./analytics-view";
 
 // The unrealized-FX stat now lives in the shared summary strip, gated to the
@@ -39,14 +39,8 @@ vi.mock("@/hooks/use-budget-data", () => ({
 
 // The active tab lives in the URL now, so mount AnalyticsView under a router
 // matching the real route id and drive the tab via the `?tab=` param. Per-tab
-// period state still lives in the store, set here for the tab under test.
-async function renderView(
-  currencies: Record<string, CurrencySettings> | undefined,
-  tab: TabId,
-  range: DateRange,
-) {
-  useAnalyticsStore.getState().setPeriod(tab, "custom", range);
-
+// period state still lives in the store, set per-test for the tab under test.
+function makeRouter(initialEntry: string) {
   const rootRoute = createRootRoute();
   const budgetRoute = createRoute({
     getParentRoute: () => rootRoute,
@@ -60,21 +54,22 @@ async function renderView(
   const categoriesRoute = createRoute({
     getParentRoute: () => shellRoute,
     path: "/categories",
-    validateSearch: (search: Record<string, unknown>): { tab?: TabId } =>
-      TAB_IDS.includes(search.tab as TabId) ? { tab: search.tab as TabId } : {},
+    validateSearch: validateTabSearch,
     component: AnalyticsView,
   });
   const routeTree = rootRoute.addChildren([
     budgetRoute.addChildren([shellRoute.addChildren([categoriesRoute])]),
   ]);
-  const router = createRouter({
+  return createRouter({
     routeTree,
-    history: createMemoryHistory({
-      initialEntries: [`/budget/categories?path=/test&name=Test&tab=${tab}`],
-    }),
+    history: createMemoryHistory({ initialEntries: [initialEntry] }),
   });
-  await router.load();
+}
 
+function renderWithRouter(
+  router: ReturnType<typeof makeRouter>,
+  currencies: Record<string, CurrencySettings> | undefined,
+) {
   const config: CurrencyConfig = {
     currency: "USD",
     currencies,
@@ -91,6 +86,17 @@ async function renderView(
     ),
     router,
   };
+}
+
+async function renderView(
+  currencies: Record<string, CurrencySettings> | undefined,
+  tab: TabId,
+  range: DateRange,
+) {
+  useAnalyticsStore.getState().setPeriod(tab, "custom", range);
+  const router = makeRouter(`/budget/categories?path=/test&name=Test&tab=${tab}`);
+  await router.load();
+  return renderWithRouter(router, currencies);
 }
 
 // A window whose end is in the future, so the stat's today-statement is honest
@@ -191,5 +197,62 @@ describe("AnalyticsView — URL-owned active tab", () => {
     await waitFor(() => {
       expect((router.state.location.search as { tab?: string }).tab).toBe("spending");
     });
+  });
+});
+
+describe("AnalyticsView — tab search validation", () => {
+  it("renders Spending and injects no tab key when the param is absent", async () => {
+    mockAccounts = [makeAccount({ id: "acc-usd", name: "Checking", currency: "USD" })];
+    mockTransactions = [];
+    const router = makeRouter("/budget/categories?path=/test&name=Test");
+    await router.load();
+    renderWithRouter(router, undefined);
+
+    expect(screen.getByRole("button", { name: "Spending" })).toHaveClass("border-brand");
+    expect(router.state.location.search).not.toHaveProperty("tab");
+  });
+
+  it("strips an unknown tab value and falls back to Spending", async () => {
+    mockAccounts = [makeAccount({ id: "acc-usd", name: "Checking", currency: "USD" })];
+    mockTransactions = [];
+    const router = makeRouter("/budget/categories?path=/test&name=Test&tab=garbage");
+    await router.load();
+    renderWithRouter(router, undefined);
+
+    // Defensive read shows Spending immediately, before the URL self-heals.
+    expect(screen.getByRole("button", { name: "Spending" })).toHaveClass("border-brand");
+    // The dead param is dropped from the URL (replace, so no history entry).
+    await waitFor(() => expect(router.state.location.search).not.toHaveProperty("tab"));
+  });
+});
+
+describe("AnalyticsView — period nav stays out of history", () => {
+  it("stepping the period within a tab does not push a history entry", async () => {
+    mockAccounts = [makeAccount({ id: "acc-usd", name: "Checking", currency: "USD" })];
+    // Transactions across several months so the period back arrow is enabled.
+    mockTransactions = [
+      makeTransaction({ id: "t1", accountId: "acc-usd", type: "expense", amount: 100_00, datetime: "2024-01-15T12:00:00.000Z" }),
+      makeTransaction({ id: "t2", accountId: "acc-usd", type: "expense", amount: 100_00, datetime: "2024-06-15T12:00:00.000Z" }),
+    ];
+    useAnalyticsStore.getState().setPeriod("spending", "month", {
+      start: new Date(2024, 5, 1),
+      end: new Date(2024, 6, 1),
+    });
+    const router = makeRouter("/budget/categories?path=/test&name=Test&tab=spending");
+    await router.load();
+    const user = userEvent.setup();
+    renderWithRouter(router, undefined);
+
+    const back = screen.getByRole("button", { name: "Previous period" });
+    await waitFor(() => expect(back).toBeEnabled());
+
+    const indexBefore = router.state.location.state.__TSR_index;
+    await user.click(back);
+
+    // The store stepped to May; the router index — and thus history — held still.
+    await waitFor(() => {
+      expect(useAnalyticsStore.getState().tabs.spending.dateRange.start.getMonth()).toBe(4);
+    });
+    expect(router.state.location.state.__TSR_index).toBe(indexBefore);
   });
 });

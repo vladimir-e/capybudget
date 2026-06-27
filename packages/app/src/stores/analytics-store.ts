@@ -14,6 +14,10 @@ export const TAB_IDS = [
 
 export type TabId = (typeof TAB_IDS)[number];
 
+export function validateTabSearch(search: Record<string, unknown>): { tab?: TabId } {
+  return TAB_IDS.includes(search.tab as TabId) ? { tab: search.tab as TabId } : {};
+}
+
 interface TabState {
   periodType: PeriodType;
   dateRange: DateRange;
@@ -25,6 +29,8 @@ interface AnalyticsState {
   tabs: Record<TabId, TabState>;
   dataBounds: DateRange | null; // earliest/latest transaction dates
   netWorthExcludedIds: Set<string>;
+  lastTab: TabId;
+  setLastTab: (tab: TabId) => void;
   setNetWorthExcludedIds: (ids: Set<string>) => void;
   setPeriod: (tab: TabId, type: PeriodType, range?: DateRange) => void;
   navigateForward: (tab: TabId) => void;
@@ -142,6 +148,9 @@ export const useAnalyticsStore = create<AnalyticsState>((set, get) => ({
   tabs: { ...DEFAULT_TABS },
   dataBounds: null,
   netWorthExcludedIds: new Set(),
+  lastTab: "spending",
+
+  setLastTab: (tab) => set({ lastTab: tab }),
 
   setNetWorthExcludedIds: (ids) => set({ netWorthExcludedIds: ids }),
 

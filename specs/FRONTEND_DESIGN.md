@@ -41,6 +41,7 @@ Three top-level sections: **Accounts**, **Budget** (categories), and **Import**.
 - **Mobile**: bottom tab bar with the same three sections.
 - **Sidebar**: scoped to the Accounts section only. Slides in/out via its own edge handle. Budget and Import sections get full content width.
 - **Settings**: lives in a bottom utility cluster on the desktop rail (gear icon), kept separate from the primary three to signal "infrequent / configuration." Intentionally not surfaced in the mobile bottom-tab bar — mobile is a read-mostly surface and the rail's vertical room doesn't translate there.
+- **History**: the rail leads with browser-style back/forward controls; `⌘[` / `⌘]` navigate history too.
 
 Capy is shipped a static app map (`specs/APP_MAP.md`) so it can answer "where do I find X" without guessing. It mirrors this structure — sections, the analytics tabs, the nav layout, and each tab's chart and controls. Re-check it whenever the UI changes structurally so it doesn't silently drift from the real app.
 

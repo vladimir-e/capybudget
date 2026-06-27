@@ -145,4 +145,20 @@ describe("NavigationRail", () => {
     // At the first entry now, so back is disabled.
     expect(screen.getAllByRole("button", { name: "Back" }).every((b) => (b as HTMLButtonElement).disabled)).toBe(true);
   });
+
+  // The forward ceiling is the furthest index seen, not history.length — so once
+  // we step forward back up to that ceiling, Forward disables again.
+  it("disables forward again after returning to the furthest entry", async () => {
+    const { router } = await renderRail({ activeSection: "budget", initialEntries: ["/", "/"], initialIndex: 1 });
+
+    router.history.back();
+    await waitFor(() => {
+      expect(screen.getAllByRole("button", { name: "Forward" }).every((b) => !(b as HTMLButtonElement).disabled)).toBe(true);
+    });
+
+    router.history.forward();
+    await waitFor(() => {
+      expect(screen.getAllByRole("button", { name: "Forward" }).every((b) => (b as HTMLButtonElement).disabled)).toBe(true);
+    });
+  });
 });

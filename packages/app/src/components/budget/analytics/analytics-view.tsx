@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import {
   ensureMinMonths,
@@ -10,7 +10,7 @@ import type { DateRange } from "@capybudget/core";
 import { useTranslation } from "@capybudget/i18n";
 import { useConverter, useCurrency } from "@/contexts/currency-context";
 import { useTransactions, useCategories, useAccounts } from "@/hooks/use-budget-data";
-import { useAnalyticsStore, type PeriodType, type TabId } from "@/stores/analytics-store";
+import { useAnalyticsStore, validateTabSearch, type PeriodType, type TabId } from "@/stores/analytics-store";
 import { DateRangeNav } from "./date-range-nav";
 import { SummaryStrip } from "./summary-strip";
 import { computeIncludedIds } from "./net-worth-account-filter-utils";
@@ -46,13 +46,30 @@ export function AnalyticsView() {
   const converter = useConverter();
   const defaultCurrency = useCurrency();
 
-  // Active tab is URL-owned; a missing param reads as the default (spending).
+  // Active tab is URL-owned; a missing or malformed param reads as Spending.
   // Spread the current search on switch so path/name are never clobbered.
   const search = useSearch({ from: "/budget/_shell/categories" });
-  const activeTab = (search.tab as TabId | undefined) ?? "spending";
+  const activeTab = validateTabSearch(search).tab ?? "spending";
   const navigate = useNavigate();
-  const selectTab = (next: TabId) =>
-    navigate({ to: "/budget/categories", search: { ...search, tab: next } });
+  const selectTab = useCallback(
+    (next: TabId) => navigate({ to: "/budget/categories", search: { ...search, tab: next } }),
+    [navigate, search],
+  );
+
+  // A stale or malformed ?tab= (e.g. an old bookmark) resolves to Spending —
+  // drop the dead param so it doesn't linger. replace: not a history step.
+  useEffect(() => {
+    if (search.tab !== undefined && validateTabSearch(search).tab === undefined) {
+      navigate({ to: "/budget/categories", search: { ...search, tab: undefined }, replace: true });
+    }
+  }, [search, navigate]);
+
+  // Re-entering Budget lands on the last-viewed tab; track it however the active
+  // tab changed (click, back/forward, deep-link), not just on explicit clicks.
+  const setLastTab = useAnalyticsStore((s) => s.setLastTab);
+  useEffect(() => {
+    setLastTab(activeTab);
+  }, [activeTab, setLastTab]);
 
   // Per-tab store (period + date range; the active tab itself lives in the URL)
   const netWorthExcludedIds = useAnalyticsStore((s) => s.netWorthExcludedIds);
