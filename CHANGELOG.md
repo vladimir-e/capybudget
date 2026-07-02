@@ -12,6 +12,7 @@ CHANGELOG PHILOSOPHY:
 ## Unreleased
 
 - **Import** - Screenshot rows without a readable date (like pending transactions) now import dated today instead of silently vanishing, and the preview says when any rows were skipped.
+- **Import** - Screenshot and PDF imports now match your existing accounts by name and never stage a transaction without an account.
 
 ## 1.4.0 — 2026-06-27
 
