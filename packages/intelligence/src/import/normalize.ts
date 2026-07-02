@@ -536,7 +536,7 @@ export async function normalizeImage(
     `Read every transaction from this ${describeKind(source.mediaType)} (a receipt, bank screenshot, or statement scan) and return them as records.`,
     `Return "count" first — the total number of transactions you see — then the rows themselves.`,
     `For each transaction: date as YYYY-MM-DD, amount as signed integer cents (negative = money out, positive = money in), type (expense/income/transfer), the merchant or payee as "description", an inferred category as "sourceCategory" (empty string if none), and the account name as "sourceAccount" (empty string if none).`,
-    `Dates must be exactly YYYY-MM-DD. When a row has no parseable date — the date column reads "Pending", or the source shows no dates — use today's date, ${getToday()}.`,
+    `When a row has no parseable date — the date column reads "Pending", or the source shows no dates — use today's date, ${getToday()}.`,
     `Never invent transactions — extract only what is visible. If the file contains no transaction data (e.g. a photo of a person, a logo, an unrelated document), return the no_data outcome with a short message.`,
   ].join("\n");
 

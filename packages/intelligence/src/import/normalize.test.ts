@@ -653,17 +653,20 @@ describe("normalizeImage", () => {
 
     const { rows } = await normalizeImage(session, { name: "r.png", content: "B64", mediaType: "image/png" });
 
-    expect(rows[0].date).toMatch(/^\d{4}-\d{2}-\d{2}$/); // today, never "Pending"
+    expect(rows[0].date).toMatch(/^\d{4}-\d{2}-\d{2}$/);
     expect(rows[1].date).toBe("2026-01-05");
   });
 
   it("tells the model to date pending / date-less rows to today", async () => {
     const session = new MockStructuredSession([() => ({ result: { count: 0, rows: [] } })]);
+    // Bracket the call so a midnight rollover mid-test can't flake it.
+    const before = getToday();
     await normalizeImage(session, { name: "r.png", content: "B64", mediaType: "image/png" });
+    const after = getToday();
 
     const prompt = JSON.stringify(session.calls[0].messages);
     expect(prompt).toContain("Pending");
-    expect(prompt).toContain(`use today's date, ${getToday()}`);
+    expect(prompt).toMatch(new RegExp(`use today's date, (${before}|${after})`));
   });
 
   it("sends an image block for an image and a document block for a PDF", async () => {

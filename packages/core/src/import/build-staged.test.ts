@@ -90,12 +90,15 @@ describe("buildStaged", () => {
     });
 
     it("falls back to today for an unparseable date", () => {
+      // Bracket the call so a midnight rollover mid-test can't flake it.
+      const before = getToday();
       const result = buildStaged([
         record({ date: "Pending" }),
         record({ date: "" }),
         record({ date: "no date visible" }),
       ]);
-      for (const t of result) expect(t.date).toBe(getToday());
+      const after = getToday();
+      for (const t of result) expect([before, after]).toContain(t.date);
     });
   });
 

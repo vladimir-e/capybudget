@@ -51,8 +51,8 @@ export function isCalendarDate(isoDate: string): boolean {
 
 /**
  * Sniff a date in any supported format into `YYYY-MM-DD`, or `null` when
- * nothing parses (empty, "Pending", free text). A time portion is stripped
- * first. Formats are tried in `DATE_FORMATS` declaration order, so an
+ * nothing parses. A time portion is stripped first.
+ * Formats are tried in `DATE_FORMATS` declaration order, so an
  * ambiguous slash date reads US `MM/DD/YYYY`; a first component over 12 fails
  * the calendar check and falls through to `DD/MM/YYYY`.
  */

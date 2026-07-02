@@ -38,6 +38,10 @@ describe("coerceIsoDate", () => {
     expect(coerceIsoDate("2026-13-01")).toBeNull(); // shaped but not a calendar date
     expect(coerceIsoDate("02/30/2026")).toBeNull(); // no valid month/day reading
   });
+
+  it("has no DD-MM-YYYY dash variant — a day-first dash date returns null", () => {
+    expect(coerceIsoDate("25-12-2026")).toBeNull();
+  });
 });
 
 describe("isCalendarDate", () => {

@@ -16,9 +16,8 @@ export interface BuildStagedOptions {
  * Turn intermediate {@link StagedRecord}s into staged {@link ImportTransaction}s
  * — the single sink both normalization paths converge on. Owns the staging
  * invariants (sequential ids, trim-45 `description`, sign/type, date coerced to
- * `YYYY-MM-DD` with unparseable dates — a "Pending" column, a cropped
- * screenshot — degrading to today, empty resolved fields); see
- * `specs/IMPORT.md` § Normalizing.
+ * `YYYY-MM-DD` with unparseable dates degrading to today, empty resolved
+ * fields); see `specs/IMPORT.md` § Normalizing.
  */
 export function buildStaged(
   records: StagedRecord[],
