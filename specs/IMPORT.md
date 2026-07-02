@@ -132,7 +132,7 @@ A self-contained module operating on staging only — no budget-data dependency 
 - **Run notes** sit in one compact panel above the table: a duplicates line splitting certain matches from possible (close-date) ones — which also carry an amber badge in the table prompting review — and an issues line counting low-confidence and uncategorized rows once the run settles. Duplicates land unselected.
 - **Transfers** show an account dropdown for the counterpart, pre-filled when grounding or the model resolved it. The dropdown stays the standard account list (never reranked — account ordering is consistent app-wide); a row whose counterpart is still unset gets an outline on the dropdown so it's easy to spot in the preview, with the placeholder ("From account" for an inflow, "To account" for an outflow) as the only wording.
 - **Transaction table** — full CRUD, multi-select (unselect to skip), search, inline editing; the same interaction patterns as the main transactions view. Edits write back to staging.
-- **Merge** converts the selected rows into budget transactions: creates unmapped source accounts, links transfer pairs (same date, opposite amounts, different accounts), and bulk-inserts. The field mapping:
+- **Merge** converts the selected rows into budget transactions: creates unmapped source accounts, links transfer pairs (same date, opposite amounts, different accounts), and bulk-inserts. A row with neither a source account nor a grounded account is healed to an "Imported" source when staging is read back, and merge backstops the same fallback — no row ever merges account-less. The field mapping:
 
 | Staging field | `Transaction` field |
 |---|---|
