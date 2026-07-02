@@ -39,6 +39,8 @@ type EditableColumn = "date" | "merchant" | "amount" | "type";
 
 interface ImportTableProps {
   transactions: ImportTransaction[];
+  /** Whether a search query filtered `transactions` — picks the empty-state copy. */
+  searchActive: boolean;
   sort: ImportSortConfig;
   onSortChange: (sort: ImportSortConfig) => void;
   selectedIds: Set<string>;
@@ -121,6 +123,7 @@ function SortableHeader({
 
 export function ImportTable({
   transactions,
+  searchActive,
   sort,
   onSortChange,
   selectedIds,
@@ -175,8 +178,8 @@ export function ImportTable({
     return (
       <EmptyState
         icon={<Inbox strokeWidth={1.5} />}
-        title={t("table.noTransactionsTitle")}
-        description={t("table.noTransactionsDescription")}
+        title={searchActive ? t("table.noMatchesTitle") : t("table.emptyTitle")}
+        description={searchActive ? t("table.noMatchesDescription") : undefined}
         className="py-24"
       />
     );

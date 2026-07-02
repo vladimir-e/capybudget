@@ -113,15 +113,15 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
   // already be on this tab, where navigation alone wouldn't remount the screen).
   const mountedRef = useRef(true);
   const checkStaging = useCallback(async (): Promise<void> => {
-    const [rows, transferCtx] = await Promise.all([
+    const [staged, transferCtx] = await Promise.all([
       staging.readTransactions(),
       staging.readTransferContext().then((c) => c ?? {}),
     ]);
     if (!mountedRef.current) return;
-    if (rows && rows.length > 0) {
+    if (staged && staged.rows.length > 0) {
       setHasStagedRows(true);
       setHasImportData(true);
-      setResumeBatch(resumeMeter(rows, new Set(Object.keys(transferCtx))));
+      setResumeBatch(resumeMeter(staged.rows, new Set(Object.keys(transferCtx))));
       setDiskChecked(true);
       return;
     }

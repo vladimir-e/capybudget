@@ -53,6 +53,10 @@
     "countRows_other": "{{count}} строк"
   },
   "preview": {
+    "skippedRows_one": "{{count}} строка пропущена (некорректная дата или сумма)",
+    "skippedRows_few": "{{count}} строки пропущены (некорректная дата или сумма)",
+    "skippedRows_many": "{{count}} строк пропущено (некорректная дата или сумма)",
+    "skippedRows_other": "{{count}} строк пропущено (некорректная дата или сумма)",
     "certainDuplicates_one": "обнаружен {{count}} дубликат — уже снят выбор",
     "certainDuplicates_few": "обнаружено {{count}} дубликата — уже снят выбор",
     "certainDuplicates_many": "обнаружено {{count}} дубликатов — уже снят выбор",
@@ -110,8 +114,9 @@
       "account": "Счёт",
       "category": "Категория"
     },
-    "noTransactionsTitle": "Транзакции не найдены",
-    "noTransactionsDescription": "Попробуй изменить запрос.",
+    "emptyTitle": "Нет транзакций для импорта",
+    "noMatchesTitle": "Транзакции не найдены",
+    "noMatchesDescription": "Попробуй изменить запрос.",
     "noAccount": "нет",
     "newAccountTag": "новый",
     "toAccount": "На счёт",

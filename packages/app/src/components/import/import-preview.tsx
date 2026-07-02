@@ -72,6 +72,7 @@ export function ImportPreview({
     setSelectedIds,
     accountMapping,
     loading,
+    skippedRowCount,
     handleUpdate,
     handleAccountMappingChange,
     flushWriteBack,
@@ -243,6 +244,7 @@ export function ImportPreview({
     );
   }
 
+  const showSkippedNote = skippedRowCount > 0;
   const showDuplicatesNote = duplicateIds.size > 0;
   // Issue counts are still settling while a run is in flight.
   const showIssuesNote = !running && (uncategorizedCount > 0 || lowConfidenceCount > 0);
@@ -252,8 +254,14 @@ export function ImportPreview({
       {/* Run notes — one compact panel, a line per note. Certain duplicate
           matches and the speculative (close-date) tier read differently: the
           former are settled, the latter prompt review. */}
-      {(showDuplicatesNote || showIssuesNote) && (
+      {(showSkippedNote || showDuplicatesNote || showIssuesNote) && (
         <div className="w-fit max-w-full space-y-1.5 rounded-xl border border-border/40 bg-card/30 px-3.5 py-2.5">
+          {showSkippedNote && (
+            <div className="flex items-center gap-2.5 text-sm text-foreground/70">
+              <AlertTriangle className="h-3.5 w-3.5 text-amber-500 shrink-0" />
+              <span>{t("preview.skippedRows", { count: skippedRowCount })}</span>
+            </div>
+          )}
           {showDuplicatesNote && (
             <div className="flex items-center gap-2.5 text-sm text-foreground/70">
               <Copy className="h-3.5 w-3.5 text-blue-500 shrink-0" />
@@ -316,6 +324,7 @@ export function ImportPreview({
       <div className={`rounded-xl border border-border/40 overflow-hidden ${running ? "pointer-events-none opacity-90" : ""}`}>
         <ImportTable
           transactions={sorted}
+          searchActive={search !== ""}
           sort={sort}
           onSortChange={setSort}
           selectedIds={selectedIds}

@@ -23,11 +23,13 @@ function renderTable(
     duplicateIds?: Set<string>;
     accountMapping?: Record<string, string>;
     onOpenAccountMapping?: () => void;
+    searchActive?: boolean;
   } = {},
 ) {
   return render(
     <ImportTable
       transactions={transactions}
+      searchActive={opts.searchActive ?? false}
       sort={sort}
       onSortChange={vi.fn()}
       selectedIds={opts.selectedIds ?? new Set(transactions.map((t) => t.id))}
@@ -182,5 +184,21 @@ describe("ImportTable — transfer counterpart dropdown", () => {
     expect(checking).toBeGreaterThanOrEqual(0);
     expect(checking).toBeLessThan(savings);
     expect(savings).toBeLessThan(fidelity);
+  });
+});
+
+describe("ImportTable — empty state", () => {
+  it("suggests adjusting the search only when a search filtered the rows out", () => {
+    renderTable([], { searchActive: true });
+
+    expect(screen.getByText("No transactions found")).toBeInTheDocument();
+    expect(screen.getByText("Try adjusting your search.")).toBeInTheDocument();
+  });
+
+  it("shows a neutral message when no rows loaded at all", () => {
+    renderTable([]);
+
+    expect(screen.getByText("No transactions to import")).toBeInTheDocument();
+    expect(screen.queryByText("Try adjusting your search.")).toBeNull();
   });
 });

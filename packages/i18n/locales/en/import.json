@@ -49,6 +49,8 @@
     "countRows_other": "{{count}} rows"
   },
   "preview": {
+    "skippedRows_one": "{{count}} row was skipped (invalid date or amount)",
+    "skippedRows_other": "{{count}} rows were skipped (invalid date or amount)",
     "certainDuplicates_one": "{{count}} duplicate detected — already unselected",
     "certainDuplicates_other": "{{count}} duplicates detected — already unselected",
     "possibleDuplicates_one": "{{count}} possible duplicate (close date match) — review before merging",
@@ -92,8 +94,9 @@
       "account": "Account",
       "category": "Category"
     },
-    "noTransactionsTitle": "No transactions found",
-    "noTransactionsDescription": "Try adjusting your search.",
+    "emptyTitle": "No transactions to import",
+    "noMatchesTitle": "No transactions found",
+    "noMatchesDescription": "Try adjusting your search.",
     "noAccount": "none",
     "newAccountTag": "new",
     "toAccount": "To account",

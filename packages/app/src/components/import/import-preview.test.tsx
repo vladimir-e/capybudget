@@ -93,6 +93,7 @@ beforeEach(() => {
     setSelectedIds: vi.fn(),
     accountMapping: {},
     loading: false,
+    skippedRowCount: 0,
     handleUpdate: vi.fn(),
     handleAccountMappingChange: vi.fn(),
     flushWriteBack,
@@ -174,6 +175,21 @@ describe("ImportPreview — run notes panel", () => {
     renderPreview({ running: true });
 
     expect(screen.queryByText(/uncategorized/)).toBeNull();
+  });
+
+  it("surfaces rows the staging read skipped", () => {
+    Object.assign(dataReturn, { skippedRowCount: 3 });
+    renderPreview();
+
+    expect(
+      screen.getByText("3 rows were skipped (invalid date or amount)"),
+    ).toBeInTheDocument();
+  });
+
+  it("shows no skipped note when nothing was dropped", () => {
+    renderPreview();
+
+    expect(screen.queryByText(/skipped/)).toBeNull();
   });
 });
 

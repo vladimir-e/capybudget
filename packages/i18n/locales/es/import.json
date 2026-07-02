@@ -51,6 +51,9 @@
     "countRows_other": "{{count}} filas"
   },
   "preview": {
+    "skippedRows_one": "Se omitió {{count}} fila (fecha o importe no válidos)",
+    "skippedRows_many": "Se omitieron {{count}} filas (fecha o importe no válidos)",
+    "skippedRows_other": "Se omitieron {{count}} filas (fecha o importe no válidos)",
     "certainDuplicates_one": "{{count}} duplicado detectado — ya está deseleccionado",
     "certainDuplicates_many": "{{count}} duplicados detectados — ya están deseleccionados",
     "certainDuplicates_other": "{{count}} duplicados detectados — ya están deseleccionados",
@@ -101,8 +104,9 @@
       "account": "Cuenta",
       "category": "Categoría"
     },
-    "noTransactionsTitle": "No se encontraron transacciones",
-    "noTransactionsDescription": "Prueba a ajustar la búsqueda.",
+    "emptyTitle": "No hay transacciones para importar",
+    "noMatchesTitle": "No se encontraron transacciones",
+    "noMatchesDescription": "Prueba a ajustar la búsqueda.",
     "noAccount": "ninguna",
     "newAccountTag": "nueva",
     "toAccount": "A la cuenta",

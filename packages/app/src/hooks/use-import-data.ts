@@ -28,6 +28,7 @@ export function useImportData(budgetPath: string, staging: StagingStore, rowsVer
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [accountMapping, setAccountMapping] = useState<EntityMapping>({});
   const [loading, setLoading] = useState(true);
+  const [skippedRowCount, setSkippedRowCount] = useState(0);
 
   const { data: accounts = [] } = useAccounts();
   const { data: categories = [], isSuccess: categoriesLoaded } = useCategories();
@@ -71,11 +72,13 @@ export function useImportData(budgetPath: string, staging: StagingStore, rowsVer
   // preview, where blowing away a manual unselect every batch would be visible).
   const firstLoadRef = useRef(true);
   const loadCsv = useCallback(async () => {
-    const [rows, transferCtx] = await Promise.all([
-      staging.readTransactions().then((r) => r ?? []),
+    const [staged, transferCtx] = await Promise.all([
+      staging.readTransactions(),
       staging.readTransferContext().then((c) => c ?? {}),
     ]);
+    const rows = staged?.rows ?? [];
     setTransactions(rows);
+    setSkippedRowCount(staged?.droppedCount ?? 0);
     setTransferCtxIds(new Set(Object.keys(transferCtx)));
     if (firstLoadRef.current) {
       firstLoadRef.current = false;
@@ -249,6 +252,7 @@ export function useImportData(budgetPath: string, staging: StagingStore, rowsVer
     setSelectedIds,
     accountMapping,
     loading,
+    skippedRowCount,
     handleUpdate,
     handleAccountMappingChange,
     flushWriteBack,

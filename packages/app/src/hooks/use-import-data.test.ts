@@ -46,11 +46,16 @@ function makeTxn(overrides: Partial<ImportTransaction>): ImportTransaction {
 function makeStaging(
   initial: ImportTransaction[],
   transferCtxIds: string[] = [],
+  droppedCount = 0,
 ): StagingStore {
   let rows = initial;
   const transferContext = Object.fromEntries(transferCtxIds.map((id) => [id, {}]));
   return {
-    readTransactions: async () => rows.map((r) => ({ ...r })),
+    readTransactions: async () => ({
+      rows: rows.map((r) => ({ ...r })),
+      warnings: [],
+      droppedCount,
+    }),
     writeTransactions: async (next: ImportTransaction[]) => {
       rows = next;
     },
@@ -94,6 +99,31 @@ describe("useImportData — category validation gating", () => {
     // Give the gated effect a chance to run; the valid id must survive.
     await waitFor(() => expect(result.current.transactions[0].categoryId).toBe("real-cat"));
     expect(result.current.transactions[0].categoryConfidence).toBe("high");
+  });
+});
+
+describe("useImportData — skipped rows on load", () => {
+  beforeEach(() => {
+    hookState.accounts = { data: [{ id: "acc-1", name: "Checking" }] };
+    hookState.categories = { data: [{ id: "cat-1" }], isSuccess: true };
+  });
+
+  it("surfaces the staging read's dropped-row count", async () => {
+    const staging = makeStaging([makeTxn({})], [], 3);
+
+    const { result } = renderHook(() => useImportData("/b", staging, 0));
+
+    await waitFor(() => expect(result.current.skippedRowCount).toBe(3));
+    expect(result.current.transactions).toHaveLength(1);
+  });
+
+  it("reports zero when every staged row survived the read", async () => {
+    const staging = makeStaging([makeTxn({})]);
+
+    const { result } = renderHook(() => useImportData("/b", staging, 0));
+
+    await waitFor(() => expect(result.current.transactions).toHaveLength(1));
+    expect(result.current.skippedRowCount).toBe(0);
   });
 });
 
