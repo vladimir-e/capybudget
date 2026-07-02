@@ -53,10 +53,10 @@
     "countRows_other": "{{count}} строк"
   },
   "preview": {
-    "skippedRows_one": "{{count}} строка пропущена (некорректная дата или сумма)",
-    "skippedRows_few": "{{count}} строки пропущены (некорректная дата или сумма)",
-    "skippedRows_many": "{{count}} строк пропущено (некорректная дата или сумма)",
-    "skippedRows_other": "{{count}} строк пропущено (некорректная дата или сумма)",
+    "skippedRows_one": "{{count}} строка пропущена (не удалось прочитать)",
+    "skippedRows_few": "{{count}} строки пропущены (не удалось прочитать)",
+    "skippedRows_many": "{{count}} строк пропущено (не удалось прочитать)",
+    "skippedRows_other": "{{count}} строк пропущено (не удалось прочитать)",
     "certainDuplicates_one": "обнаружен {{count}} дубликат — уже снят выбор",
     "certainDuplicates_few": "обнаружено {{count}} дубликата — уже снят выбор",
     "certainDuplicates_many": "обнаружено {{count}} дубликатов — уже снят выбор",

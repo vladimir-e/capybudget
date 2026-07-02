@@ -51,9 +51,9 @@
     "countRows_other": "{{count}} filas"
   },
   "preview": {
-    "skippedRows_one": "Se omitió {{count}} fila (fecha o importe no válidos)",
-    "skippedRows_many": "Se omitieron {{count}} filas (fecha o importe no válidos)",
-    "skippedRows_other": "Se omitieron {{count}} filas (fecha o importe no válidos)",
+    "skippedRows_one": "Se omitió {{count}} fila (no se pudo leer)",
+    "skippedRows_many": "Se omitieron {{count}} filas (no se pudieron leer)",
+    "skippedRows_other": "Se omitieron {{count}} filas (no se pudieron leer)",
     "certainDuplicates_one": "{{count}} duplicado detectado — ya está deseleccionado",
     "certainDuplicates_many": "{{count}} duplicados detectados — ya están deseleccionados",
     "certainDuplicates_other": "{{count}} duplicados detectados — ya están deseleccionados",

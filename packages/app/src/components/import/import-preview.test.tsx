@@ -182,7 +182,7 @@ describe("ImportPreview — run notes panel", () => {
     renderPreview();
 
     expect(
-      screen.getByText("3 rows were skipped (invalid date or amount)"),
+      screen.getByText("3 rows were skipped (couldn't be read)"),
     ).toBeInTheDocument();
   });
 

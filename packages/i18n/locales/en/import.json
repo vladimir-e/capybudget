@@ -49,8 +49,8 @@
     "countRows_other": "{{count}} rows"
   },
   "preview": {
-    "skippedRows_one": "{{count}} row was skipped (invalid date or amount)",
-    "skippedRows_other": "{{count}} rows were skipped (invalid date or amount)",
+    "skippedRows_one": "{{count}} row was skipped (couldn't be read)",
+    "skippedRows_other": "{{count}} rows were skipped (couldn't be read)",
     "certainDuplicates_one": "{{count}} duplicate detected — already unselected",
     "certainDuplicates_other": "{{count}} duplicates detected — already unselected",
     "possibleDuplicates_one": "{{count}} possible duplicate (close date match) — review before merging",

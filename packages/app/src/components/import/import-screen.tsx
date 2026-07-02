@@ -46,8 +46,8 @@ interface ImportScreenProps {
  *  live run state, never a separate stored phase. */
 type ImportViewState =
   | "loading"      // checking disk on mount
-  | "file-attach"  // no staged rows + no run → drop zone
-  | "run";         // a run is in flight or staged rows exist → progress + preview
+  | "file-attach"  // no staging + no run → drop zone
+  | "run";         // a run is in flight or staging exists → progress + preview
 
 export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
   const navigate = useNavigate();
@@ -70,7 +70,7 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
 
   // ── Local UI state ────────────────────────────────────────────
   const [diskChecked, setDiskChecked] = useState(false);
-  const [hasStagedRows, setHasStagedRows] = useState(false);
+  const [hasStaging, setHasStaging] = useState(false);
   // Categorizing meter reconstructed from disk on a resume — keeps the section
   // bar honest before any live `batchProgress` exists. Cleared once a run starts.
   const [resumeBatch, setResumeBatch] = useState<{ done: number; total: number } | null>(null);
@@ -105,6 +105,10 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
 
   // Where we land is a pure function of staging:
   //  - transactions.csv exists → preview (resume, with whatever enrichment landed).
+  //    Even when read-validation dropped every staged row, the preview is where
+  //    the skip surfaces and the Cancel control discards — falling through to
+  //    file-attach would strand the staging (the chat on-ramp refuses while
+  //    transactions.csv exists).
   //  - no transactions.csv but state.json says a chat staged the sources → this is
   //    a Capy-initiated run; auto-run the orchestrator (the second on-ramp). A
   //    manual drop never writes state.json, so it falls through to file-attach and
@@ -118,8 +122,8 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
       staging.readTransferContext().then((c) => c ?? {}),
     ]);
     if (!mountedRef.current) return;
-    if (staged && staged.rows.length > 0) {
-      setHasStagedRows(true);
+    if (staged) {
+      setHasStaging(true);
       setHasImportData(true);
       setResumeBatch(resumeMeter(staged.rows, new Set(Object.keys(transferCtx))));
       setDiskChecked(true);
@@ -169,7 +173,7 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
   // the orchestrator's progress into the sidebar "has data" dot.
   useEffect(() => {
     if (rowsVersion > 0) {
-      setHasStagedRows(true);
+      setHasStaging(true);
       setHasImportData(true);
     }
   }, [rowsVersion, setHasImportData]);
@@ -191,19 +195,19 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
     reportedErrorRef.current = key;
 
     toast.error(error.message);
-    if (error.recoverable || !hasStagedRows) {
+    if (error.recoverable || !hasStaging) {
       reset();
-      setHasStagedRows(false);
+      setHasStaging(false);
       setHasImportData(false);
       void refreshSourceFiles();
     }
-  }, [error, hasStagedRows, reset, refreshSourceFiles, setHasImportData]);
+  }, [error, hasStaging, reset, refreshSourceFiles, setHasImportData]);
 
   // ── Derived view state ────────────────────────────────────────
   let viewState: ImportViewState;
   if (!diskChecked) {
     viewState = "loading";
-  } else if (running || hasStagedRows) {
+  } else if (running || hasStaging) {
     viewState = "run";
   } else {
     viewState = "file-attach";
@@ -352,14 +356,14 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
     reset();
     setFileDuplicates({});
     setSourceFiles([]);
-    setHasStagedRows(false);
+    setHasStaging(false);
     setResumeBatch(null);
     setHasImportData(false);
   }, [cancel, reset, repository, setHasImportData]);
 
   const handleMergeComplete = useCallback(() => {
     reset();
-    setHasStagedRows(false);
+    setHasStaging(false);
     setResumeBatch(null);
     setHasImportData(false);
     setSourceFiles([]);
@@ -376,7 +380,7 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
   // History all completed, so a resting `idle` phase renders as `done`. It only
   // disappears at file-attach. (`grounded` keeps the bar up for the brief window
   // between History's stats and the first staged-rows flip.)
-  const barPhase: ImportPhase = phase === "idle" && hasStagedRows ? "done" : phase;
+  const barPhase: ImportPhase = phase === "idle" && hasStaging ? "done" : phase;
   const showProgressBar = showRun && (running || barPhase !== "idle" || grounded);
 
   const subtitle = running
@@ -480,7 +484,7 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
                   enrich={enrichControl}
                 />
               )}
-              {hasStagedRows && (
+              {hasStaging && (
                 <ImportPreview
                   budgetPath={budgetPath}
                   staging={staging}
