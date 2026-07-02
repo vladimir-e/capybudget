@@ -1,21 +1,7 @@
 #!/usr/bin/env node
 // Build the Mac App Store variant: sandboxed .app from the tauri.mas overlay,
 // with the `mas` Cargo feature and the __MAS__ Vite define enabled.
-//
-// Env:
-//   APPLE_TEAM_ID          Apple Developer team ID, baked into the entitlements
-//                          (com.apple.application-identifier / team-identifier).
-//                          Required for a submittable build; without it the
-//                          build still runs (unsigned) so the path is exercised.
-//   APPLE_SIGNING_IDENTITY "Apple Distribution: … (TEAMID)" identity. Read by
-//                          Tauri itself (same env the release pipeline uses);
-//                          unset means Tauri skips signing and emits an
-//                          unsigned .app.
-//   MAS_BUILD_NUMBER       CFBundleVersion — monotonic per App Store upload,
-//                          distinct from the semver. Defaults to "1".
-//   MAS_TARGET             Rust target triple. Defaults to the universal binary;
-//                          override to e.g. aarch64-apple-darwin for fast local
-//                          iteration.
+// Env vars are documented in README.md (§ Mac App Store build).
 
 import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
@@ -25,13 +11,32 @@ import { fileURLToPath } from "node:url";
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const SRC_TAURI = resolve(ROOT, "src-tauri");
 
+function fail(msg) {
+  console.error(`error: ${msg}`);
+  process.exit(1);
+}
+
+function readText(relPath) {
+  try {
+    return readFileSync(resolve(SRC_TAURI, relPath), "utf8");
+  } catch (err) {
+    fail(`couldn't read src-tauri/${relPath}: ${err.message}`);
+  }
+}
+
+function readJson(relPath) {
+  try {
+    return JSON.parse(readText(relPath));
+  } catch (err) {
+    fail(`couldn't parse src-tauri/${relPath}: ${err.message}`);
+  }
+}
+
 const teamId = process.env.APPLE_TEAM_ID ?? "";
 const buildNumber = process.env.MAS_BUILD_NUMBER ?? "1";
 const target = process.env.MAS_TARGET ?? "universal-apple-darwin";
 
-const identifier = JSON.parse(
-  readFileSync(resolve(SRC_TAURI, "tauri.conf.json"), "utf8"),
-).identifier;
+const identifier = readJson("tauri.conf.json").identifier;
 
 if (!teamId) {
   console.warn(
@@ -40,21 +45,15 @@ if (!teamId) {
   );
 }
 
-// Resolve the entitlements template into the concrete plist Tauri signs with.
-const entitlements = readFileSync(
-  resolve(SRC_TAURI, "Entitlements.mas.plist.template"),
-  "utf8",
-)
-  .replaceAll("${APPLE_TEAM_ID}", teamId)
-  .replaceAll("${APP_IDENTIFIER}", identifier);
+const entitlements = readText("Entitlements.mas.plist.template")
+  .replaceAll("${APPLE_TEAM_ID}", () => teamId)
+  .replaceAll("${APP_IDENTIFIER}", () => identifier);
 writeFileSync(resolve(SRC_TAURI, "Entitlements.mas.plist"), entitlements);
 
 // Derive the concrete overlay from the committed one: stamp the build number,
 // and drop the provisioning profile mapping when the file isn't present so
 // local (unsigned) builds still complete.
-const overlay = JSON.parse(
-  readFileSync(resolve(SRC_TAURI, "tauri.mas.conf.json"), "utf8"),
-);
+const overlay = readJson("tauri.mas.conf.json");
 overlay.bundle.macOS.bundleVersion = buildNumber;
 
 const profilePath = resolve(SRC_TAURI, "embedded.provisionprofile");
@@ -63,7 +62,7 @@ if (!existsSync(profilePath)) {
     "warning: src-tauri/embedded.provisionprofile not found — building without it.\n" +
       "         Supply the Mac App Store provisioning profile there before submitting.",
   );
-  delete overlay.bundle.macOS.files;
+  delete overlay.bundle.macOS.files["embedded.provisionprofile"];
 }
 
 const generatedConfig = resolve(SRC_TAURI, "tauri.mas.generated.json");
@@ -73,19 +72,23 @@ console.log(
   `Building MAS variant: target=${target} build=${buildNumber} identifier=${identifier}`,
 );
 
-execFileSync(
-  "npm",
-  [
-    "run",
-    "tauri",
-    "--",
-    "build",
-    "--config",
-    generatedConfig,
-    "--features",
-    "mas",
-    "--target",
-    target,
-  ],
-  { cwd: ROOT, stdio: "inherit", env: { ...process.env, CAPY_MAS: "1" } },
-);
+try {
+  execFileSync(
+    "npm",
+    [
+      "run",
+      "tauri",
+      "--",
+      "build",
+      "--config",
+      generatedConfig,
+      "--features",
+      "mas",
+      "--target",
+      target,
+    ],
+    { cwd: ROOT, stdio: "inherit", env: { ...process.env, CAPY_MAS: "1" } },
+  );
+} catch {
+  fail("tauri build failed — see output above.");
+}

@@ -98,8 +98,9 @@ This runs `scripts/build-mas.mjs`, which:
 
 - applies `src-tauri/tauri.mas.conf.json` on top of `tauri.conf.json` — bundle
   target `app` only, updater artifacts off, the sandbox entitlements, and the
-  reduced `mas` capability set (`src-tauri/capabilities/mas.json`) in place of
-  `default.json`;
+  `mas` capability set (`src-tauri/capabilities/mas.json`, currently a copy of
+  `default.json` — trimmed to the sandbox-safe minimum in a later unit) in
+  place of the default;
 - compiles Rust with the `mas` Cargo feature and the frontend with the
   `__MAS__` Vite define set to `true`, so later work can strip the updater,
   process, and shell-spawn plugins from this variant at compile time;
