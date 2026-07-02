@@ -445,7 +445,7 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
           {showUnsupported && (
             <ProviderUnsupportedBanner
               onOpenSettings={() =>
-                navigate({ to: "/budget/settings", search: { path: budgetPath, name: budgetName } })
+                navigate({ to: "/budget/settings", search: { path: budgetPath, name: budgetName, section: "intelligence" } })
               }
             />
           )}

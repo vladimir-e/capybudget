@@ -98,6 +98,7 @@ async function mountOverlay({
     validateSearch: (search: Record<string, unknown>) => ({
       path: (search.path as string) ?? "",
       name: (search.name as string) ?? "Budget",
+      section: search.section as string | undefined,
     }),
     component: () => <Harness />,
   })
@@ -260,6 +261,7 @@ describe("CapyOverlay click-through behavior", () => {
     await waitFor(() => {
       expect(useIntelligenceStore.getState().config.provider).toBe("claude-cli")
       expect(router.state.location.pathname).toBe("/budget/settings")
+      expect(router.state.location.search.section).toBe("intelligence")
     })
   })
 
@@ -276,6 +278,7 @@ describe("CapyOverlay click-through behavior", () => {
     await waitFor(() => {
       expect(useIntelligenceStore.getState().config.provider).toBe("anthropic")
       expect(router.state.location.pathname).toBe("/budget/settings")
+      expect(router.state.location.search.section).toBe("intelligence")
     })
   })
 
@@ -292,6 +295,7 @@ describe("CapyOverlay click-through behavior", () => {
     await waitFor(() => {
       expect(useIntelligenceStore.getState().config.provider).toBe("openai")
       expect(router.state.location.pathname).toBe("/budget/settings")
+      expect(router.state.location.search.section).toBe("intelligence")
     })
   })
 
@@ -307,6 +311,7 @@ describe("CapyOverlay click-through behavior", () => {
 
     await waitFor(() => {
       expect(router.state.location.pathname).toBe("/budget/settings")
+      expect(router.state.location.search.section).toBe("intelligence")
     })
     // Provider must remain untouched.
     expect(useIntelligenceStore.getState().config.provider).toBeNull()
