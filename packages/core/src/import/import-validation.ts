@@ -1,4 +1,4 @@
-import type { ImportTransaction } from "./import-types";
+import { FALLBACK_SOURCE, type ImportTransaction } from "./import-types";
 
 export interface ValidationResult {
   valid: ImportTransaction[];
@@ -40,6 +40,13 @@ export function validateImportTransactions(
     if (!fixedRow.id || fixedRow.id.trim() === "") {
       fixedRow = { ...fixedRow, id: crypto.randomUUID() };
       fixed.push(`${label}: missing id, auto-generated`);
+    }
+
+    // Auto-fix: an account-less row (no source name, no grounded account) heals
+    // to the fallback source, so it shows in the mapping UI and merges like any
+    // other unmapped source instead of slipping past the gate account-less.
+    if (!fixedRow.sourceAccount && !fixedRow.accountId) {
+      fixedRow = { ...fixedRow, sourceAccount: FALLBACK_SOURCE };
     }
 
     // Critical: date must match YYYY-MM-DD

@@ -51,8 +51,7 @@ function inferToAmount(
 }
 
 // Every account an AI mutation writes onto a transaction must exist — an empty
-// or dangling id would create an orphan the UI can't surface. Same guard and
-// message as bulk_update_transactions.
+// or dangling id would create an orphan the UI can't surface.
 function invalidAccountError(field: string, id: unknown): string {
   return JSON.stringify({
     error: `Invalid ${field} "${String(id ?? "")}". Call list_accounts to see valid IDs.`,
@@ -516,11 +515,7 @@ export async function handleBulkUpdateTransactions(
   if (accountId !== undefined) {
     const accounts = await repo.getAccounts()
     const target = accounts.find((a) => a.id === accountId)
-    if (!target) {
-      return JSON.stringify({
-        error: `Invalid accountId "${accountId}". Call list_accounts to see valid IDs.`,
-      })
-    }
+    if (!target) return invalidAccountError("accountId", accountId)
     // A move keeps each amount native to its currency, so every moved (non-
     // transfer) flow must already be in the target's currency — reading the
     // number in a different one would silently revalue it. Reject the whole

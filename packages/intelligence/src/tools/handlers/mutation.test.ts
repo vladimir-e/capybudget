@@ -346,6 +346,21 @@ describe("handleUpdateTransaction", () => {
     expect(repo.saveTransactions).not.toHaveBeenCalled()
   })
 
+  it("rejects retargeting a transfer's from-leg to a non-existent account", async () => {
+    const repo = createMockRepo({
+      accounts: [makeAccount({ id: "acc-1" }), makeAccount({ id: "acc-2" })],
+      transactions: [
+        makeTxn({ id: "tf-from", type: "transfer", amount: -5000, accountId: "acc-1", transferPairId: "tf-to" }),
+        makeTxn({ id: "tf-to", type: "transfer", amount: 5000, accountId: "acc-2", transferPairId: "tf-from" }),
+      ],
+    })
+    const result = JSON.parse(
+      await handleUpdateTransaction(repo, "USD", undefined, { id: "tf-from", accountId: "ghost" }),
+    )
+    expect(result.error).toMatch(/Invalid accountId "ghost"/)
+    expect(repo.saveTransactions).not.toHaveBeenCalled()
+  })
+
   it("preserves a plain flow's stamp when moved between same-currency accounts", async () => {
     const repo = createMockRepo({
       accounts: [

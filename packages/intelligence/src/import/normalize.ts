@@ -523,13 +523,15 @@ function disambiguateSlashDate(dates: string[]): "MM/DD/YYYY" | "DD/MM/YYYY" {
   return "MM/DD/YYYY";
 }
 
+const FALLBACK_SOURCE = "Imported";
+
 function accountFromFilename(filename: string): string {
   const base = filename
     .replace(/\.[^.]+$/, "")
     .replace(/[_-]+/g, " ")
     .replace(/\s+/g, " ")
     .trim();
-  return base || "Imported";
+  return base || FALLBACK_SOURCE;
 }
 
 export interface NormalizeImageResult {
@@ -571,7 +573,7 @@ export async function normalizeImage(
     `File: ${source.name}`,
     `Return "count" first — the total number of transactions you see — then the rows themselves.`,
     `For each transaction: date as YYYY-MM-DD, amount as signed integer cents (negative = money out, positive = money in), type (expense/income/transfer), the merchant or payee as "description", an inferred category as "sourceCategory" (empty string if none), and the account the transactions belong to as "sourceAccount".`,
-    `${accountsIntro} a short descriptive account name from what is visible (e.g. "Chase Checking") or the filename. Never return an empty "sourceAccount" — if nothing identifies the account, use "Imported".`,
+    `${accountsIntro} a short descriptive account name from what is visible (e.g. "Chase Checking") or the filename. Never return an empty "sourceAccount" — if nothing identifies the account, use "${FALLBACK_SOURCE}".`,
     `When a row has no parseable date — the date column reads "Pending", or the source shows no dates — use today's date, ${getToday()}.`,
     `Never invent transactions — extract only what is visible. If the file contains no transaction data (e.g. a photo of a person, a logo, an unrelated document), return the no_data outcome with a short message.`,
   ].join("\n");

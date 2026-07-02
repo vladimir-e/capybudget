@@ -2,15 +2,13 @@ import { createAccount } from "../entities/accounts";
 import type { Account, Transaction } from "../entities/types";
 import type { CurrencySettings } from "../utils/money";
 import { stampFxRate } from "../utils/rates";
-import type { ImportTransaction, ImportAliases } from "./import-types";
+import { FALLBACK_SOURCE, type ImportTransaction, type ImportAliases } from "./import-types";
 
 export interface MergeInput {
   transactions: ImportTransaction[];
   selectedIds: Set<string>;
   accountMapping: Record<string, string>; // sourceAccount → accountId | "__create__"
 }
-
-const FALLBACK_SOURCE = "Imported";
 
 export interface MergeOutput {
   accounts: Account[];

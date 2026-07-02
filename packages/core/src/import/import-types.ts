@@ -1,5 +1,10 @@
 /** Domain types for the Smart Import feature. */
 
+/** Source name assigned to a row that has neither a `sourceAccount` nor a
+ *  grounded `accountId` — applied at staging read-back and backstopped at
+ *  merge, so no row is ever account-less. */
+export const FALLBACK_SOURCE = "Imported";
+
 /**
  * The shared intermediate contract both normalization paths produce. The CSV
  * mapper applies a `CsvMapping` to emit these; the image/PDF extractor reads

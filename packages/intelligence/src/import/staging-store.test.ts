@@ -59,6 +59,11 @@ describe("parseImportCsv", () => {
     expect(parsed.dropped).toEqual([expect.stringContaining("invalid amount")]);
   });
 
+  it("heals a staged row with no sourceAccount to Imported", () => {
+    const parsed = parseImportCsv("id,date,amount,sourceAccount\nimp-1,2026-01-01,-100,");
+    expect(parsed.rows[0].sourceAccount).toBe("Imported");
+  });
+
   it("backfills a missing id as a fix, not a drop", () => {
     const parsed = parseImportCsv("id,date,amount\n,2026-01-01,-100");
     expect(parsed.rows).toHaveLength(1);

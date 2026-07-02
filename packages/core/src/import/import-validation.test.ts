@@ -41,6 +41,22 @@ describe("validateImportTransactions", () => {
     expect(dropped).toHaveLength(0);
   });
 
+  it("heals an account-less row's source to Imported", () => {
+    const { valid, dropped, fixed } = validateImportTransactions([
+      makeRow({ sourceAccount: "", accountId: "" }),
+    ]);
+    expect(valid[0].sourceAccount).toBe("Imported");
+    expect(dropped).toHaveLength(0);
+    expect(fixed).toHaveLength(0);
+  });
+
+  it("keeps an empty source when the row has a grounded account", () => {
+    const { valid } = validateImportTransactions([
+      makeRow({ sourceAccount: "", accountId: "acct-1" }),
+    ]);
+    expect(valid[0].sourceAccount).toBe("");
+  });
+
   it("drops row with invalid date", () => {
     const { valid, dropped } = validateImportTransactions([
       makeRow({ date: "March 15" }),
