@@ -9,6 +9,10 @@ CHANGELOG PHILOSOPHY:
 - Resist the urge to be thorough here. Thoroughness goes in specs, not changelog.
 -->
 
+## Unreleased
+
+- **Import** - Screenshot rows without a readable date (like pending transactions) now import dated today instead of silently vanishing, and the preview says when any rows were skipped.
+
 ## 1.4.0 — 2026-06-27
 
 - **App** - Mark a budget to open automatically on launch; a gentle loading state means views no longer flash empty before your data loads.
