@@ -38,7 +38,7 @@ function createMockRepo(data: {
 
 describe("handleCreateTransaction", () => {
   it("creates an expense transaction", async () => {
-    const repo = createMockRepo({})
+    const repo = createMockRepo({ accounts: [makeAccount({ id: "acc-1" })] })
     const result = JSON.parse(
       await handleCreateTransaction(repo, "USD", undefined, {
         type: "expense",
@@ -59,7 +59,9 @@ describe("handleCreateTransaction", () => {
   })
 
   it("creates a transfer with two legs", async () => {
-    const repo = createMockRepo({})
+    const repo = createMockRepo({
+      accounts: [makeAccount({ id: "acc-1" }), makeAccount({ id: "acc-2" })],
+    })
     const result = JSON.parse(
       await handleCreateTransaction(repo, "USD", undefined, {
         type: "transfer",
@@ -74,6 +76,51 @@ describe("handleCreateTransaction", () => {
     expect(result.created).toHaveLength(2)
     expect(result.created[0].amount).toBe("-$100.00")
     expect(result.created[1].amount).toBe("$100.00")
+  })
+
+  it("rejects an empty accountId", async () => {
+    const repo = createMockRepo({ accounts: [makeAccount({ id: "acc-1" })] })
+    const result = JSON.parse(
+      await handleCreateTransaction(repo, "USD", undefined, {
+        type: "expense",
+        amount: 2500,
+        accountId: "",
+        categoryId: "cat-1",
+        date: "2026-03-14",
+      }),
+    )
+    expect(result.error).toMatch(/Invalid accountId/)
+    expect(repo.saveTransactions).not.toHaveBeenCalled()
+  })
+
+  it("rejects an accountId that matches no account", async () => {
+    const repo = createMockRepo({ accounts: [makeAccount({ id: "acc-1" })] })
+    const result = JSON.parse(
+      await handleCreateTransaction(repo, "USD", undefined, {
+        type: "expense",
+        amount: 2500,
+        accountId: "ghost",
+        categoryId: "cat-1",
+        date: "2026-03-14",
+      }),
+    )
+    expect(result.error).toMatch(/Invalid accountId "ghost"/)
+    expect(repo.saveTransactions).not.toHaveBeenCalled()
+  })
+
+  it("rejects a transfer whose toAccountId matches no account", async () => {
+    const repo = createMockRepo({ accounts: [makeAccount({ id: "acc-1" })] })
+    const result = JSON.parse(
+      await handleCreateTransaction(repo, "USD", undefined, {
+        type: "transfer",
+        amount: 10000,
+        accountId: "acc-1",
+        toAccountId: "ghost",
+        date: "2026-03-14",
+      }),
+    )
+    expect(result.error).toMatch(/Invalid toAccountId "ghost"/)
+    expect(repo.saveTransactions).not.toHaveBeenCalled()
   })
 
   it("creates a cross-currency transfer with independent legs and per-leg rates", async () => {
@@ -126,7 +173,7 @@ describe("handleCreateTransaction", () => {
   })
 
   it("creates income with positive amount", async () => {
-    const repo = createMockRepo({})
+    const repo = createMockRepo({ accounts: [makeAccount({ id: "acc-1" })] })
     const result = JSON.parse(
       await handleCreateTransaction(repo, "USD", undefined, {
         type: "income",
@@ -267,6 +314,35 @@ describe("handleUpdateTransaction", () => {
       ),
     )
     expect(result.error).toMatch(/same currency|transfer/i)
+    expect(repo.saveTransactions).not.toHaveBeenCalled()
+  })
+
+  it("rejects moving a plain flow to a non-existent or empty account", async () => {
+    const repo = createMockRepo({
+      accounts: [makeAccount({ id: "acc-1" })],
+      transactions: [makeTxn({ id: "t1", accountId: "acc-1" })],
+    })
+    for (const accountId of ["ghost", ""]) {
+      const result = JSON.parse(
+        await handleUpdateTransaction(repo, "USD", undefined, { id: "t1", accountId }),
+      )
+      expect(result.error).toMatch(/Invalid accountId/)
+    }
+    expect(repo.saveTransactions).not.toHaveBeenCalled()
+  })
+
+  it("rejects retargeting a transfer to a non-existent account", async () => {
+    const repo = createMockRepo({
+      accounts: [makeAccount({ id: "acc-1" }), makeAccount({ id: "acc-2" })],
+      transactions: [
+        makeTxn({ id: "tf-from", type: "transfer", amount: -5000, accountId: "acc-1", transferPairId: "tf-to" }),
+        makeTxn({ id: "tf-to", type: "transfer", amount: 5000, accountId: "acc-2", transferPairId: "tf-from" }),
+      ],
+    })
+    const result = JSON.parse(
+      await handleUpdateTransaction(repo, "USD", undefined, { id: "tf-from", toAccountId: "ghost" }),
+    )
+    expect(result.error).toMatch(/Invalid toAccountId "ghost"/)
     expect(repo.saveTransactions).not.toHaveBeenCalled()
   })
 

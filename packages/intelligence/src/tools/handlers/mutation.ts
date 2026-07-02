@@ -50,6 +50,15 @@ function inferToAmount(
   return crossRateAmount(fromAmount, from.currency, to.currency, currencies, defaultCurrency)
 }
 
+// Every account an AI mutation writes onto a transaction must exist — an empty
+// or dangling id would create an orphan the UI can't surface. Same guard and
+// message as bulk_update_transactions.
+function invalidAccountError(field: string, id: unknown): string {
+  return JSON.stringify({
+    error: `Invalid ${field} "${String(id ?? "")}". Call list_accounts to see valid IDs.`,
+  })
+}
+
 export async function handleCreateTransaction(
   repo: BudgetRepository,
   currency: string,
@@ -70,22 +79,21 @@ export async function handleCreateTransaction(
   // side is the default (see stampTransferRates); a plain flow stamps just its
   // source account's rate.
   const accounts = await repo.getAccounts()
+  const account = accounts.find((a) => a.id === accountId)
+  if (!account) return invalidAccountError("accountId", accountId)
   const cur = currencies ?? {}
   let fxRate: number | undefined
   let toFxRate: number | undefined
   let toAmount: number | undefined
   if (type === "transfer") {
-    const from = accounts.find((a) => a.id === accountId)
     const to = accounts.find((a) => a.id === toAccountId)
-    if (from && to) {
-      toAmount = (args.toAmount as number | undefined) ?? inferToAmount(amount, from, to, cur, currency)
-      const rates = stampTransferRates(from.currency, to.currency, amount, toAmount, cur, currency)
-      fxRate = rates.fromRate
-      toFxRate = rates.toRate
-    }
+    if (!to) return invalidAccountError("toAccountId", toAccountId)
+    toAmount = (args.toAmount as number | undefined) ?? inferToAmount(amount, account, to, cur, currency)
+    const rates = stampTransferRates(account.currency, to.currency, amount, toAmount, cur, currency)
+    fxRate = rates.fromRate
+    toFxRate = rates.toRate
   } else {
-    const account = accounts.find((a) => a.id === accountId)
-    fxRate = account ? stampFxRate(account.currency, cur, currency) : undefined
+    fxRate = stampFxRate(account.currency, cur, currency)
   }
 
   const existing = await repo.getTransactions()
@@ -183,14 +191,14 @@ export async function handleUpdateTransaction(
     } else {
       const accounts = await repo.getAccounts()
       const from = accounts.find((a) => a.id === fromAccountId)
+      if (!from) return invalidAccountError("accountId", fromAccountId)
       const to = accounts.find((a) => a.id === toAccountId)
-      if (from && to) {
-        const cur = currencies ?? {}
-        toAmount = (args.toAmount as number | undefined) ?? inferToAmount(fromAmount, from, to, cur, currency)
-        const rates = stampTransferRates(from.currency, to.currency, fromAmount, toAmount, cur, currency)
-        fxRate = rates.fromRate
-        toFxRate = rates.toRate
-      }
+      if (!to) return invalidAccountError("toAccountId", toAccountId)
+      const cur = currencies ?? {}
+      toAmount = (args.toAmount as number | undefined) ?? inferToAmount(fromAmount, from, to, cur, currency)
+      const rates = stampTransferRates(from.currency, to.currency, fromAmount, toAmount, cur, currency)
+      fxRate = rates.fromRate
+      toFxRate = rates.toRate
     }
 
     const next = updateTransaction(
@@ -224,9 +232,10 @@ export async function handleUpdateTransaction(
   // value movement is what transfers are for.
   if (accountId !== original.accountId) {
     const accounts = await repo.getAccounts()
-    const source = accounts.find((a) => a.id === original.accountId)
     const target = accounts.find((a) => a.id === accountId)
-    if (source && target && source.currency !== target.currency) {
+    if (!target) return invalidAccountError("accountId", accountId)
+    const source = accounts.find((a) => a.id === original.accountId)
+    if (source && source.currency !== target.currency) {
       return JSON.stringify({
         error: `Cannot move a ${source.currency} transaction to a ${target.currency} account. Moving keeps the amount native, so it must stay the same currency — create a transfer to move money between currencies.`,
       })
