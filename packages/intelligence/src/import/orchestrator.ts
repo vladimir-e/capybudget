@@ -39,7 +39,7 @@ import {
   type TerminalLogEntry,
 } from "./events";
 import { isImageOrPdf, normalizeCsv, normalizeImage } from "./normalize";
-import type { StagedTransactions, StagingStore } from "./staging-store";
+import type { StagingStore } from "./staging-store";
 
 export interface OrchestratorDeps {
   session: StructuredSession;
@@ -85,8 +85,8 @@ export class ImportOrchestrator {
       const existing = await this.deps.staging.readTransactions();
       if (existing) {
         // Resume: staging exists → pick up at Categorizing over the remainder.
-        if (existing.droppedCount > 0) {
-          this.log("warn", "categorizing", describeDroppedRows(existing));
+        if (existing.dropped.length > 0) {
+          this.log("warn", "categorizing", describeDroppedRows(existing.dropped));
         }
         this.log("info", "categorizing", `Resuming import — ${existing.rows.length} rows already staged.`);
         await this.runCategorizing(existing.rows);
@@ -107,6 +107,9 @@ export class ImportOrchestrator {
       if (!staged) {
         this.fail("internal", "No staged transactions to enrich.");
         return;
+      }
+      if (staged.dropped.length > 0) {
+        this.log("warn", "categorizing", describeDroppedRows(staged.dropped));
       }
       await this.runCategorizing(staged.rows);
     });
@@ -437,21 +440,24 @@ export class ImportOrchestrator {
   }
 }
 
-/** Warn-log line for rows the CSV transform couldn't parse. Each error message
- *  already carries its row number and reason; cap the detail so a wholly broken
- *  file logs a line, not a wall. */
-function describeSkippedRows(name: string, errors: TransformError[]): string {
-  const shown = errors.slice(0, 3).map((e) => e.message);
-  const more = errors.length > shown.length ? ` (+${errors.length - shown.length} more)` : "";
-  const noun = errors.length === 1 ? "row" : "rows";
-  return `${errors.length} ${noun} skipped in ${name} — couldn't parse: ${shown.join("; ")}${more}`;
+/** Cap a per-row note list so a wholly broken file logs a line, not a wall. */
+function truncateNotes(notes: string[]): string {
+  const shown = notes.slice(0, 3);
+  const more = notes.length > shown.length ? ` (+${notes.length - shown.length} more)` : "";
+  return `${shown.join("; ")}${more}`;
 }
 
-function describeDroppedRows(staged: StagedTransactions): string {
-  const shown = staged.warnings.slice(0, 3);
-  const more = staged.warnings.length > shown.length ? ` (+${staged.warnings.length - shown.length} more)` : "";
-  const noun = staged.droppedCount === 1 ? "row" : "rows";
-  return `${staged.droppedCount} staged ${noun} skipped — failed validation: ${shown.join("; ")}${more}`;
+/** Warn-log line for rows the CSV transform couldn't parse. Each error message
+ *  already carries its row number and reason. */
+function describeSkippedRows(name: string, errors: TransformError[]): string {
+  const noun = errors.length === 1 ? "row" : "rows";
+  return `${errors.length} ${noun} skipped in ${name} — couldn't parse: ${truncateNotes(errors.map((e) => e.message))}`;
+}
+
+/** Warn-log line for staged rows the resume read's validation dropped. */
+function describeDroppedRows(dropped: string[]): string {
+  const noun = dropped.length === 1 ? "row" : "rows";
+  return `${dropped.length} staged ${noun} skipped — failed validation: ${truncateNotes(dropped)}`;
 }
 
 // ── Pure row transforms ──────────────────────────────────────────

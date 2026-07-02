@@ -5,10 +5,12 @@
  * STRUCTURE.md's test-factory rule.
  */
 
+import { serializeImportCsv } from "@capybudget/core";
 import type { Account, Category, ImportTransaction, RowContext, TransferContext, Transaction } from "@capybudget/core";
 import { parseStructured } from "../structured";
 import type { JsonSchema, StructuredCallOptions, StructuredMessage, StructuredSession } from "../structured";
 import type { BudgetDataProvider } from "./budget-data";
+import { parseImportCsv } from "./staging-store";
 import type { ImportState, SourceFile, StagedTransactions, StagingStore } from "./staging-store";
 
 /** An in-memory {@link StagingStore} — the resume substrate without a disk. */
@@ -43,9 +45,11 @@ export class MemoryStagingStore implements StagingStore {
     if (existing >= 0) this.sources[existing] = file;
     else this.sources.push(file);
   }
+  /** Round-trips through serialize/parse so reads pass the same validation
+   *  gate as the real store — a staged garbage row drops here too. */
   async readTransactions(): Promise<StagedTransactions | null> {
     if (!this.transactions) return null;
-    return { rows: this.transactions.map((r) => ({ ...r })), warnings: [], droppedCount: 0 };
+    return parseImportCsv(serializeImportCsv(this.transactions));
   }
   async writeTransactions(rows: ImportTransaction[]): Promise<void> {
     this.transactions = rows.map((r) => ({ ...r }));

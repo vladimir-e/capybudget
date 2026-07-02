@@ -46,15 +46,15 @@ function makeTxn(overrides: Partial<ImportTransaction>): ImportTransaction {
 function makeStaging(
   initial: ImportTransaction[],
   transferCtxIds: string[] = [],
-  droppedCount = 0,
+  dropped: string[] = [],
 ): StagingStore {
   let rows = initial;
   const transferContext = Object.fromEntries(transferCtxIds.map((id) => [id, {}]));
   return {
     readTransactions: async () => ({
       rows: rows.map((r) => ({ ...r })),
-      warnings: [],
-      droppedCount,
+      dropped,
+      fixed: [],
     }),
     writeTransactions: async (next: ImportTransaction[]) => {
       rows = next;
@@ -109,7 +109,7 @@ describe("useImportData — skipped rows on load", () => {
   });
 
   it("surfaces the staging read's dropped-row count", async () => {
-    const staging = makeStaging([makeTxn({})], [], 3);
+    const staging = makeStaging([makeTxn({})], [], ["Row 1: bad", "Row 2: bad", "Row 3: bad"]);
 
     const { result } = renderHook(() => useImportData("/b", staging, 0));
 

@@ -25,50 +25,52 @@ function makeRow(overrides: Partial<ImportTransaction> = {}): ImportTransaction 
 describe("validateImportTransactions", () => {
   it("passes a valid row through unchanged", () => {
     const row = makeRow();
-    const { valid, warnings } = validateImportTransactions([row]);
+    const { valid, dropped, fixed } = validateImportTransactions([row]);
     expect(valid).toEqual([row]);
-    expect(warnings).toHaveLength(0);
+    expect(dropped).toHaveLength(0);
+    expect(fixed).toHaveLength(0);
   });
 
   it("auto-generates id when missing", () => {
     const row = makeRow({ id: "" });
-    const { valid, warnings } = validateImportTransactions([row]);
+    const { valid, dropped, fixed } = validateImportTransactions([row]);
     expect(valid).toHaveLength(1);
     expect(valid[0].id).toBeTruthy();
     expect(valid[0].id).not.toBe("");
-    expect(warnings).toEqual([expect.stringContaining("missing id")]);
+    expect(fixed).toEqual([expect.stringContaining("missing id")]);
+    expect(dropped).toHaveLength(0);
   });
 
   it("drops row with invalid date", () => {
-    const { valid, warnings } = validateImportTransactions([
+    const { valid, dropped } = validateImportTransactions([
       makeRow({ date: "March 15" }),
     ]);
     expect(valid).toHaveLength(0);
-    expect(warnings).toEqual([expect.stringContaining("invalid date")]);
+    expect(dropped).toEqual([expect.stringContaining("invalid date")]);
   });
 
   it("drops row with NaN amount", () => {
-    const { valid, warnings } = validateImportTransactions([
+    const { valid, dropped } = validateImportTransactions([
       makeRow({ amount: NaN }),
     ]);
     expect(valid).toHaveLength(0);
-    expect(warnings).toEqual([expect.stringContaining("invalid amount")]);
+    expect(dropped).toEqual([expect.stringContaining("invalid amount")]);
   });
 
   it("drops row with float amount", () => {
-    const { valid, warnings } = validateImportTransactions([
+    const { valid, dropped } = validateImportTransactions([
       makeRow({ amount: 12.5 }),
     ]);
     expect(valid).toHaveLength(0);
-    expect(warnings).toEqual([expect.stringContaining("invalid amount")]);
+    expect(dropped).toEqual([expect.stringContaining("invalid amount")]);
   });
 
   it("drops row with invalid type", () => {
-    const { valid, warnings } = validateImportTransactions([
+    const { valid, dropped } = validateImportTransactions([
       makeRow({ type: "refund" as ImportTransaction["type"] }),
     ]);
     expect(valid).toHaveLength(0);
-    expect(warnings).toEqual([expect.stringContaining("invalid type")]);
+    expect(dropped).toEqual([expect.stringContaining("invalid type")]);
   });
 
   it("skips completely empty rows silently", () => {
@@ -81,9 +83,10 @@ describe("validateImportTransactions", () => {
       sourceAccount: "",
       merchant: "",
     });
-    const { valid, warnings } = validateImportTransactions([empty]);
+    const { valid, dropped, fixed } = validateImportTransactions([empty]);
     expect(valid).toHaveLength(0);
-    expect(warnings).toHaveLength(0);
+    expect(dropped).toHaveLength(0);
+    expect(fixed).toHaveLength(0);
   });
 
   it("handles mix of valid, fixable, and invalid rows", () => {
@@ -93,12 +96,15 @@ describe("validateImportTransactions", () => {
       makeRow({ id: "c", date: "bad" }),
       makeRow({ id: "d", amount: NaN }),
     ];
-    const { valid, warnings, droppedCount } = validateImportTransactions(rows);
+    const { valid, dropped, fixed } = validateImportTransactions(rows);
     expect(valid).toHaveLength(2); // first row OK, second auto-fixed
     expect(valid[0].id).toBe("a");
     expect(valid[1].id).not.toBe(""); // auto-generated
-    expect(warnings).toHaveLength(3); // auto-fix + 2 drops
-    expect(droppedCount).toBe(2); // the auto-fix doesn't count as a drop
+    expect(dropped).toEqual([
+      expect.stringContaining("invalid date"),
+      expect.stringContaining("invalid amount"),
+    ]);
+    expect(fixed).toEqual([expect.stringContaining("missing id")]);
   });
 
   it("accepts zero amount as valid", () => {

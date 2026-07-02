@@ -2,8 +2,10 @@ import type { ImportTransaction } from "./import-types";
 
 export interface ValidationResult {
   valid: ImportTransaction[];
-  warnings: string[];
-  droppedCount: number;
+  /** One note per row dropped by a critical check (invalid date/amount/type). */
+  dropped: string[];
+  /** One note per row auto-fixed in place (missing id backfilled). */
+  fixed: string[];
 }
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -12,14 +14,13 @@ const VALID_TYPES = new Set(["expense", "income", "transfer"]);
 /**
  * Validate AI-produced import transactions.
  * Drops rows that fail critical checks and auto-fixes minor issues.
- * `warnings` covers both; `droppedCount` counts only the dropped rows.
  */
 export function validateImportTransactions(
   raw: ImportTransaction[],
 ): ValidationResult {
   const valid: ImportTransaction[] = [];
-  const warnings: string[] = [];
-  let droppedCount = 0;
+  const dropped: string[] = [];
+  const fixed: string[] = [];
 
   for (let i = 0; i < raw.length; i++) {
     const row = raw[i];
@@ -38,34 +39,29 @@ export function validateImportTransactions(
     let fixedRow = { ...row };
     if (!fixedRow.id || fixedRow.id.trim() === "") {
       fixedRow = { ...fixedRow, id: crypto.randomUUID() };
-      warnings.push(`${label}: missing id, auto-generated`);
+      fixed.push(`${label}: missing id, auto-generated`);
     }
 
     // Critical: date must match YYYY-MM-DD
     if (!DATE_RE.test(fixedRow.date)) {
-      warnings.push(`${label}: invalid date "${fixedRow.date}", row dropped`);
-      droppedCount++;
+      dropped.push(`${label}: invalid date "${fixedRow.date}", row dropped`);
       continue;
     }
 
     // Critical: amount must be a finite integer
     if (!Number.isFinite(fixedRow.amount) || fixedRow.amount !== Math.trunc(fixedRow.amount)) {
-      warnings.push(
-        `${label}: invalid amount "${fixedRow.amount}", row dropped`,
-      );
-      droppedCount++;
+      dropped.push(`${label}: invalid amount "${fixedRow.amount}", row dropped`);
       continue;
     }
 
     // Critical: type must be one of the valid values
     if (!VALID_TYPES.has(fixedRow.type)) {
-      warnings.push(`${label}: invalid type "${fixedRow.type}", row dropped`);
-      droppedCount++;
+      dropped.push(`${label}: invalid type "${fixedRow.type}", row dropped`);
       continue;
     }
 
     valid.push(fixedRow);
   }
 
-  return { valid, warnings, droppedCount };
+  return { valid, dropped, fixed };
 }

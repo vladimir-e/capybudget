@@ -78,7 +78,7 @@ export function useImportData(budgetPath: string, staging: StagingStore, rowsVer
     ]);
     const rows = staged?.rows ?? [];
     setTransactions(rows);
-    setSkippedRowCount(staged?.droppedCount ?? 0);
+    setSkippedRowCount(staged?.dropped.length ?? 0);
     setTransferCtxIds(new Set(Object.keys(transferCtx)));
     if (firstLoadRef.current) {
       firstLoadRef.current = false;

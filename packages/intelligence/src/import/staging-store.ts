@@ -101,10 +101,10 @@ export interface StagingStore {
  *  the rest, so callers can surface skips instead of silently shrinking. */
 export interface StagedTransactions {
   rows: ImportTransaction[];
-  /** One note per row validation dropped or auto-fixed. */
-  warnings: string[];
-  /** Rows dropped by the critical checks (invalid date/amount/type). */
-  droppedCount: number;
+  /** One note per row dropped by the critical checks (invalid date/amount/type). */
+  dropped: string[];
+  /** One note per row auto-fixed in place (missing id backfilled). */
+  fixed: string[];
 }
 
 /** Parse a serialized `transactions.csv` back into typed rows. Mirrors
@@ -116,8 +116,7 @@ export interface StagedTransactions {
  *  system guards. `validateImportTransactions` is the gate: it backfills a
  *  missing id and drops rows with a malformed date/amount/type so the
  *  orchestrator never enriches and merges a garbage row. Dropped rows travel
- *  back as `warnings` + `droppedCount` for the caller to surface, not
- *  swallowed silently. */
+ *  back as `dropped` notes for the caller to surface, not swallowed silently. */
 export function parseImportCsv(content: string): StagedTransactions {
   const { data } = Papa.parse<Record<string, string>>(content, {
     header: true,
@@ -151,8 +150,8 @@ export function parseImportCsv(content: string): StagedTransactions {
           : "",
     };
   });
-  const { valid, warnings, droppedCount } = validateImportTransactions(rows);
-  return { rows: valid, warnings, droppedCount };
+  const { valid, dropped, fixed } = validateImportTransactions(rows);
+  return { rows: valid, dropped, fixed };
 }
 
 const IMPORT_DIR_REL = ".capy/import";

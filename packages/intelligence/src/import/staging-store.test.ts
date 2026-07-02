@@ -13,8 +13,8 @@ describe("parseImportCsv", () => {
     const parsed = parseImportCsv(serializeImportCsv(rows));
 
     expect(parsed.rows).toHaveLength(2);
-    expect(parsed.warnings).toHaveLength(0);
-    expect(parsed.droppedCount).toBe(0);
+    expect(parsed.dropped).toHaveLength(0);
+    expect(parsed.fixed).toHaveLength(0);
     expect(parsed.rows[0]).toMatchObject({ id: "imp-1", amount: -2500, merchant: "Whole Foods", categoryConfidence: "high", duplicate: true, duplicateConfidence: "low" });
     expect(parsed.rows[1]).toMatchObject({ id: "imp-2", amount: 200000, type: "income", description: 'WITH, COMMA "quote"', duplicate: false, duplicateConfidence: "" });
   });
@@ -36,15 +36,13 @@ describe("parseImportCsv", () => {
   it("drops a row whose amount isn't a number", () => {
     const parsed = parseImportCsv("id,date,amount\nimp-1,2026-01-01,not-a-number");
     expect(parsed.rows).toHaveLength(0);
-    expect(parsed.droppedCount).toBe(1);
-    expect(parsed.warnings).toEqual([expect.stringContaining("invalid amount")]);
+    expect(parsed.dropped).toEqual([expect.stringContaining("invalid amount")]);
   });
 
   it("drops a row with a malformed date", () => {
     const parsed = parseImportCsv("id,date,amount\nimp-1,March 1st,-100");
     expect(parsed.rows).toHaveLength(0);
-    expect(parsed.droppedCount).toBe(1);
-    expect(parsed.warnings).toEqual([expect.stringContaining("invalid date")]);
+    expect(parsed.dropped).toEqual([expect.stringContaining("invalid date")]);
   });
 
   it("keeps a deliberate zero-amount row", () => {
@@ -58,25 +56,23 @@ describe("parseImportCsv", () => {
   it("drops a row with a blank amount", () => {
     const parsed = parseImportCsv('id,date,amount,description\nimp-1,2026-01-01,," "');
     expect(parsed.rows).toHaveLength(0);
-    expect(parsed.droppedCount).toBe(1);
-    expect(parsed.warnings).toEqual([expect.stringContaining("invalid amount")]);
+    expect(parsed.dropped).toEqual([expect.stringContaining("invalid amount")]);
   });
 
-  it("backfills a missing id without counting the row as dropped", () => {
+  it("backfills a missing id as a fix, not a drop", () => {
     const parsed = parseImportCsv("id,date,amount\n,2026-01-01,-100");
     expect(parsed.rows).toHaveLength(1);
     expect(parsed.rows[0].id).toBeTruthy();
-    expect(parsed.droppedCount).toBe(0);
-    expect(parsed.warnings).toEqual([expect.stringContaining("missing id")]);
+    expect(parsed.fixed).toEqual([expect.stringContaining("missing id")]);
+    expect(parsed.dropped).toHaveLength(0);
   });
 
-  it("counts every dropped row so the preview can say how many were skipped", () => {
+  it("notes every dropped row so the preview can say how many were skipped", () => {
     const parsed = parseImportCsv(
       "id,date,amount\nimp-1,Pending,-100\nimp-2,2026-01-01,oops\nimp-3,2026-01-02,-200",
     );
     expect(parsed.rows.map((r) => r.id)).toEqual(["imp-3"]);
-    expect(parsed.droppedCount).toBe(2);
-    expect(parsed.warnings).toHaveLength(2);
+    expect(parsed.dropped).toHaveLength(2);
   });
 });
 

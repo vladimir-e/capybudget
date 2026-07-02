@@ -536,6 +536,33 @@ describe("ImportOrchestrator — re-run idempotency + resume", () => {
     expect(phases(secondEvents)).toContain("categorizing");
     expect(secondSession.calls).toHaveLength(0);
   });
+
+  it("a resume warns about rows the staging read dropped — sampling drops only, never fixes", async () => {
+    const staging = new MemoryStagingStore({
+      transactions: [
+        makeImportTransaction({ id: "", description: "NO ID" }), // fixable: id backfilled, row kept
+        ...Array.from({ length: 5 }, (_, i) =>
+          makeImportTransaction({ id: `imp-${i + 1}`, date: "Pending" }),
+        ),
+        makeImportTransaction({ id: "imp-9", description: "SURVIVOR" }),
+      ],
+    });
+    const session = new MockStructuredSession([enrichResponder()]);
+    const { events, onEvent } = collect();
+
+    await new ImportOrchestrator({ session, staging, budget: emptyBudget(), onEvent, concurrency: 1 }).start();
+
+    const logs = events.flatMap((e) => (e.type === "log" ? [e.entry] : []));
+    const warn = logs.find((l) => l.level === "warn");
+    expect(warn).toBeDefined();
+    expect(warn!.message).toContain("5 staged rows skipped — failed validation");
+    expect(warn!.message).toContain('invalid date "Pending"');
+    expect(warn!.message).toContain("(+2 more)"); // detail capped at 3 samples
+    expect(warn!.message).not.toContain("missing id"); // the fix isn't a drop
+    // The run resumes over the survivors: the fixed row + the intact one.
+    const resume = logs.find((l) => l.message.startsWith("Resuming import"));
+    expect(resume!.message).toContain("2 rows already staged");
+  });
 });
 
 // ── Duplicate persistence ────────────────────────────────────────
