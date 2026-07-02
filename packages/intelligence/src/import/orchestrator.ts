@@ -190,6 +190,12 @@ export class ImportOrchestrator {
   private async normalize(
     sources: Awaited<ReturnType<StagingStore["listSources"]>>,
   ): Promise<ImportTransaction[] | null> {
+    // Existing account names ground the model's `sourceAccount` answers: an
+    // exact-name answer resolves deterministically during History instead of
+    // staging a near-miss the user has to map by hand.
+    const existingAccounts = (await this.deps.budget.getAccounts())
+      .filter((a) => !a.archived)
+      .map((a) => a.name);
     const all: ImportTransaction[] = [];
     // The active file's progress, rebased onto the rows earlier files landed.
     // `total` covers only the files seen so far — it grows (and the consumer's
@@ -208,7 +214,7 @@ export class ImportOrchestrator {
       const startId = all.length + 1;
       if (isImageOrPdf(source.mediaType)) {
         this.status("normalizing", `Extracting transactions from ${source.name}…`);
-        const result = await normalizeImage(this.deps.session, source, { startId, onProgress: fileProgress });
+        const result = await normalizeImage(this.deps.session, source, { startId, existingAccounts, onProgress: fileProgress });
         if (result.noData) {
           this.log("warn", "normalizing", `Skipped ${source.name} — no transaction data found.`);
           continue;
@@ -216,7 +222,7 @@ export class ImportOrchestrator {
         all.push(...result.rows);
       } else {
         this.status("normalizing", `Mapping columns in ${source.name}…`);
-        const result = await normalizeCsv(this.deps.session, source, { startId, onProgress: fileProgress });
+        const result = await normalizeCsv(this.deps.session, source, { startId, existingAccounts, onProgress: fileProgress });
         if (result.errors.length > 0) {
           this.log("warn", "normalizing", describeSkippedRows(source.name, result.errors));
         }

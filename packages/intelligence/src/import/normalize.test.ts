@@ -261,6 +261,25 @@ describe("normalizeCsv", () => {
     expect(rows[0].id).toBe("imp-10");
   });
 
+  it("shows the mapper the user's existing accounts with the exact-name instruction", async () => {
+    const csv = "Date,Description,Amount\n2026-01-05,COFFEE,-4.50";
+    const session = new MockStructuredSession([() => MAPPING]);
+
+    await normalizeCsv(session, { name: "f.csv", content: csv }, { existingAccounts: ["Chase Checking", "🍏 Apple Card"] });
+
+    const prompt = JSON.stringify(session.calls[0].messages);
+    expect(prompt).toContain("Chase Checking");
+    expect(prompt).toContain("🍏 Apple Card");
+    expect(prompt).toContain("EXACT name");
+  });
+
+  it("omits the accounts line when the user has none", async () => {
+    const csv = "Date,Description,Amount\n2026-01-05,COFFEE,-4.50";
+    const session = new MockStructuredSession([() => MAPPING]);
+    await normalizeCsv(session, { name: "f.csv", content: csv });
+    expect(JSON.stringify(session.calls[0].messages)).not.toContain("existing accounts");
+  });
+
   describe("mapping sample diversity", () => {
     /** A CSV whose row i carries the unique marker "MERCHANT i". */
     function csvOf(amounts: number[]): string {
@@ -635,7 +654,66 @@ describe("normalizeImage", () => {
     expect(noData).toBeUndefined();
     expect(session.calls[0].schema).toBe(EXTRACTION_SCHEMA);
     expect(rows[0]).toMatchObject({ id: "imp-1", description: "Netflix", merchant: "", categoryId: "" });
+    expect(rows[0].sourceAccount).toBe("Visa"); // model's answer stands — no fallback
     expect(rows[0].sourceCategory).toBe("Entertainment");
+  });
+
+  it("heals an empty model sourceAccount from the filename", async () => {
+    const session = new MockStructuredSession([
+      () => ({
+        result: {
+          count: 2,
+          rows: [
+            { date: "2026-01-05", amount: -1599, type: "expense", description: "Netflix", sourceAccount: "", sourceCategory: "" },
+            { date: "2026-01-06", amount: -700, type: "expense", description: "Uber", sourceAccount: "   ", sourceCategory: "" },
+          ],
+        },
+      }),
+    ]);
+
+    const { rows } = await normalizeImage(session, { name: "chase_statement.png", content: "B64", mediaType: "image/png" });
+
+    expect(rows.map((r) => r.sourceAccount)).toEqual(["chase statement", "chase statement"]);
+  });
+
+  it('heals to "Imported" when the filename carries no usable name either', async () => {
+    const session = new MockStructuredSession([
+      () => ({
+        result: {
+          count: 1,
+          rows: [{ date: "2026-01-05", amount: -1599, type: "expense", description: "Netflix", sourceAccount: "", sourceCategory: "" }],
+        },
+      }),
+    ]);
+
+    const { rows } = await normalizeImage(session, { name: "-.png", content: "B64", mediaType: "image/png" });
+
+    expect(rows[0].sourceAccount).toBe("Imported");
+  });
+
+  it("shows the model the filename and the user's existing accounts with the exact-name instruction", async () => {
+    const session = new MockStructuredSession([() => ({ result: { count: 0, rows: [] } })]);
+
+    await normalizeImage(
+      session,
+      { name: "chase_statement.png", content: "B64", mediaType: "image/png" },
+      { existingAccounts: ["Chase Checking", "🍏 Apple Card"] },
+    );
+
+    const prompt = JSON.stringify(session.calls[0].messages);
+    expect(prompt).toContain("File: chase_statement.png");
+    expect(prompt).toContain("Chase Checking");
+    expect(prompt).toContain("🍏 Apple Card");
+    expect(prompt).toContain("EXACT name");
+    expect(prompt).toContain("Never return an empty");
+  });
+
+  it("still demands a non-empty sourceAccount when the user has no accounts yet", async () => {
+    const session = new MockStructuredSession([() => ({ result: { count: 0, rows: [] } })]);
+    await normalizeImage(session, { name: "r.png", content: "B64", mediaType: "image/png" });
+    const prompt = JSON.stringify(session.calls[0].messages);
+    expect(prompt).toContain("Never return an empty");
+    expect(prompt).not.toContain("existing accounts");
   });
 
   it("coerces an unparseable extracted date to today instead of dropping the row", async () => {

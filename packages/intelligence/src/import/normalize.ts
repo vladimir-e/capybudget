@@ -92,6 +92,7 @@ export async function normalizeCsv(
   options: {
     startId?: number;
     importDate?: string;
+    existingAccounts?: string[];
     /** Live progress for this file. The data-row count is known the moment the
      *  grid parses, so the meter gets its denominator while the mapping call
      *  (the slow part) runs; rows land all at once when the transform applies. */
@@ -107,7 +108,8 @@ export async function normalizeCsv(
   const headerPick = detectHeaderRow(grid);
   options.onProgress?.({ rows: 0, total: Math.max(grid.length - headerPick - 1, 0) });
 
-  let resolved = await resolveMapping(session, source.name, grid, headerPick, importDate, null);
+  const existingAccounts = options.existingAccounts ?? [];
+  let resolved = await resolveMapping(session, source.name, grid, headerPick, importDate, existingAccounts, null);
 
   // Code-side preview: transform a slice, and if it errors (e.g. the model named
   // a column that isn't there), give the model one correction round. The preview
@@ -116,7 +118,7 @@ export async function normalizeCsv(
   // only good part was relocating the header doesn't lose that on retry.
   const previewErrors = previewTransformErrors(resolved.table.rows.slice(0, PREVIEW_ROWS), resolved.mapping);
   if (previewErrors.length > 0) {
-    resolved = await resolveMapping(session, source.name, grid, resolved.mapping.headerRow, importDate, previewErrors);
+    resolved = await resolveMapping(session, source.name, grid, resolved.mapping.headerRow, importDate, existingAccounts, previewErrors);
   }
 
   const { transactions, errors } = transformCsv(resolved.table.rows, resolved.mapping, {
@@ -150,9 +152,10 @@ async function resolveMapping(
   grid: string[][],
   headerPick: number,
   importDate: string,
+  existingAccounts: string[],
   priorErrors: string[] | null,
 ): Promise<{ mapping: CsvMapping & { headerRow: number }; table: CsvTable }> {
-  const prompt = buildMappingPrompt(filename, grid, headerPick, priorErrors);
+  const prompt = buildMappingPrompt(filename, grid, headerPick, existingAccounts, priorErrors);
   const heal = (raw: CsvMappingResult) => {
     const headerRow =
       typeof raw.headerRow === "number" && isViableHeaderRow(grid, raw.headerRow)
@@ -175,6 +178,7 @@ function buildMappingPrompt(
   filename: string,
   grid: string[][],
   headerPick: number,
+  existingAccounts: string[],
   priorErrors: string[] | null,
 ): string {
   const { headers, rows } = buildCsvTable(grid, headerPick);
@@ -183,6 +187,10 @@ function buildMappingPrompt(
     .slice(0, HEADER_SCAN_ROWS)
     .map((cells, i) => `${i}: ${JSON.stringify(cells)}`)
     .join("\n");
+  const accountsNote =
+    existingAccounts.length > 0
+      ? `The user's existing accounts: ${existingAccounts.join(", ")}. When you return the source account as a literal name and the file clearly belongs to one of these (bank name, account type, last-4 digits), use that account's EXACT name.`
+      : "";
   const errorNote =
     priorErrors && priorErrors.length > 0
       ? `\n\nYour previous mapping produced these transform errors. Correct it:\n${priorErrors
@@ -200,10 +208,13 @@ function buildMappingPrompt(
     `Sample rows (${sample.length} of ${rows.length} data rows — the head plus rows spread across the file):`,
     JSON.stringify(sample, null, 2),
     `Identify the date column, the description column(s), and how amounts are structured: a single signed column ({ style: "single", column, sign }) or split debit/credit ({ style: "split", expenseColumn, incomeColumn }). Optionally include date.format, the source account, the source category column, and skipRules for non-transaction rows (opening balances, voids).`,
+    accountsNote,
     `Determine the sign convention from the account type and the merchant context, not from a default. "sign" says which polarity is an expense: "negative_expense" (negatives are spending, positives are income — typical of bank/checking exports) or "positive_expense" (positives are spending — typical of CREDIT-CARD statements). On a credit-card statement such as Apple Card, purchases are POSITIVE and represent expenses, while NEGATIVE amounts are payments toward the card — treat those as transfers, not income. For split debit/credit columns, the outflow/debit column is expenses. Add transferPatterns for descriptions that name a card payment or account-to-account move (e.g. "Payment", "ACH Pmt", "Transfer") so they classify as transfers.`,
     `Guidance (the engine heals any deviation, so approximate freely): date.format like MM/DD/YYYY, YYYY-MM-DD, or DD.MM.YYYY. Amount formatting is read from the data, so don't worry about it.`,
     errorNote,
-  ].join("\n");
+  ]
+    .filter((line) => line !== "")
+    .join("\n");
 }
 
 function callMapper(session: StructuredSession, prompt: string): Promise<CsvMappingResult> {
@@ -518,13 +529,16 @@ export interface NormalizeImageResult {
  * it reads merchant → `description`, an inferred category → `sourceCategory`,
  * and emits the same intermediate records the CSV mapper produces, fed through
  * the same `buildStaged`. A discriminated outcome carries `no_data` for a
- * source with no transactions.
+ * source with no transactions. A model-empty `sourceAccount` heals from the
+ * filename — the same guarantee `normalizeSourceAccount` gives the CSV path,
+ * so no normalizer emits a row without an account.
  */
 export async function normalizeImage(
   session: StructuredSession,
   source: { name: string; content: string; mediaType: string },
   options: {
     startId?: number;
+    existingAccounts?: string[];
     /** Live progress for this file, derived from the streamed response text:
      *  rows tick as records arrive, the total comes from the model-declared
      *  `count` once it streams (null before). Setting it makes the extraction
@@ -532,10 +546,17 @@ export async function normalizeImage(
     onProgress?: (progress: NormalizeProgress) => void;
   } = {},
 ): Promise<NormalizeImageResult> {
+  const existingAccounts = options.existingAccounts ?? [];
+  const accountsIntro =
+    existingAccounts.length > 0
+      ? `The user's existing accounts: ${existingAccounts.join(", ")}. If the source clearly belongs to one of them (bank name, account type, last-4 digits, product names), return that account's EXACT name as "sourceAccount". Otherwise propose`
+      : `For "sourceAccount", propose`;
   const prompt = [
     `Read every transaction from this ${describeKind(source.mediaType)} (a receipt, bank screenshot, or statement scan) and return them as records.`,
+    `File: ${source.name}`,
     `Return "count" first — the total number of transactions you see — then the rows themselves.`,
-    `For each transaction: date as YYYY-MM-DD, amount as signed integer cents (negative = money out, positive = money in), type (expense/income/transfer), the merchant or payee as "description", an inferred category as "sourceCategory" (empty string if none), and the account name as "sourceAccount" (empty string if none).`,
+    `For each transaction: date as YYYY-MM-DD, amount as signed integer cents (negative = money out, positive = money in), type (expense/income/transfer), the merchant or payee as "description", an inferred category as "sourceCategory" (empty string if none), and the account the transactions belong to as "sourceAccount".`,
+    `${accountsIntro} a short descriptive account name from what is visible (e.g. "Chase Checking") or the filename. Never return an empty "sourceAccount" — if nothing identifies the account, use "Imported".`,
     `When a row has no parseable date — the date column reads "Pending", or the source shows no dates — use today's date, ${getToday()}.`,
     `Never invent transactions — extract only what is visible. If the file contains no transaction data (e.g. a photo of a person, a logo, an unrelated document), return the no_data outcome with a short message.`,
   ].join("\n");
@@ -570,7 +591,7 @@ export async function normalizeImage(
     amount: r.amount,
     type: r.type,
     description: r.description,
-    sourceAccount: r.sourceAccount,
+    sourceAccount: asString(r.sourceAccount) ?? accountFromFilename(source.name),
     sourceCategory: r.sourceCategory,
   }));
   return { rows: buildStaged(records, { startId: options.startId }) };

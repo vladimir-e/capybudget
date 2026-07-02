@@ -384,6 +384,33 @@ describe("ImportOrchestrator — no_data", () => {
     expect(staging.transactions![0].description).toBe("Netflix");
   });
 
+  it("threads the budget's active account names into the normalize prompts", async () => {
+    const staging = new MemoryStagingStore({
+      sources: [{ name: "bank.png", content: "BASE64", mediaType: "image/png" }],
+    });
+    const session = new MockStructuredSession([
+      () => ({
+        result: {
+          count: 1,
+          rows: [{ date: "2026-01-05", amount: -1599, type: "expense", description: "Netflix", sourceAccount: "Ally Savings", sourceCategory: "" }],
+        },
+      }),
+      enrichResponder(),
+    ]);
+    const budget = new MemoryBudgetData([], CATEGORIES, [
+      makeAccount({ id: "acct-ally", name: "Ally Savings" }),
+      makeAccount({ id: "acct-closed", name: "Closed Card", archived: true }),
+    ]);
+
+    await new ImportOrchestrator({ session, staging, budget, onEvent: () => {}, concurrency: 1 }).start();
+
+    const prompt = JSON.stringify(session.calls[0].messages);
+    expect(prompt).toContain("Ally Savings");
+    expect(prompt).not.toContain("Closed Card"); // archived accounts stay out
+    // The exact-name answer then resolves deterministically during History.
+    expect(staging.transactions![0].accountId).toBe("acct-ally");
+  });
+
   it("skips a no_data file among several and imports the rest", async () => {
     // A selfie dropped alongside a real CSV — the bad file is warned + skipped,
     // the good file still imports (not all-or-nothing).
