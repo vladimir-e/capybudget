@@ -261,6 +261,15 @@ describe("normalizeCsv", () => {
     expect(rows[0].id).toBe("imp-10");
   });
 
+  it("heals blank cells in a mapped account column from the filename", async () => {
+    const csv = "Date,Description,Amount,Account\n2026-01-05,COFFEE,-4.50,Chase\n2026-01-06,BAGEL,-3.25,";
+    const session = new MockStructuredSession([() => ({ ...MAPPING, sourceAccount: { column: "Account" } })]);
+
+    const { rows } = await normalizeCsv(session, { name: "chase_statement.csv", content: csv });
+
+    expect(rows.map((r) => r.sourceAccount)).toEqual(["Chase", "chase statement"]);
+  });
+
   it("shows the mapper the user's existing accounts with the exact-name instruction", async () => {
     const csv = "Date,Description,Amount\n2026-01-05,COFFEE,-4.50";
     const session = new MockStructuredSession([() => MAPPING]);

@@ -124,7 +124,12 @@ export async function normalizeCsv(
   const { transactions, errors } = transformCsv(resolved.table.rows, resolved.mapping, {
     startId: options.startId,
   });
-  return { rows: transactions, mapping: resolved.mapping, errors };
+  // The mapping heal guarantees a non-empty *mapping*, but a mapped account
+  // column can still hold blank cells — heal those per row, like the image
+  // path, so no staged row leaves either normalizer account-less.
+  const fallbackAccount = accountFromFilename(source.name);
+  const rows = transactions.map((t) => (t.sourceAccount ? t : { ...t, sourceAccount: fallbackAccount }));
+  return { rows, mapping: resolved.mapping, errors };
 }
 
 function previewTransformErrors(rows: Record<string, string>[], mapping: CsvMapping): string[] {
@@ -174,6 +179,16 @@ async function resolveMapping(
   }
 }
 
+/**
+ * Shared grounding fragment for both normalizer prompts: the user's account
+ * names (JSON-quoted, so commas or quotes in a name can't blur the list) plus
+ * the exact-name rule. The trailing clause is the caller's — each prompt says
+ * where the exact name goes.
+ */
+function existingAccountsClause(names: string[]): string {
+  return `The user's existing accounts: ${names.map((n) => JSON.stringify(n)).join(", ")}. If the source clearly belongs to one of them (bank name, account type, last-4 digits, product names), use that account's EXACT name`;
+}
+
 function buildMappingPrompt(
   filename: string,
   grid: string[][],
@@ -189,7 +204,7 @@ function buildMappingPrompt(
     .join("\n");
   const accountsNote =
     existingAccounts.length > 0
-      ? `The user's existing accounts: ${existingAccounts.join(", ")}. When you return the source account as a literal name and the file clearly belongs to one of these (bank name, account type, last-4 digits), use that account's EXACT name.`
+      ? `${existingAccountsClause(existingAccounts)} as the literal source account.`
       : "";
   const errorNote =
     priorErrors && priorErrors.length > 0
@@ -530,8 +545,8 @@ export interface NormalizeImageResult {
  * and emits the same intermediate records the CSV mapper produces, fed through
  * the same `buildStaged`. A discriminated outcome carries `no_data` for a
  * source with no transactions. A model-empty `sourceAccount` heals from the
- * filename — the same guarantee `normalizeSourceAccount` gives the CSV path,
- * so no normalizer emits a row without an account.
+ * filename — the same per-row fallback `normalizeCsv` applies after its
+ * transform — so no normalizer emits a row without an account.
  */
 export async function normalizeImage(
   session: StructuredSession,
@@ -549,7 +564,7 @@ export async function normalizeImage(
   const existingAccounts = options.existingAccounts ?? [];
   const accountsIntro =
     existingAccounts.length > 0
-      ? `The user's existing accounts: ${existingAccounts.join(", ")}. If the source clearly belongs to one of them (bank name, account type, last-4 digits, product names), return that account's EXACT name as "sourceAccount". Otherwise propose`
+      ? `${existingAccountsClause(existingAccounts)} as "sourceAccount". Otherwise propose`
       : `For "sourceAccount", propose`;
   const prompt = [
     `Read every transaction from this ${describeKind(source.mediaType)} (a receipt, bank screenshot, or statement scan) and return them as records.`,
