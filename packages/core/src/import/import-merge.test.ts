@@ -95,6 +95,21 @@ describe("prepareMerge", () => {
     expect(result.transactions[0].accountId).toBe("acct-123");
   });
 
+  it("auto-creates an Imported account for a row with no source and no grounded account", () => {
+    const txn = makeImportTxn({ sourceAccount: "", accountId: "" });
+    const result = prepareMerge(
+      { transactions: [txn], selectedIds: new Set([txn.id]), accountMapping: {} },
+      [],
+      [],
+      "USD",
+    );
+
+    expect(result.sourcesToCreate).toEqual(["Imported"]);
+    expect(result.accounts).toHaveLength(1);
+    expect(result.accounts[0].name).toBe("Imported");
+    expect(result.transactions[0].accountId).toBe(result.accounts[0].id);
+  });
+
   it("falls back to import accountId when no mapping exists", () => {
     const txn = makeImportTxn({
       sourceAccount: "",

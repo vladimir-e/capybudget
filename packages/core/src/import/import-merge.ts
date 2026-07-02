@@ -10,6 +10,8 @@ export interface MergeInput {
   accountMapping: Record<string, string>; // sourceAccount → accountId | "__create__"
 }
 
+const FALLBACK_SOURCE = "Imported";
+
 export interface MergeOutput {
   accounts: Account[];
   transactions: Transaction[];
@@ -87,7 +89,10 @@ function linkTransferPairs(txns: Transaction[]): void {
  *
  * Accounts with mapping "__create__" or no mapping are auto-created as
  * "checking" — the most common type for imported bank data, in the budget
- * default currency.
+ * default currency. A selected row with neither a `sourceAccount` nor a
+ * grounded `accountId` is treated as coming from a source named "Imported",
+ * so it auto-creates like any other unmapped source instead of merging
+ * account-less.
  *
  * Each merged row is valued in the default currency by stamping today's rate
  * onto its `fxRate` (the plan's "imported data takes today's rate"). Rows
@@ -103,7 +108,9 @@ export function prepareMerge(
   existingAliases: ImportAliases = { accounts: {} },
 ): MergeOutput {
   const { transactions, selectedIds, accountMapping } = input;
-  const selected = transactions.filter((t) => selectedIds.has(t.id));
+  const selected = transactions
+    .filter((t) => selectedIds.has(t.id))
+    .map((t) => (t.sourceAccount || t.accountId ? t : { ...t, sourceAccount: FALLBACK_SOURCE }));
   if (selected.length === 0) throw new Error("No transactions selected");
 
   // ── Create accounts for unmapped sources ──────────────────
