@@ -360,57 +360,6 @@ describe("ImportOrchestrator — no_data", () => {
     expect(staging.transactions).toBeNull();
   });
 
-  it("extracts rows from a real bank screenshot like a CSV", async () => {
-    const staging = new MemoryStagingStore({
-      sources: [{ name: "bank.png", content: "BASE64", mediaType: "image/png" }],
-    });
-    const session = new MockStructuredSession([
-      () => ({
-        result: {
-          count: 2,
-          rows: [
-            { date: "2026-01-05", amount: -1599, type: "expense", description: "Netflix", sourceAccount: "Checking", sourceCategory: "" },
-            { date: "2026-01-06", amount: -4200, type: "expense", description: "Shell", sourceAccount: "Checking", sourceCategory: "" },
-          ],
-        },
-      }),
-      enrichResponder(),
-    ]);
-
-    await new ImportOrchestrator({ session, staging, budget: emptyBudget(), onEvent: () => {}, concurrency: 1 }).start();
-
-    expect(staging.transactions).toHaveLength(2);
-    expect(staging.transactions![0].id).toBe("imp-1");
-    expect(staging.transactions![0].description).toBe("Netflix");
-  });
-
-  it("threads the budget's active account names into the normalize prompts", async () => {
-    const staging = new MemoryStagingStore({
-      sources: [{ name: "bank.png", content: "BASE64", mediaType: "image/png" }],
-    });
-    const session = new MockStructuredSession([
-      () => ({
-        result: {
-          count: 1,
-          rows: [{ date: "2026-01-05", amount: -1599, type: "expense", description: "Netflix", sourceAccount: "Ally Savings", sourceCategory: "" }],
-        },
-      }),
-      enrichResponder(),
-    ]);
-    const budget = new MemoryBudgetData([], CATEGORIES, [
-      makeAccount({ id: "acct-ally", name: "Ally Savings" }),
-      makeAccount({ id: "acct-closed", name: "Closed Card", archived: true }),
-    ]);
-
-    await new ImportOrchestrator({ session, staging, budget, onEvent: () => {}, concurrency: 1 }).start();
-
-    const prompt = JSON.stringify(session.calls[0].messages);
-    expect(prompt).toContain("Ally Savings");
-    expect(prompt).not.toContain("Closed Card"); // archived accounts stay out
-    // The exact-name answer then resolves deterministically during History.
-    expect(staging.transactions![0].accountId).toBe("acct-ally");
-  });
-
   it("skips a no_data file among several and imports the rest", async () => {
     // A selfie dropped alongside a real CSV — the bad file is warned + skipped,
     // the good file still imports (not all-or-nothing).
@@ -438,9 +387,79 @@ describe("ImportOrchestrator — no_data", () => {
   });
 });
 
-// ── CSV transform errors surface as warnings ─────────────────────
+// ── Image path ───────────────────────────────────────────────────
 
-describe("ImportOrchestrator — CSV transform errors", () => {
+describe("ImportOrchestrator — image path", () => {
+  it("extracts rows from a real bank screenshot like a CSV", async () => {
+    const staging = new MemoryStagingStore({
+      sources: [{ name: "bank.png", content: "BASE64", mediaType: "image/png" }],
+    });
+    const session = new MockStructuredSession([
+      () => ({
+        result: {
+          count: 2,
+          rows: [
+            { date: "2026-01-05", amount: -1599, type: "expense", description: "Netflix", sourceAccount: "Checking", sourceCategory: "" },
+            { date: "2026-01-06", amount: -4200, type: "expense", description: "Shell", sourceAccount: "Checking", sourceCategory: "" },
+          ],
+        },
+      }),
+      enrichResponder(),
+    ]);
+
+    await new ImportOrchestrator({ session, staging, budget: emptyBudget(), onEvent: () => {}, concurrency: 1 }).start();
+
+    expect(staging.transactions).toHaveLength(2);
+    expect(staging.transactions![0].id).toBe("imp-1");
+    expect(staging.transactions![0].description).toBe("Netflix");
+  });
+
+  it("threads the budget's active account names into the extraction prompt", async () => {
+    const staging = new MemoryStagingStore({
+      sources: [{ name: "bank.png", content: "BASE64", mediaType: "image/png" }],
+    });
+    const session = new MockStructuredSession([
+      () => ({
+        result: {
+          count: 1,
+          rows: [{ date: "2026-01-05", amount: -1599, type: "expense", description: "Netflix", sourceAccount: "Ally Savings", sourceCategory: "" }],
+        },
+      }),
+      enrichResponder(),
+    ]);
+    const budget = new MemoryBudgetData([], CATEGORIES, [
+      makeAccount({ id: "acct-ally", name: "Ally Savings" }),
+      makeAccount({ id: "acct-closed", name: "Closed Card", archived: true }),
+    ]);
+
+    await new ImportOrchestrator({ session, staging, budget, onEvent: () => {}, concurrency: 1 }).start();
+
+    const prompt = JSON.stringify(session.calls[0].messages);
+    expect(prompt).toContain("Ally Savings");
+    expect(prompt).not.toContain("Closed Card"); // archived accounts stay out
+    // The exact-name answer then resolves deterministically during History.
+    expect(staging.transactions![0].accountId).toBe("acct-ally");
+  });
+});
+
+// ── CSV path ─────────────────────────────────────────────────────
+
+describe("ImportOrchestrator — CSV path", () => {
+  it("threads the budget's active account names into the mapping prompt", async () => {
+    const staging = new MemoryStagingStore({ sources: [csvSource(csvWithRows(1))] });
+    const session = new MockStructuredSession([mapResponder, enrichResponder()]);
+    const budget = new MemoryBudgetData([], CATEGORIES, [
+      makeAccount({ id: "acct-ally", name: "Ally Savings" }),
+      makeAccount({ id: "acct-closed", name: "Closed Card", archived: true }),
+    ]);
+
+    await new ImportOrchestrator({ session, staging, budget, onEvent: () => {}, concurrency: 1 }).start();
+
+    const prompt = JSON.stringify(session.calls[0].messages);
+    expect(prompt).toContain("Ally Savings");
+    expect(prompt).not.toContain("Closed Card"); // archived accounts stay out
+  });
+
   it("warns about rows the transform couldn't parse instead of dropping them silently", async () => {
     // Row 2's date is unparseable — it errors in the final transform. The run
     // still imports the good row, but the user gets a warn-log line.
