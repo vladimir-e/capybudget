@@ -165,6 +165,37 @@ describe("ImportTable — transfer counterpart dropdown", () => {
     expect(wrapper.className).toContain("ring-amber-500/40");
   });
 
+  it("suppresses the outline on an excluded duplicate row", () => {
+    renderTable(
+      [
+        makeImportTransaction({
+          id: "imp-1", type: "transfer", amount: 50000, targetAccountId: "",
+          duplicate: true, duplicateConfidence: "high",
+        }),
+      ],
+      { duplicateIds: new Set(["imp-1"]), selectedIds: new Set<string>() },
+    );
+
+    const wrapper = selectorWrapper(/From account/);
+    expect(wrapper.className).not.toContain("ring-amber");
+    expect(wrapper.className).not.toContain("border-amber");
+  });
+
+  it("restores the outline when a duplicate row is re-included and still unset", () => {
+    renderTable(
+      [
+        makeImportTransaction({
+          id: "imp-1", type: "transfer", amount: 50000, targetAccountId: "",
+          duplicate: true, duplicateConfidence: "high",
+        }),
+      ],
+      { duplicateIds: new Set(["imp-1"]), selectedIds: new Set(["imp-1"]) },
+    );
+
+    const wrapper = selectorWrapper(/From account/);
+    expect(wrapper.className).toContain("ring-amber-500/40");
+  });
+
   it("keeps the account-list order unchanged (standard type grouping)", async () => {
     const user = userEvent.setup();
     renderTable([

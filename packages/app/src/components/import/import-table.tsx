@@ -350,9 +350,10 @@ export function ImportTable({
                     className={`[&>div]:w-full [&_button:first-of-type]:w-full [&_button:first-of-type]:min-w-0 ${
                       // Unset counterpart → outline the dropdown so it's easy to
                       // spot in the preview that it still needs an account.
-                      txn.targetAccountId
-                        ? ""
-                        : "[&_button:first-of-type]:border-amber-500/60 [&_button:first-of-type]:ring-1 [&_button:first-of-type]:ring-amber-500/40"
+                      // Excluded rows skip the outline — they won't be imported.
+                      isSelected && !txn.targetAccountId
+                        ? "[&_button:first-of-type]:border-amber-500/60 [&_button:first-of-type]:ring-1 [&_button:first-of-type]:ring-amber-500/40"
+                        : ""
                     }`}
                   >
                     <AccountSelector

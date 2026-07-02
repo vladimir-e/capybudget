@@ -14,7 +14,7 @@ type ApiProviderKey = "anthropic" | "openai"
 
 const ANTHROPIC_MODELS: ModelOption[] = [
   { value: "claude-opus-4-8", label: "Claude Opus 4.8" },
-  { value: "claude-sonnet-4-6", label: "Claude Sonnet 4.6" },
+  { value: "claude-sonnet-5", label: "Claude Sonnet 5" },
   { value: "claude-haiku-4-5", label: "Claude Haiku 4.5" },
 ]
 

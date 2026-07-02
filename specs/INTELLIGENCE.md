@@ -215,9 +215,9 @@ Settings lives in the `/budget` Intelligence section. It renders a provider radi
 
 Every provider uses one shared model picker: a curated dropdown plus a "Use a custom model" toggle that swaps in a free-text field for any model ID outside the list. A saved model not in the curated list opens the field in custom mode, so a user's pinned model survives a refreshed list. The curated options:
 
-- **Anthropic** — Claude Opus 4.8 (`claude-opus-4-8`), Claude Sonnet 4.6 (`claude-sonnet-4-6`, the default), Claude Haiku 4.5 (`claude-haiku-4-5`).
+- **Anthropic** — Claude Opus 4.8 (`claude-opus-4-8`), Claude Sonnet 5 (`claude-sonnet-5`, the default), Claude Haiku 4.5 (`claude-haiku-4-5`).
 - **OpenAI** — GPT-5.5 (`gpt-5.5`, the default), GPT-5.4 mini (`gpt-5.4-mini`), GPT-5.4 nano (`gpt-5.4-nano`).
-- **Claude Code** — Default (empty, the CLI decides), plus the `opus` / `sonnet` / `haiku` aliases. A non-empty value passes through as the CLI's `--model` flag at spawn; empty omits the flag.
+- **Claude Code** — Default (empty, the CLI decides), plus the `fable` / `opus` / `sonnet` / `haiku` aliases. A non-empty value passes through as the CLI's `--model` flag at spawn; empty omits the flag.
 
 When `provider === null`, the Capy overlay shows an empty-state CTA instead of the chat UI.
 

@@ -29,7 +29,7 @@ export async function pingAnthropic(
     const { default: Anthropic } = await import("@anthropic-ai/sdk")
     const client = new Anthropic({ apiKey, dangerouslyAllowBrowser: true })
     await client.messages.create({
-      model: model || "claude-sonnet-4-6",
+      model: model || "claude-sonnet-5",
       max_tokens: 8,
       messages: [{ role: "user", content: "Hi" }],
     })

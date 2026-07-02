@@ -27,6 +27,7 @@ declare const __IS_DEMO__: boolean
 // ModelField covers any full model ID beyond these.
 const CLAUDE_CLI_MODELS: ModelOption[] = [
   { value: "", label: "Default (Claude Code decides)" },
+  { value: "fable", label: "Fable" },
   { value: "opus", label: "Opus" },
   { value: "sonnet", label: "Sonnet" },
   { value: "haiku", label: "Haiku" },

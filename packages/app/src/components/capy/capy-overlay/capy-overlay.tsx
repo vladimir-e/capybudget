@@ -133,7 +133,7 @@ export function CapyOverlay({
   function openSettings(provider?: IntelligenceProvider) {
     if (provider) setProvider(provider)
     onClose()
-    navigate({ to: "/budget/settings", search: { path, name } })
+    navigate({ to: "/budget/settings", search: { path, name, section: "intelligence" } })
   }
 
   useEffect(() => {
