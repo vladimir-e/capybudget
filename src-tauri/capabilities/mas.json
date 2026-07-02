@@ -1,0 +1,56 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "mas",
+  "description": "Capability set for the Mac App Store build",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "dialog:default",
+    "dialog:allow-open",
+    "fs:default",
+    "fs:allow-read-text-file",
+    "fs:allow-write-text-file",
+    "fs:allow-read-file",
+    "fs:allow-write-file",
+    "fs:allow-read-dir",
+    "fs:allow-remove",
+    "fs:allow-exists",
+    "fs:allow-mkdir",
+    "fs:allow-rename",
+    "fs:allow-stat",
+    "fs:allow-size",
+    {
+      "identifier": "fs:scope",
+      "allow": [{ "path": "**" }]
+    },
+    "shell:default",
+    "shell:allow-stdin-write",
+    "shell:allow-open",
+    "shell:allow-kill",
+    "store:default",
+    "updater:default",
+    "process:default",
+    "process:allow-restart",
+    "window-state:default",
+    {
+      "identifier": "shell:allow-execute",
+      "allow": [
+        {
+          "name": "claude",
+          "cmd": "claude",
+          "args": true
+        }
+      ]
+    },
+    {
+      "identifier": "shell:allow-spawn",
+      "allow": [
+        {
+          "name": "claude",
+          "cmd": "claude",
+          "args": true
+        }
+      ]
+    }
+  ]
+}

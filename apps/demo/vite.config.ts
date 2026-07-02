@@ -9,6 +9,7 @@ export default defineConfig({
   define: {
     __PROJECT_ROOT__: JSON.stringify(""),
     __IS_DEMO__: JSON.stringify(true),
+    __MAS__: JSON.stringify(false),
   },
   plugins: [
     TanStackRouterVite({

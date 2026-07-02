@@ -29,6 +29,7 @@ export default defineConfig(async () => ({
   define: {
     __PROJECT_ROOT__: JSON.stringify(process.cwd()),
     __IS_DEMO__: JSON.stringify(false),
+    __MAS__: JSON.stringify(process.env.CAPY_MAS === "1"),
   },
   plugins: [
     TanStackRouterVite({

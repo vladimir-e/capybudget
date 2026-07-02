@@ -84,6 +84,48 @@ resolve to the newest published release:
 | `APPLE_PASSWORD` | App-specific password (appleid.apple.com) |
 | `APPLE_TEAM_ID` | Apple Developer Team ID |
 
+### Mac App Store build
+
+A separate, sandboxed build variant targets the Mac App Store. It leaves the
+Developer-ID/DMG pipeline above untouched — it's a config overlay applied on
+top of the same sources, not a fork.
+
+```bash
+npm run build:mas
+```
+
+This runs `scripts/build-mas.mjs`, which:
+
+- applies `src-tauri/tauri.mas.conf.json` on top of `tauri.conf.json` — bundle
+  target `app` only, updater artifacts off, the sandbox entitlements, and the
+  reduced `mas` capability set (`src-tauri/capabilities/mas.json`) in place of
+  `default.json`;
+- compiles Rust with the `mas` Cargo feature and the frontend with the
+  `__MAS__` Vite define set to `true`, so later work can strip the updater,
+  process, and shell-spawn plugins from this variant at compile time;
+- generates `src-tauri/Entitlements.mas.plist` from
+  `Entitlements.mas.plist.template`, substituting `APPLE_TEAM_ID` and the app
+  identifier;
+- stamps `CFBundleVersion` from `MAS_BUILD_NUMBER` (the App Store upload
+  counter, distinct from the semver).
+
+Building/signing a **submittable** `.app` still needs assets that aren't in the
+repo — supply these:
+
+| What | How |
+| --- | --- |
+| `APPLE_TEAM_ID` | Env var — baked into the entitlements. |
+| `APPLE_SIGNING_IDENTITY` | Env var — the **Apple Distribution** identity (e.g. `Apple Distribution: Name (TEAMID)`), read by Tauri to codesign. Distinct from the Developer-ID identity the DMG build uses. |
+| `src-tauri/embedded.provisionprofile` | The Mac App Store provisioning profile for `app.capybudget.desktop`, downloaded from the Apple Developer portal. Gitignored. |
+| `MAS_BUILD_NUMBER` | Env var — bump per upload. Defaults to `1`. |
+
+Without the team ID / signing identity / profile, `npm run build:mas` still runs
+end to end and produces an **unsigned** `.app` (the config path is exercised;
+codesigning is skipped). The default target is `universal-apple-darwin`; set
+`MAS_TARGET=aarch64-apple-darwin` for faster local iteration. Packaging the
+signed `.pkg` and uploading to App Store Connect are separate steps (not yet
+wired).
+
 ## Documentation
 
 Detailed specs live in [`specs/`](./specs/):
