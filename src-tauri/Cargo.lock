@@ -381,6 +381,9 @@ dependencies = [
 name = "capybudget"
 version = "1.4.1"
 dependencies = [
+ "base64 0.22.1",
+ "objc2",
+ "objc2-foundation",
  "serde",
  "serde_json",
  "tauri",

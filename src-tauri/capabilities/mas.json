@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "mas",
-  "description": "Capability set for the sandboxed Mac App Store build: no self-updater, no subprocess spawning, no shell path-open. URL-opening is https-only.",
+  "description": "Capability set for the sandboxed Mac App Store build: no self-updater, no subprocess spawning, no shell path-open. URL-opening is https-only. The fs scope is empty by design — budget folders are granted at runtime (by the dialog on pick, and by security_scope::restore_folder_access on launch), mirroring the App Sandbox's user-selected-only access.",
   "windows": ["main"],
   "permissions": [
     "core:default",
@@ -21,7 +21,7 @@
     "fs:allow-size",
     {
       "identifier": "fs:scope",
-      "allow": [{ "path": "**" }]
+      "allow": []
     },
     {
       "identifier": "opener:allow-open-url",

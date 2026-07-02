@@ -1,6 +1,7 @@
 import { redirect } from "@tanstack/react-router"
 import { useAppStore } from "@/stores/app-store"
 import { consumeSkipLaunchRedirect } from "@/lib/crash-recovery"
+import { flagReopenFailure } from "@/lib/reopen-failure"
 import { detectBudget } from "../../../../src/services/budget"
 
 let resolved = false
@@ -20,12 +21,19 @@ export async function resolveLaunchRedirect(): Promise<ReturnType<typeof redirec
   const path = useAppStore.getState().launchBudgetPath
   if (!path) return null
 
+  const reopenName = () =>
+    useAppStore.getState().recentBudgets.find((b) => b.path === path)?.name ?? path
+
   try {
     const meta = await detectBudget(path)
-    if (!meta) return null
+    if (!meta) {
+      flagReopenFailure({ path, name: reopenName() })
+      return null
+    }
     useAppStore.getState().addRecentBudget(path, meta.name)
     return redirect({ to: "/budget", search: { path, name: meta.name } })
   } catch {
+    flagReopenFailure({ path, name: reopenName() })
     return null
   }
 }

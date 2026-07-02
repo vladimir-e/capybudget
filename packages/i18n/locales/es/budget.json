@@ -9,6 +9,12 @@
     "folderExplainer": "Capy guarda todo como archivos simples dentro de una carpeta que tú eliges: transactions.csv, budget.json. Sincroniza entre dispositivos poniéndola en iCloud o Google Drive.",
     "recent": "Recientes",
     "removeFromRecents": "Quitar {{name}} de los recientes",
+    "reopenFailed": {
+      "title": "No se pudo volver a abrir {{name}}",
+      "description": "Es posible que su carpeta se haya movido o eliminado, o que debas conceder acceso de nuevo.",
+      "action": "Elegir carpeta",
+      "dismiss": "Descartar"
+    },
     "newDialog": {
       "title": "Nuevo presupuesto",
       "description": "Ponle nombre y elige una moneda para mostrar.",

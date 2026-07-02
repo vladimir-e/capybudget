@@ -9,6 +9,12 @@
     "folderExplainer": "Capy stores everything as plain files inside a folder you choose — transactions.csv, budget.json. Sync across devices by putting it in iCloud or Google Drive.",
     "recent": "Recent",
     "removeFromRecents": "Remove {{name}} from recents",
+    "reopenFailed": {
+      "title": "Couldn’t reopen {{name}}",
+      "description": "Its folder may have moved or been deleted, or you may need to grant access again.",
+      "action": "Choose folder",
+      "dismiss": "Dismiss"
+    },
     "newDialog": {
       "title": "New budget",
       "description": "Name it and pick a display currency.",

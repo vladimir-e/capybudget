@@ -1,3 +1,6 @@
+#[cfg(feature = "mas")]
+mod security_scope;
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let builder = tauri::Builder::default()
@@ -16,6 +19,18 @@ pub fn run() {
 
     #[cfg(desktop)]
     let builder = builder.plugin(tauri_plugin_window_state::Builder::default().build());
+
+    #[cfg(feature = "mas")]
+    let builder = builder
+        .manage(security_scope::ScopedAccess::default())
+        .setup(|app| {
+            security_scope::restore_folder_access(app.handle());
+            Ok(())
+        })
+        .invoke_handler(tauri::generate_handler![
+            security_scope::persist_folder_access,
+            security_scope::forget_folder_access,
+        ]);
 
     builder
         .run(tauri::generate_context!())
