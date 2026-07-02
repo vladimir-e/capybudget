@@ -141,6 +141,7 @@
     "downloading": "Descargando…",
     "downloadingPct": "Descargando… {{pct}} %",
     "restarting": "Reiniciando…",
-    "checkForUpdates": "Buscar actualizaciones"
+    "checkForUpdates": "Buscar actualizaciones",
+    "masManaged": "Las actualizaciones se entregan a través de la Mac App Store."
   }
 }

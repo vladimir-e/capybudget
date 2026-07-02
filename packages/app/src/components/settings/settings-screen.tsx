@@ -11,9 +11,11 @@ import { ProviderSection } from "./provider-section"
 import { ChatInstructionsSection } from "./chat-instructions-section"
 import { CategoriesSection } from "./categories-section"
 import { UpdatesSection } from "./updates-section"
+import { MasUpdatesNote } from "./updates-section-mas"
 import { DevSection } from "./dev-section"
 
 declare const __IS_DEMO__: boolean
+declare const __MAS__: boolean
 
 // Dev tooling: present only in source/dev builds, and never in the demo.
 const SHOW_DEV = import.meta.env.DEV && !__IS_DEMO__
@@ -152,7 +154,7 @@ export function SettingsScreen() {
             </>
           )}
           {active === "categories" && <CategoriesSection />}
-          {!__IS_DEMO__ && active === "updates" && <UpdatesSection />}
+          {!__IS_DEMO__ && active === "updates" && (__MAS__ ? <MasUpdatesNote /> : <UpdatesSection />)}
           {SHOW_DEV && active === "dev" && <DevSection />}
         </div>
       </main>

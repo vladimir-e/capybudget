@@ -36,7 +36,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { ChevronDown, ChevronLeft, ChevronRight, Download, FolderOpen, Github, LogOut } from "lucide-react";
-import { open as shellOpen } from "@tauri-apps/plugin-shell";
+import { revealItemInDir } from "@tauri-apps/plugin-opener";
 import type { Account, Transaction, TransactionFormData } from "@capybudget/core";
 import { useTranslation } from "@capybudget/i18n";
 import { toast } from "sonner";
@@ -237,7 +237,7 @@ export function BudgetShell() {
               <DropdownMenuContent align="start" className="min-w-48">
                 {!__IS_DEMO__ && (
                   <>
-                    <DropdownMenuItem onClick={() => shellOpen(path)}>
+                    <DropdownMenuItem onClick={() => revealItemInDir(path)}>
                       <FolderOpen className="h-4 w-4" />
                       {t("shell.revealInFinder")}
                     </DropdownMenuItem>

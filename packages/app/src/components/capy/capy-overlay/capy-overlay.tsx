@@ -33,6 +33,7 @@ import { MessageBubble } from "./capy-message-bubble"
 import { FileChip } from "./file-chip"
 
 declare const __IS_DEMO__: boolean
+declare const __MAS__: boolean
 
 // Panel sizing — the desktop default and lower bound. Below `sm:`
 // the panel goes full-width and the resize handle is hidden, which
@@ -117,6 +118,8 @@ export function CapyOverlay({
   // calls are cheap.
   const [claudeCliAvailable, setClaudeCliAvailable] = useState<boolean | null>(null)
   useEffect(() => {
+    // The Claude Code CLI provider is desktop-only; the MAS build excludes it.
+    if (__MAS__) return
     let cancelled = false
     detectClaudeCli()
       .then((available) => {

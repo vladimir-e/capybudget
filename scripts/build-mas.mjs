@@ -86,6 +86,11 @@ try {
       "mas",
       "--target",
       target,
+      // The tauri CLI has no --no-default-features flag; forward it to cargo
+      // (the runner) after `--` so the `updater` + `shell-spawn` default
+      // features — and their crates — are excluded from the MAS binary.
+      "--",
+      "--no-default-features",
     ],
     { cwd: ROOT, stdio: "inherit", env: { ...process.env, CAPY_MAS: "1" } },
   );

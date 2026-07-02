@@ -4,6 +4,8 @@ import { toast } from "sonner"
 import { i18n } from "@capybudget/i18n"
 import { checkForUpdate } from "@/lib/updater"
 
+declare const __MAS__: boolean
+
 interface StartupUpdateCheckArgs {
   path: string
   name: string
@@ -24,6 +26,8 @@ export function useStartupUpdateCheck({ path, name, navigate }: StartupUpdateChe
   })
 
   useEffect(() => {
+    // The Mac App Store delivers updates; this build ships no updater.
+    if (__MAS__) return
     if (!("__TAURI_INTERNALS__" in window)) return
 
     const timer = setTimeout(() => {

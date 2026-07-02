@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react"
-import { open as shellOpen } from "@tauri-apps/plugin-shell"
+import { openUrl } from "@tauri-apps/plugin-opener"
 import { AlertTriangle, Check, Loader2, Sparkles } from "lucide-react"
 import { toast } from "sonner"
 import { useTranslation } from "@capybudget/i18n"
@@ -22,6 +22,7 @@ import { ModelField, type ModelOption } from "./model-field"
 import { TestResult, type TestState } from "./test-result"
 
 declare const __IS_DEMO__: boolean
+declare const __MAS__: boolean
 
 // CLI `--model` aliases plus the empty default. The custom field on
 // ModelField covers any full model ID beyond these.
@@ -74,6 +75,9 @@ export function ProviderSection() {
   const [claudeProbing, setClaudeProbing] = useState(true)
 
   useEffect(() => {
+    // The Claude Code CLI provider spawns a subprocess — absent from the MAS
+    // build, so there's nothing to probe (and its detect module tree-shakes out).
+    if (__MAS__) return
     if (IS_DIST_BUILD) {
       // Skip the probe — Claude Code provider can't function without
       // the bundled MCP server (see IS_DIST_BUILD comment). Treat as
@@ -148,7 +152,7 @@ export function ProviderSection() {
                       type="button"
                       className="underline hover:text-foreground transition-colors"
                       onClick={() => {
-                        void shellOpen(BUILD_FROM_SOURCE_URL)
+                        void openUrl(BUILD_FROM_SOURCE_URL)
                       }}
                     >
                       {t("provider.runFromSource")}
@@ -197,6 +201,8 @@ export function ProviderSection() {
             description={t("provider.options.openai.description")}
             disabled={__IS_DEMO__}
           />
+          {/* Claude Code spawns a subprocess — the MAS build omits this option. */}
+          {!__MAS__ && (
           <ProviderRadio
             value="claude-cli"
             label={PROVIDER_LABELS["claude-cli"]}
@@ -211,7 +217,7 @@ export function ProviderSection() {
                     type="button"
                     className="underline hover:text-foreground transition-colors"
                     onClick={() => {
-                      void shellOpen(BUILD_FROM_SOURCE_URL)
+                      void openUrl(BUILD_FROM_SOURCE_URL)
                     }}
                   >
                     {t("provider.buildFromSource")}
@@ -230,7 +236,7 @@ export function ProviderSection() {
                     type="button"
                     className="underline hover:text-foreground transition-colors"
                     onClick={() => {
-                      void shellOpen("https://claude.ai/code")
+                      void openUrl("https://claude.ai/code")
                     }}
                   >
                     claude.ai/code
@@ -239,13 +245,14 @@ export function ProviderSection() {
               ) : null
             }
           />
+          )}
         </RadioGroup>
 
         {/* Per-provider configuration — null (Off) has no sub-config, and
             the demo can't run any provider. */}
         {!__IS_DEMO__ && provider !== null && (
           <div className="border-t pt-6">
-            {provider === "claude-cli" && (
+            {!__MAS__ && provider === "claude-cli" && (
               <ClaudeCliConfig
                 detected={claudeDetected}
                 probing={claudeProbing}

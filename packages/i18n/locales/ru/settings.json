@@ -142,6 +142,7 @@
     "downloading": "Загрузка…",
     "downloadingPct": "Загрузка… {{pct}}%",
     "restarting": "Перезапуск…",
-    "checkForUpdates": "Проверить обновления"
+    "checkForUpdates": "Проверить обновления",
+    "masManaged": "Обновления доставляются через Mac App Store."
   }
 }

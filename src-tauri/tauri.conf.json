@@ -13,9 +13,6 @@
     "fs": {
       "requireLiteralLeadingDot": false
     },
-    "shell": {
-      "open": "^(https?://|/).+"
-    },
     "updater": {
       "endpoints": [
         "https://github.com/vladimir-e/capybudget/releases/latest/download/latest.json"

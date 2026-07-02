@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { open as shellOpen } from "@tauri-apps/plugin-shell"
+import { openUrl } from "@tauri-apps/plugin-opener"
 import { ExternalLink, Eye, EyeOff, Loader2 } from "lucide-react"
 import { useTranslation } from "@capybudget/i18n"
 import { Button } from "@/components/ui/button"
@@ -224,7 +224,7 @@ function ProviderDocLink({ label, href }: { label: string; href: string }) {
     <button
       type="button"
       onClick={() => {
-        void shellOpen(href)
+        void openUrl(href)
       }}
       className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
     >

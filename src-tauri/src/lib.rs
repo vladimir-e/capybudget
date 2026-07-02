@@ -3,14 +3,19 @@ pub fn run() {
     let builder = tauri::Builder::default()
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_dialog::init())
-        .plugin(tauri_plugin_shell::init())
+        .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_store::Builder::default().build());
 
-    #[cfg(desktop)]
+    #[cfg(feature = "shell-spawn")]
+    let builder = builder.plugin(tauri_plugin_shell::init());
+
+    #[cfg(all(desktop, feature = "updater"))]
     let builder = builder
         .plugin(tauri_plugin_updater::Builder::new().build())
-        .plugin(tauri_plugin_process::init())
-        .plugin(tauri_plugin_window_state::Builder::default().build());
+        .plugin(tauri_plugin_process::init());
+
+    #[cfg(desktop)]
+    let builder = builder.plugin(tauri_plugin_window_state::Builder::default().build());
 
     builder
         .run(tauri::generate_context!())

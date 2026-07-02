@@ -10,6 +10,8 @@ import { useTranslation } from "@capybudget/i18n"
 import capyMascot from "@/assets/capy-neutral.webp"
 import type { IntelligenceProvider } from "@capybudget/intelligence"
 
+declare const __MAS__: boolean
+
 /* ── Mascot hero ───────────────────────────────────────────────── */
 
 function MascotHero() {
@@ -44,9 +46,10 @@ interface UnconfiguredEmptyStateProps {
   firstChipRef: RefObject<HTMLButtonElement | null>
 }
 
-// Brand names, not UI copy — verbatim across locales.
+// Brand names, not UI copy — verbatim across locales. Claude Code spawns a
+// subprocess, so it's absent from the sandboxed MAS build.
 const PROVIDER_CHIPS: ReadonlyArray<{ provider: IntelligenceProvider; label: string }> = [
-  { provider: "claude-cli", label: "Claude Code" },
+  ...(__MAS__ ? [] : [{ provider: "claude-cli" as IntelligenceProvider, label: "Claude Code" }]),
   { provider: "anthropic", label: "Anthropic" },
   { provider: "openai", label: "OpenAI" },
 ]

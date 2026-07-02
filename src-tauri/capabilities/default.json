@@ -23,15 +23,18 @@
       "identifier": "fs:scope",
       "allow": [{ "path": "**" }]
     },
-    "shell:default",
-    "shell:allow-stdin-write",
-    "shell:allow-open",
-    "shell:allow-kill",
+    {
+      "identifier": "opener:allow-open-url",
+      "allow": [{ "url": "https://*" }]
+    },
+    "opener:allow-reveal-item-in-dir",
     "store:default",
     "updater:default",
     "process:default",
     "process:allow-restart",
     "window-state:default",
+    "shell:allow-stdin-write",
+    "shell:allow-kill",
     {
       "identifier": "shell:allow-execute",
       "allow": [

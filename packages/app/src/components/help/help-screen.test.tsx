@@ -10,7 +10,7 @@ import {
   RouterProvider,
 } from "@tanstack/react-router"
 
-import { open as shellOpen } from "@tauri-apps/plugin-shell"
+import { openUrl } from "@tauri-apps/plugin-opener"
 import { HelpScreen } from "./help-screen"
 import { EN_HELP_GUIDE } from "./help-guide-content.en"
 
@@ -96,7 +96,7 @@ describe("HelpScreen", () => {
     await renderHelp()
 
     await user.click(screen.getByRole("button", { name: /try the live demo/i }))
-    expect(shellOpen).toHaveBeenCalledWith("https://demo.capybudget.app")
+    expect(openUrl).toHaveBeenCalledWith("https://demo.capybudget.app")
   })
 
   it("dismisses to the budget on ESC", async () => {

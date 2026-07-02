@@ -1,5 +1,5 @@
 import { AlertTriangle, Check, ExternalLink, Loader2 } from "lucide-react"
-import { open as shellOpen } from "@tauri-apps/plugin-shell"
+import { openUrl } from "@tauri-apps/plugin-opener"
 import { useTranslation } from "@capybudget/i18n"
 import { getToolLabel } from "@/lib/tool-labels"
 import { billingCtaUrl } from "@/lib/billing-cta"
@@ -211,7 +211,7 @@ function ErrorBubble({ block }: { block: ErrorBlock }) {
           <button
             type="button"
             onClick={() => {
-              void shellOpen(ctaUrl)
+              void openUrl(ctaUrl)
             }}
             className="inline-flex items-center gap-1.5 text-xs font-medium text-destructive/90 underline-offset-4 hover:underline"
           >

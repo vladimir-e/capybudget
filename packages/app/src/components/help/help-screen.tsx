@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import { useNavigate, useSearch } from "@tanstack/react-router"
 import { ArrowLeft, ExternalLink } from "lucide-react"
-import { open as shellOpen } from "@tauri-apps/plugin-shell"
+import { openUrl } from "@tauri-apps/plugin-opener"
 import { useTranslation } from "@capybudget/i18n"
 import { Button } from "@/components/ui/button"
 import { useHelpGuide, type HelpBlock } from "./help-guide-content"
@@ -112,7 +112,7 @@ export function HelpScreen() {
             {!__IS_DEMO__ && (
               <button
                 type="button"
-                onClick={() => void shellOpen(DEMO_URL)}
+                onClick={() => void openUrl(DEMO_URL)}
                 className="mt-5 inline-flex items-center gap-1.5 text-sm text-brand transition-colors hover:text-brand/80"
               >
                 {t("tryDemo")}
