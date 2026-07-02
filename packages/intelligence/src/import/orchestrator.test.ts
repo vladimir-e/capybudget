@@ -578,8 +578,8 @@ describe("ImportOrchestrator — duplicate persistence", () => {
     expect(session.calls).toHaveLength(1); // mapping only — no enrich batch
     // Survives a serialize → parse round-trip (resume sees it).
     const reread = await staging.readTransactions();
-    expect(reread![0].duplicate).toBe(true);
-    expect(reread![0].duplicateConfidence).toBe("high");
+    expect(reread!.rows[0].duplicate).toBe(true);
+    expect(reread!.rows[0].duplicateConfidence).toBe("high");
   });
 });
 

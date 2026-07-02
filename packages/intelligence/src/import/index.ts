@@ -26,7 +26,7 @@ export type {
 } from "./events";
 
 // Injected seams
-export type { StagingStore, SourceFile, ImportState } from "./staging-store";
+export type { StagingStore, SourceFile, ImportState, StagedTransactions } from "./staging-store";
 export { FileStagingStore, parseImportCsv } from "./staging-store";
 export type { BudgetDataProvider } from "./budget-data";
 

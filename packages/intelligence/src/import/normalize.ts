@@ -16,6 +16,7 @@ import {
   buildCsvTable,
   buildStaged,
   detectHeaderRow,
+  getToday,
   isViableHeaderRow,
   transformCsv,
   HEADER_SCAN_ROWS,
@@ -101,7 +102,7 @@ export async function normalizeCsv(
   // detector, the prompt's numbered row listing, and the model's `headerRow`
   // override all index into this same blank-line-stripped grid.
   const grid = Papa.parse<string[]>(source.content, { header: false, skipEmptyLines: true }).data;
-  const importDate = options.importDate ?? todayIso();
+  const importDate = options.importDate ?? getToday();
 
   const headerPick = detectHeaderRow(grid);
   options.onProgress?.({ rows: 0, total: Math.max(grid.length - headerPick - 1, 0) });
@@ -410,13 +411,6 @@ function hasMoneySignal(value: string): boolean {
   return /[$€£¥₽₹₱₴₫₦₩₪₿]/.test(value) || /[.,]\d{2}\b/.test(value) || /^\s*[-+(]/.test(value);
 }
 
-function todayIso(): string {
-  const now = new Date();
-  const month = String(now.getMonth() + 1).padStart(2, "0");
-  const day = String(now.getDate()).padStart(2, "0");
-  return `${now.getFullYear()}-${month}-${day}`;
-}
-
 /** A `string`, `{ column }`, or `{ columns, separator }` → `ColumnRef`; else null. */
 function toColumnRef(raw: unknown): ColumnRef | null {
   const single = asString(raw);
@@ -542,6 +536,7 @@ export async function normalizeImage(
     `Read every transaction from this ${describeKind(source.mediaType)} (a receipt, bank screenshot, or statement scan) and return them as records.`,
     `Return "count" first — the total number of transactions you see — then the rows themselves.`,
     `For each transaction: date as YYYY-MM-DD, amount as signed integer cents (negative = money out, positive = money in), type (expense/income/transfer), the merchant or payee as "description", an inferred category as "sourceCategory" (empty string if none), and the account name as "sourceAccount" (empty string if none).`,
+    `Dates must be exactly YYYY-MM-DD. When a row has no parseable date — the date column reads "Pending", or the source shows no dates — use today's date, ${getToday()}.`,
     `Never invent transactions — extract only what is visible. If the file contains no transaction data (e.g. a photo of a person, a logo, an unrelated document), return the no_data outcome with a short message.`,
   ].join("\n");
 

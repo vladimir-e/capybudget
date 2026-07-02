@@ -1,21 +1,10 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect } from "vitest";
 import { serializeImportCsv, type ImportTransaction } from "@capybudget/core";
 import { makeImportTransaction } from "@capybudget/core/test-factories";
 import type { DirEntry, FileAdapter, FileStat } from "@capybudget/persistence";
 import { FileStagingStore, parseImportCsv } from "./staging-store";
 
 describe("parseImportCsv", () => {
-  // Validation warns about dropped/fixed rows via console.warn — expected here
-  // since several cases feed deliberately-broken rows. Capture it to keep the
-  // test output clean and to assert the row was flagged for the right reason.
-  let warnSpy: ReturnType<typeof vi.spyOn>;
-  beforeEach(() => {
-    warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
-  });
-  afterEach(() => {
-    warnSpy.mockRestore();
-  });
-
   it("round-trips serialized staging back into typed rows", () => {
     const rows: ImportTransaction[] = [
       makeImportTransaction({ id: "imp-1", amount: -2500, merchant: "Whole Foods", categoryId: "cat-1", categoryConfidence: "high", duplicate: true, duplicateConfidence: "low" }),
@@ -23,55 +12,71 @@ describe("parseImportCsv", () => {
     ];
     const parsed = parseImportCsv(serializeImportCsv(rows));
 
-    expect(parsed).toHaveLength(2);
-    expect(parsed[0]).toMatchObject({ id: "imp-1", amount: -2500, merchant: "Whole Foods", categoryConfidence: "high", duplicate: true, duplicateConfidence: "low" });
-    expect(parsed[1]).toMatchObject({ id: "imp-2", amount: 200000, type: "income", description: 'WITH, COMMA "quote"', duplicate: false, duplicateConfidence: "" });
+    expect(parsed.rows).toHaveLength(2);
+    expect(parsed.warnings).toHaveLength(0);
+    expect(parsed.droppedCount).toBe(0);
+    expect(parsed.rows[0]).toMatchObject({ id: "imp-1", amount: -2500, merchant: "Whole Foods", categoryConfidence: "high", duplicate: true, duplicateConfidence: "low" });
+    expect(parsed.rows[1]).toMatchObject({ id: "imp-2", amount: 200000, type: "income", description: 'WITH, COMMA "quote"', duplicate: false, duplicateConfidence: "" });
   });
 
   it("defaults missing columns gracefully", () => {
     const parsed = parseImportCsv("id,date,amount\nimp-1,2026-01-01,-100");
-    expect(parsed[0]).toMatchObject({ id: "imp-1", amount: -100, merchant: "", categoryId: "", type: "expense", duplicate: false, duplicateConfidence: "" });
+    expect(parsed.rows[0]).toMatchObject({ id: "imp-1", amount: -100, merchant: "", categoryId: "", type: "expense", duplicate: false, duplicateConfidence: "" });
   });
 
   it("degrades a garbage duplicateConfidence value to empty", () => {
     const parsed = parseImportCsv("id,date,amount,duplicate,duplicateConfidence\nimp-1,2026-01-01,-100,true,maybe");
-    expect(parsed[0]).toMatchObject({ duplicate: true, duplicateConfidence: "" });
+    expect(parsed.rows[0]).toMatchObject({ duplicate: true, duplicateConfidence: "" });
   });
 
   // The resume seam reads staging an earlier run, a crash, or a hand-edit
   // wrote — none type-checked. Validation drops genuinely-broken rows so the
-  // orchestrator never enriches and merges a garbage row.
+  // orchestrator never enriches and merges a garbage row, and reports them
+  // back so the caller can surface the skip.
   it("drops a row whose amount isn't a number", () => {
     const parsed = parseImportCsv("id,date,amount\nimp-1,2026-01-01,not-a-number");
-    expect(parsed).toHaveLength(0);
-    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("invalid amount"));
+    expect(parsed.rows).toHaveLength(0);
+    expect(parsed.droppedCount).toBe(1);
+    expect(parsed.warnings).toEqual([expect.stringContaining("invalid amount")]);
   });
 
   it("drops a row with a malformed date", () => {
     const parsed = parseImportCsv("id,date,amount\nimp-1,March 1st,-100");
-    expect(parsed).toHaveLength(0);
-    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("invalid date"));
+    expect(parsed.rows).toHaveLength(0);
+    expect(parsed.droppedCount).toBe(1);
+    expect(parsed.warnings).toEqual([expect.stringContaining("invalid date")]);
   });
 
   it("keeps a deliberate zero-amount row", () => {
     const parsed = parseImportCsv("id,date,amount\nimp-1,2026-01-01,0");
-    expect(parsed).toHaveLength(1);
-    expect(parsed[0].amount).toBe(0);
+    expect(parsed.rows).toHaveLength(1);
+    expect(parsed.rows[0].amount).toBe(0);
   });
 
   // `Number("")` is 0, so a blank amount would merge as a real $0 transaction
   // unless parse maps it to NaN for validation to drop. Distinct from "0".
   it("drops a row with a blank amount", () => {
     const parsed = parseImportCsv('id,date,amount,description\nimp-1,2026-01-01,," "');
-    expect(parsed).toHaveLength(0);
-    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("invalid amount"));
+    expect(parsed.rows).toHaveLength(0);
+    expect(parsed.droppedCount).toBe(1);
+    expect(parsed.warnings).toEqual([expect.stringContaining("invalid amount")]);
   });
 
-  it("backfills a missing id so the row can be matched back by id", () => {
+  it("backfills a missing id without counting the row as dropped", () => {
     const parsed = parseImportCsv("id,date,amount\n,2026-01-01,-100");
-    expect(parsed).toHaveLength(1);
-    expect(parsed[0].id).toBeTruthy();
-    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("missing id"));
+    expect(parsed.rows).toHaveLength(1);
+    expect(parsed.rows[0].id).toBeTruthy();
+    expect(parsed.droppedCount).toBe(0);
+    expect(parsed.warnings).toEqual([expect.stringContaining("missing id")]);
+  });
+
+  it("counts every dropped row so the preview can say how many were skipped", () => {
+    const parsed = parseImportCsv(
+      "id,date,amount\nimp-1,Pending,-100\nimp-2,2026-01-01,oops\nimp-3,2026-01-02,-200",
+    );
+    expect(parsed.rows.map((r) => r.id)).toEqual(["imp-3"]);
+    expect(parsed.droppedCount).toBe(2);
+    expect(parsed.warnings).toHaveLength(2);
   });
 });
 
@@ -168,7 +173,7 @@ describe("FileStagingStore", () => {
     await store.writeContext({ "imp-1": { examples: [], merchantStats: [], categoryStats: [] } });
     await store.writeState({ phase: "history", rowCount: 1, updatedAt: "2026-01-01T00:00:00Z" });
 
-    expect((await store.readTransactions())![0].merchant).toBe("X");
+    expect((await store.readTransactions())!.rows[0].merchant).toBe("X");
     expect(await store.readContext()).toHaveProperty("imp-1");
     expect((await store.readState())?.phase).toBe("history");
   });
@@ -213,6 +218,6 @@ describe("FileStagingStore", () => {
 
     expect(await fa.exists(`${BASE}/transactions.csv.tmp`)).toBe(false);
     expect(await fa.exists(`${BASE}/state.json.tmp`)).toBe(false);
-    expect((await store.readTransactions())![0].id).toBe("imp-1");
+    expect((await store.readTransactions())!.rows[0].id).toBe("imp-1");
   });
 });

@@ -39,7 +39,7 @@ import {
   type TerminalLogEntry,
 } from "./events";
 import { isImageOrPdf, normalizeCsv, normalizeImage } from "./normalize";
-import type { StagingStore } from "./staging-store";
+import type { StagedTransactions, StagingStore } from "./staging-store";
 
 export interface OrchestratorDeps {
   session: StructuredSession;
@@ -85,8 +85,11 @@ export class ImportOrchestrator {
       const existing = await this.deps.staging.readTransactions();
       if (existing) {
         // Resume: staging exists → pick up at Categorizing over the remainder.
-        this.log("info", "categorizing", `Resuming import — ${existing.length} rows already staged.`);
-        await this.runCategorizing(existing);
+        if (existing.droppedCount > 0) {
+          this.log("warn", "categorizing", describeDroppedRows(existing));
+        }
+        this.log("info", "categorizing", `Resuming import — ${existing.rows.length} rows already staged.`);
+        await this.runCategorizing(existing.rows);
         return;
       }
       await this.runFromScratch();
@@ -100,12 +103,12 @@ export class ImportOrchestrator {
    */
   async enrich(): Promise<void> {
     return this.run(async () => {
-      const rows = await this.deps.staging.readTransactions();
-      if (!rows) {
+      const staged = await this.deps.staging.readTransactions();
+      if (!staged) {
         this.fail("internal", "No staged transactions to enrich.");
         return;
       }
-      await this.runCategorizing(rows);
+      await this.runCategorizing(staged.rows);
     });
   }
 
@@ -442,6 +445,13 @@ function describeSkippedRows(name: string, errors: TransformError[]): string {
   const more = errors.length > shown.length ? ` (+${errors.length - shown.length} more)` : "";
   const noun = errors.length === 1 ? "row" : "rows";
   return `${errors.length} ${noun} skipped in ${name} — couldn't parse: ${shown.join("; ")}${more}`;
+}
+
+function describeDroppedRows(staged: StagedTransactions): string {
+  const shown = staged.warnings.slice(0, 3);
+  const more = staged.warnings.length > shown.length ? ` (+${staged.warnings.length - shown.length} more)` : "";
+  const noun = staged.droppedCount === 1 ? "row" : "rows";
+  return `${staged.droppedCount} staged ${noun} skipped — failed validation: ${shown.join("; ")}${more}`;
 }
 
 // ── Pure row transforms ──────────────────────────────────────────

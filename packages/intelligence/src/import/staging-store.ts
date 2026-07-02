@@ -70,8 +70,9 @@ export interface StagingStore {
    *  sources through its own disk hook. */
   writeSource(name: string, content: string): Promise<void>;
 
-  /** The staged rows, or `null` if `transactions.csv` doesn't exist yet. */
-  readTransactions(): Promise<ImportTransaction[] | null>;
+  /** The staged rows plus read-validation fallout, or `null` if
+   *  `transactions.csv` doesn't exist yet. */
+  readTransactions(): Promise<StagedTransactions | null>;
   /** Overwrite `transactions.csv` with the given rows. */
   writeTransactions(rows: ImportTransaction[]): Promise<void>;
 
@@ -96,6 +97,16 @@ export interface StagingStore {
   clear(): Promise<void>;
 }
 
+/** What a staging read yields: the surviving rows plus what validation did to
+ *  the rest, so callers can surface skips instead of silently shrinking. */
+export interface StagedTransactions {
+  rows: ImportTransaction[];
+  /** One note per row validation dropped or auto-fixed. */
+  warnings: string[];
+  /** Rows dropped by the critical checks (invalid date/amount/type). */
+  droppedCount: number;
+}
+
 /** Parse a serialized `transactions.csv` back into typed rows. Mirrors
  *  `serializeImportCsv`'s columns; missing/extra columns degrade gracefully
  *  (empty string) so a hand-edited or partially-written file still loads.
@@ -104,9 +115,10 @@ export interface StagingStore {
  *  crash mid-write, or the user's own hand-edits, none of which the type
  *  system guards. `validateImportTransactions` is the gate: it backfills a
  *  missing id and drops rows with a malformed date/amount/type so the
- *  orchestrator never enriches and merges a garbage row. Dropped rows are
- *  warned, not swallowed silently. */
-export function parseImportCsv(content: string): ImportTransaction[] {
+ *  orchestrator never enriches and merges a garbage row. Dropped rows travel
+ *  back as `warnings` + `droppedCount` for the caller to surface, not
+ *  swallowed silently. */
+export function parseImportCsv(content: string): StagedTransactions {
   const { data } = Papa.parse<Record<string, string>>(content, {
     header: true,
     skipEmptyLines: true,
@@ -139,11 +151,8 @@ export function parseImportCsv(content: string): ImportTransaction[] {
           : "",
     };
   });
-  const { valid, warnings } = validateImportTransactions(rows);
-  if (warnings.length > 0) {
-    console.warn(`[import] staging validation dropped/fixed rows:\n${warnings.join("\n")}`);
-  }
-  return valid;
+  const { valid, warnings, droppedCount } = validateImportTransactions(rows);
+  return { rows: valid, warnings, droppedCount };
 }
 
 const IMPORT_DIR_REL = ".capy/import";
@@ -201,7 +210,7 @@ export class FileStagingStore implements StagingStore {
     await this.fileAdapter.writeFile(await this.fileAdapter.join(sourcesDir, name), content);
   }
 
-  async readTransactions(): Promise<ImportTransaction[] | null> {
+  async readTransactions(): Promise<StagedTransactions | null> {
     const p = await this.path("transactions.csv");
     if (!(await this.fileAdapter.exists(p))) return null;
     return parseImportCsv(await this.fileAdapter.readFile(p));

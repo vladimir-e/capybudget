@@ -152,6 +152,7 @@ export type {
   StagingStore,
   SourceFile,
   ImportState,
+  StagedTransactions,
   BudgetDataProvider,
   NormalizeCsvResult,
   NormalizeImageResult,

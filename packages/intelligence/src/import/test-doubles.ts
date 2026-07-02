@@ -9,7 +9,7 @@ import type { Account, Category, ImportTransaction, RowContext, TransferContext,
 import { parseStructured } from "../structured";
 import type { JsonSchema, StructuredCallOptions, StructuredMessage, StructuredSession } from "../structured";
 import type { BudgetDataProvider } from "./budget-data";
-import type { ImportState, SourceFile, StagingStore } from "./staging-store";
+import type { ImportState, SourceFile, StagedTransactions, StagingStore } from "./staging-store";
 
 /** An in-memory {@link StagingStore} — the resume substrate without a disk. */
 export class MemoryStagingStore implements StagingStore {
@@ -43,8 +43,9 @@ export class MemoryStagingStore implements StagingStore {
     if (existing >= 0) this.sources[existing] = file;
     else this.sources.push(file);
   }
-  async readTransactions(): Promise<ImportTransaction[] | null> {
-    return this.transactions ? this.transactions.map((r) => ({ ...r })) : null;
+  async readTransactions(): Promise<StagedTransactions | null> {
+    if (!this.transactions) return null;
+    return { rows: this.transactions.map((r) => ({ ...r })), warnings: [], droppedCount: 0 };
   }
   async writeTransactions(rows: ImportTransaction[]): Promise<void> {
     this.transactions = rows.map((r) => ({ ...r }));
