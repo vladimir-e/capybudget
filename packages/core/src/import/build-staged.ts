@@ -1,4 +1,6 @@
 import type { ImportTransaction, StagedRecord } from "./import-types";
+import { coerceIsoDate } from "./import-dates";
+import { getToday } from "../utils/date-utils";
 
 /** The readable stored `description` is capped here — long enough to identify a
  *  merchant, short enough to drop trailing reference-number noise. The same cap
@@ -13,17 +15,20 @@ export interface BuildStagedOptions {
 /**
  * Turn intermediate {@link StagedRecord}s into staged {@link ImportTransaction}s
  * — the single sink both normalization paths converge on. Owns the staging
- * invariants (sequential ids, trim-45 `description`, sign/type, empty resolved
- * fields); see `specs/IMPORT.md` § Normalizing.
+ * invariants (sequential ids, trim-45 `description`, sign/type, date coerced to
+ * `YYYY-MM-DD` with unparseable dates — a "Pending" column, a cropped
+ * screenshot — degrading to today, empty resolved fields); see
+ * `specs/IMPORT.md` § Normalizing.
  */
 export function buildStaged(
   records: StagedRecord[],
   options: BuildStagedOptions = {},
 ): ImportTransaction[] {
   const startId = options.startId ?? 1;
+  const today = getToday();
   return records.map((record, i) => ({
     id: `imp-${startId + i}`,
-    date: record.date,
+    date: coerceIsoDate(record.date) ?? today,
     description: trimDescription(record.description),
     amount: record.amount === 0 ? 0 : record.amount,
     type: record.type,

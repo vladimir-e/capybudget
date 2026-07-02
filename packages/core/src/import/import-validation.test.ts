@@ -93,11 +93,12 @@ describe("validateImportTransactions", () => {
       makeRow({ id: "c", date: "bad" }),
       makeRow({ id: "d", amount: NaN }),
     ];
-    const { valid, warnings } = validateImportTransactions(rows);
+    const { valid, warnings, droppedCount } = validateImportTransactions(rows);
     expect(valid).toHaveLength(2); // first row OK, second auto-fixed
     expect(valid[0].id).toBe("a");
     expect(valid[1].id).not.toBe(""); // auto-generated
     expect(warnings).toHaveLength(3); // auto-fix + 2 drops
+    expect(droppedCount).toBe(2); // the auto-fix doesn't count as a drop
   });
 
   it("accepts zero amount as valid", () => {

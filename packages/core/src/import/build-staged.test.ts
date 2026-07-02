@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { buildStaged, DESCRIPTION_MAX_LENGTH } from "./build-staged";
+import { getToday } from "../utils/date-utils";
 import type { StagedRecord } from "./import-types";
 
 function record(overrides: Partial<StagedRecord> = {}): StagedRecord {
@@ -64,6 +65,37 @@ describe("buildStaged", () => {
       expect(t.description.endsWith("🎉")).toBe(true);
       // No lone surrogate (a naive slice(0,45) would leave half the emoji).
       expect(t.description).not.toMatch(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])/);
+    });
+  });
+
+  // The extraction path copies the model's date verbatim into the record, and
+  // staging read-back drops any row that isn't YYYY-MM-DD — so buildStaged must
+  // guarantee a valid date no matter what the model emitted (a "Pending"
+  // column, a cropped screenshot, a non-ISO format).
+  describe("date coercion", () => {
+    it("keeps a valid ISO date", () => {
+      const [t] = buildStaged([record({ date: "2026-01-15" })]);
+      expect(t.date).toBe("2026-01-15");
+    });
+
+    it("coerces common bank formats to ISO", () => {
+      const dates = ["01/15/2026", "1/5/2026", "2026/01/15", "01-15-2026"];
+      const result = buildStaged(dates.map((date) => record({ date })));
+      expect(result.map((t) => t.date)).toEqual([
+        "2026-01-15",
+        "2026-01-05",
+        "2026-01-15",
+        "2026-01-15",
+      ]);
+    });
+
+    it("falls back to today for an unparseable date", () => {
+      const result = buildStaged([
+        record({ date: "Pending" }),
+        record({ date: "" }),
+        record({ date: "no date visible" }),
+      ]);
+      for (const t of result) expect(t.date).toBe(getToday());
     });
   });
 

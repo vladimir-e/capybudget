@@ -211,9 +211,11 @@ export {
   transformCsv,
   serializeImportCsv,
   parseCurrencyToCents,
-  SUPPORTED_DATE_FORMATS,
   DEFAULT_TRANSFER_PATTERNS,
 } from "./import/csv-transform";
+
+// Import date parsing (format vocabulary + sniffing coercion)
+export { SUPPORTED_DATE_FORMATS, coerceIsoDate } from "./import/import-dates";
 
 // Analytics
 export type {

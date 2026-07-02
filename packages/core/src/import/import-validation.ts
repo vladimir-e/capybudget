@@ -3,6 +3,7 @@ import type { ImportTransaction } from "./import-types";
 export interface ValidationResult {
   valid: ImportTransaction[];
   warnings: string[];
+  droppedCount: number;
 }
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -11,12 +12,14 @@ const VALID_TYPES = new Set(["expense", "income", "transfer"]);
 /**
  * Validate AI-produced import transactions.
  * Drops rows that fail critical checks and auto-fixes minor issues.
+ * `warnings` covers both; `droppedCount` counts only the dropped rows.
  */
 export function validateImportTransactions(
   raw: ImportTransaction[],
 ): ValidationResult {
   const valid: ImportTransaction[] = [];
   const warnings: string[] = [];
+  let droppedCount = 0;
 
   for (let i = 0; i < raw.length; i++) {
     const row = raw[i];
@@ -41,6 +44,7 @@ export function validateImportTransactions(
     // Critical: date must match YYYY-MM-DD
     if (!DATE_RE.test(fixedRow.date)) {
       warnings.push(`${label}: invalid date "${fixedRow.date}", row dropped`);
+      droppedCount++;
       continue;
     }
 
@@ -49,17 +53,19 @@ export function validateImportTransactions(
       warnings.push(
         `${label}: invalid amount "${fixedRow.amount}", row dropped`,
       );
+      droppedCount++;
       continue;
     }
 
     // Critical: type must be one of the valid values
     if (!VALID_TYPES.has(fixedRow.type)) {
       warnings.push(`${label}: invalid type "${fixedRow.type}", row dropped`);
+      droppedCount++;
       continue;
     }
 
     valid.push(fixedRow);
   }
 
-  return { valid, warnings };
+  return { valid, warnings, droppedCount };
 }

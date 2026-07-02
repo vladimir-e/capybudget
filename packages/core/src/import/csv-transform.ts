@@ -8,6 +8,7 @@
 
 import type { ImportTransaction, StagedRecord } from "./import-types";
 import { buildStaged } from "./build-staged";
+import { DATE_FORMATS, isCalendarDate } from "./import-dates";
 import type {
   CsvMapping,
   ColumnRef,
@@ -155,41 +156,6 @@ function resolveSourceAccount(
 
 // ── Date parsing ────────────────────────────────────────────────
 
-const DATE_FORMATS: Record<string, (s: string) => string | null> = {
-  "YYYY-MM-DD": (s) => {
-    const m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-    return m ? `${m[1]}-${m[2]}-${m[3]}` : null;
-  },
-  "MM/DD/YYYY": (s) => {
-    const m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-    return m ? `${m[3]}-${pad2(m[1])}-${pad2(m[2])}` : null;
-  },
-  "DD/MM/YYYY": (s) => {
-    const m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-    return m ? `${m[3]}-${pad2(m[2])}-${pad2(m[1])}` : null;
-  },
-  "DD.MM.YYYY": (s) => {
-    const m = s.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/);
-    return m ? `${m[3]}-${pad2(m[2])}-${pad2(m[1])}` : null;
-  },
-  "MM-DD-YYYY": (s) => {
-    const m = s.match(/^(\d{1,2})-(\d{1,2})-(\d{4})$/);
-    return m ? `${m[3]}-${pad2(m[1])}-${pad2(m[2])}` : null;
-  },
-  "YYYY/MM/DD": (s) => {
-    const m = s.match(/^(\d{4})\/(\d{2})\/(\d{2})$/);
-    return m ? `${m[1]}-${m[2]}-${m[3]}` : null;
-  },
-};
-
-/** The date-format patterns {@link transformCsv} can parse — the canonical
- *  vocabulary a model-supplied `date.format` must be constrained to. */
-export const SUPPORTED_DATE_FORMATS: readonly string[] = Object.keys(DATE_FORMATS);
-
-function pad2(s: string): string {
-  return s.length === 1 ? `0${s}` : s;
-}
-
 function parseDate(value: string, format: string, rowNum: number): string {
   const parser = DATE_FORMATS[format];
   if (!parser) {
@@ -206,9 +172,7 @@ function parseDate(value: string, format: string, rowNum: number): string {
 }
 
 function validateDate(isoDate: string, rawValue: string, rowNum: number): void {
-  const [y, m, d] = isoDate.split("-").map(Number);
-  const date = new Date(y, m - 1, d);
-  if (date.getFullYear() !== y || date.getMonth() !== m - 1 || date.getDate() !== d) {
+  if (!isCalendarDate(isoDate)) {
     throw new Error(`Row ${rowNum}: invalid date "${rawValue}" (parsed as ${isoDate})`);
   }
 }
