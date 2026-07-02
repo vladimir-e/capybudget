@@ -21,7 +21,8 @@
 |---|---|
 | File read/write | `@tauri-apps/plugin-fs` |
 | Folder picker | `@tauri-apps/plugin-dialog` |
-| Subprocess + open URLs | `@tauri-apps/plugin-shell` (Claude CLI adapter, external link handling) |
+| Open URLs + reveal in file manager | `@tauri-apps/plugin-opener` (external links, Reveal in Finder) |
+| Subprocess spawning | `@tauri-apps/plugin-shell` (Claude CLI adapter only; excluded from the sandboxed MAS build) |
 | App config persistence | `@tauri-apps/plugin-store` (intelligence provider + API keys) |
 
 ## Principles

@@ -6,6 +6,4 @@ export async function openUrl(url: string | URL): Promise<void> {
   }
 }
 
-export async function openPath(_path: string): Promise<void> {}
-
 export async function revealItemInDir(_path: string | string[]): Promise<void> {}
