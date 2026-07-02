@@ -38,7 +38,7 @@ export interface IntelligenceConfig {
  */
 export const DEFAULT_INTELLIGENCE_CONFIG: IntelligenceConfig = {
   provider: null,
-  anthropic: { apiKey: "", model: "claude-sonnet-4-6" },
+  anthropic: { apiKey: "", model: "claude-sonnet-5" },
   openai: { apiKey: "", model: "gpt-5.5" },
   claudeCli: { model: "" },
 }

@@ -8,8 +8,8 @@
 
 const seeded = {
   provider: "claude-cli",
-  anthropic: { apiKey: "", model: "claude-sonnet-4-6" },
-  openai: { apiKey: "", model: "gpt-5" },
+  anthropic: { apiKey: "", model: "claude-sonnet-5" },
+  openai: { apiKey: "", model: "gpt-5.5" },
 }
 
 export const Store = {

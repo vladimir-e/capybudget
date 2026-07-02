@@ -11,6 +11,7 @@ CHANGELOG PHILOSOPHY:
 
 ## Unreleased
 
+- **Capy** - Refreshed AI model pickers: Fable joins the Claude Code options, and the Anthropic option and default move to Claude Sonnet 5.
 - **Import** - Screenshot rows without a readable date (like pending transactions) now import dated today instead of silently vanishing, and the preview says when any rows were skipped.
 
 ## 1.4.0 — 2026-06-27
