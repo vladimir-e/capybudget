@@ -67,8 +67,13 @@ export function useImportOrchestrator(budgetPath: string) {
   const apply = useImportStore((s) => s.apply);
   const beginRun = useImportStore((s) => s.beginRun);
 
-  const supported = canImport(config.provider);
   const pdfSupported = canReadPdf(config.provider);
+  // Type-capable provider AND its key present — exactly what
+  // createStructuredImportSession requires to build a session. Gating the UI on
+  // this turns the runtime providerRequired failure into an up-front CTA.
+  const canStart =
+    canImport(config.provider) &&
+    !!(config.provider === "anthropic" ? config.anthropic.apiKey : config.openai.apiKey);
 
   const staging = useMemo(
     () => new FileStagingStore(tauriFileAdapter, budgetPath),
@@ -181,5 +186,5 @@ export function useImportOrchestrator(budgetPath: string) {
     await orchestrator.stop();
   }, []);
 
-  return { supported, pdfSupported, start, enrich, stop, cancel, staging };
+  return { canStart, pdfSupported, provider: config.provider, start, enrich, stop, cancel, staging };
 }

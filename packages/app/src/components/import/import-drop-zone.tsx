@@ -5,6 +5,7 @@ import {
   FileUp,
   Image,
   Loader2,
+  Settings,
   Sparkles,
   Upload,
   X,
@@ -34,6 +35,9 @@ interface ImportDropZoneProps {
   selectedAccountId: string;
   onAccountChange: (id: string) => void;
   onStart: () => void;
+  canStart: boolean;
+  providerIsClaudeCli: boolean;
+  onSetupAi: () => void;
 }
 
 export function ImportDropZone({
@@ -52,6 +56,9 @@ export function ImportDropZone({
   selectedAccountId,
   onAccountChange,
   onStart,
+  canStart,
+  providerIsClaudeCli,
+  onSetupAi,
 }: ImportDropZoneProps) {
   const { t } = useTranslation(["import", "common"]);
   const { date } = useFormatters();
@@ -154,39 +161,48 @@ export function ImportDropZone({
               );
             })}
           </div>
-          <div className="space-y-1.5">
-            <div className="text-xs font-medium uppercase tracking-wider text-muted-foreground/70">
-              {t("dropZone.instructions")}
-            </div>
-            <textarea
-              value={localInstructions ?? ""}
-              onChange={(e) => onInstructionsChange(e.target.value)}
-              onBlur={onInstructionsBlur}
-              placeholder={t("dropZone.instructionsPlaceholder")}
-              rows={2}
-              className="w-full resize-none rounded-xl border border-input bg-muted/50 px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground/60 focus:border-brand/50 focus:outline-none focus:ring-1 focus:ring-brand/20 dark:bg-input/30"
+          {canStart ? (
+            <>
+              <div className="space-y-1.5">
+                <div className="text-xs font-medium uppercase tracking-wider text-muted-foreground/70">
+                  {t("dropZone.instructions")}
+                </div>
+                <textarea
+                  value={localInstructions ?? ""}
+                  onChange={(e) => onInstructionsChange(e.target.value)}
+                  onBlur={onInstructionsBlur}
+                  placeholder={t("dropZone.instructionsPlaceholder")}
+                  rows={2}
+                  className="w-full resize-none rounded-xl border border-input bg-muted/50 px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground/60 focus:border-brand/50 focus:outline-none focus:ring-1 focus:ring-brand/20 dark:bg-input/30"
+                />
+              </div>
+              <div className="flex items-center justify-between pt-1">
+                <AccountSelector
+                  accounts={accounts}
+                  value={selectedAccountId}
+                  onChange={onAccountChange}
+                  placeholder={t("dropZone.anyAccount")}
+                  clearable
+                />
+                <Button
+                  onClick={onStart}
+                  disabled={uploadingFiles.size > 0}
+                  className="gap-2 rounded-xl px-6 py-5 text-base font-semibold shadow-lg shadow-brand/20"
+                >
+                  <Sparkles className="h-4.5 w-4.5" />
+                  {t("dropZone.start")}
+                </Button>
+              </div>
+              <p className="pt-1.5 text-right text-xs text-muted-foreground/50">
+                {t("dropZone.rerunHint")}
+              </p>
+            </>
+          ) : (
+            <ImportSetupAiCta
+              providerIsClaudeCli={providerIsClaudeCli}
+              onSetupAi={onSetupAi}
             />
-          </div>
-          <div className="flex items-center justify-between pt-1">
-            <AccountSelector
-              accounts={accounts}
-              value={selectedAccountId}
-              onChange={onAccountChange}
-              placeholder={t("dropZone.anyAccount")}
-              clearable
-            />
-            <Button
-              onClick={onStart}
-              disabled={uploadingFiles.size > 0}
-              className="gap-2 rounded-xl px-6 py-5 text-base font-semibold shadow-lg shadow-brand/20"
-            >
-              <Sparkles className="h-4.5 w-4.5" />
-              {t("dropZone.start")}
-            </Button>
-          </div>
-          <p className="pt-1.5 text-right text-xs text-muted-foreground/50">
-            {t("dropZone.rerunHint")}
-          </p>
+          )}
         </div>
       )}
     </>
@@ -194,31 +210,32 @@ export function ImportDropZone({
 }
 
 /**
- * The set-up-your-AI-provider nudge — same one the empty Capy overlay
- * surfaces. Exported for the screen's unsupported state.
+ * The wall at the end of the file-attach flow: the files are staged but no
+ * import-capable provider is configured. Deep-links to the Settings
+ * intelligence tab. The CLI case gets its own wording — that user has AI (chat
+ * works) but import needs an API provider.
  */
-export function ProviderUnsupportedBanner({
-  onOpenSettings,
+function ImportSetupAiCta({
+  providerIsClaudeCli,
+  onSetupAi,
 }: {
-  onOpenSettings: () => void;
+  providerIsClaudeCli: boolean;
+  onSetupAi: () => void;
 }) {
   const { t } = useTranslation("import");
   return (
-    <div className="flex flex-col items-center justify-center rounded-2xl border border-brand/20 bg-brand/5 px-6 py-10 text-center">
+    <div className="flex flex-col items-center justify-center rounded-2xl border border-brand/20 bg-brand/5 px-6 py-8 text-center">
       <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-brand/10 text-brand">
         <Sparkles className="h-7 w-7" />
       </div>
-      <p className="text-lg font-medium text-foreground/80">{t("unsupported.title")}</p>
+      <p className="text-lg font-medium text-foreground/80">{t("setupAi.title")}</p>
       <p className="mt-1 max-w-sm text-sm text-muted-foreground/70">
-        {t("unsupported.body")}
+        {providerIsClaudeCli ? t("setupAi.cliBody") : t("setupAi.body")}
       </p>
-      <button
-        type="button"
-        onClick={onOpenSettings}
-        className="mt-5 inline-flex items-center gap-1.5 rounded-xl bg-brand px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-brand/90 transition-colors"
-      >
-        {t("unsupported.openSettings")}
-      </button>
+      <Button onClick={onSetupAi} className="mt-5 gap-2 rounded-xl">
+        <Settings className="h-4 w-4" />
+        {t("setupAi.button")}
+      </Button>
     </div>
   );
 }

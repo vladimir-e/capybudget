@@ -3,7 +3,6 @@
   "subtitle": {
     "importing": "Importando tus transacciones…",
     "review": "Revisa y edita las transacciones importadas",
-    "setup": "Configura tu asistente con IA para importar transacciones",
     "drop": "Suelta archivos para importar transacciones"
   },
   "dropOverlay": "Suelta archivos para importar",
@@ -35,10 +34,11 @@
     "start": "Empezar importación",
     "rerunHint": "¿No te gusta el resultado? Cancela, dale más instrucciones a Capy y vuelve a ejecutarla."
   },
-  "unsupported": {
-    "title": "Configura tu asistente con IA",
-    "body": "Elige un proveedor de IA en los ajustes antes de importar transacciones.",
-    "openSettings": "Abrir ajustes"
+  "setupAi": {
+    "title": "Configura la IA para importar",
+    "body": "Elige un proveedor de IA en los ajustes para traer estas transacciones.",
+    "cliBody": "Claude Code impulsa el chat, pero importar extractos necesita Anthropic u OpenAI — añade uno en los ajustes.",
+    "button": "Configurar IA"
   },
   "progress": {
     "normalizing": "Normalizando",

@@ -32,7 +32,7 @@ import {
   isPdfFilename,
   readFileAsBase64,
 } from "@/lib/file-attachments";
-import { ImportDropZone, ProviderUnsupportedBanner } from "./import-drop-zone";
+import { ImportDropZone } from "./import-drop-zone";
 import { ImportProgress } from "./import-progress";
 import { resumeMeter } from "./import-progress-utils";
 import { ImportPreview } from "./import-preview";
@@ -55,7 +55,7 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
   const repository = useImportRepository(budgetPath);
 
   // ── Orchestrator + run state ──────────────────────────────────
-  const { supported, pdfSupported, start, enrich, stop, cancel, staging } = useImportOrchestrator(budgetPath);
+  const { canStart, pdfSupported, provider, start, enrich, stop, cancel, staging } = useImportOrchestrator(budgetPath);
   const phase = useImportStore((s) => s.phase);
   const status = useImportStore((s) => s.status);
   const log = useImportStore((s) => s.log);
@@ -380,10 +380,11 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
   }, [reset, setHasImportData]);
 
   // ── Render ────────────────────────────────────────────────────
-  // Without a configured AI provider the screen is just the setup nudge — no
-  // drop zone, no file handling, no drop-anywhere drag surface.
-  const showDropZone = viewState === "file-attach" && supported;
-  const showUnsupported = viewState === "file-attach" && !supported;
+  // The drop zone is always available in file-attach — users attach files and
+  // see the staging UI regardless of AI config, since that's what motivates
+  // setting AI up. The wall (a "Set up AI" CTA replacing Start) lives at the run
+  // boundary inside the drop zone.
+  const showDropZone = viewState === "file-attach";
   const showRun = viewState === "run";
   // The section bar persists through a run and stays as a done-from-state header
   // above a resumed or finished preview — staged rows mean Reading/Normalizing/
@@ -397,9 +398,7 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
     ? t("subtitle.importing")
     : showRun
       ? t("subtitle.review")
-      : showUnsupported
-        ? t("subtitle.setup")
-        : t("subtitle.drop");
+      : t("subtitle.drop");
 
   if (viewState === "loading") {
     return (
@@ -452,14 +451,6 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
 
       <div className="flex-1 overflow-auto p-6">
         <div className={`mx-auto space-y-6 ${showRun ? "max-w-6xl" : "max-w-2xl"}`}>
-          {showUnsupported && (
-            <ProviderUnsupportedBanner
-              onOpenSettings={() =>
-                navigate({ to: "/budget/settings", search: { path: budgetPath, name: budgetName, section: "intelligence" } })
-              }
-            />
-          )}
-
           {showDropZone && (
             <ImportDropZone
               fileInputRef={fileInputRef}
@@ -477,6 +468,11 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
               selectedAccountId={selectedAccountId}
               onAccountChange={setSelectedAccountId}
               onStart={handleStart}
+              canStart={canStart}
+              providerIsClaudeCli={provider === "claude-cli"}
+              onSetupAi={() =>
+                navigate({ to: "/budget/settings", search: { path: budgetPath, name: budgetName, section: "intelligence" } })
+              }
             />
           )}
 

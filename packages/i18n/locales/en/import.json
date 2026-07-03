@@ -3,7 +3,6 @@
   "subtitle": {
     "importing": "Importing your transactions…",
     "review": "Review and edit imported transactions",
-    "setup": "Set up your AI assistant to import transactions",
     "drop": "Drop files to import transactions"
   },
   "dropOverlay": "Drop files to import",
@@ -34,10 +33,11 @@
     "start": "Start Import",
     "rerunHint": "Don't like the results? Cancel, give Capy more instructions, and run again."
   },
-  "unsupported": {
-    "title": "Set up your AI assistant",
-    "body": "Pick an AI provider in settings before importing transactions.",
-    "openSettings": "Open settings"
+  "setupAi": {
+    "title": "Set up AI to import",
+    "body": "Pick an AI provider in settings to bring these transactions in.",
+    "cliBody": "Claude Code powers chat, but importing statements needs Anthropic or OpenAI — add one in settings.",
+    "button": "Set up AI"
   },
   "progress": {
     "normalizing": "Normalizing",
