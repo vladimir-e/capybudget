@@ -7,6 +7,7 @@ import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import { readBuildNumber } from "./mas-common.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const SRC_TAURI = resolve(ROOT, "src-tauri");
@@ -33,7 +34,7 @@ function readJson(relPath) {
 }
 
 const teamId = process.env.APPLE_TEAM_ID ?? "";
-const buildNumber = process.env.MAS_BUILD_NUMBER ?? "1";
+const buildNumber = process.env.MAS_BUILD_NUMBER ?? String(readBuildNumber());
 const target = process.env.MAS_TARGET ?? "universal-apple-darwin";
 
 const identifier = readJson("tauri.conf.json").identifier;
