@@ -8,6 +8,7 @@ import { i18n } from "@capybudget/i18n";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { ErrorScreen } from "@/components/error-screen";
 import { setCrashComponentStack } from "@/lib/crash-recovery";
+import { reconcileFolderAccess } from "@/lib/folder-access";
 import { useIntelligenceStore } from "@/stores/intelligence-store";
 
 export async function bootstrapApp(routeTree: AnyRoute) {
@@ -18,6 +19,10 @@ export async function bootstrapApp(routeTree: AnyRoute) {
   // "Set up your AI assistant" empty state during the disk read; the
   // read is local and fast (~ms) so the cost is invisible.
   await useIntelligenceStore.getState().hydrate();
+
+  // Fire-and-forget: prune bookmarks for folders no longer in recents. Cleans
+  // debris left by evictions/crashes without delaying first paint.
+  void reconcileFolderAccess();
 
   const queryClient = new QueryClient({
     queryCache: new QueryCache({

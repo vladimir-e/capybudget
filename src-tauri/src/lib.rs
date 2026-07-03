@@ -1,4 +1,4 @@
-#[cfg(feature = "mas")]
+#[cfg(all(feature = "mas", target_os = "macos"))]
 mod security_scope;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -20,7 +20,7 @@ pub fn run() {
     #[cfg(desktop)]
     let builder = builder.plugin(tauri_plugin_window_state::Builder::default().build());
 
-    #[cfg(feature = "mas")]
+    #[cfg(all(feature = "mas", target_os = "macos"))]
     let builder = builder
         .manage(security_scope::ScopedAccess::default())
         .setup(|app| {
@@ -30,6 +30,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             security_scope::persist_folder_access,
             security_scope::forget_folder_access,
+            security_scope::reconcile_folder_access,
         ]);
 
     builder

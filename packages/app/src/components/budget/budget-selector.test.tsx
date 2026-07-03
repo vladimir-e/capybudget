@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { screen, waitFor } from "@testing-library/react";
 import { renderApp } from "@/test/render-app";
 import { useAppStore } from "@/stores/app-store";
+import { flagReopenFailure, consumeReopenFailure } from "@/lib/reopen-failure";
 
 // The selector imports its budget service via a deep relative path; mock at
 // the same path so vi.mock can resolve it.
@@ -202,6 +203,46 @@ describe("BudgetSelector — recents", () => {
 
     await waitFor(() => {
       expect(useAppStore.getState().recentBudgets).toHaveLength(0);
+    });
+  });
+});
+
+describe("BudgetSelector — reopen-failure banner", () => {
+  beforeEach(() => {
+    consumeReopenFailure();
+  });
+
+  it("shows the banner when the launch redirect flagged a reopen failure", async () => {
+    flagReopenFailure({ path: "/moved/budget", name: "Household" });
+
+    await renderApp({ url: "/" });
+
+    expect(await screen.findByText(/couldn.t reopen household/i)).toBeInTheDocument();
+  });
+
+  it("'Choose folder' re-picks the folder at the failed path", async () => {
+    flagReopenFailure({ path: "/moved/budget", name: "Household" });
+    mockPickerOpen.mockResolvedValue(null); // user cancels the re-pick
+
+    const { user } = await renderApp({ url: "/" });
+    await user.click(await screen.findByRole("button", { name: /choose folder/i }));
+
+    await waitFor(() => {
+      expect(mockPickerOpen).toHaveBeenCalledWith(
+        expect.objectContaining({ defaultPath: "/moved/budget" }),
+      );
+    });
+  });
+
+  it("dismiss clears the banner", async () => {
+    flagReopenFailure({ path: "/moved/budget", name: "Household" });
+
+    const { user } = await renderApp({ url: "/" });
+    await screen.findByText(/couldn.t reopen household/i);
+    await user.click(screen.getByRole("button", { name: /dismiss/i }));
+
+    await waitFor(() => {
+      expect(screen.queryByText(/couldn.t reopen household/i)).not.toBeInTheDocument();
     });
   });
 });

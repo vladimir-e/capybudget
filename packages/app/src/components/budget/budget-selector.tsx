@@ -25,7 +25,7 @@ import { DEFAULT_CURRENCY } from "@capybudget/core";
 import { useTranslation } from "@capybudget/i18n";
 import { useAppStore } from "@/stores/app-store";
 import { CurrencyCombobox } from "@/components/budget/currency-combobox";
-import { persistFolderAccess, forgetFolderAccess } from "@/lib/folder-access";
+import { persistFolderAccess, forgetFolderAccess, reconcileFolderAccess } from "@/lib/folder-access";
 import { consumeReopenFailure } from "@/lib/reopen-failure";
 import {
   detectBudget,
@@ -97,6 +97,8 @@ export function BudgetSelector() {
   async function navigateToBudget(folderPath: string, name: string) {
     addRecentBudget(folderPath, name);
     await persistFolderAccess(folderPath);
+    // addRecentBudget may have evicted the 11th recent; drop its bookmark.
+    await reconcileFolderAccess();
     await navigate({
       to: "/budget",
       search: { path: folderPath, name },
