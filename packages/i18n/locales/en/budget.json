@@ -11,7 +11,8 @@
     "openRecent": "Open {{name}}",
     "removeFromRecents": "Remove {{name}} from recents",
     "reopenFailed": {
-      "notice": "Couldn’t reopen {{name}} automatically — auto-open has been turned off.",
+      "title": "Could not open {{name}}",
+      "description": "{{path}} was not found.",
       "dismiss": "Dismiss"
     },
     "newDialog": {

@@ -26,7 +26,10 @@ export async function resolveLaunchRedirect(): Promise<ReturnType<typeof redirec
   // one-time notice naming the budget — from recents, or the folder's basename.
   const failReopen = () => {
     const recent = useAppStore.getState().recentBudgets.find((b) => b.path === path)
-    flagReopenFailure(recent?.name ?? path.split("/").filter(Boolean).pop() ?? path)
+    flagReopenFailure({
+      path,
+      name: recent?.name ?? path.split("/").filter(Boolean).pop() ?? path,
+    })
     useAppStore.getState().setLaunchBudgetPath(null)
   }
 

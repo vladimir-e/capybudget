@@ -99,7 +99,7 @@ describe("resolveLaunchRedirect", () => {
 
     await resolveLaunchRedirect()
 
-    expect(consumeReopenFailure()).toBe("Household")
+    expect(consumeReopenFailure()).toEqual({ path: "/gone", name: "Household" })
   })
 
   it("flags a reopen failure (falling back to the folder's basename) when the folder isn't a budget", async () => {
@@ -108,7 +108,7 @@ describe("resolveLaunchRedirect", () => {
 
     await resolveLaunchRedirect()
 
-    expect(consumeReopenFailure()).toBe("Groceries")
+    expect(consumeReopenFailure()).toEqual({ path: "/some/path/Groceries", name: "Groceries" })
   })
 
   it("does not flag a reopen failure on a successful reopen", async () => {

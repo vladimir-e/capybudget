@@ -237,25 +237,26 @@ describe("BudgetSelector — reopen-failure notice", () => {
     consumeReopenFailure();
   });
 
-  it("shows a name-only notice when the launch redirect flagged a reopen failure", async () => {
-    flagReopenFailure("Household");
+  it("shows the budget name and missing path when the launch redirect flagged a reopen failure", async () => {
+    flagReopenFailure({ path: "/moved/budget", name: "Household" });
 
     await renderApp({ url: "/" });
 
-    expect(await screen.findByText(/couldn.t reopen household/i)).toBeInTheDocument();
+    expect(await screen.findByText(/could not open household/i)).toBeInTheDocument();
+    expect(screen.getByText(/\/moved\/budget/)).toBeInTheDocument();
     // No recovery button — the recents list below is the way back in.
     expect(screen.queryByRole("button", { name: /choose folder/i })).not.toBeInTheDocument();
   });
 
   it("dismiss clears the notice", async () => {
-    flagReopenFailure("Household");
+    flagReopenFailure({ path: "/moved/budget", name: "Household" });
 
     const { user } = await renderApp({ url: "/" });
-    await screen.findByText(/couldn.t reopen household/i);
+    await screen.findByText(/could not open household/i);
     await user.click(screen.getByRole("button", { name: /dismiss/i }));
 
     await waitFor(() => {
-      expect(screen.queryByText(/couldn.t reopen household/i)).not.toBeInTheDocument();
+      expect(screen.queryByText(/could not open household/i)).not.toBeInTheDocument();
     });
   });
 });

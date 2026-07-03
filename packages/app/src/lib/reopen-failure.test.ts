@@ -10,15 +10,15 @@ describe("reopen-failure", () => {
     expect(consumeReopenFailure()).toBeNull()
   })
 
-  it("returns the flagged name once, then null", () => {
-    flagReopenFailure("Budget")
-    expect(consumeReopenFailure()).toBe("Budget")
+  it("returns the flagged failure once, then null", () => {
+    flagReopenFailure({ path: "/b", name: "Budget" })
+    expect(consumeReopenFailure()).toEqual({ path: "/b", name: "Budget" })
     expect(consumeReopenFailure()).toBeNull()
   })
 
   it("keeps only the most recent flag", () => {
-    flagReopenFailure("A")
-    flagReopenFailure("B")
-    expect(consumeReopenFailure()).toBe("B")
+    flagReopenFailure({ path: "/a", name: "A" })
+    flagReopenFailure({ path: "/b", name: "B" })
+    expect(consumeReopenFailure()).toEqual({ path: "/b", name: "B" })
   })
 })

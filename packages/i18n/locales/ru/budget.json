@@ -11,7 +11,8 @@
     "openRecent": "Открыть {{name}}",
     "removeFromRecents": "Убрать {{name}} из недавних",
     "reopenFailed": {
-      "notice": "Не удалось автоматически открыть {{name}} — автозапуск отключён.",
+      "title": "Не удалось открыть {{name}}",
+      "description": "{{path}} не найдена.",
       "dismiss": "Закрыть"
     },
     "newDialog": {

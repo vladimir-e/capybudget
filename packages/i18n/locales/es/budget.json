@@ -11,7 +11,8 @@
     "openRecent": "Abrir {{name}}",
     "removeFromRecents": "Quitar {{name}} de los recientes",
     "reopenFailed": {
-      "notice": "No se pudo volver a abrir {{name}} automáticamente — la apertura automática se ha desactivado.",
+      "title": "No se pudo abrir {{name}}",
+      "description": "No se encontró {{path}}.",
       "dismiss": "Descartar"
     },
     "newDialog": {
