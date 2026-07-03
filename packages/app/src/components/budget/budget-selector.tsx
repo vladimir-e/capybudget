@@ -57,9 +57,9 @@ export function BudgetSelector() {
   const { recentBudgets, addRecentBudget, removeRecentBudget } = useAppStore();
   const [loading, setLoading] = useState(false);
 
-  // Set by the launch redirect when the last budget couldn't be reopened; shown
-  // as a prompt to re-pick the folder (which restores access under the sandbox).
-  const [reopenFailure, setReopenFailure] = useState(() => consumeReopenFailure());
+  // Set by the launch redirect when the last budget couldn't be reopened (name
+  // of the budget). Auto-open was already turned off; this is a one-time notice.
+  const [reopenName, setReopenName] = useState(() => consumeReopenFailure());
 
   // Error modal state — shown when the user picks a folder that's non-empty
   // but doesn't contain a budget. Both intents share the dialog, copy varies.
@@ -262,40 +262,22 @@ export function BudgetSelector() {
             </p>
           </div>
 
-          {/* Reopen-failure prompt — last budget couldn't be reopened. */}
-          {reopenFailure && (
-            <div className="mb-6 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4">
-              <div className="flex items-start gap-3">
-                <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-amber-600 dark:text-amber-500" />
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-semibold">
-                    {t("selector.reopenFailed.title", { name: reopenFailure.name })}
-                  </p>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    {t("selector.reopenFailed.description")}
-                  </p>
-                  <Button
-                    size="sm"
-                    className="mt-3 gap-2"
-                    onClick={() => {
-                      const path = reopenFailure.path;
-                      setReopenFailure(null);
-                      void pickAndProcess("open", path);
-                    }}
-                  >
-                    <FolderOpen className="h-4 w-4" />
-                    {t("selector.reopenFailed.action")}
-                  </Button>
-                </div>
-                <button
-                  type="button"
-                  className="shrink-0 text-muted-foreground/60 hover:text-muted-foreground"
-                  aria-label={t("selector.reopenFailed.dismiss")}
-                  onClick={() => setReopenFailure(null)}
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              </div>
+          {/* Reopen-failure notice — last budget couldn't be reopened and
+              auto-open was turned off. Recovery is the recents list below. */}
+          {reopenName && (
+            <div className="mb-6 flex items-start gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4">
+              <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-amber-600 dark:text-amber-500" />
+              <p className="min-w-0 flex-1 text-sm text-muted-foreground">
+                {t("selector.reopenFailed.notice", { name: reopenName })}
+              </p>
+              <button
+                type="button"
+                className="shrink-0 text-muted-foreground/60 hover:text-muted-foreground"
+                aria-label={t("selector.reopenFailed.dismiss")}
+                onClick={() => setReopenName(null)}
+              >
+                <X className="h-4 w-4" />
+              </button>
             </div>
           )}
 

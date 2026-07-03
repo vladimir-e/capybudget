@@ -1,20 +1,16 @@
 // One-shot signal from the launch redirect to the budget selector: the last
-// budget couldn't be reopened (folder moved/deleted, or sandbox access lapsed),
-// so the selector shows an explanatory prompt instead of a bare screen.
+// budget couldn't be reopened (folder moved/deleted, or sandbox access lapsed).
+// Auto-open is turned off at the same time, so the selector just shows a
+// one-time notice naming the budget — recovery is the recents list.
 
-export interface ReopenFailure {
-  path: string;
-  name: string;
+let pendingName: string | null = null;
+
+export function flagReopenFailure(name: string): void {
+  pendingName = name;
 }
 
-let pending: ReopenFailure | null = null;
-
-export function flagReopenFailure(info: ReopenFailure): void {
-  pending = info;
-}
-
-export function consumeReopenFailure(): ReopenFailure | null {
-  const failure = pending;
-  pending = null;
-  return failure;
+export function consumeReopenFailure(): string | null {
+  const name = pendingName;
+  pendingName = null;
+  return name;
 }

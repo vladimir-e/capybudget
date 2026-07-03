@@ -11,9 +11,7 @@
     "openRecent": "Open {{name}}",
     "removeFromRecents": "Remove {{name}} from recents",
     "reopenFailed": {
-      "title": "Couldn’t reopen {{name}}",
-      "description": "Its folder may have moved or been deleted, or you may need to grant access again.",
-      "action": "Choose folder",
+      "notice": "Couldn’t reopen {{name}} automatically — auto-open has been turned off.",
       "dismiss": "Dismiss"
     },
     "newDialog": {

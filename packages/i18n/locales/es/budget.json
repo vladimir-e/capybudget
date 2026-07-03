@@ -11,9 +11,7 @@
     "openRecent": "Abrir {{name}}",
     "removeFromRecents": "Quitar {{name}} de los recientes",
     "reopenFailed": {
-      "title": "No se pudo volver a abrir {{name}}",
-      "description": "Es posible que su carpeta se haya movido o eliminado, o que debas conceder acceso de nuevo.",
-      "action": "Elegir carpeta",
+      "notice": "No se pudo volver a abrir {{name}} automáticamente — la apertura automática se ha desactivado.",
       "dismiss": "Descartar"
     },
     "newDialog": {

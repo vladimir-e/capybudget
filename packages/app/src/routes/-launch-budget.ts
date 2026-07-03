@@ -21,19 +21,25 @@ export async function resolveLaunchRedirect(): Promise<ReturnType<typeof redirec
   const path = useAppStore.getState().launchBudgetPath
   if (!path) return null
 
-  const reopenName = () =>
-    useAppStore.getState().recentBudgets.find((b) => b.path === path)?.name ?? path
+  // Reopen failed: the auto-open contract is broken. Turn it off so the next
+  // launch doesn't fail again (the user re-enables it in Settings), and flag a
+  // one-time notice naming the budget — from recents, or the folder's basename.
+  const failReopen = () => {
+    const recent = useAppStore.getState().recentBudgets.find((b) => b.path === path)
+    flagReopenFailure(recent?.name ?? path.split("/").filter(Boolean).pop() ?? path)
+    useAppStore.getState().setLaunchBudgetPath(null)
+  }
 
   try {
     const meta = await detectBudget(path)
     if (!meta) {
-      flagReopenFailure({ path, name: reopenName() })
+      failReopen()
       return null
     }
     useAppStore.getState().addRecentBudget(path, meta.name)
     return redirect({ to: "/budget", search: { path, name: meta.name } })
   } catch {
-    flagReopenFailure({ path, name: reopenName() })
+    failReopen()
     return null
   }
 }

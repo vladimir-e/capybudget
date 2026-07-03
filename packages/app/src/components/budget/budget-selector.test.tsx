@@ -232,35 +232,23 @@ describe("BudgetSelector — recents", () => {
   });
 });
 
-describe("BudgetSelector — reopen-failure banner", () => {
+describe("BudgetSelector — reopen-failure notice", () => {
   beforeEach(() => {
     consumeReopenFailure();
   });
 
-  it("shows the banner when the launch redirect flagged a reopen failure", async () => {
-    flagReopenFailure({ path: "/moved/budget", name: "Household" });
+  it("shows a name-only notice when the launch redirect flagged a reopen failure", async () => {
+    flagReopenFailure("Household");
 
     await renderApp({ url: "/" });
 
     expect(await screen.findByText(/couldn.t reopen household/i)).toBeInTheDocument();
+    // No recovery button — the recents list below is the way back in.
+    expect(screen.queryByRole("button", { name: /choose folder/i })).not.toBeInTheDocument();
   });
 
-  it("'Choose folder' re-picks the folder at the failed path", async () => {
-    flagReopenFailure({ path: "/moved/budget", name: "Household" });
-    mockPickerOpen.mockResolvedValue(null); // user cancels the re-pick
-
-    const { user } = await renderApp({ url: "/" });
-    await user.click(await screen.findByRole("button", { name: /choose folder/i }));
-
-    await waitFor(() => {
-      expect(mockPickerOpen).toHaveBeenCalledWith(
-        expect.objectContaining({ defaultPath: "/moved/budget" }),
-      );
-    });
-  });
-
-  it("dismiss clears the banner", async () => {
-    flagReopenFailure({ path: "/moved/budget", name: "Household" });
+  it("dismiss clears the notice", async () => {
+    flagReopenFailure("Household");
 
     const { user } = await renderApp({ url: "/" });
     await screen.findByText(/couldn.t reopen household/i);
