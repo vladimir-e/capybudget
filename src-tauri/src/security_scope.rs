@@ -135,9 +135,19 @@ fn stop_access<R: Runtime>(app: &AppHandle<R>, paths: &[String]) {
 
 /// Grant the recursive Tauri fs-ACL for a budget folder — the module's single
 /// owner of that grant, shared by persist (pick) and restore (relaunch).
+///
+/// The `.capy` subtree needs its own grant: the fs plugin builds its runtime
+/// scope from `FsScope::default()`, which on unix hardcodes
+/// `require_literal_leading_dot = true` — the `requireLiteralLeadingDot: false`
+/// in tauri.conf.json only reaches capability scopes, never runtime grants
+/// (tauri-plugin-fs 2.4.5, lib.rs setup). So `<path>/**` can never match a
+/// dot-component, and only a pattern carrying the literal `.capy` reaches the
+/// budget's plumbing dir (import sources/staging/aliases/log — see
+/// use-import-paths.ts, the TS owner of the `.capy` layout).
 fn grant_fs_scope<R: Runtime>(app: &AppHandle<R>, path: &str) {
     if let Some(scope) = app.try_fs_scope() {
         let _ = scope.allow_directory(path, true);
+        let _ = scope.allow_directory(format!("{}/.capy", path.trim_end_matches('/')), true);
     }
 }
 
