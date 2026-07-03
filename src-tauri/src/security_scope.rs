@@ -145,8 +145,10 @@ fn grant_fs_scope<R: Runtime>(app: &AppHandle<R>, path: &str) {
 /// grant its fs-ACL so this session's writes work too (see the module invariant).
 #[tauri::command]
 pub fn persist_folder_access<R: Runtime>(app: AppHandle<R>, path: String) -> Result<(), String> {
-    let bookmark = create_bookmark(&path)?;
+    // Grant before the fallible bookmark work: the JS caller swallows errors,
+    // so a bookmark failure must not leave this session with shallow scope.
     grant_fs_scope(&app, &path);
+    let bookmark = create_bookmark(&path)?;
     let store_file = store_path(&app)?;
     let mut store = read_store_at(&store_file);
     store.insert(path, bookmark);
