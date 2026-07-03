@@ -106,7 +106,7 @@
       "apiKey": "API key",
       "showKey": "Show API key",
       "hideKey": "Hide API key",
-      "storedLocally": "Stored locally in your app config folder.",
+      "storedLocally": "Stored securely in your system keychain.",
       "savedKeyEndsIn": "Saved key ends in",
       "getApiKey": "Get an {{provider}} API key"
     },

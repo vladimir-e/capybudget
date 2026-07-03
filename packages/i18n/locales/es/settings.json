@@ -106,7 +106,7 @@
       "apiKey": "Clave de API",
       "showKey": "Mostrar la clave de API",
       "hideKey": "Ocultar la clave de API",
-      "storedLocally": "Se guarda localmente en la carpeta de configuración de la app.",
+      "storedLocally": "Se guarda de forma segura en el llavero del sistema.",
       "savedKeyEndsIn": "La clave guardada termina en",
       "getApiKey": "Consigue una clave de API de {{provider}}"
     },
