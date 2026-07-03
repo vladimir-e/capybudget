@@ -130,9 +130,6 @@ describe("ImportScreen — checkStaging routing", () => {
     expect(useImportStore.getState().hasImportData).toBe(false);
   });
 
-  // Runs under both `npm test` and `npm run test:mas`: the set-up-AI nudge is
-  // the intended no-provider state in every variant. It's the same affordance
-  // the Capy chat surface shows when unconfigured.
   it("shows the set-up-AI nudge instead of the drop zone when no provider is configured", async () => {
     mocks.supported = false;
     renderScreen();
@@ -141,9 +138,7 @@ describe("ImportScreen — checkStaging routing", () => {
     expect(screen.queryByTestId("drop-zone")).toBeNull();
   });
 
-  // The reported MAS bug: the sandbox's empty fs scope denies the mount-time
-  // staging probe, so the read rejects. The screen must still settle to a real
-  // state (here the no-provider nudge) rather than wedge on the loading spinner.
+  // Regression: a rejecting staging probe must settle the screen, never wedge the spinner.
   it("settles to the nudge when the staging probe is denied (MAS sandbox)", async () => {
     mocks.supported = false;
     mocks.staging.readTransactions.mockRejectedValue(new Error("forbidden path"));

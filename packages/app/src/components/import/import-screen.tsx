@@ -153,12 +153,9 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
       setHasImportData(false);
       setDiskChecked(true);
     } catch (err) {
-      // A staging read can reject — most notably under the MAS App Sandbox,
-      // whose fs scope is empty until a budget folder is granted at runtime, so
-      // the disk probe is denied. `diskChecked` gates the whole screen; if this
-      // never settles the user is stranded on the loading spinner. Degrade to
-      // file-attach (which itself falls through to the set-up-AI nudge when no
-      // provider is configured) rather than wedge.
+      // Staging reads can be denied (e.g. MAS sandbox before the folder grant).
+      // `diskChecked` gates the whole screen — always settle it, or the user is
+      // stranded on the spinner.
       console.error("[import] staging check failed:", err);
       if (!mountedRef.current) return;
       setHasImportData(false);
