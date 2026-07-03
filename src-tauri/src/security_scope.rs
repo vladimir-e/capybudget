@@ -4,10 +4,14 @@
 // dies with the process. To reopen a budget on the next launch without a fresh
 // dialog we persist an app-scoped NSURL security-scoped bookmark per granted
 // folder (requires the com.apple.security.files.bookmarks.app-scope
-// entitlement), then on startup resolve each bookmark (re-granting OS access)
-// and re-add its path to the fs plugin's runtime scope (re-granting the Tauri
-// ACL, which the narrow MAS capability leaves empty and the dialog otherwise
-// fills per session).
+// entitlement), then on startup resolve each bookmark to re-grant OS access.
+//
+// Invariant: any budget folder with active OS access holds a recursive Tauri
+// fs-ACL grant (`path/**`), and this module is its sole owner — persist grants it
+// on pick, restore grants it on relaunch (both via grant_fs_scope). The narrow
+// MAS capability leaves the static fs scope empty, and the dialog's implicit
+// grant on pick is only `path` + `path/*`, too shallow for a budget's nested
+// writes (e.g. .capy/import/sources/) — so we never rely on it.
 //
 // Neither Tauri core nor the fs/persisted-scope plugins implement macOS
 // security-scoped bookmarks (tauri#3716 open; fs `startAccessingSecurityScoped`
@@ -129,10 +133,20 @@ fn stop_access<R: Runtime>(app: &AppHandle<R>, paths: &[String]) {
     }
 }
 
-/// Record a bookmark for a user-granted folder so access survives relaunch.
+/// Grant the recursive Tauri fs-ACL for a budget folder — the module's single
+/// owner of that grant, shared by persist (pick) and restore (relaunch).
+fn grant_fs_scope<R: Runtime>(app: &AppHandle<R>, path: &str) {
+    if let Some(scope) = app.try_fs_scope() {
+        let _ = scope.allow_directory(path, true);
+    }
+}
+
+/// Record a bookmark for a user-granted folder so access survives relaunch, and
+/// grant its fs-ACL so this session's writes work too (see the module invariant).
 #[tauri::command]
 pub fn persist_folder_access<R: Runtime>(app: AppHandle<R>, path: String) -> Result<(), String> {
     let bookmark = create_bookmark(&path)?;
+    grant_fs_scope(&app, &path);
     let store_file = store_path(&app)?;
     let mut store = read_store_at(&store_file);
     store.insert(path, bookmark);
@@ -190,7 +204,6 @@ pub fn restore_folder_access<R: Runtime>(app: &AppHandle<R>) {
         return;
     }
 
-    let scope = app.try_fs_scope();
     let state = app.state::<ScopedAccess>();
     let mut active = state.active.lock().unwrap();
     let mut refreshed = store.clone();
@@ -201,9 +214,7 @@ pub fn restore_folder_access<R: Runtime>(app: &AppHandle<R>) {
             continue;
         };
         let resolved = url.path().map(|p| p.to_string());
-        if let Some(scope) = &scope {
-            let _ = scope.allow_directory(resolved.as_deref().unwrap_or(path), true);
-        }
+        grant_fs_scope(app, resolved.as_deref().unwrap_or(path));
         if stale {
             if let Ok(fresh) = create_bookmark_for_url(&url) {
                 refreshed.insert(path.clone(), fresh);
