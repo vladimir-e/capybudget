@@ -23,7 +23,7 @@
 | Folder picker | `@tauri-apps/plugin-dialog` |
 | Open URLs + reveal in file manager | `@tauri-apps/plugin-opener` (external links, Reveal in Finder) |
 | Subprocess spawning | `@tauri-apps/plugin-shell` (Claude CLI adapter only; excluded from the sandboxed MAS build) |
-| App config persistence | `@tauri-apps/plugin-store` (intelligence provider + API keys) |
+| App config persistence | `@tauri-apps/plugin-store` (intelligence provider config; API keys live in the OS keychain) |
 
 ## Principles
 
@@ -92,6 +92,45 @@ TanStack Router with file-based routing. Routes live in `packages/app/src/routes
 | Budget data | TanStack Query | Repository adapter |
 | Recent budgets | Zustand | localStorage |
 | UI state | BudgetUIContext | None (ephemeral) |
+| Intelligence config | Zustand (intelligence-store) | `plugin-store` JSON (API keys stripped) |
+| Provider API keys | OS keychain | One entry per provider |
+| Sandboxed folder grants (MAS) | Security-scoped bookmarks | `folder-bookmarks.json` |
+
+## Secrets & Sandboxed Access
+
+### Provider API Keys
+
+Keys live in the OS keychain (macOS Keychain / Windows Credential Manager /
+Linux secret-service) — one generic-password entry per provider (`anthropic`,
+`openai`), namespaced by the bundle identifier. The rest of the intelligence
+config persists to the `plugin-store` JSON with the key slots blanked.
+`createSecretAwareBackend` (`stores/secret-config.ts`) wraps the plaintext store:
+on load it reads keys from the keychain and, if it finds inline keys from an
+older build, migrates them into the keychain and rewrites the file without them;
+on save it writes keys to the keychain first, so an interrupted write never
+strands a key on disk. With no keychain available (dev builds, unsupported
+platform) it degrades to the plaintext on-disk config. The Rust side
+(`keychain.rs`) is a thin transport — three commands, present in every build.
+
+### Sandboxed Folder Access (Mac App Store build)
+
+The App Sandbox confines the app to user-selected paths, and that grant dies with
+the process. To reopen a budget after relaunch without a fresh dialog, the app
+stores an app-scoped security-scoped bookmark per granted folder in
+`folder-bookmarks.json` (in the app config dir) — a second persistence location
+alongside the `plugin-store` config. On startup `restore_folder_access` (run in
+Tauri setup) resolves each bookmark, re-granting OS sandbox access, and re-adds
+the resolved path to the fs plugin's runtime scope (which the narrow MAS
+capability leaves empty). `persist_folder_access` records a bookmark when a
+folder is picked; `reconcile_folder_access` prunes bookmarks for folders no
+longer in recents (at boot and after each open); `forget_folder_access` drops one
+when a recent is removed. Folders that fail to resolve (moved, deleted,
+unmounted) stay in the store and fall back to the selector's re-open prompt. The
+DMG build needs none of this — raw path access has no sandbox — so the whole
+subsystem is gated on the Rust `mas` feature and `__MAS__` on the JS side
+(`lib/folder-access.ts`), and its bookmark work is hand-rolled via `objc2`
+(`security_scope.rs`) since neither Tauri core nor the fs plugin implement macOS
+security-scoped bookmarks.
 
 ## Intelligence
 
