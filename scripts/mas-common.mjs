@@ -71,6 +71,37 @@ export function writeBuildNumber(n) {
   writeFileSync(BUILD_NUMBER_FILE, `${n}\n`);
 }
 
+// Derive the concrete MAS build inputs from the committed templates and write
+// them into src-tauri/: the entitlements plist (team ID + identifier
+// substituted) and the tauri overlay (build number stamped, provisioning
+// profile dropped when absent so local unsigned builds still complete). Shared
+// by the release build and the cargo `--features mas` test run so both compile
+// against identical config. Returns the generated overlay's path plus the
+// inputs callers report on.
+export function writeMasArtifacts() {
+  const teamId = process.env.APPLE_TEAM_ID ?? "";
+  const buildNumber = process.env.MAS_BUILD_NUMBER ?? String(readBuildNumber());
+  const identifier = readJson("tauri.conf.json").identifier;
+
+  const entitlements = readText("Entitlements.mas.plist.template")
+    .replaceAll("${APPLE_TEAM_ID}", () => teamId)
+    .replaceAll("${APP_IDENTIFIER}", () => identifier);
+  writeFileSync(resolve(SRC_TAURI, "Entitlements.mas.plist"), entitlements);
+
+  const overlay = readJson("tauri.mas.conf.json");
+  overlay.bundle.macOS.bundleVersion = buildNumber;
+
+  const hasProvisionProfile = existsSync(resolve(SRC_TAURI, "embedded.provisionprofile"));
+  if (!hasProvisionProfile) {
+    delete overlay.bundle.macOS.files["embedded.provisionprofile"];
+  }
+
+  const generatedConfig = resolve(SRC_TAURI, "tauri.mas.generated.json");
+  writeFileSync(generatedConfig, JSON.stringify(overlay, null, 2) + "\n");
+
+  return { generatedConfig, identifier, buildNumber, teamId, hasProvisionProfile };
+}
+
 // CFBundleVersion baked into the built .app — the authoritative record of what
 // a given bundle will report to App Store Connect.
 export function readAppBuildNumber(appPath) {
