@@ -40,6 +40,7 @@ export function RecentBudgetCard({
       }
       trailing={formatDate(budget.lastOpened, locale)}
       onClick={() => onOpen(budget.path)}
+      openLabel={t("selector.openRecent", { name: budget.name })}
       onRemove={() => onRemove(budget.path)}
       removeLabel={t("selector.removeFromRecents", { name: budget.name })}
     />
