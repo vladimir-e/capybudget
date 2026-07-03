@@ -76,7 +76,7 @@ export function ProviderSection() {
 
   useEffect(() => {
     // The Claude Code CLI provider spawns a subprocess — absent from the MAS
-    // build, so there's nothing to probe (and its detect module tree-shakes out).
+    // build, so there's nothing to probe; the shell plugin it drives is compiled out.
     if (__MAS__) return
     if (IS_DIST_BUILD) {
       // Skip the probe — Claude Code provider can't function without

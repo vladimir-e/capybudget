@@ -26,8 +26,8 @@ export function createSession(opts: SessionOptions): CapySession | null {
     anthropic: (o) => new AnthropicSession(o),
     openai: (o) => new OpenAiSession(o),
   }
-  // The Claude Code CLI adapter spawns a subprocess, which the App Sandbox
-  // forbids — omit it from the MAS build so the spawn code tree-shakes out.
+  // The Claude Code CLI adapter spawns a subprocess the App Sandbox forbids —
+  // omit it from MAS; the shell plugin it drives is compiled out, so residual JS is inert.
   if (!__MAS__) {
     adapters["claude-cli"] = (o) => new ClaudeCliSession(o)
   }

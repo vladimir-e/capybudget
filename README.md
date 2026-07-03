@@ -142,7 +142,7 @@ review handles that.)
 | Var / file | Step | What it is |
 | --- | --- | --- |
 | `APPLE_TEAM_ID` | build | Team ID, baked into the entitlements. |
-| `APPLE_SIGNING_IDENTITY` | build | **Apple Distribution** identity (`Apple Distribution: Name (TEAMID)`) — codesigns the `.app`. Distinct from the Developer-ID identity the DMG build uses. |
+| `APPLE_SIGNING_IDENTITY` | build | **Apple Distribution** identity (`Apple Distribution: Name (TEAMID)`) — codesigns the `.app`. Distinct from the Developer-ID identity the DMG build uses. **The DMG flow reads the same var**, so a shell still exporting the Developer-ID value silently signs the MAS `.app` with the wrong cert — unset or override it for MAS builds. |
 | `src-tauri/embedded.provisionprofile` | build | Mac App Store provisioning profile for `app.capybudget.desktop`, from the Apple Developer portal. Gitignored; skipped from the bundle when absent. |
 | `APPLE_INSTALLER_IDENTITY` | package | **Mac Installer Distribution** identity — signs the `.pkg`. A third, separate certificate. |
 | `APPLE_API_KEY_ID` | upload | App Store Connect API key ID. |
