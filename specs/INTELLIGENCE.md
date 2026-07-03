@@ -219,8 +219,9 @@ file. A config written before this split is migrated on first load: keys are
 written to the keychain, then removed from the file — keychain write first, so
 an interrupted run never drops a key. Where no credential store is usable (Linux
 without a running secret-service; dev builds, which stay on the store file to
-dodge the recurring keychain prompts an unstable ad-hoc signature causes),
-persistence falls back to the store file. See `src-tauri/src/keychain.rs` and
+dodge the recurring keychain prompts an unstable ad-hoc signature causes — set
+`VITE_CAPY_KEYCHAIN=1` to opt a dev build back into the keychain), persistence
+falls back to the store file. See `src-tauri/src/keychain.rs` and
 `stores/secret-config.ts`.
 
 Settings lives in the `/budget` Intelligence section. It renders a provider radio + per-provider config (API key where applicable, model picker, test-connection button). The radio order is **Off / Anthropic API / OpenAI API / Claude Code**; Claude Code carries an `advanced` badge and sits last as the source-build option. First-run defaults to `null` — users must explicitly pick a provider so they're never surprised by quota usage. The radio's "Off" label maps to `null` at the form boundary. Claude Code is auto-detected via `claude --version` and disabled in the picker if not installed.

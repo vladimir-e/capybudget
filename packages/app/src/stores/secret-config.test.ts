@@ -33,7 +33,9 @@ function fakeFile(initial: IntelligenceConfig | null) {
   return { backend, set, read: () => value }
 }
 
-function fakeKeychain(opts: { failGet?: boolean; failSet?: boolean } = {}) {
+function fakeKeychain(
+  opts: { failGet?: boolean; failSet?: boolean; failSetFor?: SecretProvider } = {},
+) {
   const store = new Map<SecretProvider, string>()
   const keychain: Keychain = {
     async get(provider) {
@@ -41,7 +43,9 @@ function fakeKeychain(opts: { failGet?: boolean; failSet?: boolean } = {}) {
       return store.has(provider) ? (store.get(provider) as string) : null
     },
     async set(provider, secret) {
-      if (opts.failSet) throw new Error("no credential store")
+      if (opts.failSet || opts.failSetFor === provider) {
+        throw new Error("no credential store")
+      }
       if (secret) store.set(provider, secret)
       else store.delete(provider)
     },
@@ -97,6 +101,20 @@ describe("createSecretAwareBackend — set", () => {
     await backend.set(config({ anthropic: "sk-ant" }))
     // Never lose the key: it stays on disk when the keychain is unusable.
     expect(file.read()?.anthropic.apiKey).toBe("sk-ant")
+  })
+
+  it("on a partial failure, only the failed provider's key stays in the file", async () => {
+    const file = fakeFile(null)
+    const { keychain, store } = fakeKeychain({ failSetFor: "openai" })
+    const backend = createSecretAwareBackend(file.backend, keychain)
+
+    await backend.set(config({ anthropic: "sk-ant", openai: "sk-oai" }))
+
+    // anthropic reached the keychain and is never mirrored on disk…
+    expect(store.get("anthropic")).toBe("sk-ant")
+    expect(file.read()?.anthropic.apiKey).toBe("")
+    // …only the failed provider falls back to plaintext.
+    expect(file.read()?.openai.apiKey).toBe("sk-oai")
   })
 })
 

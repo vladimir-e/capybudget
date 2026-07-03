@@ -9,7 +9,10 @@
  * app wires the Tauri-backed real ones (see lib/keychain.ts + intelligence-store).
  */
 
-import type { IntelligenceConfig } from "@capybudget/intelligence"
+import {
+  DEFAULT_INTELLIGENCE_CONFIG,
+  type IntelligenceConfig,
+} from "@capybudget/intelligence"
 
 export type SecretProvider = "anthropic" | "openai"
 
@@ -50,6 +53,16 @@ function hasPlaintextSecrets(config: IntelligenceConfig): boolean {
   return Boolean(config.anthropic.apiKey || config.openai.apiKey)
 }
 
+/** Backfill the secret-bearing slices so a partial on-disk config can't throw
+ * when we read or re-spread them. */
+function normalizeSecretSlices(config: IntelligenceConfig): IntelligenceConfig {
+  return {
+    ...config,
+    anthropic: { ...DEFAULT_INTELLIGENCE_CONFIG.anthropic, ...config.anthropic },
+    openai: { ...DEFAULT_INTELLIGENCE_CONFIG.openai, ...config.openai },
+  }
+}
+
 /**
  * Wrap a plaintext config store so provider keys are read from / written to the
  * keychain, leaving the rest of the config in `file`. On read, a config written
@@ -68,39 +81,49 @@ export function createSecretAwareBackend(
     async get() {
       const stored = await file.get()
       if (!stored) return null
+      const config = normalizeSecretSlices(stored)
 
       let anthropic: string
       let openai: string
       try {
-        anthropic = (await keychain.get("anthropic")) ?? stored.anthropic.apiKey
-        openai = (await keychain.get("openai")) ?? stored.openai.apiKey
+        anthropic = (await keychain.get("anthropic")) ?? config.anthropic.apiKey
+        openai = (await keychain.get("openai")) ?? config.openai.apiKey
       } catch {
         // Credential store unreachable at runtime — serve the on-disk copy.
-        return stored
+        return config
       }
 
-      if (hasPlaintextSecrets(stored)) {
+      if (hasPlaintextSecrets(config)) {
         try {
           await keychain.set("anthropic", anthropic)
           await keychain.set("openai", openai)
-          await file.set(stripSecrets(stored))
+          await file.set(stripSecrets(config))
         } catch {
           // Migration write failed; leave the file intact and retry next boot.
         }
       }
 
-      return withSecrets(stored, anthropic, openai)
+      return withSecrets(config, anthropic, openai)
     },
 
     async set(config) {
-      try {
-        await keychain.set("anthropic", config.anthropic.apiKey)
-        await keychain.set("openai", config.openai.apiKey)
-        await file.set(stripSecrets(config))
-      } catch {
-        // No usable keychain — keep the keys in the file (fallback).
-        await file.set(config)
+      // Persist each key independently: a partial keychain failure must leave
+      // only the failed provider's key on disk, never one that reached the
+      // keychain. `persisted` is what the file keeps — "" once a key is safely
+      // in the keychain, the plaintext key when its write failed (fallback).
+      const persisted: Record<SecretProvider, string> = {
+        anthropic: config.anthropic.apiKey,
+        openai: config.openai.apiKey,
       }
+      for (const provider of ["anthropic", "openai"] as const) {
+        try {
+          await keychain.set(provider, config[provider].apiKey)
+          persisted[provider] = ""
+        } catch {
+          // Keep this provider's key in the file; leave the others as they are.
+        }
+      }
+      await file.set(withSecrets(config, persisted.anthropic, persisted.openai))
     },
   }
 }
