@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Upload the signed Mac App Store .pkg to App Store Connect via altool, using
 // an App Store Connect API key (.p8). Run `npm run package:mas` first (signed).
-// Env vars are documented in README.md (§ Mac App Store build).
+// Env vars are documented in specs/RELEASING.md (§ Mac App Store).
 //
 // Transporter.app (Apple's GUI) is the manual fallback if this path breaks:
 // drag the .pkg into it and sign in with the same API key.

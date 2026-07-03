@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Package the built Mac App Store .app into a .pkg installer via productbuild.
-// Run `npm run build:mas` first. Env vars are documented in README.md.
+// Run `npm run build:mas` first. Env vars are documented in specs/RELEASING.md.
 
 import { execFileSync } from "node:child_process";
 import { existsSync } from "node:fs";

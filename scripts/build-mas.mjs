@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Build the Mac App Store variant: sandboxed .app from the tauri.mas overlay,
 // with the `mas` Cargo feature and the __MAS__ Vite define enabled.
-// Env vars are documented in README.md (§ Mac App Store build).
+// Env vars are documented in specs/RELEASING.md (§ Mac App Store).
 
 import { execFileSync } from "node:child_process";
 import { dirname } from "node:path";

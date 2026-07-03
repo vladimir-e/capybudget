@@ -18,7 +18,7 @@ Tests live next to source files (`*.test.ts`). Vitest shares `vite.config.ts` so
 
 ## Releasing
 
-Releases are cut from `main` via a version tag: `npm run release <version>` bumps every version source, commits, and tags; `git push --follow-tags` triggers the signed multi-platform build into a **draft** GitHub Release. The full procedure — promotion, required secrets, and stable download URLs — lives in [README.md](./README.md#releasing).
+Releases are cut from `main` via a version tag: `npm run release <version>` bumps every version source, commits, and tags; `git push --follow-tags` triggers the signed multi-platform build into a **draft** GitHub Release. The full procedure — both release channels, promotion, required secrets, and the Mac App Store build — lives in [specs/RELEASING.md](./specs/RELEASING.md).
 
 ## Architecture
 

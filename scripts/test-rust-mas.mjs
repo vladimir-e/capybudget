@@ -4,7 +4,7 @@
 // off, so it compiles exactly the plugin set the store binary ships. The MAS
 // overlay is fed through TAURI_CONFIG the same way `build:mas` feeds it via
 // `--config`, so tauri-build validates against the sandboxed capability set.
-// Env vars are documented in README.md (§ Mac App Store build).
+// Env vars are documented in specs/RELEASING.md (§ Mac App Store).
 
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";

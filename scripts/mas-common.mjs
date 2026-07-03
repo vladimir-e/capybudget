@@ -1,5 +1,5 @@
 // Shared helpers for the Mac App Store tooling (build / package / upload).
-// Env vars are documented in README.md (§ Mac App Store build).
+// Env vars are documented in specs/RELEASING.md (§ Mac App Store).
 
 import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";

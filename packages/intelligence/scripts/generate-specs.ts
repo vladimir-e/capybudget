@@ -7,7 +7,8 @@
  *
  * The generated file exports:
  *
- * - `SPECS` — { filename → file content } for every `specs/*.md` file.
+ * - `SPECS` — { filename → file content } for every `specs/*.md` file
+ *   except the contributor-only ones in `EXCLUDED_SPECS`.
  *   The `read_spec` tool reads this map directly; no runtime fs access.
  *   The chat / import / enrich prompts embed `SPECS["APP_KNOWLEDGE.md"]`
  *   as the shared always-on brief; the rest are reachable via `read_spec`.
@@ -22,9 +23,12 @@ const HERE = dirname(fileURLToPath(import.meta.url))
 export const DEFAULT_SPECS_DIR = join(HERE, "..", "..", "..", "specs")
 export const DEFAULT_OUT_PATH = join(HERE, "..", "src", "specs.generated.ts")
 
+// Contributor-only specs that must never ship inside the app bundle.
+export const EXCLUDED_SPECS: ReadonlySet<string> = new Set(["RELEASING.md"])
+
 export function buildSpecsModule(specsDir: string = DEFAULT_SPECS_DIR): string {
   const files = readdirSync(specsDir)
-    .filter((name) => name.endsWith(".md"))
+    .filter((name) => name.endsWith(".md") && !EXCLUDED_SPECS.has(name))
     .sort()
 
   const entries = files.map((name) => {
