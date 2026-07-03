@@ -1,3 +1,5 @@
+mod keychain;
+
 #[cfg(all(feature = "mas", target_os = "macos"))]
 mod security_scope;
 
@@ -20,6 +22,9 @@ pub fn run() {
     #[cfg(desktop)]
     let builder = builder.plugin(tauri_plugin_window_state::Builder::default().build());
 
+    // Keychain commands ship in every build (this is a baseline security
+    // improvement, not MAS-specific). Tauri allows only one invoke_handler, so
+    // the MAS build registers the security-scope commands alongside them.
     #[cfg(all(feature = "mas", target_os = "macos"))]
     let builder = builder
         .manage(security_scope::ScopedAccess::default())
@@ -28,10 +33,20 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            keychain::keychain_get,
+            keychain::keychain_set,
+            keychain::keychain_delete,
             security_scope::persist_folder_access,
             security_scope::forget_folder_access,
             security_scope::reconcile_folder_access,
         ]);
+
+    #[cfg(not(all(feature = "mas", target_os = "macos")))]
+    let builder = builder.invoke_handler(tauri::generate_handler![
+        keychain::keychain_get,
+        keychain::keychain_set,
+        keychain::keychain_delete,
+    ]);
 
     builder
         .run(tauri::generate_context!())

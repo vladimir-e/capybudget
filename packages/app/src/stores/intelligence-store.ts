@@ -22,18 +22,20 @@ import {
   type IntelligenceConfig,
   type IntelligenceProvider,
 } from "@capybudget/intelligence"
+import {
+  createSecretAwareBackend,
+  type ConfigStoreBackend,
+} from "./secret-config"
+import { keychainEnabled, tauriKeychain } from "@/lib/keychain"
 
 const STORE_FILE = "intelligence-config.json"
 const STORE_KEY = "config"
 
 // ── Persistence backend (mockable) ───────────────────────────────
 
-export interface ConfigStoreBackend {
-  get(): Promise<IntelligenceConfig | null>
-  set(config: IntelligenceConfig): Promise<void>
-}
+export type { ConfigStoreBackend } from "./secret-config"
 
-async function tauriBackend(): Promise<ConfigStoreBackend> {
+async function tauriFileStore(): Promise<ConfigStoreBackend> {
   const store = await Store.load(STORE_FILE)
   return {
     async get() {
@@ -45,6 +47,13 @@ async function tauriBackend(): Promise<ConfigStoreBackend> {
       await store.save()
     },
   }
+}
+
+// The store file holds the config; provider API keys live in the OS keychain,
+// composed in here so consumers still see a whole config. See secret-config.ts.
+async function tauriBackend(): Promise<ConfigStoreBackend> {
+  const file = await tauriFileStore()
+  return createSecretAwareBackend(file, keychainEnabled() ? tauriKeychain : null)
 }
 
 let backendLoader: () => Promise<ConfigStoreBackend> = tauriBackend

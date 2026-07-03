@@ -211,6 +211,18 @@ interface IntelligenceConfig {
 }
 ```
 
+The provider **API keys are the exception** — they never rest in the plaintext
+store file. Each key is a generic-password entry in the OS credential store
+(macOS Keychain / Windows Credential Manager / Linux secret-service) under the
+app bundle id, read into the in-memory config on hydrate and stripped from the
+file. A config written before this split is migrated on first load: keys are
+written to the keychain, then removed from the file — keychain write first, so
+an interrupted run never drops a key. Where no credential store is usable (Linux
+without a running secret-service; dev builds, which stay on the store file to
+dodge the recurring keychain prompts an unstable ad-hoc signature causes),
+persistence falls back to the store file. See `src-tauri/src/keychain.rs` and
+`stores/secret-config.ts`.
+
 Settings lives in the `/budget` Intelligence section. It renders a provider radio + per-provider config (API key where applicable, model picker, test-connection button). The radio order is **Off / Anthropic API / OpenAI API / Claude Code**; Claude Code carries an `advanced` badge and sits last as the source-build option. First-run defaults to `null` — users must explicitly pick a provider so they're never surprised by quota usage. The radio's "Off" label maps to `null` at the form boundary. Claude Code is auto-detected via `claude --version` and disabled in the picker if not installed.
 
 Every provider uses one shared model picker: a curated dropdown plus a "Use a custom model" toggle that swaps in a free-text field for any model ID outside the list. A saved model not in the curated list opens the field in custom mode, so a user's pinned model survives a refreshed list. The curated options:
