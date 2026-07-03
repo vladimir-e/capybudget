@@ -22,6 +22,8 @@ import {
 } from "@/stores/intelligence-store"
 import { DEFAULT_INTELLIGENCE_CONFIG, type ChatMessage } from "@capybudget/intelligence"
 
+declare const __MAS__: boolean
+
 vi.mock("sonner", () => ({
   toast: { success: vi.fn(), error: vi.fn() },
   Toaster: () => null,
@@ -160,7 +162,12 @@ describe("CapyOverlay empty state", () => {
     })
     await mountOverlay()
 
-    expect(screen.getByRole("button", { name: "Claude Code" })).toBeInTheDocument()
+    // Claude Code spawns a subprocess — absent from the sandboxed MAS build.
+    if (__MAS__) {
+      expect(screen.queryByRole("button", { name: "Claude Code" })).not.toBeInTheDocument()
+    } else {
+      expect(screen.getByRole("button", { name: "Claude Code" })).toBeInTheDocument()
+    }
     expect(screen.getByRole("button", { name: "Anthropic" })).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "OpenAI" })).toBeInTheDocument()
   })
@@ -241,7 +248,9 @@ describe("CapyOverlay empty state", () => {
 })
 
 describe("CapyOverlay click-through behavior", () => {
-  it("clicking the Claude Code chip sets provider and navigates to /budget/settings", async () => {
+  // The Claude Code chip is desktop-only; the MAS build omits it (asserted absent
+  // by "offers a quick-pick chip for each provider").
+  it.skipIf(__MAS__)("clicking the Claude Code chip sets provider and navigates to /budget/settings", async () => {
     const user = userEvent.setup()
     useIntelligenceStore.setState({
       hydrated: true,
@@ -317,7 +326,7 @@ describe("CapyOverlay click-through behavior", () => {
     expect(useIntelligenceStore.getState().config.provider).toBeNull()
   })
 
-  it("disables the Claude Code chip when the CLI is not detected", async () => {
+  it.skipIf(__MAS__)("disables the Claude Code chip when the CLI is not detected", async () => {
     const user = userEvent.setup()
     detectMock.mockReset()
     detectMock.mockResolvedValue(false)

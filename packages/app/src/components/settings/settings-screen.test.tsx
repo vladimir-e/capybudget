@@ -63,6 +63,8 @@ import {
   _resetStoreForTests,
 } from "@/stores/intelligence-store"
 
+declare const __MAS__: boolean
+
 // ── Test rendering helper ───────────────────────────────
 
 async function renderSettings(
@@ -129,37 +131,47 @@ afterEach(() => {
 // ── Tests ───────────────────────────────────────────────
 
 describe("SettingsScreen", () => {
-  it("renders the AI Provider card with all four options", async () => {
+  it("renders the AI Provider card with all options", async () => {
     await renderSettings()
 
     expect(screen.getByRole("heading", { name: "Settings" })).toBeInTheDocument()
     expect(screen.getByText("AI Provider")).toBeInTheDocument()
     expect(screen.getByText("Off")).toBeInTheDocument()
-    expect(screen.getByText("Claude Code")).toBeInTheDocument()
     expect(screen.getByText("Anthropic API")).toBeInTheDocument()
     expect(screen.getByText("OpenAI API")).toBeInTheDocument()
+    // Claude Code spawns a subprocess — offered only in the desktop build.
+    if (__MAS__) {
+      expect(screen.queryByText("Claude Code")).not.toBeInTheDocument()
+    } else {
+      expect(screen.getByText("Claude Code")).toBeInTheDocument()
+    }
   })
 
-  it("orders providers Off / Anthropic / OpenAI / Claude Code", async () => {
+  it("orders providers Off / Anthropic / OpenAI (/ Claude Code on desktop)", async () => {
     await renderSettings()
 
     const labels = screen
       .getAllByText(/^(Off|Anthropic API|OpenAI API|Claude Code)$/)
       .map((el) => el.textContent)
-    expect(labels).toEqual([
-      "Off",
-      "Anthropic API",
-      "OpenAI API",
-      "Claude Code",
-    ])
+    expect(labels).toEqual(
+      __MAS__
+        ? ["Off", "Anthropic API", "OpenAI API"]
+        : ["Off", "Anthropic API", "OpenAI API", "Claude Code"],
+    )
   })
 
-  it("badges Claude Code as advanced", async () => {
+  it("badges Claude Code as advanced on desktop; omits it under MAS", async () => {
     await renderSettings()
-    expect(screen.getByText("advanced")).toBeInTheDocument()
+    if (__MAS__) {
+      expect(screen.queryByText("advanced")).not.toBeInTheDocument()
+    } else {
+      expect(screen.getByText("advanced")).toBeInTheDocument()
+    }
   })
 
-  it("exposes a model selector for Claude Code", async () => {
+  // The Claude Code provider (subprocess-backed) is desktop-only; its config
+  // surface never renders in the sandboxed MAS build.
+  it.skipIf(__MAS__)("exposes a model selector for Claude Code", async () => {
     recheckMock.mockResolvedValue(true)
     useIntelligenceStore.setState({
       hydrated: true,
@@ -172,7 +184,7 @@ describe("SettingsScreen", () => {
     expect(screen.getByLabelText("Use a custom model")).toBeInTheDocument()
   })
 
-  it("Claude Code custom-model field accepts a full model ID", async () => {
+  it.skipIf(__MAS__)("Claude Code custom-model field accepts a full model ID", async () => {
     const user = userEvent.setup()
     recheckMock.mockResolvedValue(true)
     useIntelligenceStore.setState({
@@ -222,7 +234,7 @@ describe("SettingsScreen", () => {
     expect(screen.queryByLabelText("API key")).not.toBeInTheDocument()
   })
 
-  it("disables the Claude Code option when CLI is not detected", async () => {
+  it.skipIf(__MAS__)("disables the Claude Code option when CLI is not detected", async () => {
     recheckMock.mockResolvedValue(false)
     await renderSettings()
 
@@ -236,10 +248,13 @@ describe("SettingsScreen", () => {
     const user = userEvent.setup()
     await renderSettings()
 
-    // Wait for the probe to settle so radios are interactive.
-    await waitFor(() => {
-      expect(recheckMock).toHaveBeenCalled()
-    })
+    // Desktop probes the Claude CLI on mount; wait for it to settle so the radios
+    // are interactive. The MAS build omits Claude Code and never probes.
+    if (!__MAS__) {
+      await waitFor(() => {
+        expect(recheckMock).toHaveBeenCalled()
+      })
+    }
 
     const anthropicLabel = screen.getByText("Anthropic API").closest("label")
     expect(anthropicLabel).not.toBeNull()
@@ -320,7 +335,7 @@ describe("SettingsScreen", () => {
     expect(testButton).toBeDisabled()
   })
 
-  it("warns when claude-cli is selected but not detected", async () => {
+  it.skipIf(__MAS__)("warns when claude-cli is selected but not detected", async () => {
     recheckMock.mockResolvedValue(false)
     useIntelligenceStore.setState({
       hydrated: true,
@@ -397,9 +412,15 @@ describe("SettingsScreen", () => {
   it("switches to Updates when the section param changes after mount", async () => {
     const { router } = await renderSettings()
 
+    // The desktop updater UI is subtitled "Keep Capy up to date."; the MAS build
+    // swaps in a note that updates come through the App Store.
+    const updatesMarker = __MAS__
+      ? "Updates are delivered through the Mac App Store."
+      : "Keep Capy up to date."
+
     // Mounted on Intelligence (deep-linked), not the Updates section.
     expect(screen.getByText("AI Provider")).toBeInTheDocument()
-    expect(screen.queryByText("Keep Capy up to date.")).not.toBeInTheDocument()
+    expect(screen.queryByText(updatesMarker)).not.toBeInTheDocument()
 
     await router.navigate({
       to: "/budget/settings",
@@ -407,7 +428,7 @@ describe("SettingsScreen", () => {
     })
 
     await waitFor(() => {
-      expect(screen.getByText("Keep Capy up to date.")).toBeInTheDocument()
+      expect(screen.getByText(updatesMarker)).toBeInTheDocument()
     })
   })
 
@@ -418,7 +439,13 @@ describe("SettingsScreen", () => {
     expect(await screen.findByText("Budget-wide basics.")).toBeInTheDocument()
 
     await user.click(screen.getByRole("button", { name: /Updates/i }))
-    expect(await screen.findByText("Keep Capy up to date.")).toBeInTheDocument()
+    expect(
+      await screen.findByText(
+        __MAS__
+          ? "Updates are delivered through the Mac App Store."
+          : "Keep Capy up to date.",
+      ),
+    ).toBeInTheDocument()
     // The click pushes the section onto the URL — the source of truth.
     expect(router.state.location.search).toHaveProperty("section", "updates")
 

@@ -16,6 +16,8 @@ vi.mock("sonner", () => ({
 
 import { useStartupUpdateCheck } from "./use-startup-update-check"
 
+declare const __MAS__: boolean
+
 function setTauri(present: boolean) {
   if (present) {
     ;(window as unknown as Record<string, unknown>).__TAURI_INTERNALS__ = {}
@@ -54,7 +56,81 @@ describe("useStartupUpdateCheck", () => {
     expect(toastMock).not.toHaveBeenCalled()
   })
 
-  it("toasts once with a deep-link action when an update is found", async () => {
+  // The desktop build polls GitHub for updates; the MAS build ships no updater
+  // (the App Store delivers them), so the hook short-circuits before touching
+  // Tauri. These behaviors only exist in the desktop variant.
+  describe.skipIf(__MAS__)("desktop update check", () => {
+    it("toasts once with a deep-link action when an update is found", async () => {
+      setTauri(true)
+      const navigate = vi.fn()
+      checkMock.mockResolvedValue({ version: "2.0.0" })
+
+      renderHook(() => useStartupUpdateCheck({ path: "/b", name: "B", navigate }))
+      await flush()
+
+      expect(checkMock).toHaveBeenCalledOnce()
+      expect(toastMock).toHaveBeenCalledOnce()
+      const [message, opts] = toastMock.mock.calls[0]
+      expect(message).toBe("Capy 2.0.0 available")
+
+      opts.action.onClick()
+      expect(navigate).toHaveBeenCalledWith({
+        to: "/budget/settings",
+        search: { path: "/b", name: "B", section: "updates" },
+      })
+    })
+
+    it("does not toast when no update is available", async () => {
+      setTauri(true)
+      const navigate = vi.fn()
+      checkMock.mockResolvedValue(null)
+
+      renderHook(() => useStartupUpdateCheck({ path: "/b", name: "B", navigate }))
+      await flush()
+
+      expect(checkMock).toHaveBeenCalledOnce()
+      expect(toastMock).not.toHaveBeenCalled()
+    })
+
+    it("fires the check once across re-renders", async () => {
+      setTauri(true)
+      const navigate = vi.fn()
+      checkMock.mockResolvedValue(null)
+
+      const { rerender } = renderHook(
+        (props: { path: string; name: string }) =>
+          useStartupUpdateCheck({ ...props, navigate }),
+        { initialProps: { path: "/b", name: "B" } },
+      )
+      rerender({ path: "/b2", name: "B2" })
+      await flush()
+
+      expect(checkMock).toHaveBeenCalledOnce()
+    })
+
+    it("deep-links to the budget open when the toast is clicked, not first mount", async () => {
+      setTauri(true)
+      const navigate = vi.fn()
+      checkMock.mockResolvedValue({ version: "2.0.0" })
+
+      const { rerender } = renderHook(
+        (props: { path: string; name: string }) =>
+          useStartupUpdateCheck({ ...props, navigate }),
+        { initialProps: { path: "/b", name: "B" } },
+      )
+      rerender({ path: "/b2", name: "B2" })
+      await flush()
+
+      const [, opts] = toastMock.mock.calls[0]
+      opts.action.onClick()
+      expect(navigate).toHaveBeenCalledWith({
+        to: "/budget/settings",
+        search: { path: "/b2", name: "B2", section: "updates" },
+      })
+    })
+  })
+
+  it.runIf(__MAS__)("never checks for updates in the MAS build, even inside Tauri", async () => {
     setTauri(true)
     const navigate = vi.fn()
     checkMock.mockResolvedValue({ version: "2.0.0" })
@@ -62,64 +138,7 @@ describe("useStartupUpdateCheck", () => {
     renderHook(() => useStartupUpdateCheck({ path: "/b", name: "B", navigate }))
     await flush()
 
-    expect(checkMock).toHaveBeenCalledOnce()
-    expect(toastMock).toHaveBeenCalledOnce()
-    const [message, opts] = toastMock.mock.calls[0]
-    expect(message).toBe("Capy 2.0.0 available")
-
-    opts.action.onClick()
-    expect(navigate).toHaveBeenCalledWith({
-      to: "/budget/settings",
-      search: { path: "/b", name: "B", section: "updates" },
-    })
-  })
-
-  it("does not toast when no update is available", async () => {
-    setTauri(true)
-    const navigate = vi.fn()
-    checkMock.mockResolvedValue(null)
-
-    renderHook(() => useStartupUpdateCheck({ path: "/b", name: "B", navigate }))
-    await flush()
-
-    expect(checkMock).toHaveBeenCalledOnce()
+    expect(checkMock).not.toHaveBeenCalled()
     expect(toastMock).not.toHaveBeenCalled()
-  })
-
-  it("fires the check once across re-renders", async () => {
-    setTauri(true)
-    const navigate = vi.fn()
-    checkMock.mockResolvedValue(null)
-
-    const { rerender } = renderHook(
-      (props: { path: string; name: string }) =>
-        useStartupUpdateCheck({ ...props, navigate }),
-      { initialProps: { path: "/b", name: "B" } },
-    )
-    rerender({ path: "/b2", name: "B2" })
-    await flush()
-
-    expect(checkMock).toHaveBeenCalledOnce()
-  })
-
-  it("deep-links to the budget open when the toast is clicked, not first mount", async () => {
-    setTauri(true)
-    const navigate = vi.fn()
-    checkMock.mockResolvedValue({ version: "2.0.0" })
-
-    const { rerender } = renderHook(
-      (props: { path: string; name: string }) =>
-        useStartupUpdateCheck({ ...props, navigate }),
-      { initialProps: { path: "/b", name: "B" } },
-    )
-    rerender({ path: "/b2", name: "B2" })
-    await flush()
-
-    const [, opts] = toastMock.mock.calls[0]
-    opts.action.onClick()
-    expect(navigate).toHaveBeenCalledWith({
-      to: "/budget/settings",
-      search: { path: "/b2", name: "B2", section: "updates" },
-    })
   })
 })

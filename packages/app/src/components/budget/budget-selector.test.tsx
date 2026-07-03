@@ -4,6 +4,8 @@ import { renderApp } from "@/test/render-app";
 import { useAppStore } from "@/stores/app-store";
 import { flagReopenFailure, consumeReopenFailure } from "@/lib/reopen-failure";
 
+declare const __MAS__: boolean;
+
 // The selector imports its budget service via a deep relative path; mock at
 // the same path so vi.mock can resolve it.
 const mockInspectFolder = vi.fn();
@@ -169,7 +171,7 @@ describe("BudgetSelector — converged routing", () => {
 });
 
 describe("BudgetSelector — recents", () => {
-  it("prunes missing recents on mount", async () => {
+  it("prunes missing recents on mount (desktop); keeps them under the sandbox", async () => {
     useAppStore.setState({
       recentBudgets: [
         { path: "/keep/a", name: "Keep A", lastOpened: "2026-01-01T00:00:00.000Z" },
@@ -180,14 +182,26 @@ describe("BudgetSelector — recents", () => {
 
     await renderApp({ url: "/" });
 
-    await waitFor(() => {
+    if (__MAS__) {
+      // Under the sandbox an unreachable folder means access lapsed, not
+      // deletion — the recent stays so its access can be re-granted on click,
+      // and the mount-time prune never runs.
+      await screen.findByText("Keep A");
       expect(useAppStore.getState().recentBudgets.map((b) => b.path)).toEqual([
         "/keep/a",
+        "/gone/b",
       ]);
-    });
+      expect(mockFindMissingBudgetPaths).not.toHaveBeenCalled();
+    } else {
+      await waitFor(() => {
+        expect(useAppStore.getState().recentBudgets.map((b) => b.path)).toEqual([
+          "/keep/a",
+        ]);
+      });
+    }
   });
 
-  it("clicking a stale recent shows a friendly error and removes it", async () => {
+  it("clicking a stale recent removes it (desktop); re-prompts for the folder under the sandbox", async () => {
     useAppStore.setState({
       recentBudgets: [
         { path: "/dead/path", name: "Dead", lastOpened: "2026-01-01T00:00:00.000Z" },
@@ -201,9 +215,20 @@ describe("BudgetSelector — recents", () => {
     const { user } = await renderApp({ url: "/" });
     await user.click(await screen.findByText("Dead"));
 
-    await waitFor(() => {
-      expect(useAppStore.getState().recentBudgets).toHaveLength(0);
-    });
+    if (__MAS__) {
+      // The sandbox re-opens the folder picker at the stale path so re-selecting
+      // restores access; the recent is kept, not pruned.
+      await waitFor(() => {
+        expect(mockPickerOpen).toHaveBeenCalledWith(
+          expect.objectContaining({ defaultPath: "/dead/path" }),
+        );
+      });
+      expect(useAppStore.getState().recentBudgets).toHaveLength(1);
+    } else {
+      await waitFor(() => {
+        expect(useAppStore.getState().recentBudgets).toHaveLength(0);
+      });
+    }
   });
 });
 
