@@ -4,10 +4,10 @@
 // bundle's icon.icns keeps its shaped/transparent reps untouched — this is a
 // separate marketing asset uploaded through App Store Connect, not bundled.
 //
-// Source is the 1024 (512@2x) representation already inside icon.icns. The
-// rounded-corner transparency is filled with the icon's own gradient (the icon
-// drawn oversized underneath), so nothing odd shows if Apple's store UI masks
-// the corners differently than the artwork's own radius.
+// Source is the 1024 (512@2x) representation already inside icon.icns. Its
+// rounded-corner transparency is filled per row by extending each row's nearest
+// opaque pixel outward; the icon's gradient is vertical, so the corners
+// reconstruct as smooth gradient with no seam.
 
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
@@ -64,7 +64,7 @@ for y in 0..<size {
   let row = y * bpr
   var first = -1, last = -1
   for x in 0..<size where p[row + x * 4 + 3] == 255 { if first < 0 { first = x }; last = x }
-  if first < 0 { continue }
+  if first < 0 { fputs("row \\(y) has no opaque pixel — source is not full-bleed; a no-alpha icon would render it black. Aborting.\\n", stderr); exit(1) }
   for (edge, range) in [(first, 0..<first), (last, (last + 1)..<size)] {
     let e = row + edge * 4
     for x in range {
@@ -93,7 +93,8 @@ try {
   execFileSync(bin, [src, OUT]);
 } catch (err) {
   rmSync(work, { recursive: true, force: true });
-  fail(`swift flatten failed: ${err.message}`);
+  const detail = err.stderr?.toString().trim() || err.message;
+  fail(`store-icon flatten failed: ${detail}`);
 }
 
 rmSync(work, { recursive: true, force: true });

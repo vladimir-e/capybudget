@@ -36,9 +36,11 @@ if (!existsSync(pkg)) {
   fail(`no .pkg at ${pkg}\n       Run \`npm run package:mas\` first (matching MAS_TARGET).`);
 }
 
-// App Store Connect only accepts a .pkg signed with a Mac Installer
-// Distribution certificate. Catch the unsigned local-smoke .pkg before the
-// upload round-trips and fails opaquely.
+// App Store Connect requires a .pkg signed with a Mac Installer Distribution
+// certificate. This gate hard-fails the two chains ASC would bounce anyway — an
+// unsigned package, or one signed with the Developer ID Installer cert (the
+// DMG/direct-download cert) — so an upload round-trip isn't wasted on them.
+const pkgName = pkg.split("/").pop();
 let signature = "";
 try {
   signature = execFileSync("pkgutil", ["--check-signature", pkg], { encoding: "utf8" });
@@ -47,16 +49,36 @@ try {
 }
 if (!/Status:\s*signed/i.test(signature)) {
   fail(
-    `${pkg.split("/").pop()} is not signed.\n` +
+    `${pkgName} is not signed.\n` +
       "       Re-run `npm run package:mas` with APPLE_INSTALLER_IDENTITY set to a\n" +
       "       'Mac Installer Distribution' identity. App Store Connect rejects unsigned packages.",
+  );
+}
+const leafCert = signature.match(/^\s*1\.\s+(.+?)\s*$/m)?.[1] ?? "";
+if (/Developer ID Installer/i.test(leafCert)) {
+  fail(
+    `${pkgName} is signed with "${leafCert}".\n` +
+      "       That's the Developer ID Installer certificate (the DMG/direct-download cert);\n" +
+      "       App Store Connect rejects it. Re-run `npm run package:mas` with\n" +
+      "       APPLE_INSTALLER_IDENTITY set to your 'Mac Installer Distribution' identity.",
+  );
+}
+// The portal calls the certificate type "Mac Installer Distribution"; the issued
+// cert's Common Name is "3rd Party Mac Developer Installer: …" — accept either.
+// Anything else that is still signed we let through: ASC makes the final call,
+// and this gate must never false-reject a valid but unfamiliar chain.
+if (!/3rd Party Mac Developer Installer|Mac Installer Distribution/i.test(leafCert)) {
+  console.warn(
+    `warning: ${pkgName} is signed by "${leafCert || "an unrecognized certificate"}", not a\n` +
+      "         recognized Mac Installer Distribution certificate. Proceeding — App Store\n" +
+      "         Connect will make the final call.",
   );
 }
 
 const app = appBundlePath();
 const uploaded = (existsSync(app) && readAppBuildNumber(app)) || null;
 
-console.log(`Uploading ${pkg.split("/").pop()} (build ${uploaded ?? "?"}) to App Store Connect…`);
+console.log(`Uploading ${pkgName} (build ${uploaded ?? "?"}) to App Store Connect…`);
 
 try {
   execFileSync(

@@ -156,6 +156,9 @@ climbs every upload. The current value lives in checked-in
 `src-tauri/mas-build-number.txt`: `build:mas` stamps it into the `.app`, and
 `upload:mas` increments it after a successful upload (commit the bump). Set
 `MAS_BUILD_NUMBER` to override for a one-off build — then you own the counter.
+Because the counter is a committed file, `git pull` before building on a second
+machine: uploading from both the laptop and the mini without pulling the other's
+bump stamps the same `CFBundleVersion` twice, and ASC rejects the second.
 
 **Store icon.** `npm run icon:mas-store` (re)generates
 `src-tauri/icons/AppStore-1024.png` — the 1024×1024 **no-alpha** icon App Store

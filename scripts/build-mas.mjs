@@ -4,34 +4,11 @@
 // Env vars are documented in README.md (§ Mac App Store build).
 
 import { execFileSync } from "node:child_process";
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, writeFileSync } from "node:fs";
 import { resolve, dirname } from "node:path";
-import { fileURLToPath } from "node:url";
-import { readBuildNumber } from "./mas-common.mjs";
+import { fail, SRC_TAURI, readText, readJson, readBuildNumber } from "./mas-common.mjs";
 
-const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const SRC_TAURI = resolve(ROOT, "src-tauri");
-
-function fail(msg) {
-  console.error(`error: ${msg}`);
-  process.exit(1);
-}
-
-function readText(relPath) {
-  try {
-    return readFileSync(resolve(SRC_TAURI, relPath), "utf8");
-  } catch (err) {
-    fail(`couldn't read src-tauri/${relPath}: ${err.message}`);
-  }
-}
-
-function readJson(relPath) {
-  try {
-    return JSON.parse(readText(relPath));
-  } catch (err) {
-    fail(`couldn't parse src-tauri/${relPath}: ${err.message}`);
-  }
-}
+const ROOT = dirname(SRC_TAURI);
 
 const teamId = process.env.APPLE_TEAM_ID ?? "";
 const buildNumber = process.env.MAS_BUILD_NUMBER ?? String(readBuildNumber());

@@ -6,7 +6,7 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
-export const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 export const SRC_TAURI = resolve(ROOT, "src-tauri");
 
 export function fail(msg) {
@@ -14,28 +14,42 @@ export function fail(msg) {
   process.exit(1);
 }
 
-export function readTauriConf() {
+export function readText(relPath) {
   try {
-    return JSON.parse(readFileSync(resolve(SRC_TAURI, "tauri.conf.json"), "utf8"));
+    return readFileSync(resolve(SRC_TAURI, relPath), "utf8");
   } catch (err) {
-    fail(`couldn't read src-tauri/tauri.conf.json: ${err.message}`);
+    fail(`couldn't read src-tauri/${relPath}: ${err.message}`);
   }
 }
 
-export function masTarget() {
+export function readJson(relPath) {
+  try {
+    return JSON.parse(readText(relPath));
+  } catch (err) {
+    fail(`couldn't parse src-tauri/${relPath}: ${err.message}`);
+  }
+}
+
+// The .app/.pkg take their name from productName in the base tauri.conf.json —
+// the MAS overlay never renames the product, so both build variants match.
+function productName() {
+  return readJson("tauri.conf.json").productName;
+}
+
+function masTarget() {
   return process.env.MAS_TARGET ?? "universal-apple-darwin";
 }
 
-export function bundleDir() {
+function bundleDir() {
   return resolve(SRC_TAURI, "target", masTarget(), "release", "bundle", "macos");
 }
 
 export function appBundlePath() {
-  return resolve(bundleDir(), `${readTauriConf().productName}.app`);
+  return resolve(bundleDir(), `${productName()}.app`);
 }
 
 export function pkgPath() {
-  return resolve(bundleDir(), `${readTauriConf().productName}.pkg`);
+  return resolve(bundleDir(), `${productName()}.pkg`);
 }
 
 // The App Store upload counter (CFBundleVersion). Checked in so it stays
@@ -46,11 +60,11 @@ const BUILD_NUMBER_FILE = resolve(SRC_TAURI, "mas-build-number.txt");
 
 export function readBuildNumber() {
   if (!existsSync(BUILD_NUMBER_FILE)) return 1;
-  const n = Number.parseInt(readFileSync(BUILD_NUMBER_FILE, "utf8").trim(), 10);
-  if (!Number.isInteger(n) || n < 1) {
-    fail(`src-tauri/mas-build-number.txt is not a positive integer`);
+  const raw = readFileSync(BUILD_NUMBER_FILE, "utf8").trim();
+  if (!/^[1-9]\d*$/.test(raw)) {
+    fail(`src-tauri/mas-build-number.txt must be a positive integer, got "${raw}"`);
   }
-  return n;
+  return Number.parseInt(raw, 10);
 }
 
 export function writeBuildNumber(n) {
