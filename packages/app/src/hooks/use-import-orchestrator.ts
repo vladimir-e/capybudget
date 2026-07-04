@@ -3,9 +3,9 @@ import {
   ImportOrchestrator,
   FileStagingStore,
   buildImportSystemPrompt,
-  canImport,
   canReadPdf,
   createStructuredImportSession,
+  importReady,
   type BudgetDataProvider,
 } from "@capybudget/intelligence";
 import { AnthropicSession, OpenAiSession } from "@capybudget/intelligence/adapters";
@@ -68,12 +68,7 @@ export function useImportOrchestrator(budgetPath: string) {
   const beginRun = useImportStore((s) => s.beginRun);
 
   const pdfSupported = canReadPdf(config.provider);
-  // Type-capable provider AND its key present — exactly what
-  // createStructuredImportSession requires to build a session. Gating the UI on
-  // this turns the runtime providerRequired failure into an up-front CTA.
-  const canStart =
-    canImport(config.provider) &&
-    !!(config.provider === "anthropic" ? config.anthropic.apiKey : config.openai.apiKey);
+  const canStart = importReady(config);
 
   const staging = useMemo(
     () => new FileStagingStore(tauriFileAdapter, budgetPath),

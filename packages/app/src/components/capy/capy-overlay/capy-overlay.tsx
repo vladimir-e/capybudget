@@ -21,6 +21,7 @@ import type { CapyCommand } from "@/hooks/use-custom-commands"
 import { useMediaQuery, usePanelResize } from "@/hooks/use-panel-resize"
 import { useCapySessionContext } from "@/contexts/capy-session-context"
 import {
+  importReady,
   MAX_ATTACHMENT_SIZE,
   MAX_TOTAL_ATTACHMENT_SIZE,
   PROVIDER_LABELS,
@@ -108,10 +109,7 @@ export function CapyOverlay({
   const { path, name } = useSearch({ from: "/budget" })
   const config = useIntelligenceStore((s) => s.config)
   const setProvider = useIntelligenceStore((s) => s.setProvider)
-  const isConfigured =
-    config.provider === "claude-cli" ||
-    (config.provider === "anthropic" && !!config.anthropic.apiKey) ||
-    (config.provider === "openai" && !!config.openai.apiKey)
+  const isConfigured = config.provider === "claude-cli" || importReady(config)
 
   // Detect Claude Code CLI on mount so we can disable that chip when it
   // isn't installed. detectClaudeCli is cached and idempotent — repeat

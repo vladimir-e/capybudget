@@ -60,6 +60,6 @@ export type {
 } from "./schemas";
 
 // Structured session factory + capability gate
-export { createStructuredImportSession, canImport, canReadPdf } from "./session-factory";
+export { createStructuredImportSession, canImport, canReadPdf, importReady } from "./session-factory";
 export type { StructuredImportSessionDeps } from "./session-factory";
 export { IMPORT_STRUCTURED_SYSTEM_PROMPT, buildImportSystemPrompt } from "./system-prompt";

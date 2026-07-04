@@ -36,7 +36,7 @@
   },
   "setupAi": {
     "title": "Configura la IA para importar",
-    "body": "Elige un proveedor de IA en los ajustes para traer estas transacciones.",
+    "body": "Conecta un proveedor de IA en los ajustes para traer estas transacciones.",
     "cliBody": "Claude Code impulsa el chat, pero importar extractos necesita Anthropic u OpenAI — añade uno en los ajustes.",
     "button": "Configurar IA"
   },

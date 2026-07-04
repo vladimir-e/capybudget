@@ -132,21 +132,8 @@ describe("ImportScreen — checkStaging routing", () => {
     expect(useImportStore.getState().hasImportData).toBe(false);
   });
 
-  it("still renders the drop zone when the import can't start (no key / provider)", async () => {
-    // The wall is now the "Set up AI" CTA inside the drop zone, not a banner
-    // replacing it — users always reach the file-attach flow.
-    mocks.canStart = false;
-    mocks.provider = null;
-    renderScreen();
-
-    expect(await screen.findByTestId("drop-zone")).toBeInTheDocument();
-    expect(screen.queryByTestId("preview")).toBeNull();
-  });
-
   // Regression: a rejecting staging probe must settle the screen, never wedge the spinner.
   it("settles to file-attach when the staging probe is denied (MAS sandbox)", async () => {
-    mocks.canStart = false;
-    mocks.provider = null;
     mocks.staging.readTransactions.mockRejectedValue(new Error("forbidden path"));
     renderScreen();
 

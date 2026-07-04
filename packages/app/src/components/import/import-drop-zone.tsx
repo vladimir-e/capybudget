@@ -210,10 +210,8 @@ export function ImportDropZone({
 }
 
 /**
- * The wall at the end of the file-attach flow: the files are staged but no
- * import-capable provider is configured. Deep-links to the Settings
- * intelligence tab. The CLI case gets its own wording — that user has AI (chat
- * works) but import needs an API provider.
+ * The CLI case gets its own wording — that user has AI (chat works), but import
+ * needs an API provider, so a bare "Set up AI" would confuse.
  */
 function ImportSetupAiCta({
   providerIsClaudeCli,

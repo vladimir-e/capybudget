@@ -9,6 +9,10 @@ CHANGELOG PHILOSOPHY:
 - Resist the urge to be thorough here. Thoroughness goes in specs, not changelog.
 -->
 
+## Unreleased
+
+- **Import** - Attach files before setting up AI; a Set up AI prompt now gates the run instead of a runtime error. (#105)
+
 ## 1.4.1 — 2026-07-02
 
 - **Capy** - Refreshed AI model pickers: Fable joins the Claude Code options, and the Anthropic option and default move to Claude Sonnet 5.

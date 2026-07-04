@@ -35,7 +35,7 @@
   },
   "setupAi": {
     "title": "Set up AI to import",
-    "body": "Pick an AI provider in settings to bring these transactions in.",
+    "body": "Connect an AI provider in settings to bring these transactions in.",
     "cliBody": "Claude Code powers chat, but importing statements needs Anthropic or OpenAI — add one in settings.",
     "button": "Set up AI"
   },

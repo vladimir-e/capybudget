@@ -380,10 +380,8 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
   }, [reset, setHasImportData]);
 
   // ── Render ────────────────────────────────────────────────────
-  // The drop zone is always available in file-attach — users attach files and
-  // see the staging UI regardless of AI config, since that's what motivates
-  // setting AI up. The wall (a "Set up AI" CTA replacing Start) lives at the run
-  // boundary inside the drop zone.
+  // AI config never gates file-attach; the gate is the CTA at the run boundary
+  // inside the drop zone.
   const showDropZone = viewState === "file-attach";
   const showRun = viewState === "run";
   // The section bar persists through a run and stays as a done-from-state header

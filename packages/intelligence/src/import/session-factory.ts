@@ -24,6 +24,16 @@ export function canImport(provider: IntelligenceConfig["provider"]): boolean {
   return provider === "anthropic" || provider === "openai";
 }
 
+/** Whether an import run can actually start: a provider {@link canImport} can
+ *  run AND that provider's API key present. The single gate the Import UI and
+ *  {@link createStructuredImportSession} share, so "Start" and the runtime
+ *  session build never disagree. */
+export function importReady(config: IntelligenceConfig): boolean {
+  if (!canImport(config.provider)) return false;
+  const key = config.provider === "anthropic" ? config.anthropic.apiKey : config.openai.apiKey;
+  return !!key;
+}
+
 /** Whether a provider can read PDF/document attachments. Anthropic sends PDFs
  *  through the SDK's native `document` type; OpenAI's `chat.completions` can't
  *  read documents — the adapter swaps a PDF for a placeholder note, so a PDF
@@ -59,11 +69,10 @@ export function createStructuredImportSession(
   deps: StructuredImportSessionDeps,
 ): StructuredSession | null {
   const { config, adapters, options } = deps;
-  const provider = config.provider;
-  if (!canImport(provider)) return null;
+  if (!importReady(config)) return null;
 
+  const provider = config.provider;
   const providerConfig = provider === "anthropic" ? config.anthropic : config.openai;
-  if (!providerConfig.apiKey) return null;
   const ctor = provider === "anthropic" ? adapters.anthropic : adapters.openai;
   if (!ctor) return null;
 
