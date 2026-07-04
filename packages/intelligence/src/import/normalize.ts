@@ -33,6 +33,7 @@ import {
   type TypeDetection,
 } from "@capybudget/core";
 import type { MessageContent } from "../types";
+import { sourceContentBlock } from "../source-files";
 import { SchemaValidationError, type StructuredSession } from "../structured";
 import type { NormalizeProgress } from "./events";
 import {
@@ -525,7 +526,7 @@ function disambiguateSlashDate(dates: string[]): "MM/DD/YYYY" | "DD/MM/YYYY" {
 
 const FALLBACK_SOURCE = "Imported";
 
-function accountFromFilename(filename: string): string {
+export function accountFromFilename(filename: string): string {
   const base = filename
     .replace(/\.[^.]+$/, "")
     .replace(/[_-]+/g, " ")
@@ -580,7 +581,7 @@ export async function normalizeImage(
 
   const content: MessageContent = [
     { type: "text", text: prompt },
-    sourceBlock(source),
+    sourceContentBlock(source),
   ];
 
   // EXTRACTION_SCHEMA wraps the discriminated outcome in `result` so its root is
@@ -628,25 +629,6 @@ export function countStreamedRows(text: string): NormalizeProgress {
   return { rows, total: count ? Number(count[1]) : null };
 }
 
-function sourceBlock(source: { name: string; content: string; mediaType: string }) {
-  if (source.mediaType === "application/pdf") {
-    return {
-      type: "document" as const,
-      source: { type: "base64" as const, media_type: source.mediaType, data: source.content },
-      filename: source.name,
-    };
-  }
-  return {
-    type: "image" as const,
-    source: { type: "base64" as const, media_type: source.mediaType, data: source.content },
-  };
-}
-
 function describeKind(mediaType: string): string {
   return mediaType === "application/pdf" ? "PDF" : "image";
-}
-
-/** Source files split into the two normalization paths by media type. */
-export function isImageOrPdf(mediaType: string): boolean {
-  return mediaType.startsWith("image/") || mediaType === "application/pdf";
 }

@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { getToday } from "@capybudget/core";
-import { countStreamedRows, normalizeCsv, normalizeImage, isImageOrPdf, normalizeMapping } from "./normalize";
+import { countStreamedRows, normalizeCsv, normalizeImage, normalizeMapping } from "./normalize";
 import type { NormalizeProgress } from "./events";
 import { CSV_MAPPING_SCHEMA, EXTRACTION_SCHEMA } from "./schemas";
 import { SchemaValidationError } from "../structured";
@@ -817,14 +817,5 @@ describe("countStreamedRows", () => {
   it("declares count before rows in the schema, so the denominator streams first", () => {
     const rowsAlternative = EXTRACTION_SCHEMA.properties!.result.anyOf![0];
     expect(Object.keys(rowsAlternative.properties!)).toEqual(["count", "rows"]);
-  });
-});
-
-describe("isImageOrPdf", () => {
-  it("classifies images and PDFs as the extraction path", () => {
-    expect(isImageOrPdf("image/png")).toBe(true);
-    expect(isImageOrPdf("image/jpeg")).toBe(true);
-    expect(isImageOrPdf("application/pdf")).toBe(true);
-    expect(isImageOrPdf("text/csv")).toBe(false);
   });
 });

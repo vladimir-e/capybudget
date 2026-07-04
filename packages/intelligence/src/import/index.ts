@@ -30,9 +30,12 @@ export type { StagingStore, SourceFile, ImportState, StagedTransactions } from "
 export { FileStagingStore, parseImportCsv } from "./staging-store";
 export type { BudgetDataProvider } from "./budget-data";
 
-// Stateless model calls + batching
-export { normalizeCsv, normalizeImage, isImageOrPdf } from "./normalize";
+// Normalizing paths — two stateless model calls (CSV, image/PDF) + one
+// deterministic parse (OFX) — plus batching.
+export { normalizeCsv, normalizeImage } from "./normalize";
 export type { NormalizeCsvResult, NormalizeImageResult } from "./normalize";
+export { normalizeOfx } from "./ofx";
+export type { NormalizeOfxResult } from "./ofx";
 export {
   enrichBatch,
   enrichTransfers,

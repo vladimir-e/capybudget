@@ -79,6 +79,21 @@ export {
   MAX_TOTAL_ATTACHMENT_SIZE,
 } from "./attachments"
 
+// Source-file classification — one owner for media-type inference, the
+// normalization path a source takes, and the model content block it becomes.
+export {
+  OFX_MEDIA_TYPE,
+  fileExtension,
+  isImageFilename,
+  isPdfFilename,
+  isOfxFilename,
+  mediaTypeForFilename,
+  classifySource,
+  classifyFile,
+  sourceContentBlock,
+} from "./source-files"
+export type { SourceKind } from "./source-files"
+
 // Tool layer — definitions, dispatch, handlers, and metadata
 export {
   // Definitions
@@ -121,7 +136,7 @@ export {
   parseImportCsv,
   normalizeCsv,
   normalizeImage,
-  isImageOrPdf,
+  normalizeOfx,
   enrichBatch,
   enrichTransfers,
   batchRows,
@@ -158,6 +173,7 @@ export type {
   BudgetDataProvider,
   NormalizeCsvResult,
   NormalizeImageResult,
+  NormalizeOfxResult,
   CsvMappingResult,
   ExtractionResult,
   EnrichBatchResult,

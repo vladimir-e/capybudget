@@ -9,6 +9,7 @@ import { serializeImportCsv } from "@capybudget/core";
 import type { Account, Category, ImportTransaction, RowContext, TransferContext, Transaction } from "@capybudget/core";
 import { parseStructured } from "../structured";
 import type { JsonSchema, StructuredCallOptions, StructuredMessage, StructuredSession } from "../structured";
+import { mediaTypeForFilename } from "../source-files";
 import type { BudgetDataProvider } from "./budget-data";
 import { parseImportCsv } from "./staging-store";
 import type { ImportState, SourceFile, StagedTransactions, StagingStore } from "./staging-store";
@@ -35,12 +36,7 @@ export class MemoryStagingStore implements StagingStore {
     return this.sources;
   }
   async writeSource(name: string, content: string): Promise<void> {
-    const mediaType = /\.(png|jpe?g|webp|gif)$/i.test(name)
-      ? `image/${name.slice(name.lastIndexOf(".") + 1).toLowerCase()}`
-      : name.toLowerCase().endsWith(".pdf")
-        ? "application/pdf"
-        : "text/csv";
-    const file: SourceFile = { name, content, mediaType };
+    const file: SourceFile = { name, content, mediaType: mediaTypeForFilename(name) };
     const existing = this.sources.findIndex((s) => s.name === name);
     if (existing >= 0) this.sources[existing] = file;
     else this.sources.push(file);

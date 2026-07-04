@@ -49,6 +49,22 @@ function csvSource(content: string, name = "statement.csv") {
   return { name, content, mediaType: "text/csv" };
 }
 
+/** A one-transaction credit-card OFX (fake merchant/amount) whose description
+ *  matches the WHOLE FOODS fast-path in {@link budgetWithHistory}. */
+const OFX_ONE_ROW =
+  [
+    "OFXHEADER:100", "DATA:OFXSGML", "VERSION:102", "SECURITY:NONE", "ENCODING:USASCII",
+    "CHARSET:1252", "COMPRESSION:NONE", "OLDFILEUID:NONE", "NEWFILEUID:NONE", "", "",
+  ].join("\n") +
+  "<OFX><SIGNONMSGSRSV1><SONRS><STATUS><CODE>0<SEVERITY>INFO</STATUS><DTSERVER>20260201120000[0:GMT]<LANGUAGE>ENG<FI><ORG>Testograph Card<FID>1</FI></SONRS></SIGNONMSGSRSV1>" +
+  "<CREDITCARDMSGSRSV1><CCSTMTTRNRS><TRNUID>0<STATUS><CODE>0<SEVERITY>INFO</STATUS><CCSTMTRS><CURDEF>USD<CCACCTFROM><ACCTID>a-1</CCACCTFROM><BANKTRANLIST><DTSTART>20260101120000[0:GMT]<DTEND>20260201120000[0:GMT]" +
+  "<STMTTRN><TRNTYPE>DEBIT<DTPOSTED>20260115120000[0:GMT]<TRNAMT>-52.10<FITID>f-1<NAME>WHOLE FOODS</STMTTRN>" +
+  "</BANKTRANLIST><LEDGERBAL><BALAMT>-52.10<DTASOF>20260201120000[0:GMT]</LEDGERBAL></CCSTMTRS></CCSTMTTRNRS></CREDITCARDMSGSRSV1></OFX>";
+
+function ofxSource(content = OFX_ONE_ROW, name = "card.ofx") {
+  return { name, content, mediaType: "application/x-ofx" };
+}
+
 const MAPPING = {
   date: { column: "Date", format: "YYYY-MM-DD" },
   description: { column: "Description" },
@@ -105,6 +121,27 @@ describe("ImportOrchestrator — phase progression", () => {
       "done",
     ]);
     expect(orch.currentPhase).toBe("done");
+  });
+
+  it("imports an OFX statement deterministically, with no model call", async () => {
+    const staging = new MemoryStagingStore({ sources: [ofxSource()] });
+    // No responders: any model call throws, proving the OFX path is deterministic.
+    const session = new MockStructuredSession([]);
+    const { events, onEvent } = collect();
+
+    await new ImportOrchestrator({ session, staging, budget: budgetWithHistory(), onEvent, concurrency: 1 }).start();
+
+    expect(phases(events)).toEqual(["reading", "normalizing", "history", "categorizing", "done"]);
+    expect(session.calls).toHaveLength(0);
+    expect(staging.transactions).toHaveLength(1);
+    expect(staging.transactions?.[0]).toMatchObject({
+      date: "2026-01-15",
+      amount: -5210,
+      type: "expense",
+      merchant: "Whole Foods", // fast-pathed from history — no classifier call
+      categoryId: "cat-groceries",
+      sourceAccount: "Testograph Card",
+    });
   });
 
   it("emits the grounding payoff line after History", async () => {

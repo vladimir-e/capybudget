@@ -13,6 +13,7 @@ CHANGELOG PHILOSOPHY:
 
 - **Import** - Attach files before setting up AI; a Set up AI prompt now gates the run instead of a runtime error. (#105)
 - **Import** - PDF bank statements now import (and attach in chat) under OpenAI too, not just Anthropic.
+- **Import** - OFX-family statements (`.ofx`/`.qfx`/`.qbo`, what Apple Card and most US banks export) now import directly, mapped without AI instead of failing as unreadable CSV.
 
 ## 1.4.1 — 2026-07-02
 

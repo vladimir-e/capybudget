@@ -16,6 +16,7 @@
     "@anthropic-ai/sdk": "^0.92.0",
     "@capybudget/core": "*",
     "@capybudget/persistence": "*",
+    "ofx-js": "^1.1.1",
     "openai": "^6.35.0",
     "papaparse": "^5.5.3"
   }

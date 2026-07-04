@@ -14,8 +14,7 @@ import { useTranslation } from "@capybudget/i18n";
 import { Button } from "@/components/ui/button";
 import { AccountSelector } from "@/components/budget/account-selector";
 import { type SourceFileInfo } from "@/hooks/use-import-repository";
-import { isImageFilename } from "@/lib/file-attachments";
-import { formatFileSize } from "@capybudget/intelligence";
+import { formatFileSize, isImageFilename } from "@capybudget/intelligence";
 import { type Account } from "@capybudget/core";
 import { useFormatters } from "@/hooks/use-formatters";
 

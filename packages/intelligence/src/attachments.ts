@@ -2,17 +2,18 @@
  * File attachment constants and utilities for the intelligence layer.
  */
 
+import { classifyFile } from "./source-files"
 import type { FileAttachment } from "./types"
 
 export const MAX_ATTACHMENT_SIZE = 5_242_880 // 5MB per file
 export const MAX_TOTAL_ATTACHMENT_SIZE = 10_485_760 // 10MB total
 
 export function isImageAttachment(file: FileAttachment): boolean {
-  return file.mediaType.startsWith("image/")
+  return classifyFile(file) === "image"
 }
 
 export function isPdfAttachment(file: FileAttachment): boolean {
-  return file.mediaType === "application/pdf" || file.name.toLowerCase().endsWith(".pdf")
+  return classifyFile(file) === "pdf"
 }
 
 /** Format text-based attachments for inlining in the message. Images and PDFs

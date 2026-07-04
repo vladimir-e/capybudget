@@ -38,7 +38,9 @@ import {
   type NormalizeProgress,
   type TerminalLogEntry,
 } from "./events";
-import { isImageOrPdf, normalizeCsv, normalizeImage } from "./normalize";
+import { normalizeCsv, normalizeImage } from "./normalize";
+import { normalizeOfx } from "./ofx";
+import { classifySource } from "../source-files";
 import type { StagingStore } from "./staging-store";
 
 export interface OrchestratorDeps {
@@ -212,13 +214,25 @@ export class ImportOrchestrator {
     for (const source of sources) {
       if (this.stopRequested) break;
       const startId = all.length + 1;
-      if (isImageOrPdf(source.mediaType)) {
+      const kind = classifySource(source.mediaType);
+      if (kind === "image" || kind === "pdf") {
         this.status("normalizing", `Extracting transactions from ${source.name}…`);
         const result = await normalizeImage(this.deps.session, source, { startId, existingAccounts, onProgress: fileProgress });
         if (result.noData) {
           this.log("warn", "normalizing", `Skipped ${source.name} — no transaction data found.`);
           continue;
         }
+        all.push(...result.rows);
+      } else if (kind === "ofx") {
+        // Deterministic — no model call. OFX fields are standardized, so the
+        // rows are known the moment they parse; report progress in one shot.
+        this.status("normalizing", `Reading transactions from ${source.name}…`);
+        const result = normalizeOfx(source, { startId });
+        if (result.rows.length === 0) {
+          this.log("warn", "normalizing", `Skipped ${source.name} — no transaction data found.`);
+          continue;
+        }
+        fileProgress({ rows: result.rows.length, total: result.rows.length });
         all.push(...result.rows);
       } else {
         this.status("normalizing", `Mapping columns in ${source.name}…`);

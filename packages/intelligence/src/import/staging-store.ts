@@ -26,6 +26,7 @@ import {
   type TransferContext,
 } from "@capybudget/core";
 import type { FileAdapter } from "@capybudget/persistence";
+import { mediaTypeForFilename } from "../source-files";
 import type { ImportPhase } from "./events";
 
 /** A source file the engine reads for Normalizing. `content` is the file's
@@ -198,7 +199,7 @@ export class FileStagingStore implements StagingStore {
       if (!entry.isFile) continue;
       const filePath = await this.fileAdapter.join(sourcesDir, entry.name);
       const content = await this.fileAdapter.readFile(filePath);
-      files.push({ name: entry.name, content, mediaType: mediaTypeFor(entry.name) });
+      files.push({ name: entry.name, content, mediaType: mediaTypeForFilename(entry.name) });
     }
     return files;
   }
@@ -268,24 +269,5 @@ async function readJsonOrNull<T>(fileAdapter: FileAdapter, path: string): Promis
     return JSON.parse(await fileAdapter.readFile(path)) as T;
   } catch {
     return null;
-  }
-}
-
-function mediaTypeFor(name: string): string {
-  const ext = name.slice(name.lastIndexOf(".") + 1).toLowerCase();
-  switch (ext) {
-    case "png":
-      return "image/png";
-    case "jpg":
-    case "jpeg":
-      return "image/jpeg";
-    case "webp":
-      return "image/webp";
-    case "gif":
-      return "image/gif";
-    case "pdf":
-      return "application/pdf";
-    default:
-      return "text/csv";
   }
 }

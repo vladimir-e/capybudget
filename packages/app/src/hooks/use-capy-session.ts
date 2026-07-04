@@ -18,6 +18,7 @@ import {
   formatAttachments,
   isImageAttachment,
   isPdfAttachment,
+  sourceContentBlock,
   buildSystemPrompt,
   MUTATION_TOOL_NAMES,
   START_IMPORT_TOOL_NAME,
@@ -253,8 +254,9 @@ export function useCapySession(opts: UseCapySessionOptions): UseCapySessionRetur
       })
 
       const allFiles = files ?? []
-      const imageFiles = allFiles.filter(isImageAttachment)
-      const pdfFiles = allFiles.filter(isPdfAttachment)
+      // Images and PDFs ride as content blocks; text attachments (CSV, OFX) are
+      // inlined by formatAttachments.
+      const blockFiles = allFiles.filter((f) => isImageAttachment(f) || isPdfAttachment(f))
       const attachmentText = formatAttachments(allFiles)
 
       let enrichedText = `${context}\n${text}`
@@ -262,32 +264,10 @@ export function useCapySession(opts: UseCapySessionOptions): UseCapySessionRetur
         enrichedText += "\n\n" + attachmentText
       }
 
-      // Build multimodal content when images or PDFs are attached
-      let content: MessageContent
-      if (imageFiles.length > 0 || pdfFiles.length > 0) {
-        content = [
-          { type: "text", text: enrichedText },
-          ...imageFiles.map((f) => ({
-            type: "image" as const,
-            source: {
-              type: "base64" as const,
-              media_type: f.mediaType,
-              data: f.content,
-            },
-          })),
-          ...pdfFiles.map((f) => ({
-            type: "document" as const,
-            source: {
-              type: "base64" as const,
-              media_type: f.mediaType,
-              data: f.content,
-            },
-            filename: f.name,
-          })),
-        ]
-      } else {
-        content = enrichedText
-      }
+      const content: MessageContent =
+        blockFiles.length > 0
+          ? [{ type: "text", text: enrichedText }, ...blockFiles.map(sourceContentBlock)]
+          : enrichedText
 
       const blocks: ContentBlock[] = []
       if (text) {
