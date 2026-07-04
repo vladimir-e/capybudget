@@ -81,18 +81,16 @@ export {
 
 // Source-file classification — one owner for media-type inference, the
 // normalization path a source takes, and the model content block it becomes.
+// (classifySource / classifyFile / mediaTypeForFilename stay package-internal —
+// imported directly where needed, not re-exported without an app consumer.)
 export {
-  OFX_MEDIA_TYPE,
   fileExtension,
   isImageFilename,
   isPdfFilename,
   isOfxFilename,
-  mediaTypeForFilename,
-  classifySource,
-  classifyFile,
+  effectiveMediaType,
   sourceContentBlock,
 } from "./source-files"
-export type { SourceKind } from "./source-files"
 
 // Tool layer — definitions, dispatch, handlers, and metadata
 export {

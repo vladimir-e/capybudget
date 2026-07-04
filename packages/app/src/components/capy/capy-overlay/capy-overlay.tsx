@@ -14,7 +14,7 @@ import { useTranslation } from "@capybudget/i18n"
 import capyMascot from "@/assets/capy-neutral.webp"
 import { CommandPicker } from "../command-picker"
 import { InstructionsDialog } from "../instructions-dialog"
-import { isPdfFile, isTextFile, readFileAsBase64 } from "@/lib/file-attachments"
+import { isImageFile, isPdfFile, isTextFile, readFileAsBase64 } from "@/lib/file-attachments"
 import { useIntelligenceStore } from "@/stores/intelligence-store"
 import { detectClaudeCli } from "@/services/claude-cli-detect"
 import type { CapyCommand } from "@/hooks/use-custom-commands"
@@ -22,6 +22,7 @@ import { useMediaQuery, usePanelResize } from "@/hooks/use-panel-resize"
 import { useCapySessionContext } from "@/contexts/capy-session-context"
 import {
   canReadPdf,
+  effectiveMediaType,
   importReady,
   isPdfAttachment,
   MAX_ATTACHMENT_SIZE,
@@ -223,7 +224,7 @@ export function CapyOverlay({
         toast.error(t("attachments.tooLarge", { name: file.name }))
         continue
       }
-      const isImage = file.type.startsWith("image/")
+      const isImage = isImageFile(file)
       const isPdf = isPdfFile(file)
       if (isPdf && !pdfSupported) {
         toast.error(t("attachments.pdfUnsupported", { name: file.name }))
@@ -233,13 +234,18 @@ export function CapyOverlay({
         toast.error(t("attachments.unsupported", { name: file.name }))
         continue
       }
+      // Classify and MIME-resolve through the same owner the send path uses, so
+      // an image/PDF with an empty or generic browser type is read as binary and
+      // carries a real media type — never sent as a text block with base64 body.
       const isBinary = isImage || isPdf
       const content = isBinary ? await readFileAsBase64(file) : await file.text()
       candidates.push({
         name: file.name,
         content,
         size: file.size,
-        mediaType: isPdf ? "application/pdf" : file.type || "text/plain",
+        mediaType: isBinary
+          ? effectiveMediaType({ name: file.name, mediaType: file.type })
+          : file.type || "text/plain",
       })
     }
 

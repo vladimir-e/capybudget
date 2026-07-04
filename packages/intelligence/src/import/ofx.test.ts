@@ -89,6 +89,44 @@ const NO_TXNS =
   "<CCSTMTRS><CURDEF>USD<CCACCTFROM><ACCTID>empty-1</CCACCTFROM><BANKTRANLIST><DTSTART>20260101120000[0:GMT]<DTEND>20260201120000[0:GMT]" +
   "</BANKTRANLIST><LEDGERBAL><BALAMT>0.00<DTASOF>20260201120000[0:GMT]</LEDGERBAL></CCSTMTRS></CCSTMTTRNRS></CREDITCARDMSGSRSV1></OFX>"
 
+/** Two bank statements in one file (repeated STMTTRNRS), distinct ACCTIDs. */
+const BANK_MULTI =
+  SGML_HEADER +
+  "<OFX><SIGNONMSGSRSV1><SONRS><STATUS><CODE>0<SEVERITY>INFO</STATUS><DTSERVER>20260201000000<LANGUAGE>ENG<FI><ORG>Testograph Bank<FID>10101</FI></SONRS></SIGNONMSGSRSV1>" +
+  "<BANKMSGSRSV1>" +
+  "<STMTTRNRS><TRNUID>0<STATUS><CODE>0<SEVERITY>INFO</STATUS><STMTRS><CURDEF>USD<BANKACCTFROM><BANKID>011000015<ACCTID>acct-1111<ACCTTYPE>CHECKING</BANKACCTFROM><BANKTRANLIST><DTSTART>20260101000000<DTEND>20260201000000<STMTTRN><TRNTYPE>DEBIT<DTPOSTED>20260115000000<TRNAMT>-10.00<FITID>c-1<NAME>CHECKING BUY</STMTTRN></BANKTRANLIST><LEDGERBAL><BALAMT>-10.00<DTASOF>20260201000000</LEDGERBAL></STMTRS></STMTTRNRS>" +
+  "<STMTTRNRS><TRNUID>0<STATUS><CODE>0<SEVERITY>INFO</STATUS><STMTRS><CURDEF>USD<BANKACCTFROM><BANKID>011000015<ACCTID>acct-2222<ACCTTYPE>SAVINGS</BANKACCTFROM><BANKTRANLIST><DTSTART>20260101000000<DTEND>20260201000000<STMTTRN><TRNTYPE>CREDIT<DTPOSTED>20260116000000<TRNAMT>25.00<FITID>s-1<NAME>SAVINGS INTEREST</STMTTRN></BANKTRANLIST><LEDGERBAL><BALAMT>25.00<DTASOF>20260201000000</LEDGERBAL></STMTRS></STMTTRNRS>" +
+  "</BANKMSGSRSV1></OFX>"
+
+/** Comma-decimal (european) and comma-thousands (US) amounts in one CC file. */
+const COMMA_AMOUNTS =
+  SGML_HEADER +
+  "<OFX><SIGNONMSGSRSV1><SONRS><STATUS><CODE>0<SEVERITY>INFO</STATUS><DTSERVER>20260201120000[0:GMT]<LANGUAGE>ENG<FI><ORG>Testograph Card<FID>99999</FI></SONRS></SIGNONMSGSRSV1>" +
+  "<CREDITCARDMSGSRSV1><CCSTMTTRNRS><TRNUID>0<STATUS><CODE>0<SEVERITY>INFO</STATUS><CCSTMTRS><CURDEF>EUR<CCACCTFROM><ACCTID>eu-1</CCACCTFROM><BANKTRANLIST><DTSTART>20260101120000[0:GMT]<DTEND>20260201120000[0:GMT]" +
+  "<STMTTRN><TRNTYPE>DEBIT<DTPOSTED>20260115120000[0:GMT]<TRNAMT>-12,34<FITID>eu-a<NAME>KAFFEEHAUS</STMTTRN>" +
+  "<STMTTRN><TRNTYPE>DEBIT<DTPOSTED>20260110120000[0:GMT]<TRNAMT>-1,234.56<FITID>eu-b<NAME>BIG US PURCHASE</STMTTRN>" +
+  "</BANKTRANLIST><LEDGERBAL><BALAMT>-1246.90<DTASOF>20260201120000[0:GMT]</LEDGERBAL></CCSTMTRS></CCSTMTTRNRS></CREDITCARDMSGSRSV1></OFX>"
+
+/** One good row, one with an unparseable amount (should drop, not crash). */
+const BAD_AMOUNT =
+  SGML_HEADER +
+  "<OFX><SIGNONMSGSRSV1><SONRS><STATUS><CODE>0<SEVERITY>INFO</STATUS><DTSERVER>20260201120000[0:GMT]<LANGUAGE>ENG<FI><ORG>Testograph Card<FID>99999</FI></SONRS></SIGNONMSGSRSV1>" +
+  "<CREDITCARDMSGSRSV1><CCSTMTTRNRS><TRNUID>0<STATUS><CODE>0<SEVERITY>INFO</STATUS><CCSTMTRS><CURDEF>USD<CCACCTFROM><ACCTID>bad-1</CCACCTFROM><BANKTRANLIST><DTSTART>20260101120000[0:GMT]<DTEND>20260201120000[0:GMT]" +
+  "<STMTTRN><TRNTYPE>DEBIT<DTPOSTED>20260115120000[0:GMT]<TRNAMT>-5.00<FITID>ok-1<NAME>GOOD ROW</STMTTRN>" +
+  "<STMTTRN><TRNTYPE>DEBIT<DTPOSTED>20260110120000[0:GMT]<TRNAMT>N/A<FITID>bad-1<NAME>BAD ROW</STMTTRN>" +
+  "</BANKTRANLIST><LEDGERBAL><BALAMT>-5.00<DTASOF>20260201120000[0:GMT]</LEDGERBAL></CCSTMTRS></CCSTMTTRNRS></CREDITCARDMSGSRSV1></OFX>"
+
+/** Zero amount, PAYEE (no NAME), NAME==MEMO, missing TRNTYPE, bare 8-char date. */
+const FIELD_VARIANTS =
+  SGML_HEADER +
+  "<OFX><SIGNONMSGSRSV1><SONRS><STATUS><CODE>0<SEVERITY>INFO</STATUS><DTSERVER>20260201000000<LANGUAGE>ENG<FI><ORG>Testograph Bank<FID>10101</FI></SONRS></SIGNONMSGSRSV1>" +
+  "<BANKMSGSRSV1><STMTTRNRS><TRNUID>0<STATUS><CODE>0<SEVERITY>INFO</STATUS><STMTRS><CURDEF>USD<BANKACCTFROM><BANKID>011000015<ACCTID>v-acct<ACCTTYPE>CHECKING</BANKACCTFROM><BANKTRANLIST><DTSTART>20260101000000<DTEND>20260201000000" +
+  "<STMTTRN><TRNTYPE>DEBIT<DTPOSTED>20260115<TRNAMT>-1.00<FITID>v-1<PAYEE><NAME>JANE PAYEE<ADDR1>1 MAIN ST<CITY>TOWN<STATE>CA<POSTALCODE>90001<PHONE>5551234</PAYEE></STMTTRN>" +
+  "<STMTTRN><TRNTYPE>DEBIT<DTPOSTED>20260114<TRNAMT>-2.00<FITID>v-2<NAME>DUPE CO<MEMO>dupe co</STMTTRN>" +
+  "<STMTTRN><DTPOSTED>20260113<TRNAMT>-3.00<FITID>v-3<NAME>NO TYPE</STMTTRN>" +
+  "<STMTTRN><TRNTYPE>DEP<DTPOSTED>20260112<TRNAMT>0.00<FITID>v-4<NAME>ZERO ROW</STMTTRN>" +
+  "</BANKTRANLIST><LEDGERBAL><BALAMT>0.00<DTASOF>20260201000000</LEDGERBAL></STMTRS></STMTTRNRS></BANKMSGSRSV1></OFX>"
+
 describe("normalizeOfx — credit card", () => {
   const { rows } = normalizeOfx({ name: "card.ofx", content: CC_SGML })
 
@@ -161,9 +199,64 @@ describe("normalizeOfx — format variants", () => {
   })
 })
 
+describe("normalizeOfx — amounts", () => {
+  it("reads a comma decimal as european, and comma thousands as plain", () => {
+    const { rows } = normalizeOfx({ name: "eu.ofx", content: COMMA_AMOUNTS })
+    expect(rows[0]).toMatchObject({ description: "KAFFEEHAUS", amount: -1234 }) // "-12,34"
+    expect(rows[1]).toMatchObject({ description: "BIG US PURCHASE", amount: -123456 }) // "-1,234.56"
+  })
+
+  it("drops a row with an unparseable amount and reports it, keeping the rest", () => {
+    const { rows, dropped } = normalizeOfx({ name: "bad.ofx", content: BAD_AMOUNT })
+    expect(rows).toHaveLength(1)
+    expect(rows[0].description).toBe("GOOD ROW")
+    expect(dropped).toHaveLength(1)
+    expect(dropped[0]).toContain("bad-1")
+  })
+})
+
+describe("normalizeOfx — multiple accounts in one file", () => {
+  it("disambiguates each statement's source account by its id tail", () => {
+    const { rows } = normalizeOfx({ name: "both.ofx", content: BANK_MULTI })
+    expect(rows).toHaveLength(2)
+    expect(rows.map((r) => r.sourceAccount)).toEqual([
+      "Testograph Bank 1111",
+      "Testograph Bank 2222",
+    ])
+  })
+})
+
+describe("normalizeOfx — field variants", () => {
+  const { rows } = normalizeOfx({ name: "variants.ofx", content: FIELD_VARIANTS })
+  const byId = Object.fromEntries(rows.map((r) => [r.description, r]))
+
+  it("falls back to PAYEE.NAME when NAME is absent", () => {
+    expect(byId["JANE PAYEE"]).toBeDefined()
+  })
+
+  it("does not duplicate a description when NAME and MEMO are the same", () => {
+    expect(byId["DUPE CO"]).toBeDefined()
+    expect(rows.some((r) => /dupe co/i.test(r.description) && r.description !== "DUPE CO")).toBe(false)
+  })
+
+  it("types a row with no TRNTYPE by amount sign", () => {
+    expect(byId["NO TYPE"]).toMatchObject({ type: "expense" })
+  })
+
+  it("parses a bare 8-char DTPOSTED", () => {
+    expect(byId["NO TYPE"].date).toBe("2026-01-13")
+  })
+
+  it("types a zero amount as expense, matching the CSV path", () => {
+    expect(byId["ZERO ROW"]).toMatchObject({ amount: 0, type: "expense" })
+  })
+})
+
 describe("normalizeOfx — empty and malformed", () => {
   it("yields no rows for a statement with no transactions", () => {
-    expect(normalizeOfx({ name: "empty.ofx", content: NO_TXNS }).rows).toEqual([])
+    const { rows, dropped } = normalizeOfx({ name: "empty.ofx", content: NO_TXNS })
+    expect(rows).toEqual([])
+    expect(dropped).toEqual([])
   })
 
   it("yields no rows (never throws) for a malformed file", () => {

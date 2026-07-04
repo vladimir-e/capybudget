@@ -381,7 +381,7 @@ describe("CapyOverlay click-through behavior", () => {
   })
 })
 
-describe("CapyOverlay PDF attachments", () => {
+describe("CapyOverlay file attachments", () => {
   const openaiConfig = {
     ...DEFAULT_INTELLIGENCE_CONFIG,
     provider: "openai" as const,
@@ -449,6 +449,30 @@ describe("CapyOverlay PDF attachments", () => {
     )
     expect(onSend).toHaveBeenCalledWith("here", [
       expect.objectContaining({ name: "statement.pdf", mediaType: "application/pdf" }),
+    ])
+  })
+
+  it("reads an image with an empty browser MIME as base64 with the inferred type", async () => {
+    const onSend = vi.fn()
+    useIntelligenceStore.setState({ hydrated: true, config: openaiConfig })
+    const { container } = await mountOverlay({ onSend })
+    // Empty file.type — the browser sometimes reports nothing for a dropped image.
+    const png = new File(["hello"], "photo.png", { type: "" })
+
+    await act(async () => {
+      fireEvent.change(fileInput(container), { target: { files: [png] } })
+    })
+    await waitFor(() => expect(screen.getByText("photo.png")).toBeInTheDocument())
+
+    const user = userEvent.setup()
+    await user.type(
+      screen.getByPlaceholderText("Ask Capy anything about your finances..."),
+      "look{Enter}",
+    )
+    // Classified as an image → base64 content + a real image/png media type,
+    // never a text block with a base64 body.
+    expect(onSend).toHaveBeenCalledWith("look", [
+      expect.objectContaining({ name: "photo.png", mediaType: "image/png", content: "aGVsbG8=" }),
     ])
   })
 

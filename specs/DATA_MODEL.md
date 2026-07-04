@@ -192,7 +192,7 @@ Smart Import works in a scratch area under the budget folder, `.capy/import/`. N
 
 ```
 .capy/import/
-  sources/              # original files (CSV, image, PDF)
+  sources/              # original files (CSV, OFX family, image, PDF)
   transactions.csv      # the staged rows
   context.json          # per-row history signals
   transfer-context.json # per-transfer-row direction-aware history
@@ -201,7 +201,7 @@ Smart Import works in a scratch area under the budget folder, `.capy/import/`. N
 
 ### Staged record
 
-Both normalization paths (a `CsvMapping` applied to a CSV, or a model reading an image/PDF) converge on one intermediate record before it's built into a staged row:
+The three normalization paths (a `CsvMapping` applied to a CSV, a model reading an image/PDF, or an OFX-family export mapped deterministically) converge on one intermediate record before it's built into a staged row:
 
 | Field           | Type    | Notes                                                        |
 |-----------------|---------|--------------------------------------------------------------|

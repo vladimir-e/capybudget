@@ -16,13 +16,14 @@ import type { CliDocumentContent, CliImageContent } from "./types"
  *  deterministic OFX normalizer keys off. */
 export const OFX_MEDIA_TYPE = "application/x-ofx"
 
+// No image/bmp — no model provider accepts it, so a .bmp is better refused at
+// the drop gate than uploaded to a guaranteed 400.
 const IMAGE_MEDIA_TYPE_BY_EXT: Record<string, string> = {
   ".png": "image/png",
   ".jpg": "image/jpeg",
   ".jpeg": "image/jpeg",
   ".gif": "image/gif",
   ".webp": "image/webp",
-  ".bmp": "image/bmp",
 }
 
 const OFX_EXTENSIONS = new Set([".ofx", ".qfx", ".qbo"])
@@ -78,6 +79,18 @@ export function classifySource(mediaType: string): SourceKind {
 export function classifyFile(file: { name: string; mediaType?: string }): SourceKind {
   const reported = classifySource(file.mediaType ?? "")
   return reported === "tabular" ? classifySource(mediaTypeForFilename(file.name)) : reported
+}
+
+/**
+ * The concrete media type a file's bytes should ride with. A definitive
+ * reported type wins; when it's missing or generic — a browser drop reports `""`
+ * or `application/octet-stream` for many images and PDFs — the extension
+ * decides. The fallback resolves in lockstep with {@link classifyFile}, so what
+ * the send path classifies matches the media type the block carries.
+ */
+export function effectiveMediaType(file: { name: string; mediaType?: string }): string {
+  const reported = file.mediaType ?? ""
+  return classifySource(reported) === "tabular" ? mediaTypeForFilename(file.name) : reported
 }
 
 /**

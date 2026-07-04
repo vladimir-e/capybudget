@@ -3,6 +3,7 @@ import {
   OFX_MEDIA_TYPE,
   classifyFile,
   classifySource,
+  effectiveMediaType,
   fileExtension,
   isImageFilename,
   isOfxFilename,
@@ -29,6 +30,23 @@ describe("mediaTypeForFilename", () => {
     expect(mediaTypeForFilename("ledger.tsv")).toBe("text/csv")
     expect(mediaTypeForFilename("noextension")).toBe("text/csv")
     expect(mediaTypeForFilename("mystery.qif")).toBe("text/csv")
+  })
+
+  it("does not treat .bmp as an image (no provider accepts image/bmp)", () => {
+    expect(mediaTypeForFilename("old.bmp")).toBe("text/csv")
+    expect(isImageFilename("old.bmp")).toBe(false)
+  })
+})
+
+describe("effectiveMediaType", () => {
+  it("keeps a definitive reported type", () => {
+    expect(effectiveMediaType({ name: "p.png", mediaType: "image/png" })).toBe("image/png")
+    expect(effectiveMediaType({ name: "s.pdf", mediaType: "application/pdf" })).toBe("application/pdf")
+  })
+
+  it("infers from the extension when the reported type is empty or generic", () => {
+    expect(effectiveMediaType({ name: "photo.png", mediaType: "" })).toBe("image/png")
+    expect(effectiveMediaType({ name: "scan.pdf", mediaType: "application/octet-stream" })).toBe("application/pdf")
   })
 })
 
