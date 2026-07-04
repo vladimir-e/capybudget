@@ -50,6 +50,7 @@ function toAnthropicUserContent(
           media_type: block.source.media_type as Anthropic.Base64PDFSource["media_type"],
           data: block.source.data,
         },
+        ...(block.filename ? { title: block.filename } : {}),
       }
     }
     return {

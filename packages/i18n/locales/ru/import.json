@@ -15,7 +15,7 @@
   },
   "errors": {
     "unsupportedType": "{{name}} — неподдерживаемый тип файла",
-    "pdfNeedsAnthropic": "{{name}} пропущен — для импорта PDF нужен провайдер Anthropic",
+    "pdfNeedsCapableProvider": "{{name}} пропущен — для импорта PDF нужен провайдер Anthropic или OpenAI",
     "saveFailed": "Не удалось сохранить {{name}}",
     "providerRequired": "Для импорта нужно настроить Anthropic или OpenAI."
   },

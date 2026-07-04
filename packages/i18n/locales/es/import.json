@@ -15,7 +15,7 @@
   },
   "errors": {
     "unsupportedType": "{{name}} no es un tipo de archivo compatible",
-    "pdfNeedsAnthropic": "{{name}} omitido — la importación de PDF necesita el proveedor Anthropic",
+    "pdfNeedsCapableProvider": "{{name}} omitido — la importación de PDF necesita el proveedor Anthropic u OpenAI",
     "saveFailed": "No se pudo guardar {{name}}",
     "providerRequired": "La importación necesita Anthropic u OpenAI configurado."
   },

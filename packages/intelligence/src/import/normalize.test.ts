@@ -763,7 +763,9 @@ describe("normalizeImage", () => {
 
     const pdfSession = new MockStructuredSession([() => ({ result: { count: 1, rows: [{ date: "2026-01-01", amount: -1, type: "expense", description: "x", sourceAccount: "", sourceCategory: "" }] } })]);
     await normalizeImage(pdfSession, { name: "r.pdf", content: "B64", mediaType: "application/pdf" });
-    expect(JSON.stringify(pdfSession.calls[0].messages)).toContain('"type":"document"');
+    const pdfPayload = JSON.stringify(pdfSession.calls[0].messages);
+    expect(pdfPayload).toContain('"type":"document"');
+    expect(pdfPayload).toContain('"filename":"r.pdf"');
   });
 
   it("returns noData for the no_data outcome", async () => {

@@ -13,6 +13,7 @@ import { act, renderHook } from "@testing-library/react"
 import {
   DEFAULT_INTELLIGENCE_CONFIG,
   type CapySession,
+  type FileAttachment,
   type StreamEvent,
 } from "@capybudget/intelligence"
 
@@ -472,5 +473,55 @@ describe("useCapySession live cache invalidation", () => {
       emit({ type: "tool-result", tool: "create_transaction", id: "tu_1", ok: true })
     })
     expect(onDataChanged).toHaveBeenCalledTimes(2)
+  })
+})
+
+describe("useCapySession attachment content", () => {
+  function setup() {
+    useIntelligenceStore.setState({
+      hydrated: true,
+      config: {
+        ...DEFAULT_INTELLIGENCE_CONFIG,
+        provider: "openai",
+        openai: { apiKey: "sk-x", model: "gpt-5.5" },
+      },
+    })
+    const { result } = renderHook(() => useCapySession(baseOpts))
+    return { result }
+  }
+
+  const pdf: FileAttachment = {
+    name: "statement.pdf",
+    content: "JVBERi0xSECRET",
+    size: 14,
+    mediaType: "application/pdf",
+  }
+
+  it("sends a PDF as a document block with its base64 and filename, raw file alongside", () => {
+    const { result } = setup()
+    act(() => {
+      result.current.sendMessage("import this", [pdf])
+    })
+    const [content, files] = createdSessions[0].sendSpy.mock.calls[0]
+    const docBlock = (content as Array<{ type: string }>).find((b) => b.type === "document")
+    expect(docBlock).toEqual({
+      type: "document",
+      source: { type: "base64", media_type: "application/pdf", data: "JVBERi0xSECRET" },
+      filename: "statement.pdf",
+    })
+    // The raw file rides the second arg so start_import can stage the bytes.
+    expect(files).toEqual([pdf])
+  })
+
+  it("never inlines PDF bytes into the text block", () => {
+    const { result } = setup()
+    act(() => {
+      result.current.sendMessage("import this", [pdf])
+    })
+    const [content] = createdSessions[0].sendSpy.mock.calls[0]
+    const textBlock = (content as Array<{ type: string; text?: string }>).find(
+      (b) => b.type === "text",
+    )
+    expect(textBlock?.text).not.toContain("JVBERi0xSECRET")
   })
 })

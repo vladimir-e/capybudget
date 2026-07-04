@@ -71,8 +71,7 @@ export interface ApiAdapterOptions {
   /**
    * Whether the active provider can read PDF attachments — passed to
    * `start_import` so a PDF shared in chat is gated the same way the Import tab
-   * gates a PDF drop. False for OpenAI, whose adapter swaps a PDF for a
-   * placeholder note (the model would be blind to the document). Mirrors
+   * gates a PDF drop. True for Anthropic and OpenAI; false for the CLI. Mirrors
    * `canReadPdf`.
    */
   pdfSupported?: boolean

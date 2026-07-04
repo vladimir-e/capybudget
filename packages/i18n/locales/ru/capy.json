@@ -54,6 +54,7 @@
   "attachments": {
     "tooLarge": "{{name}} превышает лимит 5 МБ",
     "unsupported": "{{name}} — неподдерживаемый тип файла",
+    "pdfUnsupported": "{{name}} пропущен — для PDF нужен провайдер Anthropic или OpenAI",
     "totalTooLarge": "Суммарный размер вложений превышает 10 МБ",
     "remove": "Убрать {{name}}"
   },

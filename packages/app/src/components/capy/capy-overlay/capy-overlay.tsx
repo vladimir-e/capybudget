@@ -14,13 +14,14 @@ import { useTranslation } from "@capybudget/i18n"
 import capyMascot from "@/assets/capy-neutral.webp"
 import { CommandPicker } from "../command-picker"
 import { InstructionsDialog } from "../instructions-dialog"
-import { isTextFile, readFileAsBase64 } from "@/lib/file-attachments"
+import { isPdfFilename, isTextFile, readFileAsBase64 } from "@/lib/file-attachments"
 import { useIntelligenceStore } from "@/stores/intelligence-store"
 import { detectClaudeCli } from "@/services/claude-cli-detect"
 import type { CapyCommand } from "@/hooks/use-custom-commands"
 import { useMediaQuery, usePanelResize } from "@/hooks/use-panel-resize"
 import { useCapySessionContext } from "@/contexts/capy-session-context"
 import {
+  canReadPdf,
   importReady,
   MAX_ATTACHMENT_SIZE,
   MAX_TOTAL_ATTACHMENT_SIZE,
@@ -110,6 +111,7 @@ export function CapyOverlay({
   const config = useIntelligenceStore((s) => s.config)
   const setProvider = useIntelligenceStore((s) => s.setProvider)
   const isConfigured = config.provider === "claude-cli" || importReady(config)
+  const pdfSupported = canReadPdf(config.provider)
 
   // Detect Claude Code CLI on mount so we can disable that chip when it
   // isn't installed. detectClaudeCli is cached and idempotent — repeat
@@ -221,16 +223,22 @@ export function CapyOverlay({
         continue
       }
       const isImage = file.type.startsWith("image/")
-      if (!isImage && !isTextFile(file)) {
+      const isPdf = file.type === "application/pdf" || isPdfFilename(file.name)
+      if (isPdf && !pdfSupported) {
+        toast.error(t("attachments.pdfUnsupported", { name: file.name }))
+        continue
+      }
+      if (!isImage && !isPdf && !isTextFile(file)) {
         toast.error(t("attachments.unsupported", { name: file.name }))
         continue
       }
-      const content = isImage ? await readFileAsBase64(file) : await file.text()
+      const isBinary = isImage || isPdf
+      const content = isBinary ? await readFileAsBase64(file) : await file.text()
       candidates.push({
         name: file.name,
         content,
         size: file.size,
-        mediaType: file.type || "text/plain",
+        mediaType: file.type || (isPdf ? "application/pdf" : "text/plain"),
       })
     }
 
@@ -250,7 +258,7 @@ export function CapyOverlay({
         return accepted.length > 0 ? [...prev, ...accepted] : prev
       })
     }
-  }, [t])
+  }, [t, pdfSupported])
 
   const handleSend = () => {
     const text = input.trim()

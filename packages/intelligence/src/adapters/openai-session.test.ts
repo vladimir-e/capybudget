@@ -656,7 +656,7 @@ describe("OpenAiSession", () => {
     expect(events[events.length - 1]).toEqual({ type: "done" })
   })
 
-  it("forwards multimodal images via image_url and replaces document blocks with a text note", async () => {
+  it("forwards multimodal images via image_url and PDFs via a file content part", async () => {
     queueTurn({ textDeltas: ["ok"], finish_reason: "stop" })
     const { session } = makeSession()
     await session.send([
@@ -668,6 +668,7 @@ describe("OpenAiSession", () => {
       {
         type: "document",
         source: { type: "base64", media_type: "application/pdf", data: "BBBB" },
+        filename: "statement.pdf",
       },
     ])
 
@@ -677,9 +678,34 @@ describe("OpenAiSession", () => {
       content: unknown
     }>
     expect(messages[0].role).toBe("system")
-    const userBlocks = messages[1].content as Array<{ type: string; text?: string; image_url?: unknown }>
-    expect(userBlocks.map((b) => b.type)).toEqual(["text", "image_url", "text"])
-    expect(userBlocks[2].text).toContain("PDF")
+    const userBlocks = messages[1].content as Array<{
+      type: string
+      file?: { filename?: string; file_data?: string }
+    }>
+    expect(userBlocks.map((b) => b.type)).toEqual(["text", "image_url", "file"])
+    expect(userBlocks[2].file).toEqual({
+      filename: "statement.pdf",
+      file_data: "data:application/pdf;base64,BBBB",
+    })
+  })
+
+  it("falls back to document.pdf when a document block carries no filename", async () => {
+    queueTurn({ textDeltas: ["ok"], finish_reason: "stop" })
+    const { session } = makeSession()
+    await session.send([
+      {
+        type: "document",
+        source: { type: "base64", media_type: "application/pdf", data: "CCCC" },
+      },
+    ])
+
+    const call = lastCreateCall()
+    const messages = call.messages as Array<{ role: string; content: unknown }>
+    const userBlocks = messages[1].content as Array<{
+      type: string
+      file?: { filename?: string }
+    }>
+    expect(userBlocks[0].file?.filename).toBe("document.pdf")
   })
 
   it("terminates with a budget-exhausted error after SESSION_TOOL_CALL_BUDGET tool calls", async () => {
@@ -1097,7 +1123,7 @@ describe("OpenAiSession.structured", () => {
     expect(rf.json_schema).not.toHaveProperty("strict")
   })
 
-  it("forwards image content as image_url and degrades PDFs to a text note", async () => {
+  it("forwards image content as image_url and PDFs as a file content part", async () => {
     queueStructured({ content: '{"ok": true}' })
 
     const { session } = makeSession()
@@ -1114,6 +1140,7 @@ describe("OpenAiSession.structured", () => {
             {
               type: "document",
               source: { type: "base64", media_type: "application/pdf", data: "BBBB" },
+              filename: "receipt.pdf",
             },
           ],
         },
@@ -1123,9 +1150,15 @@ describe("OpenAiSession.structured", () => {
 
     const call = lastCreateCall()
     const messages = call.messages as Array<{ role: string; content: unknown }>
-    const userBlocks = messages[1].content as Array<{ type: string; text?: string }>
-    expect(userBlocks.map((b) => b.type)).toEqual(["text", "image_url", "text"])
-    expect(userBlocks[2].text).toContain("PDF")
+    const userBlocks = messages[1].content as Array<{
+      type: string
+      file?: { filename?: string; file_data?: string }
+    }>
+    expect(userBlocks.map((b) => b.type)).toEqual(["text", "image_url", "file"])
+    expect(userBlocks[2].file).toEqual({
+      filename: "receipt.pdf",
+      file_data: "data:application/pdf;base64,BBBB",
+    })
   })
 
   it("rejects when the model returns output that violates the schema", async () => {

@@ -532,7 +532,7 @@ describe("AnthropicSession", () => {
     expect(events[events.length - 1]).toEqual({ type: "done" })
   })
 
-  it("forwards multimodal initial messages (text + image + document) to the SDK", async () => {
+  it("forwards multimodal initial messages (text + image + document) to the SDK, titling the document with its filename", async () => {
     queueTurn({ textDeltas: ["ok"], stop_reason: "end_turn" })
     const { session } = makeSession()
     await session.send([
@@ -544,14 +544,16 @@ describe("AnthropicSession", () => {
       {
         type: "document",
         source: { type: "base64", media_type: "application/pdf", data: "BBBB" },
+        filename: "statement.pdf",
       },
     ])
 
     const call = lastStreamCall()
     const messages = call.messages as Array<{ role: string; content: unknown }>
     expect(messages).toHaveLength(1)
-    const blocks = messages[0].content as Array<{ type: string }>
+    const blocks = messages[0].content as Array<{ type: string; title?: string }>
     expect(blocks.map((b) => b.type)).toEqual(["text", "image", "document"])
+    expect(blocks[2].title).toBe("statement.pdf")
   })
 
   it("terminates with a budget-exhausted error after SESSION_TOOL_CALL_BUDGET tool calls", async () => {

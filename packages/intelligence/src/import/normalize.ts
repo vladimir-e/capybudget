@@ -628,11 +628,12 @@ export function countStreamedRows(text: string): NormalizeProgress {
   return { rows, total: count ? Number(count[1]) : null };
 }
 
-function sourceBlock(source: { content: string; mediaType: string }) {
+function sourceBlock(source: { name: string; content: string; mediaType: string }) {
   if (source.mediaType === "application/pdf") {
     return {
       type: "document" as const,
       source: { type: "base64" as const, media_type: source.mediaType, data: source.content },
+      filename: source.name,
     };
   }
   return {

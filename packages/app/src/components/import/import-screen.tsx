@@ -233,9 +233,9 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
           continue;
         }
         // The active provider must be able to read PDFs, or the import starts a
-        // run the model never sees (OpenAI swaps PDFs for a placeholder note).
+        // run the model never sees.
         if ((file.type === "application/pdf" || isPdfFilename(file.name)) && !pdfSupported) {
-          toast.error(t("errors.pdfNeedsAnthropic", { name: file.name }));
+          toast.error(t("errors.pdfNeedsCapableProvider", { name: file.name }));
           continue;
         }
         setUploadingFiles((prev) => new Set(prev).add(file.name));

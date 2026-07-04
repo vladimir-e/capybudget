@@ -166,7 +166,7 @@ describe("createIntelligenceSession", () => {
       fileAdapter: opts.fileAdapter,
       currency: opts.currency,
       importSupported: true,
-      pdfSupported: false,
+      pdfSupported: true,
     })
   })
 

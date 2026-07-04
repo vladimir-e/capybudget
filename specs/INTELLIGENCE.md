@@ -132,10 +132,11 @@ Notable protocol deltas vs Anthropic:
 - Tool calls stream as deltas keyed by `index`; arguments arrive as a JSON string sliced across many chunks. A per-index accumulator collects fragments; `JSON.parse` runs only after the stream finishes.
 - Tool results appended as `{ role: "tool", tool_call_id, content }` messages.
 - Images convert to `{ type: "image_url", image_url: { url: "data:..." } }`.
+- PDFs convert to a `{ type: "file", file: { filename, file_data: "data:application/pdf;base64,..." } }` content part — `chat.completions` reads PDFs on vision-capable models (the whole GPT-5 family qualifies). The `filename` is required alongside inline `file_data`; the adapter falls back to `document.pdf` when a block carries none.
 - System prompt is a `{ role: "system" }` message at the head of each request.
 - `delta.content` is non-cumulative — accumulated locally before emit.
 
-PDFs aren't supported on `chat.completions`. The adapter drops any `document` block and substitutes an explanatory text note describing what happened, so the model can respond coherently (e.g. ask the user to paste contents or share a screenshot). Callers attach PDF blocks uniformly across providers; provider divergence is the adapter's responsibility.
+Callers attach PDF blocks uniformly across providers; the adapter maps the shared `document` block to each provider's content type (Anthropic's native `document`, OpenAI's `file`).
 
 All three adapters share `buildRenderToolMap()` from `@capybudget/intelligence` for the render-tool → ContentBlock contract. Adding a new render tool means defining it once in `RENDER_TOOL_DEFS` plus its mapping in `render-map.ts`; the three adapters pick it up automatically.
 

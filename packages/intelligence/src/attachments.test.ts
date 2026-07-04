@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest"
 import {
   isImageAttachment,
+  isPdfAttachment,
   formatAttachments,
   formatFileSize,
   MAX_ATTACHMENT_SIZE,
@@ -26,6 +27,18 @@ describe("isImageAttachment", () => {
   })
 })
 
+describe("isPdfAttachment", () => {
+  it("returns true for the PDF MIME type or a .pdf name", () => {
+    expect(isPdfAttachment(file("statement.pdf", "application/pdf"))).toBe(true)
+    expect(isPdfAttachment(file("STATEMENT.PDF", ""))).toBe(true)
+  })
+
+  it("returns false for non-PDF attachments", () => {
+    expect(isPdfAttachment(file("photo.png", "image/png"))).toBe(false)
+    expect(isPdfAttachment(file("data.csv", "text/csv"))).toBe(false)
+  })
+})
+
 describe("formatAttachments", () => {
   it("returns empty string for empty array", () => {
     expect(formatAttachments([])).toBe("")
@@ -48,13 +61,15 @@ describe("formatAttachments", () => {
     expect(result).toContain("[End of file: a.csv]\n\n[Attached file: b.ofx]")
   })
 
-  it("skips images and includes text files only", () => {
+  it("skips images and PDFs, including text files only", () => {
     const result = formatAttachments([
       file("photo.png", "image/png", "binary"),
+      file("statement.pdf", "application/pdf", "JVBERi0x"),
       file("data.csv", "text/csv", "a,b"),
     ])
     expect(result).toContain("data.csv")
     expect(result).not.toContain("photo.png")
+    expect(result).not.toContain("statement.pdf")
   })
 })
 

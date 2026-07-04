@@ -12,6 +12,7 @@ CHANGELOG PHILOSOPHY:
 ## Unreleased
 
 - **Import** - Attach files before setting up AI; a Set up AI prompt now gates the run instead of a runtime error. (#105)
+- **Import** - PDF bank statements now import (and attach in chat) under OpenAI too, not just Anthropic.
 
 ## 1.4.1 — 2026-07-02
 

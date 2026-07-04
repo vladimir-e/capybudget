@@ -46,9 +46,9 @@ describe("canImport", () => {
 });
 
 describe("canReadPdf", () => {
-  it("allows only Anthropic — OpenAI can't read documents", () => {
+  it("allows Anthropic and OpenAI — not the CLI or off", () => {
     expect(canReadPdf("anthropic")).toBe(true);
-    expect(canReadPdf("openai")).toBe(false);
+    expect(canReadPdf("openai")).toBe(true);
     expect(canReadPdf("claude-cli")).toBe(false);
     expect(canReadPdf(null)).toBe(false);
   });

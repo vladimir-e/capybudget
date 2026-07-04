@@ -22,9 +22,8 @@
  *   - no attachments on the turn → tell the user to attach the file (or use the
  *     Import tab for bulk).
  *   - a PDF attachment under a provider that can't read PDFs → tell the user to
- *     switch to Anthropic. OpenAI's adapter swaps a PDF for a placeholder note,
- *     so staging it would start a run the model is blind to. Mirrors the Import
- *     tab's PDF-drop gate (`canReadPdf`).
+ *     switch to a PDF-capable provider. Staging it would start a run the model is
+ *     blind to. Mirrors the Import tab's PDF-drop gate (`canReadPdf`).
  *   - staging already holds an import — a run in flight or parked for review,
  *     or files dropped in the Import tab but not started → point the user at
  *     the Import tab. The only thing a chat share may replace is a prior chat
@@ -71,7 +70,7 @@ export async function handleStartImport(ctx: ToolContext): Promise<string> {
       started: false,
       reason: "pdf_unsupported",
       message:
-        "PDF import needs the Anthropic provider — this provider can't read PDFs. Tell the user to switch to Anthropic in Settings and re-share, or to export the statement to CSV.",
+        "This provider can't read PDFs. Tell the user to switch to Anthropic or OpenAI in Settings and re-share, or to export the statement to CSV.",
     })
   }
 

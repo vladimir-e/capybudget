@@ -37,11 +37,12 @@ function toOpenAiUserContent(
       return { type: "text", text: block.text }
     }
     if (block.type === "document") {
-      // chat.completions can't read PDFs — degrade to a text note so the model
-      // can ask the user for an alternate format instead of failing cryptically.
       return {
-        type: "text",
-        text: "[The user attached a PDF document, but this model cannot read PDFs directly. Ask the user to share the contents another way — paste as text, export to CSV, or share a screenshot of the relevant page.]",
+        type: "file",
+        file: {
+          filename: block.filename ?? "document.pdf",
+          file_data: `data:${block.source.media_type};base64,${block.source.data}`,
+        },
       }
     }
     return {

@@ -165,7 +165,7 @@ describe("start_import", () => {
     const result = JSON.parse(await runTool("start_import", {}, ctx))
     expect(result.started).toBe(false)
     expect(result.reason).toBe("pdf_unsupported")
-    expect(result.message).toMatch(/Anthropic/)
+    expect(result.message).toMatch(/Anthropic or OpenAI/)
     expect(fs.files.has(STATE_PATH)).toBe(false)
   })
 

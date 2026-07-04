@@ -74,6 +74,7 @@ export {
   formatAttachments,
   formatFileSize,
   isImageAttachment,
+  isPdfAttachment,
   MAX_ATTACHMENT_SIZE,
   MAX_TOTAL_ATTACHMENT_SIZE,
 } from "./attachments"

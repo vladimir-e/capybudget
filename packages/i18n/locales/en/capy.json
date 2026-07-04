@@ -54,6 +54,7 @@
   "attachments": {
     "tooLarge": "{{name}} exceeds 5MB limit",
     "unsupported": "{{name}} is not a supported file type",
+    "pdfUnsupported": "{{name}} skipped — PDFs need the Anthropic or OpenAI provider",
     "totalTooLarge": "Total attachment size exceeds 10MB",
     "remove": "Remove {{name}}"
   },
