@@ -51,6 +51,12 @@ export function isPdfFilename(name: string): boolean {
   return fileExt(name) === ".pdf"
 }
 
+/** Whether a file is a PDF, by MIME type or `.pdf` extension (browsers sometimes
+ *  report a PDF as `application/octet-stream`). */
+export function isPdfFile(file: File): boolean {
+  return file.type === "application/pdf" || isPdfFilename(file.name)
+}
+
 /**
  * Whether an import source must be staged as base64 rather than UTF-8 text.
  * Images and PDFs are binary; the staging store's `content` channel carries
@@ -58,7 +64,7 @@ export function isPdfFilename(name: string): boolean {
  * must encode them — writing raw bytes corrupts the round-trip.
  */
 export function isImportBinaryFile(file: File): boolean {
-  return isImageFile(file) || file.type === "application/pdf" || isPdfFilename(file.name)
+  return isImageFile(file) || isPdfFile(file)
 }
 
 /** MIME type for an image filename, defaulting to image/png for unknown extensions. */

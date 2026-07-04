@@ -14,7 +14,7 @@ import { useTranslation } from "@capybudget/i18n"
 import capyMascot from "@/assets/capy-neutral.webp"
 import { CommandPicker } from "../command-picker"
 import { InstructionsDialog } from "../instructions-dialog"
-import { isPdfFilename, isTextFile, readFileAsBase64 } from "@/lib/file-attachments"
+import { isPdfFile, isTextFile, readFileAsBase64 } from "@/lib/file-attachments"
 import { useIntelligenceStore } from "@/stores/intelligence-store"
 import { detectClaudeCli } from "@/services/claude-cli-detect"
 import type { CapyCommand } from "@/hooks/use-custom-commands"
@@ -23,6 +23,7 @@ import { useCapySessionContext } from "@/contexts/capy-session-context"
 import {
   canReadPdf,
   importReady,
+  isPdfAttachment,
   MAX_ATTACHMENT_SIZE,
   MAX_TOTAL_ATTACHMENT_SIZE,
   PROVIDER_LABELS,
@@ -223,7 +224,7 @@ export function CapyOverlay({
         continue
       }
       const isImage = file.type.startsWith("image/")
-      const isPdf = file.type === "application/pdf" || isPdfFilename(file.name)
+      const isPdf = isPdfFile(file)
       if (isPdf && !pdfSupported) {
         toast.error(t("attachments.pdfUnsupported", { name: file.name }))
         continue
@@ -238,7 +239,7 @@ export function CapyOverlay({
         name: file.name,
         content,
         size: file.size,
-        mediaType: file.type || (isPdf ? "application/pdf" : "text/plain"),
+        mediaType: isPdf ? "application/pdf" : file.type || "text/plain",
       })
     }
 
@@ -263,8 +264,22 @@ export function CapyOverlay({
   const handleSend = () => {
     const text = input.trim()
     if ((!text && attachments.length === 0) || isStreaming) return
+
+    // The active provider can change after a file is attached; a PDF must never
+    // ride to a provider that can't read it.
+    let toSend = attachments
+    if (!pdfSupported) {
+      const blocked = attachments.filter(isPdfAttachment)
+      for (const a of blocked) toast.error(t("attachments.pdfUnsupported", { name: a.name }))
+      if (blocked.length > 0) toSend = attachments.filter((a) => !isPdfAttachment(a))
+    }
+    if (!text && toSend.length === 0) {
+      setAttachments([])
+      return
+    }
+
     jumpToLatest()
-    onSend(text, attachments.length > 0 ? attachments : undefined)
+    onSend(text, toSend.length > 0 ? toSend : undefined)
     setInput("")
     setAttachments([])
   }

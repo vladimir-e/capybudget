@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { useEffect, useState } from "react"
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
+import { toast } from "sonner"
 import {
   createMemoryHistory,
   createRootRoute,
@@ -377,6 +378,109 @@ describe("CapyOverlay click-through behavior", () => {
 
     await user.click(screen.getByRole("button", { name: /New chat/i }))
     expect(onNewChat).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe("CapyOverlay PDF attachments", () => {
+  const openaiConfig = {
+    ...DEFAULT_INTELLIGENCE_CONFIG,
+    provider: "openai" as const,
+    openai: { apiKey: "sk-x", model: "gpt-5.5" },
+  }
+
+  function fileInput(container: HTMLElement): HTMLInputElement {
+    return container.querySelector('input[type="file"]') as HTMLInputElement
+  }
+
+  beforeEach(() => {
+    vi.mocked(toast.error).mockClear()
+  })
+
+  it("accepts a PDF attachment when the provider can read PDFs", async () => {
+    useIntelligenceStore.setState({ hydrated: true, config: openaiConfig })
+    const { container } = await mountOverlay()
+    const pdf = new File(["%PDF-1.4"], "statement.pdf", { type: "application/pdf" })
+
+    await act(async () => {
+      fireEvent.change(fileInput(container), { target: { files: [pdf] } })
+    })
+
+    await waitFor(() =>
+      expect(screen.getByText("statement.pdf")).toBeInTheDocument(),
+    )
+    expect(toast.error).not.toHaveBeenCalled()
+  })
+
+  it("rejects a PDF and toasts when the provider can't read PDFs", async () => {
+    useIntelligenceStore.setState({
+      hydrated: true,
+      config: { ...DEFAULT_INTELLIGENCE_CONFIG, provider: "claude-cli" },
+    })
+    const { container } = await mountOverlay()
+    const pdf = new File(["%PDF-1.4"], "statement.pdf", { type: "application/pdf" })
+
+    await act(async () => {
+      fireEvent.change(fileInput(container), { target: { files: [pdf] } })
+    })
+
+    await waitFor(() => expect(toast.error).toHaveBeenCalledTimes(1))
+    expect(screen.queryByText("statement.pdf")).not.toBeInTheDocument()
+  })
+
+  it("normalizes a PDF's media type when the browser reports octet-stream", async () => {
+    const onSend = vi.fn()
+    useIntelligenceStore.setState({ hydrated: true, config: openaiConfig })
+    const { container } = await mountOverlay({ onSend })
+    const pdf = new File(["%PDF-1.4"], "statement.pdf", {
+      type: "application/octet-stream",
+    })
+
+    await act(async () => {
+      fireEvent.change(fileInput(container), { target: { files: [pdf] } })
+    })
+    await waitFor(() =>
+      expect(screen.getByText("statement.pdf")).toBeInTheDocument(),
+    )
+
+    const user = userEvent.setup()
+    await user.type(
+      screen.getByPlaceholderText("Ask Capy anything about your finances..."),
+      "here{Enter}",
+    )
+    expect(onSend).toHaveBeenCalledWith("here", [
+      expect.objectContaining({ name: "statement.pdf", mediaType: "application/pdf" }),
+    ])
+  })
+
+  it("drops a pending PDF on send after switching to a provider that can't read it", async () => {
+    const onSend = vi.fn()
+    useIntelligenceStore.setState({ hydrated: true, config: openaiConfig })
+    const { container } = await mountOverlay({ onSend })
+    const pdf = new File(["%PDF-1.4"], "statement.pdf", { type: "application/pdf" })
+
+    await act(async () => {
+      fireEvent.change(fileInput(container), { target: { files: [pdf] } })
+    })
+    await waitFor(() =>
+      expect(screen.getByText("statement.pdf")).toBeInTheDocument(),
+    )
+
+    // Provider switches out from under the still-pending attachment.
+    act(() => {
+      useIntelligenceStore.setState({
+        hydrated: true,
+        config: { ...DEFAULT_INTELLIGENCE_CONFIG, provider: "claude-cli" },
+      })
+    })
+
+    const user = userEvent.setup()
+    await user.type(
+      screen.getByPlaceholderText("Ask Capy anything about your finances..."),
+      "import this{Enter}",
+    )
+
+    expect(toast.error).toHaveBeenCalled()
+    expect(onSend).toHaveBeenCalledWith("import this", undefined)
   })
 })
 

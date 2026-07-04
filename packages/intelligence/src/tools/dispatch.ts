@@ -70,12 +70,7 @@ export interface ToolContext {
    * returns switch-provider guidance instead of staging. Mirrors `canImport`.
    */
   importSupported?: boolean
-  /**
-   * Whether the active provider can read PDF attachments (Anthropic / OpenAI).
-   * `start_import` reads this to reject a PDF shared in chat under a provider
-   * that can't see it, mirroring the Import tab's PDF-drop gate. Mirrors
-   * `canReadPdf`.
-   */
+  /** Whether the active provider can read PDF attachments — see `canReadPdf`. */
   pdfSupported?: boolean
 }
 

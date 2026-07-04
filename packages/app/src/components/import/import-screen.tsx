@@ -29,7 +29,7 @@ import {
   isImageFile,
   isImportBinaryFile,
   isImportTextFile,
-  isPdfFilename,
+  isPdfFile,
   readFileAsBase64,
 } from "@/lib/file-attachments";
 import { ImportDropZone } from "./import-drop-zone";
@@ -234,7 +234,7 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
         }
         // The active provider must be able to read PDFs, or the import starts a
         // run the model never sees.
-        if ((file.type === "application/pdf" || isPdfFilename(file.name)) && !pdfSupported) {
+        if (isPdfFile(file) && !pdfSupported) {
           toast.error(t("errors.pdfNeedsCapableProvider", { name: file.name }));
           continue;
         }

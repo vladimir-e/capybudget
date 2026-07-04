@@ -68,12 +68,7 @@ export interface ApiAdapterOptions {
    * the same `canImport` truth the Import tab uses.
    */
   importSupported?: boolean
-  /**
-   * Whether the active provider can read PDF attachments — passed to
-   * `start_import` so a PDF shared in chat is gated the same way the Import tab
-   * gates a PDF drop. True for Anthropic and OpenAI; false for the CLI. Mirrors
-   * `canReadPdf`.
-   */
+  /** Whether the active provider can read PDF attachments — see `canReadPdf`. */
   pdfSupported?: boolean
 }
 

@@ -21,22 +21,17 @@
  *     to switch to Anthropic or OpenAI.
  *   - no attachments on the turn → tell the user to attach the file (or use the
  *     Import tab for bulk).
- *   - a PDF attachment under a provider that can't read PDFs → tell the user to
- *     switch to a PDF-capable provider. Staging it would start a run the model is
- *     blind to. Mirrors the Import tab's PDF-drop gate (`canReadPdf`).
+ *   - a PDF under a provider that can't read PDFs (`canReadPdf`) → tell the user
+ *     to switch to a PDF-capable provider.
  *   - staging already holds an import — a run in flight or parked for review,
  *     or files dropped in the Import tab but not started → point the user at
  *     the Import tab. The only thing a chat share may replace is a prior chat
  *     staging that never ran.
  */
 
+import { isPdfAttachment } from "../../attachments"
 import { FileStagingStore } from "../../import/staging-store"
-import type { FileAttachment } from "../../types"
 import type { ToolContext } from "../dispatch"
-
-function isPdf(file: FileAttachment): boolean {
-  return file.mediaType === "application/pdf" || file.name.toLowerCase().endsWith(".pdf")
-}
 
 const IMPORT_IN_PROGRESS = JSON.stringify({
   started: false,
@@ -65,7 +60,7 @@ export async function handleStartImport(ctx: ToolContext): Promise<string> {
     })
   }
 
-  if (!ctx.pdfSupported && attachments.some(isPdf)) {
+  if (!ctx.pdfSupported && attachments.some(isPdfAttachment)) {
     return JSON.stringify({
       started: false,
       reason: "pdf_unsupported",
