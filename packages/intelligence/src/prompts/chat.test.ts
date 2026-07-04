@@ -117,3 +117,24 @@ describe("buildSystemPrompt", () => {
     expect(buildSystemPrompt("USD", "English")).not.toContain("Respond in");
   });
 });
+
+describe("buildSystemPrompt PDF attachment guidance", () => {
+  it("advertises PDF statements on the paperclip when the provider reads them", () => {
+    const prompt = buildSystemPrompt("USD", undefined, true);
+    expect(prompt).toContain("and PDF statements (5MB/file, 10MB total)");
+    expect(prompt).not.toContain("not PDFs");
+    expect(prompt).not.toContain("PDF import needs the Anthropic or OpenAI provider");
+  });
+
+  it("steers PDFs to a capable provider — never the Import tab — when it can't", () => {
+    const prompt = buildSystemPrompt("USD", undefined, false);
+    expect(prompt).toContain("not PDFs");
+    expect(prompt).toContain("PDF import needs the Anthropic or OpenAI provider");
+    expect(prompt).toContain("the Import tab can't take PDFs under the current provider either");
+    expect(prompt).not.toContain("and PDF statements (5MB");
+  });
+
+  it("defaults to the non-PDF guidance", () => {
+    expect(buildSystemPrompt("USD")).toContain("PDF import needs the Anthropic or OpenAI provider");
+  });
+});

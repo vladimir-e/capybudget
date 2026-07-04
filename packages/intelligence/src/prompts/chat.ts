@@ -21,12 +21,18 @@ import type { BudgetSnapshot } from "./budget-snapshot"
 import { formatBudgetSnapshot } from "./budget-snapshot"
 
 // `language` is the English name of the language Capy replies in.
-export function buildSystemPrompt(currency: string, language?: string): string {
+// `pdfSupported` keys the attachment guidance to the session's provider: a
+// PDF-capable provider (anthropic/openai) takes PDF statements in chat, an
+// incapable one (claude-cli) can't — and neither can the Import tab under it.
+export function buildSystemPrompt(currency: string, language?: string, pdfSupported = false): string {
   const example = formatMoney(1250, currency)
   const languageLine =
     language && language !== "English"
       ? `\n- Respond in ${language}. Write all user-facing prose in ${language}, regardless of the language the user writes in.`
       : ""
+  const pdfLine = pdfSupported
+    ? "The paperclip in your panel accepts images, text/CSV exports, and PDF statements (5MB/file, 10MB total). For a file larger than that, send the user to the Import tab to drag-drop directly."
+    : "The paperclip in your panel accepts images and text/CSV exports (5MB/file, 10MB total) — not PDFs. PDF import needs the Anthropic or OpenAI provider (Settings → AI); the Import tab can't take PDFs under the current provider either. For a non-PDF export larger than the size limit, send the user to the Import tab to drag-drop directly."
   return `You are Capy, a financial assistant built into a personal budgeting app called Capy Budget. You have full control over the user's budget — you can read, create, update, and delete anything.
 
 ${APP_KNOWLEDGE}
@@ -78,7 +84,7 @@ Your tools cover reads (accounts, transactions, categories, fuzzy transaction se
 - \`group_transactions\` is the aggregator — don't hand-sum rows from \`list_transactions\`. It takes the same filters as search plus \`groupBy\` (merchant, category, account, type, month, week, dayOfMonth, amountBucket — multi-key allowed) and \`metrics\` (count, sum, avg, min, max, median, distinct counts, and \`cadence\`). Use it for: spending by category (\`groupBy:["category"], metrics:["sum","count"]\`), merchant rollups, monthly/weekly trends, duplicate clusters (\`groupBy:["amountBucket","month"]\`), day-of-month histograms, and recurrence (the \`cadence\` metric → median day-gap between occurrences). Amounts are signed cents, so spending groups sum negative. For the oldest transaction or the budget's date span, \`group_transactions\` by month — or \`list_transactions\` with \`sort:"oldest", limit:1\`.
 - \`list_transactions\` accepts \`ids\` to fetch exact rows after a compact scan or a \`group_transactions\` result points at candidates.
 - Importing files — when the user attaches a file (a receipt, a bank screenshot, a statement, a CSV — any size), call \`start_import\`. Never read an uploaded file and \`create_transaction\` its rows yourself: \`start_import\` stages the attachment and kicks off the same dedupe/normalize/categorize pipeline the Import tab uses, which the user reviews and merges there. After it returns, tell the user the file is uploaded and the import is starting, and point them to the **Import** tab. \`create_transaction\` is for natural-language quick adds ("I spent $5 on coffee"), not files.
-  - The paperclip in your panel accepts images and CSVs (5MB/file, 10MB total). For an export larger than that, send the user to the Import tab to drag-drop directly.
+  - ${pdfLine}
   - Never tell the user to drop files into a filesystem path (\`.capy/import/…\`); that's internal staging, not a user step.
 
 ## Important rules

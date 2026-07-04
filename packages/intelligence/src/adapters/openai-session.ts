@@ -10,17 +10,6 @@ import type { JsonSchema, StructuredCallOptions, StructuredMessage, StructuredSe
 
 const MAX_TOKENS = 8192
 
-const OPENAI_TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = getToolDefinitions().map(
-  (t) => ({
-    type: "function",
-    function: {
-      name: t.name,
-      description: t.description,
-      parameters: t.inputSchema as Record<string, unknown>,
-    },
-  }),
-)
-
 const RENDER_TOOL_MAP = buildRenderToolMap()
 
 function toolUseToContentBlock(name: string, input: Record<string, unknown>): ContentBlock {
@@ -76,6 +65,7 @@ function finalizeToolArgs(acc: ToolCallAccumulator): Record<string, unknown> | E
 export class OpenAiSession implements CapySession, StructuredSession {
   private readonly client: OpenAI
   private readonly opts: ApiAdapterOptions
+  private readonly tools: OpenAI.Chat.Completions.ChatCompletionTool[]
   private readonly messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = []
   private abortController: AbortController | null = null
   private alive = false
@@ -89,6 +79,14 @@ export class OpenAiSession implements CapySession, StructuredSession {
 
   constructor(opts: ApiAdapterOptions) {
     this.opts = opts
+    this.tools = getToolDefinitions({ pdfSupported: opts.pdfSupported }).map((t) => ({
+      type: "function",
+      function: {
+        name: t.name,
+        description: t.description,
+        parameters: t.inputSchema as Record<string, unknown>,
+      },
+    }))
     this.client = new OpenAI({
       apiKey: opts.apiKey,
       // Tauri webview — key lives on disk, not bundled into a public app.
@@ -200,7 +198,7 @@ export class OpenAiSession implements CapySession, StructuredSession {
   }
 
   private async runAgenticLoop(): Promise<void> {
-    const tools = OPENAI_TOOLS
+    const tools = this.tools
 
     const completedBlocks: ContentBlock[] = []
     const emitContent = () => {

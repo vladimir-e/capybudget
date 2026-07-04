@@ -10,12 +10,6 @@ import type { JsonSchema, StructuredCallOptions, StructuredMessage, StructuredSe
 
 const MAX_TOKENS = 8192
 
-const ANTHROPIC_TOOLS: Anthropic.Tool[] = getToolDefinitions().map((t) => ({
-  name: t.name,
-  description: t.description,
-  input_schema: t.inputSchema as Anthropic.Tool.InputSchema,
-}))
-
 const RENDER_TOOL_MAP = buildRenderToolMap()
 
 function toolUseToContentBlock(name: string, input: Record<string, unknown>): ContentBlock {
@@ -67,6 +61,7 @@ function toAnthropicUserContent(
 export class AnthropicSession implements CapySession, StructuredSession {
   private readonly client: Anthropic
   private readonly opts: ApiAdapterOptions
+  private readonly tools: Anthropic.Tool[]
   private readonly messages: Anthropic.MessageParam[] = []
   private abortController: AbortController | null = null
   private alive = false
@@ -80,6 +75,11 @@ export class AnthropicSession implements CapySession, StructuredSession {
 
   constructor(opts: ApiAdapterOptions) {
     this.opts = opts
+    this.tools = getToolDefinitions({ pdfSupported: opts.pdfSupported }).map((t) => ({
+      name: t.name,
+      description: t.description,
+      input_schema: t.inputSchema as Anthropic.Tool.InputSchema,
+    }))
     this.client = new Anthropic({
       apiKey: opts.apiKey,
       // Tauri webview — key lives on disk, not bundled into a public app.
@@ -189,7 +189,7 @@ export class AnthropicSession implements CapySession, StructuredSession {
   }
 
   private async runAgenticLoop(): Promise<void> {
-    const tools = ANTHROPIC_TOOLS
+    const tools = this.tools
 
     const completedBlocks: ContentBlock[] = []
     const emitContent = () => {

@@ -36,6 +36,37 @@ describe("getToolDefinitions", () => {
   it("returns a fresh array each call", () => {
     expect(getToolDefinitions()).not.toBe(getToolDefinitions())
   })
+
+  it("keeps the same tool surface regardless of PDF capability", () => {
+    const withPdf = getToolDefinitions({ pdfSupported: true }).map((t) => t.name)
+    const withoutPdf = getToolDefinitions({ pdfSupported: false }).map((t) => t.name)
+    expect(withPdf).toEqual(withoutPdf)
+  })
+})
+
+describe("start_import description varies by PDF capability", () => {
+  function importDesc(opts?: { pdfSupported?: boolean }): string {
+    const def = getToolDefinitions(opts).find((t) => t.name === "start_import")
+    if (!def) throw new Error("start_import missing from the tool surface")
+    return def.description
+  }
+
+  it("tells the model PDFs import like any statement when the provider reads them", () => {
+    const desc = importDesc({ pdfSupported: true })
+    expect(desc).toContain("exactly like any other statement file")
+    expect(desc).not.toContain("PDF import needs the Anthropic or OpenAI provider")
+  })
+
+  it("steers PDFs to a capable provider — never the Import tab — when it can't", () => {
+    const desc = importDesc({ pdfSupported: false })
+    expect(desc).toContain("PDF import needs the Anthropic or OpenAI provider")
+    expect(desc).toContain("don't send them to the Import tab")
+    expect(desc).not.toContain("exactly like any other statement file")
+  })
+
+  it("defaults to the non-PDF wording — the MCP server and external agents front the CLI", () => {
+    expect(importDesc()).toContain("PDF import needs the Anthropic or OpenAI provider")
+  })
 })
 
 describe("prompt/surface coherence", () => {

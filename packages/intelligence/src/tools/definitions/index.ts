@@ -11,14 +11,14 @@
 
 import { DATA_TOOL_DEFS } from "./data"
 import { MUTATION_TOOL_DEFS } from "./mutation"
-import { IMPORT_TOOL_DEFS } from "./import"
+import { importToolDefs } from "./import"
 import { READ_FILE_TOOL_DEF } from "./read-file"
 import { READ_SPEC_TOOL_DEF } from "./spec"
 import { RENDER_TOOL_DEFS } from "./render"
 
 export { DATA_TOOL_DEFS } from "./data"
 export { MUTATION_TOOL_DEFS } from "./mutation"
-export { IMPORT_TOOL_DEFS, START_IMPORT_TOOL_NAME } from "./import"
+export { importToolDefs, START_IMPORT_TOOL_NAME } from "./import"
 export { READ_FILE_TOOL_DEF } from "./read-file"
 export { READ_SPEC_TOOL_DEF } from "./spec"
 export { RENDER_TOOL_DEFS } from "./render"
@@ -35,24 +35,27 @@ export type ToolDefinition = {
   }
 }
 
-const ALL_TOOL_DEFS: readonly ToolDefinition[] = [
-  ...DATA_TOOL_DEFS,
-  ...MUTATION_TOOL_DEFS,
-  ...IMPORT_TOOL_DEFS,
-  READ_FILE_TOOL_DEF,
-  READ_SPEC_TOOL_DEF,
-  ...RENDER_TOOL_DEFS,
-]
-
 /**
  * The full tool surface — what the MCP server exposes to external agents and
  * what the in-process chat agent loop sees. There is one surface: the
  * structured import session calls the model statelessly (no tools), so it
  * doesn't draw from here. Returned as a fresh array so callers can safely
  * mutate it.
+ *
+ * `pdfSupported` keys `start_import`'s description to the session's provider
+ * (see `importToolDefs`); everything else is fixed. The MCP server and external
+ * agents don't pass it — they default to the non-PDF wording, matching the CLI
+ * provider they front.
  */
-export function getToolDefinitions(): ToolDefinition[] {
-  return [...ALL_TOOL_DEFS]
+export function getToolDefinitions(opts?: { pdfSupported?: boolean }): ToolDefinition[] {
+  return [
+    ...DATA_TOOL_DEFS,
+    ...MUTATION_TOOL_DEFS,
+    ...importToolDefs(opts?.pdfSupported ?? false),
+    READ_FILE_TOOL_DEF,
+    READ_SPEC_TOOL_DEF,
+    ...RENDER_TOOL_DEFS,
+  ]
 }
 
 /**
