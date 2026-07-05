@@ -222,6 +222,10 @@ export function ImportPreview({
       discard();
       invalidateStaging();
       const result = await merge({ transactions, selectedIds, accountMapping });
+      // Intentional divergence: a merge that committed the ledger write but
+      // couldn't clear staging is still complete — the rows landed. The lingering
+      // staging surfaces via the toast, and the flow falls through to
+      // onMergeComplete() rather than being treated as a failed merge.
       if (!result.stagingCleared) toast.error(t("errors.clearFailed"));
       toast.success(
         result.accountsCreated > 0

@@ -195,11 +195,17 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
   }, [chatImportSignal, checkStaging]);
 
   // A run's first staging write (after History) flips us into preview; mirror
-  // the orchestrator's progress into the sidebar "has data" dot. Keyed off the
-  // mount's baseline, not `> 0`: rowsVersion is a global counter, so a value left
-  // over from another budget's run must not force a spurious preview here — only
-  // a bump beyond what we mounted with means a batch landed for *this* screen.
+  // the orchestrator's progress into the sidebar "has data" dot. Keyed off a
+  // baseline, not `> 0`: rowsVersion is a global counter, so a value left over
+  // from another budget's run must not force a spurious preview here — only a
+  // bump beyond the baseline means a batch landed for *this* screen. The baseline
+  // re-bases when a run begins, because `beginRun("start")` zeroes rowsVersion; a
+  // non-zero mount baseline would otherwise gate a fresh run's batches (1, 2, …)
+  // off forever and the preview would never render.
   const baselineRowsVersionRef = useRef(rowsVersion);
+  useEffect(() => {
+    if (running) baselineRowsVersionRef.current = useImportStore.getState().rowsVersion;
+  }, [running]);
   useEffect(() => {
     if (rowsVersion > baselineRowsVersionRef.current) {
       setHasStaging(true);
@@ -227,10 +233,9 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
     if (error.recoverable || !hasStaging) {
       reset();
       setHasStaging(false);
-      setHasImportData(false);
       void refreshSourceFiles();
     }
-  }, [error, hasStaging, reset, refreshSourceFiles, setHasImportData]);
+  }, [error, hasStaging, reset, refreshSourceFiles]);
 
   // ── Derived view state ────────────────────────────────────────
   let viewState: ImportViewState;
@@ -382,12 +387,13 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
 
   const handleCancel = useCallback(async () => {
     // Cancel discards. Detach + await the in-flight run first (so no batch writes
-    // after the clear), then bump the staging generation so the preview's
-    // debounced / unmount write-back can't rewrite transactions.csv after it's
-    // gone. Only once the directory is verifiably removed do we flip back to
-    // file-attach; if the clear fails, surface it and stay put rather than lying.
+    // land after the clear), then clear staging. Only once the directory is
+    // verifiably gone do we bump the staging generation — neutralizing the
+    // preview's debounced / unmount write-back so it can't rewrite transactions.csv
+    // after it's gone — and flip back to file-attach. If the clear fails we surface
+    // it and stay put, leaving the generation untouched so the still-mounted
+    // preview keeps persisting hand-edits instead of silently going stale.
     await cancel();
-    invalidateStaging();
     try {
       await repository.clearImportData();
     } catch (err) {
@@ -395,6 +401,7 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
       toast.error(t("errors.clearFailed"));
       return;
     }
+    invalidateStaging();
     reset();
     setFileDuplicates({});
     setSourceFiles([]);

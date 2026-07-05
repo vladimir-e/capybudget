@@ -119,15 +119,25 @@ export function useImportRepository(budgetPath: string) {
   /** Wipe the entire .capy/import/ directory (sources + all staging artifacts).
    *  Authoritative: resolves only once the directory is verifiably gone, so a
    *  caller can safely flip the UI to file-attach knowing staging won't reappear
-   *  on relaunch. A single retry rides out transient locks (a lingering handle,
-   *  a shared-mount delete lag); if the directory still stands, it throws rather
-   *  than silently reporting success — the caller surfaces the failure. */
+   *  on relaunch. A transient lock (a lingering handle, a shared-mount delete lag)
+   *  can make the first `remove` throw or leave the directory behind, so a throw
+   *  falls through to a single retry, and the retry itself is guarded — the dir
+   *  can vanish in the TOCTOU window (ENOENT). The final `exists` check is the
+   *  sole arbiter: still standing → throw so the caller surfaces the failure. */
   const clearImportData = useCallback(async () => {
     const dir = await resolveImportDir();
     if (!(await exists(dir))) return;
-    await remove(dir, { recursive: true });
+    try {
+      await remove(dir, { recursive: true });
+    } catch {
+      /* a throw (EBUSY / open handle) still gets the retry below */
+    }
     if (!(await exists(dir))) return;
-    await remove(dir, { recursive: true });
+    try {
+      await remove(dir, { recursive: true });
+    } catch {
+      /* the dir may already be gone (ENOENT); the exists check decides */
+    }
     if (await exists(dir)) {
       throw new Error(`Import staging still present after clear: ${dir}`);
     }

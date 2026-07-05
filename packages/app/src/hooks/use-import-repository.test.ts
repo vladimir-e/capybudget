@@ -47,6 +47,34 @@ describe("useImportRepository — clearImportData (authoritative)", () => {
     await expect(result.current.clearImportData()).rejects.toThrow(/still present/);
     expect(mockRemove).toHaveBeenCalledTimes(2);
   });
+
+  it("retries when the first remove throws (lingering handle / EBUSY) and then succeeds", async () => {
+    mockExists
+      .mockResolvedValueOnce(true) // present
+      .mockResolvedValueOnce(true) // the throw left it behind
+      .mockResolvedValueOnce(false); // gone after the retry
+    mockRemove
+      .mockRejectedValueOnce(new Error("EBUSY: resource busy or locked"))
+      .mockResolvedValueOnce(undefined);
+    const { result } = renderHook(() => useImportRepository("/budget"));
+
+    await expect(result.current.clearImportData()).resolves.toBeUndefined();
+    expect(mockRemove).toHaveBeenCalledTimes(2);
+  });
+
+  it("treats a retry remove that throws while the dir vanishes (TOCTOU ENOENT) as success", async () => {
+    mockExists
+      .mockResolvedValueOnce(true) // present
+      .mockResolvedValueOnce(true) // still present, so we retry
+      .mockResolvedValueOnce(false); // final check: gone
+    mockRemove
+      .mockResolvedValueOnce(undefined) // first remove resolves but leaves it
+      .mockRejectedValueOnce(new Error("ENOENT: no such file or directory")); // vanished mid-retry
+    const { result } = renderHook(() => useImportRepository("/budget"));
+
+    await expect(result.current.clearImportData()).resolves.toBeUndefined();
+    expect(mockRemove).toHaveBeenCalledTimes(2);
+  });
 });
 
 describe("useImportRepository — removeSourceFile", () => {

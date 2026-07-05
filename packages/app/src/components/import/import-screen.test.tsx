@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import { makeImportTransaction } from "@capybudget/core/test-factories";
 
 // checkStaging's routing is what this file exercises — the drop zone, progress
@@ -124,6 +124,33 @@ describe("ImportScreen — checkStaging routing", () => {
     expect(mocks.start).not.toHaveBeenCalled();
   });
 
+  it("serializes the checks so a chat signal at mount can't double-fire start()", async () => {
+    // Stateful staging: readState reflects the last writeState. The mount check
+    // auto-starts and clears the chat marker; a signal-driven re-check chained
+    // after it then reads no chat source and stands down. Unserialized, both
+    // checks could read source:"chat" before either cleared it and start twice.
+    let state: { phase: string; source?: string; updatedAt: string } | null = {
+      phase: "reading",
+      source: "chat",
+      updatedAt: "2026-01-01T00:00:00Z",
+    };
+    mocks.staging.readState.mockImplementation(async () => state);
+    mocks.staging.writeState.mockImplementation(async (next) => {
+      state = next;
+    });
+
+    renderScreen();
+    // Fire the re-check signal right after mount, while the first check may still
+    // be in flight — the serialization is exactly what defuses the race.
+    act(() => useImportStore.getState().signalChatImport());
+
+    await waitFor(() => expect(mocks.start).toHaveBeenCalledTimes(1));
+    // The re-check reaching its no-staging fall-through proves it ran after the
+    // marker was cleared rather than firing a second start().
+    await waitFor(() => expect(mocks.listSourceFiles).toHaveBeenCalled());
+    expect(mocks.start).toHaveBeenCalledTimes(1);
+  });
+
   it("falls through to file-attach when no staging exists", async () => {
     renderScreen();
 
@@ -138,5 +165,21 @@ describe("ImportScreen — checkStaging routing", () => {
     renderScreen();
 
     expect(await screen.findByTestId("drop-zone")).toBeInTheDocument();
+  });
+
+  // Regression: a prior budget's run leaves the global rowsVersion non-zero. A
+  // fresh Start zeroes it (beginRun), so unless the preview baseline re-bases when
+  // the run begins, the run's batches (1, 2, …) never exceed the stale mount
+  // baseline and the preview stays hidden. This is the scenario a test would catch.
+  it("renders the preview for a fresh run when the mount baseline was left non-zero", async () => {
+    useImportStore.setState({ rowsVersion: 6 });
+    renderScreen();
+    await screen.findByTestId("drop-zone");
+
+    // A fresh run begins (rowsVersion → 0), then its first batch lands.
+    act(() => useImportStore.getState().beginRun("start"));
+    act(() => useImportStore.getState().apply({ type: "rows-changed" }));
+
+    expect(await screen.findByTestId("preview")).toBeInTheDocument();
   });
 });

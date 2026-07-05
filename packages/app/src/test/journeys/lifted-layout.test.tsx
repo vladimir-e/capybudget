@@ -1,6 +1,6 @@
 import "@/test/journeys/setup";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { screen, waitFor } from "@testing-library/react";
+import { act, screen, waitFor } from "@testing-library/react";
 import type { UserEvent } from "@testing-library/user-event";
 import {
   DEFAULT_INTELLIGENCE_CONFIG,
@@ -62,8 +62,17 @@ vi.mock("@/services/create-session", () => ({
   createSession: createSessionMock,
 }));
 
+// Wrap stopActiveOrchestrator in a pass-through spy so the per-budget teardown
+// assertion can see it fire; everything else in the module stays real.
+vi.mock("@/hooks/use-import-orchestrator", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/hooks/use-import-orchestrator")>();
+  return { ...actual, stopActiveOrchestrator: vi.fn(actual.stopActiveOrchestrator) };
+});
+
 import { renderApp } from "@/test/render-app";
 import { useAppStore } from "@/stores/app-store";
+import { useImportStore } from "@/stores/import-store";
+import { stopActiveOrchestrator } from "@/hooks/use-import-orchestrator";
 import {
   useIntelligenceStore,
   _resetIntelligenceStoreForTests,
@@ -99,6 +108,7 @@ beforeEach(() => {
 afterEach(() => {
   _resetIntelligenceStoreForTests();
   useAppStore.setState({ recentBudgets: [] });
+  useImportStore.getState().reset();
 });
 
 async function openCapy(user: UserEvent) {
@@ -169,6 +179,32 @@ describe("Lifted BudgetLayout boundary", () => {
     await user.click(await screen.findByRole("menuitem", { name: /Close Budget/i }));
 
     await waitFor(() => expect(session.killSpy).toHaveBeenCalled());
+  }, TIMEOUT);
+
+  it("resets the import store and stops the orchestrator on the per-budget teardown", async () => {
+    const { user } = await renderApp({ seed: { accounts: [], categories: [], transactions: [] } });
+    await waitFor(() => {
+      expect(screen.getByRole("heading", { name: "All Accounts" })).toBeInTheDocument();
+    });
+
+    // Dirty the import run projection as if a run had staged data in this budget;
+    // the teardown must wipe it so it can't leak into the next budget's Import tab.
+    act(() => {
+      useImportStore.setState({ hasImportData: true, rowsVersion: 5, running: true });
+    });
+    vi.mocked(stopActiveOrchestrator).mockClear();
+
+    // Close Budget unmounts BudgetLayout → its per-budget cleanup runs.
+    await user.click(screen.getByRole("button", { name: /test-budget/ }));
+    await user.click(await screen.findByRole("menuitem", { name: /Close Budget/i }));
+
+    await waitFor(() => {
+      const s = useImportStore.getState();
+      expect(s.hasImportData).toBe(false);
+      expect(s.running).toBe(false);
+      expect(s.rowsVersion).toBe(0);
+    });
+    expect(vi.mocked(stopActiveOrchestrator)).toHaveBeenCalled();
   }, TIMEOUT);
 
   it("builds a new conversation's session with instructions edited in Settings", async () => {
