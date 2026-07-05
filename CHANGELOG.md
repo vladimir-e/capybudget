@@ -9,6 +9,10 @@ CHANGELOG PHILOSOPHY:
 - Resist the urge to be thorough here. Thoroughness goes in specs, not changelog.
 -->
 
+## Unreleased
+
+- **Security** - The macOS keychain prompt no longer fires at startup; keys load on first AI use, behind a one-time heads-up.
+
 ## 1.5.0 — 2026-07-04
 
 - **Import** - PDF bank statements now import (and attach in chat) under OpenAI too, not just Anthropic.

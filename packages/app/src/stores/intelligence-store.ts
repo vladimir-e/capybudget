@@ -216,7 +216,13 @@ export const useIntelligenceStore = create<IntelligenceStore>((set, get) => ({
         }
         const b = await loadBackend()
         const secrets = await b.loadSecrets()
-        set((s) => ({ config: mergeSecrets(s.config, secrets), secretsLoaded: true }))
+        set((s) => {
+          // A key set while this read was in flight (e.g. the user typed one in
+          // Settings) is authoritative — its setter already flipped
+          // `secretsLoaded`, so drop this now-stale keychain result.
+          if (s.secretsLoaded) return {}
+          return { config: mergeSecrets(s.config, secrets), secretsLoaded: true }
+        })
       })().finally(() => {
         secretsPromise = null
       })
@@ -246,8 +252,9 @@ export const useIntelligenceStore = create<IntelligenceStore>((set, get) => ({
   setAnthropicKey(apiKey) {
     const cur = get().config
     const next = { ...cur, anthropic: { ...cur.anthropic, apiKey, keyPresent: Boolean(apiKey) } }
-    // The user-entered value is authoritative now — mark loaded so a pending
-    // on-demand read can't clobber it with a stale keychain fetch.
+    // The user-entered value is authoritative now — flip `secretsLoaded` so an
+    // in-flight `ensureSecrets` merge skips (see its guard) rather than
+    // overwriting this with a stale keychain read.
     set({ config: next, secretsLoaded: true })
     void persist(next)
   },

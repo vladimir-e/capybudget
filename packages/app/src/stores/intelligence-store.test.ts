@@ -156,6 +156,28 @@ describe("useIntelligenceStore.ensureSecrets", () => {
     expect(state.secretGateOpen).toBe(false)
   })
 
+  it("does not clobber a key typed while an on-demand read is in flight", async () => {
+    let releaseLoad!: (s: { anthropic: string; openai: string }) => void
+    const loadGate = new Promise<{ anthropic: string; openai: string }>((r) => {
+      releaseLoad = r
+    })
+    const backend = makeBackend(
+      stored({ provider: "anthropic", anthropic: { apiKey: "", model: "m", keyPresent: true } }, true),
+    )
+    backend.loadSecrets.mockReturnValue(loadGate)
+    _setStoreLoaderForTests(async () => backend)
+    await useIntelligenceStore.getState().hydrate()
+
+    const pending = useIntelligenceStore.getState().ensureSecrets()
+    // The user types and saves a fresh key before the keychain read resolves.
+    useIntelligenceStore.getState().setAnthropicKey("sk-typed")
+    // The now-stale read resolves with the previous keychain value.
+    releaseLoad({ anthropic: "sk-old", openai: "" })
+    await pending
+
+    expect(useIntelligenceStore.getState().config.anthropic.apiKey).toBe("sk-typed")
+  })
+
   it("never touches the keychain for a non-API provider", async () => {
     const backend = makeBackend(stored({ provider: "claude-cli" }, false))
     _setStoreLoaderForTests(async () => backend)
