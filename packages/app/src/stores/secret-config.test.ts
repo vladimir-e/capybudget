@@ -189,6 +189,18 @@ describe("createSecretAwareBackend — loadSecrets", () => {
     expect(file.read()?.anthropic.apiKey).toBe("sk-file")
   })
 
+  it("throws when the read fails and there's nothing on disk to fall back to", async () => {
+    // Steady state: key lives in the keychain, file stripped. A denied read has
+    // no inline copy to serve, so it must surface as an error (not empty) —
+    // callers distinguish a denied read from an absent key.
+    const stored = { ...config(), anthropic: { apiKey: "", model: "m", keyPresent: true } }
+    const file = fakeFile(stored)
+    const { keychain } = fakeKeychain({ failGet: true })
+    const backend = createSecretAwareBackend(file.backend, keychain)
+
+    await expect(backend.loadSecrets()).rejects.toThrow()
+  })
+
   it("keeps inline keys when the migration write fails", async () => {
     const file = fakeFile(config({ anthropic: "sk-ant" }))
     const { keychain } = fakeKeychain({ failSet: true })

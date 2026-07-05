@@ -194,9 +194,15 @@ export function createSecretAwareBackend(
       try {
         anthropic = (await keychain.get("anthropic")) ?? config.anthropic.apiKey
         openai = (await keychain.get("openai")) ?? config.openai.apiKey
-      } catch {
-        // Credential store unreachable — serve the on-disk copy, leave flags be.
-        return { anthropic: config.anthropic.apiKey, openai: config.openai.apiKey }
+      } catch (err) {
+        // Credential store denied or unreachable. An unmigrated inline key is
+        // still on disk — serve it, leaving flags be. Otherwise the value is
+        // genuinely unresolved: rethrow so callers tell a denied read apart from
+        // an absent key instead of latching "not configured".
+        if (hasPlaintextSecrets(config)) {
+          return { anthropic: config.anthropic.apiKey, openai: config.openai.apiKey }
+        }
+        throw err
       }
       const secrets: ProviderSecrets = { anthropic, openai }
 

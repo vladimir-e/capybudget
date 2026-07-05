@@ -115,5 +115,10 @@
     "title": "Unlock your AI key",
     "description": "Capy will now check for your saved AI key. It's stored securely in your system keychain — your OS may ask you to allow access.",
     "allow": "Allow"
+  },
+  "secretError": {
+    "title": "Couldn't unlock your key",
+    "description": "Capy couldn't read your saved AI key from the system keychain. Access may have been denied — try again.",
+    "retry": "Try again"
   }
 }

@@ -108,7 +108,9 @@
       "hideKey": "Hide API key",
       "storedLocally": "Stored securely in your system keychain.",
       "savedKeyEndsIn": "Saved key ends in",
-      "getApiKey": "Get an {{provider}} API key"
+      "getApiKey": "Get an {{provider}} API key",
+      "keychainError": "Couldn't access your key in the system keychain.",
+      "retry": "Retry"
     },
     "model": {
       "label": "Model",

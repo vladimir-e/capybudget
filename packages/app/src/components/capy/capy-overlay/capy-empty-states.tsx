@@ -2,6 +2,7 @@ import { type RefObject } from "react"
 import {
   GraduationCap,
   Repeat,
+  RotateCcw,
   Settings,
   Sparkles,
   Tags,
@@ -105,6 +106,34 @@ export function UnconfiguredEmptyState({
       >
         <Settings className="h-4 w-4" />
         {t("unconfigured.openSettings")}
+      </button>
+    </div>
+  )
+}
+
+/* ── Keychain read failure ────────────────────────────────────── */
+
+// A configured key exists but the on-demand keychain read failed or was denied.
+// The key isn't gone — offer a retry rather than falling back to the
+// "not configured" state, which would be wrong and dead-ends the user.
+export function SecretErrorState({ onRetry }: { onRetry: () => void }) {
+  const { t } = useTranslation("capy")
+  return (
+    <div className="flex flex-col items-center justify-center px-2 py-10 text-center">
+      <MascotHero />
+      <h3 className="text-lg font-semibold text-foreground">
+        {t("secretError.title")}
+      </h3>
+      <p className="mt-2 max-w-xs text-sm text-muted-foreground">
+        {t("secretError.description")}
+      </p>
+      <button
+        type="button"
+        onClick={onRetry}
+        className="mt-5 inline-flex items-center gap-1.5 rounded-xl bg-brand px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-brand/90"
+      >
+        <RotateCcw className="h-4 w-4" />
+        {t("secretError.retry")}
       </button>
     </div>
   )

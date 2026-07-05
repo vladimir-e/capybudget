@@ -229,6 +229,43 @@ describe("useIntelligenceStore.ensureSecrets", () => {
     expect(state.secretsLoaded).toBe(false)
     expect(backend.loadSecrets).not.toHaveBeenCalled()
   })
+
+  it("surfaces a retryable error when the read fails, without dropping presence", async () => {
+    const backend = makeBackend(
+      stored({ provider: "anthropic", anthropic: { apiKey: "", model: "m", keyPresent: true } }, true),
+    )
+    backend.loadSecrets.mockRejectedValue(new Error("keychain denied"))
+    _setStoreLoaderForTests(async () => backend)
+    await useIntelligenceStore.getState().hydrate()
+
+    await useIntelligenceStore.getState().ensureSecrets()
+    const state = useIntelligenceStore.getState()
+    expect(state.secretsError).toBe(true)
+    // Not latched as "loaded/absent" — a denied read must stay retryable and the
+    // configured key must not flip to not-present.
+    expect(state.secretsLoaded).toBe(false)
+    expect(state.config.anthropic.keyPresent).toBe(true)
+  })
+
+  it("recovers on retry when the next read succeeds", async () => {
+    const backend = makeBackend(
+      stored({ provider: "anthropic", anthropic: { apiKey: "", model: "m", keyPresent: true } }, true),
+    )
+    backend.loadSecrets.mockRejectedValueOnce(new Error("keychain denied"))
+    backend.loadSecrets.mockResolvedValue({ anthropic: "sk-loaded", openai: "" })
+    _setStoreLoaderForTests(async () => backend)
+    await useIntelligenceStore.getState().hydrate()
+
+    await useIntelligenceStore.getState().ensureSecrets()
+    expect(useIntelligenceStore.getState().secretsError).toBe(true)
+
+    await useIntelligenceStore.getState().ensureSecrets()
+    const state = useIntelligenceStore.getState()
+    expect(state.secretsError).toBe(false)
+    expect(state.secretsLoaded).toBe(true)
+    expect(state.config.anthropic.apiKey).toBe("sk-loaded")
+    expect(backend.loadSecrets).toHaveBeenCalledTimes(2)
+  })
 })
 
 describe("useIntelligenceStore setters", () => {

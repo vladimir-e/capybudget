@@ -108,7 +108,9 @@
       "hideKey": "Ocultar la clave de API",
       "storedLocally": "Se guarda de forma segura en el llavero del sistema.",
       "savedKeyEndsIn": "La clave guardada termina en",
-      "getApiKey": "Consigue una clave de API de {{provider}}"
+      "getApiKey": "Consigue una clave de API de {{provider}}",
+      "keychainError": "No se pudo acceder a tu clave en el llavero del sistema.",
+      "retry": "Reintentar"
     },
     "model": {
       "label": "Modelo",

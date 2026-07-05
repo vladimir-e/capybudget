@@ -32,7 +32,7 @@ import {
   type ChatMessage,
   type IntelligenceProvider,
 } from "@capybudget/intelligence"
-import { ConfiguredEmptyState, UnconfiguredEmptyState } from "./capy-empty-states"
+import { ConfiguredEmptyState, SecretErrorState, UnconfiguredEmptyState } from "./capy-empty-states"
 import { MessageBubble } from "./capy-message-bubble"
 import { FileChip } from "./file-chip"
 
@@ -113,6 +113,7 @@ export function CapyOverlay({
   const config = useIntelligenceStore((s) => s.config)
   const setProvider = useIntelligenceStore((s) => s.setProvider)
   const ensureSecrets = useIntelligenceStore((s) => s.ensureSecrets)
+  const secretsError = useIntelligenceStore((s) => s.secretsError)
   const isConfigured = config.provider === "claude-cli" || importReady(config)
   const pdfSupported = canReadPdf(config.provider)
 
@@ -434,7 +435,10 @@ export function CapyOverlay({
           className="flex-1 overflow-y-auto px-5 pb-4 capy-scroll"
         >
           <div className="space-y-5 py-4">
-            {messages.length === 0 && !isConfigured && (
+            {messages.length === 0 && secretsError && (
+              <SecretErrorState onRetry={() => void ensureSecrets()} />
+            )}
+            {messages.length === 0 && !secretsError && !isConfigured && (
               <UnconfiguredEmptyState
                 claudeCliAvailable={claudeCliAvailable}
                 onPickProvider={openSettings}
@@ -442,7 +446,7 @@ export function CapyOverlay({
                 firstChipRef={firstChipRef}
               />
             )}
-            {messages.length === 0 && isConfigured && (
+            {messages.length === 0 && !secretsError && isConfigured && (
               <ConfiguredEmptyState onSuggestion={handleSuggestion} />
             )}
             {messages.map((msg, i) => {

@@ -96,6 +96,9 @@ interface IntelligenceStore {
   secretGateSeen: boolean
   /** Whether the heads-up dialog is currently open. */
   secretGateOpen: boolean
+  /** The last on-demand keychain read failed or was denied. Retryable — the key
+   *  is still known to be present; `ensureSecrets` can be re-run to recover. */
+  secretsError: boolean
 
   /** Load the plaintext config from disk. Idempotent — repeat calls are
    *  no-ops. Never touches the keychain. */
@@ -165,6 +168,7 @@ export const useIntelligenceStore = create<IntelligenceStore>((set, get) => ({
   secretsLoaded: false,
   secretGateSeen: false,
   secretGateOpen: false,
+  secretsError: false,
 
   async hydrate() {
     if (get().hydrated) return
@@ -215,13 +219,22 @@ export const useIntelligenceStore = create<IntelligenceStore>((set, get) => ({
           if (!allowed) return
         }
         const b = await loadBackend()
-        const secrets = await b.loadSecrets()
+        let secrets: ProviderSecrets
+        try {
+          secrets = await b.loadSecrets()
+        } catch {
+          // Read failed or was denied. Don't mark loaded or flip presence false
+          // (that would mis-report a configured key as absent and never retry) —
+          // surface a retryable error; the next `ensureSecrets` re-reads.
+          set({ secretsError: true })
+          return
+        }
         set((s) => {
           // A key set while this read was in flight (e.g. the user typed one in
           // Settings) is authoritative — its setter already flipped
           // `secretsLoaded`, so drop this now-stale keychain result.
           if (s.secretsLoaded) return {}
-          return { config: mergeSecrets(s.config, secrets), secretsLoaded: true }
+          return { config: mergeSecrets(s.config, secrets), secretsLoaded: true, secretsError: false }
         })
       })().finally(() => {
         secretsPromise = null
@@ -254,8 +267,9 @@ export const useIntelligenceStore = create<IntelligenceStore>((set, get) => ({
     const next = { ...cur, anthropic: { ...cur.anthropic, apiKey, keyPresent: Boolean(apiKey) } }
     // The user-entered value is authoritative now — flip `secretsLoaded` so an
     // in-flight `ensureSecrets` merge skips (see its guard) rather than
-    // overwriting this with a stale keychain read.
-    set({ config: next, secretsLoaded: true })
+    // overwriting this with a stale keychain read. A typed key also clears any
+    // prior read failure — there's nothing left to retry.
+    set({ config: next, secretsLoaded: true, secretsError: false })
     void persist(next)
   },
 
@@ -269,7 +283,7 @@ export const useIntelligenceStore = create<IntelligenceStore>((set, get) => ({
   setOpenAiKey(apiKey) {
     const cur = get().config
     const next = { ...cur, openai: { ...cur.openai, apiKey, keyPresent: Boolean(apiKey) } }
-    set({ config: next, secretsLoaded: true })
+    set({ config: next, secretsLoaded: true, secretsError: false })
     void persist(next)
   },
 
@@ -300,5 +314,6 @@ export function _resetIntelligenceStoreForTests(): void {
     secretsLoaded: false,
     secretGateSeen: false,
     secretGateOpen: false,
+    secretsError: false,
   })
 }

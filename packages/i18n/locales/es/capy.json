@@ -115,5 +115,10 @@
     "title": "Desbloquea tu clave de IA",
     "description": "Capy va a buscar tu clave de IA guardada. Está guardada de forma segura en el llavero del sistema; puede que tu sistema operativo te pida permiso para acceder.",
     "allow": "Permitir"
+  },
+  "secretError": {
+    "title": "No se pudo desbloquear tu clave",
+    "description": "Capy no pudo leer tu clave de IA guardada en el llavero del sistema. Puede que se haya denegado el acceso; inténtalo de nuevo.",
+    "retry": "Reintentar"
   }
 }
