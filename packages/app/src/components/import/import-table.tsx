@@ -179,7 +179,7 @@ export function ImportTable({
       <EmptyState
         icon={<Inbox strokeWidth={1.5} />}
         title={searchActive ? t("table.noMatchesTitle") : t("table.emptyTitle")}
-        description={searchActive ? t("table.noMatchesDescription") : undefined}
+        description={searchActive ? t("table.noMatchesDescription") : t("table.emptyDescription")}
         className="py-24"
       />
     );

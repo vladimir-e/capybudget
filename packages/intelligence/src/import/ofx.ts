@@ -22,7 +22,8 @@ import { accountFromFilename } from "./normalize"
 
 export interface NormalizeOfxResult {
   /** Empty when the file parsed to no transactions or couldn't be parsed — the
-   *  orchestrator routes an all-empty run to the recoverable `no_data` state. */
+   *  orchestrator skips the file with a warning; an all-empty run lands on an
+   *  empty preview rather than erroring. */
   rows: ImportTransaction[]
   /** One note per transaction skipped for an unparseable field — surfaced by the
    *  orchestrator as a warn line, the same way the CSV path reports skips. */
@@ -31,7 +32,7 @@ export interface NormalizeOfxResult {
 
 /**
  * Parse an OFX-family file and emit staged rows. Never throws: a malformed file
- * yields no rows (the orchestrator treats that as `no_data`), so one bad export
+ * yields no rows (the orchestrator skips it with a warning), so one bad export
  * can't crash a multi-file run.
  */
 export function normalizeOfx(

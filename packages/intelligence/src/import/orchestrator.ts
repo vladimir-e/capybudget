@@ -163,11 +163,11 @@ export class ImportOrchestrator {
 
     // Normalizing — held in memory; staging isn't written until History has
     // grounded it, so "transactions.csv exists" always means normalized +
-    // grounded. A crash before History leaves no staging → reopen lands on
-    // file-attach, never on a half-baked preview.
+    // grounded (an empty set included — zero rows is a valid grounded outcome
+    // that lands on an empty preview). A crash before History leaves no staging
+    // → reopen lands on file-attach, never on a half-baked preview.
     this.enterPhase("normalizing");
     const normalized = await this.normalize(sources);
-    if (normalized === null) return; // no_data / stop already signaled
     this.log("info", "normalizing", `Normalized ${normalized.length} transactions.`);
     if (this.stopReturn()) return;
 
@@ -181,16 +181,17 @@ export class ImportOrchestrator {
   }
 
   /**
-   * Normalize all sources → one staged set with continuing ids. Returns null
-   * only when *every* file yielded no transaction data (logged + routed to
-   * file-attach). A single no_data file among several (a selfie dropped
-   * alongside a real statement — the chat on-ramp can do this) is skipped with
-   * a warning, not fatal. A stop is handled by the caller's terminal check
-   * after this returns.
+   * Normalize all sources → one staged set with continuing ids. An empty result
+   * (every file yielded no transaction data) is not an error: it flows through
+   * History and stages an empty `transactions.csv`, so the run completes on an
+   * empty preview — the empty state is the feedback, Cancel is the escape hatch.
+   * A single no-data file among several (a selfie dropped alongside a real
+   * statement — the chat on-ramp can do this) is skipped with a warning. A stop
+   * is handled by the caller's terminal check after this returns.
    */
   private async normalize(
     sources: Awaited<ReturnType<StagingStore["listSources"]>>,
-  ): Promise<ImportTransaction[] | null> {
+  ): Promise<ImportTransaction[]> {
     // Existing account names ground the model's `sourceAccount` answers: an
     // exact-name answer resolves deterministically during History instead of
     // staging a near-miss the user has to map by hand.
@@ -245,14 +246,9 @@ export class ImportOrchestrator {
         all.push(...result.rows);
       }
     }
-    // All files empty (and not because we stopped early) → no_data terminal.
-    if (all.length === 0 && !this.stopRequested) {
-      await this.deps.staging.clear();
-      this.fail("no_data", "No transaction data found in the uploaded file(s).", true);
-      return null;
-    }
     // Settle the meter on the actual landed count — per-file totals were
-    // estimates (pre-skip-rule row counts, the model's declared count).
+    // estimates (pre-skip-rule row counts, the model's declared count). An empty
+    // result stays at zero and lands History → empty preview, not an error.
     if (all.length > 0) {
       this.emit({ type: "normalize-progress", progress: { rows: all.length, total: all.length } });
     }

@@ -363,10 +363,10 @@ describe("ImportOrchestrator — batching + per-batch persistence", () => {
   });
 });
 
-// ── no_data ──────────────────────────────────────────────────────
+// ── Empty import (no transaction data) ───────────────────────────
 
-describe("ImportOrchestrator — no_data", () => {
-  it("routes a no_data image to a recoverable error and writes no staging", async () => {
+describe("ImportOrchestrator — empty import", () => {
+  it("lands a no-data image on an empty preview, not an error", async () => {
     const staging = new MemoryStagingStore({
       sources: [{ name: "selfie.png", content: "BASE64", mediaType: "image/png" }],
     });
@@ -377,14 +377,24 @@ describe("ImportOrchestrator — no_data", () => {
 
     await new ImportOrchestrator({ session, staging, budget: emptyBudget(), onEvent, concurrency: 1 }).start();
 
-    const error = events.find((e) => e.type === "error");
-    expect(error && error.type === "error" && error.reason).toBe("no_data");
-    expect(error && error.type === "error" && error.recoverable).toBe(true);
-    expect(staging.transactions).toBeNull();
+    // No error — the run completes and stages an empty, resumable preview.
+    expect(events.find((e) => e.type === "error")).toBeUndefined();
+    const seen = phases(events);
+    expect(seen[seen.length - 1]).toBe("done");
+    // Empty transactions.csv exists (readTransactions returns non-null with no
+    // rows), so the screen renders the preview's empty state, not file-attach.
+    const reread = await staging.readTransactions();
+    expect(reread).not.toBeNull();
+    expect(reread!.rows).toHaveLength(0);
+    // A staging write fired, flipping the UI into the preview.
+    expect(events.some((e) => e.type === "rows-changed")).toBe(true);
+    // Grounding still runs over the empty set — "0 of 0".
+    const grounding = events.find((e) => e.type === "grounding");
+    expect(grounding && grounding.type === "grounding" && grounding.stats.total).toBe(0);
     expect(session.calls[0].schema).toBe(EXTRACTION_SCHEMA);
   });
 
-  it("treats an empty extraction as no_data", async () => {
+  it("lands an empty extraction on an empty preview", async () => {
     const staging = new MemoryStagingStore({
       sources: [{ name: "blank.png", content: "BASE64", mediaType: "image/png" }],
     });
@@ -393,11 +403,13 @@ describe("ImportOrchestrator — no_data", () => {
 
     await new ImportOrchestrator({ session, staging, budget: emptyBudget(), onEvent, concurrency: 1 }).start();
 
-    expect(events.find((e) => e.type === "error" && e.reason === "no_data")).toBeDefined();
-    expect(staging.transactions).toBeNull();
+    expect(events.find((e) => e.type === "error")).toBeUndefined();
+    const reread = await staging.readTransactions();
+    expect(reread).not.toBeNull();
+    expect(reread!.rows).toHaveLength(0);
   });
 
-  it("skips a no_data file among several and imports the rest", async () => {
+  it("skips a no-data file among several and imports the rest", async () => {
     // A selfie dropped alongside a real CSV — the bad file is warned + skipped,
     // the good file still imports (not all-or-nothing).
     const staging = new MemoryStagingStore({

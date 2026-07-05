@@ -44,8 +44,8 @@ interface ImportRunState {
    *  window between the grounding stats and the first staged-rows flip. The
    *  payoff numbers themselves reach the user through the terminal-log line. */
   grounded: boolean;
-  /** Terminal run error, or null. `recoverable` (e.g. `no_data`) routes the
-   *  screen back to file-attach rather than to a hard error state. */
+  /** Terminal run error, or null. `recoverable` (e.g. no source files) routes
+   *  the screen back to file-attach rather than to a hard error state. */
   error: { reason: ImportErrorReason; message: string; recoverable: boolean } | null;
   /** True between `start`/`enrich` and the terminal `done`/`error`. Drives Stop
    *  vs Enrich availability and the live/read-only preview split. */

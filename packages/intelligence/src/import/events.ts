@@ -74,7 +74,7 @@ export interface NormalizeProgress {
  *  - `batch-progress`— Categorizing meter tick over the remaining rows.
  *  - `rows-changed`  — staging rows were written; the preview should re-read.
  *                      Carries no data — the consumer pulls fresh from staging.
- *  - `error`         — a run-level failure (e.g. `no_data`). `recoverable`
+ *  - `error`         — a run-level failure (e.g. no source files). `recoverable`
  *                      distinguishes "back to file-attach" from a hard stop.
  *  - `done`          — the run finished (all batches dispatched + landed, or
  *                      stopped cleanly with the in-flight batch persisted).
@@ -90,10 +90,11 @@ export type ImportEvent =
   | { type: "error"; reason: ImportErrorReason; message: string; recoverable: boolean }
   | { type: "done" };
 
-/** Why a run ended in error. `no_data` = the mapping/extraction call found no
- *  transactions (the selfie case) — recoverable, return to file-attach.
- *  `read` / `normalize` cover failures in those code phases. */
-export type ImportErrorReason = "no_data" | "read" | "normalize" | "internal";
+/** Why a run ended in error. `read` = no source files staged (recoverable,
+ *  return to file-attach). `normalize` covers a failure in that code phase;
+ *  `internal` an uncaught fault. A run that simply finds no transaction data is
+ *  not an error — it stages an empty preview and completes. */
+export type ImportErrorReason = "read" | "normalize" | "internal";
 
 /** The grounding payoff numbers surfaced after History. Mirrors core's
  *  `GroundingStats`, narrowed to what the UI shows. */

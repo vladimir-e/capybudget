@@ -74,11 +74,11 @@ describe("import-store reduce", () => {
   it("captures recoverable errors and stops running", () => {
     const next = reduce(
       { ...IDLE, running: true },
-      { type: "error", reason: "no_data", message: "No transaction data found", recoverable: true },
+      { type: "error", reason: "read", message: "No source files to import.", recoverable: true },
     );
     expect(next.error).toEqual({
-      reason: "no_data",
-      message: "No transaction data found",
+      reason: "read",
+      message: "No source files to import.",
       recoverable: true,
     });
     expect(next.running).toBe(false);

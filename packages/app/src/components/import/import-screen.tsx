@@ -239,11 +239,12 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
   }, [rowsVersion, setHasImportData]);
 
   // Surface every run error with a toast — silent failures are the worst
-  // outcome here. A recoverable one (`no_data`: a selfie, a non-financial doc)
-  // wrote no staging and cleared sources, so return cleanly to file-attach.
-  // A non-recoverable one before any staging (a Reading/Normalizing failure)
-  // also has nothing to show — drop back to file-attach so the user can retry;
-  // if rows did land, the preview stays put with the partial result.
+  // outcome here. A recoverable one (e.g. no source files staged) wrote no
+  // staging, so return cleanly to file-attach. A non-recoverable one before any
+  // staging (a Reading/Normalizing failure) also has nothing to show — drop back
+  // to file-attach so the user can retry; if rows did land, the preview stays put
+  // with the partial result. (A run that finds no transaction data is no longer
+  // an error — it lands on an empty preview and never reaches here.)
   const reportedErrorRef = useRef<string | null>(null);
   useEffect(() => {
     if (!error) {
