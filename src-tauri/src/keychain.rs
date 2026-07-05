@@ -1,18 +1,8 @@
-// OS credential store for the BYOK provider API keys. One generic-password
-// entry per provider. The three commands are a thin transport — all persistence
-// policy (what to store, when to load, on-disk fallback) lives on the TypeScript
-// side (see stores/secret-config.ts).
-//
-// On macOS the entries live in the *data-protection* keychain
-// (`kSecUseDataProtectionKeychain`), where access is granted by the
-// `keychain-access-groups` entitlement rather than a per-binary ACL — so there's
-// no "wants to use your confidential information" dialog and the grant survives
-// app updates (the file-based keychain binds the ACL to the exact code
-// signature, which every update and dev rebuild invalidates). Builds that aren't
-// entitled for it (unsigned dev builds, or a Developer-ID build with no embedded
-// provisioning profile) fail the protected call with `errSecMissingEntitlement`
-// and transparently fall back to the legacy file-based keychain. Windows and
-// Linux keep their single native backend.
+// OS credential store for the BYOK provider API keys — one generic-password
+// entry per provider, a thin transport for the TypeScript persistence policy
+// (stores/secret-config.ts). On macOS it prefers the data-protection keychain
+// with a legacy-keychain fallback and one-time migration; see the keychain
+// section of specs/ARCHITECTURE.md for the rationale.
 
 use std::sync::OnceLock;
 
@@ -132,7 +122,9 @@ mod protected {
     impl RawStore for ProtectedStore {
         fn get(&self, account: &str) -> StoreResult<Option<String>> {
             match generic_password(self.options(account)) {
-                Ok(bytes) => Ok(Some(String::from_utf8_lossy(&bytes).into_owned())),
+                Ok(bytes) => String::from_utf8(bytes)
+                    .map(Some)
+                    .map_err(|_| StoreError::Other("keychain secret is not valid UTF-8".into())),
                 Err(e) if e.code() == ERR_SEC_ITEM_NOT_FOUND => Ok(None),
                 Err(e) => Err(classify(&e)),
             }
@@ -300,6 +292,7 @@ mod tests {
         items: RefCell<HashMap<String, String>>,
         missing_entitlement: bool,
         deny_get: bool,
+        fail_set: bool,
         gets: Cell<usize>,
         sets: Cell<usize>,
         deletes: Cell<usize>,
@@ -339,6 +332,9 @@ mod tests {
             self.sets.set(self.sets.get() + 1);
             if self.missing_entitlement {
                 return Err(StoreError::MissingEntitlement);
+            }
+            if self.fail_set {
+                return Err(StoreError::Other("write failed".into()));
             }
             self.items.borrow_mut().insert(account.into(), secret.into());
             Ok(())
@@ -403,6 +399,19 @@ mod tests {
         assert!(!store.protected.has(ACC));
         assert!(!store.legacy.has(ACC));
         assert_eq!(store.get(ACC).unwrap(), None);
+    }
+
+    #[test]
+    fn interrupted_migration_keeps_legacy_copy() {
+        // Protected is reachable but its migration write fails. The legacy key
+        // must survive so the next read retries rather than losing it.
+        let protected = Fake { fail_set: true, ..Fake::default() };
+        let store = Deferred::new(protected, Fake::with(&[(ACC, "sk-old")]));
+        assert_eq!(store.get(ACC).unwrap().as_deref(), Some("sk-old"));
+        assert!(!store.protected.has(ACC));
+        assert!(store.legacy.has(ACC));
+        // The legacy copy is still there to serve the next read.
+        assert_eq!(store.get(ACC).unwrap().as_deref(), Some("sk-old"));
     }
 
     #[test]
