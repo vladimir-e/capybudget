@@ -12,11 +12,22 @@ vi.mock("./import-drop-zone", () => ({
 }));
 vi.mock("./import-progress", () => ({ ImportProgress: () => <div data-testid="progress" /> }));
 vi.mock("./import-preview", () => ({
-  ImportPreview: ({ onRegisterDiscard }: { onRegisterDiscard: (d: (() => void) | null) => void }) => {
+  ImportPreview: ({
+    onRegisterDiscard,
+    onSelectionChange,
+  }: {
+    onRegisterDiscard: (d: (() => void) | null) => void;
+    onSelectionChange: (count: number) => void;
+  }) => {
     useEffect(() => {
       onRegisterDiscard(mocks.discard);
       return () => onRegisterDiscard(null);
     }, [onRegisterDiscard]);
+    // Report the configured selection count once on mount — the confirmation gate
+    // reads it to decide whether Cancel needs the discard dialog.
+    useEffect(() => {
+      onSelectionChange(mocks.selectedCount);
+    }, [onSelectionChange]);
     return <div data-testid="preview" />;
   },
 }));
@@ -25,6 +36,7 @@ const { mocks } = vi.hoisted(() => ({
   mocks: {
     canStart: true,
     provider: "anthropic" as string | null,
+    selectedCount: 1,
     start: vi.fn(),
     discard: vi.fn(),
     clearImportData: vi.fn(),
@@ -70,6 +82,7 @@ beforeEach(() => {
   useImportStore.getState().setHasImportData(false);
   mocks.canStart = true;
   mocks.provider = "anthropic";
+  mocks.selectedCount = 1;
   mocks.start.mockReset().mockReturnValue(true);
   mocks.listSourceFiles.mockReset().mockResolvedValue([]);
   mocks.staging.readTransactions.mockReset().mockResolvedValue(null);
@@ -280,5 +293,36 @@ describe("ImportScreen — cancel teardown", () => {
     expect(useImportStore.getState().stagingGeneration).toBe(genBefore);
     expect(mocks.discard).toHaveBeenCalled();
     expect(screen.getByTestId("preview")).toBeInTheDocument();
+  });
+});
+
+describe("ImportScreen — cancel confirmation gate", () => {
+  async function renderPreviewWithSelection(count: number) {
+    mocks.selectedCount = count;
+    mocks.staging.readTransactions.mockResolvedValue({
+      rows: [makeImportTransaction({ id: "imp-1" })],
+      dropped: [],
+      fixed: [],
+    });
+    renderScreen();
+    await screen.findByTestId("preview");
+  }
+
+  it("cancels straight through — no dialog — when nothing is selected", async () => {
+    await renderPreviewWithSelection(0);
+
+    await userEvent.click(screen.getByRole("button", { name: "Cancel Import" }));
+
+    await waitFor(() => expect(mocks.clearImportData).toHaveBeenCalled());
+    expect(screen.queryByRole("button", { name: "Discard import" })).toBeNull();
+  });
+
+  it("asks for confirmation before discarding a non-empty selection", async () => {
+    await renderPreviewWithSelection(3);
+
+    await userEvent.click(screen.getByRole("button", { name: "Cancel Import" }));
+
+    expect(await screen.findByRole("button", { name: "Discard import" })).toBeInTheDocument();
+    expect(mocks.clearImportData).not.toHaveBeenCalled();
   });
 });

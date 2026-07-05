@@ -13,6 +13,7 @@ CHANGELOG PHILOSOPHY:
 
 - **App** - Error toasts now stay put until you dismiss them, so a failed import or save can't flash by unnoticed; success messages still fade on their own.
 - **Import** - A file with no readable transactions now lands on the review screen with an empty state that explains what happened, instead of a quick error toast that bounced you back to the file picker.
+- **Import** - Cancelling an import with nothing selected skips the confirmation and just cancels; the confirmation still guards discarding a selection you've reviewed.
 - **Import** - A cancelled or merged import no longer reappears when you relaunch the app or switch budgets.
 - **Security** - The macOS keychain prompt no longer fires at startup; keys load on first AI use, behind a one-time heads-up.
 - **Security** - On the Mac App Store build, API keys move to the macOS data-protection keychain: no Keychain access dialog, and the grant survives app updates.

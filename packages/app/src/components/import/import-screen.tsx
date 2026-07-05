@@ -80,6 +80,9 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
   const [fileDuplicates, setFileDuplicates] = useState<Record<string, string>>({});
   const [isDragging, setIsDragging] = useState(false);
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
+  // Selected-row count reported up from the preview — gates whether Cancel needs
+  // the discard confirmation (0 → nothing reviewed to lose, cancel straight through).
+  const [selectedCount, setSelectedCount] = useState(0);
   // The preview's live enrichable count + flush-then-enrich trigger, surfaced
   // up so the progress section's control can render it.
   const [enrichControl, setEnrichControl] = useState<{ count: number; run: () => void } | null>(null);
@@ -438,6 +441,14 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
     setResumeBatch(null);
   }, [cancel, reset, repository, invalidateStaging, t]);
 
+  // Cancelling with nothing selected — an empty preview, or an all-duplicate
+  // import where every row landed unselected — discards no reviewed work, so skip
+  // the confirmation. A non-empty selection keeps the gate.
+  const requestCancel = useCallback(() => {
+    if (selectedCount === 0) void handleCancel();
+    else setShowCancelConfirm(true);
+  }, [selectedCount, handleCancel]);
+
   const handleMergeComplete = useCallback(() => {
     reset();
     setHasStaging(false);
@@ -503,7 +514,7 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => setShowCancelConfirm(true)}
+              onClick={requestCancel}
               className="gap-1.5 shrink-0"
             >
               <X className="h-3.5 w-3.5" />
@@ -564,6 +575,8 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
                   onEnrich={handleEnrich}
                   onEnrichControl={setEnrichControl}
                   onRegisterDiscard={registerDiscard}
+                  onSelectionChange={setSelectedCount}
+                  onCancelImport={requestCancel}
                   onMergeComplete={handleMergeComplete}
                 />
               )}

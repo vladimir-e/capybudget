@@ -97,8 +97,9 @@
       "category": "Category"
     },
     "emptyTitle": "No transactions to import",
-    "emptyDescription": "Capy couldn't find any transaction data in the attached files. Cancel to try different files.",
-    "emptyDroppedDescription": "Cancel to try different files.",
+    "emptyDescription": "Capy couldn't find any transaction data in the attached files.",
+    "emptyDroppedDescription": "None of the rows in the attached files could be read.",
+    "cancelImportLink": "Cancel import",
     "noMatchesTitle": "No transactions found",
     "noMatchesDescription": "Try adjusting your search.",
     "noAccount": "none",

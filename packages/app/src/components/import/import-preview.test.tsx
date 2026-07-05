@@ -121,6 +121,8 @@ function renderPreview(props: Partial<Parameters<typeof ImportPreview>[0]> = {})
       onEnrich={vi.fn()}
       onEnrichControl={vi.fn()}
       onRegisterDiscard={vi.fn()}
+      onSelectionChange={vi.fn()}
+      onCancelImport={vi.fn()}
       onMergeComplete={vi.fn()}
       {...props}
     />,

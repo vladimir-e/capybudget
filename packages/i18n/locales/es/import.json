@@ -107,8 +107,9 @@
       "category": "Categoría"
     },
     "emptyTitle": "No hay transacciones para importar",
-    "emptyDescription": "Capy no encontró ningún dato de transacciones en los archivos adjuntos. Cancela para probar con otros archivos.",
-    "emptyDroppedDescription": "Cancela para probar con otros archivos.",
+    "emptyDescription": "Capy no encontró ningún dato de transacciones en los archivos adjuntos.",
+    "emptyDroppedDescription": "No se pudo leer ninguna de las filas de los archivos adjuntos.",
+    "cancelImportLink": "Cancelar importación",
     "noMatchesTitle": "No se encontraron transacciones",
     "noMatchesDescription": "Prueba a ajustar la búsqueda.",
     "noAccount": "ninguna",

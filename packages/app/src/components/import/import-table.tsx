@@ -7,6 +7,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { EmptyState } from "@/components/ui/empty-state";
 import { CategorySelector } from "@/components/budget/category-selector";
@@ -58,6 +59,10 @@ interface ImportTableProps {
   /** Opens the Map-accounts dialog (the ACCOUNT cell is its trigger). */
   onOpenAccountMapping: () => void;
   duplicateIds: Set<string>;
+  /** Cancels the whole import — surfaced as a link in the no-data empty states so
+   *  the escape hatch sits where the user is looking. Omitted for the search-miss
+   *  variant, which offers no link. */
+  onCancelImport?: () => void;
 }
 
 function defaultDirection(column: ImportSortColumn): "asc" | "desc" {
@@ -141,6 +146,7 @@ export function ImportTable({
   accountMapping,
   onOpenAccountMapping,
   duplicateIds,
+  onCancelImport,
 }: ImportTableProps) {
   const { t } = useTranslation(["import", "common"]);
   const { money, date } = useFormatters();
@@ -190,6 +196,13 @@ export function ImportTable({
         title={searchActive ? t("table.noMatchesTitle") : t("table.emptyTitle")}
         description={description}
         className="py-24"
+        action={
+          !searchActive && onCancelImport ? (
+            <Button variant="link" size="sm" onClick={onCancelImport}>
+              {t("table.cancelImportLink")}
+            </Button>
+          ) : undefined
+        }
       />
     );
   }
