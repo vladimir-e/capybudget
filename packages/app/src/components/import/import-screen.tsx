@@ -133,11 +133,30 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
   const checkStaging = useCallback((): Promise<void> => {
     const run = checkChainRef.current.then(async () => {
       try {
-        const [staged, transferCtx] = await Promise.all([
+        const [staged, transferCtx, state] = await Promise.all([
           staging.readTransactions(),
           staging.readTransferContext().then((c) => c ?? {}),
+          staging.readState(),
         ]);
         if (!mountedRef.current) return;
+        // Merged-but-not-cleared debris: a prior merge committed the ledger write
+        // but its post-merge clear failed, leaving transactions.csv (still
+        // duplicate=false) on disk. It must never resume/show — a second Merge
+        // would double the rows. Retry the clear (self-heals on this mount/launch)
+        // and land on file-attach whether or not the retry succeeds.
+        if (state?.merged) {
+          try {
+            await repository.clearImportData();
+          } catch (err) {
+            console.error("[import] merged-staging cleanup retry failed:", err);
+            toast.error(t("errors.clearFailed"));
+          }
+          if (!mountedRef.current) return;
+          setHasStaging(false);
+          setHasImportData(false);
+          setDiskChecked(true);
+          return;
+        }
         if (staged) {
           setHasStaging(true);
           setHasImportData(true);
@@ -145,8 +164,6 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
           setDiskChecked(true);
           return;
         }
-        const state = await staging.readState();
-        if (!mountedRef.current) return;
         // A run already in flight owns the staging — don't re-fire over it. The
         // store's `running` flag survives navigation, so it's the authority here.
         const runInFlight = useImportStore.getState().running;
@@ -184,7 +201,7 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
     });
     checkChainRef.current = run.catch(() => {});
     return run;
-  }, [staging, start, refreshSourceFiles, setHasImportData, t]);
+  }, [staging, start, refreshSourceFiles, setHasImportData, repository, t]);
 
   useEffect(() => {
     mountedRef.current = true;

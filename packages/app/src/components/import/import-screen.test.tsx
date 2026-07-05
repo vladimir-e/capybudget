@@ -114,6 +114,48 @@ describe("ImportScreen — checkStaging routing", () => {
     expect(useImportStore.getState().hasImportData).toBe(true);
   });
 
+  it("clears merged-marked staging instead of resuming it (self-heals a failed post-merge clear)", async () => {
+    // A prior merge committed but its post-merge clear failed, leaving
+    // transactions.csv + a merged marker. checkStaging must treat it as debris:
+    // retry the clear, land on file-attach, and never resume it as a fresh import
+    // (which would double the already-merged rows).
+    mocks.staging.readTransactions.mockResolvedValue({
+      rows: [makeImportTransaction({ id: "imp-1" })],
+      dropped: [],
+      fixed: [],
+    });
+    mocks.staging.readState.mockResolvedValue({
+      phase: "done",
+      updatedAt: "2026-01-01T00:00:00Z",
+      merged: true,
+    });
+    renderScreen();
+
+    expect(await screen.findByTestId("drop-zone")).toBeInTheDocument();
+    expect(screen.queryByTestId("preview")).toBeNull();
+    await waitFor(() => expect(mocks.clearImportData).toHaveBeenCalled());
+    expect(mocks.start).not.toHaveBeenCalled();
+    expect(useImportStore.getState().hasImportData).toBe(false);
+  });
+
+  it("stays on file-attach when the merged-staging cleanup retry also fails", async () => {
+    mocks.staging.readTransactions.mockResolvedValue({
+      rows: [makeImportTransaction({ id: "imp-1" })],
+      dropped: [],
+      fixed: [],
+    });
+    mocks.staging.readState.mockResolvedValue({
+      phase: "done",
+      updatedAt: "2026-01-01T00:00:00Z",
+      merged: true,
+    });
+    mocks.clearImportData.mockRejectedValueOnce(new Error("still present"));
+    renderScreen();
+
+    expect(await screen.findByTestId("drop-zone")).toBeInTheDocument();
+    expect(screen.queryByTestId("preview")).toBeNull();
+  });
+
   it("auto-starts a chat-staged import and clears the chat marker first", async () => {
     mocks.staging.readState.mockResolvedValue({
       phase: "reading",

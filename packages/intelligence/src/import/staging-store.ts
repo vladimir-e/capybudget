@@ -54,6 +54,13 @@ export interface ImportState {
    * distinguishable by which artifacts exist, not a separate flag the UI tracks.
    */
   source?: "chat";
+  /**
+   * Set when a merge committed its ledger write but the post-merge clear of
+   * `.capy/import/` failed. The surviving staging is debris, not a resumable
+   * import: the Import screen's mount check retries the clear and never shows it,
+   * so a second Merge can't double the already-merged rows.
+   */
+  merged?: boolean;
 }
 
 /**

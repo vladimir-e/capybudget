@@ -227,20 +227,31 @@ export function ImportPreview({
     setShowMergeDialog(false);
     setMerging(true);
     try {
-      // Tear the staging writers down before merge clears the directory: stop +
-      // detach any in-flight run, drop the pending debounced write-back, and bump
-      // the staging generation so a late or unmount flush can't rewrite
-      // transactions.csv after the clear and resurrect the import (or let it merge
-      // twice). The in-memory `transactions` still carry the edits into merge.
+      // Tear the run's writers down before the merge clears the directory: stop +
+      // detach any in-flight run and drop the pending debounced write-back so no
+      // late flush rewrites transactions.csv over the clear. The in-memory
+      // `transactions` still carry the edits into merge. The generation is bumped
+      // only *after* a successful merge below — a merge that throws before its
+      // ledger write commits must leave the mounted preview's captured generation
+      // live so hand-edits keep persisting.
       await onStopRun();
       discard();
-      invalidateStaging();
       const result = await merge({ transactions, selectedIds, accountMapping });
-      // Intentional divergence: a merge that committed the ledger write but
-      // couldn't clear staging is still complete — the rows landed. The lingering
-      // staging surfaces via the toast, and the flow falls through to
-      // onMergeComplete() rather than being treated as a failed merge.
-      if (!result.stagingCleared) toast.error(t("errors.clearFailed"));
+      if (!result.stagingCleared) {
+        // The ledger write committed but the post-merge clear failed, leaving
+        // transactions.csv (still duplicate=false) behind. Stamp it merged so the
+        // next mount's checkStaging retries the clear instead of resuming it as a
+        // fresh import — a second Merge would double the rows. Mark *before*
+        // invalidating: a write-back gated after the invalidate can't rewrite an
+        // unmarked file over the marker.
+        try {
+          await staging.writeState({ phase: "done", updatedAt: new Date().toISOString(), merged: true });
+        } catch (err) {
+          console.error("[import] mark merged staging failed:", err);
+        }
+        toast.error(t("errors.clearFailed"));
+      }
+      invalidateStaging();
       toast.success(
         result.accountsCreated > 0
           ? t("preview.mergeSuccessWithAccounts", {
@@ -259,7 +270,7 @@ export function ImportPreview({
     } finally {
       setMerging(false);
     }
-  }, [merge, transactions, selectedIds, accountMapping, onMergeComplete, discard, invalidateStaging, onStopRun, t]);
+  }, [merge, transactions, selectedIds, accountMapping, onMergeComplete, discard, invalidateStaging, onStopRun, staging, t]);
 
   if (loading && transactions.length === 0) {
     return (
