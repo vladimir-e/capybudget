@@ -23,11 +23,13 @@
  *     Import tab for bulk).
  *   - a PDF under a provider that can't read PDFs (`canReadPdf`) → tell the user
  *     to switch to a PDF-capable provider.
- *   - staging already holds an import — a run in flight or parked for review,
- *     or files dropped in the Import tab but not started → point the user at
- *     the Import tab. A chat share only replaces staging with nothing to
- *     protect: a prior chat staging that never ran, or a completed empty
- *     preview (staged rows exist but are zero-length — nothing was importable).
+ *   - staging already holds an import — a run in flight or parked for review
+ *     (including a dropped-only preview, whose rows all failed validation but
+ *     which the user should still see), or files dropped in the Import tab but
+ *     not started → point the user at the Import tab. A chat share only replaces
+ *     staging with nothing to protect: a prior chat staging that never ran, or a
+ *     completed all-empty run (a header-only transactions.csv — no rows and no
+ *     drops, so nothing was ever importable).
  */
 
 import { isPdfAttachment } from "../../attachments"
@@ -73,13 +75,15 @@ export async function handleStartImport(ctx: ToolContext): Promise<string> {
   const staging = new FileStagingStore(ctx.fileAdapter, ctx.budgetPath)
 
   // The staging area may already be owned by an import this handler must not
-  // clobber. A non-empty `transactions.csv` is a real import — a run in flight
-  // or parked for review — so refuse. An empty one is a completed all-empty
-  // preview: zero rows have nothing to protect, so let the re-share clear and
-  // replace it. (Rows are written whole at History, so an empty staging is
-  // never a run about to add rows.)
+  // clobber. Refuse whenever `transactions.csv` holds anything to review: real
+  // rows (a run in flight or parked), OR rows that all failed read-validation
+  // (`dropped` non-empty) — the Import screen deliberately parks that dropped-only
+  // state on the preview for review, so a re-share must not silently vanish it.
+  // Only a header-only csv (no rows and no drops) is a completed all-empty run
+  // with nothing to protect: let the re-share clear and replace it. (Rows are
+  // written whole at History, so an empty staging is never a run about to add rows.)
   const staged = await staging.readTransactions()
-  if (staged !== null && staged.rows.length > 0) {
+  if (staged !== null && (staged.rows.length > 0 || staged.dropped.length > 0)) {
     return IMPORT_IN_PROGRESS
   }
   if (staged === null) {

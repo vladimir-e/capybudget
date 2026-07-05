@@ -3,10 +3,11 @@
  * production path the API adapters take) so the wiring is covered alongside the
  * handler: a configured turn stages the attachments + marks the run Capy-staged;
  * the gates (unsupported provider, no attachment, PDF under a provider that
- * can't read PDFs, staging already owned by another import) return guidance and
+ * can't read PDFs, staging already owned by another import — including a
+ * dropped-only preview whose rows all failed validation) return guidance and
  * stage nothing. The replace cases — a prior chat staging that never ran, or a
- * completed empty preview (staged rows exist but are zero-length) — are cleared
- * and restaged.
+ * completed all-empty run (a header-only transactions.csv, no rows and no drops)
+ * — are cleared and restaged.
  */
 
 import { describe, it, expect, beforeEach } from "vitest"
@@ -125,6 +126,29 @@ describe("start_import", () => {
     expect(fs.files.has(`${BUDGET_PATH}/.capy/import/transactions.csv`)).toBe(false)
     expect(fs.files.get(`${SOURCES_DIR}/new.csv`)).toBe("Date,Amount\n2026-03-01,-5.00")
     expect(JSON.parse(fs.files.get(STATE_PATH)!).source).toBe("chat")
+  })
+
+  it("refuses a dropped-only preview (rows all failed read-validation, parked for review)", async () => {
+    // A run staged rows that all failed read-validation: parseImportCsv returns
+    // zero rows but a non-empty `dropped` (the "Pending" date fails the date
+    // check). The Import screen parks that on the preview for review
+    // (table.emptyDroppedDescription), so a re-share must not silently clear it —
+    // unlike a header-only csv, this staging holds data the user should see.
+    fs.dirs.add(SOURCES_DIR)
+    fs.files.set(`${SOURCES_DIR}/old.csv`, "stale")
+    fs.files.set(
+      `${BUDGET_PATH}/.capy/import/transactions.csv`,
+      "id,date,description,amount,type\nimp-1,Pending,Coffee,-450,expense",
+    )
+
+    ctx.attachments = [csv("new.csv", "Date,Amount\n2026-03-01,-5.00")]
+    const result = JSON.parse(await runTool("start_import", {}, ctx))
+    expect(result.started).toBe(false)
+    expect(result.reason).toBe("import_in_progress")
+
+    // The dropped-only staging is untouched and nothing new was staged.
+    expect(fs.files.get(`${SOURCES_DIR}/old.csv`)).toBe("stale")
+    expect(fs.files.has(`${SOURCES_DIR}/new.csv`)).toBe(false)
   })
 
   it("refuses when a run is in flight pre-History (state.json without the chat marker)", async () => {
