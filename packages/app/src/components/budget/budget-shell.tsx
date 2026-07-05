@@ -11,7 +11,6 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { ColorThemeSwitcher } from "@/components/color-theme-switcher";
 import { CapyButton } from "@/components/capy/capy-button";
 import { CapyOverlay } from "@/components/capy/capy-overlay/capy-overlay";
-import { SecretAccessDialog } from "@/components/capy/secret-access-dialog";
 import { ModHintProvider } from "@/components/budget/mod-hint-provider";
 import { ModHintBadge } from "@/components/budget/mod-hint-badge";
 import { BudgetUIProvider, type BudgetUIContextValue } from "@/contexts/budget-context";
@@ -403,8 +402,6 @@ export function BudgetShell() {
         commands={customCommands.commands}
         onSaveCommands={customCommands.save}
       />
-
-      <SecretAccessDialog />
 
       <AccountDialog
         key={editingAccount?.id ?? "new"}

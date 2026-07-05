@@ -3,11 +3,8 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 import { cleanup, render, screen } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 
-const { navigateMock } = vi.hoisted(() => ({ navigateMock: vi.fn() }))
-
 vi.mock("@tanstack/react-router", () => ({
   useSearch: () => ({ path: "/tmp/budget", name: "Test Budget" }),
-  useNavigate: () => navigateMock,
 }))
 
 vi.mock("@tauri-apps/api/app", () => ({
@@ -37,7 +34,6 @@ class TestBoundary extends Component<{ children: ReactNode }, { error: Error | n
 
 afterEach(() => {
   cleanup()
-  navigateMock.mockReset()
   _resetIntelligenceStoreForTests()
 })
 
@@ -63,20 +59,16 @@ describe("DevSection", () => {
     errorSpy.mockRestore()
   })
 
-  it("closes Settings before opening the keychain heads-up", async () => {
+  it("triggers the keychain heads-up", async () => {
     const user = userEvent.setup()
-    // The dialog lives in budget-shell, behind Settings — the trigger must
-    // navigate away from Settings first, then open the gate.
+    // The dialog is mounted at the /budget layout, so it renders over Settings —
+    // the trigger just opens the gate, no navigation needed.
     const previewSpy = vi.fn()
     useIntelligenceStore.setState({ previewSecretGate: previewSpy })
 
     render(<DevSection />)
     await user.click(screen.getByRole("button", { name: /trigger heads-up/i }))
 
-    expect(navigateMock).toHaveBeenCalledWith({
-      to: "/budget",
-      search: { path: "/tmp/budget", name: "Test Budget" },
-    })
     expect(previewSpy).toHaveBeenCalledTimes(1)
   })
 })

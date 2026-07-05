@@ -4,6 +4,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { RepositoryProvider } from "@/contexts/repository-context";
 import { CurrencyProvider } from "@/components/budget/currency-provider";
 import { CapySessionProvider } from "@/components/capy/capy-session-provider";
+import { SecretAccessDialog } from "@/components/capy/secret-access-dialog";
 import { useCustomInstructions } from "@/hooks/use-custom-instructions";
 import { invalidateAfterCapyMutation } from "@/components/budget/capy-invalidation";
 import { useIntelligenceStore } from "@/stores/intelligence-store";
@@ -103,6 +104,10 @@ function BudgetLayout() {
       <CurrencyProvider budgetPath={path}>
         <CapySessionProvider key={path} options={sessionOptions}>
           <Outlet />
+          {/* Mounted at the layout, not in BudgetShell, so the keychain heads-up
+              renders over every child route — including /budget/settings, where
+              opening the gate would otherwise await a dialog that never shows. */}
+          <SecretAccessDialog />
         </CapySessionProvider>
       </CurrencyProvider>
     </RepositoryProvider>
