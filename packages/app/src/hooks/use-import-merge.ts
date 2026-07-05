@@ -13,6 +13,9 @@ export type { MergeInput };
 export interface MergeResult {
   transactionCount: number;
   accountsCreated: number;
+  /** False when the ledger write succeeded but `.capy/import/` couldn't be
+   *  removed — the caller surfaces this rather than reporting a failed merge. */
+  stagingCleared: boolean;
 }
 
 // useBudgetMutation is intentionally bypassed here: the merge operation
@@ -71,11 +74,21 @@ export function useImportMerge(budgetPath: string) {
       });
 
       // ── Clear import working directory ────────────────────────
-      await importRepo.clearImportData();
+      // The ledger write above is committed, so a clear failure must not read as
+      // a failed merge. Report it instead: a staging that couldn't be cleared
+      // would otherwise re-surface in the Import tab, and now the caller can say so.
+      let stagingCleared = true;
+      try {
+        await importRepo.clearImportData();
+      } catch (err) {
+        console.error("[import] clear after merge failed:", err);
+        stagingCleared = false;
+      }
 
       return {
         transactionCount: selected.length,
         accountsCreated: result.sourcesToCreate.length,
+        stagingCleared,
       };
     },
     [

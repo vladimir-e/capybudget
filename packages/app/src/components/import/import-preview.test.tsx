@@ -50,6 +50,7 @@ vi.mock("@/hooks/use-import-data", () => ({ useImportData: () => dataReturn }));
 vi.mock("@/hooks/use-budget-data", () => ({ useTransactions: () => ({ data: [] }) }));
 
 import { ImportPreview } from "./import-preview";
+import { useImportStore } from "@/stores/import-store";
 import type { Account } from "@capybudget/core";
 
 function makeBudgetAccount(overrides: Partial<Account> & { id: string }): Account {
@@ -97,6 +98,7 @@ beforeEach(() => {
     handleUpdate: vi.fn(),
     handleAccountMappingChange: vi.fn(),
     flushWriteBack,
+    discard: vi.fn(),
     sourceAccounts: [],
     duplicateIds: new Set<string>(),
     possibleDuplicateCount: 0,
@@ -360,7 +362,7 @@ describe("ImportPreview — merge gating", () => {
     });
     merge.mockImplementation(async () => {
       order.push("merge");
-      return { transactionCount: 1, accountsCreated: 0 };
+      return { transactionCount: 1, accountsCreated: 0, stagingCleared: true };
     });
     const onMergeComplete = vi.fn();
 
@@ -376,5 +378,24 @@ describe("ImportPreview — merge gating", () => {
     // The run is torn down before the merge writes the budget + clears staging.
     expect(order).toEqual(["stop", "merge"]);
     expect(onMergeComplete).toHaveBeenCalledTimes(1);
+  });
+
+  it("drops the pending write-back and invalidates staging before the merge clears it", async () => {
+    const discard = vi.fn();
+    Object.assign(dataReturn, { discard });
+    const genBefore = useImportStore.getState().stagingGeneration;
+    merge.mockImplementation(async () => ({ transactionCount: 1, accountsCreated: 0, stagingCleared: true }));
+
+    renderPreview();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "Merge" }));
+    const dialog = await screen.findByRole("dialog");
+    await user.click(within(dialog).getByRole("button", { name: "Merge" }));
+
+    await waitFor(() => expect(merge).toHaveBeenCalledTimes(1));
+    // Both guards fire so no late/unmount write-back can re-create the staging
+    // the merge is about to clear.
+    expect(discard).toHaveBeenCalledTimes(1);
+    expect(useImportStore.getState().stagingGeneration).toBe(genBefore + 1);
   });
 });

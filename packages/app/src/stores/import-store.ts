@@ -62,8 +62,18 @@ interface ImportStore extends ImportRunState {
    *  a fresh `start` it clears the prior run; for `enrich` it keeps the log so
    *  the re-run reads as a continuation. */
   beginRun: (mode: "start" | "enrich") => void;
-  /** Reset to the resting state — used on unmount-discard and after merge. */
+  /** Reset to the resting state — used on discard, after merge, and on budget
+   *  switch. Also drops the sidebar `hasImportData` flag, since every discard
+   *  path clears it in lockstep. Leaves `stagingGeneration` (monotonic). */
   reset: () => void;
+
+  // ── Staging-write guard ─────────────────────────────────────
+  /** Bumped whenever staging is torn down (Cancel, Merge). The preview's
+   *  debounced write-back captures this at load and re-checks it before every
+   *  write, so a late or unmount flush that would `mkdir` the just-cleared
+   *  `.capy/import/` back into existence becomes a no-op. */
+  stagingGeneration: number;
+  invalidateStaging: () => void;
 
   // ── Sidebar signal ──────────────────────────────────────────
   /** Whether the Import nav entry shows the "has data" dot. */
@@ -118,7 +128,10 @@ export const useImportStore = create<ImportStore>((set) => ({
           },
     ),
 
-  reset: () => set(IDLE_RUN),
+  reset: () => set({ ...IDLE_RUN, hasImportData: false }),
+
+  stagingGeneration: 0,
+  invalidateStaging: () => set((s) => ({ stagingGeneration: s.stagingGeneration + 1 })),
 
   hasImportData: false,
   setHasImportData: (hasImportData) => set({ hasImportData }),

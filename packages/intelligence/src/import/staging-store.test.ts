@@ -189,6 +189,23 @@ describe("FileStagingStore", () => {
     expect(await store.listSources()).toHaveLength(0);
   });
 
+  // A crash between an atomic write's tmp-write and its rename can strand a
+  // `.tmp` sibling; clear() must sweep it, or an orphaned half-write outlives
+  // the artifact it was replacing.
+  it("clear() also removes stranded .tmp write siblings", async () => {
+    const fa = memoryFileAdapter({
+      [`${BASE}/transactions.csv`]: "id,date,amount\nimp-1,2026-01-01,-100",
+      [`${BASE}/transactions.csv.tmp`]: "torn half-write",
+      [`${BASE}/state.json.tmp`]: "{torn",
+    });
+    const store = new FileStagingStore(fa, "/budget");
+    await store.clear();
+
+    expect(await fa.exists(`${BASE}/transactions.csv`)).toBe(false);
+    expect(await fa.exists(`${BASE}/transactions.csv.tmp`)).toBe(false);
+    expect(await fa.exists(`${BASE}/state.json.tmp`)).toBe(false);
+  });
+
   // Staging exists for crash-resume, so writes go through a tmp-then-rename swap.
   // A torn JSON cache (a crash mid-write, or a hand-edit) must read as "no signal"
   // rather than throw — null lands the user on preview with Enrich ready, never a

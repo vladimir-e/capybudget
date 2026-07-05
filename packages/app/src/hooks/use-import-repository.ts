@@ -79,13 +79,16 @@ export function useImportRepository(budgetPath: string) {
     }
   }, [resolveSourcesDir]);
 
-  /** Remove a single source file. */
+  /** Remove a single source file. A remove that fails because the file is
+   *  already gone is fine (double-click, prior removal); a remove that leaves
+   *  the file on disk is a real failure the caller must see. */
   const removeSourceFile = useCallback(
     async (filename: string) => {
+      const path = await resolveSourcePath(filename);
       try {
-        await remove(await resolveSourcePath(filename));
-      } catch {
-        /* file may already be gone */
+        await remove(path);
+      } catch (err) {
+        if (await exists(path)) throw err;
       }
     },
     [resolveSourcePath],
@@ -113,13 +116,20 @@ export function useImportRepository(budgetPath: string) {
 
   // ── Cleanup ─────────────────────────────────────────────────
 
-  /** Wipe the entire .capy/import/ directory (sources + all staging artifacts). */
+  /** Wipe the entire .capy/import/ directory (sources + all staging artifacts).
+   *  Authoritative: resolves only once the directory is verifiably gone, so a
+   *  caller can safely flip the UI to file-attach knowing staging won't reappear
+   *  on relaunch. A single retry rides out transient locks (a lingering handle,
+   *  a shared-mount delete lag); if the directory still stands, it throws rather
+   *  than silently reporting success — the caller surfaces the failure. */
   const clearImportData = useCallback(async () => {
-    try {
-      const dir = await resolveImportDir();
-      if (await exists(dir)) await remove(dir, { recursive: true });
-    } catch {
-      /* best-effort — directory may not exist */
+    const dir = await resolveImportDir();
+    if (!(await exists(dir))) return;
+    await remove(dir, { recursive: true });
+    if (!(await exists(dir))) return;
+    await remove(dir, { recursive: true });
+    if (await exists(dir)) {
+      throw new Error(`Import staging still present after clear: ${dir}`);
     }
   }, [resolveImportDir]);
 

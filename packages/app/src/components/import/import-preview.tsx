@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/dialog";
 import { useImportMerge } from "@/hooks/use-import-merge";
 import { useImportData } from "@/hooks/use-import-data";
+import { useImportStore } from "@/stores/import-store";
 import { useTransactions } from "@/hooks/use-budget-data";
 import { summarizeMerge, resolveAccountId } from "@capybudget/core";
 import type { StagingStore } from "@capybudget/intelligence";
@@ -76,6 +77,7 @@ export function ImportPreview({
     handleUpdate,
     handleAccountMappingChange,
     flushWriteBack,
+    discard,
     sourceAccounts,
     duplicateIds,
     possibleDuplicateCount,
@@ -173,6 +175,7 @@ export function ImportPreview({
   const [showMappingDialog, setShowMappingDialog] = useState(false);
   const [merging, setMerging] = useState(false);
   const { merge } = useImportMerge(budgetPath);
+  const invalidateStaging = useImportStore((s) => s.invalidateStaging);
 
   // Only the source accounts with at least one selected row — the gate must
   // reflect what actually merges (prepareMerge processes selectedIds), not every
@@ -210,12 +213,16 @@ export function ImportPreview({
     setShowMergeDialog(false);
     setMerging(true);
     try {
-      // Stop + detach any in-flight run before merge clears staging — otherwise
-      // a late Categorizing batch writes transactions.csv after the clear and
-      // resurrects the import (or lets it merge twice).
+      // Tear the staging writers down before merge clears the directory: stop +
+      // detach any in-flight run, drop the pending debounced write-back, and bump
+      // the staging generation so a late or unmount flush can't rewrite
+      // transactions.csv after the clear and resurrect the import (or let it merge
+      // twice). The in-memory `transactions` still carry the edits into merge.
       await onStopRun();
-      await flushWriteBack();
+      discard();
+      invalidateStaging();
       const result = await merge({ transactions, selectedIds, accountMapping });
+      if (!result.stagingCleared) toast.error(t("errors.clearFailed"));
       toast.success(
         result.accountsCreated > 0
           ? t("preview.mergeSuccessWithAccounts", {
@@ -234,7 +241,7 @@ export function ImportPreview({
     } finally {
       setMerging(false);
     }
-  }, [merge, transactions, selectedIds, accountMapping, onMergeComplete, flushWriteBack, onStopRun, t]);
+  }, [merge, transactions, selectedIds, accountMapping, onMergeComplete, discard, invalidateStaging, onStopRun, t]);
 
   if (loading && transactions.length === 0) {
     return (

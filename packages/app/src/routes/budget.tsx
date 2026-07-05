@@ -14,6 +14,7 @@ import { tauriFileAdapter } from "../../../../src/adapters/tauri-file-adapter";
 import { budgetKeys, useBudgetSnapshot } from "@/hooks/use-budget-data";
 import { useBudgetMeta } from "@/hooks/use-budget-meta";
 import { useImportStore } from "@/stores/import-store";
+import { stopActiveOrchestrator } from "@/hooks/use-import-orchestrator";
 
 interface BudgetSearch {
   path: string;
@@ -42,6 +43,12 @@ function BudgetLayout() {
     return () => {
       void repo.dispose().catch((err) => console.error("Failed to dispose repository", err));
       queryClient.removeQueries({ queryKey: budgetKeys.all });
+      // The import run projection is a global singleton; scope it to the budget
+      // like the repo + query cache above, or a staged import leaks into the next
+      // budget's Import tab. The orchestrator's final batch still flushes to the
+      // budget being left (correct); its trailing events are dropped once detached.
+      stopActiveOrchestrator();
+      useImportStore.getState().reset();
     };
   }, [repo, queryClient]);
 

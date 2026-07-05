@@ -247,8 +247,15 @@ export class FileStagingStore implements StagingStore {
   async clear(): Promise<void> {
     const dir = await this.dir();
     for (const name of ["transactions.csv", "context.json", "transfer-context.json", "state.json"]) {
-      const p = await this.fileAdapter.join(dir, name);
-      if (await this.fileAdapter.exists(p)) await this.fileAdapter.remove(p);
+      // The `.tmp` sibling is `writeAtomic`'s staging file; a crash between its
+      // write and the rename leaves it behind, so a targeted clear must sweep it
+      // too or an orphaned half-write outlives the artifact it was replacing.
+      for (const p of [
+        await this.fileAdapter.join(dir, name),
+        await this.fileAdapter.join(dir, `${name}.tmp`),
+      ]) {
+        if (await this.fileAdapter.exists(p)) await this.fileAdapter.remove(p);
+      }
     }
     const sourcesDir = await this.fileAdapter.join(dir, "sources");
     if (await this.fileAdapter.exists(sourcesDir)) {

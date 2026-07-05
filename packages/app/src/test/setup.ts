@@ -91,6 +91,9 @@ vi.mock("@tauri-apps/plugin-fs", () => ({
   rename: vi.fn().mockResolvedValue(undefined),
   exists: vi.fn().mockResolvedValue(false),
   mkdir: vi.fn().mockResolvedValue(undefined),
+  remove: vi.fn().mockResolvedValue(undefined),
+  readDir: vi.fn().mockResolvedValue([]),
+  stat: vi.fn().mockResolvedValue({ size: 0, isFile: true, isDirectory: false }),
 }));
 
 vi.mock("@tauri-apps/api/path", () => ({
