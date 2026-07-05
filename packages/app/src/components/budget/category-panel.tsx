@@ -14,7 +14,7 @@ import {
   useReorderCategoryDnd,
 } from "@/hooks/use-category-mutations";
 import { useCategoryDnd, type ReorderPatch } from "@/hooks/use-category-dnd";
-import { toast } from "sonner";
+import { toast } from "@/lib/toast";
 
 interface CategoryPanelProps {
   categories: Category[];

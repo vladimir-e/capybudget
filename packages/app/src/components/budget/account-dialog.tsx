@@ -19,7 +19,7 @@ import { useAccountTypeLabel } from "@/lib/display-names";
 import { useCurrency } from "@/contexts/currency-context";
 import { useTransactions } from "@/hooks/use-budget-data";
 import { useCreateAccount, useUpdateAccount } from "@/hooks/use-account-mutations";
-import { toast } from "sonner";
+import { toast } from "@/lib/toast";
 
 interface AccountDialogProps {
   open: boolean;

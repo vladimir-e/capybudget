@@ -45,6 +45,27 @@ export default tseslint.config(
       "@typescript-eslint/no-unused-vars": "off",
     },
   },
+  // Route `toast` through the app wrapper so error toasts persist until
+  // dismissed. `Toaster` still comes straight from sonner; tests mock the lib
+  // directly, and the wrapper itself is the one sanctioned importer.
+  {
+    files: ["packages/app/src/**/*.{ts,tsx}", "apps/demo/src/**/*.{ts,tsx}"],
+    ignores: ["packages/app/src/lib/toast.ts", "**/*.test.{ts,tsx}"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          paths: [
+            {
+              name: "sonner",
+              importNames: ["toast"],
+              message: "Import `toast` from '@/lib/toast' so error toasts persist until dismissed.",
+            },
+          ],
+        },
+      ],
+    },
+  },
   // Untranslated-string guardrail: every user-facing literal in the React UI
   // must route through the i18n layer. Scoped to the rendered surfaces only —
   // the non-UI packages (core/persistence/intelligence/mcp) emit no copy.

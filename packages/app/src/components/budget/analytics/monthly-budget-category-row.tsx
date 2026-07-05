@@ -9,7 +9,7 @@ import { useFormatMoney } from "@/contexts/currency-context";
 import { useFormatters } from "@/hooks/use-formatters";
 import { useCategoryDisplayName } from "@/lib/display-names";
 import { useSetCategoryAssigned } from "@/hooks/use-category-mutations";
-import { toast } from "sonner";
+import { toast } from "@/lib/toast";
 import { TransactionsDrilldownLink } from "@/components/budget/transactions-drilldown-link";
 import { BudgetBar } from "./budget-bar";
 import type { BudgetRow } from "./monthly-budget-rows";

@@ -1,6 +1,6 @@
 import { useState } from "react"
 import { useSearch } from "@tanstack/react-router"
-import { toast } from "sonner"
+import { toast } from "@/lib/toast"
 import { useTranslation } from "@capybudget/i18n"
 import { Button } from "@/components/ui/button"
 import {

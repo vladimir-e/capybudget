@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react"
 import { useNavigate } from "@tanstack/react-router"
-import { toast } from "sonner"
+import { toast } from "@/lib/toast"
 import { i18n } from "@capybudget/i18n"
 import { checkForUpdate } from "@/lib/updater"
 

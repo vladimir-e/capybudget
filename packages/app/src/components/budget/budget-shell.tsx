@@ -39,7 +39,7 @@ import { ChevronDown, ChevronLeft, ChevronRight, Download, FolderOpen, Github, L
 import { revealItemInDir } from "@tauri-apps/plugin-opener";
 import type { Account, Transaction, TransactionFormData } from "@capybudget/core";
 import { useTranslation } from "@capybudget/i18n";
-import { toast } from "sonner";
+import { toast } from "@/lib/toast";
 
 declare const __IS_DEMO__: boolean;
 

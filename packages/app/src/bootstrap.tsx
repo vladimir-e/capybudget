@@ -2,7 +2,7 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import { RouterProvider, createRouter } from "@tanstack/react-router";
 import { MutationCache, QueryCache, QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { toast } from "sonner";
+import { toast } from "@/lib/toast";
 import type { AnyRoute } from "@tanstack/react-router";
 import { i18n } from "@capybudget/i18n";
 import { ErrorBoundary } from "@/components/error-boundary";

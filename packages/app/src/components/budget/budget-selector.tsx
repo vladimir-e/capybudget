@@ -3,7 +3,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { open } from "@tauri-apps/plugin-dialog";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { exists } from "@tauri-apps/plugin-fs";
-import { toast } from "sonner";
+import { toast } from "@/lib/toast";
 import { FolderPlus, FolderOpen, HelpCircle, AlertCircle, ExternalLink, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {

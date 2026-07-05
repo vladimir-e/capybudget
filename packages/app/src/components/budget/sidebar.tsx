@@ -53,7 +53,7 @@ import {
   useArchiveAccount,
   useUnarchiveAccount,
 } from "@/hooks/use-account-mutations";
-import { toast } from "sonner";
+import { toast } from "@/lib/toast";
 
 interface SidebarProps {
   budgetPath: string;

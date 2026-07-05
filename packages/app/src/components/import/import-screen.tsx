@@ -7,7 +7,7 @@ import {
   type ChangeEvent,
 } from "react";
 import { FileUp, X, Loader2 } from "lucide-react";
-import { toast } from "sonner";
+import { toast } from "@/lib/toast";
 import { useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "@capybudget/i18n";
 import { Button } from "@/components/ui/button";

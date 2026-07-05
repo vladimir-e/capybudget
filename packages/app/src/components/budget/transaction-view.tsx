@@ -14,7 +14,7 @@ import { hasActiveFilters } from "@/lib/filter-transactions";
 import { useTransactionSelection } from "@/hooks/use-transaction-selection";
 import type { Transaction, TransactionFormData } from "@capybudget/core";
 import { useTranslation } from "@capybudget/i18n";
-import { toast } from "sonner";
+import { toast } from "@/lib/toast";
 
 interface TransactionViewProps {
   transactions: Transaction[];

@@ -9,7 +9,7 @@ import {
   Settings2,
   Square,
 } from "lucide-react"
-import { toast } from "sonner"
+import { toast } from "@/lib/toast"
 import { useTranslation } from "@capybudget/i18n"
 import capyMascot from "@/assets/capy-neutral.webp"
 import { CommandPicker } from "../command-picker"

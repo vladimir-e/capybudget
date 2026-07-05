@@ -39,7 +39,7 @@ import {
   Trash2,
   X,
 } from "lucide-react";
-import { toast } from "sonner";
+import { toast } from "@/lib/toast";
 
 type OverflowDialog = null | "move" | "date" | "merchant";
 

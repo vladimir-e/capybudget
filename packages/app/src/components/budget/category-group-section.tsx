@@ -47,7 +47,7 @@ import {
 } from "@/hooks/use-category-mutations";
 import type { Category } from "@capybudget/core";
 import { useTranslation } from "@capybudget/i18n";
-import { toast } from "sonner";
+import { toast } from "@/lib/toast";
 import { useCategoryDisplayName, useGroupDisplayName } from "@/lib/display-names";
 
 interface CategoryGroupSectionProps {
