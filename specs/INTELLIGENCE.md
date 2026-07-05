@@ -234,6 +234,14 @@ so the OS prompt lands in a context the user triggered; a persisted `gateSeen`
 flag suppresses it thereafter and later sessions load silently on demand.
 Dismissing it simply doesn't load yet — no cancel-path state.
 
+The heads-up shows only **once per install**, which fully tames the surprise
+prompt only where the OS prompt is one-time too. On the MAS (data-protection)
+path there's no OS dialog at all. On a Developer ID / DMG build the entries sit
+in the legacy keychain, whose ACL is bound to the exact code signature, so macOS
+re-prompts after each app update — the heads-up, already seen, doesn't reappear
+to reframe those later prompts. A denied read is recoverable: it surfaces a
+retryable error rather than latching the key as absent (see `secretsError`).
+
 A config written before this split keeps keys inline; the first on-demand load
 migrates them into the keychain — keychain write first, so an interrupted run
 never drops a key — then strips the file. For a config written before
