@@ -6,6 +6,10 @@ import { toast as sonnerToast } from "sonner";
 const error: typeof sonnerToast.error = (message, data) =>
   sonnerToast.error(message, { duration: Infinity, ...data });
 
+// Only the standalone `error` toast is wrapped. `toast.promise(...)` renders its
+// failure state through sonner directly, so a `{ error }` promise toast keeps the
+// default auto-dismiss — its per-state duration semantics aren't worth wrapping
+// for zero call sites. Revisit if a promise error toast ever needs to persist.
 export const toast = Object.assign(
   (...args: Parameters<typeof sonnerToast>) => sonnerToast(...args),
   sonnerToast,

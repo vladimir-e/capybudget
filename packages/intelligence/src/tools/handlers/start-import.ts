@@ -25,8 +25,9 @@
  *     to switch to a PDF-capable provider.
  *   - staging already holds an import — a run in flight or parked for review,
  *     or files dropped in the Import tab but not started → point the user at
- *     the Import tab. The only thing a chat share may replace is a prior chat
- *     staging that never ran.
+ *     the Import tab. A chat share only replaces staging with nothing to
+ *     protect: a prior chat staging that never ran, or a completed empty
+ *     preview (staged rows exist but are zero-length — nothing was importable).
  */
 
 import { isPdfAttachment } from "../../attachments"
@@ -72,30 +73,36 @@ export async function handleStartImport(ctx: ToolContext): Promise<string> {
   const staging = new FileStagingStore(ctx.fileAdapter, ctx.budgetPath)
 
   // The staging area may already be owned by an import this handler must not
-  // clobber. Refuse unless staging is empty or holds only a chat-staged import
-  // that never ran (`state.json` marked "chat", no `transactions.csv`) — that's
-  // the user re-sharing a file, and replacing the stale staging is right.
-  // Accepted residual window: a manual run still in Reading/Normalizing has
-  // written neither state.json nor transactions.csv, so it reads as a parked
-  // drop here (refused, never clobbered) — those phases are seconds long.
-  if ((await staging.readTransactions()) !== null) {
+  // clobber. A non-empty `transactions.csv` is a real import — a run in flight
+  // or parked for review — so refuse. An empty one is a completed all-empty
+  // preview: zero rows have nothing to protect, so let the re-share clear and
+  // replace it. (Rows are written whole at History, so an empty staging is
+  // never a run about to add rows.)
+  const staged = await staging.readTransactions()
+  if (staged !== null && staged.rows.length > 0) {
     return IMPORT_IN_PROGRESS
   }
-  const state = await staging.readState()
-  if (state !== null && state.source !== "chat") {
-    return IMPORT_IN_PROGRESS
-  }
-  if (state === null && (await staging.listSources()).length > 0) {
-    return JSON.stringify({
-      started: false,
-      reason: "files_already_staged",
-      message:
-        "Files are already staged in the Import tab but the import hasn't started. Tell the user to start it — or remove the files — in the Import tab first.",
-    })
+  if (staged === null) {
+    // No `transactions.csv`. A state.json without the "chat" marker is a manual
+    // run mid-pipeline (Reading/Normalizing — seconds long, and neither state
+    // nor csv is written yet, so it reads as parked here); refuse rather than
+    // clobber it. Sources with no state.json are a manual drop awaiting Start.
+    const state = await staging.readState()
+    if (state !== null && state.source !== "chat") {
+      return IMPORT_IN_PROGRESS
+    }
+    if (state === null && (await staging.listSources()).length > 0) {
+      return JSON.stringify({
+        started: false,
+        reason: "files_already_staged",
+        message:
+          "Files are already staged in the Import tab but the import hasn't started. Tell the user to start it — or remove the files — in the Import tab first.",
+      })
+    }
   }
 
-  // Past the gates, any leftover is a stale chat staging — clear it so the
-  // orchestrator starts from this turn's sources alone.
+  // Past the gates, any leftover is a stale chat staging or a completed empty
+  // preview — clear it so the orchestrator starts from this turn's sources alone.
   await staging.clear()
   for (const file of attachments) {
     await staging.writeSource(file.name, file.content)

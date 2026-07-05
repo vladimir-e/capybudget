@@ -597,9 +597,10 @@ export async function normalizeImage(
     return { rows: [], noData: { message: result.message } };
   }
 
-  // Defensive: the model can technically return `{ rows: [] }` — treat an empty
-  // extraction as no_data so the orchestrator routes it to file-attach rather
-  // than writing empty staging.
+  // The model can return `{ rows: [] }` without the explicit no_data outcome;
+  // map it to the same noData signal so an empty extraction is handled like a
+  // declared no-data file — skipped with a warning when sibling files carry
+  // rows, an empty completed preview when every file is empty.
   if (result.rows.length === 0) {
     return { rows: [], noData: { message: "No transactions found in this file." } };
   }

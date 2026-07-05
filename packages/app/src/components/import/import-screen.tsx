@@ -243,8 +243,8 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
   // staging, so return cleanly to file-attach. A non-recoverable one before any
   // staging (a Reading/Normalizing failure) also has nothing to show — drop back
   // to file-attach so the user can retry; if rows did land, the preview stays put
-  // with the partial result. (A run that finds no transaction data is no longer
-  // an error — it lands on an empty preview and never reaches here.)
+  // with the partial result. A run that finds no transaction data is not an
+  // error — it lands on an empty preview and never reaches here.
   const reportedErrorRef = useRef<string | null>(null);
   useEffect(() => {
     if (!error) {

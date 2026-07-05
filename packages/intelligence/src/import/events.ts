@@ -91,10 +91,10 @@ export type ImportEvent =
   | { type: "done" };
 
 /** Why a run ended in error. `read` = no source files staged (recoverable,
- *  return to file-attach). `normalize` covers a failure in that code phase;
- *  `internal` an uncaught fault. A run that simply finds no transaction data is
- *  not an error — it stages an empty preview and completes. */
-export type ImportErrorReason = "read" | "normalize" | "internal";
+ *  return to file-attach); `internal` = an uncaught fault (a throw anywhere in
+ *  the pipeline funnels here through `run()`'s catch). A run that simply finds no
+ *  transaction data is not an error — it stages an empty preview and completes. */
+export type ImportErrorReason = "read" | "internal";
 
 /** The grounding payoff numbers surfaced after History. Mirrors core's
  *  `GroundingStats`, narrowed to what the UI shows. */

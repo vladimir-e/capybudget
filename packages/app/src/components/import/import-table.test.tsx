@@ -24,12 +24,14 @@ function renderTable(
     accountMapping?: Record<string, string>;
     onOpenAccountMapping?: () => void;
     searchActive?: boolean;
+    droppedRows?: boolean;
   } = {},
 ) {
   return render(
     <ImportTable
       transactions={transactions}
       searchActive={opts.searchActive ?? false}
+      droppedRows={opts.droppedRows ?? false}
       sort={sort}
       onSortChange={vi.fn()}
       selectedIds={opts.selectedIds ?? new Set(transactions.map((t) => t.id))}
@@ -226,10 +228,23 @@ describe("ImportTable — empty state", () => {
     expect(screen.getByText("Try adjusting your search.")).toBeInTheDocument();
   });
 
-  it("shows a neutral message when no rows loaded at all", () => {
+  it("says Capy found no data when nothing was staged", () => {
     renderTable([]);
 
     expect(screen.getByText("No transactions to import")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Capy couldn't find any transaction data in the attached files. Cancel to try different files.",
+      ),
+    ).toBeInTheDocument();
     expect(screen.queryByText("Try adjusting your search.")).toBeNull();
+  });
+
+  it("drops the no-data claim when read-validation dropped every staged row", () => {
+    renderTable([], { droppedRows: true });
+
+    expect(screen.getByText("No transactions to import")).toBeInTheDocument();
+    expect(screen.getByText("Cancel to try different files.")).toBeInTheDocument();
+    expect(screen.queryByText(/couldn't find any transaction data/)).toBeNull();
   });
 });

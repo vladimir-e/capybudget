@@ -361,6 +361,7 @@ export function ImportPreview({
         <ImportTable
           transactions={sorted}
           searchActive={search !== ""}
+          droppedRows={showSkippedNote}
           sort={sort}
           onSortChange={setSort}
           selectedIds={selectedIds}

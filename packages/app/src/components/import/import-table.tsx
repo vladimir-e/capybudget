@@ -41,6 +41,9 @@ interface ImportTableProps {
   transactions: ImportTransaction[];
   /** Whether a search query filtered `transactions` — picks the empty-state copy. */
   searchActive: boolean;
+  /** Whether read-validation dropped staged rows — an empty preview then means
+   *  "every row was unreadable," not "no data found," so the copy differs. */
+  droppedRows: boolean;
   sort: ImportSortConfig;
   onSortChange: (sort: ImportSortConfig) => void;
   selectedIds: Set<string>;
@@ -124,6 +127,7 @@ function SortableHeader({
 export function ImportTable({
   transactions,
   searchActive,
+  droppedRows,
   sort,
   onSortChange,
   selectedIds,
@@ -175,11 +179,16 @@ export function ImportTable({
   }, []);
 
   if (transactions.length === 0) {
+    const description = searchActive
+      ? t("table.noMatchesDescription")
+      : droppedRows
+        ? t("table.emptyDroppedDescription")
+        : t("table.emptyDescription");
     return (
       <EmptyState
         icon={<Inbox strokeWidth={1.5} />}
         title={searchActive ? t("table.noMatchesTitle") : t("table.emptyTitle")}
-        description={searchActive ? t("table.noMatchesDescription") : t("table.emptyDescription")}
+        description={description}
         className="py-24"
       />
     );

@@ -98,6 +98,7 @@
     },
     "emptyTitle": "No transactions to import",
     "emptyDescription": "Capy couldn't find any transaction data in the attached files. Cancel to try different files.",
+    "emptyDroppedDescription": "Cancel to try different files.",
     "noMatchesTitle": "No transactions found",
     "noMatchesDescription": "Try adjusting your search.",
     "noAccount": "none",

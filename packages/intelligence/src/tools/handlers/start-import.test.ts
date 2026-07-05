@@ -4,8 +4,9 @@
  * handler: a configured turn stages the attachments + marks the run Capy-staged;
  * the gates (unsupported provider, no attachment, PDF under a provider that
  * can't read PDFs, staging already owned by another import) return guidance and
- * stage nothing. The one replace case — a prior chat staging that never ran —
- * is cleared and restaged.
+ * stage nothing. The replace cases — a prior chat staging that never ran, or a
+ * completed empty preview (staged rows exist but are zero-length) — are cleared
+ * and restaged.
  */
 
 import { describe, it, expect, beforeEach } from "vitest"
@@ -104,6 +105,26 @@ describe("start_import", () => {
     // The existing run's staging is untouched and nothing new was staged.
     expect(fs.files.get(`${BUDGET_PATH}/.capy/import/transactions.csv`)).toBe(staged)
     expect(fs.files.has(`${SOURCES_DIR}/new.csv`)).toBe(false)
+  })
+
+  it("replaces a completed empty preview (staged rows exist but are zero-length)", async () => {
+    // An all-empty run staged a header-only transactions.csv and completed on
+    // the preview's empty state. Zero rows have nothing to protect, so a
+    // re-share clears and restages — even past a non-chat state.json that would
+    // otherwise read as an import in progress.
+    fs.dirs.add(SOURCES_DIR)
+    fs.files.set(`${SOURCES_DIR}/old.csv`, "stale")
+    fs.files.set(`${BUDGET_PATH}/.capy/import/transactions.csv`, "id,date,description,amount,type\n")
+    fs.files.set(STATE_PATH, JSON.stringify({ phase: "done", updatedAt: "2026-03-01T00:00:00Z" }))
+
+    ctx.attachments = [csv("new.csv", "Date,Amount\n2026-03-01,-5.00")]
+    const result = JSON.parse(await runTool("start_import", {}, ctx))
+    expect(result.started).toBe(true)
+
+    expect(fs.files.has(`${SOURCES_DIR}/old.csv`)).toBe(false)
+    expect(fs.files.has(`${BUDGET_PATH}/.capy/import/transactions.csv`)).toBe(false)
+    expect(fs.files.get(`${SOURCES_DIR}/new.csv`)).toBe("Date,Amount\n2026-03-01,-5.00")
+    expect(JSON.parse(fs.files.get(STATE_PATH)!).source).toBe("chat")
   })
 
   it("refuses when a run is in flight pre-History (state.json without the chat marker)", async () => {
