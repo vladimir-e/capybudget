@@ -57,9 +57,13 @@ tauri-plugin-updater = { version = "2", optional = true }
 tauri-plugin-process = { version = "2", optional = true }
 tauri-plugin-window-state = "2"
 
-# MAS-only, enabled by the `mas` feature: NSURL security-scoped bookmarks. Scoped
-# to macOS so `--features mas` still resolves (to nothing) on other targets.
+# macOS credential storage. `security-framework` (already pulled in by keyring)
+# with `OSX_10_15` unlocks the data-protection keychain path used in keychain.rs;
+# the objc2 stack below is MAS-only (enabled by the `mas` feature) for NSURL
+# security-scoped bookmarks and stays scoped to macOS so `--features mas` still
+# resolves (to nothing) on other targets.
 [target.'cfg(target_os = "macos")'.dependencies]
+security-framework = { version = "3.7", features = ["OSX_10_15"] }
 objc2 = { version = "0.6", optional = true }
 objc2-foundation = { version = "0.3", optional = true, features = [
     "NSString",

@@ -112,6 +112,22 @@ strands a key on disk. With no keychain available (dev builds, unsupported
 platform) it degrades to the plaintext on-disk config. The Rust side
 (`keychain.rs`) is a thin transport — three commands, present in every build.
 
+On macOS the entries live in the **data-protection keychain**
+(`kSecUseDataProtectionKeychain`), where access is granted by the
+`keychain-access-groups` entitlement instead of a per-binary ACL. That removes
+the "wants to use your confidential information" dialog and keeps the grant
+across app updates — the legacy file-based keychain instead binds the ACL to the
+exact code signature, which every update and dev rebuild invalidates. Builds not
+entitled for it (unsigned dev builds, or a Developer-ID/DMG build with no
+embedded provisioning profile) get `errSecMissingEntitlement` from the protected
+call and transparently fall back to the legacy file-based keychain; the decision
+is cached per process. The first protected read of an account also migrates any
+key still in the legacy keychain into the protected store (write-then-delete, so
+an interrupted or denied migration just retries), and a delete clears the legacy
+copy too so it can't be resurrected. The MAS build carries the entitlement (Team
+ID-scoped) and gets the protected store; the DMG build embeds no provisioning
+profile, so it stays on the fallback path until one is added.
+
 ### Sandboxed Folder Access (Mac App Store build)
 
 The App Sandbox confines the app to user-selected paths, and that grant dies with

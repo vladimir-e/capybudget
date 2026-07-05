@@ -12,6 +12,7 @@ CHANGELOG PHILOSOPHY:
 ## Unreleased
 
 - **Security** - The macOS keychain prompt no longer fires at startup; keys load on first AI use, behind a one-time heads-up.
+- **Security** - On the Mac App Store build, API keys move to the macOS data-protection keychain: no Keychain access dialog, and the grant survives app updates.
 
 ## 1.5.0 — 2026-07-04
 
