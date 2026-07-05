@@ -1,6 +1,6 @@
 /* eslint-disable i18next/no-literal-string -- dev-only diagnostics panel, intentionally not localized */
 import { Fragment, useEffect, useState } from "react"
-import { useSearch } from "@tanstack/react-router"
+import { useNavigate, useSearch } from "@tanstack/react-router"
 import { getTauriVersion, getVersion } from "@tauri-apps/api/app"
 import { Bug, Copy, KeyRound, RotateCcw } from "lucide-react"
 import { useTheme } from "next-themes"
@@ -22,6 +22,7 @@ const IN_TAURI = "__TAURI_INTERNALS__" in window
 
 export function DevSection() {
   const { path, name } = useSearch({ from: "/budget" })
+  const navigate = useNavigate()
   const config = useIntelligenceStore((s) => s.config)
   const previewSecretGate = useIntelligenceStore((s) => s.previewSecretGate)
   const resetSecretGate = useIntelligenceStore((s) => s.resetSecretGate)
@@ -97,6 +98,14 @@ export function DevSection() {
     )
   }
 
+  const handleTriggerGate = () => {
+    // The SecretAccessDialog is mounted in budget-shell, behind the settings
+    // screen — close Settings first so the dialog is visible, then open the
+    // gate. Gate state lives in the store, so it survives this unmount.
+    navigate({ to: "/budget", search: { path, name } })
+    void previewSecretGate()
+  }
+
   const handleResetGate = () => {
     resetSecretGate()
     setGateReset(true)
@@ -134,7 +143,7 @@ export function DevSection() {
         <div className="space-y-2">
           <p className="text-sm text-muted-foreground">Keychain heads-up</p>
           <div className="flex flex-wrap items-center gap-2">
-            <Button variant="outline" size="sm" onClick={() => void previewSecretGate()}>
+            <Button variant="outline" size="sm" onClick={handleTriggerGate}>
               <KeyRound className="h-4 w-4" />
               Trigger heads-up
             </Button>
