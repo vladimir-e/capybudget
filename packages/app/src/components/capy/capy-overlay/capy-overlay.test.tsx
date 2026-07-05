@@ -135,6 +135,7 @@ beforeEach(() => {
     loadSecrets: async () => ({ anthropic: "", openai: "" }),
     save: async () => {},
     markGateSeen: async () => {},
+    clearGateSeen: async () => {},
   }))
   detectMock.mockReset()
   detectMock.mockResolvedValue(true)

@@ -29,6 +29,7 @@ function backendWithGatedSecrets(config: IntelligenceConfig) {
     loadSecrets: () => gate,
     save: async () => undefined,
     markGateSeen: async () => undefined,
+    clearGateSeen: async () => undefined,
   }
   return { backend, release: () => release }
 }

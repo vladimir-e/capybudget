@@ -86,6 +86,7 @@ beforeEach(() => {
     loadSecrets: async () => ({ anthropic: "", openai: "" }),
     save: async () => {},
     markGateSeen: async () => {},
+    clearGateSeen: async () => {},
   }));
   useAppStore.setState({
     recentBudgets: [

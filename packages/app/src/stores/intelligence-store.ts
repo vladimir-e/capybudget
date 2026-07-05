@@ -60,6 +60,10 @@ async function tauriFileStore(): Promise<ConfigStoreBackend> {
       await store.set(GATE_SEEN_KEY, true)
       await store.save()
     },
+    async clearGateSeen() {
+      await store.set(GATE_SEEN_KEY, false)
+      await store.save()
+    },
   }
 }
 
@@ -114,6 +118,15 @@ interface IntelligenceStore {
   confirmSecretGate(): void
   /** Heads-up dismissed: close it without loading. */
   dismissSecretGate(): void
+
+  /** Dev-only: force the heads-up now and, on Allow, run a fresh on-demand load
+   *  — regardless of whether it's been seen or secrets are already in memory.
+   *  Dismiss leaves the persisted seen flag untouched. */
+  previewSecretGate(): Promise<void>
+  /** Dev-only: clear the "heads-up seen" flag (persisted + in-memory) and drop
+   *  the loaded secrets, so the next on-demand load behaves like a fresh
+   *  install — heads-up shown, keychain re-read. No app restart needed. */
+  resetSecretGate(): void
 
   setProvider(p: IntelligenceProvider): void
   setAnthropicKey(k: string): void
@@ -254,6 +267,26 @@ export const useIntelligenceStore = create<IntelligenceStore>((set, get) => ({
     set({ secretGateOpen: false })
     gateResolve?.(false)
     gateResolve = null
+  },
+
+  async previewSecretGate() {
+    if (get().secretGateOpen) return
+    // Reuse the dialog's real confirm/dismiss handlers by opening the gate and
+    // awaiting the same resolve the on-demand path uses. Allow (confirmSecretGate)
+    // persists the seen flag; dismiss leaves it as-is.
+    const allowed = await new Promise<boolean>((resolve) => {
+      gateResolve = resolve
+      set({ secretGateOpen: true })
+    })
+    if (!allowed) return
+    // Drop any loaded value so the confirmed load actually re-reads the keychain.
+    set({ secretsLoaded: false, secretsError: false })
+    await get().ensureSecrets()
+  },
+
+  resetSecretGate() {
+    set({ secretGateSeen: false, secretsLoaded: false, secretsError: false })
+    void loadBackend().then((b) => b.clearGateSeen())
   },
 
   setProvider(provider) {

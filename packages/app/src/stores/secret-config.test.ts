@@ -46,6 +46,9 @@ function fakeFile(initial: IntelligenceConfig | null) {
     async setGateSeen() {
       gateSeen = true
     },
+    async clearGateSeen() {
+      gateSeen = false
+    },
   }
   return { backend, set, read: () => value, gateSeen: () => gateSeen }
 }
@@ -139,6 +142,17 @@ describe("createSecretAwareBackend — load", () => {
     await backend.markGateSeen()
 
     expect((await backend.load())?.gateSeen).toBe(true)
+  })
+
+  it("clearGateSeen resets the persisted heads-up flag", async () => {
+    const file = fakeFile(config())
+    const { keychain } = fakeKeychain()
+    const backend = createSecretAwareBackend(file.backend, keychain)
+    await backend.markGateSeen()
+    expect((await backend.load())?.gateSeen).toBe(true)
+
+    await backend.clearGateSeen()
+    expect((await backend.load())?.gateSeen).toBe(false)
   })
 })
 

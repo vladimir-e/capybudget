@@ -34,6 +34,7 @@ type FakeBackend = SecretConfigBackend & {
   loadSecrets: ReturnType<typeof vi.fn>
   save: ReturnType<typeof vi.fn>
   markGateSeen: ReturnType<typeof vi.fn>
+  clearGateSeen: ReturnType<typeof vi.fn>
 }
 
 function makeBackend(
@@ -45,6 +46,7 @@ function makeBackend(
     loadSecrets: vi.fn(async () => secrets),
     save: vi.fn(async () => undefined),
     markGateSeen: vi.fn(async () => undefined),
+    clearGateSeen: vi.fn(async () => undefined),
   }
 }
 
@@ -265,6 +267,70 @@ describe("useIntelligenceStore.ensureSecrets", () => {
     expect(state.secretsLoaded).toBe(true)
     expect(state.config.anthropic.apiKey).toBe("sk-loaded")
     expect(backend.loadSecrets).toHaveBeenCalledTimes(2)
+  })
+})
+
+describe("useIntelligenceStore dev gate controls", () => {
+  it("resetSecretGate clears the seen flag in memory and through the backend", async () => {
+    const backend = makeBackend(
+      stored({ provider: "anthropic", anthropic: { apiKey: "", model: "m", keyPresent: true } }, true),
+      { anthropic: "sk-loaded", openai: "" },
+    )
+    _setStoreLoaderForTests(async () => backend)
+    await useIntelligenceStore.getState().hydrate()
+    await useIntelligenceStore.getState().ensureSecrets()
+    expect(useIntelligenceStore.getState().secretsLoaded).toBe(true)
+    expect(useIntelligenceStore.getState().secretGateSeen).toBe(true)
+
+    useIntelligenceStore.getState().resetSecretGate()
+    const state = useIntelligenceStore.getState()
+    // Fresh-install shape: heads-up unseen, secrets dropped so the next load
+    // re-reads the keychain.
+    expect(state.secretGateSeen).toBe(false)
+    expect(state.secretsLoaded).toBe(false)
+    expect(state.secretsError).toBe(false)
+    await new Promise((r) => setTimeout(r, 0))
+    expect(backend.clearGateSeen).toHaveBeenCalledTimes(1)
+  })
+
+  it("previewSecretGate opens the heads-up and runs the load on confirm", async () => {
+    const backend = makeBackend(
+      stored({ provider: "anthropic", anthropic: { apiKey: "", model: "m", keyPresent: true } }, true),
+      { anthropic: "sk-loaded", openai: "" },
+    )
+    _setStoreLoaderForTests(async () => backend)
+    await useIntelligenceStore.getState().hydrate()
+
+    const pending = useIntelligenceStore.getState().previewSecretGate()
+    // Forced open even though the gate's already been seen.
+    expect(useIntelligenceStore.getState().secretGateOpen).toBe(true)
+
+    useIntelligenceStore.getState().confirmSecretGate()
+    await pending
+
+    const state = useIntelligenceStore.getState()
+    expect(state.secretGateOpen).toBe(false)
+    expect(state.config.anthropic.apiKey).toBe("sk-loaded")
+    expect(state.secretsLoaded).toBe(true)
+    expect(backend.loadSecrets).toHaveBeenCalledTimes(1)
+  })
+
+  it("previewSecretGate on dismiss loads nothing and leaves the seen flag", async () => {
+    const backend = makeBackend(
+      stored({ provider: "anthropic", anthropic: { apiKey: "", model: "m", keyPresent: true } }, true),
+      { anthropic: "sk-loaded", openai: "" },
+    )
+    _setStoreLoaderForTests(async () => backend)
+    await useIntelligenceStore.getState().hydrate()
+
+    const pending = useIntelligenceStore.getState().previewSecretGate()
+    useIntelligenceStore.getState().dismissSecretGate()
+    await pending
+
+    const state = useIntelligenceStore.getState()
+    expect(state.secretsLoaded).toBe(false)
+    expect(state.secretGateSeen).toBe(true)
+    expect(backend.loadSecrets).not.toHaveBeenCalled()
   })
 })
 

@@ -31,6 +31,7 @@ export interface ConfigStoreBackend {
   set(config: IntelligenceConfig): Promise<void>
   getGateSeen(): Promise<boolean>
   setGateSeen(): Promise<void>
+  clearGateSeen(): Promise<void>
 }
 
 /** Per-provider secret storage in the OS credential store. */
@@ -58,6 +59,9 @@ export interface SecretConfigBackend {
   save(config: IntelligenceConfig): Promise<void>
   /** Record that the one-time keychain heads-up has been shown. */
   markGateSeen(): Promise<void>
+  /** Clear the persisted heads-up flag so it shows again on the next load —
+   *  the fresh-install reset behind the dev panel. */
+  clearGateSeen(): Promise<void>
 }
 
 function stripSecrets(config: IntelligenceConfig): IntelligenceConfig {
@@ -159,10 +163,15 @@ export function createSecretAwareBackend(
     await file.setGateSeen()
   }
 
+  async function clearGateSeen() {
+    await file.clearGateSeen()
+  }
+
   if (!keychain) {
     return {
       load,
       markGateSeen,
+      clearGateSeen,
       async loadSecrets() {
         const stored = await file.get()
         if (!stored) return { anthropic: "", openai: "" }
@@ -183,6 +192,7 @@ export function createSecretAwareBackend(
   return {
     load,
     markGateSeen,
+    clearGateSeen,
 
     async loadSecrets() {
       const stored = await file.get()
