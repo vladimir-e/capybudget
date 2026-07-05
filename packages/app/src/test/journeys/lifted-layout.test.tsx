@@ -81,7 +81,12 @@ beforeEach(() => {
   createSessionMock.mockClear();
   _resetStoreForTests();
   _resetIntelligenceStoreForTests();
-  _setStoreLoaderForTests(async () => ({ get: async () => null, set: async () => {} }));
+  _setStoreLoaderForTests(async () => ({
+    load: async () => null,
+    loadSecrets: async () => ({ anthropic: "", openai: "" }),
+    save: async () => {},
+    markGateSeen: async () => {},
+  }));
   useAppStore.setState({
     recentBudgets: [
       { path: "/test-budget", name: "Test Budget", lastOpened: "2026-01-01T00:00:00.000Z" },

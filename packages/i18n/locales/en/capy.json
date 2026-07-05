@@ -110,5 +110,10 @@
     "notConfigured": "Capy is not configured. Open settings to pick an AI provider.",
     "sendFailed": "Failed to send message",
     "interrupted": "Session interrupted. Send a message to continue."
+  },
+  "secretGate": {
+    "title": "Unlock your AI key",
+    "description": "Capy will now check for your saved AI key. It's stored securely in your system keychain — your OS may ask you to allow access.",
+    "allow": "Allow"
   }
 }

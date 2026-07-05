@@ -112,8 +112,19 @@ export function CapyOverlay({
   const { path, name } = useSearch({ from: "/budget" })
   const config = useIntelligenceStore((s) => s.config)
   const setProvider = useIntelligenceStore((s) => s.setProvider)
+  const ensureSecrets = useIntelligenceStore((s) => s.ensureSecrets)
   const isConfigured = config.provider === "claude-cli" || importReady(config)
   const pdfSupported = canReadPdf(config.provider)
+
+  // Load the API key on demand the moment the panel opens with an API provider —
+  // the first time behind the one-time heads-up, silently thereafter. Fetching
+  // here (not at boot) keeps any OS keychain prompt in a context the user
+  // triggered. `ensureSecrets` is idempotent and a no-op for non-API providers.
+  useEffect(() => {
+    if (open && (config.provider === "anthropic" || config.provider === "openai")) {
+      void ensureSecrets()
+    }
+  }, [open, config.provider, ensureSecrets])
 
   // Detect Claude Code CLI on mount so we can disable that chip when it
   // isn't installed. detectClaudeCli is cached and idempotent — repeat

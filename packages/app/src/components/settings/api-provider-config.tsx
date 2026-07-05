@@ -1,6 +1,7 @@
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { openUrl } from "@tauri-apps/plugin-opener"
 import { ExternalLink, Eye, EyeOff, Loader2 } from "lucide-react"
+import { hasProviderKey } from "@capybudget/intelligence"
 import { useTranslation } from "@capybudget/i18n"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -49,6 +50,7 @@ const PROVIDER_UI: Record<ApiProviderKey, ProviderUi> = {
 
 export function AnthropicConfig() {
   const apiKey = useIntelligenceStore((s) => s.config.anthropic.apiKey)
+  const keyPresent = useIntelligenceStore((s) => hasProviderKey(s.config.anthropic))
   const model = useIntelligenceStore((s) => s.config.anthropic.model)
   const setKey = useIntelligenceStore((s) => s.setAnthropicKey)
   const setModel = useIntelligenceStore((s) => s.setAnthropicModel)
@@ -57,6 +59,7 @@ export function AnthropicConfig() {
     <ApiProviderConfig
       providerKey="anthropic"
       apiKey={apiKey}
+      keyPresent={keyPresent}
       onSaveKey={setKey}
       model={model}
       onSaveModel={setModel}
@@ -67,6 +70,7 @@ export function AnthropicConfig() {
 
 export function OpenAiConfig() {
   const apiKey = useIntelligenceStore((s) => s.config.openai.apiKey)
+  const keyPresent = useIntelligenceStore((s) => hasProviderKey(s.config.openai))
   const model = useIntelligenceStore((s) => s.config.openai.model)
   const setKey = useIntelligenceStore((s) => s.setOpenAiKey)
   const setModel = useIntelligenceStore((s) => s.setOpenAiModel)
@@ -75,6 +79,7 @@ export function OpenAiConfig() {
     <ApiProviderConfig
       providerKey="openai"
       apiKey={apiKey}
+      keyPresent={keyPresent}
       onSaveKey={setKey}
       model={model}
       onSaveModel={setModel}
@@ -86,6 +91,7 @@ export function OpenAiConfig() {
 interface ApiProviderConfigProps {
   providerKey: ApiProviderKey
   apiKey: string
+  keyPresent: boolean
   onSaveKey: (k: string) => void
   model: string
   onSaveModel: (m: string) => void
@@ -95,6 +101,7 @@ interface ApiProviderConfigProps {
 function ApiProviderConfig({
   providerKey,
   apiKey,
+  keyPresent,
   onSaveKey,
   model,
   onSaveModel,
@@ -102,6 +109,14 @@ function ApiProviderConfig({
 }: ApiProviderConfigProps) {
   const { t } = useTranslation("settings")
   const ui = PROVIDER_UI[providerKey]
+  const ensureSecrets = useIntelligenceStore((s) => s.ensureSecrets)
+
+  // A saved key exists but its value hasn't been fetched from the keychain yet —
+  // load it (behind the one-time heads-up) so the last-4 can render. A fresh
+  // provider switch with no key configured skips this: nothing to unlock.
+  useEffect(() => {
+    if (keyPresent && !apiKey) void ensureSecrets()
+  }, [keyPresent, apiKey, ensureSecrets])
 
   // Local draft for the API key — only commit on blur to avoid thrashing
   // persistence with every keystroke. If the persisted key changes

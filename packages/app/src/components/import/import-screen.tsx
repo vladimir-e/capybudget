@@ -145,7 +145,7 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
         if (!mountedRef.current) return;
         // `start()` runs the plain staged sources — the chat on-ramp carries no
         // per-run account/instruction hints (those are file-attach controls).
-        if (!start()) toast.error(t("errors.providerRequired"));
+        if (!(await start())) toast.error(t("errors.providerRequired"));
         return;
       }
       await refreshSourceFiles();
@@ -331,7 +331,7 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
     const instructions = (localInstructions ?? "").trim();
     await customInstructions.save(instructions);
     const accountName = accounts.find((a) => a.id === selectedAccountId)?.name;
-    if (!start({ accountName, instructions })) {
+    if (!(await start({ accountName, instructions }))) {
       toast.error(t("errors.providerRequired"));
     }
   }, [
@@ -345,9 +345,9 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
     t,
   ]);
 
-  const handleEnrich = useCallback(() => {
+  const handleEnrich = useCallback(async () => {
     const instructions = customInstructions.instructions?.trim();
-    if (!enrich({ instructions })) {
+    if (!(await enrich({ instructions }))) {
       toast.error(t("errors.providerRequired"));
       return;
     }

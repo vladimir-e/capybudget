@@ -299,26 +299,43 @@ export function useCapySession(opts: UseCapySessionOptions): UseCapySessionRetur
       hadMutationsRef.current = false
       ackedToolCallsRef.current = new Set()
 
-      const session = ensureSession()
-      if (!session) {
-        // Intelligence is unconfigured (or the chosen provider isn't
-        // available). Surface a single-turn error message and bail —
-        // Round 4 will replace this with a proper empty-state CTA.
-        lifecycle.dispatchStreamEvent({
-          type: "error",
-          message: tRef.current("session.notConfigured"),
+      const buildAndSend = () => {
+        const session = ensureSession()
+        if (!session) {
+          // Intelligence is unconfigured (or the chosen provider isn't
+          // available). Surface a single-turn error message and bail.
+          lifecycle.dispatchStreamEvent({
+            type: "error",
+            message: tRef.current("session.notConfigured"),
+          })
+          return
+        }
+        // Raw attachments ride alongside the flattened content so the in-process
+        // `start_import` tool can stage their bytes — the content itself inlines
+        // text files and base64-encodes images past reconstruction.
+        session.send(content, allFiles).catch((err) => {
+          lifecycle.dispatchStreamEvent({
+            type: "error",
+            message: err instanceof Error ? err.message : tRef.current("session.sendFailed"),
+          })
         })
-        return
       }
-      // Raw attachments ride alongside the flattened content so the in-process
-      // `start_import` tool can stage their bytes — the content itself inlines
-      // text files and base64-encodes images past reconstruction.
-      session.send(content, allFiles).catch((err) => {
-        lifecycle.dispatchStreamEvent({
-          type: "error",
-          message: err instanceof Error ? err.message : tRef.current("session.sendFailed"),
-        })
-      })
+
+      // Fetch the API key on demand only when it isn't in memory yet — the
+      // overlay pre-loads on open, so this is the safety net for a send that
+      // races that load. When the key is already present (or the provider needs
+      // none), build synchronously.
+      const store = useIntelligenceStore.getState()
+      const p = store.config.provider
+      const mustLoad =
+        (p === "anthropic" || p === "openai") &&
+        !store.config[p].apiKey &&
+        !store.secretsLoaded
+      if (mustLoad) {
+        void store.ensureSecrets().then(buildAndSend)
+      } else {
+        buildAndSend()
+      }
     },
     [ensureSession, lifecycle],
   )

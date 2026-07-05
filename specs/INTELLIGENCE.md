@@ -206,8 +206,8 @@ User-facing config persists via `@tauri-apps/plugin-store` (file-based, in the a
 ```ts
 interface IntelligenceConfig {
   provider: "claude-cli" | "anthropic" | "openai" | null
-  anthropic: { apiKey: string; model: string }
-  openai:    { apiKey: string; model: string }
+  anthropic: { apiKey: string; model: string; keyPresent?: boolean }
+  openai:    { apiKey: string; model: string; keyPresent?: boolean }
   claudeCli: { model: string } // "" lets the CLI pick its default
 }
 ```
@@ -215,14 +215,35 @@ interface IntelligenceConfig {
 The provider **API keys are the exception** — they never rest in the plaintext
 store file. Each key is a generic-password entry in the OS credential store
 (macOS Keychain / Windows Credential Manager / Linux secret-service) under the
-app bundle id, read into the in-memory config on hydrate and stripped from the
-file. A config written before this split is migrated on first load: keys are
-written to the keychain, then removed from the file — keychain write first, so
-an interrupted run never drops a key. Where no credential store is usable (Linux
-without a running secret-service; dev builds, which stay on the store file to
-dodge the recurring keychain prompts an unstable ad-hoc signature causes — set
-`VITE_CAPY_KEYCHAIN=1` to opt a dev build back into the keychain), persistence
-falls back to the store file. See `src-tauri/src/keychain.rs` and
+app bundle id.
+
+**The keychain is never touched at boot.** Hydrate reads the plaintext file
+only — provider, models, and per-provider `keyPresent` flags — so the first
+render pops no OS credential prompt. `keyPresent` is the boot-time truth (a key
+is configured), known without reading its value; UI gating (`isConfigured`,
+`importReady`) reads presence, so `apiKey` stays `""` until it's actually
+needed. The value loads **on demand** — the first time it's used (Capy opened
+with an API provider, an import run started, Settings rendering a key's last-4)
+— through a single keychain read that merges both provider secrets into the
+in-memory config and persists the resolved flags. Provider `claude-cli` or off
+never triggers a read, so those sessions touch the keychain zero times.
+
+The **first-ever** keychain read of an install is gated behind a one-time
+heads-up (a small dialog in Capy's visual language, "Allow" its only action),
+so the OS prompt lands in a context the user triggered; a persisted `gateSeen`
+flag suppresses it thereafter and later sessions load silently on demand.
+Dismissing it simply doesn't load yet — no cancel-path state.
+
+A config written before this split keeps keys inline; the first on-demand load
+migrates them into the keychain — keychain write first, so an interrupted run
+never drops a key — then strips the file. For a config written before
+`keyPresent` existed, presence at boot is inferred (an inline key, or the
+selected provider assumed likely to have one) and the first load resolves the
+truth. Where no credential store is usable (Linux without a running
+secret-service; dev builds, which stay on the store file to dodge the recurring
+keychain prompts an unstable ad-hoc signature causes — set `VITE_CAPY_KEYCHAIN=1`
+to opt a dev build back into the keychain), keys persist inline in the store
+file, with the same deferred-load surface. See `src-tauri/src/keychain.rs` and
 `stores/secret-config.ts`.
 
 Settings lives in the `/budget` Intelligence section. It renders a provider radio + per-provider config (API key where applicable, model picker, test-connection button). The radio order is **Off / Anthropic API / OpenAI API / Claude Code**; Claude Code carries an `advanced` badge and sits last as the source-build option — the Mac App Store build omits it entirely, since the App Sandbox forbids the subprocess spawning it relies on. First-run defaults to `null` — users must explicitly pick a provider so they're never surprised by quota usage. The radio's "Off" label maps to `null` at the form boundary. Claude Code is auto-detected via `claude --version` and disabled in the picker if not installed.

@@ -12,12 +12,11 @@ import { reconcileFolderAccess } from "@/lib/folder-access";
 import { useIntelligenceStore } from "@/stores/intelligence-store";
 
 export async function bootstrapApp(routeTree: AnyRoute) {
-  // Awaited: load persisted IntelligenceConfig (provider, API keys,
-  // models) before the first paint. On first run with Claude Code
-  // installed this auto-defaults provider to "claude-cli" so existing
-  // devs see no regression. Awaiting avoids a flash of the
-  // "Set up your AI assistant" empty state during the disk read; the
-  // read is local and fast (~ms) so the cost is invisible.
+  // Awaited: load the plaintext IntelligenceConfig (provider, models, and
+  // per-provider key-presence flags) before the first paint. This never reads
+  // the OS keychain — secrets load on demand later — so boot pops no credential
+  // prompt. Awaiting avoids a flash of the "Set up your AI assistant" empty
+  // state during the disk read; the read is local and fast (~ms).
   await useIntelligenceStore.getState().hydrate();
 
   // Fire-and-forget: prune bookmarks for folders no longer in recents. Cleans

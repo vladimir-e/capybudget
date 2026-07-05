@@ -40,10 +40,12 @@ export type {
 export {
   DEFAULT_INTELLIGENCE_CONFIG,
   PROVIDER_LABELS,
+  hasProviderKey,
 } from "./config"
 export type {
   IntelligenceConfig,
   IntelligenceProvider,
+  ProviderCredentials,
 } from "./config"
 
 // Session factory

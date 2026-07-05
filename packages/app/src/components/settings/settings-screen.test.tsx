@@ -119,8 +119,10 @@ beforeEach(() => {
   recheckMock.mockResolvedValue(true)
   // Default backend: explicit null — Phase 10.5b first-run default.
   _setStoreLoaderForTests(async () => ({
-    get: async () => ({ ...DEFAULT_INTELLIGENCE_CONFIG, provider: null }),
-    set: async () => {},
+    load: async () => ({ config: { ...DEFAULT_INTELLIGENCE_CONFIG, provider: null }, gateSeen: false }),
+    loadSecrets: async () => ({ anthropic: "", openai: "" }),
+    save: async () => {},
+    markGateSeen: async () => {},
   }))
 })
 

@@ -110,5 +110,10 @@
     "notConfigured": "Capy no está configurado. Abre los ajustes para elegir un proveedor de IA.",
     "sendFailed": "No se pudo enviar el mensaje",
     "interrupted": "Sesión interrumpida. Envía un mensaje para continuar."
+  },
+  "secretGate": {
+    "title": "Desbloquea tu clave de IA",
+    "description": "Capy va a buscar tu clave de IA guardada. Está guardada de forma segura en el llavero del sistema; puede que tu sistema operativo te pida permiso para acceder.",
+    "allow": "Permitir"
   }
 }

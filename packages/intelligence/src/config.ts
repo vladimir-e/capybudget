@@ -26,10 +26,23 @@ export const PROVIDER_LABELS: Record<Exclude<IntelligenceProvider, null>, string
   openai: "OpenAI API",
 }
 
+/**
+ * Per-provider credentials. `apiKey` is populated only after the on-demand
+ * secret load reads the OS keychain — at boot it's `""` even when a key exists.
+ * `keyPresent` is the boot-time truth: whether a key is configured, known
+ * without touching the keychain. UI gating reads presence; the actual value is
+ * fetched lazily. See specs/INTELLIGENCE.md "Settings".
+ */
+export interface ProviderCredentials {
+  apiKey: string
+  model: string
+  keyPresent?: boolean
+}
+
 export interface IntelligenceConfig {
   provider: IntelligenceProvider
-  anthropic: { apiKey: string; model: string }
-  openai: { apiKey: string; model: string }
+  anthropic: ProviderCredentials
+  openai: ProviderCredentials
   /** Empty model means "let the Claude Code CLI pick its default". */
   claudeCli: { model: string }
 }
@@ -40,7 +53,17 @@ export interface IntelligenceConfig {
  */
 export const DEFAULT_INTELLIGENCE_CONFIG: IntelligenceConfig = {
   provider: null,
-  anthropic: { apiKey: "", model: "claude-sonnet-5" },
-  openai: { apiKey: "", model: "gpt-5.5" },
+  anthropic: { apiKey: "", model: "claude-sonnet-5", keyPresent: false },
+  openai: { apiKey: "", model: "gpt-5.5", keyPresent: false },
   claudeCli: { model: "" },
+}
+
+/**
+ * Whether a provider has a key configured — the presence flag, or a
+ * loaded/inline key as the fallback when the flag is absent. Gating reads
+ * this so a key that hasn't been fetched from the keychain yet still counts
+ * as configured; the actual `apiKey` is only non-empty once loaded.
+ */
+export function hasProviderKey(creds: ProviderCredentials): boolean {
+  return creds.keyPresent === true || creds.apiKey !== ""
 }

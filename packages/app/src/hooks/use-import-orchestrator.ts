@@ -64,6 +64,7 @@ export function useImportOrchestrator(budgetPath: string) {
   const repo = useBudgetRepository();
   const currency = useCurrency();
   const config = useIntelligenceStore((s) => s.config);
+  const ensureSecrets = useIntelligenceStore((s) => s.ensureSecrets);
   const apply = useImportStore((s) => s.apply);
   const beginRun = useImportStore((s) => s.beginRun);
 
@@ -97,8 +98,11 @@ export function useImportOrchestrator(budgetPath: string) {
    *  the mapper without changing the engine's per-call signatures. */
   const buildOrchestrator = useCallback(
     (opts?: RunOptions): ImportOrchestrator | null => {
+      // Read the live config, not the render-time closure: `start`/`enrich`
+      // await `ensureSecrets` first, so the freshly-loaded API key is on the
+      // store by the time we build here.
       const session = createStructuredImportSession({
-        config,
+        config: useIntelligenceStore.getState().config,
         adapters: {
           anthropic: (o) => new AnthropicSession(o),
           openai: (o) => new OpenAiSession(o),
@@ -127,11 +131,12 @@ export function useImportOrchestrator(budgetPath: string) {
       });
       return orchestrator;
     },
-    [config, budgetPath, repo, staging, budget, apply, currency],
+    [budgetPath, repo, staging, budget, apply, currency],
   );
 
   const start = useCallback(
-    (opts?: RunOptions) => {
+    async (opts?: RunOptions) => {
+      await ensureSecrets();
       const orchestrator = buildOrchestrator(opts);
       if (!orchestrator) return false;
       activeOrchestrator = orchestrator;
@@ -141,11 +146,12 @@ export function useImportOrchestrator(budgetPath: string) {
       });
       return true;
     },
-    [buildOrchestrator, beginRun],
+    [buildOrchestrator, beginRun, ensureSecrets],
   );
 
   const enrich = useCallback(
-    (opts?: RunOptions) => {
+    async (opts?: RunOptions) => {
+      await ensureSecrets();
       const orchestrator = buildOrchestrator(opts);
       if (!orchestrator) return false;
       activeOrchestrator = orchestrator;
@@ -155,7 +161,7 @@ export function useImportOrchestrator(budgetPath: string) {
       });
       return true;
     },
-    [buildOrchestrator, beginRun],
+    [buildOrchestrator, beginRun, ensureSecrets],
   );
 
   /** Request a clean stop of the in-flight run and resolve once the in-flight

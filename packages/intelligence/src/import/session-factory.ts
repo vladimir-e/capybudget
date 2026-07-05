@@ -13,7 +13,7 @@
  * app-injected {@link AdapterConstructors} so the package stays platform-free.
  */
 
-import type { IntelligenceConfig } from "../config";
+import { hasProviderKey, type IntelligenceConfig } from "../config";
 import type { AdapterConstructors } from "../factory";
 import type { StructuredSession } from "../structured";
 import type { BudgetRepository, FileAdapter } from "@capybudget/persistence";
@@ -25,13 +25,14 @@ export function canImport(provider: IntelligenceConfig["provider"]): boolean {
 }
 
 /** Whether an import run can actually start: a provider {@link canImport} can
- *  run AND that provider's API key present. The single gate the Import UI and
- *  {@link createStructuredImportSession} share, so "Start" and the runtime
- *  session build never disagree. */
+ *  run AND that provider has a key configured. Presence-based, so this is true
+ *  before the key is fetched from the keychain — the UI gate reflects "a key is
+ *  set" without an eager keychain read. The runtime session build reads the
+ *  actual key (loaded on demand first) and guards separately on it. */
 export function importReady(config: IntelligenceConfig): boolean {
-  if (!canImport(config.provider)) return false;
-  const key = config.provider === "anthropic" ? config.anthropic.apiKey : config.openai.apiKey;
-  return !!key;
+  if (config.provider === "anthropic") return hasProviderKey(config.anthropic);
+  if (config.provider === "openai") return hasProviderKey(config.openai);
+  return false;
 }
 
 /** Whether a provider can read PDF/document attachments. Anthropic sends PDFs
@@ -72,6 +73,10 @@ export function createStructuredImportSession(
 
   const provider = config.provider;
   const providerConfig = provider === "anthropic" ? config.anthropic : config.openai;
+  // `importReady` gates on presence (known without a keychain read); the actual
+  // key must be loaded before a session can run. A present-but-unloaded key
+  // fails here rather than building a session that 401s on first call.
+  if (!providerConfig.apiKey) return null;
   const ctor = provider === "anthropic" ? adapters.anthropic : adapters.openai;
   if (!ctor) return null;
 
