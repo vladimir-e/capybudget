@@ -142,6 +142,24 @@ describe("import-store actions", () => {
     expect(s.rowsVersion).toBe(0);
   });
 
+  it("reset also drops the sidebar hasImportData flag (leaving a budget must not leak the dot)", () => {
+    useImportStore.setState({ hasImportData: true, rowsVersion: 4 });
+    useImportStore.getState().reset();
+    expect(useImportStore.getState().hasImportData).toBe(false);
+  });
+
+  it("reset leaves the staging generation intact (monotonic teardown guard)", () => {
+    useImportStore.setState({ stagingGeneration: 7 });
+    useImportStore.getState().reset();
+    expect(useImportStore.getState().stagingGeneration).toBe(7);
+  });
+
+  it("invalidateStaging bumps the generation so a captured write-back reads stale", () => {
+    const before = useImportStore.getState().stagingGeneration;
+    useImportStore.getState().invalidateStaging();
+    expect(useImportStore.getState().stagingGeneration).toBe(before + 1);
+  });
+
   it("setHasImportData toggles the sidebar flag", () => {
     useImportStore.getState().setHasImportData(true);
     expect(useImportStore.getState().hasImportData).toBe(true);

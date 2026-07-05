@@ -17,7 +17,9 @@
     "unsupportedType": "{{name}} is not a supported file type",
     "pdfNeedsCapableProvider": "{{name}} skipped — PDF import needs the Anthropic or OpenAI provider",
     "saveFailed": "Failed to save {{name}}",
-    "providerRequired": "Import needs Anthropic or OpenAI configured."
+    "providerRequired": "Import needs Anthropic or OpenAI configured.",
+    "clearFailed": "Couldn't clear the import staging — try again.",
+    "removeFileFailed": "Couldn't remove {{name}}"
   },
   "dropZone": {
     "browseLabel": "Browse for files to import",

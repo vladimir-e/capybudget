@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/dialog";
 import { useImportMerge } from "@/hooks/use-import-merge";
 import { useImportData } from "@/hooks/use-import-data";
+import { useImportStore } from "@/stores/import-store";
 import { useTransactions } from "@/hooks/use-budget-data";
 import { summarizeMerge, resolveAccountId } from "@capybudget/core";
 import type { StagingStore } from "@capybudget/intelligence";
@@ -45,6 +46,12 @@ interface ImportPreviewProps {
    *  the progress section's Enrich control (the preview owns the data, the
    *  control renders above it). Called with null on unmount. */
   onEnrichControl: (control: { count: number; run: () => void } | null) => void;
+  /** Registers the preview's write-back discard with the screen so Cancel can
+   *  drop a pending debounced write before it clears staging — that timer is the
+   *  only writer that could fire during the clear's awaits and, with the generation
+   *  still live until the clear succeeds, resurrect staging. Registered on mount,
+   *  cleared (null) on unmount. */
+  onRegisterDiscard: (discard: (() => void) | null) => void;
   onMergeComplete: () => void;
 }
 
@@ -56,6 +63,7 @@ export function ImportPreview({
   onStopRun,
   onEnrich,
   onEnrichControl,
+  onRegisterDiscard,
   onMergeComplete,
 }: ImportPreviewProps) {
   const { t } = useTranslation(["import", "common"]);
@@ -76,6 +84,7 @@ export function ImportPreview({
     handleUpdate,
     handleAccountMappingChange,
     flushWriteBack,
+    discard,
     sourceAccounts,
     duplicateIds,
     possibleDuplicateCount,
@@ -97,6 +106,13 @@ export function ImportPreview({
     onEnrichControl({ count: incompleteCount, run: () => void handleEnrich() });
     return () => onEnrichControl(null);
   }, [incompleteCount, handleEnrich, onEnrichControl]);
+
+  // Register the write-back discard with the screen: Cancel lives on the screen
+  // (outside this subtree), so it reaches the pending debounce timer through here.
+  useEffect(() => {
+    onRegisterDiscard(discard);
+    return () => onRegisterDiscard(null);
+  }, [discard, onRegisterDiscard]);
 
   // ── Filtering / sorting ────────────────────────────────────────
   const filtered = useMemo(
@@ -173,6 +189,7 @@ export function ImportPreview({
   const [showMappingDialog, setShowMappingDialog] = useState(false);
   const [merging, setMerging] = useState(false);
   const { merge } = useImportMerge(budgetPath);
+  const invalidateStaging = useImportStore((s) => s.invalidateStaging);
 
   // Only the source accounts with at least one selected row — the gate must
   // reflect what actually merges (prepareMerge processes selectedIds), not every
@@ -210,12 +227,31 @@ export function ImportPreview({
     setShowMergeDialog(false);
     setMerging(true);
     try {
-      // Stop + detach any in-flight run before merge clears staging — otherwise
-      // a late Categorizing batch writes transactions.csv after the clear and
-      // resurrects the import (or lets it merge twice).
+      // Tear the run's writers down before the merge clears the directory: stop +
+      // detach any in-flight run and drop the pending debounced write-back so no
+      // late flush rewrites transactions.csv over the clear. The in-memory
+      // `transactions` still carry the edits into merge. The generation is bumped
+      // only *after* a successful merge below — a merge that throws before its
+      // ledger write commits must leave the mounted preview's captured generation
+      // live so hand-edits keep persisting.
       await onStopRun();
-      await flushWriteBack();
+      discard();
       const result = await merge({ transactions, selectedIds, accountMapping });
+      if (!result.stagingCleared) {
+        // The ledger write committed but the post-merge clear failed, leaving
+        // transactions.csv (still duplicate=false) behind. Stamp it merged so the
+        // next mount's checkStaging retries the clear instead of resuming it as a
+        // fresh import — a second Merge would double the rows. Mark *before*
+        // invalidating: a write-back gated after the invalidate can't rewrite an
+        // unmarked file over the marker.
+        try {
+          await staging.writeState({ phase: "done", updatedAt: new Date().toISOString(), merged: true });
+        } catch (err) {
+          console.error("[import] mark merged staging failed:", err);
+        }
+        toast.error(t("errors.clearFailed"));
+      }
+      invalidateStaging();
       toast.success(
         result.accountsCreated > 0
           ? t("preview.mergeSuccessWithAccounts", {
@@ -234,7 +270,7 @@ export function ImportPreview({
     } finally {
       setMerging(false);
     }
-  }, [merge, transactions, selectedIds, accountMapping, onMergeComplete, flushWriteBack, onStopRun, t]);
+  }, [merge, transactions, selectedIds, accountMapping, onMergeComplete, discard, invalidateStaging, onStopRun, staging, t]);
 
   if (loading && transactions.length === 0) {
     return (

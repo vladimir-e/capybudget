@@ -22,6 +22,7 @@ vi.mock("@/hooks/use-import-repository", () => ({
 }));
 
 import { useImportData } from "./use-import-data";
+import { useImportStore } from "@/stores/import-store";
 
 function makeTxn(overrides: Partial<ImportTransaction>): ImportTransaction {
   return {
@@ -156,6 +157,69 @@ describe("useImportData — selection across reloads", () => {
     rerender({ version: 1 });
     await waitFor(() => expect(result.current.transactions).toHaveLength(2));
     expect(result.current.selectedIds).toEqual(new Set(["imp-1"]));
+  });
+});
+
+describe("useImportData — write-back teardown guard", () => {
+  beforeEach(() => {
+    hookState.accounts = { data: [{ id: "acc-1", name: "Checking" }] };
+    hookState.categories = { data: [{ id: "cat-1" }], isSuccess: true };
+  });
+
+  /** Staging double whose writeTransactions is a spy — a resurrecting write is
+   *  exactly the call we must not see after the staging generation is bumped. */
+  function makeSpyStaging(initial: ImportTransaction[]) {
+    const writeTransactions = vi.fn<(rows: ImportTransaction[]) => Promise<void>>(async () => {});
+    const staging = {
+      readTransactions: async () => ({ rows: initial.map((r) => ({ ...r })), dropped: [], fixed: [] }),
+      writeTransactions,
+      readTransferContext: async () => ({}),
+    } as unknown as StagingStore;
+    return { staging, writeTransactions };
+  }
+
+  it("flushes a pending edit to staging while the generation is live", async () => {
+    const { staging, writeTransactions } = makeSpyStaging([makeTxn({ id: "imp-1" })]);
+    const { result } = renderHook(() => useImportData("/b", staging, 0));
+    await waitFor(() => expect(result.current.transactions).toHaveLength(1));
+
+    act(() => result.current.handleUpdate("imp-1", { merchant: "Edited" }));
+    await act(async () => {
+      await result.current.flushWriteBack();
+    });
+
+    expect(writeTransactions).toHaveBeenCalledTimes(1);
+    expect(writeTransactions.mock.calls[0][0][0]).toMatchObject({ id: "imp-1", merchant: "Edited" });
+  });
+
+  it("no-ops a flush once staging is invalidated (the Cancel/Merge teardown)", async () => {
+    const { staging, writeTransactions } = makeSpyStaging([makeTxn({ id: "imp-1" })]);
+    const { result } = renderHook(() => useImportData("/b", staging, 0));
+    await waitFor(() => expect(result.current.transactions).toHaveLength(1));
+
+    act(() => result.current.handleUpdate("imp-1", { merchant: "Edited" }));
+    // Cancel/Merge bump the generation before clearing; the write-back captured
+    // the old one at mount, so its flush must not rewrite (and re-mkdir) staging.
+    act(() => useImportStore.getState().invalidateStaging());
+    await act(async () => {
+      await result.current.flushWriteBack();
+    });
+
+    expect(writeTransactions).not.toHaveBeenCalled();
+  });
+
+  it("discard() drops the pending write without touching staging", async () => {
+    const { staging, writeTransactions } = makeSpyStaging([makeTxn({ id: "imp-1" })]);
+    const { result } = renderHook(() => useImportData("/b", staging, 0));
+    await waitFor(() => expect(result.current.transactions).toHaveLength(1));
+
+    act(() => result.current.handleUpdate("imp-1", { merchant: "Edited" }));
+    act(() => result.current.discard());
+    await act(async () => {
+      await result.current.flushWriteBack();
+    });
+
+    expect(writeTransactions).not.toHaveBeenCalled();
   });
 });
 

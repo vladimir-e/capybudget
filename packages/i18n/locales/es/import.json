@@ -17,7 +17,9 @@
     "unsupportedType": "{{name}} no es un tipo de archivo compatible",
     "pdfNeedsCapableProvider": "{{name}} omitido — la importación de PDF necesita el proveedor Anthropic u OpenAI",
     "saveFailed": "No se pudo guardar {{name}}",
-    "providerRequired": "La importación necesita Anthropic u OpenAI configurado."
+    "providerRequired": "La importación necesita Anthropic u OpenAI configurado.",
+    "clearFailed": "No se pudo limpiar la preparación de importación — inténtalo de nuevo.",
+    "removeFileFailed": "No se pudo eliminar {{name}}"
   },
   "dropZone": {
     "browseLabel": "Buscar archivos para importar",

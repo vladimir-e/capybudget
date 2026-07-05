@@ -54,6 +54,13 @@ export interface ImportState {
    * distinguishable by which artifacts exist, not a separate flag the UI tracks.
    */
   source?: "chat";
+  /**
+   * Set when a merge committed its ledger write but the post-merge clear of
+   * `.capy/import/` failed. The surviving staging is debris, not a resumable
+   * import: the Import screen's mount check retries the clear and never shows it,
+   * so a second Merge can't double the already-merged rows.
+   */
+  merged?: boolean;
 }
 
 /**
@@ -247,8 +254,15 @@ export class FileStagingStore implements StagingStore {
   async clear(): Promise<void> {
     const dir = await this.dir();
     for (const name of ["transactions.csv", "context.json", "transfer-context.json", "state.json"]) {
-      const p = await this.fileAdapter.join(dir, name);
-      if (await this.fileAdapter.exists(p)) await this.fileAdapter.remove(p);
+      // The `.tmp` sibling is `writeAtomic`'s staging file; a crash between its
+      // write and the rename leaves it behind, so a targeted clear must sweep it
+      // too or an orphaned half-write outlives the artifact it was replacing.
+      for (const p of [
+        await this.fileAdapter.join(dir, name),
+        await this.fileAdapter.join(dir, `${name}.tmp`),
+      ]) {
+        if (await this.fileAdapter.exists(p)) await this.fileAdapter.remove(p);
+      }
     }
     const sourcesDir = await this.fileAdapter.join(dir, "sources");
     if (await this.fileAdapter.exists(sourcesDir)) {

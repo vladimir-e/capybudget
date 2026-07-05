@@ -25,6 +25,17 @@ import { tauriFileAdapter } from "../../../../src/adapters/tauri-file-adapter";
  */
 let activeOrchestrator: ImportOrchestrator | null = null;
 
+/** Detach and stop whatever run owns the module slot. Called when the active
+ *  budget changes: the run belongs to the budget being left, so we drop the
+ *  reference (its trailing events are ignored by the identity guard) and ask it
+ *  to stop. Its final batch still flushes to *that* budget's staging, which is
+ *  correct — resume there picks it up. No-op when idle. */
+export function stopActiveOrchestrator(): void {
+  const orchestrator = activeOrchestrator;
+  activeOrchestrator = null;
+  void orchestrator?.stop();
+}
+
 /** Per-run hints from the file-attach screen, folded into the session prompt. */
 export interface RunOptions {
   /** Name of the account the user picked as the default source account. */

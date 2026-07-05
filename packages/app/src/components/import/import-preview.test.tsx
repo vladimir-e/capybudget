@@ -50,6 +50,7 @@ vi.mock("@/hooks/use-import-data", () => ({ useImportData: () => dataReturn }));
 vi.mock("@/hooks/use-budget-data", () => ({ useTransactions: () => ({ data: [] }) }));
 
 import { ImportPreview } from "./import-preview";
+import { useImportStore } from "@/stores/import-store";
 import type { Account } from "@capybudget/core";
 
 function makeBudgetAccount(overrides: Partial<Account> & { id: string }): Account {
@@ -97,6 +98,7 @@ beforeEach(() => {
     handleUpdate: vi.fn(),
     handleAccountMappingChange: vi.fn(),
     flushWriteBack,
+    discard: vi.fn(),
     sourceAccounts: [],
     duplicateIds: new Set<string>(),
     possibleDuplicateCount: 0,
@@ -118,6 +120,7 @@ function renderPreview(props: Partial<Parameters<typeof ImportPreview>[0]> = {})
       onStopRun={vi.fn(async () => {})}
       onEnrich={vi.fn()}
       onEnrichControl={vi.fn()}
+      onRegisterDiscard={vi.fn()}
       onMergeComplete={vi.fn()}
       {...props}
     />,
@@ -360,7 +363,7 @@ describe("ImportPreview — merge gating", () => {
     });
     merge.mockImplementation(async () => {
       order.push("merge");
-      return { transactionCount: 1, accountsCreated: 0 };
+      return { transactionCount: 1, accountsCreated: 0, stagingCleared: true };
     });
     const onMergeComplete = vi.fn();
 
@@ -376,5 +379,79 @@ describe("ImportPreview — merge gating", () => {
     // The run is torn down before the merge writes the budget + clears staging.
     expect(order).toEqual(["stop", "merge"]);
     expect(onMergeComplete).toHaveBeenCalledTimes(1);
+  });
+
+  it("discards the pending write-back before merge and invalidates only after it succeeds", async () => {
+    const order: string[] = [];
+    const discard = vi.fn(() => order.push("discard"));
+    Object.assign(dataReturn, { discard });
+    const genBefore = useImportStore.getState().stagingGeneration;
+    merge.mockImplementation(async () => {
+      order.push("merge");
+      return { transactionCount: 1, accountsCreated: 0, stagingCleared: true };
+    });
+
+    renderPreview();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "Merge" }));
+    const dialog = await screen.findByRole("dialog");
+    await user.click(within(dialog).getByRole("button", { name: "Merge" }));
+
+    await waitFor(() => expect(merge).toHaveBeenCalledTimes(1));
+    expect(discard).toHaveBeenCalledTimes(1);
+    // discard drops the pending timer before the merge; the generation is bumped
+    // only after a successful teardown — a merge that threw would leave it live.
+    expect(order).toEqual(["discard", "merge"]);
+    expect(useImportStore.getState().stagingGeneration).toBe(genBefore + 1);
+  });
+
+  it("leaves the generation live and doesn't complete when the merge throws", async () => {
+    const onMergeComplete = vi.fn();
+    const genBefore = useImportStore.getState().stagingGeneration;
+    merge.mockImplementation(async () => {
+      throw new Error("save failed");
+    });
+
+    renderPreview({ onMergeComplete });
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "Merge" }));
+    const dialog = await screen.findByRole("dialog");
+    await user.click(within(dialog).getByRole("button", { name: "Merge" }));
+
+    await waitFor(() => expect(merge).toHaveBeenCalledTimes(1));
+    // A merge that threw before committing must leave the generation untouched —
+    // the still-mounted preview's captured generation keeps persisting edits — and
+    // must not report completion.
+    expect(useImportStore.getState().stagingGeneration).toBe(genBefore);
+    expect(onMergeComplete).not.toHaveBeenCalled();
+  });
+
+  it("stamps staging merged and still completes when the post-merge clear fails", async () => {
+    const order: string[] = [];
+    const writeState = vi.fn(async () => {
+      order.push("mark");
+    });
+    const onMergeComplete = vi.fn(() => order.push("complete"));
+    const genBefore = useImportStore.getState().stagingGeneration;
+    merge.mockImplementation(async () => ({
+      transactionCount: 1,
+      accountsCreated: 0,
+      stagingCleared: false,
+    }));
+
+    renderPreview({ staging: { writeState } as unknown as StagingStore, onMergeComplete });
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "Merge" }));
+    const dialog = await screen.findByRole("dialog");
+    await user.click(within(dialog).getByRole("button", { name: "Merge" }));
+
+    await waitFor(() => expect(merge).toHaveBeenCalledTimes(1));
+    // The surviving staging is stamped merged so the next mount clears it instead
+    // of resuming a double merge, the generation is still invalidated (marker
+    // first), and the merge — which committed — still completes.
+    expect(writeState).toHaveBeenCalledWith(expect.objectContaining({ merged: true }));
+    expect(useImportStore.getState().stagingGeneration).toBe(genBefore + 1);
+    expect(onMergeComplete).toHaveBeenCalledTimes(1);
+    expect(order).toEqual(["mark", "complete"]);
   });
 });

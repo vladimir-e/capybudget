@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAccounts, useCategories } from "@/hooks/use-budget-data";
 import { useImportRepository } from "@/hooks/use-import-repository";
+import { useImportStore } from "@/stores/import-store";
 import { matchAccountsByName } from "@capybudget/core";
 import { needsEnrich, needsTransferEnrich, type StagingStore } from "@capybudget/intelligence";
 import type { ImportTransaction, ImportAliases } from "@capybudget/core";
@@ -40,7 +41,14 @@ export function useImportData(budgetPath: string, staging: StagingStore, rowsVer
   const transactionsRef = useRef(transactions);
   useEffect(() => { transactionsRef.current = transactions; }, [transactions]);
 
+  // Captured once at mount. `writeTransactions` re-creates `.capy/import/` on
+  // every write, so a debounced or unmount flush that fires after Cancel/Merge
+  // cleared staging would resurrect it. Cancel/Merge bump the store's
+  // `stagingGeneration` before clearing; a stale capture here gates the write off.
+  const stagingGenRef = useRef(useImportStore.getState().stagingGeneration);
+
   const writeBack = useCallback(async () => {
+    if (useImportStore.getState().stagingGeneration !== stagingGenRef.current) return;
     try {
       await staging.writeTransactions(transactionsRef.current);
     } catch (err) {
@@ -60,6 +68,16 @@ export function useImportData(budgetPath: string, staging: StagingStore, rowsVer
       await writeBack();
     }
   }, [writeBack]);
+
+  /** Drop any pending write-back without flushing it — the caller is about to
+   *  clear staging, so persisting the in-memory rows would fight the delete.
+   *  The in-memory `transactions` still carry the user's edits into a merge. */
+  const discard = useCallback(() => {
+    if (writeTimerRef.current) {
+      clearTimeout(writeTimerRef.current);
+      writeTimerRef.current = null;
+    }
+  }, []);
 
   useEffect(() => () => { void flushWriteBack(); }, [flushWriteBack]);
 
@@ -256,6 +274,7 @@ export function useImportData(budgetPath: string, staging: StagingStore, rowsVer
     handleUpdate,
     handleAccountMappingChange,
     flushWriteBack,
+    discard,
     sourceAccounts,
     duplicateIds,
     possibleDuplicateCount,

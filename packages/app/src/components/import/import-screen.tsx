@@ -67,6 +67,7 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
   const rowsVersion = useImportStore((s) => s.rowsVersion);
   const reset = useImportStore((s) => s.reset);
   const setHasImportData = useImportStore((s) => s.setHasImportData);
+  const invalidateStaging = useImportStore((s) => s.invalidateStaging);
 
   // ── Local UI state ────────────────────────────────────────────
   const [diskChecked, setDiskChecked] = useState(false);
@@ -84,6 +85,14 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
   const [enrichControl, setEnrichControl] = useState<{ count: number; run: () => void } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dragCounterRef = useRef(0);
+  // The preview registers its write-back discard here so Cancel can drop a pending
+  // debounced write before clearing staging — the one writer that could otherwise
+  // fire during the clear's awaits and resurrect it. Set on the preview's mount,
+  // null on its unmount.
+  const discardWriteBackRef = useRef<(() => void) | null>(null);
+  const registerDiscard = useCallback((discard: (() => void) | null) => {
+    discardWriteBackRef.current = discard;
+  }, []);
 
   const customInstructions = useImportInstructions(budgetPath);
   const [localInstructions, setLocalInstructions] = useState<string | null>(null);
@@ -116,52 +125,83 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
   // This runs on mount and again each time Capy stages a chat import (the user may
   // already be on this tab, where navigation alone wouldn't remount the screen).
   const mountedRef = useRef(true);
-  const checkStaging = useCallback(async (): Promise<void> => {
-    try {
-      const [staged, transferCtx] = await Promise.all([
-        staging.readTransactions(),
-        staging.readTransferContext().then((c) => c ?? {}),
-      ]);
-      if (!mountedRef.current) return;
-      if (staged) {
-        setHasStaging(true);
-        setHasImportData(true);
-        setResumeBatch(resumeMeter(staged.rows, new Set(Object.keys(transferCtx))));
-        setDiskChecked(true);
-        return;
-      }
-      const state = await staging.readState();
-      if (!mountedRef.current) return;
-      // A run already in flight owns the staging — don't re-fire over it. The
-      // store's `running` flag survives navigation, so it's the authority here.
-      const runInFlight = useImportStore.getState().running;
-      if (state?.source === "chat" && !runInFlight) {
-        setHasImportData(true);
-        setDiskChecked(true);
-        // Drop the chat marker before the run progresses, so a re-check in the
-        // pre-History window doesn't spawn a second orchestrator over the same
-        // sources. The orchestrator overwrites state.json as it advances anyway.
-        await staging.writeState({ ...state, source: undefined });
+  // Checks run one at a time: a chat-import signal arriving mid-check would
+  // otherwise race the mount check, both read `state.source === "chat"`, and both
+  // fire `start()`. Chained, the second run sees the first's cleared chat marker
+  // (or the now-running flag) and stands down.
+  const checkChainRef = useRef<Promise<void>>(Promise.resolve());
+  const checkStaging = useCallback((): Promise<void> => {
+    const run = checkChainRef.current.then(async () => {
+      try {
+        const [staged, transferCtx, state] = await Promise.all([
+          staging.readTransactions(),
+          staging.readTransferContext().then((c) => c ?? {}),
+          staging.readState(),
+        ]);
         if (!mountedRef.current) return;
-        // `start()` runs the plain staged sources — the chat on-ramp carries no
-        // per-run account/instruction hints (those are file-attach controls).
-        if (!(await start())) toast.error(t("errors.providerRequired"));
-        return;
+        // Merged-but-not-cleared debris: a prior merge committed the ledger write
+        // but its post-merge clear failed, leaving transactions.csv (still
+        // duplicate=false) on disk. It must never resume/show — a second Merge
+        // would double the rows. Retry the clear (self-heals on this mount/launch)
+        // and land on file-attach whether or not the retry succeeds.
+        if (state?.merged) {
+          try {
+            await repository.clearImportData();
+          } catch (err) {
+            console.error("[import] merged-staging cleanup retry failed:", err);
+            toast.error(t("errors.clearFailed"));
+          }
+          if (!mountedRef.current) return;
+          setHasStaging(false);
+          setHasImportData(false);
+          setDiskChecked(true);
+          return;
+        }
+        if (staged) {
+          setHasStaging(true);
+          setHasImportData(true);
+          setResumeBatch(resumeMeter(staged.rows, new Set(Object.keys(transferCtx))));
+          setDiskChecked(true);
+          return;
+        }
+        // A run already in flight owns the staging — don't re-fire over it. The
+        // store's `running` flag survives navigation, so it's the authority here.
+        const runInFlight = useImportStore.getState().running;
+        if (state?.source === "chat" && !runInFlight) {
+          setHasImportData(true);
+          setDiskChecked(true);
+          // Drop the chat marker before the run progresses, so a re-check in the
+          // pre-History window doesn't spawn a second orchestrator over the same
+          // sources. The orchestrator overwrites state.json as it advances anyway.
+          await staging.writeState({ ...state, source: undefined });
+          if (!mountedRef.current) return;
+          // `start()` runs the plain staged sources — the chat on-ramp carries no
+          // per-run account/instruction hints (those are file-attach controls).
+          if (!(await start())) toast.error(t("errors.providerRequired"));
+          return;
+        }
+        await refreshSourceFiles();
+        if (!mountedRef.current) return;
+        // Clear hasStaging too: a stale global rowsVersion may have flipped it on
+        // this mount (see the rows-changed effect), and disk is the authority —
+        // no staging here means file-attach, not a spurious preview.
+        setHasStaging(false);
+        setHasImportData(false);
+        setDiskChecked(true);
+      } catch (err) {
+        // Staging reads can be denied (e.g. MAS sandbox before the folder grant).
+        // `diskChecked` gates the whole screen — always settle it, or the user is
+        // stranded on the spinner.
+        console.error("[import] staging check failed:", err);
+        if (!mountedRef.current) return;
+        setHasStaging(false);
+        setHasImportData(false);
+        setDiskChecked(true);
       }
-      await refreshSourceFiles();
-      if (!mountedRef.current) return;
-      setHasImportData(false);
-      setDiskChecked(true);
-    } catch (err) {
-      // Staging reads can be denied (e.g. MAS sandbox before the folder grant).
-      // `diskChecked` gates the whole screen — always settle it, or the user is
-      // stranded on the spinner.
-      console.error("[import] staging check failed:", err);
-      if (!mountedRef.current) return;
-      setHasImportData(false);
-      setDiskChecked(true);
-    }
-  }, [staging, start, refreshSourceFiles, setHasImportData, t]);
+    });
+    checkChainRef.current = run.catch(() => {});
+    return run;
+  }, [staging, start, refreshSourceFiles, setHasImportData, repository, t]);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -180,9 +220,19 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
   }, [chatImportSignal, checkStaging]);
 
   // A run's first staging write (after History) flips us into preview; mirror
-  // the orchestrator's progress into the sidebar "has data" dot.
+  // the orchestrator's progress into the sidebar "has data" dot. Keyed off a
+  // baseline, not `> 0`: rowsVersion is a global counter, so a value left over
+  // from another budget's run must not force a spurious preview here — only a
+  // bump beyond the baseline means a batch landed for *this* screen. The baseline
+  // re-bases when a run begins, because `beginRun("start")` zeroes rowsVersion; a
+  // non-zero mount baseline would otherwise gate a fresh run's batches (1, 2, …)
+  // off forever and the preview would never render.
+  const baselineRowsVersionRef = useRef(rowsVersion);
   useEffect(() => {
-    if (rowsVersion > 0) {
+    if (running) baselineRowsVersionRef.current = useImportStore.getState().rowsVersion;
+  }, [running]);
+  useEffect(() => {
+    if (rowsVersion > baselineRowsVersionRef.current) {
       setHasStaging(true);
       setHasImportData(true);
     }
@@ -208,10 +258,9 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
     if (error.recoverable || !hasStaging) {
       reset();
       setHasStaging(false);
-      setHasImportData(false);
       void refreshSourceFiles();
     }
-  }, [error, hasStaging, reset, refreshSourceFiles, setHasImportData]);
+  }, [error, hasStaging, reset, refreshSourceFiles]);
 
   // ── Derived view state ────────────────────────────────────────
   let viewState: ImportViewState;
@@ -314,7 +363,13 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
 
   const removeFile = useCallback(
     async (filename: string) => {
-      await repository.removeSourceFile(filename);
+      try {
+        await repository.removeSourceFile(filename);
+      } catch (err) {
+        console.error("[import] remove source file failed:", err);
+        toast.error(t("errors.removeFileFailed", { name: filename }));
+        return;
+      }
       setFileDuplicates((prev) => {
         const next = { ...prev };
         delete next[filename];
@@ -322,7 +377,7 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
       });
       await refreshSourceFiles();
     },
-    [repository, refreshSourceFiles],
+    [repository, refreshSourceFiles, t],
   );
 
   // ── Actions ───────────────────────────────────────────────────
@@ -356,28 +411,38 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
   }, [enrich, customInstructions.instructions, t]);
 
   const handleCancel = useCallback(async () => {
-    // Cancel discards. Await the in-flight batch first — otherwise an
-    // already-dispatched Categorizing batch lands after `clearImportData`,
-    // re-creating staging and re-flipping the view into preview. `cancel()`
-    // detaches the orchestrator (so its trailing events are dropped) and
-    // resolves once nothing is in flight; only then is it safe to clear.
+    // Cancel discards. Detach + await the in-flight run first (so no batch writes
+    // land after the clear), then drop the preview's pending debounced write-back:
+    // that timer is the only writer that could still fire during the clear's awaits
+    // and, since the generation isn't bumped until the clear succeeds, pass the live
+    // gate and resurrect staging. Only once the directory is verifiably gone do we
+    // bump the staging generation (neutralizing any future write-back) and flip back
+    // to file-attach. If the clear fails we surface it and stay put, leaving the
+    // generation untouched — discard only dropped the pending timer, so a later
+    // hand-edit re-arms the debounce and the preview keeps persisting.
     await cancel();
-    await repository.clearImportData();
+    discardWriteBackRef.current?.();
+    try {
+      await repository.clearImportData();
+    } catch (err) {
+      console.error("[import] cancel clear failed:", err);
+      toast.error(t("errors.clearFailed"));
+      return;
+    }
+    invalidateStaging();
     reset();
     setFileDuplicates({});
     setSourceFiles([]);
     setHasStaging(false);
     setResumeBatch(null);
-    setHasImportData(false);
-  }, [cancel, reset, repository, setHasImportData]);
+  }, [cancel, reset, repository, invalidateStaging, t]);
 
   const handleMergeComplete = useCallback(() => {
     reset();
     setHasStaging(false);
     setResumeBatch(null);
-    setHasImportData(false);
     setSourceFiles([]);
-  }, [reset, setHasImportData]);
+  }, [reset]);
 
   // ── Render ────────────────────────────────────────────────────
   // AI config never gates file-attach; the gate is the CTA at the run boundary
@@ -497,6 +562,7 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
                   onStopRun={cancel}
                   onEnrich={handleEnrich}
                   onEnrichControl={setEnrichControl}
+                  onRegisterDiscard={registerDiscard}
                   onMergeComplete={handleMergeComplete}
                 />
               )}

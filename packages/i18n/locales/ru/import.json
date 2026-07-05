@@ -17,7 +17,9 @@
     "unsupportedType": "{{name}} — неподдерживаемый тип файла",
     "pdfNeedsCapableProvider": "{{name}} пропущен — для импорта PDF нужен провайдер Anthropic или OpenAI",
     "saveFailed": "Не удалось сохранить {{name}}",
-    "providerRequired": "Для импорта нужно настроить Anthropic или OpenAI."
+    "providerRequired": "Для импорта нужно настроить Anthropic или OpenAI.",
+    "clearFailed": "Не удалось очистить данные импорта — попробуйте ещё раз.",
+    "removeFileFailed": "Не удалось удалить {{name}}"
   },
   "dropZone": {
     "browseLabel": "Выбрать файлы для импорта",
