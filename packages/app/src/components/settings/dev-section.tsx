@@ -2,7 +2,7 @@
 import { Fragment, useEffect, useState } from "react"
 import { useSearch } from "@tanstack/react-router"
 import { getTauriVersion, getVersion } from "@tauri-apps/api/app"
-import { Bug, Copy, KeyRound, RotateCcw } from "lucide-react"
+import { Bug, Copy, RotateCcw } from "lucide-react"
 import { useTheme } from "next-themes"
 import { useFormatLocale } from "@capybudget/i18n"
 import { PROVIDER_LABELS } from "@capybudget/intelligence"
@@ -23,7 +23,6 @@ const IN_TAURI = "__TAURI_INTERNALS__" in window
 export function DevSection() {
   const { path, name } = useSearch({ from: "/budget" })
   const config = useIntelligenceStore((s) => s.config)
-  const previewSecretGate = useIntelligenceStore((s) => s.previewSecretGate)
   const resetSecretGate = useIntelligenceStore((s) => s.resetSecretGate)
   const language = useFormatLocale()
   const { theme, resolvedTheme } = useTheme()
@@ -129,20 +128,10 @@ export function DevSection() {
             <Bug className="h-4 w-4" />
             Trigger error screen
           </Button>
-        </div>
-
-        <div className="space-y-2">
-          <p className="text-sm text-muted-foreground">Keychain heads-up</p>
-          <div className="flex flex-wrap items-center gap-2">
-            <Button variant="outline" size="sm" onClick={() => void previewSecretGate()}>
-              <KeyRound className="h-4 w-4" />
-              Trigger heads-up
-            </Button>
-            <Button variant="outline" size="sm" onClick={handleResetGate}>
-              <RotateCcw className="h-4 w-4" />
-              {gateReset ? "Reset" : "Reset seen flag"}
-            </Button>
-          </div>
+          <Button variant="outline" size="sm" onClick={handleResetGate}>
+            <RotateCcw className="h-4 w-4" />
+            {gateReset ? "Reset" : "Reset keychain heads-up"}
+          </Button>
         </div>
       </CardContent>
     </Card>

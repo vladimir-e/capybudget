@@ -59,16 +59,14 @@ describe("DevSection", () => {
     errorSpy.mockRestore()
   })
 
-  it("triggers the keychain heads-up", async () => {
+  it("resets the keychain heads-up seen flag", async () => {
     const user = userEvent.setup()
-    // The dialog is mounted at the /budget layout, so it renders over Settings —
-    // the trigger just opens the gate, no navigation needed.
-    const previewSpy = vi.fn()
-    useIntelligenceStore.setState({ previewSecretGate: previewSpy })
+    const resetSpy = vi.fn()
+    useIntelligenceStore.setState({ resetSecretGate: resetSpy })
 
     render(<DevSection />)
-    await user.click(screen.getByRole("button", { name: /trigger heads-up/i }))
+    await user.click(screen.getByRole("button", { name: /reset keychain heads-up/i }))
 
-    expect(previewSpy).toHaveBeenCalledTimes(1)
+    expect(resetSpy).toHaveBeenCalledTimes(1)
   })
 })

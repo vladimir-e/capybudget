@@ -104,9 +104,7 @@ function BudgetLayout() {
       <CurrencyProvider budgetPath={path}>
         <CapySessionProvider key={path} options={sessionOptions}>
           <Outlet />
-          {/* Mounted at the layout, not in BudgetShell, so the keychain heads-up
-              renders over every child route — including /budget/settings, where
-              opening the gate would otherwise await a dialog that never shows. */}
+          {/* At the layout, so it renders over every child route including settings. */}
           <SecretAccessDialog />
         </CapySessionProvider>
       </CurrencyProvider>
