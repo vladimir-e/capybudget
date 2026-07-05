@@ -1,20 +1,33 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { useEffect } from "react";
 import { act, render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { makeImportTransaction } from "@capybudget/core/test-factories";
 
 // checkStaging's routing is what this file exercises — the drop zone, progress
-// bar, and preview subtrees are stubbed down to markers.
+// bar, and preview subtrees are stubbed down to markers. The preview stub mirrors
+// the real one's discard registration, so the cancel-teardown tests can observe it.
 vi.mock("./import-drop-zone", () => ({
   ImportDropZone: () => <div data-testid="drop-zone" />,
 }));
 vi.mock("./import-progress", () => ({ ImportProgress: () => <div data-testid="progress" /> }));
-vi.mock("./import-preview", () => ({ ImportPreview: () => <div data-testid="preview" /> }));
+vi.mock("./import-preview", () => ({
+  ImportPreview: ({ onRegisterDiscard }: { onRegisterDiscard: (d: (() => void) | null) => void }) => {
+    useEffect(() => {
+      onRegisterDiscard(mocks.discard);
+      return () => onRegisterDiscard(null);
+    }, [onRegisterDiscard]);
+    return <div data-testid="preview" />;
+  },
+}));
 
 const { mocks } = vi.hoisted(() => ({
   mocks: {
     canStart: true,
     provider: "anthropic" as string | null,
     start: vi.fn(),
+    discard: vi.fn(),
+    clearImportData: vi.fn(),
     staging: {
       readTransactions: vi.fn(),
       readTransferContext: vi.fn(),
@@ -39,7 +52,10 @@ vi.mock("@/hooks/use-import-orchestrator", () => ({
   }),
 }));
 vi.mock("@/hooks/use-import-repository", () => ({
-  useImportRepository: () => ({ listSourceFiles: mocks.listSourceFiles }),
+  useImportRepository: () => ({
+    listSourceFiles: mocks.listSourceFiles,
+    clearImportData: mocks.clearImportData,
+  }),
 }));
 vi.mock("@/hooks/use-custom-instructions", () => ({
   useImportInstructions: () => ({ instructions: "", isLoading: false, save: vi.fn(async () => {}) }),
@@ -60,6 +76,8 @@ beforeEach(() => {
   mocks.staging.readTransferContext.mockReset().mockResolvedValue(null);
   mocks.staging.readState.mockReset().mockResolvedValue(null);
   mocks.staging.writeState.mockReset().mockResolvedValue(undefined);
+  mocks.discard.mockReset();
+  mocks.clearImportData.mockReset().mockResolvedValue(undefined);
 });
 
 function renderScreen() {
@@ -181,5 +199,44 @@ describe("ImportScreen — checkStaging routing", () => {
     act(() => useImportStore.getState().apply({ type: "rows-changed" }));
 
     expect(await screen.findByTestId("preview")).toBeInTheDocument();
+  });
+});
+
+describe("ImportScreen — cancel teardown", () => {
+  async function renderPreviewAndDiscard() {
+    mocks.staging.readTransactions.mockResolvedValue({
+      rows: [makeImportTransaction({ id: "imp-1" })],
+      dropped: [],
+      fixed: [],
+    });
+    renderScreen();
+    await screen.findByTestId("preview");
+    await userEvent.click(screen.getByRole("button", { name: "Cancel Import" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Discard import" }));
+  }
+
+  it("drops the preview's pending write-back before clearing staging", async () => {
+    await renderPreviewAndDiscard();
+
+    await waitFor(() => expect(mocks.clearImportData).toHaveBeenCalled());
+    // discard() must run before clearImportData() — it kills the one timer that
+    // could otherwise fire during the clear's awaits and resurrect staging.
+    expect(mocks.discard.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.clearImportData.mock.invocationCallOrder[0],
+    );
+  });
+
+  it("leaves the preview live (generation untouched) when the clear fails", async () => {
+    mocks.clearImportData.mockRejectedValueOnce(new Error("still present"));
+    const genBefore = useImportStore.getState().stagingGeneration;
+    await renderPreviewAndDiscard();
+
+    await waitFor(() => expect(mocks.clearImportData).toHaveBeenCalled());
+    // A failed clear must not bump the generation: the still-mounted preview's
+    // captured generation stays valid, so a later hand-edit keeps persisting. The
+    // discard already ran, but dropping the timer is safe — an edit re-arms it.
+    expect(useImportStore.getState().stagingGeneration).toBe(genBefore);
+    expect(mocks.discard).toHaveBeenCalled();
+    expect(screen.getByTestId("preview")).toBeInTheDocument();
   });
 });

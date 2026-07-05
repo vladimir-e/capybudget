@@ -46,6 +46,12 @@ interface ImportPreviewProps {
    *  the progress section's Enrich control (the preview owns the data, the
    *  control renders above it). Called with null on unmount. */
   onEnrichControl: (control: { count: number; run: () => void } | null) => void;
+  /** Registers the preview's write-back discard with the screen so Cancel can
+   *  drop a pending debounced write before it clears staging — that timer is the
+   *  only writer that could fire during the clear's awaits and, with the generation
+   *  still live until the clear succeeds, resurrect staging. Registered on mount,
+   *  cleared (null) on unmount. */
+  onRegisterDiscard: (discard: (() => void) | null) => void;
   onMergeComplete: () => void;
 }
 
@@ -57,6 +63,7 @@ export function ImportPreview({
   onStopRun,
   onEnrich,
   onEnrichControl,
+  onRegisterDiscard,
   onMergeComplete,
 }: ImportPreviewProps) {
   const { t } = useTranslation(["import", "common"]);
@@ -99,6 +106,13 @@ export function ImportPreview({
     onEnrichControl({ count: incompleteCount, run: () => void handleEnrich() });
     return () => onEnrichControl(null);
   }, [incompleteCount, handleEnrich, onEnrichControl]);
+
+  // Register the write-back discard with the screen: Cancel lives on the screen
+  // (outside this subtree), so it reaches the pending debounce timer through here.
+  useEffect(() => {
+    onRegisterDiscard(discard);
+    return () => onRegisterDiscard(null);
+  }, [discard, onRegisterDiscard]);
 
   // ── Filtering / sorting ────────────────────────────────────────
   const filtered = useMemo(

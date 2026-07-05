@@ -85,6 +85,14 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
   const [enrichControl, setEnrichControl] = useState<{ count: number; run: () => void } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dragCounterRef = useRef(0);
+  // The preview registers its write-back discard here so Cancel can drop a pending
+  // debounced write before clearing staging — the one writer that could otherwise
+  // fire during the clear's awaits and resurrect it. Set on the preview's mount,
+  // null on its unmount.
+  const discardWriteBackRef = useRef<(() => void) | null>(null);
+  const registerDiscard = useCallback((discard: (() => void) | null) => {
+    discardWriteBackRef.current = discard;
+  }, []);
 
   const customInstructions = useImportInstructions(budgetPath);
   const [localInstructions, setLocalInstructions] = useState<string | null>(null);
@@ -387,13 +395,16 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
 
   const handleCancel = useCallback(async () => {
     // Cancel discards. Detach + await the in-flight run first (so no batch writes
-    // land after the clear), then clear staging. Only once the directory is
-    // verifiably gone do we bump the staging generation — neutralizing the
-    // preview's debounced / unmount write-back so it can't rewrite transactions.csv
-    // after it's gone — and flip back to file-attach. If the clear fails we surface
-    // it and stay put, leaving the generation untouched so the still-mounted
-    // preview keeps persisting hand-edits instead of silently going stale.
+    // land after the clear), then drop the preview's pending debounced write-back:
+    // that timer is the only writer that could still fire during the clear's awaits
+    // and, since the generation isn't bumped until the clear succeeds, pass the live
+    // gate and resurrect staging. Only once the directory is verifiably gone do we
+    // bump the staging generation (neutralizing any future write-back) and flip back
+    // to file-attach. If the clear fails we surface it and stay put, leaving the
+    // generation untouched — discard only dropped the pending timer, so a later
+    // hand-edit re-arms the debounce and the preview keeps persisting.
     await cancel();
+    discardWriteBackRef.current?.();
     try {
       await repository.clearImportData();
     } catch (err) {
@@ -534,6 +545,7 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
                   onStopRun={cancel}
                   onEnrich={handleEnrich}
                   onEnrichControl={setEnrichControl}
+                  onRegisterDiscard={registerDiscard}
                   onMergeComplete={handleMergeComplete}
                 />
               )}

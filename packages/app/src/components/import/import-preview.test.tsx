@@ -120,6 +120,7 @@ function renderPreview(props: Partial<Parameters<typeof ImportPreview>[0]> = {})
       onStopRun={vi.fn(async () => {})}
       onEnrich={vi.fn()}
       onEnrichControl={vi.fn()}
+      onRegisterDiscard={vi.fn()}
       onMergeComplete={vi.fn()}
       {...props}
     />,
