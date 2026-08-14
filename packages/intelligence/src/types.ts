@@ -139,4 +139,4 @@ export type StreamEvent =
       provider?: SessionProvider
     }
 
-export type SessionProvider = "anthropic" | "openai" | "claude-cli"
+export type SessionProvider = "anthropic" | "openai" | "claude-cli" | "ollama"

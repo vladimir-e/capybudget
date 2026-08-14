@@ -93,8 +93,10 @@ function isIncomeCategory(group: CategoryGroup): boolean {
  *
  * Name→id resolution is scoped to the row's *type-appropriate* categories: an
  * `income` row resolves only against Income-group names, an `expense` row only
- * against non-Income ones, matched case-insensitively and exactly. An unknown
- * or hallucinated name — or one that only exists in the wrong type — finds no id
+ * against non-Income ones, matched case-insensitively — exactly first, then
+ * tolerating the `Name (Group)` form the prompt itself displays (see
+ * {@link resolveCategoryId}). An unknown or hallucinated name — or one that only
+ * exists in the wrong type — finds no id
  * and the row is left uncategorized (categoryId ""), so it keeps its cleaned
  * merchant and stays re-enrichable. Resolving within the type partition makes
  * writing an income category onto an expense structurally impossible.
@@ -119,9 +121,34 @@ export async function enrichBatch(
     .filter((r) => rowType.has(r.id))
     .map((r) => {
       const income = rowType.get(r.id) === "income";
-      const categoryId = idByName[income ? "income" : "expense"].get(r.category.trim().toLowerCase()) ?? "";
+      const categoryId = resolveCategoryId(idByName[income ? "income" : "expense"], r.category);
       return { id: r.id, merchant: r.merchant, categoryId, confidence: r.confidence };
     });
+}
+
+/**
+ * A trailing parenthetical, which is how the prompt renders a category's group:
+ * the list shows `Groceries (Food)`, so "copy the name verbatim" and "return
+ * only the name" read as contradictory instructions. Frontier models resolve
+ * the contradiction in our favor and drop the group; smaller local models take
+ * the literal reading and echo the whole display string back. Both are
+ * defensible — so the resolver accepts both rather than betting on inference.
+ */
+const TRAILING_GROUP = /\s*\([^()]*\)\s*$/;
+
+/**
+ * Name → id within one type partition. Exact match first, so a category
+ * genuinely named `Car (old)` still wins on its own terms; only on a miss do we
+ * strip a trailing group suffix and retry. Returns "" when nothing matches —
+ * the row stays uncategorized and re-enrichable, as before.
+ */
+function resolveCategoryId(index: Map<string, string>, returned: string): string {
+  const key = returned.trim().toLowerCase();
+  const exact = index.get(key);
+  if (exact !== undefined) return exact;
+  const withoutGroup = key.replace(TRAILING_GROUP, "");
+  if (withoutGroup === key) return "";
+  return index.get(withoutGroup) ?? "";
 }
 
 /** Case-insensitive name → id lookup, partitioned by type so a name can only

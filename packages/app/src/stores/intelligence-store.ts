@@ -23,6 +23,7 @@ import { create } from "zustand"
 import { Store } from "@tauri-apps/plugin-store"
 import {
   DEFAULT_INTELLIGENCE_CONFIG,
+  DEFAULT_OLLAMA_BASE_URL,
   type IntelligenceConfig,
   type IntelligenceProvider,
 } from "@capybudget/intelligence"
@@ -129,19 +130,23 @@ interface IntelligenceStore {
   setAnthropicModel(m: string): void
   setOpenAiKey(k: string): void
   setOpenAiModel(m: string): void
+  setOllamaBaseUrl(u: string): void
+  setOllamaModel(m: string): void
   setClaudeCliModel(m: string): void
 }
 
 /**
  * Backfill defaults for keys a persisted config predates. Older configs
- * were written before `claudeCli` existed; merging the default keeps
- * hydrate from handing the rest of the app a config with missing slices.
+ * were written before `claudeCli` (and later `ollama`) existed; merging the
+ * defaults keeps hydrate from handing the rest of the app a config with
+ * missing slices.
  */
 function withDefaults(loaded: IntelligenceConfig): IntelligenceConfig {
   return {
     ...DEFAULT_INTELLIGENCE_CONFIG,
     ...loaded,
     claudeCli: { ...DEFAULT_INTELLIGENCE_CONFIG.claudeCli, ...loaded.claudeCli },
+    ollama: { ...DEFAULT_INTELLIGENCE_CONFIG.ollama, ...loaded.ollama },
   }
 }
 
@@ -304,6 +309,25 @@ export const useIntelligenceStore = create<IntelligenceStore>((set, get) => ({
   setOpenAiModel(model) {
     const cur = get().config
     const next = { ...cur, openai: { ...cur.openai, model } }
+    set({ config: next })
+    void persist(next)
+  },
+
+  setOllamaBaseUrl(baseUrl) {
+    const cur = get().config
+    // An empty field means "back to the stock endpoint" rather than a broken
+    // config — the user cleared it, they didn't pick nothing.
+    const next = {
+      ...cur,
+      ollama: { ...cur.ollama, baseUrl: baseUrl.trim() || DEFAULT_OLLAMA_BASE_URL },
+    }
+    set({ config: next })
+    void persist(next)
+  },
+
+  setOllamaModel(model) {
+    const cur = get().config
+    const next = { ...cur, ollama: { ...cur.ollama, model } }
     set({ config: next })
     void persist(next)
   },

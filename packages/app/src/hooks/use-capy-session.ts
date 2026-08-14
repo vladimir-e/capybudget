@@ -225,14 +225,20 @@ export function useCapySession(opts: UseCapySessionOptions): UseCapySessionRetur
   const anthropicModel = useIntelligenceStore((s) => s.config.anthropic.model)
   const openaiModel = useIntelligenceStore((s) => s.config.openai.model)
   const claudeCliModel = useIntelligenceStore((s) => s.config.claudeCli.model)
+  const ollamaModel = useIntelligenceStore((s) => s.config.ollama.model)
+  // The endpoint joins Ollama's signature: repointing at another server is as
+  // much a session change as swapping the model.
+  const ollamaBaseUrl = useIntelligenceStore((s) => s.config.ollama.baseUrl)
   const providerSignature =
     provider === "anthropic"
       ? `anthropic:${anthropicModel}`
       : provider === "openai"
         ? `openai:${openaiModel}`
-        : provider === "claude-cli"
-          ? `claude-cli:${claudeCliModel}`
-          : (provider ?? "off") // null carries no model — stable string signature
+        : provider === "ollama"
+          ? `ollama:${ollamaBaseUrl}:${ollamaModel}`
+          : provider === "claude-cli"
+            ? `claude-cli:${claudeCliModel}`
+            : (provider ?? "off") // null carries no model — stable string signature
   // Currency and language are baked into the prompt, so they join the signature:
   // a switch changes it and rebuilds the session.
   const sessionSignature = `${providerSignature}:cur=${opts.currency}:lng=${opts.language ?? "en"}`

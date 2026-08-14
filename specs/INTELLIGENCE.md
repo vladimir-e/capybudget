@@ -1,6 +1,6 @@
 # Intelligence Layer
 
-Capy is an AI financial assistant. The intelligence layer is **provider-pluggable**: the renderer talks to a `CapySession` interface, and a factory selects one of three concrete adapters at runtime — Claude Code CLI, Anthropic API, or OpenAI API — based on user settings. The app is fully functional without intelligence; it's additive.
+Capy is an AI financial assistant. The intelligence layer is **provider-pluggable**: the renderer talks to a `CapySession` interface, and a factory selects one of four concrete adapters at runtime — Claude Code CLI, Anthropic API, OpenAI API, or Ollama — based on user settings. The app is fully functional without intelligence; it's additive.
 
 ## Architecture
 
@@ -138,7 +138,18 @@ Notable protocol deltas vs Anthropic:
 
 Callers attach PDF blocks uniformly across providers; the adapter maps the shared `document` block to each provider's content type (Anthropic's native `document`, OpenAI's `file`).
 
-All three adapters share `buildRenderToolMap()` from `@capybudget/intelligence` for the render-tool → ContentBlock contract. Adding a new render tool means defining it once in `RENDER_TOOL_DEFS` plus its mapping in `render-map.ts`; the three adapters pick it up automatically.
+### Ollama adapter
+
+A subclass of the OpenAI adapter, not a second client. Ollama serves an OpenAI-compatible API under `/v1` — same chat-completions shape, same streamed tool-call deltas, same `response_format: json_schema` — so the adapter is `OpenAiSession` with `baseURL` pointed at the local server (`http://localhost:11434/v1` by default) and a placeholder API key, since a local server authenticates nothing. Only the provider tag on error events is overridden, so billing CTAs and copy route correctly.
+
+Two honest differences, both handled outside the class:
+
+- **No documents.** The compatibility shim has no `file` content part, so `canReadPdf("ollama")` is false and callers never build a `document` block for it. Statements go in as CSV/OFX.
+- **`max_completion_tokens` is not an Ollama parameter.** It rides along in the request and is ignored, leaving generation uncapped — acceptable for a local model where the cost is wall-clock, not tokens.
+
+Whether a given model can call tools or honor a JSON schema is the model's business, not the adapter's; Settings steers users toward tool-capable ones. Because there is no key, Ollama never touches the OS keychain: its entire config (endpoint + model) lives in the plaintext store file.
+
+All adapters share `buildRenderToolMap()` from `@capybudget/intelligence` for the render-tool → ContentBlock contract. Adding a new render tool means defining it once in `RENDER_TOOL_DEFS` plus its mapping in `render-map.ts`; every adapter picks it up automatically.
 
 ## Tool Layer
 
@@ -205,9 +216,10 @@ User-facing config persists via `@tauri-apps/plugin-store` (file-based, in the a
 
 ```ts
 interface IntelligenceConfig {
-  provider: "claude-cli" | "anthropic" | "openai" | null
+  provider: "claude-cli" | "anthropic" | "openai" | "ollama" | null
   anthropic: { apiKey: string; model: string; keyPresent?: boolean }
   openai:    { apiKey: string; model: string; keyPresent?: boolean }
+  ollama:    { baseUrl: string; model: string } // no key: a local server authenticates nothing
   claudeCli: { model: string } // "" lets the CLI pick its default
 }
 ```
@@ -254,17 +266,18 @@ to opt a dev build back into the keychain), keys persist inline in the store
 file, with the same deferred-load surface. See `src-tauri/src/keychain.rs` and
 `stores/secret-config.ts`.
 
-Settings lives in the `/budget` Intelligence section. It renders a provider radio + per-provider config (API key where applicable, model picker, test-connection button). The radio order is **Off / Anthropic API / OpenAI API / Claude Code**; Claude Code carries an `advanced` badge and sits last as the source-build option — the Mac App Store build omits it entirely, since the App Sandbox forbids the subprocess spawning it relies on. First-run defaults to `null` — users must explicitly pick a provider so they're never surprised by quota usage. The radio's "Off" label maps to `null` at the form boundary. Claude Code is auto-detected via `claude --version` and disabled in the picker if not installed.
+Settings lives in the `/budget` Intelligence section. It renders a provider radio + per-provider config (API key where applicable, model picker, test-connection button). The radio order is **Off / Anthropic API / OpenAI API / Ollama / Claude Code**; Ollama carries a `local` badge and sits below the hosted APIs (it needs a server the user installs themselves); Claude Code carries an `advanced` badge and sits last as the source-build option — the Mac App Store build omits it entirely, since the App Sandbox forbids the subprocess spawning it relies on. First-run defaults to `null` — users must explicitly pick a provider so they're never surprised by quota usage. The radio's "Off" label maps to `null` at the form boundary. Claude Code is auto-detected via `claude --version` and disabled in the picker if not installed.
 
 Every provider uses one shared model picker: a curated dropdown plus a "Use a custom model" toggle that swaps in a free-text field for any model ID outside the list. A saved model not in the curated list opens the field in custom mode, so a user's pinned model survives a refreshed list. The curated options:
 
 - **Anthropic** — Claude Opus 4.8 (`claude-opus-4-8`), Claude Sonnet 5 (`claude-sonnet-5`, the default), Claude Haiku 4.5 (`claude-haiku-4-5`).
 - **OpenAI** — GPT-5.5 (`gpt-5.5`, the default), GPT-5.4 mini (`gpt-5.4-mini`), GPT-5.4 nano (`gpt-5.4-nano`).
+- **Ollama** — *discovered, not curated*: the dropdown lists what `/v1/models` reports the local server has pulled, since only the user's machine knows. A previously-saved model that is no longer pulled stays in the list so the choice is never silently rewritten. There is no default — an empty model is the "not configured" state, the same gate an empty API key is elsewhere. The block also exposes the server URL (blur-committed, an empty field snapping back to the stock endpoint) and re-probes on every URL change.
 - **Claude Code** — Default (empty, the CLI decides), plus the `fable` / `opus` / `sonnet` / `haiku` aliases. A non-empty value passes through as the CLI's `--model` flag at spawn; empty omits the flag.
 
 When `provider === null`, the Capy overlay shows an empty-state CTA instead of the chat UI.
 
-Smart Import needs the structured-output primitive, which only the Anthropic and OpenAI adapters implement. `canImport(provider)` is the single gate — true for `anthropic` and `openai`, false for `claude-cli` and `null`. The Import tab shows an offline CTA when it's false, and the chat `start_import` tool returns switch-provider guidance.
+Smart Import needs the structured-output primitive, which the Anthropic, OpenAI, and Ollama adapters implement. `canImport(provider)` is the single gate — true for `anthropic`, `openai`, and `ollama`, false for `claude-cli` and `null`. `importReady(config)` adds the "configured enough to run" check: a key for the API providers, a chosen model for Ollama. The Import tab shows an offline CTA when it's false, and the chat `start_import` tool returns switch-provider guidance.
 
 The Intelligence section also hosts a chat-instructions editor for `capy-instructions.md` (see Custom Instructions). The same file is editable from the Capy overlay; edits apply to the next conversation. The web demo can't store an AI provider, so it renders the provider list disabled behind a desktop-only notice and omits the per-provider config and the chat-instructions editor; Categories management stays fully functional.
 
@@ -348,12 +361,12 @@ This is a hard backstop on the chat agent loop, not the normal path. A well-form
 
 Enforcement varies by adapter:
 
-- **Anthropic / OpenAI** count tool calls inline as they dispatch them. When the cap trips mid-turn, remaining tool_use blocks in the same turn receive a budget-exhausted error result (so the API doesn't see dangling tool_use) and the agentic loop exits without making the next request.
+- **Anthropic / OpenAI / Ollama** count tool calls inline as they dispatch them. When the cap trips mid-turn, remaining tool_use blocks in the same turn receive a budget-exhausted error result (so the API doesn't see dangling tool_use) and the agentic loop exits without making the next request.
 - **Claude CLI** parses each assistant event, dedups tool_use IDs into a Set, and kills the subprocess + surfaces the error event when the Set grows past the cap. The CLI can't be told to stop from outside, so termination is the cleanest signal we can give.
 
 ## Per-provider Stop / Restart
 
-| | Claude CLI | Anthropic + OpenAI |
+| | Claude CLI | Anthropic + OpenAI + Ollama |
 |---|---|---|
 | `stop()` | kill subprocess + new session ID; serialize prior chat and prepend on next send | abort in-flight request; drop trailing assistant turn with unmatched tool calls; messages otherwise intact |
 | `restart()` | kill + new session ID + clear recovery state | abort + clear messages |

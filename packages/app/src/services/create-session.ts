@@ -14,7 +14,11 @@ import {
   type SessionOptions,
   type CapySession,
 } from "@capybudget/intelligence"
-import { AnthropicSession, OpenAiSession } from "@capybudget/intelligence/adapters"
+import {
+  AnthropicSession,
+  OllamaSession,
+  OpenAiSession,
+} from "@capybudget/intelligence/adapters"
 import { ClaudeCliSession } from "@/services/claude-cli-session"
 import { useIntelligenceStore } from "@/stores/intelligence-store"
 
@@ -25,6 +29,7 @@ export function createSession(opts: SessionOptions): CapySession | null {
   const adapters: AdapterConstructors = {
     anthropic: (o) => new AnthropicSession(o),
     openai: (o) => new OpenAiSession(o),
+    ollama: (o) => new OllamaSession(o),
   }
   // The Claude Code CLI adapter spawns a subprocess the App Sandbox forbids —
   // omit it from MAS; the shell plugin it drives is compiled out, so residual JS is inert.

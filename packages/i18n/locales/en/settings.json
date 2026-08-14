@@ -77,6 +77,7 @@
     "distHint": "Not available in the desktop build —",
     "buildFromSource": "build from source",
     "advanced": "advanced",
+    "local": "local",
     "providerSet": "Provider set to {{provider}}",
     "options": {
       "off": {
@@ -88,6 +89,9 @@
       },
       "openai": {
         "description": "Direct API calls. Pay-per-use with your own key."
+      },
+      "ollama": {
+        "description": "Runs on your own machine. Free, private, works offline — you install Ollama yourself."
       },
       "claudeCli": {
         "description": "Use the local Claude Code CLI. Runs against your Claude subscription."
@@ -111,6 +115,15 @@
       "getApiKey": "Get an {{provider}} API key",
       "keychainError": "Couldn't access your key in the system keychain.",
       "retry": "Retry"
+    },
+    "ollama": {
+      "serverUrl": "Server URL",
+      "localOnly": "Runs on your machine — no API key, and nothing leaves your computer.",
+      "refreshModels": "Refresh",
+      "notRunningHint": "Capy can't reach Ollama at this address. Start it with `ollama serve`, or check the URL.",
+      "noModels": "Ollama is running but has no models yet. Pull one with `ollama pull llama3.1`, then refresh.",
+      "toolsHint": "Pick a model that supports tool calling — Capy uses tools to read and edit your budget.",
+      "install": "Install Ollama"
     },
     "model": {
       "label": "Model",

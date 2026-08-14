@@ -4,7 +4,11 @@ import {
   type AdapterConstructors,
   type SessionOptions,
 } from "./factory"
-import { DEFAULT_INTELLIGENCE_CONFIG, type IntelligenceConfig } from "./config"
+import {
+  DEFAULT_INTELLIGENCE_CONFIG,
+  OLLAMA_PLACEHOLDER_KEY,
+  type IntelligenceConfig,
+} from "./config"
 import type { CapySession } from "./session"
 import type { BudgetRepository, FileAdapter } from "@capybudget/persistence"
 
@@ -140,6 +144,51 @@ describe("createIntelligenceSession", () => {
       currency: opts.currency,
       importSupported: true,
       pdfSupported: true,
+    })
+  })
+
+  it("returns null for ollama when no model is picked", () => {
+    const ctor = vi.fn()
+    const session = createIntelligenceSession({
+      config: {
+        ...DEFAULT_INTELLIGENCE_CONFIG,
+        provider: "ollama",
+        ollama: { baseUrl: "http://localhost:11434/v1", model: "" },
+      },
+      adapters: { ollama: ctor },
+      options: makeOptions(),
+    })
+    expect(session).toBeNull()
+    expect(ctor).not.toHaveBeenCalled()
+  })
+
+  it("invokes ollama ctor with the local endpoint, a placeholder key, and no PDF support", () => {
+    const ctor = vi.fn().mockImplementation(() => makeStubSession())
+    const opts = makeOptions()
+    const session = createIntelligenceSession({
+      config: {
+        ...DEFAULT_INTELLIGENCE_CONFIG,
+        provider: "ollama",
+        ollama: { baseUrl: "http://127.0.0.1:9999/v1", model: "qwen3" },
+      },
+      adapters: { ollama: ctor },
+      options: opts,
+    })
+    expect(session).not.toBeNull()
+    expect(ctor).toHaveBeenCalledWith({
+      budgetPath: opts.budgetPath,
+      systemPrompt: opts.systemPrompt,
+      apiKey: OLLAMA_PLACEHOLDER_KEY,
+      model: "qwen3",
+      baseUrl: "http://127.0.0.1:9999/v1",
+      onEvent: opts.onEvent,
+      repo: opts.repo,
+      fileAdapter: opts.fileAdapter,
+      currency: opts.currency,
+      currencies: opts.currencies,
+      getCurrencies: opts.getCurrencies,
+      importSupported: true,
+      pdfSupported: false,
     })
   })
 

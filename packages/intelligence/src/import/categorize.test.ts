@@ -90,6 +90,52 @@ describe("enrichBatch", () => {
     expect(result[0].categoryId).toBe("cat-1");
   });
 
+  it("resolves the `Name (Group)` form the prompt itself displays", async () => {
+    // The category list is rendered as `Groceries (Daily Living)`, so a model
+    // reading "copy the name verbatim" literally echoes the whole string back.
+    // Frontier models drop the group on their own; smaller local ones don't.
+    const batch = [makeImportTransaction({ id: "imp-1", type: "expense" })];
+    const session = new MockStructuredSession([
+      () => ({
+        rows: [{ id: "imp-1", merchant: "A", category: "Groceries (Daily Living)", confidence: "high" }],
+      }),
+    ]);
+
+    const result = await enrichBatch(session, batch, {}, categories);
+
+    expect(result[0].categoryId).toBe("cat-1");
+  });
+
+  it("resolves the group-suffixed form within the row's type partition only", async () => {
+    // The tolerance must not become a back door around the cross-type guard.
+    const batch = [makeImportTransaction({ id: "imp-1", type: "expense" })];
+    const session = new MockStructuredSession([
+      () => ({ rows: [{ id: "imp-1", merchant: "A", category: "Paycheck (Income)", confidence: "high" }] }),
+    ]);
+
+    const result = await enrichBatch(session, batch, {}, categories);
+
+    expect(result[0].categoryId).toBe("");
+  });
+
+  it("prefers an exact match over stripping a parenthetical from the name", async () => {
+    // A category genuinely named with a parenthetical still wins on its own
+    // terms — the strip only runs after an exact lookup misses.
+    const withParens = [
+      ...categories,
+      makeCategory({ id: "cat-car", name: "Car (old)", group: "Transport" }),
+      makeCategory({ id: "cat-car-new", name: "Car", group: "Transport" }),
+    ];
+    const batch = [makeImportTransaction({ id: "imp-1", type: "expense" })];
+    const session = new MockStructuredSession([
+      () => ({ rows: [{ id: "imp-1", merchant: "A", category: "Car (old)", confidence: "high" }] }),
+    ]);
+
+    const result = await enrichBatch(session, batch, {}, withParens);
+
+    expect(result[0].categoryId).toBe("cat-car");
+  });
+
   it("leaves the row uncategorized for an unknown/hallucinated name", async () => {
     const batch = [makeImportTransaction({ id: "imp-1", type: "expense" })];
     const session = new MockStructuredSession([

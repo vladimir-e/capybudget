@@ -4,7 +4,7 @@ import { extractErrorMessage } from "../error-message"
 import { runTool, getToolDefinitions, SESSION_TOOL_CALL_BUDGET } from "../tools"
 import type { ApiAdapterOptions } from "../factory"
 import type { CapySession } from "../session"
-import type { ContentBlock, FileAttachment, MessageContent } from "../types"
+import type { ContentBlock, FileAttachment, MessageContent, SessionProvider } from "../types"
 import { parseStructured, schemaBody } from "../structured"
 import type { JsonSchema, StructuredCallOptions, StructuredMessage, StructuredSession } from "../structured"
 
@@ -89,9 +89,21 @@ export class OpenAiSession implements CapySession, StructuredSession {
     }))
     this.client = new OpenAI({
       apiKey: opts.apiKey,
+      // Undefined keeps the SDK default (api.openai.com); a value points the
+      // same wire protocol at an OpenAI-compatible server — see OllamaSession.
+      baseURL: opts.baseUrl,
       // Tauri webview — key lives on disk, not bundled into a public app.
       dangerouslyAllowBrowser: true,
     })
+  }
+
+  /**
+   * Which provider error events are tagged with, so the UI routes billing CTAs
+   * and copy to the right place. Subclasses that reuse this transport against
+   * another endpoint override it.
+   */
+  protected get providerId(): SessionProvider {
+    return "openai"
   }
 
   get isAlive(): boolean {
@@ -117,7 +129,7 @@ export class OpenAiSession implements CapySession, StructuredSession {
     } catch (err) {
       if (this.wasAborted(err)) return
       const { message, status } = extractErrorMessage(err)
-      this.opts.onEvent({ type: "error", message, status, provider: "openai" })
+      this.opts.onEvent({ type: "error", message, status, provider: this.providerId })
     } finally {
       this.turnAttachments = []
       this.abortController = null

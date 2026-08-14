@@ -18,6 +18,7 @@ import { useIntelligenceStore } from "@/stores/intelligence-store"
 import { PROVIDER_LABELS } from "@capybudget/intelligence"
 import type { IntelligenceProvider } from "@capybudget/intelligence"
 import { AnthropicConfig, OpenAiConfig } from "./api-provider-config"
+import { OllamaConfig } from "./ollama-config"
 import { ModelField, type ModelOption } from "./model-field"
 import { TestResult, type TestState } from "./test-result"
 
@@ -201,6 +202,16 @@ export function ProviderSection() {
             description={t("provider.options.openai.description")}
             disabled={__IS_DEMO__}
           />
+          {/* Ollama is local-first: no key, no cost, and it works offline —
+              but it needs a server the user installs themselves, so it sits
+              below the two hosted APIs. */}
+          <ProviderRadio
+            value="ollama"
+            label={PROVIDER_LABELS.ollama}
+            badge={t("provider.local")}
+            description={t("provider.options.ollama.description")}
+            disabled={__IS_DEMO__}
+          />
           {/* Claude Code spawns a subprocess — the MAS build omits this option. */}
           {!__MAS__ && (
           <ProviderRadio
@@ -270,6 +281,7 @@ export function ProviderSection() {
             )}
             {provider === "anthropic" && <AnthropicConfig />}
             {provider === "openai" && <OpenAiConfig />}
+            {provider === "ollama" && <OllamaConfig />}
           </div>
         )}
       </CardContent>

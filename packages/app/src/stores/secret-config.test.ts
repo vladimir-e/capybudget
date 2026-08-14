@@ -19,14 +19,17 @@ function config(keys: { anthropic?: string; openai?: string } = {}): Intelligenc
   }
 }
 
-/** A config written before presence flags existed — no `keyPresent` on disk. */
+/** A config written before presence flags existed — no `keyPresent` on disk,
+ *  and no `ollama` slice either (it postdates this shape). The cast is the
+ *  point: the backend must pass an old config through untouched, and the store's
+ *  `withDefaults` is what backfills newer slices on hydrate. */
 function legacyConfig(keys: { anthropic?: string; openai?: string } = {}): IntelligenceConfig {
   return {
     provider: "anthropic",
     anthropic: { apiKey: keys.anthropic ?? "", model: "claude" },
     openai: { apiKey: keys.openai ?? "", model: "gpt" },
     claudeCli: { model: "" },
-  }
+  } as IntelligenceConfig
 }
 
 function fakeFile(initial: IntelligenceConfig | null) {
