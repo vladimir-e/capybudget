@@ -1,0 +1,63 @@
+{
+  "nav": {
+    "accounts": "Contas",
+    "budget": "Orçamento",
+    "import": "Importar",
+    "settings": "Configurações",
+    "help": "Ajuda",
+    "back": "Voltar",
+    "forward": "Avançar"
+  },
+  "language": {
+    "label": "Idioma"
+  },
+  "actions": {
+    "save": "Salvar",
+    "saving": "Salvando…",
+    "cancel": "Cancelar",
+    "delete": "Excluir",
+    "add": "Adicionar",
+    "archive": "Arquivar",
+    "unarchive": "Desarquivar",
+    "edit": "Editar",
+    "remove": "Remover",
+    "close": "Fechar",
+    "back": "Voltar",
+    "reset": "Redefinir",
+    "confirm": "Confirmar"
+  },
+  "theme": {
+    "light": "Modo claro",
+    "dark": "Modo escuro",
+    "system": "Tema do sistema",
+    "colorTheme": "Tema de cores"
+  },
+  "colorTheme": {
+    "capybara": "Capivara",
+    "ocean": "Oceano",
+    "forest": "Floresta",
+    "rose": "Rosa",
+    "slate": "Ardósia"
+  },
+  "update": {
+    "available": "Capy {{version}} disponível",
+    "action": "Atualizar"
+  },
+  "dialog": {
+    "close": "Fechar"
+  },
+  "errors": {
+    "loadFailed": "Falha ao carregar os dados",
+    "crash": {
+      "title": "Algo deu errado",
+      "message": "O Capy encontrou um erro inesperado. Reiniciar costuma resolver.",
+      "restart": "Reiniciar",
+      "copyDetails": "Copiar detalhes",
+      "copied": "Copiado"
+    }
+  },
+  "commandPalette": {
+    "title": "Paleta de comandos",
+    "description": "Busque um comando para executar…"
+  }
+}

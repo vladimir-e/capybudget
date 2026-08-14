@@ -1,0 +1,124 @@
+{
+  "launcher": {
+    "label": "Pergunte ao Capy",
+    "open": "Abrir o assistente Capy",
+    "close": "Fechar o assistente Capy"
+  },
+  "header": {
+    "panelLabel": "Assistente Capy",
+    "demoStatus": "Seu assistente de IA",
+    "notConfigured": "Não configurado",
+    "hidePanel": "Ocultar painel"
+  },
+  "panel": {
+    "resize": "Redimensionar o painel do Capy"
+  },
+  "dropzone": {
+    "label": "Solte os arquivos aqui"
+  },
+  "input": {
+    "placeholder": "Pergunte ao Capy qualquer coisa sobre suas finanças...",
+    "attach": "Anexar arquivo",
+    "send": "Enviar mensagem",
+    "stop": "Parar resposta",
+    "instructions": "Instruções",
+    "instructionsLabel": "Instruções personalizadas",
+    "newChat": "Nova conversa",
+    "newLineHint": "Shift + Enter para nova linha"
+  },
+  "thinking": "Pensando...",
+  "jumpToLatest": "Ir para a mensagem mais recente",
+  "chart": {
+    "total": "total"
+  },
+  "tool": {
+    "list_accounts": "Consultando contas",
+    "list_transactions": "Consultando transações",
+    "list_categories": "Consultando categorias",
+    "search_transactions": "Buscando transações",
+    "group_transactions": "Agrupando transações",
+    "create_transaction": "Criando transação",
+    "update_transaction": "Atualizando transação",
+    "delete_transactions": "Excluindo transações",
+    "create_account": "Criando conta",
+    "update_account": "Atualizando conta",
+    "delete_account": "Excluindo conta",
+    "create_category": "Criando categoria",
+    "update_category": "Atualizando categoria",
+    "delete_category": "Excluindo categoria",
+    "bulk_update_transactions": "Atualizando transações",
+    "start_import": "Iniciando importação",
+    "render_chart": "Gerando gráfico",
+    "ToolSearch": "Procurando ferramentas"
+  },
+  "attachments": {
+    "tooLarge": "{{name}} passa do limite de 5 MB",
+    "unsupported": "{{name}} não é um tipo de arquivo compatível",
+    "pdfUnsupported": "{{name}} foi ignorado — PDFs precisam do provedor Anthropic ou OpenAI",
+    "totalTooLarge": "O tamanho total dos anexos passa de 10 MB",
+    "remove": "Remover {{name}}"
+  },
+  "commands": {
+    "trigger": "Comandos",
+    "add": "Adicionar comando",
+    "namePlaceholder": "Nome do comando",
+    "promptPlaceholder": "Prompt a enviar...",
+    "edit": "Editar comando",
+    "delete": "Excluir comando",
+    "cancel": "Cancelar",
+    "save": "Salvar"
+  },
+  "instructionsDialog": {
+    "title": "Instruções personalizadas",
+    "description": "Ajude o Capy a entender sua situação financeira. Descreva padrões comuns, para que serve cada conta ou preferências de categorização.",
+    "placeholder": "ex.: Uso o cartão do Nubank para as despesas do dia a dia.\nPão de Açúcar e Assaí são supermercado.\nPix para a Sara é divisão do aluguel."
+  },
+  "unconfigured": {
+    "title": "Configure seu assistente de IA",
+    "description": "O Capy precisa de um provedor de IA antes de poder ajudar.",
+    "openSettings": "Abrir configurações",
+    "claudeCliChecking": "Procurando a CLI do Claude Code…",
+    "claudeCliMissing": "CLI do Claude Code não detectada nesta máquina"
+  },
+  "welcome": {
+    "greeting": "Oi, eu sou o Capy.",
+    "description": "Me pergunte sobre seus gastos, orçamentos ou transações. Eu vejo tudo o que está nesta pasta.",
+    "suggestions": {
+      "help": {
+        "label": "Com o que você pode me ajudar?",
+        "prompt": "Com o que você pode me ajudar?"
+      },
+      "learn": {
+        "label": "Me ensine a fazer um orçamento",
+        "prompt": "Me ensine a fazer um orçamento"
+      },
+      "subscriptions": {
+        "label": "Encontrar assinaturas recorrentes",
+        "prompt": "Encontre minhas assinaturas recorrentes e quanto elas custam"
+      },
+      "categorize": {
+        "label": "Me ajude a categorizar transações",
+        "prompt": "Me ajude a categorizar minhas transações sem categoria"
+      }
+    }
+  },
+  "error": {
+    "openBilling": "Abrir a página de cobrança"
+  },
+  "session": {
+    "endedUnexpectedly": "A sessão terminou inesperadamente. Envie uma mensagem para começar uma nova conversa.",
+    "notConfigured": "O Capy não está configurado. Abra as configurações para escolher um provedor de IA.",
+    "sendFailed": "Falha ao enviar a mensagem",
+    "interrupted": "Sessão interrompida. Envie uma mensagem para continuar."
+  },
+  "secretGate": {
+    "title": "Desbloqueie sua chave de IA",
+    "description": "O Capy vai procurar agora a sua chave de IA salva. Ela fica guardada com segurança no keychain do sistema — seu sistema operacional pode pedir permissão de acesso.",
+    "allow": "Permitir"
+  },
+  "secretError": {
+    "title": "Não foi possível desbloquear sua chave",
+    "description": "O Capy não conseguiu ler sua chave de IA salva no keychain do sistema. O acesso pode ter sido negado — tente de novo.",
+    "retry": "Tentar de novo"
+  }
+}

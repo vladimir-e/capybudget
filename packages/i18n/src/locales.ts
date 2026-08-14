@@ -11,6 +11,7 @@ export const SUPPORTED_LOCALES = [
   { code: "en", label: "English", aiLanguage: "English" },
   { code: "es", label: "Español", aiLanguage: "Spanish" },
   { code: "ru", label: "Русский", aiLanguage: "Russian" },
+  { code: "pt", label: "Português (Brasil)", aiLanguage: "Brazilian Portuguese" },
 ] as const satisfies readonly LocaleMeta[];
 
 export type Locale = (typeof SUPPORTED_LOCALES)[number]["code"];

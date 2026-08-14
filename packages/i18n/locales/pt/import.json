@@ -1,0 +1,136 @@
+{
+  "title": "Importar",
+  "subtitle": {
+    "importing": "Importando suas transações…",
+    "review": "Revise e edite as transações importadas",
+    "drop": "Solte arquivos para importar transações"
+  },
+  "dropOverlay": "Solte os arquivos para importar",
+  "cancelImport": "Cancelar importação",
+  "cancelDialog": {
+    "title": "Cancelar a importação?",
+    "description": "Isso descarta os arquivos enviados e todas as transações que o Capy extraiu. Não dá para desfazer.",
+    "keep": "Continuar importando",
+    "discard": "Descartar importação"
+  },
+  "errors": {
+    "unsupportedType": "{{name}} não é um tipo de arquivo compatível",
+    "pdfNeedsCapableProvider": "{{name}} foi ignorado — importar PDF precisa do provedor Anthropic ou OpenAI",
+    "saveFailed": "Falha ao salvar {{name}}",
+    "providerRequired": "A importação precisa da Anthropic ou da OpenAI configurada.",
+    "clearFailed": "Não foi possível limpar a área de importação — tente de novo.",
+    "removeFileFailed": "Não foi possível remover {{name}}"
+  },
+  "dropZone": {
+    "browseLabel": "Procurar arquivos para importar",
+    "prompt": "Solte extratos bancários, recibos ou capturas de tela",
+    "filesReady_one": "{{count}} arquivo pronto",
+    "filesReady_many": "{{count}} arquivos prontos",
+    "filesReady_other": "{{count}} arquivos prontos",
+    "uploading": "({{count}} enviando...)",
+    "duplicateHint": "pode ser duplicado — importado em {{date}}",
+    "removeFile": "Remover {{name}}",
+    "instructions": "Instruções (opcional)",
+    "instructionsPlaceholder": "ex.: \"Esta é a exportação da minha planilha, os valores estão nas colunas Débito/Crédito\"",
+    "anyAccount": "Qualquer conta",
+    "start": "Iniciar importação",
+    "rerunHint": "Não gostou do resultado? Cancele, dê mais instruções ao Capy e rode de novo."
+  },
+  "setupAi": {
+    "title": "Configure a IA para importar",
+    "body": "Conecte um provedor de IA nas configurações para trazer estas transações.",
+    "cliBody": "O Claude Code cuida do chat, mas importar extratos precisa da Anthropic ou da OpenAI — adicione uma nas configurações.",
+    "button": "Configurar IA"
+  },
+  "progress": {
+    "normalizing": "Normalizando",
+    "enhancing": "Enriquecendo",
+    "stop": "Parar",
+    "enrich": "Enriquecer {{count}}",
+    "countOf": "{{done}} de {{total}}",
+    "countRows_one": "{{count}} linha",
+    "countRows_many": "{{count}} linhas",
+    "countRows_other": "{{count}} linhas"
+  },
+  "preview": {
+    "skippedRows_one": "{{count}} linha foi ignorada (não foi possível ler)",
+    "skippedRows_many": "{{count}} linhas foram ignoradas (não foi possível ler)",
+    "skippedRows_other": "{{count}} linhas foram ignoradas (não foi possível ler)",
+    "certainDuplicates_one": "{{count}} duplicata detectada — já desmarcada",
+    "certainDuplicates_many": "{{count}} duplicatas detectadas — já desmarcadas",
+    "certainDuplicates_other": "{{count}} duplicatas detectadas — já desmarcadas",
+    "possibleDuplicates_one": "{{count}} possível duplicata (data próxima) — revise antes de mesclar",
+    "possibleDuplicates_many": "{{count}} possíveis duplicatas (data próxima) — revise antes de mesclar",
+    "possibleDuplicates_other": "{{count}} possíveis duplicatas (data próxima) — revise antes de mesclar",
+    "uncategorized": "{{count}} sem categoria",
+    "lowConfidence": "{{count}} com baixa confiança",
+    "ofTotalSelected": "de {{total}} transações selecionadas para importar",
+    "searchPlaceholder": "Buscar transações…",
+    "clearSearch": "Limpar busca",
+    "selectedCount": "{{count}} selecionadas",
+    "merging": "Mesclando…",
+    "merge": "Mesclar",
+    "mergeSuccess_one": "{{count}} transação mesclada",
+    "mergeSuccess_many": "{{count}} transações mescladas",
+    "mergeSuccess_other": "{{count}} transações mescladas",
+    "mergeSuccessWithAccounts_one": "{{count}} transação mesclada e {{accounts}} criada",
+    "mergeSuccessWithAccounts_many": "{{count}} transações mescladas e {{accounts}} criadas",
+    "mergeSuccessWithAccounts_other": "{{count}} transações mescladas e {{accounts}} criadas",
+    "accountsCreated_one": "{{count}} conta",
+    "accountsCreated_many": "{{count}} contas",
+    "accountsCreated_other": "{{count}} contas",
+    "mergeFailed": "Falha ao mesclar: {{error}}",
+    "unknownError": "Erro desconhecido",
+    "mapAccountsTitle": "Mapear contas",
+    "mapAccountsDescription": "Onde as transações de cada conta importada vão parar — uma conta existente ou uma criada na mesclagem.",
+    "done": "Concluído",
+    "mergeConfirmTitle_one": "Mesclar {{count}} transação?",
+    "mergeConfirmTitle_many": "Mesclar {{count}} transações?",
+    "mergeConfirmTitle_other": "Mesclar {{count}} transações?",
+    "mergeConfirmDescriptionBefore": "Isso vai adicionar ",
+    "mergeConfirmDescriptionAfter": " ao seu orçamento.",
+    "unmappedTransfers_one": "{{count}} transferência não teve contrapartida correspondente — será importada como receita/despesa.",
+    "unmappedTransfers_many": "{{count}} transferências não tiveram contrapartida correspondente — serão importadas como receita/despesa.",
+    "unmappedTransfers_other": "{{count}} transferências não tiveram contrapartida correspondente — serão importadas como receita/despesa."
+  },
+  "table": {
+    "selectAll": "Selecionar todas as transações",
+    "includeTransaction": "Incluir transação",
+    "duplicateTitle": "Duplicata de uma transação existente",
+    "possibleDuplicateTitle": "Possível duplicata (data próxima)",
+    "columns": {
+      "date": "Data",
+      "merchant": "Estabelecimento",
+      "amount": "Valor",
+      "type": "Tipo",
+      "account": "Conta",
+      "category": "Categoria"
+    },
+    "emptyTitle": "Nenhuma transação para importar",
+    "emptyDescription": "O Capy não encontrou dados de transação nos arquivos anexados.",
+    "emptyDroppedDescription": "Nenhuma das linhas dos arquivos anexados pôde ser lida.",
+    "cancelImportLink": "Cancelar importação",
+    "noMatchesTitle": "Nenhuma transação encontrada",
+    "noMatchesDescription": "Tente ajustar sua busca.",
+    "noAccount": "nenhuma",
+    "newAccountTag": "nova",
+    "toAccount": "Conta de destino",
+    "fromAccount": "Conta de origem",
+    "transferPlaceholder": "Transferência",
+    "uncategorizedPlaceholder": "Sem categoria",
+    "confidenceTitle": "confiança {{confidence}}",
+    "types": {
+      "expense": "despesa",
+      "income": "receita",
+      "transfer": "transferência"
+    }
+  },
+  "editors": {
+    "merchantPlaceholder": "Estabelecimento"
+  },
+  "accountMapping": {
+    "searchPlaceholder": "Buscar contas…",
+    "empty": "Nenhuma conta encontrada.",
+    "create": "Criar \"{{source}}\""
+  }
+}

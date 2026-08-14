@@ -51,7 +51,10 @@ export function LanguageSelect({
           }}
         </SelectValue>
       </SelectTrigger>
-      <SelectContent>
+      {/* The popup defaults to the trigger's width, which is sized by the active
+          language — long endonyms like "Português (Brasil)" would clip. Let it
+          grow to its content instead, never narrower than the trigger. */}
+      <SelectContent className="w-auto min-w-(--anchor-width)">
         {SUPPORTED_LOCALES.map((l) => (
           <SelectItem key={l.code} value={l.code}>
             {`${l.code.toUpperCase()} · ${l.label}`}

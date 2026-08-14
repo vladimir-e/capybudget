@@ -1,4 +1,4 @@
-import { enUS, enGB, es, ru, type Locale } from "react-day-picker/locale"
+import { enUS, enGB, es, ru, pt, ptBR, type Locale } from "react-day-picker/locale"
 
 type WeekStart = 0 | 1 | 2 | 3 | 4 | 5 | 6
 
@@ -23,6 +23,10 @@ function nameLocaleFor(formatTag: string): Locale {
       return es
     case "ru":
       return ru
+    // The registered catalog is Brazilian Portuguese, so a bare "pt" means pt-BR;
+    // only an explicit European region tag gets the `pt` name locale.
+    case "pt":
+      return region === "pt" ? pt : ptBR
     default:
       return enUS
   }

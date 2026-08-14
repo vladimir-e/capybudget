@@ -10,6 +10,7 @@ import { useLocale } from "@capybudget/i18n";
 import { EN_HELP_GUIDE } from "./help-guide-content.en";
 import { RU_HELP_GUIDE } from "./help-guide-content.ru";
 import { ES_HELP_GUIDE } from "./help-guide-content.es";
+import { PT_HELP_GUIDE } from "./help-guide-content.pt";
 
 export interface HelpListItem {
   /** Leading bold lead-in, e.g. "Expense" in "**Expense** — money out." */
@@ -40,6 +41,7 @@ const GUIDES: Record<string, HelpGuide> = {
   en: EN_HELP_GUIDE,
   ru: RU_HELP_GUIDE,
   es: ES_HELP_GUIDE,
+  pt: PT_HELP_GUIDE,
 };
 
 export function useHelpGuide(): HelpGuide {
