@@ -123,8 +123,8 @@ describe("enrichBatch", () => {
     // terms — the strip only runs after an exact lookup misses.
     const withParens = [
       ...categories,
-      makeCategory({ id: "cat-car", name: "Car (old)", group: "Transport" }),
-      makeCategory({ id: "cat-car-new", name: "Car", group: "Transport" }),
+      makeCategory({ id: "cat-car", name: "Car (old)", group: "Irregular" }),
+      makeCategory({ id: "cat-car-new", name: "Car", group: "Irregular" }),
     ];
     const batch = [makeImportTransaction({ id: "imp-1", type: "expense" })];
     const session = new MockStructuredSession([
