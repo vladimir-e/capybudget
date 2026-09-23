@@ -237,8 +237,12 @@ is configured), known without reading its value; UI gating (`isConfigured`,
 needed. The value loads **on demand** — the first time it's used (Capy opened
 with an API provider, an import run started, Settings rendering a key's last-4)
 — through a single keychain read that merges both provider secrets into the
-in-memory config and persists the resolved flags. Provider `claude-cli` or off
-never triggers a read, so those sessions touch the keychain zero times.
+in-memory config and persists the resolved flags. A read happens whenever the
+selected provider's key is present but not yet in memory, so switching providers
+loads the new one's key. Provider `claude-cli` or off never triggers a read, so
+those sessions touch the keychain zero times. Saving settings before a key has
+loaded preserves it — only an explicit clear deletes it — and a load that waited
+on an OS prompt never overwrites settings or keys saved in the meantime.
 
 The **first-ever** keychain read of an install is gated behind a one-time
 heads-up (a small dialog in Capy's visual language, "Allow" its only action),

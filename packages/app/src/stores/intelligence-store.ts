@@ -29,9 +29,11 @@ import {
 } from "@capybudget/intelligence"
 import {
   createSecretAwareBackend,
+  isUnloaded,
   type ConfigStoreBackend,
   type ProviderSecrets,
   type SecretConfigBackend,
+  type SecretProvider,
 } from "./secret-config"
 import { keychainEnabled, tauriKeychain } from "@/lib/keychain"
 
@@ -94,25 +96,25 @@ export function _resetStoreForTests(): void {
 interface IntelligenceStore {
   config: IntelligenceConfig
   hydrated: boolean
-  /** Whether the keychain has been read this session (secrets merged into
-   *  `config`). Non-API providers count as loaded — there's nothing to read. */
-  secretsLoaded: boolean
   /** Whether the one-time keychain heads-up has been shown (persisted). */
   secretGateSeen: boolean
   /** Whether the heads-up dialog is currently open. */
   secretGateOpen: boolean
-  /** The last on-demand keychain read failed or was denied. Retryable — the key
-   *  is still known to be present; `ensureSecrets` can be re-run to recover. */
+  /** The last on-demand keychain read failed, was denied, or left the current
+   *  provider's key unresolved. Retryable — the key is still known to be
+   *  present; `ensureSecrets` can be re-run to recover. A provider change
+   *  clears it. */
   secretsError: boolean
 
   /** Load the plaintext config from disk. Idempotent — repeat calls are
    *  no-ops. Never touches the keychain. */
   hydrate(): Promise<void>
 
-  /** Ensure the provider secrets are merged into `config`, reading the keychain
-   *  once per session. The first-ever read shows the heads-up and waits for the
-   *  user to allow it; dismissing leaves secrets unloaded. Resolves when secrets
-   *  are in memory (or there were none to load). No-op for non-API providers. */
+  /** Ensure the current provider's secret is merged into `config`, reading the
+   *  keychain while its key is present but unloaded. The first-ever read shows
+   *  the heads-up and waits for the user to allow it; dismissing leaves secrets
+   *  unloaded. Resolves when secrets are in memory (or there were none to load).
+   *  No-op for non-API providers. */
   ensureSecrets(): Promise<void>
 
   /** Heads-up "Allow": mark it seen and let the pending load proceed. */
@@ -150,15 +152,31 @@ function withDefaults(loaded: IntelligenceConfig): IntelligenceConfig {
   }
 }
 
+/** Only providers still awaiting the read take it — a key typed or cleared
+ *  while the read was in flight is authoritative — and only those the read
+ *  resolved; an unresolved one stays unloaded, never absent. */
 function mergeSecrets(
   config: IntelligenceConfig,
-  secrets: ProviderSecrets,
+  secrets: Partial<ProviderSecrets>,
 ): IntelligenceConfig {
-  return {
-    ...config,
-    anthropic: { ...config.anthropic, apiKey: secrets.anthropic, keyPresent: Boolean(secrets.anthropic) },
-    openai: { ...config.openai, apiKey: secrets.openai, keyPresent: Boolean(secrets.openai) },
+  const merged = (provider: SecretProvider) => {
+    const secret = secrets[provider]
+    return isUnloaded(config[provider]) && secret !== undefined
+      ? { ...config[provider], apiKey: secret, keyPresent: Boolean(secret) }
+      : config[provider]
   }
+  return { ...config, anthropic: merged("anthropic"), openai: merged("openai") }
+}
+
+function withSecretsDropped(config: IntelligenceConfig): IntelligenceConfig {
+  const drop = (provider: SecretProvider) =>
+    config[provider].apiKey ? { ...config[provider], apiKey: "", keyPresent: true } : config[provider]
+  return { ...config, anthropic: drop("anthropic"), openai: drop("openai") }
+}
+
+export function needsSecrets(config: IntelligenceConfig): boolean {
+  const p = config.provider
+  return (p === "anthropic" || p === "openai") && isUnloaded(config[p])
 }
 
 let backend: SecretConfigBackend | null = null
@@ -179,7 +197,6 @@ async function persist(config: IntelligenceConfig): Promise<void> {
 export const useIntelligenceStore = create<IntelligenceStore>((set, get) => ({
   config: { ...DEFAULT_INTELLIGENCE_CONFIG },
   hydrated: false,
-  secretsLoaded: false,
   secretGateSeen: false,
   secretGateOpen: false,
   secretsError: false,
@@ -217,12 +234,7 @@ export const useIntelligenceStore = create<IntelligenceStore>((set, get) => ({
   },
 
   async ensureSecrets() {
-    if (get().secretsLoaded) return
-    const provider = get().config.provider
-    if (provider !== "anthropic" && provider !== "openai") {
-      set({ secretsLoaded: true })
-      return
-    }
+    if (!needsSecrets(get().config)) return
     if (!secretsPromise) {
       secretsPromise = (async () => {
         if (!get().secretGateSeen) {
@@ -233,22 +245,19 @@ export const useIntelligenceStore = create<IntelligenceStore>((set, get) => ({
           if (!allowed) return
         }
         const b = await loadBackend()
-        let secrets: ProviderSecrets
+        let secrets: Partial<ProviderSecrets>
         try {
           secrets = await b.loadSecrets()
         } catch {
-          // Read failed or was denied. Don't mark loaded or flip presence false
-          // (that would mis-report a configured key as absent and never retry) —
-          // surface a retryable error; the next `ensureSecrets` re-reads.
+          // Read failed or was denied. Don't flip presence false (that would
+          // mis-report a configured key as absent and never retry) — surface a
+          // retryable error; the next `ensureSecrets` re-reads.
           set({ secretsError: true })
           return
         }
         set((s) => {
-          // A key set while this read was in flight (e.g. the user typed one in
-          // Settings) is authoritative — its setter already flipped
-          // `secretsLoaded`, so drop this now-stale keychain result.
-          if (s.secretsLoaded) return {}
-          return { config: mergeSecrets(s.config, secrets), secretsLoaded: true, secretsError: false }
+          const config = mergeSecrets(s.config, secrets)
+          return { config, secretsError: needsSecrets(config) }
         })
       })().finally(() => {
         secretsPromise = null
@@ -271,24 +280,21 @@ export const useIntelligenceStore = create<IntelligenceStore>((set, get) => ({
   },
 
   resetSecretGate() {
-    set({ secretGateSeen: false, secretsLoaded: false, secretsError: false })
+    set((s) => ({ config: withSecretsDropped(s.config), secretGateSeen: false, secretsError: false }))
     void loadBackend().then((b) => b.clearGateSeen())
   },
 
   setProvider(provider) {
     const next = { ...get().config, provider }
-    set({ config: next })
+    set({ config: next, secretsError: false })
     void persist(next)
   },
 
-  setAnthropicKey(apiKey) {
+  setAnthropicKey(key) {
+    const apiKey = key.trim()
     const cur = get().config
     const next = { ...cur, anthropic: { ...cur.anthropic, apiKey, keyPresent: Boolean(apiKey) } }
-    // The user-entered value is authoritative now — flip `secretsLoaded` so an
-    // in-flight `ensureSecrets` merge skips (see its guard) rather than
-    // overwriting this with a stale keychain read. A typed key also clears any
-    // prior read failure — there's nothing left to retry.
-    set({ config: next, secretsLoaded: true, secretsError: false })
+    set({ config: next, secretsError: false })
     void persist(next)
   },
 
@@ -299,10 +305,11 @@ export const useIntelligenceStore = create<IntelligenceStore>((set, get) => ({
     void persist(next)
   },
 
-  setOpenAiKey(apiKey) {
+  setOpenAiKey(key) {
+    const apiKey = key.trim()
     const cur = get().config
     const next = { ...cur, openai: { ...cur.openai, apiKey, keyPresent: Boolean(apiKey) } }
-    set({ config: next, secretsLoaded: true, secretsError: false })
+    set({ config: next, secretsError: false })
     void persist(next)
   },
 
@@ -349,7 +356,6 @@ export function _resetIntelligenceStoreForTests(): void {
   useIntelligenceStore.setState({
     config: { ...DEFAULT_INTELLIGENCE_CONFIG },
     hydrated: false,
-    secretsLoaded: false,
     secretGateSeen: false,
     secretGateOpen: false,
     secretsError: false,

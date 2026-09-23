@@ -16,7 +16,9 @@
 
 import {
   DEFAULT_INTELLIGENCE_CONFIG,
+  hasProviderKey,
   type IntelligenceConfig,
+  type ProviderCredentials,
 } from "@capybudget/intelligence"
 
 export type SecretProvider = "anthropic" | "openai"
@@ -52,28 +54,18 @@ export interface SecretConfigBackend {
    *  the OS keychain. Null when nothing is persisted yet. */
   load(): Promise<{ config: IntelligenceConfig; gateSeen: boolean } | null>
   /** On-demand keychain read — resolves both provider secrets, migrating any
-   *  inline plaintext key and persisting resolved presence flags. */
-  loadSecrets(): Promise<ProviderSecrets>
-  /** Persist a config change: secrets → keychain (empty ones skipped), the rest
-   *  → plaintext with presence flags. */
+   *  inline plaintext key and persisting resolved presence flags. When the
+   *  keychain can't be read, only inline keys resolve; the rest are omitted. */
+  loadSecrets(): Promise<Partial<ProviderSecrets>>
+  /** Persist a config change: secrets → keychain, the rest → plaintext with
+   *  presence flags. A present-but-unloaded key is left untouched; only an
+   *  explicit clear (`keyPresent: false`) deletes it. */
   save(config: IntelligenceConfig): Promise<void>
   /** Record that the one-time keychain heads-up has been shown. */
   markGateSeen(): Promise<void>
   /** Clear the persisted heads-up flag so it shows again on the next load —
    *  the fresh-install reset behind the dev panel. */
   clearGateSeen(): Promise<void>
-}
-
-function stripSecrets(config: IntelligenceConfig): IntelligenceConfig {
-  return {
-    ...config,
-    anthropic: { ...config.anthropic, apiKey: "" },
-    openai: { ...config.openai, apiKey: "" },
-  }
-}
-
-function hasPlaintextSecrets(config: IntelligenceConfig): boolean {
-  return Boolean(config.anthropic.apiKey || config.openai.apiKey)
 }
 
 /** Backfill the secret-bearing slices so a partial on-disk config can't throw
@@ -107,8 +99,16 @@ function presenceFor(stored: IntelligenceConfig, provider: SecretProvider): bool
  *  an inline plaintext key. Unlike {@link presenceFor}, never the heuristic:
  *  used to decide whether an empty save must delete a real keychain entry. */
 function wasStored(config: IntelligenceConfig | null, provider: SecretProvider): boolean {
-  if (!config) return false
-  return config[provider].keyPresent === true || Boolean(config[provider].apiKey)
+  return config?.[provider]?.keyPresent === true || Boolean(inlineKey(config, provider))
+}
+
+/** A key known to exist but not yet read from the keychain this session. */
+export function isUnloaded(creds: ProviderCredentials): boolean {
+  return !creds.apiKey && creds.keyPresent === true
+}
+
+function inlineKey(config: IntelligenceConfig | null, provider: SecretProvider): string {
+  return config?.[provider]?.apiKey ?? ""
 }
 
 /** The in-memory config for boot: normalized + stripped, with presence flags
@@ -116,27 +116,27 @@ function wasStored(config: IntelligenceConfig | null, provider: SecretProvider):
 function withResolvedPresence(stored: IntelligenceConfig): IntelligenceConfig {
   const config = normalizeSecretSlices(stored)
   return {
-    ...stripSecrets(config),
+    ...config,
     anthropic: { ...config.anthropic, apiKey: "", keyPresent: presenceFor(stored, "anthropic") },
     openai: { ...config.openai, apiKey: "", keyPresent: presenceFor(stored, "openai") },
   }
 }
 
 /** The plaintext config to persist after `save`: `persisted` keys inline (empty
- *  once safely in the keychain), presence flags from the requested key values. */
+ *  once safely in the keychain), presence flags from the requested config. */
 function withSaved(config: IntelligenceConfig, persisted: ProviderSecrets): IntelligenceConfig {
   return {
     ...config,
-    anthropic: { ...config.anthropic, apiKey: persisted.anthropic, keyPresent: Boolean(config.anthropic.apiKey) },
-    openai: { ...config.openai, apiKey: persisted.openai, keyPresent: Boolean(config.openai.apiKey) },
+    anthropic: { ...config.anthropic, apiKey: persisted.anthropic, keyPresent: hasProviderKey(config.anthropic) },
+    openai: { ...config.openai, apiKey: persisted.openai, keyPresent: hasProviderKey(config.openai) },
   }
 }
 
-/** The plaintext config after `loadSecrets`: stripped, with flags reflecting
+/** The plaintext config after `loadSecrets`: stripped, each flag reflecting
  *  what the keychain actually held. */
 function withLoadedPresence(config: IntelligenceConfig, secrets: ProviderSecrets): IntelligenceConfig {
   return {
-    ...stripSecrets(config),
+    ...config,
     anthropic: { ...config.anthropic, apiKey: "", keyPresent: Boolean(secrets.anthropic) },
     openai: { ...config.openai, apiKey: "", keyPresent: Boolean(secrets.openai) },
   }
@@ -153,6 +153,18 @@ export function createSecretAwareBackend(
   file: ConfigStoreBackend,
   keychain: Keychain | null,
 ): SecretConfigBackend {
+  // Every read-then-write of the file runs one at a time, so each sees the file
+  // as the previous left it — even when a keychain read blocks on an OS prompt.
+  // The gate-flag ops stay unqueued: they write a separate store key.
+  let tail: Promise<unknown> = Promise.resolve()
+  function serial<A extends unknown[], T>(op: (...args: A) => Promise<T>) {
+    return (...args: A): Promise<T> => {
+      const run = tail.then(() => op(...args))
+      tail = run.catch(() => undefined)
+      return run
+    }
+  }
+
   async function load() {
     const [stored, gateSeen] = await Promise.all([file.get(), file.getGateSeen()])
     if (!stored) return null
@@ -172,20 +184,20 @@ export function createSecretAwareBackend(
       load,
       markGateSeen,
       clearGateSeen,
-      async loadSecrets() {
+      loadSecrets: serial(async () => {
         const stored = await file.get()
         if (!stored) return { anthropic: "", openai: "" }
         const config = normalizeSecretSlices(stored)
         return { anthropic: config.anthropic.apiKey, openai: config.openai.apiKey }
-      },
-      async save(config) {
+      }),
+      save: serial(async (config: IntelligenceConfig) => {
         // No keychain — keys stay inline; presence flags still recorded so boot
         // reads them without re-deriving.
-        await file.set(withSaved(config, {
-          anthropic: config.anthropic.apiKey,
-          openai: config.openai.apiKey,
-        }))
-      },
+        const prev = await file.get()
+        const keep = (provider: SecretProvider) =>
+          isUnloaded(config[provider]) ? inlineKey(prev, provider) : config[provider].apiKey
+        await file.set(withSaved(config, { anthropic: keep("anthropic"), openai: keep("openai") }))
+      }),
     }
   }
 
@@ -194,46 +206,49 @@ export function createSecretAwareBackend(
     markGateSeen,
     clearGateSeen,
 
-    async loadSecrets() {
+    loadSecrets: serial(async (): Promise<Partial<ProviderSecrets>> => {
       const stored = await file.get()
       if (!stored) return { anthropic: "", openai: "" }
       const config = normalizeSecretSlices(stored)
 
-      let anthropic: string
-      let openai: string
+      const secrets: Partial<ProviderSecrets> = {}
       try {
-        anthropic = (await keychain.get("anthropic")) ?? config.anthropic.apiKey
-        openai = (await keychain.get("openai")) ?? config.openai.apiKey
+        for (const provider of PROVIDERS) {
+          secrets[provider] = (await keychain.get(provider)) ?? config[provider].apiKey
+        }
       } catch (err) {
         // Credential store denied or unreachable. An unmigrated inline key is
-        // still on disk — serve it, leaving flags be. Otherwise the value is
-        // genuinely unresolved: rethrow so callers tell a denied read apart from
-        // an absent key instead of latching "not configured".
-        if (hasPlaintextSecrets(config)) {
-          return { anthropic: config.anthropic.apiKey, openai: config.openai.apiKey }
+        // still on disk — serve it, leaving flags be. A keychain-only key stays
+        // unresolved (never "" — that would read as absent and delete it on the
+        // next save). Nothing resolved: rethrow so callers tell a denied read
+        // apart from an absent key.
+        for (const provider of PROVIDERS) {
+          if (secrets[provider] === undefined && config[provider].apiKey) {
+            secrets[provider] = config[provider].apiKey
+          }
         }
-        throw err
+        if (!PROVIDERS.some((p) => secrets[p] !== undefined)) throw err
+        return secrets
       }
-      const secrets: ProviderSecrets = { anthropic, openai }
+      const resolved = secrets as ProviderSecrets
 
       // A config written by an older version keeps keys inline. Migrate them
       // into the keychain — keychain write first, so an interrupted run never
       // loses a key — then strip the file.
-      if (hasPlaintextSecrets(config)) {
-        try {
-          await keychain.set("anthropic", anthropic)
-          await keychain.set("openai", openai)
-        } catch {
-          // Keychain unwritable — keep the inline keys and retry next load.
-          return secrets
+      try {
+        for (const provider of PROVIDERS) {
+          if (config[provider].apiKey) await keychain.set(provider, resolved[provider])
         }
+      } catch {
+        // Keychain unwritable — keep the inline keys and retry next load.
+        return resolved
       }
 
-      await file.set(withLoadedPresence(config, secrets))
-      return secrets
-    },
+      await file.set(withLoadedPresence(config, resolved))
+      return resolved
+    }),
 
-    async save(config) {
+    save: serial(async (config: IntelligenceConfig) => {
       const prev = await file.get()
       // Persist each key independently: a partial keychain failure must leave
       // only the failed provider's key on disk, never one that reached the
@@ -252,6 +267,8 @@ export function createSecretAwareBackend(
           } catch {
             // Keep this provider's key in the file; leave the others as they are.
           }
+        } else if (isUnloaded(config[provider])) {
+          persisted[provider] = inlineKey(prev, provider)
         } else {
           // An empty key deletes a real entry, but a fresh install (or a
           // provider that never had a key) must not prompt for a delete that
@@ -267,6 +284,6 @@ export function createSecretAwareBackend(
         }
       }
       await file.set(withSaved(config, persisted))
-    },
+    }),
   }
 }
