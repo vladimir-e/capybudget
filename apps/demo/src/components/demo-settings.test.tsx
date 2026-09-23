@@ -74,7 +74,8 @@ describe("ProviderSection in the demo", () => {
   it("disables every provider radio", () => {
     render(<ProviderSection />)
     const radios = screen.getAllByRole("radio")
-    expect(radios.length).toBe(4)
+    // Off / Anthropic / OpenAI / Ollama / Claude Code.
+    expect(radios.length).toBe(5)
     // base-ui marks a disabled radio with data-disabled rather than the
     // native disabled attribute.
     for (const radio of radios) {

@@ -87,7 +87,7 @@ describe("useIntelligenceStore.hydrate", () => {
     )
   })
 
-  it("backfills the claudeCli default for configs persisted before it existed", async () => {
+  it("backfills newer slices for configs persisted before they existed", async () => {
     const backend = makeBackend({
       config: {
         provider: "anthropic",
@@ -101,6 +101,8 @@ describe("useIntelligenceStore.hydrate", () => {
     await useIntelligenceStore.getState().hydrate()
     const state = useIntelligenceStore.getState()
     expect(state.config.claudeCli).toEqual({ model: "" })
+    // Same backfill, one slice later: `ollama` postdates these configs too.
+    expect(state.config.ollama).toEqual(DEFAULT_INTELLIGENCE_CONFIG.ollama)
     expect(state.config.provider).toBe("anthropic")
     expect(state.config.openai.model).toBe("gpt-5.4")
   })
@@ -330,6 +332,27 @@ describe("useIntelligenceStore setters", () => {
     expect(cfg.claudeCli).toEqual({ model: "sonnet" })
     expect(cfg.anthropic).toEqual(DEFAULT_INTELLIGENCE_CONFIG.anthropic)
     expect(cfg.openai).toEqual(DEFAULT_INTELLIGENCE_CONFIG.openai)
+  })
+
+  it("setOllamaModel + setOllamaBaseUrl update only the ollama slice", () => {
+    _setStoreLoaderForTests(async () => makeBackend(null))
+    const s = useIntelligenceStore.getState()
+    s.setOllamaBaseUrl("http://127.0.0.1:9999/v1")
+    s.setOllamaModel("qwen3")
+    const cfg = useIntelligenceStore.getState().config
+    expect(cfg.ollama).toEqual({ baseUrl: "http://127.0.0.1:9999/v1", model: "qwen3" })
+    expect(cfg.anthropic).toEqual(DEFAULT_INTELLIGENCE_CONFIG.anthropic)
+    expect(cfg.openai).toEqual(DEFAULT_INTELLIGENCE_CONFIG.openai)
+  })
+
+  it("setOllamaBaseUrl falls back to the stock endpoint when cleared", () => {
+    _setStoreLoaderForTests(async () => makeBackend(null))
+    const s = useIntelligenceStore.getState()
+    s.setOllamaBaseUrl("http://127.0.0.1:9999/v1")
+    s.setOllamaBaseUrl("   ")
+    expect(useIntelligenceStore.getState().config.ollama.baseUrl).toBe(
+      DEFAULT_INTELLIGENCE_CONFIG.ollama.baseUrl,
+    )
   })
 
   it("persists writes to the backend", async () => {

@@ -102,8 +102,10 @@ TanStack Router with file-based routing. Routes live in `packages/app/src/routes
 
 Keys live in the OS keychain (macOS Keychain / Windows Credential Manager /
 Linux secret-service) — one generic-password entry per provider (`anthropic`,
-`openai`), namespaced by the bundle identifier. The rest of the intelligence
-config persists to the `plugin-store` JSON with the key slots blanked.
+`openai`), namespaced by the bundle identifier. Ollama has no entry: a local
+server authenticates nothing, so there is no key to protect. The rest of the
+intelligence config persists to the `plugin-store` JSON with the key slots
+blanked.
 `createSecretAwareBackend` (`stores/secret-config.ts`) wraps the plaintext store:
 on load it reads keys from the keychain and, if it finds inline keys from an
 older build, migrates them into the keychain and rewrites the file without them;

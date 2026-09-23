@@ -39,12 +39,15 @@ export type {
 // Provider config
 export {
   DEFAULT_INTELLIGENCE_CONFIG,
+  DEFAULT_OLLAMA_BASE_URL,
+  OLLAMA_PLACEHOLDER_KEY,
   PROVIDER_LABELS,
   hasProviderKey,
 } from "./config"
 export type {
   IntelligenceConfig,
   IntelligenceProvider,
+  OllamaSettings,
   ProviderCredentials,
 } from "./config"
 

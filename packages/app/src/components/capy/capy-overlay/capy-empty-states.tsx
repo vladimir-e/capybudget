@@ -53,6 +53,7 @@ const PROVIDER_CHIPS: ReadonlyArray<{ provider: IntelligenceProvider; label: str
   ...(__MAS__ ? [] : [{ provider: "claude-cli" as IntelligenceProvider, label: "Claude Code" }]),
   { provider: "anthropic", label: "Anthropic" },
   { provider: "openai", label: "OpenAI" },
+  { provider: "ollama", label: "Ollama" },
 ]
 
 export function UnconfiguredEmptyState({

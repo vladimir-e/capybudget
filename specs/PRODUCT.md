@@ -9,7 +9,7 @@
 - **Budgets handle themselves.** Targets derive from your own spending history, so a budget exists from day one with nothing to assign. Setting an explicit number is a quality-of-life override, not a mandatory grind.
 - **Sync for free.** Point the data folder at iCloud or Dropbox and get cross-device sync without a backend.
 - **Self-describing data.** Metadata lives alongside data files. Copy a folder to another machine and it just works.
-- **Intelligence is optional.** An optional layer (Capy) adds smart import, auto-categorization, and natural language insights — pluggable across Claude Code CLI, Anthropic API, and OpenAI API. The app is fully functional without it.
+- **Intelligence is optional.** An optional layer (Capy) adds smart import, auto-categorization, and natural language insights — pluggable across Claude Code CLI, Anthropic API, OpenAI API, and a local Ollama server. The app is fully functional without it.
 
 ## Core Principle
 

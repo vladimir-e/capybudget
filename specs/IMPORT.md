@@ -2,14 +2,14 @@
 
 Drop a file, code normalizes and grounds it, the model categorizes the ambiguous remainder, you review and merge. The app is fully functional without import — it's additive.
 
-Import requires the Anthropic or OpenAI provider. Both run the structured model calls the pipeline needs; the Claude Code CLI structured-call path is not available, so the import surface is gated off when the CLI provider (or no provider) is selected.
+Import requires the Anthropic, OpenAI, or Ollama provider. All three run the structured model calls the pipeline needs (Ollama through its OpenAI-compatible `/v1` shim); the Claude Code CLI structured-call path is not available, so the import surface is gated off when the CLI provider (or no provider) is selected. Ollama can't read PDFs — statements reach it as CSV/OFX or not at all.
 
 ## Architecture: code orchestrates, the model is a stateless function
 
 There is no import agent. **Code runs the pipeline as a deterministic state machine** and emits every status line itself. The model is called **statelessly**, each call returning structured output — no tools, no loop, no accumulated context:
 
 1. **Mapping / extraction** (Normalizing) — CSV: headers + samples in → a `CsvMapping` out (one call; one bounded re-call when a code-side preview surfaces transform errors). Image/PDF: the bytes in → the same intermediate records a mapping would produce. OFX-family exports skip the model entirely — their fields are standardized, so code reads them straight into the same intermediate records.
-2. **Categorizing batch** — ~25 rows + their pre-attached history context in → `{ id, merchant, category, confidence }[]` out, where `category` is a budget category *name* (the model reasons over names, never ids; code maps the name back to a `categoryId`). Batches are independent, run bounded-parallel, and fail in isolation.
+2. **Categorizing batch** — ~25 rows + their pre-attached history context in → `{ id, merchant, category, confidence }[]` out, where `category` is a budget category *name* (the model reasons over names, never ids; code maps the name back to a `categoryId`, matching exactly first and then tolerating the `Name (Group)` form the prompt's own category list displays — a name that resolves to nothing leaves the row uncategorized and re-enrichable). Batches are independent, run bounded-parallel, and fail in isolation.
 3. **Transfer batch** — the transfer rows + each one's direction-aware transfer context in → `{ id, account, confidence }[]` out, where `account` is a budget account *name* the model picks for the counterpart (or `""` when unsure; code maps the name back to an `accountId`). A heterogeneous sibling of the Categorizing batch — transfers carry no merchant/category, only a "From"/"To" account to resolve — run in the same phase.
 
 Stateless calls never accumulate: mapping is tiny, each batch is bounded. The progress surface is therefore state, not prose — code always knows where the run is.

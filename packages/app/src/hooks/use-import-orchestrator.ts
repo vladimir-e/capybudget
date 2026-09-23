@@ -8,7 +8,11 @@ import {
   importReady,
   type BudgetDataProvider,
 } from "@capybudget/intelligence";
-import { AnthropicSession, OpenAiSession } from "@capybudget/intelligence/adapters";
+import {
+  AnthropicSession,
+  OllamaSession,
+  OpenAiSession,
+} from "@capybudget/intelligence/adapters";
 import { useBudgetRepository } from "@/contexts/repository-context";
 import { useCurrency } from "@/contexts/currency-context";
 import { useIntelligenceStore } from "@/stores/intelligence-store";
@@ -117,6 +121,7 @@ export function useImportOrchestrator(budgetPath: string) {
         adapters: {
           anthropic: (o) => new AnthropicSession(o),
           openai: (o) => new OpenAiSession(o),
+          ollama: (o) => new OllamaSession(o),
         },
         options: {
           budgetPath,
