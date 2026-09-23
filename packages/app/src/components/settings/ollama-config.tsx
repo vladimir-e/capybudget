@@ -13,19 +13,12 @@ import { TestResult, type TestState } from "./test-result"
 
 const OLLAMA_SITE_URL = "https://ollama.com/download"
 
-/** What the server said about its pulled models. `null` while a probe is in
- *  flight or before the first one. */
 type ProbeState =
   | { kind: "probing" }
   | { kind: "ok"; models: string[] }
   | { kind: "unreachable" }
 
-/**
- * Ollama's settings block. It differs from the API providers in both halves:
- * there is no key to store (the server authenticates nothing, so nothing goes
- * to the keychain), and the model list is discovered rather than curated —
- * only the user's machine knows what has been pulled.
- */
+/** Ollama's settings: no key, and a model list discovered from the server. */
 export function OllamaConfig() {
   const { t } = useTranslation("settings")
   const baseUrl = useIntelligenceStore((s) => s.config.ollama.baseUrl)
@@ -36,15 +29,10 @@ export function OllamaConfig() {
   const [draftUrl, setDraftUrl] = useState(baseUrl)
   const [probe, setProbe] = useState<ProbeState>({ kind: "probing" })
   const [testState, setTestState] = useState<TestState>({ kind: "idle" })
-  // Bumped by the refresh button; the probe effect keys off it so a manual
-  // re-check and an endpoint change run the exact same code path.
   const [probeToken, setProbeToken] = useState(0)
 
-  // Probe the saved endpoint, never the in-progress draft — a half-typed URL
-  // would fire a request per keystroke. Blur commits the draft, which changes
-  // `baseUrl` and re-runs this. The "probing" flip happens in the handlers that
-  // trigger a re-probe rather than here, so the effect only ever lands a
-  // result: setting state synchronously in an effect body cascades renders.
+  // Probes the committed URL, not the draft; handlers flip "probing" so the
+  // effect body never sets state synchronously.
   useEffect(() => {
     let cancelled = false
     listOllamaModels(baseUrl)
@@ -60,9 +48,6 @@ export function OllamaConfig() {
   }, [baseUrl, probeToken])
 
   function handleUrlBlur() {
-    // Mirror the store's normalization locally so a cleared field visibly
-    // snaps back to the stock endpoint instead of leaving the input empty
-    // while the config says otherwise.
     const normalized = draftUrl.trim() || DEFAULT_OLLAMA_BASE_URL
     if (normalized !== draftUrl) setDraftUrl(normalized)
     if (normalized === baseUrl) return
@@ -82,9 +67,7 @@ export function OllamaConfig() {
     }
   }
 
-  // A model saved earlier but no longer pulled (or an unreachable server) must
-  // still show up in the picker — dropping it would silently rewrite the user's
-  // choice to blank.
+  // Keep a saved model that's no longer pulled, so the choice isn't blanked.
   const detected = probe.kind === "ok" ? probe.models : []
   const modelOptions: ModelOption[] = (
     model && !detected.includes(model) ? [...detected, model] : detected

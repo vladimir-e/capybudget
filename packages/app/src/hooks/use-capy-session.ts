@@ -138,7 +138,7 @@ export function useCapySession(opts: UseCapySessionOptions): UseCapySessionRetur
           setMessages((prev) => {
             const errorBlock: ContentBlock = {
               type: "error",
-              message: event.message,
+              message: event.code ? tRef.current(`session.${event.code}`) : event.message,
               status: event.status,
               provider: event.provider,
             }
@@ -226,8 +226,6 @@ export function useCapySession(opts: UseCapySessionOptions): UseCapySessionRetur
   const openaiModel = useIntelligenceStore((s) => s.config.openai.model)
   const claudeCliModel = useIntelligenceStore((s) => s.config.claudeCli.model)
   const ollamaModel = useIntelligenceStore((s) => s.config.ollama.model)
-  // The endpoint joins Ollama's signature: repointing at another server is as
-  // much a session change as swapping the model.
   const ollamaBaseUrl = useIntelligenceStore((s) => s.config.ollama.baseUrl)
   const providerSignature =
     provider === "anthropic"

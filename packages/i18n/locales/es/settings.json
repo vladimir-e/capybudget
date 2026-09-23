@@ -118,7 +118,7 @@
     },
     "ollama": {
       "serverUrl": "URL del servidor",
-      "localOnly": "Se ejecuta en tu equipo: sin clave de API y nada sale de tu ordenador.",
+      "localOnly": "Sin clave de API: tus datos solo van a este servidor, que por defecto es tu propio equipo.",
       "refreshModels": "Actualizar",
       "notRunningHint": "Capy no puede conectar con Ollama en esta dirección. Inícialo con `ollama serve` o revisa la URL.",
       "noModels": "Ollama está en marcha pero aún no tiene modelos. Descarga uno con `ollama pull llama3.1` y actualiza.",

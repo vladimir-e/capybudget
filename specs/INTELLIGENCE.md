@@ -94,9 +94,9 @@ Adapters surface `done` off the model's terminal event (Anthropic `message` / Op
 
 Alongside the agentic `CapySession`, the in-process API adapters expose a second, stateless primitive: `StructuredSession.structured(messages, schema, options?) → T`. One constrained model call returns a value the caller's JSON Schema describes — no agent loop, no tools, no accumulated context. An optional `onText` callback switches the call to a streaming request and surfaces the accumulated raw response text per delta — a partial JSON prefix the caller can derive live progress from; the resolved value is identical either way. Smart Import is built on this; the agent loop is for chat.
 
-Both providers constrain generation to the schema server-side (Anthropic `output_config.format`, OpenAI `response_format` json_schema). `parseStructured` is the client-side enforcement layer: it parses the returned text and validates it against the same schema, so a malformed or off-schema response throws (`SchemaValidationError`) at the call site rather than landing as a silently-wrong object downstream. User turns may carry multimodal content (receipt images, PDF bytes); assistant turns are text-only, because the API rejects image/document blocks in an assistant turn.
+The providers constrain generation to the schema server-side (Anthropic `output_config.format`, OpenAI and Ollama `response_format` json_schema). `parseStructured` is the client-side enforcement layer: it parses the returned text and validates it against the same schema, so a malformed or off-schema response throws (`SchemaValidationError`) at the call site rather than landing as a silently-wrong object downstream. User turns may carry multimodal content (receipt images, PDF bytes); assistant turns are text-only, because the API rejects image/document blocks in an assistant turn.
 
-The Anthropic and OpenAI adapters implement both `CapySession` and `StructuredSession`. The Claude Code CLI adapter implements only `CapySession` — its structured-call path is not available, which is why import is gated to the API providers (see **Settings** and `IMPORT.md`).
+The Anthropic, OpenAI, and Ollama adapters implement both `CapySession` and `StructuredSession`. The Claude Code CLI adapter implements only `CapySession` — its structured-call path is not available, which is why import is gated to the API providers (see **Settings** and `IMPORT.md`).
 
 ## Adapters
 
@@ -142,8 +142,10 @@ Callers attach PDF blocks uniformly across providers; the adapter maps the share
 
 A subclass of the OpenAI adapter, not a second client. Ollama serves an OpenAI-compatible API under `/v1` — same chat-completions shape, same streamed tool-call deltas, same `response_format: json_schema` — so the adapter is `OpenAiSession` with `baseURL` pointed at the local server (`http://localhost:11434/v1` by default) and a placeholder API key, since a local server authenticates nothing. Only the provider tag on error events is overridden, so billing CTAs and copy route correctly.
 
-Two honest differences, both handled outside the class:
+Honest differences — the streaming ones absorbed by the shared stream loop, the rest handled outside the class:
 
+- **Tool calls may finish with `stop`.** Ollama can end a tool-calling turn with `finish_reason: "stop"` rather than `"tool_calls"`, so the loop runs collected calls on either. A turn cut off by `length`/`content_filter`, or a stream that ends with no finish reason, never runs its calls — it keeps only its text, so history carries no unanswered tool calls. With no text either, the turn surfaces a "cut off" error instead of an empty reply.
+- **Tool-call deltas may omit `index`.** A delta with a new `id` opens a call; one with neither continues the last.
 - **No documents.** The compatibility shim has no `file` content part, so `canReadPdf("ollama")` is false and callers never build a `document` block for it. Statements go in as CSV/OFX.
 - **`max_completion_tokens` is not an Ollama parameter.** It rides along in the request and is ignored, leaving generation uncapped — acceptable for a local model where the cost is wall-clock, not tokens.
 
@@ -275,9 +277,9 @@ Every provider uses one shared model picker: a curated dropdown plus a "Use a cu
 - **Ollama** — *discovered, not curated*: the dropdown lists what `/v1/models` reports the local server has pulled, since only the user's machine knows. A previously-saved model that is no longer pulled stays in the list so the choice is never silently rewritten. There is no default — an empty model is the "not configured" state, the same gate an empty API key is elsewhere. The block also exposes the server URL (blur-committed, an empty field snapping back to the stock endpoint) and re-probes on every URL change.
 - **Claude Code** — Default (empty, the CLI decides), plus the `fable` / `opus` / `sonnet` / `haiku` aliases. A non-empty value passes through as the CLI's `--model` flag at spawn; empty omits the flag.
 
-When `provider === null`, the Capy overlay shows an empty-state CTA instead of the chat UI.
+When Capy is not configured (`isConfigured` false), the overlay shows an empty-state CTA instead of the chat UI.
 
-Smart Import needs the structured-output primitive, which the Anthropic, OpenAI, and Ollama adapters implement. `canImport(provider)` is the single gate — true for `anthropic`, `openai`, and `ollama`, false for `claude-cli` and `null`. `importReady(config)` adds the "configured enough to run" check: a key for the API providers, a chosen model for Ollama. The Import tab shows an offline CTA when it's false, and the chat `start_import` tool returns switch-provider guidance.
+Smart Import needs the structured-output primitive, which the Anthropic, OpenAI, and Ollama adapters implement. `canImport(provider)` is the single gate — true for `anthropic`, `openai`, and `ollama`, false for `claude-cli` and `null`. `importReady(config)` adds the "configured enough to run" check: a chosen model for every provider, plus a key for the API providers. The Import tab shows an offline CTA when it's false, and the chat `start_import` tool returns switch-provider guidance.
 
 The Intelligence section also hosts a chat-instructions editor for `capy-instructions.md` (see Custom Instructions). The same file is editable from the Capy overlay; edits apply to the next conversation. The web demo can't store an AI provider, so it renders the provider list disabled behind a desktop-only notice and omits the per-provider config and the chat-instructions editor; Categories management stays fully functional.
 

@@ -78,6 +78,22 @@ describe("OllamaConfig", () => {
     expect(await screen.findByText(/no models yet/i)).toBeInTheDocument()
   })
 
+  it("keeps a saved model the server no longer has in the picker", async () => {
+    mockList.mockResolvedValue(["llama3.1:8b"])
+    await hydrate({ model: "mistral:7b" })
+    const user = userEvent.setup()
+
+    render(<OllamaConfig />)
+    expect(await screen.findByText("Detected")).toBeInTheDocument()
+    expect(screen.queryByPlaceholderText("model-identifier")).not.toBeInTheDocument()
+
+    await user.click(screen.getByLabelText("Model"))
+
+    expect(await screen.findByRole("option", { name: "mistral:7b" })).toBeInTheDocument()
+    expect(screen.getByRole("option", { name: "llama3.1:8b" })).toBeInTheDocument()
+    expect(useIntelligenceStore.getState().config.ollama.model).toBe("mistral:7b")
+  })
+
   it("re-probes the new endpoint when the URL is committed", async () => {
     mockList.mockResolvedValue(["llama3.1:8b"])
     await hydrate()

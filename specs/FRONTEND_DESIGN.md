@@ -52,7 +52,7 @@ Capy's chat panel slides out from the right edge — full-width on mobile, defau
 The header (mascot avatar, name, status, "New chat", close) is persistent across every state. The close icon is "Hide panel" — collapsing the panel preserves the session; "New chat" is the explicit reset.
 
 Empty states:
-- **Unconfigured** (`provider === null`): mascot + setup copy + provider quick-pick chips + "Open settings". Input is hidden until a provider is configured.
+- **Unconfigured** (`isConfigured` false): mascot + setup copy + provider quick-pick chips + "Open settings". A chosen provider still missing its key or model gets "finish setting up <provider>" copy and "Open settings" only, no chips. Input is hidden until a provider is configured.
 - **Welcome** (configured, no messages): mascot + greeting + four suggestion cards (click sends prompt as user message).
 
 Conversation:

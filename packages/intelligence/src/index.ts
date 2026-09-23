@@ -18,6 +18,7 @@ export type {
   ContentBlock,
   ChatMessage,
   StreamEvent,
+  SessionErrorCode,
   SessionProvider,
 } from "./types"
 

@@ -91,9 +91,6 @@ describe("enrichBatch", () => {
   });
 
   it("resolves the `Name (Group)` form the prompt itself displays", async () => {
-    // The category list is rendered as `Groceries (Daily Living)`, so a model
-    // reading "copy the name verbatim" literally echoes the whole string back.
-    // Frontier models drop the group on their own; smaller local ones don't.
     const batch = [makeImportTransaction({ id: "imp-1", type: "expense" })];
     const session = new MockStructuredSession([
       () => ({
@@ -106,8 +103,26 @@ describe("enrichBatch", () => {
     expect(result[0].categoryId).toBe("cat-1");
   });
 
+  it("tolerates a wrong group suffix, still within the row's type partition", async () => {
+    const batch = [
+      makeImportTransaction({ id: "imp-1", type: "expense" }),
+      makeImportTransaction({ id: "imp-2", type: "expense" }),
+    ];
+    const session = new MockStructuredSession([
+      () => ({
+        rows: [
+          { id: "imp-1", merchant: "A", category: "Groceries (Food)", confidence: "high" },
+          { id: "imp-2", merchant: "B", category: "Paycheck (Personal)", confidence: "high" },
+        ],
+      }),
+    ]);
+
+    const result = await enrichBatch(session, batch, {}, categories);
+
+    expect(result.map((r) => r.categoryId)).toEqual(["cat-1", ""]);
+  });
+
   it("resolves the group-suffixed form within the row's type partition only", async () => {
-    // The tolerance must not become a back door around the cross-type guard.
     const batch = [makeImportTransaction({ id: "imp-1", type: "expense" })];
     const session = new MockStructuredSession([
       () => ({ rows: [{ id: "imp-1", merchant: "A", category: "Paycheck (Income)", confidence: "high" }] }),
@@ -118,22 +133,36 @@ describe("enrichBatch", () => {
     expect(result[0].categoryId).toBe("");
   });
 
-  it("prefers an exact match over stripping a parenthetical from the name", async () => {
-    // A category genuinely named with a parenthetical still wins on its own
-    // terms — the strip only runs after an exact lookup misses.
-    const withParens = [
+  describe("names with parentheses and shared names", () => {
+    const tricky = [
       ...categories,
-      makeCategory({ id: "cat-car", name: "Car (old)", group: "Irregular" }),
-      makeCategory({ id: "cat-car-new", name: "Car", group: "Irregular" }),
+      makeCategory({ id: "cat-car-old", name: "Car (old)", group: "Fixed" }),
+      makeCategory({ id: "cat-car", name: "Car", group: "Fixed" }),
+      makeCategory({ id: "cat-fuel-fixed", name: "Fuel", group: "Fixed" }),
+      makeCategory({ id: "cat-fuel-irregular", name: "Fuel", group: "Irregular" }),
     ];
-    const batch = [makeImportTransaction({ id: "imp-1", type: "expense" })];
-    const session = new MockStructuredSession([
-      () => ({ rows: [{ id: "imp-1", merchant: "A", category: "Car (old)", confidence: "high" }] }),
-    ]);
 
-    const result = await enrichBatch(session, batch, {}, withParens);
+    it.each([
+      ["Car (old)", "cat-car-old"],
+      ["Car (old) (Fixed)", "cat-car-old"],
+      ["Car (Fixed)", "cat-car"],
+      ["Car (old) (Fixd)", "cat-car-old"],
+      ["Car (Irregular)", "cat-car"],
+      ["Car (lease)", "cat-car"],
+      ["Bike (Fixed)", ""],
+      ["Fuel", "cat-fuel-fixed"],
+      ["Fuel (Fixed)", "cat-fuel-fixed"],
+      ["Fuel (Irregular)", "cat-fuel-irregular"],
+    ])("%s → %s", async (returned, expected) => {
+      const batch = [makeImportTransaction({ id: "imp-1", type: "expense" })];
+      const session = new MockStructuredSession([
+        () => ({ rows: [{ id: "imp-1", merchant: "A", category: returned, confidence: "high" }] }),
+      ]);
 
-    expect(result[0].categoryId).toBe("cat-car");
+      const result = await enrichBatch(session, batch, {}, tricky);
+
+      expect(result[0].categoryId).toBe(expected);
+    });
   });
 
   it("leaves the row uncategorized for an unknown/hallucinated name", async () => {
@@ -239,6 +268,8 @@ describe("enrichBatch", () => {
 
     const text = (session.calls[0].messages[0].content as string);
     expect(text).toMatch(/EXACT name/);
+    expect(text).toMatch(/drop only that final parenthesized group/);
+    expect(text).toContain(`"Car (old) (Fixed)" gives "Car (old)"`);
     expect(text).toMatch(/do not translate/i);
     expect(text).toMatch(/source statement's own language/i);
   });

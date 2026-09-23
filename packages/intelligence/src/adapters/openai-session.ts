@@ -50,6 +50,21 @@ interface ToolCallAccumulator {
   parsed?: Record<string, unknown> | Error
 }
 
+/** Ollama's stream may omit `index`: a new `id` opens a call, anything else
+ *  continues the last one. */
+function toolSlot(
+  tc: { index?: number; id?: string },
+  accs: Map<number, ToolCallAccumulator>,
+  lastSlot: number,
+): number {
+  if (typeof tc.index === "number") return tc.index
+  if (tc.id) {
+    for (const [slot, acc] of accs) if (acc.id === tc.id) return slot
+    return accs.size === 0 ? 0 : Math.max(...accs.keys()) + 1
+  }
+  return Math.max(lastSlot, 0)
+}
+
 function finalizeToolArgs(acc: ToolCallAccumulator): Record<string, unknown> | Error {
   if (acc.parsed !== undefined) return acc.parsed
   let result: Record<string, unknown> | Error
@@ -89,19 +104,13 @@ export class OpenAiSession implements CapySession, StructuredSession {
     }))
     this.client = new OpenAI({
       apiKey: opts.apiKey,
-      // Undefined keeps the SDK default (api.openai.com); a value points the
-      // same wire protocol at an OpenAI-compatible server — see OllamaSession.
       baseURL: opts.baseUrl,
       // Tauri webview — key lives on disk, not bundled into a public app.
       dangerouslyAllowBrowser: true,
     })
   }
 
-  /**
-   * Which provider error events are tagged with, so the UI routes billing CTAs
-   * and copy to the right place. Subclasses that reuse this transport against
-   * another endpoint override it.
-   */
+  /** The provider error events are tagged with — overridden by subclasses. */
   protected get providerId(): SessionProvider {
     return "openai"
   }
@@ -251,6 +260,7 @@ export class OpenAiSession implements CapySession, StructuredSession {
       let currentTextDraftIndex: number | null = null
       const toolAccs = new Map<number, ToolCallAccumulator>()
       let finishReason: string | null = null
+      let lastSlot = -1
 
       for await (const chunk of stream) {
         const choice = chunk.choices[0]
@@ -273,7 +283,8 @@ export class OpenAiSession implements CapySession, StructuredSession {
 
         if (delta.tool_calls) {
           for (const tc of delta.tool_calls) {
-            const idx = tc.index
+            const idx = toolSlot(tc, toolAccs, lastSlot)
+            lastSlot = idx
             let acc = toolAccs.get(idx)
             if (!acc) {
               acc = { id: "", name: "", argsString: "" }
@@ -295,8 +306,13 @@ export class OpenAiSession implements CapySession, StructuredSession {
         }
       }
 
+      // Tool calls run only on a clean finish — Ollama reports "stop" alongside
+      // them. A cut-off or dropped stream may carry half-formed calls, and tools
+      // mutate the budget; that turn keeps its text only, since stored calls
+      // without tool replies would fail every later request.
+      const completed = finishReason === "tool_calls" || finishReason === "stop"
       const assistantToolCalls: OpenAI.Chat.Completions.ChatCompletionMessageToolCall[] = []
-      const sortedIndices = [...toolAccs.keys()].sort((a, b) => a - b)
+      const sortedIndices = completed ? [...toolAccs.keys()].sort((a, b) => a - b) : []
       const assistantTextOnly = accumulatedText
       for (const idx of sortedIndices) {
         const acc = toolAccs.get(idx)!
@@ -316,6 +332,17 @@ export class OpenAiSession implements CapySession, StructuredSession {
         emitContent()
       }
 
+      if (!completed && assistantTextOnly.length === 0) {
+        if (this.interrupted || this.killed) return
+        this.interrupted = true
+        this.opts.onEvent({
+          type: "error",
+          code: "cutOff",
+          message: "The response was cut off before Capy could reply. Try again.",
+        })
+        return
+      }
+
       // Only persist a turn that carries text or tool calls. An empty terminal
       // completion stored as `{content: null}` with no tool_calls is invalid to
       // OpenAI, and history replays on every send — so one poisons the whole
@@ -332,11 +359,8 @@ export class OpenAiSession implements CapySession, StructuredSession {
         this.messages.push(assistantMessage)
       }
 
-      // Exit on a non-tool_calls finish — and on a tool_calls finish with no
-      // tool calls: nothing to execute, history unchanged, so re-sending spins
-      // forever and burns tokens (the tool-call budget counts executions, not
-      // this). Treat the contradiction as terminal.
-      if (finishReason !== "tool_calls" || !hasToolCalls) return
+      // No calls = terminal: re-sending unchanged history spins.
+      if (!hasToolCalls) return
 
       const toolMessages: OpenAI.Chat.Completions.ChatCompletionToolMessageParam[] = []
       let budgetExhausted = false
@@ -402,6 +426,7 @@ export class OpenAiSession implements CapySession, StructuredSession {
         this.interrupted = true
         this.opts.onEvent({
           type: "error",
+          code: "budgetExhausted",
           message: `Tool-call budget exhausted (${SESSION_TOOL_CALL_BUDGET} calls). Stopping. Run again if more work is needed.`,
         })
         return

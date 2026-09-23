@@ -14,44 +14,47 @@
  */
 
 import {
+  hasModel,
   hasProviderKey,
-  OLLAMA_PLACEHOLDER_KEY,
+  resolveApiTarget,
   type IntelligenceConfig,
 } from "../config";
 import type { AdapterConstructors } from "../factory";
 import type { StructuredSession } from "../structured";
 import type { BudgetRepository, FileAdapter } from "@capybudget/persistence";
 
-/** Whether a provider can run the structured import pipeline — it needs the
- *  schema-constrained structured call, which the three OpenAI/Anthropic-shaped
- *  adapters implement (Ollama through its `/v1` compatibility shim). The CLI
- *  provider is deferred; `null` means AI is off. */
+/** Whether a provider can run the structured import pipeline. The CLI provider
+ *  is deferred; `null` means AI is off. */
 export function canImport(provider: IntelligenceConfig["provider"]): boolean {
   return provider === "anthropic" || provider === "openai" || provider === "ollama";
 }
 
 /** Whether an import run can actually start: a provider {@link canImport} can
- *  run AND that provider is configured enough to talk to. For the API providers
- *  that means a key, presence-based, so this is true before the key is fetched
- *  from the keychain — the UI gate reflects "a key is set" without an eager
- *  keychain read; the runtime session build reads the actual key (loaded on
- *  demand first) and guards separately on it. Ollama has no key to check: a
- *  chosen model is its equivalent — nothing local can run without one. */
+ *  run AND that provider has a model and (for the hosted APIs) a key configured.
+ *  Presence-based, so this is true before the key is fetched from the keychain —
+ *  the UI gate reflects "a key is set" without an eager keychain read. The
+ *  runtime session build reads the actual key (loaded on demand first) and
+ *  guards separately on it. */
 export function importReady(config: IntelligenceConfig): boolean {
-  if (config.provider === "anthropic") return hasProviderKey(config.anthropic);
-  if (config.provider === "openai") return hasProviderKey(config.openai);
-  if (config.provider === "ollama") return config.ollama.model !== "";
-  return false;
+  switch (config.provider) {
+    case "anthropic":
+    case "openai": {
+      const creds = config[config.provider];
+      return hasProviderKey(creds) && hasModel(creds.model);
+    }
+    case "ollama":
+      return hasModel(config.ollama.model);
+    default:
+      return false;
+  }
 }
 
 /** Whether a provider can read PDF/document attachments. Anthropic sends PDFs
  *  through the SDK's native `document` type; OpenAI takes them as a `file`
  *  content part on `chat.completions`. Ollama's compatibility shim has no
- *  document part at all — PDFs would be dropped silently, so it stays false and
- *  users route statements through CSV/OFX instead. The Claude CLI's document
- *  passthrough is untested and the CLI is excluded from import anyway
- *  (`canImport`), so it stays false too. The Import tab and chat gate PDF drops
- *  on this. */
+ *  document part. The Claude CLI's document passthrough is untested and the CLI
+ *  is excluded from import anyway (`canImport`), so it stays false. The Import
+ *  tab and chat gate PDF drops on this. */
 export function canReadPdf(provider: IntelligenceConfig["provider"]): boolean {
   return provider === "anthropic" || provider === "openai";
 }
@@ -70,8 +73,9 @@ export interface StructuredImportSessionDeps {
 
 /**
  * Build the import structured session, or `null` when the provider can't run it
- * (CLI / off) or isn't configured (missing API key, or no Ollama model). The returned session's `structured()`
- * uses the import system prompt and the provider's configured model.
+ * (CLI / off) or isn't configured (see `resolveApiTarget`). The returned
+ * session's `structured()` uses the import system prompt and the provider's
+ * configured model.
  *
  * The API adapter implements both interfaces; only `structured()` is exercised
  * here. `onEvent` is a no-op — the adapter ctor requires it for its agent-loop
@@ -81,42 +85,17 @@ export function createStructuredImportSession(
   deps: StructuredImportSessionDeps,
 ): StructuredSession | null {
   const { config, adapters, options } = deps;
-  if (!importReady(config)) return null;
-
-  const provider = config.provider;
-  const ctor =
-    provider === "anthropic"
-      ? adapters.anthropic
-      : provider === "openai"
-        ? adapters.openai
-        : adapters.ollama;
+  const target = resolveApiTarget(config);
+  if (!target) return null;
+  const ctor = adapters[target.provider];
   if (!ctor) return null;
-
-  // Ollama runs locally against a placeholder key and a base URL; the API
-  // providers run against a real key and the SDK's default endpoint.
-  // `importReady` gated on key *presence* (known without a keychain read), so
-  // the actual value is checked here — a present-but-unloaded key fails now
-  // rather than building a session that 401s on its first call.
-  let apiKey: string;
-  let model: string;
-  let baseUrl: string | undefined;
-  if (provider === "ollama") {
-    apiKey = OLLAMA_PLACEHOLDER_KEY;
-    model = config.ollama.model;
-    baseUrl = config.ollama.baseUrl;
-  } else {
-    const providerConfig = provider === "anthropic" ? config.anthropic : config.openai;
-    if (!providerConfig.apiKey) return null;
-    apiKey = providerConfig.apiKey;
-    model = providerConfig.model;
-  }
 
   const session = ctor({
     budgetPath: options.budgetPath,
     systemPrompt: options.systemPrompt,
-    apiKey,
-    model,
-    baseUrl,
+    apiKey: target.apiKey,
+    model: target.model,
+    baseUrl: target.baseUrl,
     onEvent: () => {},
     repo: options.repo,
     fileAdapter: options.fileAdapter,

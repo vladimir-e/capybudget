@@ -202,9 +202,6 @@ export function ProviderSection() {
             description={t("provider.options.openai.description")}
             disabled={__IS_DEMO__}
           />
-          {/* Ollama is local-first: no key, no cost, and it works offline —
-              but it needs a server the user installs themselves, so it sits
-              below the two hosted APIs. */}
           <ProviderRadio
             value="ollama"
             label={PROVIDER_LABELS.ollama}

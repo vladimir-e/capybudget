@@ -23,41 +23,21 @@ export async function pingApi(
   return pingOpenAi(apiKey, model)
 }
 
-/**
- * List the models the local server actually has pulled, via the OpenAI-shaped
- * `/v1/models` route. Ollama is the one provider whose model list is knowable
- * at runtime — a curated dropdown would be fiction — so Settings offers what
- * the machine reports. Throws on an unreachable server; the caller turns that
- * into "Ollama isn't running" copy.
- */
-export async function listOllamaModels(baseUrl: string): Promise<string[]> {
+async function ollamaClient(baseUrl: string) {
   const { default: OpenAI } = await import("openai")
-  const client = new OpenAI({
-    apiKey: OLLAMA_PLACEHOLDER_KEY,
-    baseURL: baseUrl,
-    dangerouslyAllowBrowser: true,
-  })
-  const list = await client.models.list()
+  return new OpenAI({ apiKey: OLLAMA_PLACEHOLDER_KEY, baseURL: baseUrl, dangerouslyAllowBrowser: true })
+}
+
+/** Models the server has pulled. Throws on an unreachable server. */
+export async function listOllamaModels(baseUrl: string): Promise<string[]> {
+  const list = await (await ollamaClient(baseUrl)).models.list()
   return list.data.map((m) => m.id).sort((a, b) => a.localeCompare(b))
 }
 
-/**
- * One-shot chat against the local server. Stricter than `listOllamaModels` on
- * purpose: a reachable server with the model *not pulled* answers the model
- * list fine and fails here, which is exactly the failure the user needs to see
- * before trusting the provider.
- */
-export async function pingOllama(
-  baseUrl: string,
-  model: string,
-): Promise<PingResult> {
+/** A one-shot chat — unlike the model list, this fails when the model isn't pulled. */
+export async function pingOllama(baseUrl: string, model: string): Promise<PingResult> {
   try {
-    const { default: OpenAI } = await import("openai")
-    const client = new OpenAI({
-      apiKey: OLLAMA_PLACEHOLDER_KEY,
-      baseURL: baseUrl,
-      dangerouslyAllowBrowser: true,
-    })
+    const client = await ollamaClient(baseUrl)
     await client.chat.completions.create({
       model,
       max_tokens: 8,

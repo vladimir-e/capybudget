@@ -10,15 +10,14 @@
  * Returns null when:
  *   - config.provider is null (AI features disabled by the user)
  *   - the chosen provider's adapter wasn't injected
- *   - an API provider is selected but its API key is empty
- *   - Ollama is selected with no model picked (it has no key to check, but a
- *     model is just as required — nothing can run without one)
+ *   - the selected API provider has no loaded key or no model (see
+ *     `resolveApiTarget`)
  *
  * The hook treats null as "not configured" and surfaces empty-state
  * UI; for now callers fall back to "no session, no chat" behavior.
  */
 
-import { OLLAMA_PLACEHOLDER_KEY, type IntelligenceConfig } from "./config"
+import { resolveApiTarget, type IntelligenceConfig } from "./config"
 import type { CapySession } from "./session"
 import type { StreamEvent } from "./types"
 import { canImport, canReadPdf } from "./import/session-factory"
@@ -49,11 +48,7 @@ export interface ApiAdapterOptions {
   systemPrompt: string
   apiKey: string
   model: string
-  /**
-   * OpenAI-compatible endpoint override. Undefined means the SDK's own default
-   * (api.openai.com); set for local servers that speak the same wire format —
-   * see the Ollama adapter. Only the OpenAI-shaped adapters read it.
-   */
+  /** OpenAI-compatible endpoint override (Ollama); undefined = SDK default. */
   baseUrl?: string
   onEvent: (event: StreamEvent) => void
   repo: BudgetRepository
@@ -127,87 +122,36 @@ export function createIntelligenceSession(
   deps: CreateSessionDeps,
 ): CapySession | null {
   const { config, adapters, options } = deps
-  const provider = config.provider
-  if (provider === null) return null
-
-  switch (provider) {
-    case "claude-cli": {
-      const ctor = adapters["claude-cli"]
-      if (!ctor) return null
-      return ctor({
-        budgetPath: options.budgetPath,
-        mcpServerPath: options.mcpServerPath,
-        systemPrompt: options.systemPrompt,
-        model: options.claudeCliModel ?? "",
-        onEvent: options.onEvent,
-        onExit: options.onExit,
-      })
-    }
-    case "anthropic": {
-      const ctor = adapters.anthropic
-      if (!ctor) return null
-      const { apiKey, model } = config.anthropic
-      if (!apiKey) return null
-      if (!options.repo || !options.fileAdapter) return null
-      return ctor({
-        budgetPath: options.budgetPath,
-        systemPrompt: options.systemPrompt,
-        apiKey,
-        model,
-        onEvent: options.onEvent,
-        repo: options.repo,
-        fileAdapter: options.fileAdapter,
-        currency: options.currency,
-        currencies: options.currencies,
-        getCurrencies: options.getCurrencies,
-        importSupported: canImport(provider),
-        pdfSupported: canReadPdf(provider),
-      })
-    }
-    case "ollama": {
-      const ctor = adapters.ollama
-      if (!ctor) return null
-      const { baseUrl, model } = config.ollama
-      // No key to guard on — a local server authenticates nothing. The model
-      // is the equivalent gate: without one there's nothing to talk to.
-      if (!model) return null
-      if (!options.repo || !options.fileAdapter) return null
-      return ctor({
-        budgetPath: options.budgetPath,
-        systemPrompt: options.systemPrompt,
-        apiKey: OLLAMA_PLACEHOLDER_KEY,
-        model,
-        baseUrl,
-        onEvent: options.onEvent,
-        repo: options.repo,
-        fileAdapter: options.fileAdapter,
-        currency: options.currency,
-        currencies: options.currencies,
-        getCurrencies: options.getCurrencies,
-        importSupported: canImport(provider),
-        pdfSupported: canReadPdf(provider),
-      })
-    }
-    case "openai": {
-      const ctor = adapters.openai
-      if (!ctor) return null
-      const { apiKey, model } = config.openai
-      if (!apiKey) return null
-      if (!options.repo || !options.fileAdapter) return null
-      return ctor({
-        budgetPath: options.budgetPath,
-        systemPrompt: options.systemPrompt,
-        apiKey,
-        model,
-        onEvent: options.onEvent,
-        repo: options.repo,
-        fileAdapter: options.fileAdapter,
-        currency: options.currency,
-        currencies: options.currencies,
-        getCurrencies: options.getCurrencies,
-        importSupported: canImport(provider),
-        pdfSupported: canReadPdf(provider),
-      })
-    }
+  if (config.provider === "claude-cli") {
+    const ctor = adapters["claude-cli"]
+    if (!ctor) return null
+    return ctor({
+      budgetPath: options.budgetPath,
+      mcpServerPath: options.mcpServerPath,
+      systemPrompt: options.systemPrompt,
+      model: options.claudeCliModel ?? "",
+      onEvent: options.onEvent,
+      onExit: options.onExit,
+    })
   }
+
+  const target = resolveApiTarget(config)
+  if (!target) return null
+  const ctor = adapters[target.provider]
+  if (!ctor || !options.repo || !options.fileAdapter) return null
+  return ctor({
+    budgetPath: options.budgetPath,
+    systemPrompt: options.systemPrompt,
+    apiKey: target.apiKey,
+    model: target.model,
+    baseUrl: target.baseUrl,
+    onEvent: options.onEvent,
+    repo: options.repo,
+    fileAdapter: options.fileAdapter,
+    currency: options.currency,
+    currencies: options.currencies,
+    getCurrencies: options.getCurrencies,
+    importSupported: canImport(target.provider),
+    pdfSupported: canReadPdf(target.provider),
+  })
 }

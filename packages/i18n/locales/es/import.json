@@ -17,7 +17,7 @@
     "unsupportedType": "{{name}} no es un tipo de archivo compatible",
     "pdfNeedsCapableProvider": "{{name}} omitido — la importación de PDF necesita el proveedor Anthropic u OpenAI",
     "saveFailed": "No se pudo guardar {{name}}",
-    "providerRequired": "La importación necesita Anthropic u OpenAI configurado.",
+    "providerRequired": "La importación necesita Anthropic, OpenAI u Ollama configurado.",
     "clearFailed": "No se pudo limpiar la preparación de importación — inténtalo de nuevo.",
     "removeFileFailed": "No se pudo eliminar {{name}}"
   },
@@ -39,7 +39,7 @@
   "setupAi": {
     "title": "Configura la IA para importar",
     "body": "Conecta un proveedor de IA en los ajustes para traer estas transacciones.",
-    "cliBody": "Claude Code impulsa el chat, pero importar extractos necesita Anthropic u OpenAI — añade uno en los ajustes.",
+    "cliBody": "Claude Code impulsa el chat, pero importar extractos necesita Anthropic, OpenAI u Ollama — añade uno en los ajustes.",
     "button": "Configurar IA"
   },
   "progress": {

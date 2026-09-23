@@ -190,7 +190,7 @@ describe("start_import", () => {
     const result = JSON.parse(await runTool("start_import", {}, ctx))
     expect(result.started).toBe(false)
     expect(result.reason).toBe("provider_unsupported")
-    expect(result.message).toMatch(/Anthropic or OpenAI/)
+    expect(result.message).toMatch(/Anthropic, OpenAI, or Ollama/)
     expect(fs.files.has(STATE_PATH)).toBe(false)
   })
 

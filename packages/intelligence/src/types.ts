@@ -137,6 +137,11 @@ export type StreamEvent =
        *  right provider's console. Omitted on synthetic errors raised
        *  by the hook layer (e.g. budget exhausted, unconfigured). */
       provider?: SessionProvider
+      /** Set on errors the UI words itself (`session.<code>` in the capy
+       *  namespace); `message` is the untranslated fallback. */
+      code?: SessionErrorCode
     }
+
+export type SessionErrorCode = "cutOff" | "budgetExhausted"
 
 export type SessionProvider = "anthropic" | "openai" | "claude-cli" | "ollama"

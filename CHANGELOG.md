@@ -9,6 +9,11 @@ CHANGELOG PHILOSOPHY:
 - Resist the urge to be thorough here. Thoroughness goes in specs, not changelog.
 -->
 
+## Unreleased
+
+- **Capy** - Run Capy fully on your own machine with Ollama — no API key, no per-token cost (#111).
+- **Language** - Capy Budget now speaks Brazilian Portuguese (#110).
+
 ## 1.5.1 — 2026-07-05
 
 - **App** - Error toasts now stay put until you dismiss them, so a failed import or save can't flash by unnoticed; success messages still fade on their own.

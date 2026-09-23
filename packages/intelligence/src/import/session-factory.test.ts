@@ -57,6 +57,13 @@ describe("canImport", () => {
 });
 
 describe("importReady", () => {
+  it("needs a model for every provider, ignoring whitespace", () => {
+    expect(importReady(config({ provider: "anthropic", anthropic: { apiKey: "sk", model: " " } }))).toBe(false);
+    expect(
+      importReady(config({ provider: "ollama", ollama: { baseUrl: "http://x/v1", model: "  " } })),
+    ).toBe(false);
+  });
+
   it("treats a chosen Ollama model as the key-equivalent gate", () => {
     expect(importReady(config({ provider: "ollama" }))).toBe(false);
     expect(
