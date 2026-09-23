@@ -73,6 +73,20 @@ function fakeKeychain(
   return { keychain, store }
 }
 
+/** Hold every keychain read until `release()` — the OS prompt a read can block on. */
+function blockKeychainReads(keychain: Keychain) {
+  let release!: () => void
+  const gate = new Promise<void>((r) => {
+    release = r
+  })
+  const get = keychain.get
+  keychain.get = vi.fn(async (provider: SecretProvider) => {
+    await gate
+    return get(provider)
+  })
+  return release
+}
+
 describe("createSecretAwareBackend — no keychain (fallback)", () => {
   it("keeps keys inline in the file, with presence flags", async () => {
     const file = fakeFile(null)
@@ -238,6 +252,55 @@ describe("createSecretAwareBackend — loadSecrets", () => {
     await expect(backend.loadSecrets()).rejects.toThrow()
   })
 
+  it("keeps a provider or model change made while the keychain read was pending", async () => {
+    const file = fakeFile({ ...config(), anthropic: { apiKey: "", model: "m", keyPresent: true } })
+    const { keychain, store } = fakeKeychain()
+    store.set("anthropic", "sk-ant")
+    const release = blockKeychainReads(keychain)
+    const backend = createSecretAwareBackend(file.backend, keychain)
+
+    const pending = backend.loadSecrets()
+    const loaded = await backend.load()
+    await backend.save({ ...loaded!.config, provider: "openai", openai: { ...loaded!.config.openai, model: "gpt-x" } })
+    release()
+    await pending
+
+    expect(file.read()?.provider).toBe("openai")
+    expect(file.read()?.openai.model).toBe("gpt-x")
+    expect(file.read()?.anthropic.keyPresent).toBe(true)
+  })
+
+  it("never migrates a stale inline key over one saved while the read was pending", async () => {
+    const file = fakeFile(legacyConfig({ anthropic: "sk-old" }))
+    const { keychain, store } = fakeKeychain()
+    const release = blockKeychainReads(keychain)
+    const backend = createSecretAwareBackend(file.backend, keychain)
+
+    const pending = backend.loadSecrets()
+    await backend.save(config({ anthropic: "sk-new" }))
+    release()
+    await pending
+
+    expect(store.get("anthropic")).toBe("sk-new")
+    expect(file.read()?.anthropic.apiKey).toBe("")
+    expect(file.read()?.anthropic.keyPresent).toBe(true)
+  })
+
+  it("keeps a key saved while the read was pending present, even if the read found none", async () => {
+    const file = fakeFile(config())
+    const { keychain, store } = fakeKeychain()
+    const release = blockKeychainReads(keychain)
+    const backend = createSecretAwareBackend(file.backend, keychain)
+
+    const pending = backend.loadSecrets()
+    await backend.save(config({ openai: "sk-oai" }))
+    release()
+    await pending
+
+    expect(store.get("openai")).toBe("sk-oai")
+    expect(file.read()?.openai.keyPresent).toBe(true)
+  })
+
   it("keeps inline keys when the migration write fails", async () => {
     const file = fakeFile(config({ anthropic: "sk-ant" }))
     const { keychain } = fakeKeychain({ failSet: true })
@@ -310,6 +373,17 @@ describe("createSecretAwareBackend — save", () => {
 
     expect(file.read()?.openai.apiKey).toBe("sk-inline")
     expect(file.read()?.openai.keyPresent).toBe(true)
+  })
+
+  it("tolerates a stored config missing a provider section", async () => {
+    const file = fakeFile({ provider: "anthropic" } as IntelligenceConfig)
+    const { keychain } = fakeKeychain()
+    const backend = createSecretAwareBackend(file.backend, keychain)
+
+    await backend.save({ ...DEFAULT_INTELLIGENCE_CONFIG })
+
+    expect(keychain.set).not.toHaveBeenCalled()
+    expect(file.read()?.openai.keyPresent).toBe(false)
   })
 
   it("falls back to writing keys in the file when the keychain write fails", async () => {

@@ -11,7 +11,7 @@ CHANGELOG PHILOSOPHY:
 
 ## Unreleased
 
-- **Security** - Changing AI settings after a restart no longer deletes a saved API key, and switching from Claude Code to an API provider picks up its stored key without a restart.
+- **Capy** - Changing AI settings after a restart no longer deletes a saved API key, and switching from Claude Code to an API provider picks up its stored key without a restart.
 
 ## 1.5.1 — 2026-07-05
 
