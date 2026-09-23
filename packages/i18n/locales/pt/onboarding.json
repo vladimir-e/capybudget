@@ -1,0 +1,28 @@
+{
+  "firstRun": {
+    "title": "Vamos configurar seu orçamento",
+    "subtitle": "Três passos para começar.",
+    "stepsLabel": "Passos de configuração",
+    "done": "Concluído",
+    "addAccounts": {
+      "label": "Adicione suas contas",
+      "sublabel": "Carteira, cartões de crédito, contas bancárias…",
+      "action": "Adicionar conta"
+    },
+    "logTransactions": {
+      "label": "Registre transações",
+      "sublabelBefore": "Pressione ",
+      "sublabelAfter": ", ou importe de extratos e capturas de tela.",
+      "action": "Adicionar transação",
+      "needsAccount": "Adicione uma conta primeiro."
+    },
+    "askCapy": {
+      "label": "Pergunte ao Capy",
+      "sublabel": "Seu assistente de IA — gastos, orçamentos, o que for.",
+      "action": "Perguntar ao Capy"
+    },
+    "docsBefore": "É novo por aqui? ",
+    "docsLink": "Consulte a documentação",
+    "docsAfter": " para se situar rapidamente."
+  }
+}

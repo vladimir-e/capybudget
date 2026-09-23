@@ -1,0 +1,149 @@
+{
+  "title": "Configurações",
+  "back": "Voltar ao orçamento",
+  "nav": {
+    "label": "Seções das configurações"
+  },
+  "sections": {
+    "general": {
+      "label": "Geral",
+      "description": "Moeda e básicos"
+    },
+    "intelligence": {
+      "label": "Inteligência",
+      "description": "Provedor de IA"
+    },
+    "categories": {
+      "label": "Categorias",
+      "description": "Organize seus gastos"
+    },
+    "updates": {
+      "label": "Atualizações",
+      "description": "Versão do app"
+    }
+  },
+  "general": {
+    "title": "Geral",
+    "description": "Ajustes gerais do orçamento.",
+    "budgetName": "Nome do orçamento",
+    "openOnLaunch": {
+      "label": "Abrir este orçamento ao iniciar",
+      "description": "Pule o seletor e abra este orçamento automaticamente quando o app iniciar."
+    }
+  },
+  "language": {
+    "title": "Idioma",
+    "description": "Idioma de exibição do aplicativo."
+  },
+  "currency": {
+    "title": "Moeda",
+    "description": "Como os valores são exibidos.",
+    "changeNotice": "Muda apenas a exibição — seus saldos não são convertidos.",
+    "switchWarning": {
+      "title": "Trocar a moeda padrão?",
+      "description": "Este orçamento tem contas em outras moedas. Trocar reexpressa todas as taxas de câmbio guardadas em {{currency}} — seu histórico mantém o formato, mas os valores são reapresentados na nova moeda, e os centavos podem variar um pouco. Para começar do zero, normalmente é melhor criar um novo orçamento em {{currency}}. Continuar?",
+      "confirm": "Trocar para {{currency}}"
+    },
+    "preview": "Prévia",
+    "formatSettings": "Opções de formato",
+    "symbol": "Símbolo",
+    "symbolPosition": {
+      "before": "Antes",
+      "after": "Depois",
+      "off": "Desligado"
+    },
+    "noSymbol": "{{currency}} não tem símbolo, então a posição não faz diferença.",
+    "decimals": "Casas decimais",
+    "resetDefaults": "Restaurar os padrões de {{currency}}",
+    "exchangeRates": "Taxas de câmbio para {{currency}}",
+    "rateHistoryNote": "Atualizar uma taxa muda apenas os saldos de hoje — as transações passadas mantêm a taxa do dia em que aconteceram.",
+    "rateLabel": "1 {{code}} =",
+    "rateManual": "sua taxa",
+    "rateSeed": "nossa estimativa",
+    "rateUnset": "taxa não definida",
+    "rateReset": "usar nossa estimativa"
+  },
+  "provider": {
+    "title": "Provedor de IA",
+    "description": "O Capy precisa de um provedor de IA para conversar e processar importações. Escolha um e informe suas credenciais abaixo.",
+    "demoNoticeTitle": "A IA só está disponível no aplicativo para desktop",
+    "demoNoticeBody": "A demonstração web roda inteiramente no seu navegador e não pode guardar um provedor de IA. Baixe o app para desktop para conversar com o Capy e usar a importação inteligente.",
+    "missingTitle": "O Claude Code não é mais detectado",
+    "missingBody": "Reinstale o Claude Code ou escolha outro provedor para continuar usando o Capy.",
+    "sourceBuildTitle": "O Claude Code exige uma build a partir do código-fonte",
+    "sourceBuildBody": "O app para desktop ainda não consegue rodar o Claude Code. Escolha outro provedor ou",
+    "runFromSource": "rode o Capy a partir do código-fonte",
+    "toUseSubscription": "para usar sua assinatura do Claude.",
+    "distHint": "Indisponível na build para desktop —",
+    "buildFromSource": "compile a partir do código-fonte",
+    "advanced": "avançado",
+    "providerSet": "Provedor definido como {{provider}}",
+    "options": {
+      "off": {
+        "label": "Desligado",
+        "description": "O Capy está desativado. Escolha um provedor abaixo para habilitar os recursos de IA."
+      },
+      "anthropic": {
+        "description": "Chamadas diretas à API. Pague pelo uso com sua própria chave."
+      },
+      "openai": {
+        "description": "Chamadas diretas à API. Pague pelo uso com sua própria chave."
+      },
+      "claudeCli": {
+        "description": "Use a CLI local do Claude Code. Roda com a sua assinatura do Claude."
+      }
+    },
+    "detection": {
+      "checking": "Verificando…",
+      "detected": "Detectado",
+      "notDetected": "Não detectado",
+      "notDetectedHint": "Não detectado — instale a partir de",
+      "testConnection": "Testar conexão",
+      "testing": "Testando…",
+      "connectionWorks": "A conexão funciona"
+    },
+    "apiConfig": {
+      "apiKey": "Chave de API",
+      "showKey": "Mostrar chave de API",
+      "hideKey": "Ocultar chave de API",
+      "storedLocally": "Guardada com segurança no keychain do seu sistema.",
+      "savedKeyEndsIn": "A chave salva termina em",
+      "getApiKey": "Obter uma chave de API da {{provider}}",
+      "keychainError": "Não foi possível acessar sua chave no keychain do sistema.",
+      "retry": "Tentar de novo"
+    },
+    "model": {
+      "label": "Modelo",
+      "useCustom": "Usar um modelo personalizado",
+      "customPlaceholder": "identificador-do-modelo",
+      "selectPlaceholder": "Selecione um modelo…"
+    }
+  },
+  "chatInstructions": {
+    "title": "Instruções do chat",
+    "description": "Ajude o Capy a entender suas finanças — padrões comuns, para que serve cada conta, preferências de categorização. Vale para novas conversas.",
+    "placeholder": "ex.: Uso o cartão do Nubank para as despesas do dia a dia.\nPão de Açúcar e Assaí são supermercado.\nPix para a Sara é divisão do aluguel.",
+    "saved": "Instruções salvas"
+  },
+  "categories": {
+    "title": "Categorias",
+    "description": "Organize os grupos e as categorias em que suas transações são classificadas. Arraste para reordenar, renomeie na própria linha ou arquive as que não usa mais.",
+    "count_one": "{{count}} categoria",
+    "count_many": "{{count}} categorias",
+    "count_other": "{{count}} categorias"
+  },
+  "updates": {
+    "title": "Atualizações",
+    "description": "Mantenha o Capy em dia.",
+    "currentVersion": "Versão atual {{version}}",
+    "checking": "Procurando atualizações…",
+    "upToDate": "Você está na versão mais recente.",
+    "available": "O Capy {{version}} está disponível.",
+    "installRestart": "Instalar e reiniciar",
+    "downloading": "Baixando…",
+    "downloadingPct": "Baixando… {{pct}}%",
+    "restarting": "Reiniciando…",
+    "checkForUpdates": "Procurar atualizações",
+    "masManaged": "As atualizações são entregues pela Mac App Store."
+  }
+}

@@ -1,0 +1,34 @@
+{
+  "selector": {
+    "eyebrow": "Demonstração",
+    "subtitle": "Escolha um cenário para explorar."
+  },
+  "scenarios": {
+    "underwater": {
+      "name": "No vermelho",
+      "description": "Muitas dívidas, patrimônio líquido negativo, saldo indo para o lado errado"
+    },
+    "paycheck-to-paycheck": {
+      "name": "De salário em salário",
+      "description": "A renda empata com as despesas, reserva apertada, patrimônio parado"
+    },
+    "no-stress": {
+      "name": "Sem estresse",
+      "description": "Renda alta, dinheiro sobrando para poupança e investimentos, patrimônio subindo"
+    }
+  },
+  "seeding": {
+    "title": "Gerando dados aleatórios…",
+    "subtitle": "Qualquer alteração é descartada ao recarregar.",
+    "progressLabel": "Gerando dados aleatórios"
+  },
+  "importNotice": {
+    "title": "A Importação inteligente só está disponível no aplicativo para desktop",
+    "body": "Baixe o Capy Budget para transformar CSVs e fotos de extratos em um registro organizado.",
+    "cta": "Baixar o app para desktop"
+  },
+  "mobileNotice": {
+    "body": "O Capy Budget é um aplicativo para desktop — esta prévia não foi feita para telas pequenas.",
+    "cta": "Baixar o app para desktop"
+  }
+}
