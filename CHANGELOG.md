@@ -9,7 +9,7 @@ CHANGELOG PHILOSOPHY:
 - Resist the urge to be thorough here. Thoroughness goes in specs, not changelog.
 -->
 
-## Unreleased
+## 1.6.0 — 2026-09-23
 
 - **Capy** - Run Capy fully on your own machine with Ollama — no API key, no per-token cost (#111).
 - **Language** - Capy Budget now speaks Brazilian Portuguese (#110).
