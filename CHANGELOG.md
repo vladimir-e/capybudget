@@ -13,6 +13,7 @@ CHANGELOG PHILOSOPHY:
 
 - **Capy** - Run Capy fully on your own machine with Ollama — no API key, no per-token cost (#111).
 - **Language** - Capy Budget now speaks Brazilian Portuguese (#110).
+- **Capy** - Changing AI settings after a restart or a denied keychain prompt no longer deletes a saved API key, and switching from Claude Code to an API provider picks up its stored key without a restart (#113).
 
 ## 1.5.1 — 2026-07-05
 

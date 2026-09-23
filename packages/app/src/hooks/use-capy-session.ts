@@ -12,7 +12,7 @@ import { useCallback, useEffect, useRef, useState } from "react"
 import { useTranslation } from "@capybudget/i18n"
 import { useSessionLifecycle } from "@/hooks/use-session-lifecycle"
 import { mergeStreamContent } from "@/hooks/merge-stream-content"
-import { useIntelligenceStore } from "@/stores/intelligence-store"
+import { needsSecrets, useIntelligenceStore } from "@/stores/intelligence-store"
 import {
   buildContext,
   canReadPdf,
@@ -330,12 +330,7 @@ export function useCapySession(opts: UseCapySessionOptions): UseCapySessionRetur
       // races that load. When the key is already present (or the provider needs
       // none), build synchronously.
       const store = useIntelligenceStore.getState()
-      const p = store.config.provider
-      const mustLoad =
-        (p === "anthropic" || p === "openai") &&
-        !store.config[p].apiKey &&
-        !store.secretsLoaded
-      if (mustLoad) {
+      if (needsSecrets(store.config)) {
         void store.ensureSecrets().then(buildAndSend)
       } else {
         buildAndSend()
