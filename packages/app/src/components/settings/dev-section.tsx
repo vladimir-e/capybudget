@@ -67,9 +67,11 @@ export function DevSection() {
       ? config.anthropic.model
       : provider === "openai"
         ? config.openai.model
-        : provider === "claude-cli"
-          ? config.claudeCli.model || "(CLI default)"
-          : "—"
+        : provider === "ollama"
+          ? config.ollama.model || "(none picked)"
+          : provider === "claude-cli"
+            ? config.claudeCli.model || "(CLI default)"
+            : "—"
 
   const pending = IN_TAURI ? "…" : "n/a (web)"
   const rows: [string, string][] = [

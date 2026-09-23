@@ -11,12 +11,14 @@
  *   - config.provider is null (AI features disabled by the user)
  *   - the chosen provider's adapter wasn't injected
  *   - an API provider is selected but its API key is empty
+ *   - Ollama is selected with no model picked (it has no key to check, but a
+ *     model is just as required — nothing can run without one)
  *
  * The hook treats null as "not configured" and surfaces empty-state
  * UI; for now callers fall back to "no session, no chat" behavior.
  */
 
-import type { IntelligenceConfig } from "./config"
+import { OLLAMA_PLACEHOLDER_KEY, type IntelligenceConfig } from "./config"
 import type { CapySession } from "./session"
 import type { StreamEvent } from "./types"
 import { canImport, canReadPdf } from "./import/session-factory"
@@ -47,6 +49,12 @@ export interface ApiAdapterOptions {
   systemPrompt: string
   apiKey: string
   model: string
+  /**
+   * OpenAI-compatible endpoint override. Undefined means the SDK's own default
+   * (api.openai.com); set for local servers that speak the same wire format —
+   * see the Ollama adapter. Only the OpenAI-shaped adapters read it.
+   */
+  baseUrl?: string
   onEvent: (event: StreamEvent) => void
   repo: BudgetRepository
   fileAdapter: FileAdapter
@@ -106,6 +114,7 @@ export interface AdapterConstructors {
   "claude-cli"?: (opts: ClaudeCliAdapterOptions) => CapySession
   anthropic?: (opts: ApiAdapterOptions) => CapySession
   openai?: (opts: ApiAdapterOptions) => CapySession
+  ollama?: (opts: ApiAdapterOptions) => CapySession
 }
 
 export interface CreateSessionDeps {
@@ -145,6 +154,30 @@ export function createIntelligenceSession(
         systemPrompt: options.systemPrompt,
         apiKey,
         model,
+        onEvent: options.onEvent,
+        repo: options.repo,
+        fileAdapter: options.fileAdapter,
+        currency: options.currency,
+        currencies: options.currencies,
+        getCurrencies: options.getCurrencies,
+        importSupported: canImport(provider),
+        pdfSupported: canReadPdf(provider),
+      })
+    }
+    case "ollama": {
+      const ctor = adapters.ollama
+      if (!ctor) return null
+      const { baseUrl, model } = config.ollama
+      // No key to guard on — a local server authenticates nothing. The model
+      // is the equivalent gate: without one there's nothing to talk to.
+      if (!model) return null
+      if (!options.repo || !options.fileAdapter) return null
+      return ctor({
+        budgetPath: options.budgetPath,
+        systemPrompt: options.systemPrompt,
+        apiKey: OLLAMA_PLACEHOLDER_KEY,
+        model,
+        baseUrl,
         onEvent: options.onEvent,
         repo: options.repo,
         fileAdapter: options.fileAdapter,

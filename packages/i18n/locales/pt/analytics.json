@@ -1,0 +1,153 @@
+{
+  "tabs": {
+    "spending": "Gastos",
+    "cashFlow": "Fluxo de caixa",
+    "netWorth": "Patrimônio líquido",
+    "compare": "Comparar",
+    "merchants": "Estabelecimentos",
+    "monthlyBudget": "Orçamento mensal"
+  },
+  "summary": {
+    "income": "Receitas",
+    "expenses": "Despesas",
+    "net": "Saldo"
+  },
+  "fallback": {
+    "unknown": "Desconhecido",
+    "uncategorized": "Sem categoria"
+  },
+  "basis": {
+    "trailing3": "média de 3 meses",
+    "trailing6": "média de 6 meses",
+    "trailing12": "média de 12 meses",
+    "monthLabel": "{{month}} de {{year}}",
+    "trailing3Option": "3 meses",
+    "trailing6Option": "6 meses",
+    "trailing12Option": "12 meses",
+    "sameMonthLastYearOption": "mesmo mês do ano passado"
+  },
+  "monthLabel": "{{month}} de {{year}}",
+  "weekLabel": "{{day}} de {{month}}",
+  "period": {
+    "month": "Mês",
+    "quarter": "Trimestre",
+    "year": "Ano",
+    "allTime": "Todo o período",
+    "custom": "Personalizado",
+    "quarterLabel": "{{quarter}}º tri {{year}}",
+    "previousPeriod": "Período anterior",
+    "nextPeriod": "Próximo período",
+    "apply": "Aplicar"
+  },
+  "drilldown": {
+    "transactionCount_one": "{{count}} transação",
+    "transactionCount_many": "{{count}} transações",
+    "transactionCount_other": "{{count}} transações"
+  },
+  "a11y": {
+    "viewTransactionsAria": "Ver transações de {{name}}"
+  },
+  "empty": {
+    "noDataYet": "Isto será útil quando você tiver mais dados.",
+    "noCategoriesYet": "Isto será útil quando você adicionar categorias e dados."
+  },
+  "view": {
+    "expenses": "Despesas",
+    "income": "Receitas"
+  },
+  "spending": {
+    "noExpenses": "Nenhuma despesa neste período",
+    "noIncome": "Nenhuma receita neste período"
+  },
+  "cashFlow": {
+    "incomeValue": "Receitas: {{value}}",
+    "expensesValue": "Despesas: {{value}}",
+    "netValue": "Saldo: {{value}}",
+    "empty": "Nenhum dado de fluxo de caixa neste período"
+  },
+  "netWorth": {
+    "bar": "Barras",
+    "area": "Área",
+    "noAccountsTitle": "Nenhuma conta selecionada",
+    "noAccountsDescription": "Selecione pelo menos uma conta para montar o gráfico do seu patrimônio líquido.",
+    "noData": "Nenhum dado disponível",
+    "monthLabel": "{{month}} de {{year}}",
+    "fx": {
+      "label": {
+        "gain": "Ganho cambial",
+        "loss": "Perda cambial",
+        "flat": "Variação cambial"
+      },
+      "relation": "{{cost}} na entrada → {{spot}} agora",
+      "whatIsThis": "O que é isso?",
+      "explanation": "As taxas de câmbio mudaram desde que este dinheiro em moeda estrangeira entrou, então ele vale mais ou menos na sua moeda agora. O ganho ou a perda não está realizado — você só o efetiva ao converter de volta."
+    }
+  },
+  "accountFilter": {
+    "allAccounts": "Todas as contas",
+    "someAccounts": "{{included}} de {{total}} contas",
+    "triggerAria": "Contas no Patrimônio líquido — {{label}}",
+    "searchPlaceholder": "Buscar contas",
+    "searchAria": "Buscar contas",
+    "selectAll": "Selecionar todas",
+    "clearAll": "Limpar seleção",
+    "noMatches": "Nenhuma conta corresponde.",
+    "toggleGroupAria": "Alternar todas as contas de {{group}}"
+  },
+  "compare": {
+    "categories": "Categorias",
+    "selectAll": "Selecionar todas",
+    "clear": "Limpar",
+    "selectPrompt": "Selecione categorias para comparar",
+    "toggleAria": "Alternar {{name}}",
+    "noExpenses": "Nenhuma despesa neste período",
+    "noIncome": "Nenhuma receita neste período"
+  },
+  "merchants": {
+    "empty": "Nenhum dado de estabelecimento neste período",
+    "txnCount_one": "{{count}} transação",
+    "txnCount_many": "{{count}} transações",
+    "txnCount_other": "{{count}} transações",
+    "headerRank": "#",
+    "headerMerchant": "Estabelecimento",
+    "headerAmount": "Valor",
+    "headerTxns": "Transações",
+    "headerPercent": "%"
+  },
+  "monthlyBudget": {
+    "spentThisMonth": "Gasto neste mês",
+    "trackingToward": "Caminhando para",
+    "overBudget": "Acima do orçamento",
+    "overBudgetUnit_one": "categoria",
+    "overBudgetUnit_many": "categorias",
+    "overBudgetUnit_other": "categorias",
+    "noCategoriesTitle": "Nenhuma categoria para orçar",
+    "addCategories": "Adicione categorias para começar a acompanhar.",
+    "showOnlyTracked": "Mostrar só as acompanhadas",
+    "trackedCount": "({{targeted}} de {{total}})",
+    "columnCategory": "Categoria",
+    "columnTarget": "Meta",
+    "columnSpent": "Gasto",
+    "columnRemaining": "Restante",
+    "groupTracked": "{{targeted}}/{{total}} acompanhadas"
+  },
+  "budgetInput": {
+    "auto": "auto",
+    "set": "definido",
+    "placeholder": "0,00",
+    "editAria": "Editar orçamento de {{name}}",
+    "setAutoAria": "Definir um orçamento para {{name}} (atualmente automático: {{amount}})",
+    "setAria": "Definir um orçamento para {{name}}",
+    "updateError": "Não foi possível atualizar {{name}}"
+  },
+  "budgetBar": {
+    "lastMonth": "Mês passado",
+    "lastMonthLower": "mês passado",
+    "overTarget": " (acima da meta)",
+    "autoTarget": "Meta automática: {{amount}}",
+    "budget": "Orçamento: {{amount}}",
+    "noTargetAria": "Ainda sem meta — o Capy precisa de histórico de gastos para definir uma",
+    "spentOfTargetAria": "Gasto {{spent}} de uma meta de {{target}}{{over}}",
+    "comparisonBasisAria": "Base de comparação: {{label}}"
+  }
+}

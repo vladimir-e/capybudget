@@ -13,7 +13,12 @@
  * absence value.
  */
 
-export type IntelligenceProvider = "claude-cli" | "anthropic" | "openai" | null
+export type IntelligenceProvider =
+  | "claude-cli"
+  | "anthropic"
+  | "openai"
+  | "ollama"
+  | null
 
 /**
  * Human-facing provider names — the shared vocabulary shown in Settings and
@@ -24,6 +29,7 @@ export const PROVIDER_LABELS: Record<Exclude<IntelligenceProvider, null>, string
   "claude-cli": "Claude Code",
   anthropic: "Anthropic API",
   openai: "OpenAI API",
+  ollama: "Ollama",
 }
 
 /**
@@ -39,13 +45,38 @@ export interface ProviderCredentials {
   keyPresent?: boolean
 }
 
+/**
+ * Ollama runs on the user's own machine and authenticates nothing, so it has
+ * no credential to protect — no API key, no keychain entry. What it needs
+ * instead is the endpoint (the server may listen on another host or port) and
+ * a model, which has no sensible default: the list depends on what the user
+ * has actually pulled. An empty `model` is the "not configured yet" state.
+ */
+export interface OllamaSettings {
+  /** OpenAI-compatible base URL — Ollama exposes its shim under `/v1`. */
+  baseUrl: string
+  model: string
+}
+
 export interface IntelligenceConfig {
   provider: IntelligenceProvider
   anthropic: ProviderCredentials
   openai: ProviderCredentials
+  ollama: OllamaSettings
   /** Empty model means "let the Claude Code CLI pick its default". */
   claudeCli: { model: string }
 }
+
+/** Where Ollama listens out of the box. */
+export const DEFAULT_OLLAMA_BASE_URL = "http://localhost:11434/v1"
+
+/**
+ * Ollama ignores the `Authorization` header, but the OpenAI SDK refuses to
+ * construct a client without a non-empty key. This placeholder satisfies the
+ * SDK and travels nowhere sensitive — it is not a credential and never touches
+ * the keychain.
+ */
+export const OLLAMA_PLACEHOLDER_KEY = "ollama"
 
 /**
  * Default model per provider — used as the seed value in the settings
@@ -55,6 +86,8 @@ export const DEFAULT_INTELLIGENCE_CONFIG: IntelligenceConfig = {
   provider: null,
   anthropic: { apiKey: "", model: "claude-sonnet-5", keyPresent: false },
   openai: { apiKey: "", model: "gpt-5.5", keyPresent: false },
+  // No default model: only the user's machine knows which ones are pulled.
+  ollama: { baseUrl: DEFAULT_OLLAMA_BASE_URL, model: "" },
   claudeCli: { model: "" },
 }
 
