@@ -68,14 +68,6 @@ export interface SecretConfigBackend {
   clearGateSeen(): Promise<void>
 }
 
-function stripSecrets(config: IntelligenceConfig): IntelligenceConfig {
-  return {
-    ...config,
-    anthropic: { ...config.anthropic, apiKey: "" },
-    openai: { ...config.openai, apiKey: "" },
-  }
-}
-
 /** Backfill the secret-bearing slices so a partial on-disk config can't throw
  * when we read or re-spread them. */
 function normalizeSecretSlices(config: IntelligenceConfig): IntelligenceConfig {
@@ -124,7 +116,7 @@ function inlineKey(config: IntelligenceConfig | null, provider: SecretProvider):
 function withResolvedPresence(stored: IntelligenceConfig): IntelligenceConfig {
   const config = normalizeSecretSlices(stored)
   return {
-    ...stripSecrets(config),
+    ...config,
     anthropic: { ...config.anthropic, apiKey: "", keyPresent: presenceFor(stored, "anthropic") },
     openai: { ...config.openai, apiKey: "", keyPresent: presenceFor(stored, "openai") },
   }
@@ -163,6 +155,7 @@ export function createSecretAwareBackend(
 ): SecretConfigBackend {
   // Every read-then-write of the file runs one at a time, so each sees the file
   // as the previous left it — even when a keychain read blocks on an OS prompt.
+  // The gate-flag ops stay unqueued: they write a separate store key.
   let tail: Promise<unknown> = Promise.resolve()
   function serial<A extends unknown[], T>(op: (...args: A) => Promise<T>) {
     return (...args: A): Promise<T> => {

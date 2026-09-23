@@ -172,14 +172,13 @@ impl<P: RawStore, L: RawStore> Deferred<P, L> {
     }
 
     /// Protected is reachable but has nothing for `account`. Move a legacy key
-    /// over if one exists. A denied or failed legacy read means "no legacy key"
-    /// — it must never fail the caller's get. The legacy copy is dropped only
+    /// over if one exists. A denied or failed legacy read fails the get — `None`
+    /// would tell the caller the key is gone. The legacy copy is dropped only
     /// after the protected write lands, so an interrupted migration simply
     /// retries next time rather than losing the key.
     fn migrate(&self, account: &str) -> StoreResult<Option<String>> {
-        let secret = match self.legacy.get(account) {
-            Ok(Some(secret)) => secret,
-            _ => return Ok(None),
+        let Some(secret) = self.legacy.get(account)? else {
+            return Ok(None);
         };
         if self.protected.set(account, &secret).is_ok() {
             let _ = self.legacy.delete(account);
@@ -373,10 +372,25 @@ mod tests {
     }
 
     #[test]
-    fn denied_legacy_read_during_migration_is_absent_not_error() {
+    fn denied_legacy_read_during_migration_is_an_error_not_absent() {
         let legacy = Fake { deny_get: true, ..Fake::default() };
         let store = Deferred::new(Fake::default(), legacy);
-        assert_eq!(store.get(ACC).unwrap(), None);
+        assert!(store.get(ACC).is_err());
+    }
+
+    #[test]
+    fn denied_protected_read_is_an_error_without_touching_legacy() {
+        let protected = Fake { deny_get: true, ..Fake::default() };
+        let store = Deferred::new(protected, Fake::with(&[(ACC, "sk-old")]));
+        assert!(store.get(ACC).is_err());
+        assert_eq!(store.legacy.gets.get(), 0);
+    }
+
+    #[test]
+    fn denied_legacy_read_after_fallback_is_an_error() {
+        let legacy = Fake { deny_get: true, ..Fake::default() };
+        let store = Deferred::new(Fake::unentitled(), legacy);
+        assert!(store.get(ACC).is_err());
     }
 
     #[test]
