@@ -77,6 +77,7 @@
     "distHint": "Indisponível na build para desktop —",
     "buildFromSource": "compile a partir do código-fonte",
     "advanced": "avançado",
+    "local": "local",
     "providerSet": "Provedor definido como {{provider}}",
     "options": {
       "off": {
@@ -88,6 +89,9 @@
       },
       "openai": {
         "description": "Chamadas diretas à API. Pague pelo uso com sua própria chave."
+      },
+      "ollama": {
+        "description": "Roda na sua própria máquina. Gratuito, privado e funciona offline — você mesmo instala o Ollama."
       },
       "claudeCli": {
         "description": "Use a CLI local do Claude Code. Roda com a sua assinatura do Claude."
@@ -111,6 +115,15 @@
       "getApiKey": "Obter uma chave de API da {{provider}}",
       "keychainError": "Não foi possível acessar sua chave no keychain do sistema.",
       "retry": "Tentar de novo"
+    },
+    "ollama": {
+      "serverUrl": "URL do servidor",
+      "localOnly": "Sem chave de API — seus dados vão apenas para este servidor, que por padrão é a sua própria máquina.",
+      "refreshModels": "Atualizar",
+      "notRunningHint": "O Capy não consegue acessar o Ollama neste endereço. Inicie-o com `ollama serve` ou confira a URL.",
+      "noModels": "O Ollama está rodando, mas ainda não tem modelos. Baixe um com `ollama pull llama3.1` e depois atualize.",
+      "toolsHint": "Escolha um modelo com suporte a chamadas de ferramentas — o Capy usa ferramentas para ler e editar seu orçamento.",
+      "install": "Instalar o Ollama"
     },
     "model": {
       "label": "Modelo",
