@@ -277,6 +277,7 @@ describe("useIntelligenceStore.ensureSecrets", () => {
     const pending = useIntelligenceStore.getState().ensureSecrets()
     useIntelligenceStore.getState().dismissSecretGate()
     await pending
+    await new Promise((r) => setTimeout(r, 0))
 
     const state = useIntelligenceStore.getState()
     expect(state.secretGateOpen).toBe(false)
@@ -319,6 +320,40 @@ describe("useIntelligenceStore.ensureSecrets", () => {
     expect(needsSecrets(state.config)).toBe(false)
     expect(state.config.anthropic.apiKey).toBe("sk-loaded")
     expect(backend.loadSecrets).toHaveBeenCalledTimes(2)
+  })
+})
+
+describe("useIntelligenceStore.secretsError", () => {
+  it("clears when switching away from the provider whose read failed", async () => {
+    const backend = makeBackend(
+      stored({ provider: "anthropic", anthropic: { apiKey: "", model: "m", keyPresent: true } }, true),
+    )
+    backend.loadSecrets.mockRejectedValue(new Error("keychain denied"))
+    _setStoreLoaderForTests(async () => backend)
+    await useIntelligenceStore.getState().hydrate()
+    await useIntelligenceStore.getState().ensureSecrets()
+    expect(useIntelligenceStore.getState().secretsError).toBe(true)
+
+    useIntelligenceStore.getState().setProvider("claude-cli")
+    await useIntelligenceStore.getState().ensureSecrets()
+
+    expect(useIntelligenceStore.getState().secretsError).toBe(false)
+    expect(backend.loadSecrets).toHaveBeenCalledTimes(1)
+  })
+
+  it("stays set when the read left the current provider unresolved", async () => {
+    const backend = makeBackend(
+      stored({ provider: "openai", openai: { apiKey: "", model: "m", keyPresent: true } }, true),
+    )
+    backend.loadSecrets.mockResolvedValue({ anthropic: "sk-inline" })
+    _setStoreLoaderForTests(async () => backend)
+    await useIntelligenceStore.getState().hydrate()
+
+    await useIntelligenceStore.getState().ensureSecrets()
+
+    const state = useIntelligenceStore.getState()
+    expect(state.secretsError).toBe(true)
+    expect(state.config.openai).toMatchObject({ apiKey: "", keyPresent: true })
   })
 })
 
@@ -405,9 +440,17 @@ describe("useIntelligenceStore setters", () => {
 })
 
 describe("useIntelligenceStore persistence before secrets load", () => {
-  function realBackend(onDisk: IntelligenceConfig, keys: Partial<Record<SecretProvider, string>>) {
+  function realBackend(
+    onDisk: IntelligenceConfig,
+    keys: Partial<Record<SecretProvider, string>>,
+    opts: { failGet?: boolean } = {},
+  ) {
     let file = onDisk
     const keychain = new Map(Object.entries(keys) as [SecretProvider, string][])
+    const get = vi.fn(async (p: SecretProvider) => {
+      if (opts.failGet) throw new Error("keychain denied")
+      return keychain.get(p) ?? null
+    })
     const backend = createSecretAwareBackend(
       {
         get: async () => file,
@@ -419,14 +462,14 @@ describe("useIntelligenceStore persistence before secrets load", () => {
         clearGateSeen: async () => undefined,
       },
       {
-        get: async (p) => keychain.get(p) ?? null,
+        get,
         set: async (p, secret) => {
           if (secret) keychain.set(p, secret)
           else keychain.delete(p)
         },
       },
     )
-    return { backend, keychain, file: () => file }
+    return { backend, keychain, file: () => file, keychainGet: get }
   }
 
   const flush = () => new Promise((r) => setTimeout(r, 0))
@@ -471,5 +514,55 @@ describe("useIntelligenceStore persistence before secrets load", () => {
 
     expect(disk.keychain.has("openai")).toBe(false)
     expect(disk.file().openai.keyPresent).toBe(false)
+  })
+
+  it("keeps a keychain-only key when a denied read resolved only the other provider", async () => {
+    const disk = realBackend(
+      {
+        ...DEFAULT_INTELLIGENCE_CONFIG,
+        provider: "openai",
+        anthropic: { apiKey: "sk-inline", model: "claude", keyPresent: true },
+        openai: { apiKey: "", model: "gpt", keyPresent: true },
+      },
+      { openai: "sk-oai" },
+      { failGet: true },
+    )
+    _setStoreLoaderForTests(async () => disk.backend)
+    await useIntelligenceStore.getState().hydrate()
+
+    await useIntelligenceStore.getState().ensureSecrets()
+    const state = useIntelligenceStore.getState()
+    expect(state.config.anthropic.apiKey).toBe("sk-inline")
+    expect(state.config.openai.keyPresent).toBe(true)
+    expect(state.secretsError).toBe(true)
+
+    useIntelligenceStore.getState().setOpenAiModel("gpt-5-pro")
+    useIntelligenceStore.getState().setProvider("anthropic")
+    await flush()
+
+    expect(disk.keychain.get("openai")).toBe("sk-oai")
+    expect(disk.file().openai.keyPresent).toBe(true)
+    expect(useIntelligenceStore.getState().config.openai.keyPresent).toBe(true)
+  })
+
+  it("a failed read stays pending without re-reading on its own", async () => {
+    const disk = realBackend(
+      {
+        ...DEFAULT_INTELLIGENCE_CONFIG,
+        provider: "openai",
+        openai: { apiKey: "", model: "gpt", keyPresent: true },
+      },
+      { openai: "sk-oai" },
+      { failGet: true },
+    )
+    _setStoreLoaderForTests(async () => disk.backend)
+    await useIntelligenceStore.getState().hydrate()
+
+    await useIntelligenceStore.getState().ensureSecrets()
+    await flush()
+
+    expect(needsSecrets(useIntelligenceStore.getState().config)).toBe(true)
+    expect(useIntelligenceStore.getState().secretsError).toBe(true)
+    expect(disk.keychainGet).toHaveBeenCalledTimes(1)
   })
 })

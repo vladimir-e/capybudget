@@ -63,4 +63,52 @@ describe("ApiProviderConfig", () => {
     // The resolved value must not clobber the draft the user is editing.
     expect(input.value).toBe("sk-typed")
   })
+
+  const unloaded: IntelligenceConfig = {
+    ...DEFAULT_INTELLIGENCE_CONFIG,
+    provider: "anthropic",
+    anthropic: { apiKey: "", model: "m", keyPresent: true },
+  }
+
+  function backendWith(gateSeen: boolean, loadSecrets: SecretConfigBackend["loadSecrets"]) {
+    const backend: SecretConfigBackend = {
+      load: async () => ({ config: unloaded, gateSeen }),
+      loadSecrets: vi.fn(loadSecrets),
+      save: async () => undefined,
+      markGateSeen: async () => undefined,
+      clearGateSeen: async () => undefined,
+    }
+    return backend
+  }
+
+  it("a failed read shows retry and doesn't re-read on its own", async () => {
+    const backend = backendWith(true, async () => {
+      throw new Error("keychain denied")
+    })
+    _setStoreLoaderForTests(async () => backend)
+    await useIntelligenceStore.getState().hydrate()
+
+    render(<AnthropicConfig />)
+
+    expect(await screen.findByRole("button", { name: "Retry" })).toBeTruthy()
+    await act(() => new Promise((r) => setTimeout(r, 0)))
+    expect(backend.loadSecrets).toHaveBeenCalledTimes(1)
+  })
+
+  it("a dismissed heads-up stays dismissed without reopening", async () => {
+    const backend = backendWith(false, async () => ({ anthropic: "sk-loaded", openai: "" }))
+    _setStoreLoaderForTests(async () => backend)
+    await useIntelligenceStore.getState().hydrate()
+
+    render(<AnthropicConfig />)
+    expect(useIntelligenceStore.getState().secretGateOpen).toBe(true)
+
+    await act(async () => {
+      useIntelligenceStore.getState().dismissSecretGate()
+      await new Promise((r) => setTimeout(r, 0))
+    })
+
+    expect(useIntelligenceStore.getState().secretGateOpen).toBe(false)
+    expect(backend.loadSecrets).not.toHaveBeenCalled()
+  })
 })

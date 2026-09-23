@@ -99,8 +99,10 @@ interface IntelligenceStore {
   secretGateSeen: boolean
   /** Whether the heads-up dialog is currently open. */
   secretGateOpen: boolean
-  /** The last on-demand keychain read failed or was denied. Retryable — the key
-   *  is still known to be present; `ensureSecrets` can be re-run to recover. */
+  /** The last on-demand keychain read failed, was denied, or left the current
+   *  provider's key unresolved. Retryable — the key is still known to be
+   *  present; `ensureSecrets` can be re-run to recover. A provider change
+   *  clears it. */
   secretsError: boolean
 
   /** Load the plaintext config from disk. Idempotent — repeat calls are
@@ -146,15 +148,18 @@ function withDefaults(loaded: IntelligenceConfig): IntelligenceConfig {
 }
 
 /** Only providers still awaiting the read take it — a key typed or cleared
- *  while the read was in flight is authoritative. */
+ *  while the read was in flight is authoritative — and only those the read
+ *  resolved; an unresolved one stays unloaded, never absent. */
 function mergeSecrets(
   config: IntelligenceConfig,
-  secrets: ProviderSecrets,
+  secrets: Partial<ProviderSecrets>,
 ): IntelligenceConfig {
-  const merged = (provider: SecretProvider) =>
-    isUnloaded(config[provider])
-      ? { ...config[provider], apiKey: secrets[provider], keyPresent: Boolean(secrets[provider]) }
+  const merged = (provider: SecretProvider) => {
+    const secret = secrets[provider]
+    return isUnloaded(config[provider]) && secret !== undefined
+      ? { ...config[provider], apiKey: secret, keyPresent: Boolean(secret) }
       : config[provider]
+  }
   return { ...config, anthropic: merged("anthropic"), openai: merged("openai") }
 }
 
@@ -235,7 +240,7 @@ export const useIntelligenceStore = create<IntelligenceStore>((set, get) => ({
           if (!allowed) return
         }
         const b = await loadBackend()
-        let secrets: ProviderSecrets
+        let secrets: Partial<ProviderSecrets>
         try {
           secrets = await b.loadSecrets()
         } catch {
@@ -245,7 +250,10 @@ export const useIntelligenceStore = create<IntelligenceStore>((set, get) => ({
           set({ secretsError: true })
           return
         }
-        set((s) => ({ config: mergeSecrets(s.config, secrets), secretsError: false }))
+        set((s) => {
+          const config = mergeSecrets(s.config, secrets)
+          return { config, secretsError: needsSecrets(config) }
+        })
       })().finally(() => {
         secretsPromise = null
       })
@@ -273,7 +281,7 @@ export const useIntelligenceStore = create<IntelligenceStore>((set, get) => ({
 
   setProvider(provider) {
     const next = { ...get().config, provider }
-    set({ config: next })
+    set({ config: next, secretsError: false })
     void persist(next)
   },
 

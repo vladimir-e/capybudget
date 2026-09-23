@@ -240,6 +240,17 @@ describe("createSecretAwareBackend — loadSecrets", () => {
     expect(file.read()?.anthropic.apiKey).toBe("sk-file")
   })
 
+  it("resolves only the inline key when the read fails, leaving a keychain-only key out", async () => {
+    const stored = { ...config({ anthropic: "sk-file" }), openai: { apiKey: "", model: "m", keyPresent: true } }
+    const file = fakeFile(stored)
+    const { keychain } = fakeKeychain({ failGet: true })
+    const backend = createSecretAwareBackend(file.backend, keychain)
+
+    const secrets = await backend.loadSecrets()
+    expect(secrets).toEqual({ anthropic: "sk-file" })
+    expect(file.read()?.openai.keyPresent).toBe(true)
+  })
+
   it("throws when the read fails and there's nothing on disk to fall back to", async () => {
     // Steady state: key lives in the keychain, file stripped. A denied read has
     // no inline copy to serve, so it must surface as an error (not empty) —
@@ -261,9 +272,9 @@ describe("createSecretAwareBackend — loadSecrets", () => {
 
     const pending = backend.loadSecrets()
     const loaded = await backend.load()
-    await backend.save({ ...loaded!.config, provider: "openai", openai: { ...loaded!.config.openai, model: "gpt-x" } })
+    const saved = backend.save({ ...loaded!.config, provider: "openai", openai: { ...loaded!.config.openai, model: "gpt-x" } })
     release()
-    await pending
+    await Promise.all([pending, saved])
 
     expect(file.read()?.provider).toBe("openai")
     expect(file.read()?.openai.model).toBe("gpt-x")
@@ -277,9 +288,9 @@ describe("createSecretAwareBackend — loadSecrets", () => {
     const backend = createSecretAwareBackend(file.backend, keychain)
 
     const pending = backend.loadSecrets()
-    await backend.save(config({ anthropic: "sk-new" }))
+    const saved = backend.save(config({ anthropic: "sk-new" }))
     release()
-    await pending
+    await Promise.all([pending, saved])
 
     expect(store.get("anthropic")).toBe("sk-new")
     expect(file.read()?.anthropic.apiKey).toBe("")
@@ -293,12 +304,42 @@ describe("createSecretAwareBackend — loadSecrets", () => {
     const backend = createSecretAwareBackend(file.backend, keychain)
 
     const pending = backend.loadSecrets()
-    await backend.save(config({ openai: "sk-oai" }))
+    const saved = backend.save(config({ openai: "sk-oai" }))
     release()
-    await pending
+    await Promise.all([pending, saved])
 
     expect(store.get("openai")).toBe("sk-oai")
     expect(file.read()?.openai.keyPresent).toBe(true)
+  })
+
+  it("holds a save issued mid-read until the read has written, so neither clobbers the other", async () => {
+    const file = fakeFile(config())
+    const { keychain, store } = fakeKeychain()
+    const release = blockKeychainReads(keychain)
+    const backend = createSecretAwareBackend(file.backend, keychain)
+
+    const pending = backend.loadSecrets()
+    const saved = backend.save({ ...config({ openai: "sk-oai" }), provider: "openai" })
+    await new Promise((r) => setTimeout(r, 0))
+    expect(keychain.set).not.toHaveBeenCalled()
+    expect(file.set).not.toHaveBeenCalled()
+
+    release()
+    await Promise.all([pending, saved])
+    expect(file.set).toHaveBeenCalledTimes(2)
+    expect(store.get("openai")).toBe("sk-oai")
+    expect(file.read()).toMatchObject({ provider: "openai", openai: { apiKey: "", keyPresent: true } })
+  })
+
+  it("keeps serving operations after one rejects", async () => {
+    const file = fakeFile(config())
+    file.set.mockRejectedValueOnce(new Error("disk full"))
+    const { keychain, store } = fakeKeychain()
+    store.set("anthropic", "sk-ant")
+    const backend = createSecretAwareBackend(file.backend, keychain)
+
+    await expect(backend.save(config({ openai: "sk-oai" }))).rejects.toThrow("disk full")
+    expect(await backend.loadSecrets()).toEqual({ anthropic: "sk-ant", openai: "sk-oai" })
   })
 
   it("keeps inline keys when the migration write fails", async () => {
