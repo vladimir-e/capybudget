@@ -1,4 +1,5 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "ignoreCommand": "git diff --quiet HEAD^ HEAD ./"
+  "installCommand": "cd ../.. && npm ci",
+  "ignoreCommand": "git diff --quiet HEAD^ HEAD ./ ../../package-lock.json"
 }
