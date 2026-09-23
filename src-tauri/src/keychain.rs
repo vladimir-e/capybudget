@@ -19,6 +19,9 @@ enum StoreError {
     /// The build lacks the entitlement the data-protection keychain requires
     /// (`errSecMissingEntitlement`, -34018) — the signal to fall back to legacy.
     MissingEntitlement,
+    /// The store itself can't be reached (no login keychain, a corrupt one, or
+    /// no UI to ask in) — nothing was denied, so nothing is known to be there.
+    Unavailable(String),
     Other(String),
 }
 
@@ -26,7 +29,7 @@ impl std::fmt::Display for StoreError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             StoreError::MissingEntitlement => f.write_str("keychain entitlement missing"),
-            StoreError::Other(msg) => f.write_str(msg),
+            StoreError::Unavailable(msg) | StoreError::Other(msg) => f.write_str(msg),
         }
     }
 }
@@ -56,12 +59,30 @@ impl KeyringStore {
     }
 }
 
+#[cfg(target_os = "macos")]
+const ERR_SEC_INTERACTION_NOT_ALLOWED: i32 = -25308;
+
+fn classify_keyring(err: keyring::Error) -> StoreError {
+    match err {
+        keyring::Error::NoStorageAccess(_) => StoreError::Unavailable(err.to_string()),
+        #[cfg(target_os = "macos")]
+        keyring::Error::PlatformFailure(ref inner)
+            if inner
+                .downcast_ref::<security_framework::base::Error>()
+                .is_some_and(|e| e.code() == ERR_SEC_INTERACTION_NOT_ALLOWED) =>
+        {
+            StoreError::Unavailable(err.to_string())
+        }
+        _ => StoreError::Other(err.to_string()),
+    }
+}
+
 impl RawStore for KeyringStore {
     fn get(&self, account: &str) -> StoreResult<Option<String>> {
         match self.entry(account)?.get_password() {
             Ok(secret) => Ok(Some(secret)),
             Err(keyring::Error::NoEntry) => Ok(None),
-            Err(e) => Err(StoreError::Other(e.to_string())),
+            Err(e) => Err(classify_keyring(e)),
         }
     }
 
@@ -172,13 +193,15 @@ impl<P: RawStore, L: RawStore> Deferred<P, L> {
     }
 
     /// Protected is reachable but has nothing for `account`. Move a legacy key
-    /// over if one exists. A denied or failed legacy read fails the get — `None`
-    /// would tell the caller the key is gone. The legacy copy is dropped only
-    /// after the protected write lands, so an interrupted migration simply
-    /// retries next time rather than losing the key.
+    /// over if one exists. An unreachable legacy store holds nothing to move,
+    /// but a denied read fails the get — `None` would tell the caller the key is
+    /// gone. The legacy copy is dropped only after the protected write lands, so
+    /// an interrupted migration simply retries next time rather than losing it.
     fn migrate(&self, account: &str) -> StoreResult<Option<String>> {
-        let Some(secret) = self.legacy.get(account)? else {
-            return Ok(None);
+        let secret = match self.legacy.get(account) {
+            Ok(Some(secret)) => secret,
+            Ok(None) | Err(StoreError::Unavailable(_)) => return Ok(None),
+            Err(e) => return Err(e),
         };
         if self.protected.set(account, &secret).is_ok() {
             let _ = self.legacy.delete(account);
@@ -291,6 +314,7 @@ mod tests {
         items: RefCell<HashMap<String, String>>,
         missing_entitlement: bool,
         deny_get: bool,
+        unavailable_get: bool,
         fail_set: bool,
         gets: Cell<usize>,
         sets: Cell<usize>,
@@ -323,6 +347,9 @@ mod tests {
             }
             if self.deny_get {
                 return Err(StoreError::Other("denied".into()));
+            }
+            if self.unavailable_get {
+                return Err(StoreError::Unavailable("no login keychain".into()));
             }
             Ok(self.items.borrow().get(account).cloned())
         }
@@ -376,6 +403,53 @@ mod tests {
         let legacy = Fake { deny_get: true, ..Fake::default() };
         let store = Deferred::new(Fake::default(), legacy);
         assert!(store.get(ACC).is_err());
+    }
+
+    #[test]
+    fn unreachable_legacy_store_during_migration_is_absent() {
+        let legacy = Fake { unavailable_get: true, ..Fake::default() };
+        let store = Deferred::new(Fake::default(), legacy);
+        assert_eq!(store.get(ACC).unwrap(), None);
+    }
+
+    #[test]
+    fn absent_in_both_is_none() {
+        let store = Deferred::new(Fake::default(), Fake::default());
+        assert_eq!(store.get(ACC).unwrap(), None);
+    }
+
+    #[test]
+    fn a_key_saved_after_a_denied_migration_is_served_from_protected() {
+        let legacy = Fake { deny_get: true, ..Fake::default() };
+        let store = Deferred::new(Fake::default(), legacy);
+        assert!(store.get(ACC).is_err());
+
+        store.set(ACC, "sk-new").unwrap();
+        assert_eq!(store.get(ACC).unwrap().as_deref(), Some("sk-new"));
+        assert_eq!(store.legacy.gets.get(), 1);
+        assert_eq!(store.legacy.sets.get(), 0);
+    }
+
+    #[test]
+    fn no_storage_access_is_unavailable() {
+        let err = keyring::Error::NoStorageAccess("no keychain".into());
+        assert!(matches!(classify_keyring(err), StoreError::Unavailable(_)));
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn classifies_keychain_codes() {
+        use security_framework::base::Error;
+        let platform = |code| keyring::Error::PlatformFailure(Box::new(Error::from_code(code)));
+        let storage = |code| keyring::Error::NoStorageAccess(Box::new(Error::from_code(code)));
+
+        for code in [-25291, -25294, -25295] {
+            assert!(matches!(classify_keyring(storage(code)), StoreError::Unavailable(_)), "{code}");
+        }
+        assert!(matches!(classify_keyring(platform(ERR_SEC_INTERACTION_NOT_ALLOWED)), StoreError::Unavailable(_)));
+        for code in [-128, -25293] {
+            assert!(matches!(classify_keyring(platform(code)), StoreError::Other(_)), "{code}");
+        }
     }
 
     #[test]

@@ -545,6 +545,32 @@ describe("useIntelligenceStore persistence before secrets load", () => {
     expect(useIntelligenceStore.getState().config.openai.keyPresent).toBe(true)
   })
 
+  it("saves a key typed while the read is failing, clearing the error", async () => {
+    const disk = realBackend(
+      {
+        ...DEFAULT_INTELLIGENCE_CONFIG,
+        provider: "openai",
+        openai: { apiKey: "", model: "gpt", keyPresent: true },
+      },
+      { openai: "sk-old" },
+      { failGet: true },
+    )
+    _setStoreLoaderForTests(async () => disk.backend)
+    await useIntelligenceStore.getState().hydrate()
+    await useIntelligenceStore.getState().ensureSecrets()
+    expect(useIntelligenceStore.getState().secretsError).toBe(true)
+
+    useIntelligenceStore.getState().setOpenAiKey("sk-new")
+    await flush()
+
+    const state = useIntelligenceStore.getState()
+    expect(state.secretsError).toBe(false)
+    expect(needsSecrets(state.config)).toBe(false)
+    expect(disk.keychain.get("openai")).toBe("sk-new")
+    expect(disk.file().openai).toMatchObject({ apiKey: "", keyPresent: true })
+    expect(disk.keychainGet).toHaveBeenCalledTimes(1)
+  })
+
   it("a failed read stays pending without re-reading on its own", async () => {
     const disk = realBackend(
       {

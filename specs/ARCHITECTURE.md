@@ -124,7 +124,8 @@ call and transparently fall back to the legacy file-based keychain; the decision
 is cached per process. The first protected read of an account also migrates any
 key still in the legacy keychain into the protected store (write-then-delete, so
 an interrupted migration just retries; a denied legacy read fails the get rather
-than reporting the key absent), and a delete clears the legacy
+than reporting the key absent, while an unreachable legacy keychain counts as
+empty), and a delete clears the legacy
 copy too so it can't be resurrected. The MAS build carries the entitlement (Team
 ID-scoped) and gets the protected store; the DMG build embeds no provisioning
 profile, so it stays on the fallback path until one is added.
