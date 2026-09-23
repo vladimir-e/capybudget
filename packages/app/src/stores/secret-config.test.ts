@@ -91,6 +91,29 @@ describe("createSecretAwareBackend — no keychain (fallback)", () => {
   })
 })
 
+describe("createSecretAwareBackend — no keychain, unloaded key", () => {
+  it("keeps the inline key when saving a config whose key isn't loaded yet", async () => {
+    const file = fakeFile({ ...config(), openai: { apiKey: "sk-inline", model: "m", keyPresent: true } })
+    const backend = createSecretAwareBackend(file.backend, null)
+    const loaded = await backend.load()
+
+    await backend.save({ ...loaded!.config, provider: "openai" })
+
+    expect(file.read()?.openai.apiKey).toBe("sk-inline")
+    expect(file.read()?.openai.keyPresent).toBe(true)
+  })
+
+  it("clears the inline key on an explicit clear", async () => {
+    const file = fakeFile({ ...config(), openai: { apiKey: "sk-inline", model: "m", keyPresent: true } })
+    const backend = createSecretAwareBackend(file.backend, null)
+
+    await backend.save({ ...config(), openai: { apiKey: "", model: "m", keyPresent: false } })
+
+    expect(file.read()?.openai.apiKey).toBe("")
+    expect(file.read()?.openai.keyPresent).toBe(false)
+  })
+})
+
 describe("createSecretAwareBackend — load", () => {
   it("returns null when the file is empty", async () => {
     const file = fakeFile(null)
@@ -261,6 +284,32 @@ describe("createSecretAwareBackend — save", () => {
     await backend.save(config({ anthropic: "" }))
     expect(store.has("anthropic")).toBe(false)
     expect(file.read()?.anthropic.keyPresent).toBe(false)
+  })
+
+  it("preserves a stored key that hasn't been loaded yet", async () => {
+    const file = fakeFile({ ...config(), openai: { apiKey: "", model: "m", keyPresent: true } })
+    const { keychain, store } = fakeKeychain()
+    store.set("openai", "sk-oai")
+    const backend = createSecretAwareBackend(file.backend, keychain)
+    const loaded = await backend.load()
+
+    await backend.save({ ...loaded!.config, provider: "claude-cli" })
+
+    expect(keychain.set).not.toHaveBeenCalled()
+    expect(store.get("openai")).toBe("sk-oai")
+    expect(file.read()?.openai.keyPresent).toBe(true)
+  })
+
+  it("keeps an unmigrated inline key when saving before it's loaded", async () => {
+    const file = fakeFile(legacyConfig({ openai: "sk-inline" }))
+    const { keychain } = fakeKeychain()
+    const backend = createSecretAwareBackend(file.backend, keychain)
+    const loaded = await backend.load()
+
+    await backend.save({ ...loaded!.config, provider: "openai" })
+
+    expect(file.read()?.openai.apiKey).toBe("sk-inline")
+    expect(file.read()?.openai.keyPresent).toBe(true)
   })
 
   it("falls back to writing keys in the file when the keychain write fails", async () => {

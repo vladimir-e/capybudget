@@ -94,7 +94,7 @@ interface IntelligenceStore {
   config: IntelligenceConfig
   hydrated: boolean
   /** Whether the keychain has been read this session (secrets merged into
-   *  `config`). Non-API providers count as loaded — there's nothing to read. */
+   *  `config`). */
   secretsLoaded: boolean
   /** Whether the one-time keychain heads-up has been shown (persisted). */
   secretGateSeen: boolean
@@ -214,10 +214,7 @@ export const useIntelligenceStore = create<IntelligenceStore>((set, get) => ({
   async ensureSecrets() {
     if (get().secretsLoaded) return
     const provider = get().config.provider
-    if (provider !== "anthropic" && provider !== "openai") {
-      set({ secretsLoaded: true })
-      return
-    }
+    if (provider !== "anthropic" && provider !== "openai") return
     if (!secretsPromise) {
       secretsPromise = (async () => {
         if (!get().secretGateSeen) {

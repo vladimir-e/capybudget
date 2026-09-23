@@ -20,6 +20,7 @@ import {
   _resetStoreForTests,
   type SecretConfigBackend,
 } from "./intelligence-store"
+import { createSecretAwareBackend, type SecretProvider } from "./secret-config"
 
 beforeEach(() => {
   storeMock.get.mockReset()
@@ -187,7 +188,23 @@ describe("useIntelligenceStore.ensureSecrets", () => {
 
     await useIntelligenceStore.getState().ensureSecrets()
     expect(backend.loadSecrets).not.toHaveBeenCalled()
-    expect(useIntelligenceStore.getState().secretsLoaded).toBe(true)
+    expect(useIntelligenceStore.getState().secretsLoaded).toBe(false)
+  })
+
+  it("loads the stored key after switching from a non-API provider", async () => {
+    const backend = makeBackend(
+      stored({ provider: "claude-cli", openai: { apiKey: "", model: "m", keyPresent: true } }, true),
+      { anthropic: "", openai: "sk-oai" },
+    )
+    _setStoreLoaderForTests(async () => backend)
+    await useIntelligenceStore.getState().hydrate()
+    await useIntelligenceStore.getState().ensureSecrets()
+
+    useIntelligenceStore.getState().setProvider("openai")
+    await useIntelligenceStore.getState().ensureSecrets()
+
+    expect(backend.loadSecrets).toHaveBeenCalledTimes(1)
+    expect(useIntelligenceStore.getState().config.openai.apiKey).toBe("sk-oai")
   })
 
   it("shows the heads-up on the first-ever read, then loads on confirm", async () => {
@@ -342,5 +359,75 @@ describe("useIntelligenceStore setters", () => {
     expect(backend.save).toHaveBeenCalledWith(
       expect.objectContaining({ provider: "anthropic" }),
     )
+  })
+})
+
+describe("useIntelligenceStore persistence before secrets load", () => {
+  function realBackend(onDisk: IntelligenceConfig, keys: Partial<Record<SecretProvider, string>>) {
+    let file = onDisk
+    const keychain = new Map(Object.entries(keys) as [SecretProvider, string][])
+    const backend = createSecretAwareBackend(
+      {
+        get: async () => file,
+        set: async (c) => {
+          file = c
+        },
+        getGateSeen: async () => true,
+        setGateSeen: async () => undefined,
+        clearGateSeen: async () => undefined,
+      },
+      {
+        get: async (p) => keychain.get(p) ?? null,
+        set: async (p, secret) => {
+          if (secret) keychain.set(p, secret)
+          else keychain.delete(p)
+        },
+      },
+    )
+    return { backend, keychain, file: () => file }
+  }
+
+  const flush = () => new Promise((r) => setTimeout(r, 0))
+
+  it("keeps an unloaded key when a setter persists after restart", async () => {
+    const disk = realBackend(
+      {
+        ...DEFAULT_INTELLIGENCE_CONFIG,
+        provider: "claude-cli",
+        openai: { apiKey: "", model: "gpt", keyPresent: true },
+      },
+      { openai: "sk-oai" },
+    )
+    _setStoreLoaderForTests(async () => disk.backend)
+    await useIntelligenceStore.getState().hydrate()
+
+    useIntelligenceStore.getState().setProvider("openai")
+    useIntelligenceStore.getState().setOpenAiModel("gpt-5-pro")
+    await flush()
+
+    expect(disk.keychain.get("openai")).toBe("sk-oai")
+    expect(disk.file().openai.keyPresent).toBe(true)
+
+    await useIntelligenceStore.getState().ensureSecrets()
+    expect(useIntelligenceStore.getState().config.openai.apiKey).toBe("sk-oai")
+  })
+
+  it("still deletes the key on an explicit clear", async () => {
+    const disk = realBackend(
+      {
+        ...DEFAULT_INTELLIGENCE_CONFIG,
+        provider: "openai",
+        openai: { apiKey: "", model: "gpt", keyPresent: true },
+      },
+      { openai: "sk-oai" },
+    )
+    _setStoreLoaderForTests(async () => disk.backend)
+    await useIntelligenceStore.getState().hydrate()
+
+    useIntelligenceStore.getState().setOpenAiKey("")
+    await flush()
+
+    expect(disk.keychain.has("openai")).toBe(false)
+    expect(disk.file().openai.keyPresent).toBe(false)
   })
 })

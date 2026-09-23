@@ -16,7 +16,9 @@
 
 import {
   DEFAULT_INTELLIGENCE_CONFIG,
+  hasProviderKey,
   type IntelligenceConfig,
+  type ProviderCredentials,
 } from "@capybudget/intelligence"
 
 export type SecretProvider = "anthropic" | "openai"
@@ -54,8 +56,9 @@ export interface SecretConfigBackend {
   /** On-demand keychain read — resolves both provider secrets, migrating any
    *  inline plaintext key and persisting resolved presence flags. */
   loadSecrets(): Promise<ProviderSecrets>
-  /** Persist a config change: secrets → keychain (empty ones skipped), the rest
-   *  → plaintext with presence flags. */
+  /** Persist a config change: secrets → keychain, the rest → plaintext with
+   *  presence flags. A present-but-unloaded key is left untouched; only an
+   *  explicit clear (`keyPresent: false`) deletes it. */
   save(config: IntelligenceConfig): Promise<void>
   /** Record that the one-time keychain heads-up has been shown. */
   markGateSeen(): Promise<void>
@@ -111,6 +114,15 @@ function wasStored(config: IntelligenceConfig | null, provider: SecretProvider):
   return config[provider].keyPresent === true || Boolean(config[provider].apiKey)
 }
 
+/** A key known to exist but not yet read from the keychain this session. */
+function isUnloaded(creds: ProviderCredentials): boolean {
+  return !creds.apiKey && creds.keyPresent === true
+}
+
+function inlineKey(config: IntelligenceConfig | null, provider: SecretProvider): string {
+  return config?.[provider]?.apiKey ?? ""
+}
+
 /** The in-memory config for boot: normalized + stripped, with presence flags
  *  resolved from the raw `stored` shape (see {@link presenceFor}). */
 function withResolvedPresence(stored: IntelligenceConfig): IntelligenceConfig {
@@ -123,12 +135,12 @@ function withResolvedPresence(stored: IntelligenceConfig): IntelligenceConfig {
 }
 
 /** The plaintext config to persist after `save`: `persisted` keys inline (empty
- *  once safely in the keychain), presence flags from the requested key values. */
+ *  once safely in the keychain), presence flags from the requested config. */
 function withSaved(config: IntelligenceConfig, persisted: ProviderSecrets): IntelligenceConfig {
   return {
     ...config,
-    anthropic: { ...config.anthropic, apiKey: persisted.anthropic, keyPresent: Boolean(config.anthropic.apiKey) },
-    openai: { ...config.openai, apiKey: persisted.openai, keyPresent: Boolean(config.openai.apiKey) },
+    anthropic: { ...config.anthropic, apiKey: persisted.anthropic, keyPresent: hasProviderKey(config.anthropic) },
+    openai: { ...config.openai, apiKey: persisted.openai, keyPresent: hasProviderKey(config.openai) },
   }
 }
 
@@ -181,10 +193,10 @@ export function createSecretAwareBackend(
       async save(config) {
         // No keychain — keys stay inline; presence flags still recorded so boot
         // reads them without re-deriving.
-        await file.set(withSaved(config, {
-          anthropic: config.anthropic.apiKey,
-          openai: config.openai.apiKey,
-        }))
+        const prev = await file.get()
+        const keep = (provider: SecretProvider) =>
+          isUnloaded(config[provider]) ? inlineKey(prev, provider) : config[provider].apiKey
+        await file.set(withSaved(config, { anthropic: keep("anthropic"), openai: keep("openai") }))
       },
     }
   }
@@ -252,6 +264,8 @@ export function createSecretAwareBackend(
           } catch {
             // Keep this provider's key in the file; leave the others as they are.
           }
+        } else if (isUnloaded(config[provider])) {
+          persisted[provider] = inlineKey(prev, provider)
         } else {
           // An empty key deletes a real entry, but a fresh install (or a
           // provider that never had a key) must not prompt for a delete that

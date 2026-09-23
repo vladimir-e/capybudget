@@ -9,6 +9,10 @@ CHANGELOG PHILOSOPHY:
 - Resist the urge to be thorough here. Thoroughness goes in specs, not changelog.
 -->
 
+## Unreleased
+
+- **Security** - Changing AI settings after a restart no longer deletes a saved API key, and switching from Claude Code to an API provider picks up its stored key without a restart.
+
 ## 1.5.1 — 2026-07-05
 
 - **App** - Error toasts now stay put until you dismiss them, so a failed import or save can't flash by unnoticed; success messages still fade on their own.
