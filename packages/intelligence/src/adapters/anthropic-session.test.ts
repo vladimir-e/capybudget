@@ -572,6 +572,7 @@ describe("AnthropicSession", () => {
     expect(mockRunTool).toHaveBeenCalledTimes(SESSION_TOOL_CALL_BUDGET)
 
     const errorEvent = events.find((e) => e.type === "error")
+    expect(errorEvent).toMatchObject({ code: "budgetExhausted" })
     expect(errorEvent?.message).toMatch(/budget exhausted/i)
     expect(events.some((e) => e.type === "done")).toBe(false)
   })

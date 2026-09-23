@@ -331,6 +331,7 @@ export class AnthropicSession implements CapySession, StructuredSession {
         this.interrupted = true
         this.opts.onEvent({
           type: "error",
+          code: "budgetExhausted",
           message: `Tool-call budget exhausted (${SESSION_TOOL_CALL_BUDGET} calls). Stopping. Run again if more work is needed.`,
         })
         return

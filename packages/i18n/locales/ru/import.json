@@ -17,7 +17,7 @@
     "unsupportedType": "{{name}} — неподдерживаемый тип файла",
     "pdfNeedsCapableProvider": "{{name}} пропущен — для импорта PDF нужен провайдер Anthropic или OpenAI",
     "saveFailed": "Не удалось сохранить {{name}}",
-    "providerRequired": "Для импорта нужно настроить Anthropic или OpenAI.",
+    "providerRequired": "Для импорта нужно настроить Anthropic, OpenAI или Ollama.",
     "clearFailed": "Не удалось очистить данные импорта — попробуйте ещё раз.",
     "removeFileFailed": "Не удалось удалить {{name}}"
   },
@@ -40,7 +40,7 @@
   "setupAi": {
     "title": "Настрой ИИ для импорта",
     "body": "Подключи провайдера ИИ в настройках, чтобы перенести эти транзакции.",
-    "cliBody": "Claude Code отвечает за чат, но для импорта выписок нужен Anthropic или OpenAI — добавь его в настройках.",
+    "cliBody": "Claude Code отвечает за чат, но для импорта выписок нужен Anthropic, OpenAI или Ollama — добавь его в настройках.",
     "button": "Настроить ИИ"
   },
   "progress": {

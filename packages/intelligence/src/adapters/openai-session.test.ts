@@ -5,9 +5,12 @@ import type { BudgetRepository, FileAdapter } from "@capybudget/persistence"
 import { getToolDefinitions } from "../tools"
 
 interface FakeToolCallDelta {
-  index: number
+  /** Omitted to mimic Ollama's /v1 stream. */
+  index?: number
   id?: string
   name?: string
+  /** Sent whole in the announcement chunk, as Ollama does. */
+  arguments?: string
   /** JSON argument fragments, emitted one per chunk to exercise the accumulator. */
   argFragments?: string[]
 }
@@ -15,7 +18,8 @@ interface FakeToolCallDelta {
 interface FakeTurn {
   textDeltas?: string[]
   toolCallDeltas?: FakeToolCallDelta[]
-  finish_reason: "stop" | "tool_calls" | "length"
+  /** Null ends the stream without a finish chunk. */
+  finish_reason: "stop" | "tool_calls" | "length" | "content_filter" | null
   error?: Error
   /** Extra chunk appended AFTER finish_reason — must never be observed. */
   tailChunk?: { content: string }
@@ -66,7 +70,7 @@ const { mockCreate, queueTurn, queueStructured, lastCreateCall, allCreateCalls, 
           delta: {
             content?: string
             tool_calls?: Array<{
-              index: number
+              index?: number
               id?: string
               type?: "function"
               function?: { name?: string; arguments?: string }
@@ -93,10 +97,10 @@ const { mockCreate, queueTurn, queueStructured, lastCreateCall, allCreateCalls, 
                 delta: {
                   tool_calls: [
                     {
-                      index: tc.index,
+                      ...(tc.index === undefined ? {} : { index: tc.index }),
                       id: tc.id,
                       type: "function",
-                      function: { name: tc.name, arguments: "" },
+                      function: { name: tc.name, arguments: tc.arguments ?? "" },
                     },
                   ],
                 },
@@ -120,7 +124,7 @@ const { mockCreate, queueTurn, queueStructured, lastCreateCall, allCreateCalls, 
                   delta: {
                     tool_calls: [
                       {
-                        index: tc.index,
+                        ...(tc.index === undefined ? {} : { index: tc.index }),
                         function: { arguments: frag },
                       },
                     ],
@@ -133,9 +137,11 @@ const { mockCreate, queueTurn, queueStructured, lastCreateCall, allCreateCalls, 
           }
         }
       }
-      chunks.push({
-        choices: [{ delta: {}, finish_reason: turn.finish_reason, index: 0 }],
-      })
+      if (turn.finish_reason) {
+        chunks.push({
+          choices: [{ delta: {}, finish_reason: turn.finish_reason, index: 0 }],
+        })
+      }
       if (turn.tailChunk) {
         chunks.push({
           choices: [
@@ -730,6 +736,7 @@ describe("OpenAiSession", () => {
 
     expect(mockRunTool).toHaveBeenCalledTimes(SESSION_TOOL_CALL_BUDGET)
     const errorEvent = events.find((e) => e.type === "error")
+    expect(errorEvent).toMatchObject({ code: "budgetExhausted" })
     expect(errorEvent?.message).toMatch(/budget exhausted/i)
     expect(events.some((e) => e.type === "done")).toBe(false)
   })
@@ -821,6 +828,128 @@ describe("OpenAiSession", () => {
     expect(mockCreate).toHaveBeenCalledTimes(1)
     expect(events.some((e) => e.type === "done")).toBe(true)
     expect(events.some((e) => e.type === "error")).toBe(false)
+  })
+
+  describe("Ollama-shaped streams", () => {
+    function toolRoles() {
+      const messages = lastCreateCall().messages as Array<{ role: string; tool_call_id?: string }>
+      return messages.filter((m) => m.role === "tool").map((m) => m.tool_call_id)
+    }
+
+    it("continues the loop when tool calls arrive with a stop finish", async () => {
+      queueTurn({
+        toolCallDeltas: [{ index: 0, id: "call_1", name: "list_transactions", arguments: "{}" }],
+        finish_reason: "stop",
+      })
+      queueTurn({ textDeltas: ["Done."], finish_reason: "stop" })
+      mockRunTool.mockResolvedValueOnce("ok")
+
+      const { session } = makeSession()
+      await session.send("hi")
+
+      expect(mockRunTool).toHaveBeenCalledTimes(1)
+      expect(mockCreate).toHaveBeenCalledTimes(2)
+      expect(toolRoles()).toEqual(["call_1"])
+    })
+
+    it("separates tool calls that arrive without an index by id", async () => {
+      queueTurn({
+        toolCallDeltas: [
+          { id: "call_a", name: "list_transactions", arguments: '{"limit":1}' },
+          { id: "call_b", name: "list_categories", arguments: "{}" },
+        ],
+        finish_reason: "tool_calls",
+      })
+      queueTurn({ textDeltas: ["Done."], finish_reason: "stop" })
+      mockRunTool.mockResolvedValue("ok")
+
+      const { session } = makeSession()
+      await session.send("hi")
+
+      expect(mockRunTool.mock.calls.map(([name, input]) => [name, input])).toEqual([
+        ["list_transactions", { limit: 1 }],
+        ["list_categories", {}],
+      ])
+      expect(toolRoles()).toEqual(["call_a", "call_b"])
+    })
+
+    it("appends index-less argument fragments to the call they follow", async () => {
+      queueTurn({
+        toolCallDeltas: [{ id: "call_a", name: "list_transactions", argFragments: ['{"limit"', ":2}"] }],
+        finish_reason: "tool_calls",
+      })
+      queueTurn({ textDeltas: ["Done."], finish_reason: "stop" })
+      mockRunTool.mockResolvedValue("ok")
+
+      const { session } = makeSession()
+      await session.send("hi")
+
+      expect(mockRunTool).toHaveBeenCalledWith("list_transactions", { limit: 2 }, expect.anything())
+    })
+  })
+
+  it.each([
+    ["a length finish", "length" as const],
+    ["a content_filter finish", "content_filter" as const],
+    ["no finish chunk", null],
+  ])("never executes tool calls from a turn cut off by %s, and keeps only its text", async (_label, finish_reason) => {
+    queueTurn({
+      textDeltas: ["Let me check"],
+      toolCallDeltas: [{ index: 0, id: "call_1", name: "list_transactions", argFragments: ['{"lim'] }],
+      finish_reason,
+    })
+    queueTurn({ textDeltas: ["ok"], finish_reason: "stop" })
+
+    const { session } = makeSession()
+    await session.send("hi")
+    expect(mockRunTool).not.toHaveBeenCalled()
+    expect(mockCreate).toHaveBeenCalledTimes(1)
+
+    await session.send("again")
+    const messages = lastCreateCall().messages as Array<{ role: string; content: unknown; tool_calls?: unknown }>
+    expect(messages.some((m) => m.tool_calls)).toBe(false)
+    expect(messages).toContainEqual({ role: "assistant", content: "Let me check" })
+  })
+
+  it.each([
+    ["a length finish", "length" as const],
+    ["a content_filter finish", "content_filter" as const],
+    ["no finish chunk", null],
+  ])("reports a text-less turn cut off by %s as an error instead of an empty reply", async (_label, finish_reason) => {
+    queueTurn({
+      toolCallDeltas: [{ index: 0, id: "call_1", name: "list_transactions", argFragments: ['{"lim'] }],
+      finish_reason,
+    })
+
+    const { session, events } = makeSession()
+    await session.send("hi")
+
+    expect(events.find((e) => e.type === "error")).toMatchObject({ type: "error", code: "cutOff" })
+    expect(events.some((e) => e.type === "done")).toBe(false)
+    expect(mockRunTool).not.toHaveBeenCalled()
+  })
+
+  it("stays silent when stop() lands as a text-less turn is cut off", async () => {
+    const { session, events } = makeSession()
+    mockCreate.mockImplementationOnce(async () => ({
+      async *[Symbol.asyncIterator]() {
+        yield {
+          choices: [
+            {
+              delta: { tool_calls: [{ index: 0, id: "call_1", type: "function", function: { name: "list_transactions", arguments: "" } }] },
+              finish_reason: null,
+              index: 0,
+            },
+          ],
+        }
+        await session.stop()
+      },
+    }))
+
+    await session.send("hi")
+
+    expect(events.some((e) => e.type === "error")).toBe(false)
+    expect(events.some((e) => e.type === "done")).toBe(false)
   })
 
   it("restart() resets the budget counter so the next session starts fresh", async () => {

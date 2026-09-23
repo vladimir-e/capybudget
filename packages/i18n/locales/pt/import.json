@@ -17,7 +17,7 @@
     "unsupportedType": "{{name}} não é um tipo de arquivo compatível",
     "pdfNeedsCapableProvider": "{{name}} foi ignorado — importar PDF precisa do provedor Anthropic ou OpenAI",
     "saveFailed": "Falha ao salvar {{name}}",
-    "providerRequired": "A importação precisa da Anthropic ou da OpenAI configurada.",
+    "providerRequired": "A importação precisa da Anthropic, da OpenAI ou do Ollama configurado.",
     "clearFailed": "Não foi possível limpar a área de importação — tente de novo.",
     "removeFileFailed": "Não foi possível remover {{name}}"
   },
@@ -39,7 +39,7 @@
   "setupAi": {
     "title": "Configure a IA para importar",
     "body": "Conecte um provedor de IA nas configurações para trazer estas transações.",
-    "cliBody": "O Claude Code cuida do chat, mas importar extratos precisa da Anthropic ou da OpenAI — adicione uma nas configurações.",
+    "cliBody": "O Claude Code cuida do chat, mas importar extratos precisa da Anthropic, da OpenAI ou do Ollama — adicione um deles nas configurações.",
     "button": "Configurar IA"
   },
   "progress": {
@@ -73,12 +73,12 @@
     "mergeSuccess_one": "{{count}} transação mesclada",
     "mergeSuccess_many": "{{count}} transações mescladas",
     "mergeSuccess_other": "{{count}} transações mescladas",
-    "mergeSuccessWithAccounts_one": "{{count}} transação mesclada e {{accounts}} criada",
-    "mergeSuccessWithAccounts_many": "{{count}} transações mescladas e {{accounts}} criadas",
-    "mergeSuccessWithAccounts_other": "{{count}} transações mescladas e {{accounts}} criadas",
-    "accountsCreated_one": "{{count}} conta",
-    "accountsCreated_many": "{{count}} contas",
-    "accountsCreated_other": "{{count}} contas",
+    "mergeSuccessWithAccounts_one": "{{count}} transação mesclada e {{accounts}}",
+    "mergeSuccessWithAccounts_many": "{{count}} transações mescladas e {{accounts}}",
+    "mergeSuccessWithAccounts_other": "{{count}} transações mescladas e {{accounts}}",
+    "accountsCreated_one": "{{count}} conta criada",
+    "accountsCreated_many": "{{count}} contas criadas",
+    "accountsCreated_other": "{{count}} contas criadas",
     "mergeFailed": "Falha ao mesclar: {{error}}",
     "unknownError": "Erro desconhecido",
     "mapAccountsTitle": "Mapear contas",

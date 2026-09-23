@@ -76,6 +76,7 @@
   "unconfigured": {
     "title": "Configure seu assistente de IA",
     "description": "O Capy precisa de um provedor de IA antes de poder ajudar.",
+    "finishSetup": "Termine de configurar {{provider}} nas configurações para o Capy poder ajudar.",
     "openSettings": "Abrir configurações",
     "claudeCliChecking": "Procurando a CLI do Claude Code…",
     "claudeCliMissing": "CLI do Claude Code não detectada nesta máquina"
@@ -109,7 +110,9 @@
     "endedUnexpectedly": "A sessão terminou inesperadamente. Envie uma mensagem para começar uma nova conversa.",
     "notConfigured": "O Capy não está configurado. Abra as configurações para escolher um provedor de IA.",
     "sendFailed": "Falha ao enviar a mensagem",
-    "interrupted": "Sessão interrompida. Envie uma mensagem para continuar."
+    "interrupted": "Sessão interrompida. Envie uma mensagem para continuar.",
+    "cutOff": "A resposta foi cortada antes que o Capy pudesse responder. Tente novamente.",
+    "budgetExhausted": "O Capy atingiu o limite de chamadas de ferramentas nesta resposta. Envie uma mensagem para continuar."
   },
   "secretGate": {
     "title": "Desbloqueie sua chave de IA",

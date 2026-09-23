@@ -91,7 +91,7 @@ export function CapyOverlay({
   const lastScrollTopRef = useRef(0)
   const [showJumpToLatest, setShowJumpToLatest] = useState(false)
   const inputRef = useRef<HTMLTextAreaElement>(null)
-  const firstChipRef = useRef<HTMLButtonElement>(null)
+  const initialFocusRef = useRef<HTMLButtonElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const dragCounterRef = useRef(0)
 
@@ -156,21 +156,20 @@ export function CapyOverlay({
   useEffect(() => {
     if (open) {
       const timer = setTimeout(() => {
-        // Focus the textarea when configured; otherwise focus the first
-        // enabled provider chip so keyboard users don't lose focus —
-        // textarea is hidden in the unconfigured state, and the Claude
-        // chip may be disabled while detection resolves or when the
-        // CLI is missing. If the first chip is disabled, fall back
-        // to the next chip; ultimately the focus call no-ops if the
-        // DOM target isn't yet attached, which is fine.
+        // Focus the textarea when configured; otherwise the empty state's
+        // initial focus target — the first provider chip, or "Open settings"
+        // when a chosen provider needs finishing — so keyboard users don't
+        // lose focus. The Claude chip may be disabled while detection resolves
+        // or when the CLI is missing; then fall back to its next enabled
+        // sibling. The focus call no-ops if the target isn't attached yet.
         if (isConfigured) {
           inputRef.current?.focus()
         } else {
-          const chip = firstChipRef.current
-          if (chip && !chip.disabled) {
-            chip.focus()
+          const target = initialFocusRef.current
+          if (target && !target.disabled) {
+            target.focus()
           } else {
-            chip?.parentElement
+            target?.parentElement
               ?.querySelector<HTMLButtonElement>("button:not([disabled])")
               ?.focus()
           }
@@ -440,10 +439,11 @@ export function CapyOverlay({
             )}
             {messages.length === 0 && !secretsError && !isConfigured && (
               <UnconfiguredEmptyState
+                unfinishedProviderLabel={config.provider ? PROVIDER_LABELS[config.provider] : null}
                 claudeCliAvailable={claudeCliAvailable}
                 onPickProvider={openSettings}
                 onOpenSettings={() => openSettings()}
-                firstChipRef={firstChipRef}
+                initialFocusRef={initialFocusRef}
               />
             )}
             {messages.length === 0 && !secretsError && isConfigured && (

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { enUS, enGB, es, ru } from "react-day-picker/locale"
+import { enUS, enGB, es, ru, pt, ptBR } from "react-day-picker/locale"
 
 import { resolveCalendarLocale } from "./calendar-locale"
 
@@ -17,6 +17,7 @@ describe("resolveCalendarLocale", () => {
       ["en-GB", 1],
       ["ru", 1],
       ["ru-RU", 1],
+      ["pt-BR", 0],
       ["es", 1],
       ["en", 0],
     ])("%s → weekStartsOn %i", (tag, expected) => {
@@ -34,6 +35,9 @@ describe("resolveCalendarLocale", () => {
       ["es", es],
       ["ru-RU", ru],
       ["ru", ru],
+      ["pt-BR", ptBR],
+      ["pt", ptBR],
+      ["pt-PT", pt],
       ["fr-FR", enUS],
     ])("%s → %s", (tag, expected) => {
       expect(resolveCalendarLocale(tag).locale).toBe(expected)

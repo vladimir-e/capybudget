@@ -93,13 +93,14 @@ function isIncomeCategory(group: CategoryGroup): boolean {
  *
  * Name→id resolution is scoped to the row's *type-appropriate* categories: an
  * `income` row resolves only against Income-group names, an `expense` row only
- * against non-Income ones, matched case-insensitively — exactly first, then
- * tolerating the `Name (Group)` form the prompt itself displays (see
- * {@link resolveCategoryId}). An unknown or hallucinated name — or one that only
- * exists in the wrong type — finds no id
- * and the row is left uncategorized (categoryId ""), so it keeps its cleaned
- * merchant and stays re-enrichable. Resolving within the type partition makes
- * writing an income category onto an expense structurally impossible.
+ * against non-Income ones, matched case-insensitively — by bare name first, then
+ * by the exact `Name (Group)` string the prompt displays (which also tells apart
+ * same-named categories in different groups), then with a final parenthetical
+ * stripped (tolerating a wrong or misspelled group). An unknown or hallucinated name —
+ * or one that only exists in the wrong type — finds no id and the row is left
+ * uncategorized (categoryId ""), so it keeps its cleaned merchant and stays
+ * re-enrichable. Resolving within the type partition makes writing an income
+ * category onto an expense structurally impossible.
  * (Transfers never reach here — `needsEnrich` exempts them.)
  *
  * Throws on a model/parse failure — the caller catches per-batch.
@@ -111,7 +112,7 @@ export async function enrichBatch(
   categories: Category[],
 ): Promise<EnrichedRow[]> {
   const rowType = new Map(batch.map((r) => [r.id, r.type]));
-  const idByName = nameToIdIndex(categories);
+  const idByName = categoryIndex(categories);
   const prompt = buildEnrichPrompt(batch, context, categories);
   const messages: { role: "user"; content: MessageContent }[] = [{ role: "user", content: prompt }];
 
@@ -121,46 +122,33 @@ export async function enrichBatch(
     .filter((r) => rowType.has(r.id))
     .map((r) => {
       const income = rowType.get(r.id) === "income";
-      const categoryId = resolveCategoryId(idByName[income ? "income" : "expense"], r.category);
+      const categoryId = resolveCategory(idByName[income ? "income" : "expense"], r.category);
       return { id: r.id, merchant: r.merchant, categoryId, confidence: r.confidence };
     });
 }
 
-/**
- * A trailing parenthetical, which is how the prompt renders a category's group:
- * the list shows `Groceries (Food)`, so "copy the name verbatim" and "return
- * only the name" read as contradictory instructions. Frontier models resolve
- * the contradiction in our favor and drop the group; smaller local models take
- * the literal reading and echo the whole display string back. Both are
- * defensible — so the resolver accepts both rather than betting on inference.
- */
-const TRAILING_GROUP = /\s*\([^()]*\)\s*$/;
+const formatCategory = (c: Category) => `${c.name} (${c.group})`;
 
-/**
- * Name → id within one type partition. Exact match first, so a category
- * genuinely named `Car (old)` still wins on its own terms; only on a miss do we
- * strip a trailing group suffix and retry. Returns "" when nothing matches —
- * the row stays uncategorized and re-enrichable, as before.
- */
-function resolveCategoryId(index: Map<string, string>, returned: string): string {
-  const key = returned.trim().toLowerCase();
-  const exact = index.get(key);
-  if (exact !== undefined) return exact;
-  const withoutGroup = key.replace(TRAILING_GROUP, "");
-  if (withoutGroup === key) return "";
-  return index.get(withoutGroup) ?? "";
+const indexKey = (name: string) => name.trim().toLowerCase();
+
+function resolveCategory(index: Map<string, string>, returned: string): string {
+  const key = indexKey(returned);
+  return index.get(key) ?? index.get(key.replace(/\s*\([^()]*\)$/, "")) ?? "";
 }
 
 /** Case-insensitive name → id lookup, partitioned by type so a name can only
- *  resolve within the matching type. A duplicate name within a partition keeps
- *  the first (categories carry unique names in practice). */
-function nameToIdIndex(categories: Category[]): { income: Map<string, string>; expense: Map<string, string> } {
+ *  resolve within the matching type. Bare names are indexed first and win; the
+ *  `Name (Group)` display strings fill in after, never overriding a bare name. */
+function categoryIndex(categories: Category[]): { income: Map<string, string>; expense: Map<string, string> } {
   const income = new Map<string, string>();
   const expense = new Map<string, string>();
-  for (const c of categories) {
-    const target = isIncomeCategory(c.group) ? income : expense;
-    const key = c.name.trim().toLowerCase();
-    if (!target.has(key)) target.set(key, c.id);
+  const partition = (c: Category) => (isIncomeCategory(c.group) ? income : expense);
+  for (const keyOf of [(c: Category) => c.name, formatCategory]) {
+    for (const c of categories) {
+      const target = partition(c);
+      const key = indexKey(keyOf(c));
+      if (!target.has(key)) target.set(key, c.id);
+    }
   }
   return { income, expense };
 }
@@ -170,7 +158,6 @@ function buildEnrichPrompt(
   context: Record<string, RowContext>,
   categories: Category[],
 ): string {
-  const formatCategory = (c: Category) => `${c.name} (${c.group})`;
   const incomeCategories = categories.filter((c) => isIncomeCategory(c.group)).map(formatCategory).join("\n");
   const expenseCategories = categories.filter((c) => !isIncomeCategory(c.group)).map(formatCategory).join("\n");
 
@@ -188,7 +175,7 @@ function buildEnrichPrompt(
   });
 
   return [
-    `Assign a clean merchant name and a budget category to each transaction below. Return the category as one EXACT name from the lists below, copied verbatim — do not translate or rephrase it. Keep the cleaned merchant name in the source statement's own language — do not translate it.`,
+    `Assign a clean merchant name and a budget category to each transaction below. Return the category as one EXACT name from the lists below. Each list line reads "<name> (<group>)": copy the name exactly as listed and drop only that final parenthesized group — parentheses inside the name itself stay (the line "Car (old) (Fixed)" gives "Car (old)"). Do not translate or rephrase it. Keep the cleaned merchant name in the source statement's own language — do not translate it.`,
     ``,
     `The category's type MUST match the transaction type: an \`income\` transaction takes an "Income"-group category; an \`expense\` takes a category from any non-Income group. The categories are split below by which type they apply to — pick from the matching list.`,
     ``,

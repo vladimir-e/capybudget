@@ -1,10 +1,10 @@
 /**
  * Stateless structured-output primitive shared by the in-process API
- * adapters (Anthropic, OpenAI). One constrained model call returns a
- * value the caller's JSON Schema describes — no agent loop, no tools.
+ * adapters (Anthropic, OpenAI, Ollama). One constrained model call returns
+ * a value the caller's JSON Schema describes — no agent loop, no tools.
  *
- * Both providers constrain generation to the schema server-side
- * (Anthropic `output_config.format`, OpenAI `response_format` json_schema).
+ * The providers constrain generation to the schema server-side (Anthropic
+ * `output_config.format`, OpenAI and Ollama `response_format` json_schema).
  * `parseStructured` is the client-side enforcement layer: it parses the
  * returned text and checks it against the same schema, so a malformed or
  * off-schema response surfaces as a thrown error at the call site rather

@@ -18,7 +18,7 @@
  * Gates return guidance instead of staging, so the model relays a clear next
  * step rather than failing opaquely:
  *   - `importSupported` is false (provider is claude-cli / off) → tell the user
- *     to switch to Anthropic or OpenAI.
+ *     to switch to Anthropic, OpenAI, or Ollama.
  *   - no attachments on the turn → tell the user to attach the file (or use the
  *     Import tab for bulk).
  *   - a PDF under a provider that can't read PDFs (`canReadPdf`) → tell the user
@@ -49,7 +49,7 @@ export async function handleStartImport(ctx: ToolContext): Promise<string> {
       started: false,
       reason: "provider_unsupported",
       message:
-        "File import needs the Anthropic or OpenAI provider. Tell the user to switch in Settings, then re-share the file — or to use the Import tab.",
+        "File import needs the Anthropic, OpenAI, or Ollama provider. Tell the user to switch in Settings, then re-share the file — or to use the Import tab.",
     })
   }
 

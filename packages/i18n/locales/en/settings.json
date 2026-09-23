@@ -118,7 +118,7 @@
     },
     "ollama": {
       "serverUrl": "Server URL",
-      "localOnly": "Runs on your machine — no API key, and nothing leaves your computer.",
+      "localOnly": "No API key needed — your data goes only to this server, which is your own machine by default.",
       "refreshModels": "Refresh",
       "notRunningHint": "Capy can't reach Ollama at this address. Start it with `ollama serve`, or check the URL.",
       "noModels": "Ollama is running but has no models yet. Pull one with `ollama pull llama3.1`, then refresh.",

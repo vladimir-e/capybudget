@@ -41,10 +41,11 @@ function MascotHero() {
 /* ── Empty states ─────────────────────────────────────────────── */
 
 interface UnconfiguredEmptyStateProps {
+  unfinishedProviderLabel: string | null
   claudeCliAvailable: boolean | null
   onPickProvider: (provider: IntelligenceProvider) => void
   onOpenSettings: () => void
-  firstChipRef: RefObject<HTMLButtonElement | null>
+  initialFocusRef: RefObject<HTMLButtonElement | null>
 }
 
 // Brand names, not UI copy — verbatim across locales. Claude Code spawns a
@@ -57,10 +58,11 @@ const PROVIDER_CHIPS: ReadonlyArray<{ provider: IntelligenceProvider; label: str
 ]
 
 export function UnconfiguredEmptyState({
+  unfinishedProviderLabel,
   claudeCliAvailable,
   onPickProvider,
   onOpenSettings,
-  firstChipRef,
+  initialFocusRef,
 }: UnconfiguredEmptyStateProps) {
   const { t } = useTranslation("capy")
   return (
@@ -70,38 +72,43 @@ export function UnconfiguredEmptyState({
         {t("unconfigured.title")}
       </h3>
       <p className="mt-2 max-w-xs text-sm text-muted-foreground">
-        {t("unconfigured.description")}
+        {unfinishedProviderLabel
+          ? t("unconfigured.finishSetup", { provider: unfinishedProviderLabel })
+          : t("unconfigured.description")}
       </p>
-      <div className="mt-5 flex flex-wrap justify-center gap-2">
-        {PROVIDER_CHIPS.map(({ provider, label }, idx) => {
-          const isClaudeCli = provider === "claude-cli"
-          // Disable the Claude Code chip while detection is pending (null)
-          // and when the CLI is absent (false). Only `true` enables the
-          // chip — otherwise a fast clicker can race-set provider on a
-          // machine where the CLI isn't actually installed.
-          const disabled = isClaudeCli && claudeCliAvailable !== true
-          const title = disabled
-            ? claudeCliAvailable === null
-              ? t("unconfigured.claudeCliChecking")
-              : t("unconfigured.claudeCliMissing")
-            : undefined
-          return (
-            <button
-              key={provider}
-              type="button"
-              ref={idx === 0 ? firstChipRef : undefined}
-              onClick={() => onPickProvider(provider)}
-              disabled={disabled}
-              title={title}
-              className="rounded-full border border-border/40 bg-muted/40 px-3.5 py-1.5 text-xs font-medium text-foreground/80 transition-colors hover:border-brand/40 hover:bg-brand/10 hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-border/40 disabled:hover:bg-muted/40 disabled:hover:text-foreground/80"
-            >
-              {label}
-            </button>
-          )
-        })}
-      </div>
+      {!unfinishedProviderLabel && (
+        <div className="mt-5 flex flex-wrap justify-center gap-2">
+          {PROVIDER_CHIPS.map(({ provider, label }, idx) => {
+            const isClaudeCli = provider === "claude-cli"
+            // Disable the Claude Code chip while detection is pending (null)
+            // and when the CLI is absent (false). Only `true` enables the
+            // chip — otherwise a fast clicker can race-set provider on a
+            // machine where the CLI isn't actually installed.
+            const disabled = isClaudeCli && claudeCliAvailable !== true
+            const title = disabled
+              ? claudeCliAvailable === null
+                ? t("unconfigured.claudeCliChecking")
+                : t("unconfigured.claudeCliMissing")
+              : undefined
+            return (
+              <button
+                key={provider}
+                type="button"
+                ref={idx === 0 ? initialFocusRef : undefined}
+                onClick={() => onPickProvider(provider)}
+                disabled={disabled}
+                title={title}
+                className="rounded-full border border-border/40 bg-muted/40 px-3.5 py-1.5 text-xs font-medium text-foreground/80 transition-colors hover:border-brand/40 hover:bg-brand/10 hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-border/40 disabled:hover:bg-muted/40 disabled:hover:text-foreground/80"
+              >
+                {label}
+              </button>
+            )
+          })}
+        </div>
+      )}
       <button
         type="button"
+        ref={unfinishedProviderLabel ? initialFocusRef : undefined}
         onClick={onOpenSettings}
         className="mt-5 inline-flex items-center gap-1.5 rounded-xl bg-brand px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-brand/90"
       >

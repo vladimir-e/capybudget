@@ -76,6 +76,7 @@
   "unconfigured": {
     "title": "Set up your AI assistant",
     "description": "Capy needs an AI provider before it can help.",
+    "finishSetup": "Finish setting up {{provider}} in settings before Capy can help.",
     "openSettings": "Open settings",
     "claudeCliChecking": "Checking for Claude Code CLI…",
     "claudeCliMissing": "Claude Code CLI not detected on this machine"
@@ -109,7 +110,9 @@
     "endedUnexpectedly": "Session ended unexpectedly. Send a message to start a new conversation.",
     "notConfigured": "Capy is not configured. Open settings to pick an AI provider.",
     "sendFailed": "Failed to send message",
-    "interrupted": "Session interrupted. Send a message to continue."
+    "interrupted": "Session interrupted. Send a message to continue.",
+    "cutOff": "The response was cut off before Capy could reply. Try again.",
+    "budgetExhausted": "Capy reached its limit of tool calls for this reply. Send a message to continue."
   },
   "secretGate": {
     "title": "Unlock your AI key",

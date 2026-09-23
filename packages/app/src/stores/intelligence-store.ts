@@ -139,9 +139,8 @@ interface IntelligenceStore {
 
 /**
  * Backfill defaults for keys a persisted config predates. Older configs
- * were written before `claudeCli` (and later `ollama`) existed; merging the
- * defaults keeps hydrate from handing the rest of the app a config with
- * missing slices.
+ * were written before `claudeCli` / `ollama` existed; merging the default keeps
+ * hydrate from handing the rest of the app a config with missing slices.
  */
 function withDefaults(loaded: IntelligenceConfig): IntelligenceConfig {
   return {
@@ -322,8 +321,6 @@ export const useIntelligenceStore = create<IntelligenceStore>((set, get) => ({
 
   setOllamaBaseUrl(baseUrl) {
     const cur = get().config
-    // An empty field means "back to the stock endpoint" rather than a broken
-    // config — the user cleared it, they didn't pick nothing.
     const next = {
       ...cur,
       ollama: { ...cur.ollama, baseUrl: baseUrl.trim() || DEFAULT_OLLAMA_BASE_URL },

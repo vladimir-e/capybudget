@@ -45,15 +45,8 @@ export interface ProviderCredentials {
   keyPresent?: boolean
 }
 
-/**
- * Ollama runs on the user's own machine and authenticates nothing, so it has
- * no credential to protect — no API key, no keychain entry. What it needs
- * instead is the endpoint (the server may listen on another host or port) and
- * a model, which has no sensible default: the list depends on what the user
- * has actually pulled. An empty `model` is the "not configured yet" state.
- */
+/** No key — a local server authenticates nothing. Empty `model` = not configured. */
 export interface OllamaSettings {
-  /** OpenAI-compatible base URL — Ollama exposes its shim under `/v1`. */
   baseUrl: string
   model: string
 }
@@ -67,15 +60,9 @@ export interface IntelligenceConfig {
   claudeCli: { model: string }
 }
 
-/** Where Ollama listens out of the box. */
 export const DEFAULT_OLLAMA_BASE_URL = "http://localhost:11434/v1"
 
-/**
- * Ollama ignores the `Authorization` header, but the OpenAI SDK refuses to
- * construct a client without a non-empty key. This placeholder satisfies the
- * SDK and travels nowhere sensitive — it is not a credential and never touches
- * the keychain.
- */
+/** The OpenAI SDK requires a non-empty key; Ollama ignores it. */
 export const OLLAMA_PLACEHOLDER_KEY = "ollama"
 
 /**
@@ -86,7 +73,6 @@ export const DEFAULT_INTELLIGENCE_CONFIG: IntelligenceConfig = {
   provider: null,
   anthropic: { apiKey: "", model: "claude-sonnet-5", keyPresent: false },
   openai: { apiKey: "", model: "gpt-5.5", keyPresent: false },
-  // No default model: only the user's machine knows which ones are pulled.
   ollama: { baseUrl: DEFAULT_OLLAMA_BASE_URL, model: "" },
   claudeCli: { model: "" },
 }
@@ -99,4 +85,37 @@ export const DEFAULT_INTELLIGENCE_CONFIG: IntelligenceConfig = {
  */
 export function hasProviderKey(creds: ProviderCredentials): boolean {
   return creds.keyPresent === true || creds.apiKey !== ""
+}
+
+export function hasModel(model: string): boolean {
+  return model.trim() !== ""
+}
+
+export type ApiProvider = "anthropic" | "openai" | "ollama"
+
+export interface ApiTarget {
+  provider: ApiProvider
+  apiKey: string
+  model: string
+  baseUrl?: string
+}
+
+/** What an in-process adapter needs to reach the selected provider, or null
+ *  when it has no loaded key or no model, or isn't an in-process provider. */
+export function resolveApiTarget(config: IntelligenceConfig): ApiTarget | null {
+  switch (config.provider) {
+    case "anthropic":
+    case "openai": {
+      const { apiKey, model } = config[config.provider]
+      if (!apiKey.trim() || !hasModel(model)) return null
+      return { provider: config.provider, apiKey: apiKey.trim(), model: model.trim() }
+    }
+    case "ollama": {
+      const { baseUrl, model } = config.ollama
+      if (!hasModel(model)) return null
+      return { provider: "ollama", apiKey: OLLAMA_PLACEHOLDER_KEY, model: model.trim(), baseUrl }
+    }
+    default:
+      return null
+  }
 }

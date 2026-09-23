@@ -190,6 +190,22 @@ describe("CapyOverlay empty state", () => {
     expect(screen.getByText("Set up your AI assistant")).toBeInTheDocument()
   })
 
+  it("asks to finish the chosen provider's setup when its model is blank, without provider chips", async () => {
+    useIntelligenceStore.setState({
+      hydrated: true,
+      config: {
+        ...DEFAULT_INTELLIGENCE_CONFIG,
+        provider: "openai",
+        openai: { apiKey: "sk-1", model: " ", keyPresent: true },
+      },
+    })
+    await mountOverlay()
+
+    expect(screen.getByText("Finish setting up OpenAI API in settings before Capy can help.")).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Anthropic" })).not.toBeInTheDocument()
+    expect(screen.getByRole("button", { name: /Open settings/ })).toBeInTheDocument()
+  })
+
   it("hides the chat input entirely when not configured", async () => {
     useIntelligenceStore.setState({
       hydrated: true,
