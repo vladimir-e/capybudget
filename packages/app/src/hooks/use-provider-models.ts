@@ -2,6 +2,7 @@ import { useEffect, useState } from "react"
 import {
   cachedProviderModels,
   FALLBACK_MODELS,
+  forgetProviderModels,
   loadProviderModels,
   type ApiProvider,
   type ModelOption,
@@ -20,7 +21,10 @@ export function useProviderModels(provider: ApiProvider, apiKey: string): Provid
   const [attempt, setAttempt] = useState(0)
 
   useEffect(() => {
-    if (!apiKey) return
+    if (!apiKey) {
+      forgetProviderModels(provider)
+      return
+    }
     let cancelled = false
     loadProviderModels(provider, apiKey).then(
       (models) => {

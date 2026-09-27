@@ -21,7 +21,8 @@ describe("ModelField", () => {
     expect(screen.queryByPlaceholderText("model-identifier")).not.toBeInTheDocument()
   })
 
-  it("opens in custom mode when the saved model is not in the list", () => {
+  it("keeps a saved model the list lacks selected in the dropdown", async () => {
+    const user = userEvent.setup()
     render(
       <ModelField
         id="m"
@@ -30,8 +31,24 @@ describe("ModelField", () => {
         models={MODELS}
       />,
     )
-    const input = screen.getByPlaceholderText("model-identifier") as HTMLInputElement
-    expect(input.value).toBe("gamma-custom")
+    expect(screen.getByRole("combobox")).toHaveTextContent("gamma-custom")
+    expect(screen.queryByPlaceholderText("model-identifier")).not.toBeInTheDocument()
+
+    await user.click(screen.getByLabelText("Model"))
+    expect(await screen.findAllByRole("option")).toHaveLength(3)
+  })
+
+  it("adds no extra option for a listed or empty model", async () => {
+    const user = userEvent.setup()
+    render(<ModelField id="m" model="" onSaveModel={vi.fn()} models={MODELS} />)
+    await user.click(screen.getByLabelText("Model"))
+    expect(await screen.findAllByRole("option")).toHaveLength(2)
+  })
+
+  it("freeText swaps in a plain field with no toggle", () => {
+    render(<ModelField id="m" model="qwen" onSaveModel={vi.fn()} models={[]} freeText />)
+    expect(screen.queryByLabelText("Use a custom model")).not.toBeInTheDocument()
+    expect((screen.getByPlaceholderText("model-identifier") as HTMLInputElement).value).toBe("qwen")
   })
 
   it("toggling custom mode reveals a free-text field", async () => {

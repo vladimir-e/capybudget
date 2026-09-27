@@ -21,7 +21,7 @@ export const FALLBACK_MODELS: Record<ApiProvider, ModelOption[]> = {
 
 const OPENAI_CHAT_FAMILY = /^(gpt-\d|o\d)/
 const OPENAI_NON_CHAT =
-  /image|audio|realtime|tts|transcribe|embedding|moderation|search|codex|instruct|deep-research|computer-use|-pro(-|$)/
+  /image|audio|realtime|tts|transcribe|embedding|moderation|search|codex|instruct|deep-research|computer-use|-pro(-|$)|^o1-(mini|preview)/
 const SNAPSHOT_SUFFIX = /-(\d{4}-\d{2}-\d{2}|\d{4})$/
 const LOWERCASE_WORDS = new Set(["mini", "nano"])
 
@@ -33,7 +33,7 @@ export function openAiModelLabel(id: string): string {
   const snapshot = id.match(SNAPSHOT_SUFFIX)
   const base = snapshot ? id.slice(0, snapshot.index) : id
   const suffix = snapshot ? ` (${snapshot[1]})` : ""
-  if (!base.startsWith("gpt-")) return id
+  if (!base.startsWith("gpt-")) return base + suffix
   const [version, ...words] = base.slice("gpt-".length).split("-")
   const label = [
     `GPT-${version}`,
@@ -61,11 +61,6 @@ export function anthropicModelOptions(
   return [...models]
     .sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at))
     .map((m) => ({ value: m.id, label: m.display_name }))
-}
-
-export function withSavedModel(options: ModelOption[], model: string): ModelOption[] {
-  if (!model || options.some((o) => o.value === model)) return options
-  return [...options, { value: model, label: model }]
 }
 
 async function fetchAnthropicModels(apiKey: string): Promise<ModelOption[]> {
@@ -116,6 +111,10 @@ export function loadProviderModels(provider: ApiProvider, apiKey: string): Promi
 export function cachedProviderModels(provider: ApiProvider, apiKey: string): ModelOption[] | undefined {
   const hit = cache.get(provider)
   return hit?.apiKey === apiKey ? hit.models : undefined
+}
+
+export function forgetProviderModels(provider: ApiProvider) {
+  cache.delete(provider)
 }
 
 export function _resetProviderModelsForTests() {

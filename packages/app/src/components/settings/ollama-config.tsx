@@ -7,7 +7,6 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useIntelligenceStore } from "@/stores/intelligence-store"
 import { listOllamaModels, pingOllama } from "@/lib/api-testing"
-import { withSavedModel } from "@/lib/provider-models"
 import { ExternalLinkButton } from "./external-link-button"
 import { ModelField } from "./model-field"
 import { TestResult, type TestState } from "./test-result"
@@ -71,10 +70,7 @@ export function OllamaConfig() {
 
   const detected = probe.kind === "ok" ? probe.models : []
   const nothingPulled = probe.kind === "ok" && detected.length === 0
-  const modelOptions = withSavedModel(
-    detected.map((id) => ({ value: id, label: id })),
-    model,
-  )
+  const modelOptions = detected.map((id) => ({ value: id, label: id }))
 
   return (
     <div className="space-y-5">

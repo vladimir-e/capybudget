@@ -7,7 +7,7 @@
  * don't need elsewhere. Round 4 spec calls this out explicitly.
  */
 
-import { OLLAMA_PLACEHOLDER_KEY } from "@capybudget/intelligence"
+import { DEFAULT_INTELLIGENCE_CONFIG, OLLAMA_PLACEHOLDER_KEY } from "@capybudget/intelligence"
 
 export interface PingResult {
   ok: boolean
@@ -60,7 +60,7 @@ export async function pingAnthropic(
     const { default: Anthropic } = await import("@anthropic-ai/sdk")
     const client = new Anthropic({ apiKey, dangerouslyAllowBrowser: true })
     await client.messages.create({
-      model: model || "claude-sonnet-5",
+      model: model || DEFAULT_INTELLIGENCE_CONFIG.anthropic.model,
       max_tokens: 8,
       messages: [{ role: "user", content: "Hi" }],
     })
@@ -81,7 +81,7 @@ export async function pingOpenAi(
     const { default: OpenAI } = await import("openai")
     const client = new OpenAI({ apiKey, dangerouslyAllowBrowser: true })
     await client.chat.completions.create({
-      model: model || "gpt-6-sol",
+      model: model || DEFAULT_INTELLIGENCE_CONFIG.openai.model,
       max_completion_tokens: 8,
       messages: [{ role: "user", content: "Hi" }],
     })

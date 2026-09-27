@@ -3,7 +3,8 @@ import { act, cleanup, render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { DEFAULT_INTELLIGENCE_CONFIG, type IntelligenceConfig } from "@capybudget/intelligence"
 import { AnthropicConfig, OpenAiConfig } from "./api-provider-config"
-import { _resetProviderModelsForTests } from "@/lib/provider-models"
+import { _resetProviderModelsForTests, cachedProviderModels } from "@/lib/provider-models"
+import { anthropicList, deferredPage, failing, openAiList, page } from "@/test/model-sdk-mocks"
 import {
   useIntelligenceStore,
   _resetIntelligenceStoreForTests,
@@ -12,33 +13,6 @@ import {
 } from "@/stores/intelligence-store"
 
 vi.mock("@/lib/api-testing", () => ({ pingApi: vi.fn() }))
-
-const { anthropicList, openAiList } = vi.hoisted(() => ({
-  anthropicList: vi.fn(),
-  openAiList: vi.fn(),
-}))
-
-vi.mock("@anthropic-ai/sdk", () => ({
-  default: class {
-    models = { list: anthropicList }
-  },
-}))
-
-vi.mock("openai", () => ({
-  default: class {
-    models = { list: openAiList }
-  },
-}))
-
-async function* page<T>(items: T[]) {
-  yield* items
-}
-
-function failing(): AsyncIterable<never> {
-  return {
-    [Symbol.asyncIterator]: () => ({ next: () => Promise.reject(new Error("401 invalid x-api-key")) }),
-  }
-}
 
 const FABLE = { id: "claude-fable-6", display_name: "Claude Fable 6", created_at: "2026-09-20T00:00:00Z" }
 
@@ -227,6 +201,58 @@ describe("model list", () => {
       expect(screen.queryByText(/couldn't load the latest models/i)).not.toBeInTheDocument(),
     )
     expect(anthropicList).toHaveBeenCalledTimes(2)
+  })
+
+  it("drops a late response for a key that has since changed", async () => {
+    const user = userEvent.setup()
+    const stale = deferredPage<typeof FABLE>()
+    anthropicList.mockImplementationOnce(stale.list)
+    await hydrateWith(withAnthropicKey())
+
+    render(<AnthropicConfig />)
+    await waitFor(() => expect(anthropicList).toHaveBeenCalledTimes(1))
+
+    await act(async () => {
+      useIntelligenceStore.getState().setAnthropicKey("sk-2")
+    })
+    await waitFor(() => expect(anthropicList).toHaveBeenCalledTimes(2))
+    await act(async () => {
+      stale.resolve([{ id: "claude-stale", display_name: "Claude Stale", created_at: "2026-09-25T00:00:00Z" }])
+      await new Promise((r) => setTimeout(r, 0))
+    })
+
+    await user.click(screen.getByLabelText("Model"))
+    expect(await screen.findByRole("option", { name: "Claude Fable 6" })).toBeInTheDocument()
+    expect(screen.queryByRole("option", { name: "Claude Stale" })).not.toBeInTheDocument()
+  })
+
+  it("drops the cached list when the key is cleared", async () => {
+    await hydrateWith(withAnthropicKey())
+
+    render(<AnthropicConfig />)
+    await waitFor(() => expect(cachedProviderModels("anthropic", "sk-1")).toBeDefined())
+    await act(async () => {
+      useIntelligenceStore.getState().setAnthropicKey("")
+    })
+
+    expect(cachedProviderModels("anthropic", "sk-1")).toBeUndefined()
+  })
+
+  it("shows the fallback without the failure note when the live list filters to nothing", async () => {
+    const user = userEvent.setup()
+    openAiList.mockImplementation(() => page([{ id: "gpt-image-2", created: 1 }]))
+    await hydrateWith({
+      provider: "openai",
+      openai: { apiKey: "sk-1", model: "gpt-6-sol", keyPresent: true },
+    })
+
+    render(<OpenAiConfig />)
+    await waitFor(() => expect(openAiList).toHaveBeenCalled())
+    await act(() => new Promise((r) => setTimeout(r, 0)))
+    await user.click(screen.getByLabelText("Model"))
+
+    expect(await screen.findByRole("option", { name: "GPT-6 Astra" })).toBeInTheDocument()
+    expect(screen.queryByText(/couldn't load the latest models/i)).not.toBeInTheDocument()
   })
 
   it("filters OpenAI's catalogue down to chat models with readable labels", async () => {

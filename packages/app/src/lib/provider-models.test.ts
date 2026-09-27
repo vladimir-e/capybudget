@@ -1,42 +1,18 @@
-import { beforeEach, describe, expect, it, vi } from "vitest"
-
-const { anthropicList, openAiList } = vi.hoisted(() => ({
-  anthropicList: vi.fn(),
-  openAiList: vi.fn(),
-}))
-
-vi.mock("@anthropic-ai/sdk", () => ({
-  default: class {
-    models = { list: anthropicList }
-  },
-}))
-
-vi.mock("openai", () => ({
-  default: class {
-    models = { list: openAiList }
-  },
-}))
-
+import { beforeEach, describe, expect, it } from "vitest"
+import { DEFAULT_INTELLIGENCE_CONFIG } from "@capybudget/intelligence"
+import { anthropicList, deferredPage, failing, openAiList, page } from "@/test/model-sdk-mocks"
 import {
   _resetProviderModelsForTests,
   anthropicModelOptions,
   cachedProviderModels,
+  FALLBACK_MODELS,
+  forgetProviderModels,
   isOpenAiChatModel,
   loadProviderModels,
   openAiModelLabel,
   openAiModelOptions,
-  withSavedModel,
+  type ApiProvider,
 } from "./provider-models"
-
-async function* page<T>(items: T[]) {
-  yield* items
-}
-
-function failing(): AsyncIterable<never> {
-  return {
-    [Symbol.asyncIterator]: () => ({ next: () => Promise.reject(new Error("401 invalid x-api-key")) }),
-  }
-}
 
 beforeEach(() => {
   _resetProviderModelsForTests()
@@ -71,6 +47,9 @@ describe("isOpenAiChatModel", () => {
     "gpt-3.5-turbo-instruct",
     "o3-deep-research",
     "o1-pro",
+    "o1-mini",
+    "o1-preview",
+    "o1-mini-2024-09-12",
     "gpt-5-pro-2025-10-06",
     "computer-use-preview",
     "dall-e-3",
@@ -92,6 +71,8 @@ describe("openAiModelLabel", () => {
     ["gpt-4-turbo", "GPT-4 Turbo"],
     ["gpt-4o-2024-08-06", "GPT-4o (2024-08-06)"],
     ["o4-mini", "o4-mini"],
+    ["o3-2025-04-16", "o3 (2025-04-16)"],
+    ["o4-mini-2025-04-16", "o4-mini (2025-04-16)"],
   ])("%s → %s", (id, label) => {
     expect(openAiModelLabel(id)).toBe(label)
   })
@@ -131,16 +112,10 @@ describe("anthropicModelOptions", () => {
   })
 })
 
-describe("withSavedModel", () => {
-  const list = [{ value: "a", label: "A" }]
-
-  it("appends a saved model the list lacks", () => {
-    expect(withSavedModel(list, "custom")).toEqual([...list, { value: "custom", label: "custom" }])
-  })
-
-  it("leaves the list alone when the model is listed or empty", () => {
-    expect(withSavedModel(list, "a")).toBe(list)
-    expect(withSavedModel(list, "")).toBe(list)
+describe("FALLBACK_MODELS", () => {
+  it.each<ApiProvider>(["anthropic", "openai"])("offers the %s default model", (provider) => {
+    const values = FALLBACK_MODELS[provider].map((m) => m.value)
+    expect(values).toContain(DEFAULT_INTELLIGENCE_CONFIG[provider].model)
   })
 })
 
@@ -157,6 +132,28 @@ describe("loadProviderModels", () => {
     expect(second).toBe(first)
     expect(cachedProviderModels("anthropic", "sk-1")).toBe(first)
     expect(anthropicList).toHaveBeenCalledTimes(1)
+  })
+
+  it("shares one in-flight request between concurrent loads", async () => {
+    const { list, resolve } = deferredPage<typeof opus>()
+    anthropicList.mockImplementation(list)
+
+    const first = loadProviderModels("anthropic", "sk-1")
+    const second = loadProviderModels("anthropic", "sk-1")
+    resolve([opus])
+
+    expect(second).toBe(first)
+    expect(await second).toHaveLength(1)
+    expect(anthropicList).toHaveBeenCalledTimes(1)
+  })
+
+  it("forgets a provider's entry on demand", async () => {
+    anthropicList.mockImplementation(() => page([opus]))
+
+    await loadProviderModels("anthropic", "sk-1")
+    forgetProviderModels("anthropic")
+
+    expect(cachedProviderModels("anthropic", "sk-1")).toBeUndefined()
   })
 
   it("refetches when the key changes", async () => {

@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label"
 import { useIntelligenceStore } from "@/stores/intelligence-store"
 import { pingApi } from "@/lib/api-testing"
 import { useProviderModels } from "@/hooks/use-provider-models"
-import { withSavedModel, type ApiProvider } from "@/lib/provider-models"
+import type { ApiProvider } from "@/lib/provider-models"
 import { ExternalLinkButton } from "./external-link-button"
 import { ModelField } from "./model-field"
 import { TestResult, type TestState } from "./test-result"
@@ -221,7 +221,7 @@ function ApiProviderConfig({
           id={`${providerKey}-model`}
           model={model}
           onSaveModel={onSaveModel}
-          models={withSavedModel(models.models, model)}
+          models={models.models}
         />
         {models.failed && (
           <p className="text-xs text-muted-foreground/70">
@@ -229,7 +229,7 @@ function ApiProviderConfig({
             <button
               type="button"
               onClick={models.retry}
-              className="underline underline-offset-2 hover:text-foreground transition-colors"
+              className="rounded-sm underline underline-offset-2 transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
             >
               {t("provider.apiConfig.retry")}
             </button>

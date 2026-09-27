@@ -21,15 +21,16 @@ interface ModelFieldProps {
 }
 
 /**
- * Model picker shared by every provider config: a curated dropdown plus a
- * "Use a custom model" toggle that swaps in a free-text field for any model
- * ID outside the list. A saved value not in the list opens in custom mode so
- * the user's choice survives a refreshed list.
+ * Model picker shared by every provider config: a dropdown plus a "Use a
+ * custom model" toggle that swaps in a free-text field for any model ID. A
+ * saved model the list lacks is appended as its own option, so it always
+ * shows as selected. `freeText` drops the dropdown and toggle entirely, for
+ * when there is no list to pick from.
  */
 export function ModelField({ id, model, onSaveModel, models, freeText = false }: ModelFieldProps) {
   const { t } = useTranslation("settings")
-  const isModelInList = models.some((m) => m.value === model)
-  const [customMode, setCustomMode] = useState(!isModelInList && model !== "")
+  const [customMode, setCustomMode] = useState(false)
+  const options = withSavedModel(models, model)
 
   return (
     <div className="space-y-2">
@@ -58,7 +59,7 @@ export function ModelField({ id, model, onSaveModel, models, freeText = false }:
         />
       ) : (
         <Select
-          items={models}
+          items={options}
           value={model}
           onValueChange={(v) => {
             if (typeof v === "string") onSaveModel(v)
@@ -68,7 +69,7 @@ export function ModelField({ id, model, onSaveModel, models, freeText = false }:
             <SelectValue placeholder={t("provider.model.selectPlaceholder")} />
           </SelectTrigger>
           <SelectContent>
-            {models.map((m) => (
+            {options.map((m) => (
               <SelectItem key={m.value} value={m.value}>
                 {m.label}
               </SelectItem>
@@ -78,4 +79,9 @@ export function ModelField({ id, model, onSaveModel, models, freeText = false }:
       )}
     </div>
   )
+}
+
+function withSavedModel(options: ModelOption[], model: string): ModelOption[] {
+  if (!model || options.some((o) => o.value === model)) return options
+  return [...options, { value: model, label: model }]
 }
