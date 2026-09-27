@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react"
-import { openUrl } from "@tauri-apps/plugin-opener"
-import { ExternalLink, Eye, EyeOff, Loader2 } from "lucide-react"
+import { Eye, EyeOff, Loader2 } from "lucide-react"
 import { hasProviderKey } from "@capybudget/intelligence"
 import { useTranslation } from "@capybudget/i18n"
 import { Button } from "@/components/ui/button"
@@ -8,22 +7,11 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useIntelligenceStore } from "@/stores/intelligence-store"
 import { pingApi } from "@/lib/api-testing"
-import { ModelField, type ModelOption } from "./model-field"
+import { useProviderModels } from "@/hooks/use-provider-models"
+import { withSavedModel, type ApiProvider } from "@/lib/provider-models"
+import { ExternalLinkButton } from "./external-link-button"
+import { ModelField } from "./model-field"
 import { TestResult, type TestState } from "./test-result"
-
-type ApiProviderKey = "anthropic" | "openai"
-
-const ANTHROPIC_MODELS: ModelOption[] = [
-  { value: "claude-opus-4-8", label: "Claude Opus 4.8" },
-  { value: "claude-sonnet-5", label: "Claude Sonnet 5" },
-  { value: "claude-haiku-4-5", label: "Claude Haiku 4.5" },
-]
-
-const OPENAI_MODELS: ModelOption[] = [
-  { value: "gpt-5.5", label: "GPT-5.5" },
-  { value: "gpt-5.4-mini", label: "GPT-5.4 mini" },
-  { value: "gpt-5.4-nano", label: "GPT-5.4 nano" },
-]
 
 // Per-provider presentation: everything that genuinely differs between the
 // otherwise-identical API config blocks lives here, so the component body has
@@ -35,7 +23,7 @@ interface ProviderUi {
   docHref: string
 }
 
-const PROVIDER_UI: Record<ApiProviderKey, ProviderUi> = {
+const PROVIDER_UI: Record<ApiProvider, ProviderUi> = {
   anthropic: {
     keyPlaceholder: "sk-ant-…",
     providerName: "Anthropic",
@@ -63,7 +51,6 @@ export function AnthropicConfig() {
       onSaveKey={setKey}
       model={model}
       onSaveModel={setModel}
-      models={ANTHROPIC_MODELS}
     />
   )
 }
@@ -83,19 +70,17 @@ export function OpenAiConfig() {
       onSaveKey={setKey}
       model={model}
       onSaveModel={setModel}
-      models={OPENAI_MODELS}
     />
   )
 }
 
 interface ApiProviderConfigProps {
-  providerKey: ApiProviderKey
+  providerKey: ApiProvider
   apiKey: string
   keyPresent: boolean
   onSaveKey: (k: string) => void
   model: string
   onSaveModel: (m: string) => void
-  models: ModelOption[]
 }
 
 function ApiProviderConfig({
@@ -105,12 +90,12 @@ function ApiProviderConfig({
   onSaveKey,
   model,
   onSaveModel,
-  models,
 }: ApiProviderConfigProps) {
   const { t } = useTranslation("settings")
   const ui = PROVIDER_UI[providerKey]
   const ensureSecrets = useIntelligenceStore((s) => s.ensureSecrets)
   const secretsError = useIntelligenceStore((s) => s.secretsError)
+  const models = useProviderModels(providerKey, apiKey)
 
   // A saved key exists but its value hasn't been fetched from the keychain yet —
   // load it (behind the one-time heads-up) so the last-4 can render. A fresh
@@ -231,32 +216,31 @@ function ApiProviderConfig({
         <TestResult state={testState} />
       </div>
 
-      <ModelField
-        id={`${providerKey}-model`}
-        model={model}
-        onSaveModel={onSaveModel}
-        models={models}
-      />
+      <div className="space-y-2">
+        <ModelField
+          id={`${providerKey}-model`}
+          model={model}
+          onSaveModel={onSaveModel}
+          models={withSavedModel(models.models, model)}
+        />
+        {models.failed && (
+          <p className="text-xs text-muted-foreground/70">
+            {t("provider.model.listUnavailable")}{" "}
+            <button
+              type="button"
+              onClick={models.retry}
+              className="underline underline-offset-2 hover:text-foreground transition-colors"
+            >
+              {t("provider.apiConfig.retry")}
+            </button>
+          </p>
+        )}
+      </div>
 
-      <ProviderDocLink
+      <ExternalLinkButton
         label={t("provider.apiConfig.getApiKey", { provider: ui.providerName })}
         href={ui.docHref}
       />
     </div>
-  )
-}
-
-function ProviderDocLink({ label, href }: { label: string; href: string }) {
-  return (
-    <button
-      type="button"
-      onClick={() => {
-        void openUrl(href)
-      }}
-      className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
-    >
-      {label}
-      <ExternalLink className="h-3 w-3" />
-    </button>
   )
 }

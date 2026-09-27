@@ -69,13 +69,31 @@ describe("OllamaConfig", () => {
     ).toBeInTheDocument()
   })
 
-  it("flags a reachable server with nothing pulled", async () => {
+  it("guides a reachable server with nothing pulled to the library and a typed model name", async () => {
     mockList.mockResolvedValue([])
     await hydrate()
+    const user = userEvent.setup()
 
     render(<OllamaConfig />)
 
     expect(await screen.findByText(/no models yet/i)).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Browse Ollama models" })).toBeInTheDocument()
+    expect(screen.queryByLabelText("Use a custom model")).not.toBeInTheDocument()
+
+    await user.type(screen.getByPlaceholderText("model-identifier"), "qwen3:8b")
+
+    expect(useIntelligenceStore.getState().config.ollama.model).toBe("qwen3:8b")
+  })
+
+  it("shows no empty state when the server has models", async () => {
+    mockList.mockResolvedValue(["llama3.1:8b"])
+    await hydrate()
+
+    render(<OllamaConfig />)
+
+    expect(await screen.findByText("Detected")).toBeInTheDocument()
+    expect(screen.queryByText(/no models yet/i)).not.toBeInTheDocument()
+    expect(screen.getByLabelText("Use a custom model")).toBeInTheDocument()
   })
 
   it("keeps a saved model the server no longer has in the picker", async () => {

@@ -121,7 +121,8 @@
       "localOnly": "Sem chave de API — seus dados vão apenas para este servidor, que por padrão é a sua própria máquina.",
       "refreshModels": "Atualizar",
       "notRunningHint": "O Capy não consegue acessar o Ollama neste endereço. Inicie-o com `ollama serve` ou confira a URL.",
-      "noModels": "O Ollama está rodando, mas ainda não tem modelos. Baixe um com `ollama pull llama3.1` e depois atualize.",
+      "noModels": "O Ollama está rodando, mas ainda não tem modelos. Baixe um com `ollama pull llama3.1` e atualize, ou digite o nome de um modelo abaixo.",
+      "browseModels": "Ver modelos do Ollama",
       "toolsHint": "Escolha um modelo com suporte a chamadas de ferramentas — o Capy usa ferramentas para ler e editar seu orçamento.",
       "install": "Instalar o Ollama"
     },
@@ -129,7 +130,8 @@
       "label": "Modelo",
       "useCustom": "Usar um modelo personalizado",
       "customPlaceholder": "identificador-do-modelo",
-      "selectPlaceholder": "Selecione um modelo…"
+      "selectPlaceholder": "Selecione um modelo…",
+      "listUnavailable": "Não deu para carregar a lista atual de modelos — mostrando uma lista curta."
     }
   },
   "chatInstructions": {

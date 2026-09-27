@@ -121,7 +121,8 @@
       "localOnly": "No API key needed — your data goes only to this server, which is your own machine by default.",
       "refreshModels": "Refresh",
       "notRunningHint": "Capy can't reach Ollama at this address. Start it with `ollama serve`, or check the URL.",
-      "noModels": "Ollama is running but has no models yet. Pull one with `ollama pull llama3.1`, then refresh.",
+      "noModels": "Ollama is running but has no models yet. Pull one with `ollama pull llama3.1` and refresh, or type a model name below.",
+      "browseModels": "Browse Ollama models",
       "toolsHint": "Pick a model that supports tool calling — Capy uses tools to read and edit your budget.",
       "install": "Install Ollama"
     },
@@ -129,7 +130,8 @@
       "label": "Model",
       "useCustom": "Use a custom model",
       "customPlaceholder": "model-identifier",
-      "selectPlaceholder": "Select a model…"
+      "selectPlaceholder": "Select a model…",
+      "listUnavailable": "Couldn't load the latest models — showing a short list."
     }
   },
   "chatInstructions": {

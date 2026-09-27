@@ -19,7 +19,8 @@ import { PROVIDER_LABELS } from "@capybudget/intelligence"
 import type { IntelligenceProvider } from "@capybudget/intelligence"
 import { AnthropicConfig, OpenAiConfig } from "./api-provider-config"
 import { OllamaConfig } from "./ollama-config"
-import { ModelField, type ModelOption } from "./model-field"
+import type { ModelOption } from "@/lib/provider-models"
+import { ModelField } from "./model-field"
 import { TestResult, type TestState } from "./test-result"
 
 declare const __IS_DEMO__: boolean

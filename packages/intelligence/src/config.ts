@@ -72,7 +72,7 @@ export const OLLAMA_PLACEHOLDER_KEY = "ollama"
 export const DEFAULT_INTELLIGENCE_CONFIG: IntelligenceConfig = {
   provider: null,
   anthropic: { apiKey: "", model: "claude-sonnet-5", keyPresent: false },
-  openai: { apiKey: "", model: "gpt-5.5", keyPresent: false },
+  openai: { apiKey: "", model: "gpt-6-sol", keyPresent: false },
   ollama: { baseUrl: DEFAULT_OLLAMA_BASE_URL, model: "" },
   claudeCli: { model: "" },
 }
