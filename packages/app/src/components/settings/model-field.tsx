@@ -9,10 +9,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import type { ModelOption } from "@/lib/provider-models"
+export interface ModelOption {
+  value: string
+  label: string
+}
 
 interface ModelFieldProps {
-  /** Unique id linking the label to the control. */
   id: string
   model: string
   onSaveModel: (m: string) => void
@@ -20,13 +22,6 @@ interface ModelFieldProps {
   freeText?: boolean
 }
 
-/**
- * Model picker shared by every provider config: a dropdown plus a "Use a
- * custom model" toggle that swaps in a free-text field for any model ID. A
- * saved model the list lacks is appended as its own option, so it always
- * shows as selected. `freeText` drops the dropdown and toggle entirely, for
- * when there is no list to pick from.
- */
 export function ModelField({ id, model, onSaveModel, models, freeText = false }: ModelFieldProps) {
   const { t } = useTranslation("settings")
   const [customMode, setCustomMode] = useState(false)

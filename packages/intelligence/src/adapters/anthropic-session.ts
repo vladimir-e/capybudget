@@ -6,7 +6,7 @@ import { UNANSWERED_RESULT, toolCallBlock } from "./agent-turn"
 import type { LoopOutcome, TurnDisplay } from "./agent-turn"
 import type { ApiAdapterOptions } from "../factory"
 import type { MessageContent, SessionProvider } from "../types"
-import { CutOffError, parseStructured, schemaBody } from "../structured"
+import { CutOffError, RefusedError, parseStructured, schemaBody } from "../structured"
 import type { JsonSchema, StructuredCallOptions, StructuredMessage, StructuredSession } from "../structured"
 
 const FINISHED = new Set<Anthropic.StopReason | null>(["end_turn", "stop_sequence"])
@@ -96,7 +96,9 @@ export class AnthropicSession extends AgentSession<Anthropic.MessageParam> imple
     const message = await this.withOutputCap((maxTokens) =>
       this.streamStructured({ ...params, max_tokens: maxTokens }, options?.onText),
     )
-    if (!FINISHED.has(message.stop_reason)) throw new CutOffError()
+    if (!FINISHED.has(message.stop_reason)) {
+      throw message.stop_reason === "refusal" ? new RefusedError() : new CutOffError()
+    }
 
     const text = message.content
       .filter((block): block is Anthropic.TextBlock => block.type === "text")

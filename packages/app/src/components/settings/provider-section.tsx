@@ -19,8 +19,8 @@ import { PROVIDER_LABELS } from "@capybudget/intelligence"
 import type { IntelligenceProvider } from "@capybudget/intelligence"
 import { AnthropicConfig, OpenAiConfig } from "./api-provider-config"
 import { OllamaConfig } from "./ollama-config"
-import type { ModelOption } from "@/lib/provider-models"
-import { ModelField } from "./model-field"
+import { InlineLinkButton } from "./inline-link-button"
+import { ModelField, type ModelOption } from "./model-field"
 import { TestResult, type TestState } from "./test-result"
 
 declare const __IS_DEMO__: boolean
@@ -150,15 +150,13 @@ export function ProviderSection() {
                   <p className="font-medium">{t("provider.sourceBuildTitle")}</p>
                   <p className="text-xs text-destructive/80 mt-0.5">
                     {t("provider.sourceBuildBody")}{" "}
-                    <button
-                      type="button"
-                      className="underline hover:text-foreground transition-colors"
+                    <InlineLinkButton
                       onClick={() => {
                         void openUrl(BUILD_FROM_SOURCE_URL)
                       }}
                     >
                       {t("provider.runFromSource")}
-                    </button>{" "}
+                    </InlineLinkButton>{" "}
                     {t("provider.toUseSubscription")}
                   </p>
                 </>
@@ -222,15 +220,13 @@ export function ProviderSection() {
               __IS_DEMO__ ? undefined : IS_DIST_BUILD ? (
                 <span>
                   {t("provider.distHint")}{" "}
-                  <button
-                    type="button"
-                    className="underline hover:text-foreground transition-colors"
+                  <InlineLinkButton
                     onClick={() => {
                       void openUrl(BUILD_FROM_SOURCE_URL)
                     }}
                   >
                     {t("provider.buildFromSource")}
-                  </button>{" "}
+                  </InlineLinkButton>{" "}
                   {t("provider.toUseSubscription")}
                 </span>
               ) : claudeProbing ? (
@@ -241,15 +237,13 @@ export function ProviderSection() {
               ) : claudeDetected === false ? (
                 <span>
                   {t("provider.detection.notDetectedHint")}{" "}
-                  <button
-                    type="button"
-                    className="underline hover:text-foreground transition-colors"
+                  <InlineLinkButton
                     onClick={() => {
                       void openUrl("https://claude.ai/code")
                     }}
                   >
                     claude.ai/code
-                  </button>
+                  </InlineLinkButton>
                 </span>
               ) : null
             }

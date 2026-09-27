@@ -233,7 +233,7 @@ vi.mock("../tools", async (importOriginal) => {
 
 import { OpenAiSession } from "./openai-session"
 import { MAX_OUTPUT_TOKENS, STOPPED_MARKER, STOPPED_RESULT, UNANSWERED_RESULT } from "./agent-turn"
-import { CutOffError } from "../structured"
+import { CutOffError, RefusedError } from "../structured"
 
 function makeSession(onEvent?: (e: StreamEvent, session: OpenAiSession) => void) {
   const events: StreamEvent[] = []
@@ -1705,5 +1705,18 @@ describe("OpenAiSession output cap", () => {
     await expect(
       session.structured([{ role: "user", content: "x" }], SCHEMA, { onText: () => {} }),
     ).rejects.toBeInstanceOf(CutOffError)
+  })
+
+  it("structured() reports a content filter as refused, not as cut off", async () => {
+    const { session } = makeSession()
+    queueStructured({ content: "", finish_reason: "content_filter" })
+    await expect(session.structured([{ role: "user", content: "x" }], SCHEMA)).rejects.toBeInstanceOf(
+      RefusedError,
+    )
+
+    queueTurn({ textDeltas: [], finish_reason: "content_filter" })
+    await expect(
+      session.structured([{ role: "user", content: "x" }], SCHEMA, { onText: () => {} }),
+    ).rejects.toBeInstanceOf(RefusedError)
   })
 })

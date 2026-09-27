@@ -201,7 +201,7 @@ vi.mock("../tools", async (importOriginal) => {
 
 import { AnthropicSession } from "./anthropic-session"
 import { MAX_OUTPUT_TOKENS, STOPPED_MARKER, STOPPED_RESULT, UNANSWERED_RESULT } from "./agent-turn"
-import { CutOffError } from "../structured"
+import { CutOffError, RefusedError } from "../structured"
 
 function makeSession(onEvent?: (e: StreamEvent, session: AnthropicSession) => void) {
   const events: StreamEvent[] = []
@@ -1615,5 +1615,14 @@ describe("AnthropicSession output cap", () => {
     await expect(
       session.structured([{ role: "user", content: "x" }], { type: "object", properties: {} }),
     ).rejects.toBeInstanceOf(CutOffError)
+  })
+
+  it("structured() reports a refusal as refused, not as cut off", async () => {
+    queueTurn({ textDeltas: [], stop_reason: "refusal" })
+
+    const { session } = makeSession()
+    await expect(
+      session.structured([{ role: "user", content: "x" }], { type: "object", properties: {} }),
+    ).rejects.toBeInstanceOf(RefusedError)
   })
 })

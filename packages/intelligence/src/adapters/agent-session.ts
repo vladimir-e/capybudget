@@ -15,7 +15,7 @@ import type { ApiAdapterOptions } from "../factory"
 import type { CapySession } from "../session"
 import type { FileAttachment, MessageContent, SessionProvider, StreamEvent } from "../types"
 
-export interface ToolCall {
+interface ToolCall {
   id: string
   name: string
   input: Record<string, unknown> | Error
@@ -27,7 +27,7 @@ export interface ToolReply {
   isError: boolean
 }
 
-export interface ToolRound {
+interface ToolRound {
   replies: ToolReply[]
   outcome: LoopOutcome | null
 }
@@ -161,7 +161,7 @@ export abstract class AgentSession<Message> implements CapySession {
       end = { type: "error", message, status, provider: this.providerId }
     } finally {
       this.turnAttachments = []
-      this.abortController = null
+      this.closeRequest()
       this.display = null
     }
     if (!end || this.stopped) return

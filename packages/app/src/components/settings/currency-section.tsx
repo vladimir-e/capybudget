@@ -48,6 +48,7 @@ import { useAccounts } from "@/hooks/use-budget-data"
 import { useBudgetMeta } from "@/hooks/use-budget-meta"
 import { useRebaseCurrency } from "@/hooks/use-rebase-currency"
 import { useFormatters } from "@/hooks/use-formatters"
+import { InlineLinkButton } from "./inline-link-button"
 
 const SYMBOL_POSITIONS: SymbolPosition[] = ["before", "after", "off"]
 
@@ -226,7 +227,9 @@ function FormatSection({
     <Collapsible open={open} onOpenChange={onOpenChange} className="space-y-2">
       <div className="flex h-4 items-center justify-between">
         <Label className="text-xs text-muted-foreground">{t("currency.preview")}</Label>
-        <CollapsibleTrigger className="flex items-center gap-1 text-xs text-muted-foreground underline hover:text-foreground transition-colors">
+        <CollapsibleTrigger
+          render={<InlineLinkButton className="flex items-center gap-1 text-xs text-muted-foreground" />}
+        >
           {t("currency.formatSettings")}
           <ChevronDown
             className={`size-3 transition-transform ${open ? "rotate-180" : ""}`}
@@ -249,13 +252,9 @@ function FormatSection({
 
         {onReset && (
           <div className="flex justify-end">
-            <button
-              type="button"
-              className="text-xs text-muted-foreground underline hover:text-foreground transition-colors"
-              onClick={onReset}
-            >
+            <InlineLinkButton className="text-xs text-muted-foreground" onClick={onReset}>
               {t("currency.resetDefaults", { currency })}
-            </button>
+            </InlineLinkButton>
           </div>
         )}
       </CollapsibleContent>

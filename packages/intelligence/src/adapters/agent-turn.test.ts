@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest"
-import { FALLBACK_OUTPUT_TOKENS, MAX_OUTPUT_TOKENS, clampedOutputCap } from "./agent-turn"
+import { FALLBACK_OUTPUT_TOKENS, MAX_OUTPUT_TOKENS, TurnDisplay, clampedOutputCap } from "./agent-turn"
+import type { ContentBlock } from "../types"
 
 function anthropicError(message: string, status = 400) {
   const err = new Error(`${status} ${message}`) as Error & { status: number; error: unknown }
@@ -65,5 +66,45 @@ describe("clampedOutputCap", () => {
   it("never raises the cap", () => {
     expect(clampedOutputCap(anthropicError("max_tokens: 8192 > 16000, which is the maximum"), 8192)).toBeNull()
     expect(clampedOutputCap(anthropicError("max_tokens is too large"), FALLBACK_OUTPUT_TOKENS)).toBeNull()
+  })
+})
+
+describe("TurnDisplay.settle", () => {
+  function recordingDisplay() {
+    const published: ContentBlock[][] = []
+    return { display: new TurnDisplay((blocks) => published.push(blocks)), published }
+  }
+
+  it("trims from the first unrun call, dropping the text after it", () => {
+    const { display, published } = recordingDisplay()
+    display.beginIteration()
+    display.appendText("Looking")
+    display.addCall("a", { type: "tool-activity", tool: "first" })
+    display.addCall("b", { type: "tool-activity", tool: "second" })
+    display.appendText("After")
+    display.addCall("c", { type: "tool-activity", tool: "third" })
+    display.markStarted("a")
+    display.markStarted("c")
+
+    display.settle()
+
+    expect(published.at(-1)).toEqual([
+      { type: "text", content: "Looking" },
+      { type: "tool-activity", tool: "first" },
+    ])
+  })
+
+  it("leaves a display whose calls all ran untouched, and publishes nothing after settling", () => {
+    const { display, published } = recordingDisplay()
+    display.beginIteration()
+    display.addCall("a", { type: "tool-activity", tool: "first" })
+    display.appendText("Done")
+    display.markStarted("a")
+    const before = published.length
+
+    display.settle()
+    display.appendText(" more")
+
+    expect(published).toHaveLength(before)
   })
 })

@@ -1,7 +1,4 @@
-export interface ModelOption {
-  value: string
-  label: string
-}
+import type { ModelOption } from "@/components/settings/model-field"
 
 export type ApiProvider = "anthropic" | "openai"
 

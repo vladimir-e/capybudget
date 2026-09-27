@@ -10,6 +10,7 @@ import { pingApi } from "@/lib/api-testing"
 import { useProviderModels } from "@/hooks/use-provider-models"
 import type { ApiProvider } from "@/lib/provider-models"
 import { ExternalLinkButton } from "./external-link-button"
+import { InlineLinkButton } from "./inline-link-button"
 import { ModelField } from "./model-field"
 import { TestResult, type TestState } from "./test-result"
 
@@ -95,7 +96,7 @@ function ApiProviderConfig({
   const ui = PROVIDER_UI[providerKey]
   const ensureSecrets = useIntelligenceStore((s) => s.ensureSecrets)
   const secretsError = useIntelligenceStore((s) => s.secretsError)
-  const models = useProviderModels(providerKey, apiKey)
+  const models = useProviderModels(providerKey, apiKey, keyPresent)
 
   // A saved key exists but its value hasn't been fetched from the keychain yet —
   // load it (behind the one-time heads-up) so the last-4 can render. A fresh
@@ -226,13 +227,7 @@ function ApiProviderConfig({
         {models.failed && (
           <p className="text-xs text-muted-foreground/70">
             {t("provider.model.listUnavailable")}{" "}
-            <button
-              type="button"
-              onClick={models.retry}
-              className="rounded-sm underline underline-offset-2 transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
-            >
-              {t("provider.apiConfig.retry")}
-            </button>
+            <InlineLinkButton onClick={models.retry}>{t("provider.apiConfig.retry")}</InlineLinkButton>
           </p>
         )}
       </div>

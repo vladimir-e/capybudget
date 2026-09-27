@@ -96,6 +96,13 @@ export class CutOffError extends Error {
   }
 }
 
+export class RefusedError extends Error {
+  constructor() {
+    super("The AI declined to read this file. Check that it's a bank statement or transaction export.")
+    this.name = "RefusedError"
+  }
+}
+
 export class SchemaValidationError extends Error {
   constructor(message: string) {
     super(message)

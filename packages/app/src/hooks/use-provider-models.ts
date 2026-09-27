@@ -5,8 +5,8 @@ import {
   forgetProviderModels,
   loadProviderModels,
   type ApiProvider,
-  type ModelOption,
 } from "@/lib/provider-models"
+import type { ModelOption } from "@/components/settings/model-field"
 
 type Outcome = { apiKey: string } & ({ models: ModelOption[] } | { failed: true })
 
@@ -16,13 +16,17 @@ export interface ProviderModels {
   retry: () => void
 }
 
-export function useProviderModels(provider: ApiProvider, apiKey: string): ProviderModels {
+export function useProviderModels(
+  provider: ApiProvider,
+  apiKey: string,
+  keyPresent: boolean,
+): ProviderModels {
   const [outcome, setOutcome] = useState<Outcome | null>(null)
   const [attempt, setAttempt] = useState(0)
 
   useEffect(() => {
     if (!apiKey) {
-      forgetProviderModels(provider)
+      if (!keyPresent) forgetProviderModels(provider)
       return
     }
     let cancelled = false
@@ -37,7 +41,7 @@ export function useProviderModels(provider: ApiProvider, apiKey: string): Provid
     return () => {
       cancelled = true
     }
-  }, [provider, apiKey, attempt])
+  }, [provider, apiKey, keyPresent, attempt])
 
   const current = apiKey && outcome?.apiKey === apiKey ? outcome : null
   const live =

@@ -5,7 +5,7 @@ import { UNANSWERED_RESULT, toolCallBlock } from "./agent-turn"
 import type { LoopOutcome, TurnDisplay } from "./agent-turn"
 import type { ApiAdapterOptions } from "../factory"
 import type { MessageContent, SessionProvider } from "../types"
-import { CutOffError, parseStructured, schemaBody } from "../structured"
+import { CutOffError, RefusedError, parseStructured, schemaBody } from "../structured"
 import type { JsonSchema, StructuredCallOptions, StructuredMessage, StructuredSession } from "../structured"
 
 type ChatMessage = OpenAI.Chat.Completions.ChatCompletionMessageParam
@@ -13,6 +13,11 @@ type ChatMessage = OpenAI.Chat.Completions.ChatCompletionMessageParam
 // Ollama reports "stop" alongside tool calls.
 function finished(reason: string | null | undefined): boolean {
   return reason === "tool_calls" || reason === "stop"
+}
+
+function assertStructuredFinished(reason: string | null | undefined): void {
+  if (finished(reason)) return
+  throw reason === "content_filter" ? new RefusedError() : new CutOffError()
 }
 
 function toOpenAiUserContent(
@@ -135,7 +140,7 @@ export class OpenAiSession extends AgentSession<ChatMessage> implements Structur
         this.client.chat.completions.create({ ...params, max_completion_tokens: maxTokens }),
       )
       const choice = completion.choices[0]
-      if (!finished(choice?.finish_reason)) throw new CutOffError()
+      assertStructuredFinished(choice?.finish_reason)
       return parseStructured<T>(choice.message.content ?? "", schema)
     }
 
@@ -158,7 +163,7 @@ export class OpenAiSession extends AgentSession<ChatMessage> implements Structur
         break
       }
     }
-    if (!finished(finishReason)) throw new CutOffError()
+    assertStructuredFinished(finishReason)
     return parseStructured<T>(text, schema)
   }
 
