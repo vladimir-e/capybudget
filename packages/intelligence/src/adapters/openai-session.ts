@@ -1,11 +1,11 @@
 import OpenAI from "openai"
 import { getToolDefinitions } from "../tools"
 import { AgentSession } from "./agent-session"
-import { CutOffError, UNANSWERED_RESULT, cutOffOutcome, toolCallBlock } from "./agent-turn"
+import { UNANSWERED_RESULT, toolCallBlock } from "./agent-turn"
 import type { LoopOutcome, TurnDisplay } from "./agent-turn"
 import type { ApiAdapterOptions } from "../factory"
 import type { MessageContent, SessionProvider } from "../types"
-import { parseStructured, schemaBody } from "../structured"
+import { CutOffError, parseStructured, schemaBody } from "../structured"
 import type { JsonSchema, StructuredCallOptions, StructuredMessage, StructuredSession } from "../structured"
 
 type ChatMessage = OpenAI.Chat.Completions.ChatCompletionMessageParam
@@ -199,44 +199,52 @@ export class OpenAiSession extends AgentSession<ChatMessage> implements Structur
       let finishReason: string | null = null
       let lastSlot = -1
 
-      for await (const chunk of stream) {
-        const choice = chunk.choices[0]
-        if (!choice) continue
-        const delta = choice.delta
+      try {
+        for await (const chunk of stream) {
+          const choice = chunk.choices[0]
+          if (!choice) continue
+          const delta = choice.delta
 
-        if (typeof delta.content === "string" && delta.content.length > 0) {
-          text += delta.content
-          display.appendText(delta.content)
-        }
+          if (typeof delta.content === "string" && delta.content.length > 0) {
+            text += delta.content
+            display.appendText(delta.content)
+          }
 
-        if (delta.tool_calls) {
-          for (const tc of delta.tool_calls) {
-            const idx = toolSlot(tc, toolAccs, lastSlot)
-            lastSlot = idx
-            let acc = toolAccs.get(idx)
-            if (!acc) {
-              acc = { id: "", name: "", argsString: "" }
-              toolAccs.set(idx, acc)
+          if (delta.tool_calls) {
+            for (const tc of delta.tool_calls) {
+              const idx = toolSlot(tc, toolAccs, lastSlot)
+              lastSlot = idx
+              let acc = toolAccs.get(idx)
+              if (!acc) {
+                acc = { id: "", name: "", argsString: "" }
+                toolAccs.set(idx, acc)
+              }
+              if (tc.id) acc.id = tc.id
+              if (tc.function?.name) acc.name = tc.function.name
+              if (tc.function?.arguments) acc.argsString += tc.function.arguments
             }
-            if (tc.id) acc.id = tc.id
-            if (tc.function?.name) acc.name = tc.function.name
-            if (tc.function?.arguments) acc.argsString += tc.function.arguments
+          }
+
+          if (choice.finish_reason) {
+            finishReason = choice.finish_reason
+            // OpenAI keeps the stream open for a terminal usage chunk Capy
+            // doesn't display. Breaking out of `for await` lets V8 invoke the
+            // iterator's `return()`, which the SDK hooks for cleanup — no
+            // explicit abort needed, and symmetric with the Anthropic adapter.
+            break
           }
         }
-
-        if (choice.finish_reason) {
-          finishReason = choice.finish_reason
-          // OpenAI keeps the stream open for a terminal usage chunk Capy
-          // doesn't display. Breaking out of `for await` lets V8 invoke the
-          // iterator's `return()`, which the SDK hooks for cleanup — no
-          // explicit abort needed, and symmetric with the Anthropic adapter.
-          break
-        }
+      } catch (err) {
+        if (!this.stopped) throw err
       }
       this.closeRequest()
 
-      const completed = finished(finishReason)
-      const accs = completed ? [...toolAccs.keys()].sort((a, b) => a - b).map((idx) => toolAccs.get(idx)!) : []
+      if (!finished(finishReason)) {
+        if (text.length > 0) this.messages.push({ role: "assistant", content: this.markedIfStopped(text) })
+        return finishReason === "content_filter" ? "refused" : "cutOff"
+      }
+
+      const accs = [...toolAccs.keys()].sort((a, b) => a - b).map((idx) => toolAccs.get(idx)!)
       const calls = accs.map((acc) => ({ id: acc.id, name: acc.name, input: finalizeToolArgs(acc) }))
       for (const call of calls) {
         // Malformed args degrade to {} so the tool block still renders;
@@ -263,7 +271,6 @@ export class OpenAiSession extends AgentSession<ChatMessage> implements Structur
         this.messages.push(assistantMessage)
       }
 
-      if (!completed) return cutOffOutcome(text.length > 0, toolAccs.size > 0)
       // No calls = terminal: re-sending unchanged history spins.
       if (calls.length === 0) return "done"
 

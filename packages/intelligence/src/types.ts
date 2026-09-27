@@ -142,6 +142,6 @@ export type StreamEvent =
       code?: SessionErrorCode
     }
 
-export type SessionErrorCode = "cutOff" | "budgetExhausted"
+export type SessionErrorCode = "cutOff" | "refused" | "budgetExhausted"
 
 export type SessionProvider = "anthropic" | "openai" | "claude-cli" | "ollama"

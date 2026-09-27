@@ -89,6 +89,13 @@ export function schemaBody(schema: JsonSchema): Record<string, unknown> {
   return body
 }
 
+export class CutOffError extends Error {
+  constructor() {
+    super("The AI's reply was cut off before the data was complete. Try a smaller file, or split it into parts.")
+    this.name = "CutOffError"
+  }
+}
+
 export class SchemaValidationError extends Error {
   constructor(message: string) {
     super(message)

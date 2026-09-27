@@ -112,6 +112,7 @@
     "sendFailed": "Falha ao enviar a mensagem",
     "interrupted": "Sessão interrompida. Envie uma mensagem para continuar.",
     "cutOff": "A resposta do Capy foi cortada antes de terminar. Tente de novo ou peça menos de uma vez.",
+    "refused": "O Capy se recusou a responder isso. Tente reformular.",
     "budgetExhausted": "O Capy atingiu o limite de chamadas de ferramentas nesta resposta. Envie uma mensagem para continuar."
   },
   "secretGate": {

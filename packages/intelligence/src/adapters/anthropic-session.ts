@@ -2,11 +2,11 @@ import Anthropic from "@anthropic-ai/sdk"
 import { getToolDefinitions } from "../tools"
 import { AgentSession } from "./agent-session"
 import type { ToolReply } from "./agent-session"
-import { CutOffError, UNANSWERED_RESULT, cutOffOutcome, toolCallBlock } from "./agent-turn"
+import { UNANSWERED_RESULT, toolCallBlock } from "./agent-turn"
 import type { LoopOutcome, TurnDisplay } from "./agent-turn"
 import type { ApiAdapterOptions } from "../factory"
 import type { MessageContent, SessionProvider } from "../types"
-import { parseStructured, schemaBody } from "../structured"
+import { CutOffError, parseStructured, schemaBody } from "../structured"
 import type { JsonSchema, StructuredCallOptions, StructuredMessage, StructuredSession } from "../structured"
 
 const FINISHED = new Set<Anthropic.StopReason | null>(["end_turn", "stop_sequence"])
@@ -135,7 +135,6 @@ export class AnthropicSession extends AgentSession<Anthropic.MessageParam> imple
       display.beginIteration()
       const signal = this.openRequest()
       const message = await this.withOutputCap((maxTokens) => this.streamTurn(maxTokens, signal, display))
-      // The stream is finished: Stop from here on must not abort it (see streamTurn).
       this.closeRequest()
 
       const { content, stop_reason } = message
@@ -143,7 +142,10 @@ export class AnthropicSession extends AgentSession<Anthropic.MessageParam> imple
         if (content.length > 0) this.messages.push({ role: "assistant", content })
         return "done"
       }
-      if (stop_reason !== "tool_use") return this.keepCutOffTurn(content, display)
+      if (stop_reason !== "tool_use") {
+        this.keepPartialTurn(content, display)
+        return stop_reason === "refusal" ? "refused" : "cutOff"
+      }
 
       this.messages.push({ role: "assistant", content })
       const round = await this.runToolCalls(
@@ -192,25 +194,21 @@ export class AnthropicSession extends AgentSession<Anthropic.MessageParam> imple
     // can stall the next request for minutes.
     return new Promise<Anthropic.Message>((resolve, reject) => {
       stream.once("message", resolve)
-      stream.once("abort", reject)
+      stream.once("abort", (err) => (stream.currentMessage ? resolve(stream.currentMessage) : reject(err)))
       stream.once("error", reject)
     })
   }
 
-  private keepCutOffTurn(content: Anthropic.ContentBlock[], display: TurnDisplay): LoopOutcome {
-    const firstToolUse = content.findIndex((b) => b.type === "tool_use")
-    const droppedCalls = firstToolUse !== -1
-    const beforeTools = droppedCalls ? content.slice(0, firstToolUse) : content
-    let kept = 0
-    beforeTools.forEach((b, i) => {
-      if (b.type === "text" && b.text.length > 0) kept = i + 1
-    })
-    const keptContent = content.slice(0, kept)
-    if (kept > 0) this.messages.push({ role: "assistant", content: keptContent })
-    display.replaceIteration(
-      keptContent.flatMap((b) => (b.type === "text" && b.text.length > 0 ? [b.text] : [])),
-    )
-    return cutOffOutcome(kept > 0, droppedCalls)
+  private keepPartialTurn(content: Anthropic.ContentBlock[], display: TurnDisplay): void {
+    let kept: Anthropic.ContentBlock[] = []
+    for (const [i, b] of content.entries()) {
+      if (b.type === "tool_use") break
+      if (b.type === "text" && b.text.length > 0) kept = content.slice(0, i + 1)
+    }
+    display.replaceIteration(kept.flatMap((b) => (b.type === "text" && b.text.length > 0 ? [b.text] : [])))
+    const tail = kept.pop()
+    if (tail?.type !== "text") return
+    this.messages.push({ role: "assistant", content: [...kept, { ...tail, text: this.markedIfStopped(tail.text) }] })
   }
 
   protected appendUserTurn(content: MessageContent): void {

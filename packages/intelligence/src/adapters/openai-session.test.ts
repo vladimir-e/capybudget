@@ -232,16 +232,20 @@ vi.mock("../tools", async (importOriginal) => {
 })
 
 import { OpenAiSession } from "./openai-session"
-import { CutOffError, MAX_OUTPUT_TOKENS, STOPPED_RESULT, UNANSWERED_RESULT } from "./agent-turn"
+import { MAX_OUTPUT_TOKENS, STOPPED_MARKER, STOPPED_RESULT, UNANSWERED_RESULT } from "./agent-turn"
+import { CutOffError } from "../structured"
 
-function makeSession() {
+function makeSession(onEvent?: (e: StreamEvent, session: OpenAiSession) => void) {
   const events: StreamEvent[] = []
-  const session = new OpenAiSession({
+  const session: OpenAiSession = new OpenAiSession({
     budgetPath: "/budget",
     systemPrompt: "you are capy",
     apiKey: "sk-openai-test",
     model: "gpt-4o",
-    onEvent: (e) => events.push(e),
+    onEvent: (e) => {
+      events.push(e)
+      onEvent?.(e, session)
+    },
     repo: {} as BudgetRepository,
     fileAdapter: {} as FileAdapter,
     currency: "USD",
@@ -935,10 +939,10 @@ describe("OpenAiSession", () => {
   })
 
   it.each([
-    ["a length finish", "length" as const],
-    ["a content_filter finish", "content_filter" as const],
-    ["no finish chunk", null],
-  ])("never executes tool calls from a turn cut off by %s, keeps only its text, and reports cutOff", async (_label, finish_reason) => {
+    ["a length finish", "length" as const, "cutOff"],
+    ["a content_filter finish", "content_filter" as const, "refused"],
+    ["no finish chunk", null, "cutOff"],
+  ])("never executes tool calls from a turn ended by %s, keeps only its text, and reports %s", async (_label, finish_reason, code) => {
     queueTurn({
       textDeltas: ["Let me check"],
       toolCallDeltas: [{ index: 0, id: "call_1", name: "list_transactions", argFragments: ['{"lim'] }],
@@ -950,7 +954,7 @@ describe("OpenAiSession", () => {
     await session.send("hi")
     expect(mockRunTool).not.toHaveBeenCalled()
     expect(mockCreate).toHaveBeenCalledTimes(1)
-    expect(events[events.length - 1]).toMatchObject({ type: "error", code: "cutOff" })
+    expect(events[events.length - 1]).toMatchObject({ type: "error", code })
 
     await session.send("again")
     const messages = lastCreateCall().messages as Array<{ role: string; content: unknown; tool_calls?: unknown }>
@@ -958,20 +962,21 @@ describe("OpenAiSession", () => {
     expect(messages).toContainEqual({ role: "assistant", content: "Let me check" })
   })
 
-  it("ends a text-only turn cut off by length with done, keeping its text", async () => {
+  it("reports a text-only turn cut off by length as cutOff, keeping its text", async () => {
     queueTurn({ textDeltas: ["A long answer that"], finish_reason: "length" })
 
     const { session, events } = makeSession()
     await session.send("Explain")
 
-    expect(events[events.length - 1]).toEqual({ type: "done" })
+    expect(events.at(-1)).toMatchObject({ type: "error", code: "cutOff" })
+    expect(history(session).at(-1)).toEqual({ role: "assistant", content: "A long answer that" })
   })
 
   it.each([
-    ["a length finish", "length" as const],
-    ["a content_filter finish", "content_filter" as const],
-    ["no finish chunk", null],
-  ])("reports a text-less turn cut off by %s as an error instead of an empty reply", async (_label, finish_reason) => {
+    ["a length finish", "length" as const, "cutOff"],
+    ["a content_filter finish", "content_filter" as const, "refused"],
+    ["no finish chunk", null, "cutOff"],
+  ])("reports a text-less turn ended by %s as %s instead of an empty reply", async (_label, finish_reason, code) => {
     queueTurn({
       toolCallDeltas: [{ index: 0, id: "call_1", name: "list_transactions", argFragments: ['{"lim'] }],
       finish_reason,
@@ -980,7 +985,7 @@ describe("OpenAiSession", () => {
     const { session, events } = makeSession()
     await session.send("hi")
 
-    expect(events.find((e) => e.type === "error")).toMatchObject({ type: "error", code: "cutOff" })
+    expect(events.find((e) => e.type === "error")).toMatchObject({ type: "error", code })
     expect(events.some((e) => e.type === "done")).toBe(false)
     expect(mockRunTool).not.toHaveBeenCalled()
   })
@@ -1593,6 +1598,31 @@ describe("OpenAiSession lifecycle", () => {
     ])
   })
 
+  it("Stop mid-text keeps the streamed text, marked as stopped, and drops the calls that never arrived", async () => {
+    queueTurn({
+      textDeltas: ["Let me", " check", " that"],
+      toolCallDeltas: [{ index: 0, id: "call_a", name: "list_transactions", argFragments: ["{}"] }],
+      finish_reason: "tool_calls",
+    })
+
+    const { session, events } = makeSession((e, s) => {
+      if (e.type === "content" && JSON.stringify(e.blocks).includes("Let me check")) void s.stop()
+    })
+    await session.send("Hi")
+
+    expect(mockRunTool).not.toHaveBeenCalled()
+    expect(events.some((e) => e.type === "done" || e.type === "error")).toBe(false)
+    expect(lastBlocks(events)).toEqual([{ type: "text", content: "Let me check" }])
+
+    queueTurn({ textDeltas: ["ok"], finish_reason: "stop" })
+    await session.send("Go on")
+    expect((lastCreateCall().messages as unknown[]).slice(1)).toEqual([
+      { role: "user", content: "Hi" },
+      { role: "assistant", content: `Let me check${STOPPED_MARKER}` },
+      { role: "user", content: "Go on" },
+    ])
+  })
+
   it("a send whose content can't be converted reports an error and doesn't wedge the session", async () => {
     const { session, events } = makeSession()
     await session.send([42] as unknown as string)
@@ -1624,6 +1654,20 @@ describe("OpenAiSession output cap", () => {
     await session.structured([{ role: "user", content: "x" }], SCHEMA)
     expect(mockCreate).toHaveBeenCalledTimes(3)
     expect(lastCreateCall().max_completion_tokens).toBe(16384)
+  })
+
+  it("a retry that 400s again surfaces the error and leaves the cap unchanged", async () => {
+    queueTurn({ finish_reason: null, error: apiError(400, CAP_ERROR) })
+    queueTurn({ finish_reason: null, error: apiError(400, "Invalid 'messages[1].content'") })
+
+    const { session, events } = makeSession()
+    await session.send("Hi")
+    expect(mockCreate).toHaveBeenCalledTimes(2)
+    expect(events.at(-1)).toMatchObject({ type: "error", status: 400, message: "Invalid 'messages[1].content'" })
+
+    queueTurn({ textDeltas: ["ok"], finish_reason: "stop" })
+    await session.send("Again")
+    expect(lastCreateCall().max_completion_tokens).toBe(MAX_OUTPUT_TOKENS)
   })
 
   it("surfaces an unrelated 400 without retrying", async () => {

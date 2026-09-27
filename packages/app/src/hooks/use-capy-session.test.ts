@@ -332,17 +332,17 @@ describe("useCapySession live cache invalidation", () => {
     return { onDataChanged, onImportStarted, emit: session.emit, result }
   }
 
-  it("words a coded error in the UI language instead of the adapter's fallback", () => {
+  it.each([
+    ["cutOff" as const, "Capy's reply was cut off before it finished. Try again, or ask for less at once."],
+    ["refused" as const, "Capy declined to answer that one. Try rephrasing."],
+  ])("words a %s error in the UI language instead of the adapter's fallback", (code, message) => {
     const { emit, result } = setup()
 
     act(() => {
-      emit({ type: "error", code: "cutOff", message: "fallback" })
+      emit({ type: "error", code, message: "fallback" })
     })
     const blocks = result.current.messages.at(-1)?.blocks ?? []
-    expect(blocks.at(-1)).toMatchObject({
-      type: "error",
-      message: "Capy's reply was cut off before it finished. Try again, or ask for less at once.",
-    })
+    expect(blocks.at(-1)).toMatchObject({ type: "error", message })
   })
 
   it("fires onImportStarted when a start_import tool-result lands", () => {

@@ -4,6 +4,7 @@ import { runTool, SESSION_TOOL_CALL_BUDGET } from "../tools"
 import {
   BUDGET_EXHAUSTED_RESULT,
   MAX_OUTPUT_TOKENS,
+  STOPPED_MARKER,
   STOPPED_RESULT,
   TurnDisplay,
   clampedOutputCap,
@@ -37,7 +38,9 @@ export abstract class AgentSession<Message> implements CapySession {
   private abortController: AbortController | null = null
   private alive = false
   private killed = false
-  private interrupted = false
+  private sendSeq = 0
+  private cancelledThrough = 0
+  private turnEpoch = 0
   private toolCallCount = 0
   private idle: Promise<void> = Promise.resolve()
   private turnAttachments: readonly FileAttachment[] = []
@@ -54,22 +57,23 @@ export abstract class AgentSession<Message> implements CapySession {
   }
 
   protected get stopped(): boolean {
-    return this.interrupted || this.killed
+    return this.killed || this.turnEpoch <= this.cancelledThrough
   }
 
   send(content: MessageContent, attachments: readonly FileAttachment[] = []): Promise<void> {
     if (this.killed) return Promise.resolve()
-    return this.exclusive(() => this.runTurn(content, attachments))
+    const epoch = ++this.sendSeq
+    return this.exclusive(() => this.runTurn(epoch, content, attachments))
   }
 
   async stop(): Promise<void> {
-    this.interrupted = true
+    this.cancelledThrough = this.sendSeq
     this.abortRequest()
     this.display?.settle()
   }
 
   async restart(): Promise<void> {
-    this.interrupted = true
+    this.cancelledThrough = this.sendSeq
     this.abortRequest()
     await this.exclusive(async () => {
       this.messages.length = 0
@@ -94,15 +98,19 @@ export abstract class AgentSession<Message> implements CapySession {
   }
 
   protected async withOutputCap<T>(request: (maxTokens: number) => Promise<T>): Promise<T> {
-    const cap = this.outputCap
     try {
-      return await request(cap)
+      return await request(this.outputCap)
     } catch (err) {
-      const clamped = clampedOutputCap(err, cap)
+      const clamped = clampedOutputCap(err, this.outputCap)
       if (clamped === null) throw err
+      const result = await request(clamped)
       this.outputCap = clamped
-      return request(clamped)
+      return result
     }
+  }
+
+  protected markedIfStopped(text: string): string {
+    return this.stopped ? text + STOPPED_MARKER : text
   }
 
   protected async runToolCalls(calls: readonly ToolCall[], display: TurnDisplay): Promise<ToolRound> {
@@ -137,9 +145,9 @@ export abstract class AgentSession<Message> implements CapySession {
     return { replies, outcome }
   }
 
-  private async runTurn(content: MessageContent, attachments: readonly FileAttachment[]): Promise<void> {
-    if (this.killed) return
-    this.interrupted = false
+  private async runTurn(epoch: number, content: MessageContent, attachments: readonly FileAttachment[]): Promise<void> {
+    if (this.killed || epoch <= this.cancelledThrough) return
+    this.turnEpoch = epoch
     this.turnAttachments = attachments
     const display = new TurnDisplay((blocks) => this.emit({ type: "content", blocks }))
     this.display = display
