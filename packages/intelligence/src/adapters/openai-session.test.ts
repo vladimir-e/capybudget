@@ -28,7 +28,12 @@ interface FakeTurn {
 const { mockCreate, queueTurn, queueStructured, lastCreateCall, allCreateCalls, abortSignals } = vi.hoisted(
   () => {
     const queue: FakeTurn[] = []
-    const calls: Array<{ messages: unknown; tools: unknown; response_format?: unknown }> = []
+    const calls: Array<{
+      messages: unknown
+      tools: unknown
+      response_format?: unknown
+      max_completion_tokens?: number
+    }> = []
     const signals: AbortSignal[] = []
 
     // Non-streaming completions for the structured() path, keyed off the
@@ -55,6 +60,7 @@ const { mockCreate, queueTurn, queueStructured, lastCreateCall, allCreateCalls, 
       calls.push({
         messages: JSON.parse(JSON.stringify(params.messages)),
         tools: params.tools,
+        max_completion_tokens: params.max_completion_tokens,
       })
       if (opts?.signal) signals.push(opts.signal as AbortSignal)
       const turn = queue.shift()
@@ -220,6 +226,7 @@ vi.mock("../tools", async (importOriginal) => {
 })
 
 import { OpenAiSession } from "./openai-session"
+import { STOPPED_RESULT, UNANSWERED_RESULT } from "./agent-turn"
 
 function makeSession() {
   const events: StreamEvent[] = []
@@ -558,15 +565,12 @@ describe("OpenAiSession", () => {
     })
   })
 
-  it("stop() drops a trailing assistant turn with unmatched tool_calls", async () => {
+  it("stop() mid-batch finishes the running tool, runs no more, and keeps the round answered", async () => {
     queueTurn({
       toolCallDeltas: [
-        {
-          index: 0,
-          id: "call_aaa",
-          name: "list_accounts",
-          argFragments: ["{", "}"],
-        },
+        { index: 0, id: "call_a", name: "create_transaction", argFragments: ["{}"] },
+        { index: 1, id: "call_b", name: "create_transaction", argFragments: ["{}"] },
+        { index: 2, id: "call_c", name: "create_transaction", argFragments: ["{}"] },
       ],
       finish_reason: "tool_calls",
     })
@@ -578,25 +582,61 @@ describe("OpenAiSession", () => {
         }),
     )
 
-    const { session } = makeSession()
-    const sendPromise = session.send("How much do I have?")
+    const { session, events } = makeSession()
+    const sendPromise = session.send("Add these")
     await vi.waitFor(() => {
       if (!resolveRun) throw new Error("not yet")
     })
     await session.stop()
-    resolveRun!("late")
+    resolveRun!("created a")
     await sendPromise
+
+    expect(mockRunTool).toHaveBeenCalledTimes(1)
+    expect(events.some((e) => e.type === "done" || e.type === "error")).toBe(false)
 
     queueTurn({ textDeltas: ["ok"], finish_reason: "stop" })
     await session.send("Hi again")
-    const last = lastCreateCall()
-    const messages = last.messages as Array<{
-      role: string
-      tool_calls?: Array<unknown>
-    }>
-    expect(
-      messages.some((m) => m.role === "assistant" && Array.isArray(m.tool_calls) && m.tool_calls.length > 0),
-    ).toBe(false)
+    const messages = lastCreateCall().messages as Array<Record<string, unknown>>
+    expect(messages.slice(3)).toEqual([
+      { role: "tool", tool_call_id: "call_a", content: "created a" },
+      { role: "tool", tool_call_id: "call_b", content: STOPPED_RESULT },
+      { role: "tool", tool_call_id: "call_c", content: STOPPED_RESULT },
+      { role: "user", content: "Hi again" },
+    ])
+  })
+
+  it("answers a trailing turn's unanswered tool calls before appending the next user message", async () => {
+    const { session } = makeSession()
+    const history = (session as unknown as { messages: Array<Record<string, unknown>> }).messages
+    history.push(
+      { role: "user", content: "Add it" },
+      {
+        role: "assistant",
+        content: null,
+        tool_calls: [
+          { id: "call_a", type: "function", function: { name: "create_transaction", arguments: "{}" } },
+          { id: "call_b", type: "function", function: { name: "create_transaction", arguments: "{}" } },
+        ],
+      },
+      { role: "tool", tool_call_id: "call_a", content: "created" },
+    )
+
+    queueTurn({ textDeltas: ["ok"], finish_reason: "stop" })
+    await session.send("Hello?")
+
+    const messages = lastCreateCall().messages as Array<Record<string, unknown>>
+    expect(messages.slice(3)).toEqual([
+      { role: "tool", tool_call_id: "call_a", content: "created" },
+      { role: "tool", tool_call_id: "call_b", content: UNANSWERED_RESULT },
+      { role: "user", content: "Hello?" },
+    ])
+  })
+
+  it("streams the agent loop with the raised output cap", async () => {
+    queueTurn({ textDeltas: ["ok"], finish_reason: "stop" })
+    const { session } = makeSession()
+    await session.send("Hi")
+    expect(lastCreateCall().max_completion_tokens).toBe(32000)
   })
 
   it("kill() flips isAlive false and aborts in-flight requests", async () => {
@@ -892,7 +932,7 @@ describe("OpenAiSession", () => {
     ["a length finish", "length" as const],
     ["a content_filter finish", "content_filter" as const],
     ["no finish chunk", null],
-  ])("never executes tool calls from a turn cut off by %s, and keeps only its text", async (_label, finish_reason) => {
+  ])("never executes tool calls from a turn cut off by %s, keeps only its text, and reports cutOff", async (_label, finish_reason) => {
     queueTurn({
       textDeltas: ["Let me check"],
       toolCallDeltas: [{ index: 0, id: "call_1", name: "list_transactions", argFragments: ['{"lim'] }],
@@ -900,15 +940,25 @@ describe("OpenAiSession", () => {
     })
     queueTurn({ textDeltas: ["ok"], finish_reason: "stop" })
 
-    const { session } = makeSession()
+    const { session, events } = makeSession()
     await session.send("hi")
     expect(mockRunTool).not.toHaveBeenCalled()
     expect(mockCreate).toHaveBeenCalledTimes(1)
+    expect(events[events.length - 1]).toMatchObject({ type: "error", code: "cutOff" })
 
     await session.send("again")
     const messages = lastCreateCall().messages as Array<{ role: string; content: unknown; tool_calls?: unknown }>
     expect(messages.some((m) => m.tool_calls)).toBe(false)
     expect(messages).toContainEqual({ role: "assistant", content: "Let me check" })
+  })
+
+  it("ends a text-only turn cut off by length with done, keeping its text", async () => {
+    queueTurn({ textDeltas: ["A long answer that"], finish_reason: "length" })
+
+    const { session, events } = makeSession()
+    await session.send("Explain")
+
+    expect(events[events.length - 1]).toEqual({ type: "done" })
   })
 
   it.each([

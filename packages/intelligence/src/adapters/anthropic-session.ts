@@ -2,13 +2,20 @@ import Anthropic from "@anthropic-ai/sdk"
 import { buildRenderToolMap, RENDER_FOLLOWUPS_TOOL_NAME } from "../render-map"
 import { extractErrorMessage } from "../error-message"
 import { runTool, getToolDefinitions, SESSION_TOOL_CALL_BUDGET } from "../tools"
+import {
+  BUDGET_EXHAUSTED_RESULT,
+  MAX_OUTPUT_TOKENS,
+  STOPPED_RESULT,
+  UNANSWERED_RESULT,
+  cutOffOutcome,
+  outcomeEvent,
+} from "./agent-turn"
+import type { LoopOutcome } from "./agent-turn"
 import type { ApiAdapterOptions } from "../factory"
 import type { CapySession } from "../session"
 import type { ContentBlock, FileAttachment, MessageContent } from "../types"
 import { parseStructured, schemaBody } from "../structured"
 import type { JsonSchema, StructuredCallOptions, StructuredMessage, StructuredSession } from "../structured"
-
-const MAX_TOKENS = 8192
 
 const RENDER_TOOL_MAP = buildRenderToolMap()
 
@@ -68,6 +75,7 @@ export class AnthropicSession implements CapySession, StructuredSession {
   private killed = false
   private interrupted = false
   private toolCallCount = 0
+  private idle: Promise<void> = Promise.resolve()
   /** Attachments on the current turn — staged by `start_import`, then cleared.
    *  Held outside `messages` because the flattened message content can't be
    *  turned back into files. */
@@ -94,15 +102,21 @@ export class AnthropicSession implements CapySession, StructuredSession {
   async send(content: MessageContent, attachments: readonly FileAttachment[] = []): Promise<void> {
     if (this.killed) return
 
+    const previous = this.idle
+    let release!: () => void
+    this.idle = new Promise((resolve) => (release = resolve))
+    await previous
+
     this.interrupted = false
     this.turnAttachments = attachments
+    this.answerOpenToolUse()
     this.appendUserContent(toAnthropicUserContent(content))
     this.alive = true
 
     try {
-      await this.runAgenticLoop()
+      const outcome = await this.runAgenticLoop()
       if (!this.interrupted && !this.killed) {
-        this.opts.onEvent({ type: "done" })
+        this.opts.onEvent(outcomeEvent(outcome))
       }
     } catch (err) {
       if (this.wasAborted(err)) return
@@ -111,6 +125,7 @@ export class AnthropicSession implements CapySession, StructuredSession {
     } finally {
       this.turnAttachments = []
       this.abortController = null
+      release()
     }
   }
 
@@ -118,7 +133,6 @@ export class AnthropicSession implements CapySession, StructuredSession {
     this.interrupted = true
     this.abortController?.abort()
     this.abortController = null
-    this.dropTrailingUnmatchedToolUse()
   }
 
   async restart(): Promise<void> {
@@ -141,14 +155,14 @@ export class AnthropicSession implements CapySession, StructuredSession {
     schema: JsonSchema,
     options?: StructuredCallOptions,
   ): Promise<T> {
-    const params: Anthropic.MessageCreateParamsNonStreaming = {
+    const params: Anthropic.MessageStreamParams = {
       model: this.opts.model,
       system: this.opts.systemPrompt,
       messages: messages.map((m) => ({
         role: m.role,
         content: toAnthropicUserContent(m.content),
       })),
-      max_tokens: MAX_TOKENS,
+      max_tokens: MAX_OUTPUT_TOKENS,
       // `output_config.format` enforces the schema unconditionally, so the
       // OpenAI-only `strict` marker is dropped from the schema Anthropic sees.
       output_config: {
@@ -156,9 +170,7 @@ export class AnthropicSession implements CapySession, StructuredSession {
       },
     }
 
-    const message = options?.onText
-      ? await this.streamStructured(params, options.onText)
-      : await this.client.messages.create(params)
+    const message = await this.streamStructured(params, options?.onText)
 
     const text = message.content
       .filter((block): block is Anthropic.TextBlock => block.type === "text")
@@ -168,19 +180,21 @@ export class AnthropicSession implements CapySession, StructuredSession {
     return parseStructured<T>(text, schema)
   }
 
-  /** The streaming form of a structured call, surfacing accumulated text per
-   *  delta. Resolves on `message` (message_stop) like the agentic loop — see
-   *  the note there on `finalMessage()`/abort under WKWebView. */
+  /** Always streamed: the SDK refuses a non-streaming request with this large a
+   *  `max_tokens`. Resolves on `message` (message_stop) like the agentic loop —
+   *  see the note there on `finalMessage()`/abort under WKWebView. */
   private streamStructured(
-    params: Anthropic.MessageCreateParamsNonStreaming,
-    onText: (text: string) => void,
+    params: Anthropic.MessageStreamParams,
+    onText?: (text: string) => void,
   ): Promise<Anthropic.Message> {
     const stream = this.client.messages.stream(params)
-    let accumulated = ""
-    stream.on("text", (delta) => {
-      accumulated += delta
-      onText(accumulated)
-    })
+    if (onText) {
+      let accumulated = ""
+      stream.on("text", (delta) => {
+        accumulated += delta
+        onText(accumulated)
+      })
+    }
     return new Promise<Anthropic.Message>((resolve, reject) => {
       stream.once("message", resolve)
       stream.once("abort", reject)
@@ -188,7 +202,7 @@ export class AnthropicSession implements CapySession, StructuredSession {
     })
   }
 
-  private async runAgenticLoop(): Promise<void> {
+  private async runAgenticLoop(): Promise<LoopOutcome> {
     const tools = this.tools
 
     const completedBlocks: ContentBlock[] = []
@@ -198,10 +212,10 @@ export class AnthropicSession implements CapySession, StructuredSession {
     }
 
     while (true) {
-      if (this.killed) return
-      if (this.interrupted) return
+      if (this.killed || this.interrupted) return "done"
 
       this.abortController = new AbortController()
+      const iterationStart = completedBlocks.length
 
       const stream = this.client.messages.stream(
         {
@@ -218,7 +232,7 @@ export class AnthropicSession implements CapySession, StructuredSession {
           ],
           messages: this.messages,
           tools,
-          max_tokens: MAX_TOKENS,
+          max_tokens: MAX_OUTPUT_TOKENS,
         },
         { signal: this.abortController.signal },
       )
@@ -266,25 +280,52 @@ export class AnthropicSession implements CapySession, StructuredSession {
         stream.once("error", (err) => reject(err))
       })
 
-      this.messages.push({
-        role: "assistant",
-        content: finalMessage.content,
-      })
+      const content = finalMessage.content
+      const stopReason = finalMessage.stop_reason
+      if (stopReason === "end_turn" || stopReason === "stop_sequence") {
+        if (content.length > 0) this.messages.push({ role: "assistant", content })
+        return "done"
+      }
+      if (stopReason !== "tool_use") {
+        const firstToolUse = content.findIndex((b) => b.type === "tool_use")
+        const droppedCalls = firstToolUse !== -1
+        const beforeTools = droppedCalls ? content.slice(0, firstToolUse) : content
+        let kept = 0
+        beforeTools.forEach((b, i) => {
+          if (b.type === "text" && b.text.length > 0) kept = i + 1
+        })
+        if (kept > 0) this.messages.push({ role: "assistant", content: content.slice(0, kept) })
+        if (droppedCalls) {
+          const shown = completedBlocks.splice(iterationStart)
+          completedBlocks.push(...shown.filter((b) => b.type === "text"))
+          this.opts.onEvent({ type: "content", blocks: [...completedBlocks] })
+        }
+        return cutOffOutcome(kept > 0, droppedCalls)
+      }
 
-      if (finalMessage.stop_reason !== "tool_use") return
+      this.messages.push({ role: "assistant", content })
 
       const toolResults: Anthropic.ToolResultBlockParam[] = []
       let budgetExhausted = false
       let terminalToolSeen = false
-      for (const block of finalMessage.content) {
+      for (const block of content) {
         if (block.type !== "tool_use") continue
+        if (this.interrupted || this.killed) {
+          toolResults.push({
+            type: "tool_result",
+            tool_use_id: block.id,
+            content: STOPPED_RESULT,
+            is_error: true,
+          })
+          continue
+        }
         this.toolCallCount++
         if (this.toolCallCount > SESSION_TOOL_CALL_BUDGET) {
           budgetExhausted = true
           toolResults.push({
             type: "tool_result",
             tool_use_id: block.id,
-            content: `Error: tool-call budget exhausted (${SESSION_TOOL_CALL_BUDGET} calls). Stopping. Run again if more work is needed.`,
+            content: BUDGET_EXHAUSTED_RESULT,
           })
           continue
         }
@@ -322,23 +363,25 @@ export class AnthropicSession implements CapySession, StructuredSession {
         })
       }
 
-      // stop() dropped the trailing assistant turn — pushing tool_results that
-      // reference its tool_use_ids would 400 on the next request.
-      if (this.interrupted || this.killed) return
-
       this.messages.push({ role: "user", content: toolResults })
-      if (budgetExhausted) {
-        this.interrupted = true
-        this.opts.onEvent({
-          type: "error",
-          code: "budgetExhausted",
-          message: `Tool-call budget exhausted (${SESSION_TOOL_CALL_BUDGET} calls). Stopping. Run again if more work is needed.`,
-        })
-        return
-      }
+      if (budgetExhausted) return "budgetExhausted"
       // Terminal-signal tool — exit; the next user message merges into this turn.
-      if (terminalToolSeen) return
+      if (terminalToolSeen) return "done"
     }
+  }
+
+  private answerOpenToolUse(): void {
+    const last = this.messages[this.messages.length - 1]
+    if (!last || last.role !== "assistant" || typeof last.content === "string") return
+    const results: Anthropic.ToolResultBlockParam[] = last.content
+      .filter((b) => b.type === "tool_use")
+      .map((b) => ({
+        type: "tool_result",
+        tool_use_id: b.id,
+        content: UNANSWERED_RESULT,
+        is_error: true,
+      }))
+    if (results.length > 0) this.messages.push({ role: "user", content: results })
   }
 
   // Merge into a trailing user turn — Anthropic rejects two consecutive user roles.
@@ -351,15 +394,6 @@ export class AnthropicSession implements CapySession, StructuredSession {
       return
     }
     this.messages.push({ role: "user", content: incomingBlocks })
-  }
-
-  private dropTrailingUnmatchedToolUse(): void {
-    const last = this.messages[this.messages.length - 1]
-    if (!last || last.role !== "assistant") return
-    const content = last.content
-    if (typeof content === "string") return
-    const hasToolUse = content.some((b) => b.type === "tool_use")
-    if (hasToolUse) this.messages.pop()
   }
 
   private wasAborted(err: unknown): boolean {

@@ -2,13 +2,20 @@ import OpenAI from "openai"
 import { buildRenderToolMap, RENDER_FOLLOWUPS_TOOL_NAME } from "../render-map"
 import { extractErrorMessage } from "../error-message"
 import { runTool, getToolDefinitions, SESSION_TOOL_CALL_BUDGET } from "../tools"
+import {
+  BUDGET_EXHAUSTED_RESULT,
+  MAX_OUTPUT_TOKENS,
+  STOPPED_RESULT,
+  UNANSWERED_RESULT,
+  cutOffOutcome,
+  outcomeEvent,
+} from "./agent-turn"
+import type { LoopOutcome } from "./agent-turn"
 import type { ApiAdapterOptions } from "../factory"
 import type { CapySession } from "../session"
 import type { ContentBlock, FileAttachment, MessageContent, SessionProvider } from "../types"
 import { parseStructured, schemaBody } from "../structured"
 import type { JsonSchema, StructuredCallOptions, StructuredMessage, StructuredSession } from "../structured"
-
-const MAX_TOKENS = 8192
 
 const RENDER_TOOL_MAP = buildRenderToolMap()
 
@@ -87,6 +94,7 @@ export class OpenAiSession implements CapySession, StructuredSession {
   private killed = false
   private interrupted = false
   private toolCallCount = 0
+  private idle: Promise<void> = Promise.resolve()
   /** Attachments on the current turn — staged by `start_import`, then cleared.
    *  Held outside `messages` because the flattened message content can't be
    *  turned back into files. */
@@ -122,8 +130,14 @@ export class OpenAiSession implements CapySession, StructuredSession {
   async send(content: MessageContent, attachments: readonly FileAttachment[] = []): Promise<void> {
     if (this.killed) return
 
+    const previous = this.idle
+    let release!: () => void
+    this.idle = new Promise((resolve) => (release = resolve))
+    await previous
+
     this.interrupted = false
     this.turnAttachments = attachments
+    this.answerOpenToolCalls()
     this.messages.push({
       role: "user",
       content: toOpenAiUserContent(content),
@@ -131,9 +145,9 @@ export class OpenAiSession implements CapySession, StructuredSession {
     this.alive = true
 
     try {
-      await this.runAgenticLoop()
+      const outcome = await this.runAgenticLoop()
       if (!this.interrupted && !this.killed) {
-        this.opts.onEvent({ type: "done" })
+        this.opts.onEvent(outcomeEvent(outcome))
       }
     } catch (err) {
       if (this.wasAborted(err)) return
@@ -142,6 +156,7 @@ export class OpenAiSession implements CapySession, StructuredSession {
     } finally {
       this.turnAttachments = []
       this.abortController = null
+      release()
     }
   }
 
@@ -149,7 +164,6 @@ export class OpenAiSession implements CapySession, StructuredSession {
     this.interrupted = true
     this.abortController?.abort()
     this.abortController = null
-    this.dropTrailingUnmatchedToolCalls()
   }
 
   async restart(): Promise<void> {
@@ -186,7 +200,7 @@ export class OpenAiSession implements CapySession, StructuredSession {
     const params: OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming = {
       model: this.opts.model,
       messages: requestMessages,
-      max_completion_tokens: MAX_TOKENS,
+      max_completion_tokens: MAX_OUTPUT_TOKENS,
       response_format: {
         type: "json_schema",
         json_schema: {
@@ -218,7 +232,7 @@ export class OpenAiSession implements CapySession, StructuredSession {
     return parseStructured<T>(text, schema)
   }
 
-  private async runAgenticLoop(): Promise<void> {
+  private async runAgenticLoop(): Promise<LoopOutcome> {
     const tools = this.tools
 
     const completedBlocks: ContentBlock[] = []
@@ -228,8 +242,7 @@ export class OpenAiSession implements CapySession, StructuredSession {
     }
 
     while (true) {
-      if (this.killed) return
-      if (this.interrupted) return
+      if (this.killed || this.interrupted) return "done"
 
       this.abortController = new AbortController()
 
@@ -251,7 +264,7 @@ export class OpenAiSession implements CapySession, StructuredSession {
           stream: true,
           // GPT-5 and the o-series reject `max_tokens`; `max_completion_tokens`
           // works across all current chat models.
-          max_completion_tokens: MAX_TOKENS,
+          max_completion_tokens: MAX_OUTPUT_TOKENS,
         },
         { signal: this.abortController.signal },
       )
@@ -306,10 +319,7 @@ export class OpenAiSession implements CapySession, StructuredSession {
         }
       }
 
-      // Tool calls run only on a clean finish — Ollama reports "stop" alongside
-      // them. A cut-off or dropped stream may carry half-formed calls, and tools
-      // mutate the budget; that turn keeps its text only, since stored calls
-      // without tool replies would fail every later request.
+      // Ollama reports "stop" alongside tool calls.
       const completed = finishReason === "tool_calls" || finishReason === "stop"
       const assistantToolCalls: OpenAI.Chat.Completions.ChatCompletionMessageToolCall[] = []
       const sortedIndices = completed ? [...toolAccs.keys()].sort((a, b) => a - b) : []
@@ -332,17 +342,6 @@ export class OpenAiSession implements CapySession, StructuredSession {
         emitContent()
       }
 
-      if (!completed && assistantTextOnly.length === 0) {
-        if (this.interrupted || this.killed) return
-        this.interrupted = true
-        this.opts.onEvent({
-          type: "error",
-          code: "cutOff",
-          message: "The response was cut off before Capy could reply. Try again.",
-        })
-        return
-      }
-
       // Only persist a turn that carries text or tool calls. An empty terminal
       // completion stored as `{content: null}` with no tool_calls is invalid to
       // OpenAI, and history replays on every send — so one poisons the whole
@@ -359,21 +358,26 @@ export class OpenAiSession implements CapySession, StructuredSession {
         this.messages.push(assistantMessage)
       }
 
+      if (!completed) return cutOffOutcome(assistantTextOnly.length > 0, toolAccs.size > 0)
       // No calls = terminal: re-sending unchanged history spins.
-      if (!hasToolCalls) return
+      if (!hasToolCalls) return "done"
 
       const toolMessages: OpenAI.Chat.Completions.ChatCompletionToolMessageParam[] = []
       let budgetExhausted = false
       let terminalToolSeen = false
       for (const idx of sortedIndices) {
         const acc = toolAccs.get(idx)!
+        if (this.interrupted || this.killed) {
+          toolMessages.push({ role: "tool", tool_call_id: acc.id, content: STOPPED_RESULT })
+          continue
+        }
         this.toolCallCount++
         if (this.toolCallCount > SESSION_TOOL_CALL_BUDGET) {
           budgetExhausted = true
           toolMessages.push({
             role: "tool",
             tool_call_id: acc.id,
-            content: `Error: tool-call budget exhausted (${SESSION_TOOL_CALL_BUDGET} calls). Stopping. Run again if more work is needed.`,
+            content: BUDGET_EXHAUSTED_RESULT,
           })
           continue
         }
@@ -417,31 +421,27 @@ export class OpenAiSession implements CapySession, StructuredSession {
         })
       }
 
-      // stop() dropped the trailing assistant turn — pushing tool messages
-      // referencing its tool_call_ids would 400 on the next request.
-      if (this.interrupted || this.killed) return
-
       this.messages.push(...toolMessages)
-      if (budgetExhausted) {
-        this.interrupted = true
-        this.opts.onEvent({
-          type: "error",
-          code: "budgetExhausted",
-          message: `Tool-call budget exhausted (${SESSION_TOOL_CALL_BUDGET} calls). Stopping. Run again if more work is needed.`,
-        })
-        return
-      }
+      if (budgetExhausted) return "budgetExhausted"
       // Terminal-signal tool — exit. OpenAI tool messages use `role: "tool"`,
       // so the next user send lands naturally without merge gymnastics.
-      if (terminalToolSeen) return
+      if (terminalToolSeen) return "done"
     }
   }
 
-  private dropTrailingUnmatchedToolCalls(): void {
-    const last = this.messages[this.messages.length - 1]
-    if (!last || last.role !== "assistant") return
-    if (last.tool_calls && last.tool_calls.length > 0) {
-      this.messages.pop()
+  private answerOpenToolCalls(): void {
+    const answered = new Set<string>()
+    let turn = this.messages.length - 1
+    for (; turn >= 0; turn--) {
+      const reply = this.messages[turn]
+      if (reply.role !== "tool") break
+      answered.add(reply.tool_call_id)
+    }
+    const assistant = this.messages[turn]
+    if (assistant?.role !== "assistant" || !assistant.tool_calls) return
+    for (const call of assistant.tool_calls) {
+      if (answered.has(call.id)) continue
+      this.messages.push({ role: "tool", tool_call_id: call.id, content: UNANSWERED_RESULT })
     }
   }
 

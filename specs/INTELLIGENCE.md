@@ -120,7 +120,7 @@ Direct `@anthropic-ai/sdk` calls from the renderer. The Tauri webview is a real 
 
 The agentic loop owns message history and an `AbortController`. Tool calls dispatch in-process. PDFs ride through the SDK's native `document` content type.
 
-`stop()` aborts the in-flight stream and drops any trailing assistant turn with unmatched `tool_use` blocks (the API would 400 on the next request otherwise).
+Turns, cut-offs, and Stop follow the shared rule in **How an API turn ends** below. Thinking blocks are echoed back exactly as received — models with preserved thinking reject a history whose earlier turns were edited.
 
 ### OpenAI adapter
 
@@ -144,12 +144,22 @@ A subclass of the OpenAI adapter, not a second client. Ollama serves an OpenAI-c
 
 Honest differences — the streaming ones absorbed by the shared stream loop, the rest handled outside the class:
 
-- **Tool calls may finish with `stop`.** Ollama can end a tool-calling turn with `finish_reason: "stop"` rather than `"tool_calls"`, so the loop runs collected calls on either. A turn cut off by `length`/`content_filter`, or a stream that ends with no finish reason, never runs its calls — it keeps only its text, so history carries no unanswered tool calls. With no text either, the turn surfaces a "cut off" error instead of an empty reply.
+- **Tool calls may finish with `stop`.** Ollama can end a tool-calling turn with `finish_reason: "stop"` rather than `"tool_calls"`, so the loop runs collected calls on either.
 - **Tool-call deltas may omit `index`.** A delta with a new `id` opens a call; one with neither continues the last.
 - **No documents.** The compatibility shim has no `file` content part, so `canReadPdf("ollama")` is false and callers never build a `document` block for it. Statements go in as CSV/OFX.
 - **`max_completion_tokens` is not an Ollama parameter.** It rides along in the request and is ignored, leaving generation uncapped — acceptable for a local model where the cost is wall-clock, not tokens.
 
 Whether a given model can call tools or honor a JSON schema is the model's business, not the adapter's; Settings steers users toward tool-capable ones. Because there is no key, Ollama never touches the OS keychain: its entire config (endpoint + model) lives in the plaintext store file.
+
+### How an API turn ends
+
+The Anthropic, OpenAI, and Ollama adapters share one rule for what a streamed turn leaves in history, so history never holds a tool call without a reply:
+
+- **Clean finish** — Anthropic `tool_use`, OpenAI/Ollama `tool_calls` (or `stop` carrying calls): the turn is stored whole and its calls run. Anthropic `end_turn` / `stop_sequence` and a call-less `stop` store the reply and end the cycle with `done`.
+- **Cut off** — every other ending: Anthropic `max_tokens`, `refusal`, `pause_turn`, or an unknown reason; OpenAI `length`, `content_filter`, or a stream with no finish reason. Its tool calls never run and are never stored; Anthropic streams them live, so the adapter retracts them from the displayed blocks. The turn keeps its text — Anthropic stores the turn up to its last text block before the first `tool_use`, thinking blocks untouched (truncating from the end leaves the context every kept block was produced in intact) — and with no text it is dropped whole. The cycle ends with `done` only when that text was the whole turn; when calls were dropped or there is no text, it ends with a `cutOff` error.
+- **Output cap** — 32,000 tokens per response on both clients. Anthropic's `structured()` always streams, since the SDK refuses a non-streaming request with a cap that large.
+- **Stop** — `stop()` aborts the in-flight stream; a turn aborted mid-stream never reaches history. The tool loop checks for Stop before each call: the running call finishes (its write lands), the remaining calls get a "not run — stopped" error result, and the round is stored whole, so the model knows exactly what was written. A `send()` issued while a stopped round winds down waits for it before touching history.
+- **Self-repair** — before a user message is appended, a trailing assistant turn whose calls lack replies gets error replies for them (Anthropic `is_error` `tool_result` blocks, OpenAI `tool` messages).
 
 All adapters share `buildRenderToolMap()` from `@capybudget/intelligence` for the render-tool → ContentBlock contract. Adding a new render tool means defining it once in `RENDER_TOOL_DEFS` plus its mapping in `render-map.ts`; every adapter picks it up automatically.
 
@@ -374,7 +384,7 @@ Enforcement varies by adapter:
 
 | | Claude CLI | Anthropic + OpenAI + Ollama |
 |---|---|---|
-| `stop()` | kill subprocess + new session ID; serialize prior chat and prepend on next send | abort in-flight request; drop trailing assistant turn with unmatched tool calls; messages otherwise intact |
+| `stop()` | kill subprocess + new session ID; serialize prior chat and prepend on next send | abort in-flight request; let the running tool finish and answer the rest as stopped; messages otherwise intact |
 | `restart()` | kill + new session ID + clear recovery state | abort + clear messages |
 | Recovery on next send | `[Previous conversation]` block prepended | continues normally |
 
