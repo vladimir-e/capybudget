@@ -1,28 +1,15 @@
 import Anthropic from "@anthropic-ai/sdk"
-import { buildRenderToolMap, RENDER_FOLLOWUPS_TOOL_NAME } from "../render-map"
-import { extractErrorMessage } from "../error-message"
-import { runTool, getToolDefinitions, SESSION_TOOL_CALL_BUDGET } from "../tools"
-import {
-  BUDGET_EXHAUSTED_RESULT,
-  MAX_OUTPUT_TOKENS,
-  STOPPED_RESULT,
-  UNANSWERED_RESULT,
-  cutOffOutcome,
-  outcomeEvent,
-} from "./agent-turn"
-import type { LoopOutcome } from "./agent-turn"
+import { getToolDefinitions } from "../tools"
+import { AgentSession } from "./agent-session"
+import type { ToolReply } from "./agent-session"
+import { CutOffError, UNANSWERED_RESULT, cutOffOutcome, toolCallBlock } from "./agent-turn"
+import type { LoopOutcome, TurnDisplay } from "./agent-turn"
 import type { ApiAdapterOptions } from "../factory"
-import type { CapySession } from "../session"
-import type { ContentBlock, FileAttachment, MessageContent } from "../types"
+import type { MessageContent, SessionProvider } from "../types"
 import { parseStructured, schemaBody } from "../structured"
 import type { JsonSchema, StructuredCallOptions, StructuredMessage, StructuredSession } from "../structured"
 
-const RENDER_TOOL_MAP = buildRenderToolMap()
-
-function toolUseToContentBlock(name: string, input: Record<string, unknown>): ContentBlock {
-  const rendered = RENDER_TOOL_MAP[name]?.(input) ?? null
-  return rendered ?? { type: "tool-activity", tool: name }
-}
+const FINISHED = new Set<Anthropic.StopReason | null>(["end_turn", "stop_sequence"])
 
 type UserContentBlock = Exclude<Anthropic.MessageParam["content"], string>[number]
 
@@ -65,24 +52,12 @@ function toAnthropicUserContent(
   })
 }
 
-export class AnthropicSession implements CapySession, StructuredSession {
+export class AnthropicSession extends AgentSession<Anthropic.MessageParam> implements StructuredSession {
   private readonly client: Anthropic
-  private readonly opts: ApiAdapterOptions
   private readonly tools: Anthropic.Tool[]
-  private readonly messages: Anthropic.MessageParam[] = []
-  private abortController: AbortController | null = null
-  private alive = false
-  private killed = false
-  private interrupted = false
-  private toolCallCount = 0
-  private idle: Promise<void> = Promise.resolve()
-  /** Attachments on the current turn — staged by `start_import`, then cleared.
-   *  Held outside `messages` because the flattened message content can't be
-   *  turned back into files. */
-  private turnAttachments: readonly FileAttachment[] = []
 
   constructor(opts: ApiAdapterOptions) {
-    this.opts = opts
+    super(opts)
     this.tools = getToolDefinitions({ pdfSupported: opts.pdfSupported }).map((t) => ({
       name: t.name,
       description: t.description,
@@ -95,59 +70,8 @@ export class AnthropicSession implements CapySession, StructuredSession {
     })
   }
 
-  get isAlive(): boolean {
-    return this.alive
-  }
-
-  async send(content: MessageContent, attachments: readonly FileAttachment[] = []): Promise<void> {
-    if (this.killed) return
-
-    const previous = this.idle
-    let release!: () => void
-    this.idle = new Promise((resolve) => (release = resolve))
-    await previous
-
-    this.interrupted = false
-    this.turnAttachments = attachments
-    this.answerOpenToolUse()
-    this.appendUserContent(toAnthropicUserContent(content))
-    this.alive = true
-
-    try {
-      const outcome = await this.runAgenticLoop()
-      if (!this.interrupted && !this.killed) {
-        this.opts.onEvent(outcomeEvent(outcome))
-      }
-    } catch (err) {
-      if (this.wasAborted(err)) return
-      const { message, status } = extractErrorMessage(err)
-      this.opts.onEvent({ type: "error", message, status, provider: "anthropic" })
-    } finally {
-      this.turnAttachments = []
-      this.abortController = null
-      release()
-    }
-  }
-
-  async stop(): Promise<void> {
-    this.interrupted = true
-    this.abortController?.abort()
-    this.abortController = null
-  }
-
-  async restart(): Promise<void> {
-    this.abortController?.abort()
-    this.abortController = null
-    this.messages.length = 0
-    this.alive = false
-    this.toolCallCount = 0
-  }
-
-  async kill(): Promise<void> {
-    this.killed = true
-    this.abortController?.abort()
-    this.abortController = null
-    this.alive = false
+  protected get providerId(): SessionProvider {
+    return "anthropic"
   }
 
   async structured<T = unknown>(
@@ -155,14 +79,13 @@ export class AnthropicSession implements CapySession, StructuredSession {
     schema: JsonSchema,
     options?: StructuredCallOptions,
   ): Promise<T> {
-    const params: Anthropic.MessageStreamParams = {
+    const params: Omit<Anthropic.MessageStreamParams, "max_tokens"> = {
       model: this.opts.model,
       system: this.opts.systemPrompt,
       messages: messages.map((m) => ({
         role: m.role,
         content: toAnthropicUserContent(m.content),
       })),
-      max_tokens: MAX_OUTPUT_TOKENS,
       // `output_config.format` enforces the schema unconditionally, so the
       // OpenAI-only `strict` marker is dropped from the schema Anthropic sees.
       output_config: {
@@ -170,7 +93,10 @@ export class AnthropicSession implements CapySession, StructuredSession {
       },
     }
 
-    const message = await this.streamStructured(params, options?.onText)
+    const message = await this.withOutputCap((maxTokens) =>
+      this.streamStructured({ ...params, max_tokens: maxTokens }, options?.onText),
+    )
+    if (!FINISHED.has(message.stop_reason)) throw new CutOffError()
 
     const text = message.content
       .filter((block): block is Anthropic.TextBlock => block.type === "text")
@@ -202,172 +128,94 @@ export class AnthropicSession implements CapySession, StructuredSession {
     })
   }
 
-  private async runAgenticLoop(): Promise<LoopOutcome> {
-    const tools = this.tools
-
-    const completedBlocks: ContentBlock[] = []
-    const emitContent = () => {
-      if (completedBlocks.length === 0) return
-      this.opts.onEvent({ type: "content", blocks: [...completedBlocks] })
-    }
-
+  protected async runAgenticLoop(display: TurnDisplay): Promise<LoopOutcome> {
     while (true) {
-      if (this.killed || this.interrupted) return "done"
+      if (this.stopped) return "stopped"
 
-      this.abortController = new AbortController()
-      const iterationStart = completedBlocks.length
+      display.beginIteration()
+      const signal = this.openRequest()
+      const message = await this.withOutputCap((maxTokens) => this.streamTurn(maxTokens, signal, display))
+      // The stream is finished: Stop from here on must not abort it (see streamTurn).
+      this.closeRequest()
 
-      const stream = this.client.messages.stream(
-        {
-          model: this.opts.model,
-          // One breakpoint at the end of system caches the whole static prefix
-          // before it — tools, then system — so multi-turn loops re-read it
-          // instead of re-billing ~7-8K tokens of schema every turn.
-          system: [
-            {
-              type: "text",
-              text: this.opts.systemPrompt,
-              cache_control: { type: "ephemeral" },
-            },
-          ],
-          messages: this.messages,
-          tools,
-          max_tokens: MAX_OUTPUT_TOKENS,
-        },
-        { signal: this.abortController.signal },
-      )
-
-      let accumulatedText = ""
-      let currentTextDraftIndex: number | null = null
-
-      stream.on("text", (delta) => {
-        accumulatedText += delta
-        if (currentTextDraftIndex === null) {
-          currentTextDraftIndex = completedBlocks.length
-          completedBlocks.push({ type: "text", content: accumulatedText })
-        } else {
-          completedBlocks[currentTextDraftIndex] = {
-            type: "text",
-            content: accumulatedText,
-          }
-        }
-        emitContent()
-      })
-
-      stream.on("contentBlock", (block) => {
-        if (block.type === "tool_use") {
-          accumulatedText = ""
-          currentTextDraftIndex = null
-          completedBlocks.push(
-            toolUseToContentBlock(
-              block.name,
-              (block.input ?? {}) as Record<string, unknown>,
-            ),
-          )
-          emitContent()
-        } else if (block.type === "text") {
-          accumulatedText = ""
-          currentTextDraftIndex = null
-        }
-      })
-
-      // Resolve on `message` (message_stop) instead of `finalMessage()` — and don't
-      // abort afterwards. WKWebView leaves the aborted fetch body half-open, which
-      // can stall the next iteration's request for minutes.
-      const finalMessage = await new Promise<Anthropic.Message>((resolve, reject) => {
-        stream.once("message", (msg) => resolve(msg))
-        stream.once("abort", (err) => reject(err))
-        stream.once("error", (err) => reject(err))
-      })
-
-      const content = finalMessage.content
-      const stopReason = finalMessage.stop_reason
-      if (stopReason === "end_turn" || stopReason === "stop_sequence") {
+      const { content, stop_reason } = message
+      if (FINISHED.has(stop_reason)) {
         if (content.length > 0) this.messages.push({ role: "assistant", content })
         return "done"
       }
-      if (stopReason !== "tool_use") {
-        const firstToolUse = content.findIndex((b) => b.type === "tool_use")
-        const droppedCalls = firstToolUse !== -1
-        const beforeTools = droppedCalls ? content.slice(0, firstToolUse) : content
-        let kept = 0
-        beforeTools.forEach((b, i) => {
-          if (b.type === "text" && b.text.length > 0) kept = i + 1
-        })
-        if (kept > 0) this.messages.push({ role: "assistant", content: content.slice(0, kept) })
-        if (droppedCalls) {
-          const shown = completedBlocks.splice(iterationStart)
-          completedBlocks.push(...shown.filter((b) => b.type === "text"))
-          this.opts.onEvent({ type: "content", blocks: [...completedBlocks] })
-        }
-        return cutOffOutcome(kept > 0, droppedCalls)
-      }
+      if (stop_reason !== "tool_use") return this.keepCutOffTurn(content, display)
 
       this.messages.push({ role: "assistant", content })
-
-      const toolResults: Anthropic.ToolResultBlockParam[] = []
-      let budgetExhausted = false
-      let terminalToolSeen = false
-      for (const block of content) {
-        if (block.type !== "tool_use") continue
-        if (this.interrupted || this.killed) {
-          toolResults.push({
-            type: "tool_result",
-            tool_use_id: block.id,
-            content: STOPPED_RESULT,
-            is_error: true,
-          })
-          continue
-        }
-        this.toolCallCount++
-        if (this.toolCallCount > SESSION_TOOL_CALL_BUDGET) {
-          budgetExhausted = true
-          toolResults.push({
-            type: "tool_result",
-            tool_use_id: block.id,
-            content: BUDGET_EXHAUSTED_RESULT,
-          })
-          continue
-        }
-        let resultText: string
-        let ok = true
-        try {
-          resultText = await runTool(
-            block.name,
-            (block.input ?? {}) as Record<string, unknown>,
-            {
-              repo: this.opts.repo,
-              fileAdapter: this.opts.fileAdapter,
-              budgetPath: this.opts.budgetPath,
-              currency: this.opts.currency,
-              // Live read so a manual rate edit lands on this call's stamping,
-              // without rebuilding the session.
-              currencies: this.opts.getCurrencies?.() ?? this.opts.currencies,
-              attachments: [...this.turnAttachments],
-              importSupported: this.opts.importSupported,
-              pdfSupported: this.opts.pdfSupported,
-            },
-          )
-        } catch (err) {
-          ok = false
-          resultText = `Error: ${err instanceof Error ? err.message : String(err)}`
-        }
-        // A failed followups call is not terminal — the loop must continue so
-        // the model sees the error result and recovers.
-        if (ok && block.name === RENDER_FOLLOWUPS_TOOL_NAME) terminalToolSeen = true
-        this.opts.onEvent({ type: "tool-result", tool: block.name, id: block.id, ok })
-        toolResults.push({
-          type: "tool_result",
-          tool_use_id: block.id,
-          content: resultText,
-        })
-      }
-
-      this.messages.push({ role: "user", content: toolResults })
-      if (budgetExhausted) return "budgetExhausted"
-      // Terminal-signal tool — exit; the next user message merges into this turn.
-      if (terminalToolSeen) return "done"
+      const round = await this.runToolCalls(
+        content
+          .filter((b): b is Anthropic.ToolUseBlock => b.type === "tool_use")
+          .map((b) => ({ id: b.id, name: b.name, input: (b.input ?? {}) as Record<string, unknown> })),
+        display,
+      )
+      this.messages.push({ role: "user", content: round.replies.map(toToolResult) })
+      if (round.outcome) return round.outcome
     }
+  }
+
+  private streamTurn(maxTokens: number, signal: AbortSignal, display: TurnDisplay): Promise<Anthropic.Message> {
+    const stream = this.client.messages.stream(
+      {
+        model: this.opts.model,
+        // One breakpoint at the end of system caches the whole static prefix
+        // before it — tools, then system — so multi-turn loops re-read it
+        // instead of re-billing ~7-8K tokens of schema every turn.
+        system: [
+          {
+            type: "text",
+            text: this.opts.systemPrompt,
+            cache_control: { type: "ephemeral" },
+          },
+        ],
+        messages: this.messages,
+        tools: this.tools,
+        max_tokens: maxTokens,
+      },
+      { signal },
+    )
+
+    stream.on("text", (delta) => display.appendText(delta))
+    stream.on("contentBlock", (block) => {
+      if (block.type === "tool_use") {
+        display.addCall(block.id, toolCallBlock(block.name, (block.input ?? {}) as Record<string, unknown>))
+      } else if (block.type === "text") {
+        display.endText()
+      }
+    })
+
+    // Resolve on `message` (message_stop) instead of `finalMessage()` — and don't
+    // abort afterwards. WKWebView leaves the aborted fetch body half-open, which
+    // can stall the next request for minutes.
+    return new Promise<Anthropic.Message>((resolve, reject) => {
+      stream.once("message", resolve)
+      stream.once("abort", reject)
+      stream.once("error", reject)
+    })
+  }
+
+  private keepCutOffTurn(content: Anthropic.ContentBlock[], display: TurnDisplay): LoopOutcome {
+    const firstToolUse = content.findIndex((b) => b.type === "tool_use")
+    const droppedCalls = firstToolUse !== -1
+    const beforeTools = droppedCalls ? content.slice(0, firstToolUse) : content
+    let kept = 0
+    beforeTools.forEach((b, i) => {
+      if (b.type === "text" && b.text.length > 0) kept = i + 1
+    })
+    const keptContent = content.slice(0, kept)
+    if (kept > 0) this.messages.push({ role: "assistant", content: keptContent })
+    display.replaceIteration(
+      keptContent.flatMap((b) => (b.type === "text" && b.text.length > 0 ? [b.text] : [])),
+    )
+    return cutOffOutcome(kept > 0, droppedCalls)
+  }
+
+  protected appendUserTurn(content: MessageContent): void {
+    this.answerOpenToolUse()
+    this.appendUserContent(toAnthropicUserContent(content))
   }
 
   private answerOpenToolUse(): void {
@@ -395,13 +243,13 @@ export class AnthropicSession implements CapySession, StructuredSession {
     }
     this.messages.push({ role: "user", content: incomingBlocks })
   }
+}
 
-  private wasAborted(err: unknown): boolean {
-    if (this.killed) return true
-    if (err instanceof Error) {
-      if (err.name === "AbortError") return true
-      if ((err as { type?: string }).type === "aborted") return true
-    }
-    return this.abortController?.signal.aborted === true
+function toToolResult(reply: ToolReply): Anthropic.ToolResultBlockParam {
+  return {
+    type: "tool_result",
+    tool_use_id: reply.id,
+    content: reply.content,
+    ...(reply.isError ? { is_error: true } : {}),
   }
 }

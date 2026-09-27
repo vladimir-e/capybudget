@@ -15,6 +15,7 @@ interface FakeBlock {
 
 interface FakeTurn {
   thinking?: Array<{ type: "thinking"; thinking: string; signature: string }>
+  blocks?: Array<{ text: string } | { toolUse: { id: string; name: string; input: Record<string, unknown> } }>
   textDeltas?: string[]
   toolUses?: Array<{ id: string; name: string; input: Record<string, unknown> }>
   stop_reason: Anthropic.StopReason | null
@@ -86,6 +87,20 @@ const { mockStream, queueTurn, lastStreamCall, abortSignals, streamStubs } = vi.
         const sig = opts?.signal as AbortSignal | undefined
         const completed: FakeBlock[] = []
         let textAccum = ""
+        for (const b of turn.blocks ?? []) {
+          if (sig?.aborted || controller.signal.aborted) {
+            const err = new Error("Aborted")
+            err.name = "AbortError"
+            emit("abort", err)
+            ended = true
+            return
+          }
+          const block: FakeBlock =
+            "text" in b ? { type: "text", text: b.text } : { type: "tool_use", ...b.toolUse }
+          if (block.type === "text") emit("text", block.text)
+          emit("contentBlock", block)
+          completed.push(block)
+        }
         if (turn.textDeltas) {
           for (const delta of turn.textDeltas) {
             if (sig?.aborted || controller.signal.aborted) {
@@ -180,7 +195,7 @@ vi.mock("../tools", async (importOriginal) => {
 })
 
 import { AnthropicSession } from "./anthropic-session"
-import { STOPPED_RESULT, UNANSWERED_RESULT } from "./agent-turn"
+import { CutOffError, MAX_OUTPUT_TOKENS, STOPPED_RESULT, UNANSWERED_RESULT } from "./agent-turn"
 
 function makeSession() {
   const events: StreamEvent[] = []
@@ -611,7 +626,7 @@ describe("AnthropicSession", () => {
     queueTurn({ textDeltas: ["ok"], stop_reason: "end_turn" })
     const { session } = makeSession()
     await session.send("Hi")
-    expect(lastStreamCall().max_tokens).toBe(32000)
+    expect(lastStreamCall().max_tokens).toBe(MAX_OUTPUT_TOKENS)
   })
 
   it("kill() flips isAlive false and aborts in-flight requests", async () => {
@@ -743,8 +758,9 @@ describe("AnthropicSession", () => {
           },
         },
       ],
-      stop_reason: "end_turn",
+      stop_reason: "tool_use",
     })
+    queueTurn({ textDeltas: ["done"], stop_reason: "end_turn" })
 
     mockRunTool.mockResolvedValue("Rendered.")
 
@@ -1104,7 +1120,7 @@ describe("AnthropicSession.structured", () => {
       format: { type: "json_schema", schema: SCHEMA },
     })
     expect(call.model).toBe("claude-sonnet-4-6")
-    expect(call.max_tokens).toBe(32000)
+    expect(call.max_tokens).toBe(MAX_OUTPUT_TOKENS)
   })
 
   it("drops the OpenAI-only strict marker from the schema it sends", async () => {
@@ -1219,5 +1235,259 @@ describe("AnthropicSession.structured", () => {
     // The stream stub exists synchronously; abort before its deferred emits run.
     streamStubs[streamStubs.length - 1].controller.abort()
     await expect(promise).rejects.toThrow(/aborted/i)
+  })
+})
+
+function apiError(status: number, message: string): Error {
+  const err = new Error(`${status} ${message}`) as Error & { status: number; error: unknown }
+  err.status = status
+  err.error = { type: "error", error: { type: "invalid_request_error", message } }
+  return err
+}
+
+function blockingTools() {
+  const resolvers: Array<(v: string) => void> = []
+  mockRunTool.mockImplementation(
+    () =>
+      new Promise<string>((resolve) => {
+        resolvers.push(resolve)
+      }),
+  )
+  return {
+    resolvers,
+    started: () =>
+      vi.waitFor(() => {
+        if (resolvers.length === 0) throw new Error("not yet")
+      }),
+  }
+}
+
+function history(session: AnthropicSession): Anthropic.MessageParam[] {
+  return (session as unknown as { messages: Anthropic.MessageParam[] }).messages
+}
+
+function lastBlocks(events: StreamEvent[]) {
+  const last = events.filter((e) => e.type === "content").pop()
+  if (last?.type !== "content") throw new Error("expected content event")
+  return last.blocks
+}
+
+describe("AnthropicSession lifecycle", () => {
+  it("stop() mid-batch retracts the cards of calls that never run and reports only the run call", async () => {
+    queueTurn({
+      toolUses: [
+        { id: "tu1", name: "create_transaction", input: {} },
+        { id: "tu2", name: "list_accounts", input: {} },
+        { id: "tu3", name: "list_categories", input: {} },
+      ],
+      stop_reason: "tool_use",
+    })
+    const tools = blockingTools()
+
+    const { session, events } = makeSession()
+    const sending = session.send("Add these")
+    await tools.started()
+    await session.stop()
+    const afterStop = events.length
+    tools.resolvers[0]("created")
+    await sending
+
+    expect(lastBlocks(events)).toEqual([{ type: "tool-activity", tool: "create_transaction" }])
+    expect(events.slice(afterStop)).toEqual([
+      { type: "tool-result", tool: "create_transaction", id: "tu1", ok: true },
+    ])
+    expect(events.filter((e) => e.type === "tool-result")).toHaveLength(1)
+  })
+
+  it("stop() in the tool phase leaves the finished stream un-aborted", async () => {
+    queueTurn({
+      toolUses: [{ id: "tu1", name: "create_transaction", input: {} }],
+      stop_reason: "tool_use",
+    })
+    const tools = blockingTools()
+
+    const { session } = makeSession()
+    const sending = session.send("Add it")
+    await tools.started()
+    await session.stop()
+    tools.resolvers[0]("created")
+    await sending
+
+    expect(abortSignals[0].aborted).toBe(false)
+    expect(streamStubs[0].abortSpy).not.toHaveBeenCalled()
+  })
+
+  it("kill() during the tool loop answers the rest with STOPPED and emits nothing more", async () => {
+    queueTurn({
+      toolUses: [
+        { id: "tu1", name: "create_transaction", input: {} },
+        { id: "tu2", name: "create_transaction", input: {} },
+      ],
+      stop_reason: "tool_use",
+    })
+    const tools = blockingTools()
+
+    const { session, events } = makeSession()
+    const sending = session.send("Add these")
+    await tools.started()
+    const queued = session.send("And another")
+    await session.kill()
+    const afterKill = events.length
+    tools.resolvers[0]("created")
+    await Promise.all([sending, queued])
+
+    expect(events.slice(afterKill)).toEqual([])
+    expect(mockStream).toHaveBeenCalledTimes(1)
+    expect(history(session).at(-1)).toEqual({
+      role: "user",
+      content: [
+        { type: "tool_result", tool_use_id: "tu1", content: "created" },
+        { type: "tool_result", tool_use_id: "tu2", content: STOPPED_RESULT, is_error: true },
+      ],
+    })
+  })
+
+  it("restart() waits for an in-flight tool before clearing history", async () => {
+    queueTurn({
+      toolUses: [{ id: "tu1", name: "create_transaction", input: {} }],
+      stop_reason: "tool_use",
+    })
+    const tools = blockingTools()
+
+    const { session } = makeSession()
+    const sending = session.send("Add it")
+    await tools.started()
+    const restarting = session.restart()
+    tools.resolvers[0]("created")
+    await Promise.all([sending, restarting])
+
+    expect(history(session)).toEqual([])
+    queueTurn({ textDeltas: ["ok"], stop_reason: "end_turn" })
+    await session.send("Fresh")
+    expect(lastStreamCall().messages).toEqual([{ role: "user", content: [{ type: "text", text: "Fresh" }] }])
+  })
+
+  it("a send whose content can't be converted reports an error and doesn't wedge the session", async () => {
+    const { session, events } = makeSession()
+    await session.send(42 as unknown as string)
+    expect(events.at(-1)).toMatchObject({ type: "error", provider: "anthropic" })
+
+    queueTurn({ textDeltas: ["ok"], stop_reason: "end_turn" })
+    await session.send("Hi")
+    expect(events.at(-1)).toEqual({ type: "done" })
+  })
+
+  it("a cut-off [text, tool_use, text] keeps and shows only the text before the call", async () => {
+    queueTurn({
+      blocks: [
+        { text: "Adding it." },
+        { toolUse: { id: "tu1", name: "create_transaction", input: {} } },
+        { text: "Also" },
+      ],
+      stop_reason: "max_tokens",
+    })
+
+    const { session, events } = makeSession()
+    await session.send("Add it")
+
+    expect(lastBlocks(events)).toEqual([{ type: "text", content: "Adding it." }])
+    expect(events.at(-1)).toMatchObject({ type: "error", code: "cutOff" })
+    expect(history(session)[1]).toEqual({ role: "assistant", content: [{ type: "text", text: "Adding it." }] })
+  })
+
+  it("a cut-off [tool_use, text] keeps and shows nothing", async () => {
+    queueTurn({
+      blocks: [{ toolUse: { id: "tu1", name: "create_transaction", input: {} } }, { text: "Done" }],
+      stop_reason: "max_tokens",
+    })
+
+    const { session, events } = makeSession()
+    await session.send("Add it")
+
+    expect(lastBlocks(events)).toEqual([])
+    expect(events.at(-1)).toMatchObject({ type: "error", code: "cutOff" })
+    expect(history(session).map((m) => m.role)).toEqual(["user"])
+  })
+
+  it("marks the budget-exhausted result as an error", async () => {
+    const { SESSION_TOOL_CALL_BUDGET } = await import("@capybudget/intelligence")
+    for (let i = 0; i < SESSION_TOOL_CALL_BUDGET + 1; i++) {
+      queueTurn({ toolUses: [{ id: `tu-${i}`, name: "list_accounts", input: {} }], stop_reason: "tool_use" })
+    }
+    mockRunTool.mockResolvedValue("ok")
+
+    const { session } = makeSession()
+    await session.send("Loop forever")
+
+    const last = history(session).at(-1)!.content as Anthropic.ToolResultBlockParam[]
+    expect(last[0]).toMatchObject({ is_error: true, content: expect.stringMatching(/budget exhausted/i) })
+  })
+})
+
+describe("AnthropicSession output cap", () => {
+  it("retries once with the limit a max_tokens 400 names, and keeps it for the session", async () => {
+    queueTurn({
+      stop_reason: null,
+      error: apiError(
+        400,
+        "max_tokens: 32000 > 8192, which is the maximum allowed number of output tokens for claude-3-5-haiku-20241022",
+      ),
+    })
+    queueTurn({ textDeltas: ["ok"], stop_reason: "end_turn" })
+
+    const { session, events } = makeSession()
+    await session.send("Hi")
+    expect(lastStreamCall().max_tokens).toBe(8192)
+    expect(events.at(-1)).toEqual({ type: "done" })
+
+    queueTurn({ textDeltas: ['{"ok": true}'], stop_reason: "end_turn" })
+    await session.structured([{ role: "user", content: "x" }], {
+      type: "object",
+      properties: { ok: { type: "boolean" } },
+      required: ["ok"],
+    })
+    expect(mockStream).toHaveBeenCalledTimes(3)
+    expect(lastStreamCall().max_tokens).toBe(8192)
+  })
+
+  it("falls back to 8192 when the cap error names no smaller limit", async () => {
+    queueTurn({ stop_reason: null, error: apiError(400, "max_tokens is too large for this model") })
+    queueTurn({ textDeltas: ["ok"], stop_reason: "end_turn" })
+
+    const { session } = makeSession()
+    await session.send("Hi")
+    expect(lastStreamCall().max_tokens).toBe(8192)
+  })
+
+  it("surfaces an unrelated 400 without retrying", async () => {
+    queueTurn({ stop_reason: null, error: apiError(400, "messages: roles must alternate") })
+
+    const { session, events } = makeSession()
+    await session.send("Hi")
+    expect(mockStream).toHaveBeenCalledTimes(1)
+    expect(events.at(-1)).toMatchObject({ type: "error", status: 400 })
+  })
+
+  it("structured() retries a cap 400 too", async () => {
+    queueTurn({ stop_reason: null, error: apiError(400, "max_tokens: 32000 > 4096, which is the maximum") })
+    queueTurn({ textDeltas: ['{"ok": true}'], stop_reason: "end_turn" })
+
+    const { session } = makeSession()
+    const result = await session.structured([{ role: "user", content: "x" }], {
+      type: "object",
+      properties: { ok: { type: "boolean" } },
+      required: ["ok"],
+    })
+    expect(result).toEqual({ ok: true })
+    expect(lastStreamCall().max_tokens).toBe(4096)
+  })
+
+  it("structured() reports a truncated reply as cut off, not as a parse error", async () => {
+    queueTurn({ textDeltas: ['{"ok": tr'], stop_reason: "max_tokens" })
+
+    const { session } = makeSession()
+    await expect(
+      session.structured([{ role: "user", content: "x" }], { type: "object", properties: {} }),
+    ).rejects.toBeInstanceOf(CutOffError)
   })
 })

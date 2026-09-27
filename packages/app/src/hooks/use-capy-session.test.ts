@@ -341,7 +341,7 @@ describe("useCapySession live cache invalidation", () => {
     const blocks = result.current.messages.at(-1)?.blocks ?? []
     expect(blocks.at(-1)).toMatchObject({
       type: "error",
-      message: "The response was cut off before Capy could reply. Try again.",
+      message: "Capy's reply was cut off before it finished. Try again, or ask for less at once.",
     })
   })
 

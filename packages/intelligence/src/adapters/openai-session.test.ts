@@ -39,7 +39,7 @@ const { mockCreate, queueTurn, queueStructured, lastCreateCall, allCreateCalls, 
     // Non-streaming completions for the structured() path, keyed off the
     // absence of `stream: true`. Kept separate from the streaming turn queue
     // so the two request shapes don't share state.
-    const structuredQueue: Array<{ content: string } | { error: Error }> = []
+    const structuredQueue: Array<{ content: string; finish_reason?: string } | { error: Error }> = []
 
     const create = vi.fn().mockImplementation(async (params, opts) => {
       if (!params.stream) {
@@ -47,6 +47,7 @@ const { mockCreate, queueTurn, queueStructured, lastCreateCall, allCreateCalls, 
           messages: JSON.parse(JSON.stringify(params.messages)),
           tools: params.tools,
           response_format: params.response_format,
+          max_completion_tokens: params.max_completion_tokens,
         })
         const next = structuredQueue.shift()
         if (!next) {
@@ -54,7 +55,12 @@ const { mockCreate, queueTurn, queueStructured, lastCreateCall, allCreateCalls, 
         }
         if ("error" in next) throw next.error
         return {
-          choices: [{ message: { role: "assistant", content: next.content } }],
+          choices: [
+            {
+              message: { role: "assistant", content: next.content },
+              finish_reason: next.finish_reason ?? "stop",
+            },
+          ],
         }
       }
       calls.push({
@@ -182,7 +188,7 @@ const { mockCreate, queueTurn, queueStructured, lastCreateCall, allCreateCalls, 
       queue.push(turn)
     }
 
-    function queueStructured(next: { content: string } | { error: Error }) {
+    function queueStructured(next: { content: string; finish_reason?: string } | { error: Error }) {
       structuredQueue.push(next)
     }
 
@@ -226,7 +232,7 @@ vi.mock("../tools", async (importOriginal) => {
 })
 
 import { OpenAiSession } from "./openai-session"
-import { STOPPED_RESULT, UNANSWERED_RESULT } from "./agent-turn"
+import { CutOffError, MAX_OUTPUT_TOKENS, STOPPED_RESULT, UNANSWERED_RESULT } from "./agent-turn"
 
 function makeSession() {
   const events: StreamEvent[] = []
@@ -636,7 +642,7 @@ describe("OpenAiSession", () => {
     queueTurn({ textDeltas: ["ok"], finish_reason: "stop" })
     const { session } = makeSession()
     await session.send("Hi")
-    expect(lastCreateCall().max_completion_tokens).toBe(32000)
+    expect(lastCreateCall().max_completion_tokens).toBe(MAX_OUTPUT_TOKENS)
   })
 
   it("kill() flips isAlive false and aborts in-flight requests", async () => {
@@ -1431,5 +1437,229 @@ describe("OpenAiSession.structured", () => {
     const stream = (await results[results.length - 1].value) as { controller: AbortController }
     stream.controller.abort()
     await expect(promise).rejects.toThrow(/aborted/i)
+  })
+})
+
+function apiError(status: number, message: string): Error {
+  const err = new Error(`${status} ${message}`) as Error & { status: number; error: unknown }
+  err.status = status
+  err.error = { type: "invalid_request_error", code: null, message, param: "max_tokens" }
+  return err
+}
+
+function blockingTools() {
+  const resolvers: Array<(v: string) => void> = []
+  mockRunTool.mockImplementation(
+    () =>
+      new Promise<string>((resolve) => {
+        resolvers.push(resolve)
+      }),
+  )
+  return {
+    resolvers,
+    started: () =>
+      vi.waitFor(() => {
+        if (resolvers.length === 0) throw new Error("not yet")
+      }),
+  }
+}
+
+function history(session: OpenAiSession): Array<Record<string, unknown>> {
+  return (session as unknown as { messages: Array<Record<string, unknown>> }).messages
+}
+
+function lastBlocks(events: StreamEvent[]) {
+  const last = events.filter((e) => e.type === "content").pop()
+  if (last?.type !== "content") throw new Error("expected content event")
+  return last.blocks
+}
+
+const CAP_ERROR =
+  "max_tokens is too large: 32000. This model supports at most 16384 completion tokens, whereas you provided 32000."
+
+describe("OpenAiSession lifecycle", () => {
+  it("a send issued while a stopped round winds down waits for it before touching history", async () => {
+    queueTurn({
+      toolCallDeltas: [{ index: 0, id: "call_a", name: "create_transaction", argFragments: ["{}"] }],
+      finish_reason: "tool_calls",
+    })
+    const tools = blockingTools()
+
+    const { session } = makeSession()
+    const first = session.send("Add it")
+    await tools.started()
+    await session.stop()
+    queueTurn({ textDeltas: ["ok"], finish_reason: "stop" })
+    const second = session.send("Next")
+    tools.resolvers[0]("created")
+    await Promise.all([first, second])
+
+    expect((lastCreateCall().messages as unknown[]).slice(3)).toEqual([
+      { role: "tool", tool_call_id: "call_a", content: "created" },
+      { role: "user", content: "Next" },
+    ])
+  })
+
+  it("stop() mid-batch retracts the cards of calls that never run and reports only the run call", async () => {
+    queueTurn({
+      toolCallDeltas: [
+        { index: 0, id: "call_a", name: "create_transaction", argFragments: ["{}"] },
+        { index: 1, id: "call_b", name: "list_accounts", argFragments: ["{}"] },
+        { index: 2, id: "call_c", name: "list_categories", argFragments: ["{}"] },
+      ],
+      finish_reason: "tool_calls",
+    })
+    const tools = blockingTools()
+
+    const { session, events } = makeSession()
+    const sending = session.send("Add these")
+    await tools.started()
+    await session.stop()
+    const afterStop = events.length
+    tools.resolvers[0]("created")
+    await sending
+
+    expect(lastBlocks(events)).toEqual([{ type: "tool-activity", tool: "create_transaction" }])
+    expect(events.slice(afterStop)).toEqual([
+      { type: "tool-result", tool: "create_transaction", id: "call_a", ok: true },
+    ])
+    expect(events.filter((e) => e.type === "tool-result")).toHaveLength(1)
+  })
+
+  it("stop() in the tool phase leaves the finished stream un-aborted", async () => {
+    queueTurn({
+      toolCallDeltas: [{ index: 0, id: "call_a", name: "create_transaction", argFragments: ["{}"] }],
+      finish_reason: "tool_calls",
+    })
+    const tools = blockingTools()
+
+    const { session } = makeSession()
+    const sending = session.send("Add it")
+    await tools.started()
+    await session.stop()
+    tools.resolvers[0]("created")
+    await sending
+
+    expect(abortSignals[0].aborted).toBe(false)
+  })
+
+  it("kill() during the tool loop answers the rest with STOPPED and emits nothing more", async () => {
+    queueTurn({
+      toolCallDeltas: [
+        { index: 0, id: "call_a", name: "create_transaction", argFragments: ["{}"] },
+        { index: 1, id: "call_b", name: "create_transaction", argFragments: ["{}"] },
+      ],
+      finish_reason: "tool_calls",
+    })
+    const tools = blockingTools()
+
+    const { session, events } = makeSession()
+    const sending = session.send("Add these")
+    await tools.started()
+    const queued = session.send("And another")
+    await session.kill()
+    const afterKill = events.length
+    tools.resolvers[0]("created")
+    await Promise.all([sending, queued])
+
+    expect(events.slice(afterKill)).toEqual([])
+    expect(mockCreate).toHaveBeenCalledTimes(1)
+    expect(history(session).slice(-2)).toEqual([
+      { role: "tool", tool_call_id: "call_a", content: "created" },
+      { role: "tool", tool_call_id: "call_b", content: STOPPED_RESULT },
+    ])
+  })
+
+  it("restart() waits for an in-flight tool before clearing history", async () => {
+    queueTurn({
+      toolCallDeltas: [{ index: 0, id: "call_a", name: "create_transaction", argFragments: ["{}"] }],
+      finish_reason: "tool_calls",
+    })
+    const tools = blockingTools()
+
+    const { session } = makeSession()
+    const sending = session.send("Add it")
+    await tools.started()
+    const restarting = session.restart()
+    tools.resolvers[0]("created")
+    await Promise.all([sending, restarting])
+
+    expect(history(session)).toEqual([])
+    queueTurn({ textDeltas: ["ok"], finish_reason: "stop" })
+    await session.send("Fresh")
+    expect(lastCreateCall().messages).toEqual([
+      { role: "system", content: "you are capy" },
+      { role: "user", content: "Fresh" },
+    ])
+  })
+
+  it("a send whose content can't be converted reports an error and doesn't wedge the session", async () => {
+    const { session, events } = makeSession()
+    await session.send([42] as unknown as string)
+    expect(events.at(-1)).toMatchObject({ type: "error", provider: "openai" })
+
+    queueTurn({ textDeltas: ["ok"], finish_reason: "stop" })
+    await session.send("Hi")
+    expect(events.at(-1)).toEqual({ type: "done" })
+  })
+})
+
+describe("OpenAiSession output cap", () => {
+  const SCHEMA = {
+    type: "object" as const,
+    properties: { ok: { type: "boolean" as const } },
+    required: ["ok"],
+  }
+
+  it("retries once with the limit a max_tokens 400 names, and keeps it for the session", async () => {
+    queueTurn({ finish_reason: null, error: apiError(400, CAP_ERROR) })
+    queueTurn({ textDeltas: ["ok"], finish_reason: "stop" })
+
+    const { session, events } = makeSession()
+    await session.send("Hi")
+    expect(lastCreateCall().max_completion_tokens).toBe(16384)
+    expect(events.at(-1)).toEqual({ type: "done" })
+
+    queueStructured({ content: '{"ok": true}' })
+    await session.structured([{ role: "user", content: "x" }], SCHEMA)
+    expect(mockCreate).toHaveBeenCalledTimes(3)
+    expect(lastCreateCall().max_completion_tokens).toBe(16384)
+  })
+
+  it("surfaces an unrelated 400 without retrying", async () => {
+    queueTurn({ finish_reason: null, error: apiError(400, "Invalid 'messages[1].content'") })
+
+    const { session, events } = makeSession()
+    await session.send("Hi")
+    expect(mockCreate).toHaveBeenCalledTimes(1)
+    expect(events.at(-1)).toMatchObject({ type: "error", status: 400 })
+  })
+
+  it("structured() retries a cap 400 on both the plain and the streaming path", async () => {
+    const { session } = makeSession()
+    queueStructured({ error: apiError(400, CAP_ERROR) })
+    queueStructured({ content: '{"ok": true}' })
+    expect(await session.structured([{ role: "user", content: "x" }], SCHEMA)).toEqual({ ok: true })
+    expect(lastCreateCall().max_completion_tokens).toBe(16384)
+
+    const fresh = makeSession().session
+    queueTurn({ finish_reason: null, error: apiError(400, CAP_ERROR) })
+    queueTurn({ textDeltas: ['{"ok": true}'], finish_reason: "stop" })
+    const streamed = await fresh.structured([{ role: "user", content: "x" }], SCHEMA, { onText: () => {} })
+    expect(streamed).toEqual({ ok: true })
+    expect(lastCreateCall().max_completion_tokens).toBe(16384)
+  })
+
+  it("structured() reports a truncated reply as cut off, not as a parse error", async () => {
+    const { session } = makeSession()
+    queueStructured({ content: '{"ok": tr', finish_reason: "length" })
+    await expect(session.structured([{ role: "user", content: "x" }], SCHEMA)).rejects.toBeInstanceOf(
+      CutOffError,
+    )
+
+    queueTurn({ textDeltas: ['{"ok": tr'], finish_reason: "length" })
+    await expect(
+      session.structured([{ role: "user", content: "x" }], SCHEMA, { onText: () => {} }),
+    ).rejects.toBeInstanceOf(CutOffError)
   })
 })

@@ -111,7 +111,7 @@
     "notConfigured": "Capy is not configured. Open settings to pick an AI provider.",
     "sendFailed": "Failed to send message",
     "interrupted": "Session interrupted. Send a message to continue.",
-    "cutOff": "The response was cut off before Capy could reply. Try again.",
+    "cutOff": "Capy's reply was cut off before it finished. Try again, or ask for less at once.",
     "budgetExhausted": "Capy reached its limit of tool calls for this reply. Send a message to continue."
   },
   "secretGate": {
