@@ -17,12 +17,19 @@ interface FakeToolCallDelta {
 
 interface FakeTurn {
   textDeltas?: string[]
+  refusalDeltas?: string[]
   toolCallDeltas?: FakeToolCallDelta[]
   /** Null ends the stream without a finish chunk. */
   finish_reason: "stop" | "tool_calls" | "length" | "content_filter" | null
   error?: Error
   /** Extra chunk appended AFTER finish_reason — must never be observed. */
   tailChunk?: { content: string }
+}
+
+interface StructuredReply {
+  content: string
+  finish_reason?: string
+  refusal?: string
 }
 
 const { mockCreate, queueTurn, queueStructured, lastCreateCall, allCreateCalls, abortSignals } = vi.hoisted(
@@ -39,7 +46,7 @@ const { mockCreate, queueTurn, queueStructured, lastCreateCall, allCreateCalls, 
     // Non-streaming completions for the structured() path, keyed off the
     // absence of `stream: true`. Kept separate from the streaming turn queue
     // so the two request shapes don't share state.
-    const structuredQueue: Array<{ content: string; finish_reason?: string } | { error: Error }> = []
+    const structuredQueue: Array<StructuredReply | { error: Error }> = []
 
     const create = vi.fn().mockImplementation(async (params, opts) => {
       if (!params.stream) {
@@ -57,7 +64,7 @@ const { mockCreate, queueTurn, queueStructured, lastCreateCall, allCreateCalls, 
         return {
           choices: [
             {
-              message: { role: "assistant", content: next.content },
+              message: { role: "assistant", content: next.content, refusal: next.refusal ?? null },
               finish_reason: next.finish_reason ?? "stop",
             },
           ],
@@ -81,6 +88,7 @@ const { mockCreate, queueTurn, queueStructured, lastCreateCall, allCreateCalls, 
         choices: Array<{
           delta: {
             content?: string
+            refusal?: string | null
             tool_calls?: Array<{
               index?: number
               id?: string
@@ -99,6 +107,11 @@ const { mockCreate, queueTurn, queueStructured, lastCreateCall, allCreateCalls, 
             choices: [{ delta: { content: d }, finish_reason: null, index: 0 }],
           })
         }
+      }
+      for (const r of turn.refusalDeltas ?? []) {
+        chunks.push({
+          choices: [{ delta: { refusal: r }, finish_reason: null, index: 0 }],
+        })
       }
       if (turn.toolCallDeltas) {
         // Match OpenAI's wire shape: id+name announcement, then arg fragments.
@@ -188,7 +201,7 @@ const { mockCreate, queueTurn, queueStructured, lastCreateCall, allCreateCalls, 
       queue.push(turn)
     }
 
-    function queueStructured(next: { content: string; finish_reason?: string } | { error: Error }) {
+    function queueStructured(next: StructuredReply | { error: Error }) {
       structuredQueue.push(next)
     }
 
@@ -962,6 +975,17 @@ describe("OpenAiSession", () => {
     expect(messages).toContainEqual({ role: "assistant", content: "Let me check" })
   })
 
+  it("reports a streamed refusal that finishes with stop as refused, not as an empty reply", async () => {
+    queueTurn({ refusalDeltas: ["I can't ", "help with that."], finish_reason: "stop" })
+
+    const { session, events } = makeSession()
+    await session.send("hi")
+
+    expect(events.at(-1)).toMatchObject({ type: "error", code: "refused" })
+    expect(events.some((e) => e.type === "done")).toBe(false)
+    expect(history(session).some((m) => m.role === "assistant")).toBe(false)
+  })
+
   it("reports a text-only turn cut off by length as cutOff, keeping its text", async () => {
     queueTurn({ textDeltas: ["A long answer that"], finish_reason: "length" })
 
@@ -1715,6 +1739,19 @@ describe("OpenAiSession output cap", () => {
     )
 
     queueTurn({ textDeltas: [], finish_reason: "content_filter" })
+    await expect(
+      session.structured([{ role: "user", content: "x" }], SCHEMA, { onText: () => {} }),
+    ).rejects.toBeInstanceOf(RefusedError)
+  })
+
+  it("structured() reports a refusal that finishes with stop as refused, not as a parse error", async () => {
+    const { session } = makeSession()
+    queueStructured({ content: "", refusal: "I can't help with that." })
+    await expect(session.structured([{ role: "user", content: "x" }], SCHEMA)).rejects.toBeInstanceOf(
+      RefusedError,
+    )
+
+    queueTurn({ refusalDeltas: ["I can't ", "help with that."], finish_reason: "stop" })
     await expect(
       session.structured([{ role: "user", content: "x" }], SCHEMA, { onText: () => {} }),
     ).rejects.toBeInstanceOf(RefusedError)

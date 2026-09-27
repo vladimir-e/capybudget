@@ -10,14 +10,18 @@ import type { JsonSchema, StructuredCallOptions, StructuredMessage, StructuredSe
 
 type ChatMessage = OpenAI.Chat.Completions.ChatCompletionMessageParam
 
-// Ollama reports "stop" alongside tool calls.
-function finished(reason: string | null | undefined): boolean {
-  return reason === "tool_calls" || reason === "stop"
+type Ending = "finished" | "refused" | "cutOff"
+
+// A model refusal arrives as `stop` with a refusal message; Ollama reports "stop" alongside tool calls.
+function endingOf(reason: string | null | undefined, refusal: string | null | undefined): Ending {
+  if (refusal) return "refused"
+  if (reason === "tool_calls" || reason === "stop") return "finished"
+  return reason === "content_filter" ? "refused" : "cutOff"
 }
 
-function assertStructuredFinished(reason: string | null | undefined): void {
-  if (finished(reason)) return
-  throw reason === "content_filter" ? new RefusedError() : new CutOffError()
+function assertStructuredFinished(ending: Ending): void {
+  if (ending === "refused") throw new RefusedError()
+  if (ending === "cutOff") throw new CutOffError()
 }
 
 function toOpenAiUserContent(
@@ -140,7 +144,7 @@ export class OpenAiSession extends AgentSession<ChatMessage> implements Structur
         this.client.chat.completions.create({ ...params, max_completion_tokens: maxTokens }),
       )
       const choice = completion.choices[0]
-      assertStructuredFinished(choice?.finish_reason)
+      assertStructuredFinished(endingOf(choice?.finish_reason, choice?.message.refusal))
       return parseStructured<T>(choice.message.content ?? "", schema)
     }
 
@@ -148,6 +152,7 @@ export class OpenAiSession extends AgentSession<ChatMessage> implements Structur
       this.client.chat.completions.create({ ...params, max_completion_tokens: maxTokens, stream: true }),
     )
     let text = ""
+    let refusal = ""
     let finishReason: string | null = null
     for await (const chunk of stream) {
       const choice = chunk.choices[0]
@@ -156,6 +161,7 @@ export class OpenAiSession extends AgentSession<ChatMessage> implements Structur
         text += choice.delta.content
         options.onText(text)
       }
+      if (choice.delta?.refusal) refusal += choice.delta.refusal
       // Same early break as the agentic loop — the terminal usage chunk
       // isn't needed and `return()` lets the SDK clean up.
       if (choice.finish_reason) {
@@ -163,7 +169,7 @@ export class OpenAiSession extends AgentSession<ChatMessage> implements Structur
         break
       }
     }
-    assertStructuredFinished(finishReason)
+    assertStructuredFinished(endingOf(finishReason, refusal))
     return parseStructured<T>(text, schema)
   }
 
@@ -200,6 +206,7 @@ export class OpenAiSession extends AgentSession<ChatMessage> implements Structur
       )
 
       let text = ""
+      let refusal = ""
       const toolAccs = new Map<number, ToolCallAccumulator>()
       let finishReason: string | null = null
       let lastSlot = -1
@@ -214,6 +221,8 @@ export class OpenAiSession extends AgentSession<ChatMessage> implements Structur
             text += delta.content
             display.appendText(delta.content)
           }
+
+          if (delta.refusal) refusal += delta.refusal
 
           if (delta.tool_calls) {
             for (const tc of delta.tool_calls) {
@@ -244,9 +253,10 @@ export class OpenAiSession extends AgentSession<ChatMessage> implements Structur
       }
       this.closeRequest()
 
-      if (!finished(finishReason)) {
+      const ending = endingOf(finishReason, refusal)
+      if (ending !== "finished") {
         if (text.length > 0) this.messages.push({ role: "assistant", content: this.markedIfStopped(text) })
-        return finishReason === "content_filter" ? "refused" : "cutOff"
+        return ending
       }
 
       const accs = [...toolAccs.keys()].sort((a, b) => a - b).map((idx) => toolAccs.get(idx)!)
