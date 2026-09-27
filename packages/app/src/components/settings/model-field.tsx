@@ -9,10 +9,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-export interface ModelOption {
-  value: string
-  label: string
-}
+import type { ModelOption } from "@/lib/model-option"
 
 interface ModelFieldProps {
   id: string

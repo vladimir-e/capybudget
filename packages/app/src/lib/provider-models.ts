@@ -1,4 +1,4 @@
-import type { ModelOption } from "@/components/settings/model-field"
+import type { ModelOption } from "@/lib/model-option"
 
 export type ApiProvider = "anthropic" | "openai"
 

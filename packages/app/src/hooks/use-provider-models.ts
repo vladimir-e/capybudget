@@ -6,7 +6,7 @@ import {
   loadProviderModels,
   type ApiProvider,
 } from "@/lib/provider-models"
-import type { ModelOption } from "@/components/settings/model-field"
+import type { ModelOption } from "@/lib/model-option"
 
 type Outcome = { apiKey: string } & ({ models: ModelOption[] } | { failed: true })
 

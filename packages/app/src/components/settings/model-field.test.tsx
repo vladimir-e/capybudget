@@ -1,7 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { cleanup, render, screen } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
-import { ModelField, type ModelOption } from "./model-field"
+import { ModelField } from "./model-field"
+import type { ModelOption } from "@/lib/model-option"
 
 const MODELS: ModelOption[] = [
   { value: "alpha", label: "Alpha" },
