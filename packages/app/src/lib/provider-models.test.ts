@@ -29,6 +29,11 @@ describe("isOpenAiChatModel", () => {
     "gpt-5-chat-latest",
     "o3",
     "o4-mini",
+    "o1-pro",
+    "gpt-5-pro",
+    "gpt-5-pro-2025-10-06",
+    "gpt-5-codex",
+    "gpt-5.1-codex-mini",
   ])("keeps %s", (id) => {
     expect(isOpenAiChatModel(id)).toBe(true)
   })
@@ -43,14 +48,11 @@ describe("isOpenAiChatModel", () => {
     "text-embedding-3-large",
     "omni-moderation-latest",
     "gpt-4o-search-preview",
-    "gpt-5-codex",
     "gpt-3.5-turbo-instruct",
     "o3-deep-research",
-    "o1-pro",
     "o1-mini",
     "o1-preview",
     "o1-mini-2024-09-12",
-    "gpt-5-pro-2025-10-06",
     "computer-use-preview",
     "dall-e-3",
     "whisper-1",

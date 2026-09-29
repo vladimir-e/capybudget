@@ -1,28 +1,31 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { OLLAMA_PLACEHOLDER_KEY } from "@capybudget/intelligence"
 
-const { ctorArgs, modelsList, chatCreate } = vi.hoisted(() => ({
+const { ctorArgs, modelsList, chatCreate, responsesCreate } = vi.hoisted(() => ({
   ctorArgs: [] as unknown[],
   modelsList: vi.fn(),
   chatCreate: vi.fn(),
+  responsesCreate: vi.fn(),
 }))
 
 vi.mock("openai", () => ({
   default: class {
     models = { list: modelsList }
     chat = { completions: { create: chatCreate } }
+    responses = { create: responsesCreate }
     constructor(opts: unknown) {
       ctorArgs.push(opts)
     }
   },
 }))
 
-import { listOllamaModels, pingOllama } from "./api-testing"
+import { listOllamaModels, pingOllama, pingOpenAi } from "./api-testing"
 
 beforeEach(() => {
   ctorArgs.length = 0
   modelsList.mockReset()
   chatCreate.mockReset()
+  responsesCreate.mockReset()
 })
 
 describe("listOllamaModels", () => {
@@ -56,5 +59,26 @@ describe("pingOllama", () => {
       ok: false,
       message: "model 'qwen3' not found",
     })
+  })
+})
+
+describe("pingOpenAi", () => {
+  it("makes one tiny, unstored Responses call with the chosen model", async () => {
+    responsesCreate.mockResolvedValue({})
+
+    expect(await pingOpenAi("sk-test", "gpt-6-astra")).toEqual({ ok: true, message: "" })
+    expect(responsesCreate).toHaveBeenCalledWith({
+      model: "gpt-6-astra",
+      max_output_tokens: 16,
+      store: false,
+      input: "Hi",
+    })
+    expect(chatCreate).not.toHaveBeenCalled()
+  })
+
+  it("reports the failure message instead of throwing", async () => {
+    responsesCreate.mockRejectedValue(new Error("Incorrect API key provided"))
+
+    expect(await pingOpenAi("sk-bad", "gpt-6-astra")).toEqual({ ok: false, message: "Incorrect API key provided" })
   })
 })

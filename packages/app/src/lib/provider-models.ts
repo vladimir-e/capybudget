@@ -18,7 +18,7 @@ export const FALLBACK_MODELS: Record<ApiProvider, ModelOption[]> = {
 
 const OPENAI_CHAT_FAMILY = /^(gpt-\d|o\d)/
 const OPENAI_NON_CHAT =
-  /image|audio|realtime|tts|transcribe|embedding|moderation|search|codex|instruct|deep-research|computer-use|-pro(-|$)|^o1-(mini|preview)/
+  /image|audio|realtime|tts|transcribe|embedding|moderation|search|instruct|deep-research|computer-use|^o1-(mini|preview)/
 const SNAPSHOT_SUFFIX = /-(\d{4}-\d{2}-\d{2}|\d{4})$/
 const LOWERCASE_WORDS = new Set(["mini", "nano"])
 

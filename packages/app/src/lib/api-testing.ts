@@ -80,10 +80,11 @@ export async function pingOpenAi(
   try {
     const { default: OpenAI } = await import("openai")
     const client = new OpenAI({ apiKey, dangerouslyAllowBrowser: true })
-    await client.chat.completions.create({
+    await client.responses.create({
       model: model || DEFAULT_INTELLIGENCE_CONFIG.openai.model,
-      max_completion_tokens: 8,
-      messages: [{ role: "user", content: "Hi" }],
+      max_output_tokens: 16,
+      store: false,
+      input: "Hi",
     })
     return { ok: true, message: "" }
   } catch (err) {
