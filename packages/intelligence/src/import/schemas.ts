@@ -18,7 +18,7 @@
  * shape the model must hit.
  *
  * `strict: true` on a schema asks the provider to *guarantee* on-schema output
- * (OpenAI `response_format.json_schema.strict`; Anthropic enforces the same
+ * (OpenAI `text.format.strict`, Ollama `response_format.json_schema.strict`; Anthropic enforces the same
  * always). Strict requires every object to set `additionalProperties: false`
  * and list every property in `required`, with optionality expressed as a
  * `null`-union rather than omission. The two failure-prone, high-volume calls —

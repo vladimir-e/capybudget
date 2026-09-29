@@ -9,10 +9,10 @@ function anthropicError(message: string, status = 400) {
   return err
 }
 
-function openAiError(message: string) {
+function openAiError(message: string, param = "max_tokens") {
   const err = new Error(`400 ${message}`) as Error & { status: number; error: unknown }
   err.status = 400
-  err.error = { type: "invalid_request_error", code: null, message, param: "max_tokens" }
+  err.error = { type: "invalid_request_error", code: null, message, param }
   return err
 }
 
@@ -33,6 +33,30 @@ describe("clampedOutputCap", () => {
       "OpenAI limit",
       openAiError(
         "max_tokens is too large: 32000. This model supports at most 16384 completion tokens, whereas you provided 32000.",
+      ),
+      16384,
+    ],
+    [
+      "OpenAI Responses limit",
+      openAiError(
+        "max_output_tokens is too large: 32000. This model supports at most 16384 output tokens, whereas you provided 32000.",
+        "max_output_tokens",
+      ),
+      16384,
+    ],
+    [
+      "OpenAI Responses limit worded as completion tokens",
+      openAiError(
+        "max_output_tokens is too large: 32000. This model supports at most 16384 completion tokens, whereas you provided 32000.",
+        "max_output_tokens",
+      ),
+      16384,
+    ],
+    [
+      "OpenAI Responses parameter bound",
+      openAiError(
+        "Invalid 'max_output_tokens': integer above maximum value. Expected a value <= 16384, but got 32000 instead.",
+        "max_output_tokens",
       ),
       16384,
     ],

@@ -4,7 +4,7 @@
  * a value the caller's JSON Schema describes — no agent loop, no tools.
  *
  * The providers constrain generation to the schema server-side (Anthropic
- * `output_config.format`, OpenAI and Ollama `response_format` json_schema).
+ * `output_config.format`, OpenAI `text.format`, Ollama `response_format`).
  * `parseStructured` is the client-side enforcement layer: it parses the
  * returned text and checks it against the same schema, so a malformed or
  * off-schema response surfaces as a thrown error at the call site rather
@@ -70,7 +70,7 @@ export type JsonSchema = {
   readonly items?: JsonSchema
   readonly enum?: ReadonlyArray<unknown>
   readonly anyOf?: ReadonlyArray<JsonSchema>
-  /** When `true`, the OpenAI adapter sends `response_format.json_schema.strict`
+  /** When `true`, the OpenAI and Ollama adapters send `strict` on the json_schema format
    *  so the provider *guarantees* on-schema output. Only set it on a schema
    *  that satisfies strict's rules (every object `additionalProperties: false`,
    *  all properties `required`). The Anthropic adapter ignores it — its
@@ -80,7 +80,7 @@ export type JsonSchema = {
 }
 
 /** The schema as sent over the wire: the `strict` marker stripped out. It's our
- *  own field for the OpenAI adapter (it rides the request wrapper, not the
+ *  own field for the OpenAI and Ollama adapters (it rides the request wrapper, not the
  *  schema), not a JSON-schema keyword — neither provider should see it inside
  *  the schema body. */
 export function schemaBody(schema: JsonSchema): Record<string, unknown> {

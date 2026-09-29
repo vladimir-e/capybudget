@@ -45,7 +45,8 @@ const STATUS_PREFIX = /^\d{3}\s+/
 const COUNT = String.raw`(\d{1,3}(?:,\d{3})+|\d+)`
 const CAP_LIMIT_SHAPES = [
   new RegExp(String.raw`max_tokens:\s*[\d,]+\s*>\s*${COUNT}`),
-  new RegExp(String.raw`at most ${COUNT}(?: completion)? tokens`, "i"),
+  new RegExp(String.raw`at most ${COUNT}(?: completion| output)? tokens`, "i"),
+  new RegExp(String.raw`expected a value <= ${COUNT}`, "i"),
 ]
 const MIN_PLAUSIBLE_CAP = 1024
 

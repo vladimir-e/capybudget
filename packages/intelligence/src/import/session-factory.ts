@@ -50,8 +50,8 @@ export function importReady(config: IntelligenceConfig): boolean {
 }
 
 /** Whether a provider can read PDF/document attachments. Anthropic sends PDFs
- *  through the SDK's native `document` type; OpenAI takes them as a `file`
- *  content part on `chat.completions`. Ollama's compatibility shim has no
+ *  through the SDK's native `document` type; OpenAI takes them as an
+ *  `input_file` content part. Ollama's compatibility shim has no
  *  document part. The Claude CLI's document passthrough is untested and the CLI
  *  is excluded from import anyway (`canImport`), so it stays false. The Import
  *  tab and chat gate PDF drops on this. */

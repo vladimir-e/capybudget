@@ -15,9 +15,9 @@ export type CliImageContent = {
   source: { type: "base64"; media_type: string; data: string }
 }
 /** Document content — used for PDF imports and chat PDF attachments.
- *  Anthropic sends it through the SDK's native `document` type; OpenAI's
- *  chat.completions takes it as a `file` content part, which requires the
- *  source filename. */
+ *  Anthropic sends it through the SDK's native `document` type; OpenAI
+ *  takes it as an `input_file` content part, which carries the source
+ *  filename. */
 export type CliDocumentContent = {
   type: "document"
   source: { type: "base64"; media_type: string; data: string }

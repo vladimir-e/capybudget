@@ -2,9 +2,6 @@ import { describe, it, expect, vi, beforeEach } from "vitest"
 import type { StreamEvent } from "@capybudget/intelligence"
 import type { BudgetRepository, FileAdapter } from "@capybudget/persistence"
 
-// The Ollama adapter is the OpenAI transport with a different endpoint, so the
-// only things worth asserting here are the two it actually changes: how the
-// client is constructed, and how errors are attributed.
 const { clientConfigs, mockCreate } = vi.hoisted(() => ({
   clientConfigs: [] as Array<{ apiKey: string; baseURL?: string }>,
   mockCreate: vi.fn(),
@@ -22,7 +19,7 @@ vi.mock("openai", () => {
 })
 
 import { OllamaSession } from "./ollama-session"
-import { OpenAiSession } from "./openai-session"
+import { ChatCompletionsSession } from "./chat-completions-session"
 
 function makeSession(baseUrl: string | undefined = "http://localhost:11434/v1") {
   const events: StreamEvent[] = []
@@ -46,7 +43,7 @@ beforeEach(() => {
 })
 
 describe("OllamaSession", () => {
-  it("points the OpenAI client at the configured local endpoint", () => {
+  it("points the client at the configured local endpoint", () => {
     makeSession("http://127.0.0.1:9999/v1")
     expect(clientConfigs).toHaveLength(1)
     expect(clientConfigs[0]).toMatchObject({
@@ -55,9 +52,9 @@ describe("OllamaSession", () => {
     })
   })
 
-  it("is the OpenAI transport — same session surface, one subclass", () => {
+  it("runs on the Chat Completions transport", () => {
     const { session } = makeSession()
-    expect(session).toBeInstanceOf(OpenAiSession)
+    expect(session).toBeInstanceOf(ChatCompletionsSession)
   })
 
   it("attributes errors to ollama, not openai, so the UI routes copy correctly", async () => {
