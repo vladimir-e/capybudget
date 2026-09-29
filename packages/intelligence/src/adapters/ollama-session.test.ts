@@ -323,10 +323,6 @@ describe("OllamaSession", () => {
   })
 
   it("keeps the tools + system prefix byte-stable across turns (prefix caching)", async () => {
-    // A prompt cache only hits if the static prefix is identical turn-to-turn.
-    // Drive two model turns (tool call → reply)
-    // and assert the tools array and the leading system message are unchanged —
-    // per-turn content rides in the tail messages, never the prefix.
     queueTurn({
       toolCallDeltas: [
         { index: 0, id: "call_1", name: "list_accounts", argFragments: ["{}"] },
@@ -1352,6 +1348,27 @@ describe("OllamaSession.structured", () => {
     const userBlocks = messages[1].content as Array<{ type: string; image_url?: { url: string } }>
     expect(userBlocks.map((b) => b.type)).toEqual(["text", "image_url"])
     expect(userBlocks[1].image_url).toEqual({ url: "data:image/png;base64,AAAA" })
+  })
+
+  it("rejects document content instead of sending it as an image", async () => {
+    const { session } = makeSession()
+    await expect(
+      session.structured(
+        [
+          {
+            role: "user",
+            content: [
+              {
+                type: "document",
+                source: { type: "base64", media_type: "application/pdf", data: "AAAA" },
+              },
+            ],
+          },
+        ],
+        SCHEMA,
+      ),
+    ).rejects.toThrow(/document/)
+    expect(mockCreate).not.toHaveBeenCalled()
   })
 
   it("rejects when the model returns output that violates the schema", async () => {

@@ -22,15 +22,14 @@ function toChatUserContent(
 ): OpenAI.Chat.Completions.ChatCompletionUserMessageParam["content"] {
   if (typeof content === "string") return content
   return content.map((block) => {
-    if (block.type === "text") {
-      return { type: "text", text: block.text }
+    if (block.type === "text") return { type: "text", text: block.text }
+    if (block.type === "image") {
+      return {
+        type: "image_url",
+        image_url: { url: `data:${block.source.media_type};base64,${block.source.data}` },
+      }
     }
-    return {
-      type: "image_url",
-      image_url: {
-        url: `data:${block.source.media_type};base64,${block.source.data}`,
-      },
-    }
+    throw new Error(`Ollama does not accept ${block.type} content`)
   })
 }
 
