@@ -255,10 +255,16 @@ function blockingTools() {
   }
 }
 
-function apiError(status: number, message: string, param: string | null = "max_output_tokens"): Error {
-  const err = new Error(`${status} ${message}`) as Error & { status: number; error: unknown }
+function apiError(
+  status: number,
+  message: string,
+  param: string | null = "max_output_tokens",
+  code: string | null = null,
+): Error {
+  const err = new Error(`${status} ${message}`) as Error & { status: number; param: string | null; error: unknown }
   err.status = status
-  err.error = { type: "invalid_request_error", code: null, message, param }
+  err.param = param
+  err.error = { type: "invalid_request_error", code, message, param }
   return err
 }
 
@@ -806,6 +812,20 @@ describe("OpenAiSession reasoning", () => {
     expect(mockCreate).toHaveBeenCalledTimes(3)
     expect(lastCreateCall().include).toBeUndefined()
   })
+
+  it("surfaces encrypted content that fails verification, keeping the reasoning include", async () => {
+    const message = "The encrypted content for item rs_1 could not be verified."
+    queueTurn({ status: null, error: apiError(400, message, null, "invalid_encrypted_content") })
+
+    const { session, events } = makeSession()
+    await session.send("Hi")
+    expect(mockCreate).toHaveBeenCalledTimes(1)
+    expect(events.at(-1)).toMatchObject({ type: "error", status: 400, message })
+
+    queueTurn({ textDeltas: ["ok"], status: "completed" })
+    await session.send("Again")
+    expect(lastCreateCall().include).toEqual(["reasoning.encrypted_content"])
+  })
 })
 
 describe("OpenAiSession endings", () => {
@@ -868,6 +888,21 @@ describe("OpenAiSession endings", () => {
     expect(events.at(-1)).toMatchObject({ type: "error", code: "refused" })
     expect(events.some((e) => e.type === "done")).toBe(false)
     expect(history(session).some((item) => item.role === "assistant" || item.type === "message")).toBe(false)
+  })
+
+  it("reports a refusal alongside a function call as refused, never running the call", async () => {
+    queueTurn({
+      refusalDeltas: ["I can't help with that."],
+      calls: [{ id: "call_1", name: "list_accounts", argFragments: ["{}"] }],
+      status: "completed",
+    })
+
+    const { session, events } = makeSession()
+    await session.send("hi")
+
+    expect(mockRunTool).not.toHaveBeenCalled()
+    expect(events.at(-1)).toMatchObject({ type: "error", code: "refused" })
+    expect(history(session).some((item) => item.type === "function_call")).toBe(false)
   })
 
   it.each([

@@ -1,13 +1,12 @@
 import OpenAI from "openai"
-import { extractErrorMessage } from "../error-message"
 import { getToolDefinitions } from "../tools"
 import { AgentSession } from "./agent-session"
-import { UNANSWERED_RESULT, toolCallBlock } from "./agent-turn"
+import { UNANSWERED_RESULT, parseToolArguments, toolCallBlock } from "./agent-turn"
 import type { LoopOutcome, TurnDisplay } from "./agent-turn"
 import type { ApiAdapterOptions } from "../factory"
 import type { MessageContent, SessionProvider } from "../types"
-import { CutOffError, RefusedError, parseStructured, schemaBody } from "../structured"
-import type { JsonSchema, StructuredCallOptions, StructuredMessage, StructuredSession } from "../structured"
+import { assertStructuredFinished, parseStructured, schemaBody } from "../structured"
+import type { Ending, JsonSchema, StructuredCallOptions, StructuredMessage, StructuredSession } from "../structured"
 
 type ModelResponse = OpenAI.Responses.Response
 type InputItem = OpenAI.Responses.ResponseInputItem
@@ -17,7 +16,6 @@ type ReplayedItem =
   | OpenAI.Responses.ResponseFunctionToolCall
   | OpenAI.Responses.ResponseReasoningItem
 type Includable = OpenAI.Responses.ResponseIncludable
-type Ending = "finished" | "refused" | "cutOff"
 
 interface StreamHandlers {
   text?: (event: OpenAI.Responses.ResponseTextDeltaEvent) => void
@@ -59,26 +57,13 @@ function endingOf(response: ModelResponse | null): Ending {
   return response?.incomplete_details?.reason === "content_filter" ? "refused" : "cutOff"
 }
 
-function assertStructuredFinished(ending: Ending): void {
-  if (ending === "refused") throw new RefusedError()
-  if (ending === "cutOff") throw new CutOffError()
-}
-
 function isReplayed(item: OutputItem): item is ReplayedItem {
   return item.type === "message" || item.type === "function_call" || item.type === "reasoning"
 }
 
-function parseArguments(json: string): Record<string, unknown> | Error {
-  try {
-    return json ? JSON.parse(json) : {}
-  } catch (err) {
-    return err instanceof Error ? err : new Error(String(err))
-  }
-}
-
 function rejectsReasoningReplay(err: unknown): boolean {
-  const { message, status } = extractErrorMessage(err)
-  return status === 400 && /encrypted content/i.test(message)
+  const { status, param } = (err ?? {}) as { status?: unknown; param?: unknown }
+  return status === 400 && param === "include"
 }
 
 function toResponsesUserContent(content: MessageContent): string | OpenAI.Responses.ResponseInputMessageContentList {
@@ -220,7 +205,7 @@ export class OpenAiSession extends AgentSession<InputItem> implements Structured
           itemDone: (item) => {
             if (item.type !== "function_call") return
             callSeen = true
-            const input = parseArguments(item.arguments)
+            const input = parseToolArguments(item.arguments)
             // Malformed args degrade to {} so the tool block still renders;
             // the JSON error surfaces in the tool result.
             display.addCall(item.call_id, toolCallBlock(item.name, input instanceof Error ? {} : input))
@@ -244,7 +229,7 @@ export class OpenAiSession extends AgentSession<InputItem> implements Structured
 
       const calls = output.flatMap((item) =>
         item.type === "function_call"
-          ? [{ id: item.call_id, name: item.name, input: parseArguments(item.arguments) }]
+          ? [{ id: item.call_id, name: item.name, input: parseToolArguments(item.arguments) }]
           : [],
       )
       if (calls.length === 0) return "done"

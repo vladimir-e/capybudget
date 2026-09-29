@@ -89,6 +89,8 @@ export function schemaBody(schema: JsonSchema): Record<string, unknown> {
   return body
 }
 
+export type Ending = "finished" | "refused" | "cutOff"
+
 export class CutOffError extends Error {
   constructor() {
     super("The AI's reply was cut off before the data was complete. Try a smaller file, or split it into parts.")
@@ -101,6 +103,11 @@ export class RefusedError extends Error {
     super("The AI declined to read this file. Check that it's a bank statement or transaction export.")
     this.name = "RefusedError"
   }
+}
+
+export function assertStructuredFinished(ending: Ending): void {
+  if (ending === "refused") throw new RefusedError()
+  if (ending === "cutOff") throw new CutOffError()
 }
 
 export class SchemaValidationError extends Error {

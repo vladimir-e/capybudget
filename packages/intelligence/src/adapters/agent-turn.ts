@@ -50,6 +50,14 @@ const CAP_LIMIT_SHAPES = [
 ]
 const MIN_PLAUSIBLE_CAP = 1024
 
+export function parseToolArguments(json: string): Record<string, unknown> | Error {
+  try {
+    return json ? JSON.parse(json) : {}
+  } catch (err) {
+    return err instanceof Error ? err : new Error(String(err))
+  }
+}
+
 export function clampedOutputCap(err: unknown, cap: number): number | null {
   const { message: raw, status } = extractErrorMessage(err)
   if (status !== 400) return null
