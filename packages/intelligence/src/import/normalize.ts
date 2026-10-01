@@ -15,6 +15,7 @@ import Papa from "papaparse";
 import {
   buildCsvTable,
   buildStaged,
+  decimalMarkOf,
   detectHeaderRow,
   getToday,
   isViableHeaderRow,
@@ -430,7 +431,7 @@ function detectAmountColumn(samples: Record<string, string>[]): string | undefin
 }
 
 function looksLikeAmount(value: string): boolean {
-  const cleaned = value.replace(/[$€£¥₽₹₱₴₫₦₩₪₿()\s]/g, "");
+  const cleaned = value.replace(/[$€£¥₽₹₱₴₫₦₩₪₿()\s'’]/g, "");
   return /^[-+]?[\d.,]+$/.test(cleaned) && /\d/.test(cleaned);
 }
 
@@ -482,17 +483,17 @@ function amountSamples(samples: Record<string, string>[], amount: AmountMapping)
 }
 
 /**
- * `1.234,56` (comma decimal) → european; a currency symbol or `1,234.56`
- * thousands grouping → currency; otherwise plain. European is checked first
- * because the comma-as-decimal is its defining trait even with a `€` present.
+ * The column's decimal mark is a vote over the values that prove one on their
+ * own (`decimalMarkOf`); a comma majority → european. Otherwise a currency
+ * symbol or thousands grouping → currency, else plain. With no evidence the
+ * mark defaults to a dot, so a lone `1.234` reads as 1.234 and `1,234` as 1234.
  */
 function inferAmountFormat(values: string[]): CsvMapping["amountFormat"] {
-  if (values.some((v) => /\d,\d{2}\b/.test(v) && !/\d\.\d{2}\b/.test(v))) {
-    return { format: "european" };
-  }
-  if (
-    values.some((v) => /[$€£¥₽₹₱₴₫₦₩₪₿]/.test(v) || /\d{1,3}(,\d{3})+/.test(v))
-  ) {
+  const marks = values.map(decimalMarkOf);
+  const commas = marks.filter((m) => m === ",").length;
+  const dots = marks.filter((m) => m === ".").length;
+  if (commas > dots) return { format: "european" };
+  if (values.some((v) => /[$€£¥₽₹₱₴₫₦₩₪₿]/.test(v) || /\d{1,3}([\s'’.,]\d{3})+/.test(v))) {
     return { format: "currency" };
   }
   return { format: "plain" };

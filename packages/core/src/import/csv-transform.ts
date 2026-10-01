@@ -259,11 +259,32 @@ function parseSplitAmount(
   return { amount: 0, isExpense: true, isIncome: false };
 }
 
+const AMOUNT_GROUPING = /[\s'’]/g;
+
+/**
+ * The decimal mark a single amount proves on its own, or null when it can't.
+ * Both marks present → the last one is the decimal; one mark repeated → it
+ * groups, so the other is the decimal; one mark followed by exactly three
+ * digits (`1.234`, `1,234`) is ambiguous.
+ */
+export function decimalMarkOf(raw: string): "." | "," | null {
+  const digits = raw.replace(AMOUNT_GROUPING, "");
+  const marks = digits.match(/[.,](?=\d)/g);
+  if (!marks) return null;
+  const last = marks[marks.length - 1] as "." | ",";
+  const other = last === "." ? "," : ".";
+  if (marks.includes(other)) return last;
+  if (marks.length > 1) return other;
+  return /\d[.,]\d{3}(?!\d)/.test(digits) ? null : last;
+}
+
 /**
  * Parse a currency string into integer cents.
  *
  * Handles: "$1,234.56", "($50.00)", "-$50.00", "1234.56", "1.234,56" (European),
- * empty strings (→ 0), and bare "0.00" / "$0.00".
+ * "1 234,56" (space / NBSP grouping), "1'234.56" (Swiss), empty strings (→ 0).
+ * The value's own decimal mark wins when it proves one; an ambiguous value
+ * follows the column's `format`.
  */
 export function parseCurrencyToCents(
   raw: string,
@@ -273,7 +294,6 @@ export function parseCurrencyToCents(
   const trimmed = raw.trim();
   if (trimmed === "" || trimmed === "-") return 0;
 
-  // Detect parenthesized negatives: ($123.45) or (123.45)
   let isNegative = false;
   let cleaned = trimmed;
 
@@ -287,34 +307,15 @@ export function parseCurrencyToCents(
     cleaned = cleaned.slice(1);
   }
 
-  // Strip currency symbols
   cleaned = cleaned.replace(/[$€£¥₽₹₱₴₫₦₩₪₿]/g, "");
-  // Strip multi-character currency codes (CHF, USD, etc.) — only when digits follow/precede
   cleaned = cleaned.replace(/^[A-Z]{2,4}\s*(?=[\d(,.])/i, "").replace(/(?<=\d)\s*[A-Z]{2,4}$/i, "");
-  cleaned = cleaned.trim();
+  cleaned = cleaned.replace(AMOUNT_GROUPING, "");
 
-  if (cleaned === "" || cleaned === "0" || cleaned === "0.00" || cleaned === "0,00") return 0;
+  const decimalMark = decimalMarkOf(cleaned) ?? (format === "european" ? "," : ".");
+  const groupMark = decimalMark === "." ? /,/g : /\./g;
+  const numeric = Number(cleaned.replace(groupMark, "").replace(decimalMark, "."));
 
-  let numeric: number;
-
-  switch (format) {
-    case "european": {
-      // 1.234,56 → remove dot thousands separator, replace comma with dot
-      cleaned = cleaned.replace(/\./g, "").replace(",", ".");
-      numeric = parseFloat(cleaned);
-      break;
-    }
-    case "currency":
-    case "plain":
-    default: {
-      // 1,234.56 → remove comma thousands separator
-      cleaned = cleaned.replace(/,/g, "");
-      numeric = parseFloat(cleaned);
-      break;
-    }
-  }
-
-  if (!Number.isFinite(numeric)) {
+  if (cleaned === "" || !Number.isFinite(numeric)) {
     throw new Error(`Row ${rowNum}: cannot parse amount "${raw}"`);
   }
 

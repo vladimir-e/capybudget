@@ -117,6 +117,35 @@ describe("parseCurrencyToCents", () => {
   it("throws on non-numeric garbage", () => {
     expect(() => parseCurrencyToCents("abc", "plain", 1)).toThrow('cannot parse amount "abc"');
   });
+
+  it.each([
+    ["1 234,56", "european", 123456],
+    ["1\u00A0234,56", "european", 123456],
+    ["1\u202F234,56", "european", 123456],
+    ["1\u2009234,56", "european", 123456],
+    ["-1 500", "european", -150000],
+    ["-1 500", "plain", -150000],
+    ["1 234 567,89 ₽", "european", 123456789],
+    ["1'234.56", "plain", 123456],
+    ["1\u2019234.56", "plain", 123456],
+    ["CHF 1'234.56", "currency", 123456],
+    ["1,234.56", "currency", 123456],
+    ["1.234,56", "european", 123456],
+    ["1.234,56", "plain", 123456],
+    ["1,234.56", "european", 123456],
+    ["1.234.567", "plain", 123456700],
+    ["1,234,567", "european", 123456700],
+    ["1.234", "plain", 123],
+    ["1.234", "european", 123400],
+    ["1,234", "currency", 123400],
+    ["1,234", "european", 123],
+    ["(1 234,56)", "european", -123456],
+    ["-€1.234,56", "european", -123456],
+    ["($1,234.56)", "currency", -123456],
+    [".50", "european", 50],
+  ] as const)("%j (%s) → %i cents", (raw, format, cents) => {
+    expect(parseCurrencyToCents(raw, format, 1)).toBe(cents);
+  });
 });
 
 // ── 4. Date format parsing ─────────────────────────────────────────

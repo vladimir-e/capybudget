@@ -38,8 +38,8 @@ export interface AmountFormat {
   /**
    * How amounts are formatted in the source:
    * - "plain":    1234.56 or -1234.56
-   * - "currency": $1,234.56 or ($1,234.56) or -$1,234.56
-   * - "european": 1.234,56 (dot as thousands separator, comma as decimal)
+   * - "currency": $1,234.56 or ($1,234.56) or -$1,234.56 or 1'234.56
+   * - "european": 1.234,56 or 1 234,56 (comma as decimal)
    */
   format: "plain" | "currency" | "european";
 }

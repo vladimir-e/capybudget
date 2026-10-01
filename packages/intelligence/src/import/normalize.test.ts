@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { getToday } from "@capybudget/core";
+import { getToday, parseCurrencyToCents } from "@capybudget/core";
 import { countStreamedRows, normalizeCsv, normalizeImage, normalizeMapping } from "./normalize";
 import type { NormalizeProgress } from "./events";
 import { CSV_MAPPING_SCHEMA, EXTRACTION_SCHEMA } from "./schemas";
@@ -559,6 +559,16 @@ describe("normalizeMapping", () => {
     expect(m.amount).toMatchObject({ style: "single", column: "Total" });
   });
 
+  it("auto-detects an apostrophe-grouped Swiss amount column", () => {
+    const m = normalizeMapping(
+      { date: { column: "Date" }, description: { column: "Memo" } },
+      [{ Date: "2026-01-05", Memo: "X", Total: "-1'234.50" }],
+      "f.csv",
+      IMPORT_DATE,
+    );
+    expect(m.amount).toMatchObject({ style: "single", column: "Total" });
+  });
+
   it("reads bare-string column refs", () => {
     const m = normalizeMapping(
       { date: "Date", description: "Memo", amount: { column: "Amt", sign: "negative_expense" } },
@@ -623,6 +633,29 @@ describe("normalizeMapping", () => {
     it("plain otherwise", () => {
       expect(fmt("-4.50")).toBe("plain");
       expect(fmt("1234.56")).toBe("plain");
+    });
+    it("european for space, NBSP, and narrow-NBSP grouping with a comma decimal", () => {
+      expect(fmt("1 234,56")).toBe("european");
+      expect(fmt("1\u00A0234,56")).toBe("european");
+      expect(fmt("1\u202F234,56")).toBe("european");
+    });
+    it("currency for apostrophe grouping", () => {
+      expect(fmt("1'234.56")).toBe("currency");
+    });
+
+    const column = (...amounts: string[]) => {
+      const m = normalizeMapping(ROLES, amounts.map((Amount) => ({ Date: "2026-01-01", Description: "X", Amount })), "f.csv", IMPORT_DATE);
+      return (raw: string) => parseCurrencyToCents(raw, m.amountFormat.format, 1);
+    };
+    it("reads an ambiguous 1.234 from the column's other values", () => {
+      expect(column("1.234", "5,50")("1.234")).toBe(123400);
+      expect(column("1.234", "2.345.678")("1.234")).toBe(123400);
+      expect(column("1.234", "-4.50")("1.234")).toBe(123);
+      expect(column("1,234", "5,50")("1,234")).toBe(123);
+    });
+    it("falls back to a dot decimal when the column offers no evidence", () => {
+      expect(column("1.234", "2.345")("1.234")).toBe(123);
+      expect(column("1,234", "2,345")("1,234")).toBe(123400);
     });
   });
 
