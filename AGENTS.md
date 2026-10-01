@@ -16,6 +16,8 @@ npm run lint          # ESLint
 
 Tests live next to source files (`*.test.ts`). Vitest shares `vite.config.ts` so the `@/` alias works in tests.
 
+`npm run test:live` runs an opt-in smoke suite against real models (`packages/app/src/test/live/`), outside `npm test` and CI. Keys come from the environment or a gitignored `.env.live` (see `.env.live.example`); `LIVE_MODELS=provider:model,...` overrides the default set, and providers without a credential are skipped.
+
 ## Releasing
 
 Releases are cut from `main` via a version tag: `npm run release <version>` bumps every version source, commits, and tags; `git push --follow-tags` triggers the signed multi-platform build into a **draft** GitHub Release. The full procedure — both release channels, promotion, required secrets, and the Mac App Store build — lives in [specs/RELEASING.md](./specs/RELEASING.md).

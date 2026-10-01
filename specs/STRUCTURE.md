@@ -71,6 +71,9 @@ and pass tests with zero React or DOM imports belongs in `core`.
 
 - Colocate unit tests as `<source>.test.ts`; full-app journey tests live in
   `app/src/test/journeys/`.
+- The live smoke suite against real providers lives in `app/src/test/live/`
+  (`*.live.ts`, its own vitest config, run by `npm run test:live`) — never
+  part of `npm test` or CI.
 - Shared builders (`makeAccount`, `makeCategory`, `makeTransaction`) live once
   in `core/src/test-factories.ts` (export-only, not a test file) and are
   imported everywhere — packages do not redefine them. Persistence's CSV-string
