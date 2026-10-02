@@ -110,7 +110,7 @@ describe("ClaudeCliSession", () => {
       const { args } = last()
       expect(JSON.parse(argValue(args, "--mcp-config")!)).toEqual({
         mcpServers: {
-          capy: { command: "npx", args: ["tsx", "/repo/mcp/server.ts"], cwd: "/repo", env: { BUDGET_PATH: "/budget" } },
+          capy: { command: "/repo/node_modules/.bin/tsx", args: ["/repo/mcp/server.ts"], env: { BUDGET_PATH: "/budget" } },
         },
       })
       expect(argValue(args, "--system-prompt")).toBe("you are capy")
@@ -205,6 +205,73 @@ describe("ClaudeCliSession", () => {
       expect(events.slice(1)).toEqual([{ type: "content", blocks: [{ type: "text", content: "Real reply" }] }, { type: "done" }])
     })
 
+    it("discards the result line that trails a top-level error line", async () => {
+      const { session, events, last } = makeSession()
+      const first = await started(session, "one")
+      last().say({ type: "error", error: { message: "Overloaded" } })
+      const second = await started(session, "two")
+      last().say(DONE)
+      await first.sent
+      await flush()
+      expect(last().writes).toHaveLength(2)
+      expect(second.isResolved()).toBe(false)
+      last().say(TEXT("Real reply", "m2"))
+      last().say(DONE)
+      await second.sent
+      expect(events).toEqual([
+        { type: "error", message: "Overloaded", provider: "claude-cli" },
+        { type: "content", blocks: [{ type: "text", content: "Real reply" }] },
+        { type: "done" },
+      ])
+    })
+
+    it("ends a process that never sends the result line after an early ending, and runs the queued send fresh", async () => {
+      vi.useFakeTimers()
+      try {
+        const { session, onExit, spawned } = makeSession()
+        let queuedAtExit: boolean | undefined
+        onExit.mockImplementation(() => {
+          queuedAtExit = session.hasQueuedSend
+        })
+        const first = session.send("one")
+        await vi.advanceTimersByTimeAsync(0)
+        spawned[0].say({ type: "error", error: { message: "Overloaded" } })
+        const second = session.send("two")
+        await vi.advanceTimersByTimeAsync(29_000)
+        expect(spawned[0].kill).not.toHaveBeenCalled()
+        await vi.advanceTimersByTimeAsync(1_000)
+        await first
+        expect(spawned[0].kill).toHaveBeenCalled()
+        expect(onExit).toHaveBeenCalledTimes(1)
+        expect(queuedAtExit).toBe(true)
+        expect(spawned).toHaveLength(2)
+        expect(JSON.parse(spawned[1].writes[0]).message.content).toBe("two")
+        spawned[0].events.exit(null)
+        expect(onExit).toHaveBeenCalledTimes(1)
+        spawned[1].say(DONE)
+        await second
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it("leaves a turn that completes normally alone past the grace period", async () => {
+      vi.useFakeTimers()
+      try {
+        const { session, onExit, spawned } = makeSession()
+        const first = session.send("one")
+        await vi.advanceTimersByTimeAsync(0)
+        spawned[0].say({ type: "error", error: { message: "Overloaded" } })
+        spawned[0].say(DONE)
+        await first
+        await vi.advanceTimersByTimeAsync(60_000)
+        expect(spawned[0].kill).not.toHaveBeenCalled()
+        expect(onExit).not.toHaveBeenCalled()
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
     it("queues a send behind the running turn", async () => {
       const { session, last } = makeSession()
       const first = await started(session, "one")
@@ -226,7 +293,7 @@ describe("ClaudeCliSession", () => {
     it("routes an unexpected exit through onExit and ends the running turn", async () => {
       const { session, events, onExit, last } = makeSession()
       const turn = await started(session, "hi")
-      last().events.exit()
+      last().events.exit(1)
       await turn.sent
       expect(onExit).toHaveBeenCalledTimes(1)
       expect(onExit).toHaveBeenCalledWith(undefined)
@@ -238,9 +305,29 @@ describe("ClaudeCliSession", () => {
       const { session, onExit, last } = makeSession()
       const turn = await started(session, "hi")
       for (const line of ["warming up", "", "line two", "line three", "error: unknown option '--restricted'"]) last().events.stderr(line)
-      last().events.exit()
+      last().events.exit(1)
       await turn.sent
       expect(onExit).toHaveBeenCalledWith("line two\nline three\nerror: unknown option '--restricted'")
+    })
+
+    it("gives no reason for a clean exit", async () => {
+      const { session, onExit, last } = makeSession()
+      const turn = await started(session, "hi")
+      last().events.stderr("something chatty")
+      last().events.exit(0)
+      await turn.sent
+      expect(onExit).toHaveBeenCalledWith(undefined)
+    })
+
+    it("leaves known harmless stderr lines out of the reason", async () => {
+      const { session, onExit, last } = makeSession()
+      const turn = await started(session, "hi")
+      last().events.stderr("⚠ claude.ai connectors are disabled because ANTHROPIC_API_KEY or another auth source is set and takes precedence over your claude.ai login · Unset it to load your organization's connectors")
+      last().events.stderr("(node:4242) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.")
+      last().events.stderr("(Use `node --trace-deprecation ...` to show where the warning was created)")
+      last().events.exit(1)
+      await turn.sent
+      expect(onExit).toHaveBeenCalledWith(undefined)
     })
 
     it("still reports a crash after a max-turns ending, since the CLI survives it", async () => {
@@ -248,14 +335,14 @@ describe("ClaudeCliSession", () => {
       const turn = await started(session, "loop")
       last().say({ type: "result", subtype: "error_max_turns", is_error: true })
       await turn.sent
-      last().events.exit()
+      last().events.exit(1)
       expect(onExit).toHaveBeenCalledTimes(1)
     })
 
     it("respawns after a crash", async () => {
       const { session, spawned, last } = makeSession()
       const first = await started(session, "one")
-      last().events.exit()
+      last().events.exit(1)
       await first.sent
       await started(session, "two")
       expect(spawned).toHaveLength(2)
@@ -277,7 +364,7 @@ describe("ClaudeCliSession", () => {
       await turn.sent
       spawned[0].write.mockRejectedValueOnce(new Error("broken pipe"))
       await session.send("two")
-      spawned[0].events.exit()
+      spawned[0].events.exit(1)
       expect(events.filter((e) => e.type === "error")).toEqual([{ type: "error", message: "broken pipe", provider: "claude-cli" }])
       expect(onExit).not.toHaveBeenCalled()
       expect(spawned[0].kill).toHaveBeenCalled()
@@ -291,7 +378,7 @@ describe("ClaudeCliSession", () => {
       const turn = await started(session, "one")
       await session.stop()
       await turn.sent
-      spawned[0].events.exit()
+      spawned[0].events.exit(1)
       expect(spawned[0].kill).toHaveBeenCalled()
       expect(onExit).not.toHaveBeenCalled()
       expect(events).toEqual([])
@@ -306,7 +393,7 @@ describe("ClaudeCliSession", () => {
       const next = await started(session, "two")
       spawned[0].say(TEXT("stale"))
       spawned[0].say(DONE)
-      spawned[0].events.exit()
+      spawned[0].events.exit(1)
       expect(events).toEqual([])
       expect(onExit).not.toHaveBeenCalled()
       expect(next.isResolved()).toBe(false)
@@ -387,7 +474,7 @@ describe("ClaudeCliSession", () => {
       await session.kill()
       await turn.sent
       spawned[0].say(TEXT("late"))
-      spawned[0].events.exit()
+      spawned[0].events.exit(1)
       await session.send("two")
       expect(spawned).toHaveLength(1)
       expect(events).toEqual([])

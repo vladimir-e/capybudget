@@ -15,7 +15,7 @@ const tauriHost: ClaudeCliHost = {
     command.stdout.on("data", events.line)
     command.stderr.on("data", diagnostic)
     command.on("error", diagnostic)
-    command.on("close", () => events.exit())
+    command.on("close", ({ code }) => events.exit(code))
     return command.spawn()
   },
 }

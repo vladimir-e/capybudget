@@ -19,6 +19,10 @@ export class CliTurn {
     return this.complete
   }
 
+  get hasEnded(): boolean {
+    return this.ended
+  }
+
   feed(line: string): void {
     for (const event of parseStreamLine(line)) {
       if (this.complete) return

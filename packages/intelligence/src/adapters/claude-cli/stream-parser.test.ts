@@ -179,12 +179,12 @@ describe("parseStreamLine", () => {
       ])
     })
 
-    it("surfaces a top-level error line", () => {
+    it("ends the turn early on a top-level error line", () => {
       expect(parseStreamLine(line({ type: "error", error: { message: "Rate limit exceeded" } }))).toEqual([
-        { type: "result", event: { type: "error", message: "Rate limit exceeded" } },
+        { type: "end", event: { type: "error", message: "Rate limit exceeded" } },
       ])
       expect(parseStreamLine(line({ type: "error" }))).toEqual([
-        { type: "result", event: { type: "error", message: "Claude Code ended the reply with an error." } },
+        { type: "end", event: { type: "error", message: "Claude Code ended the reply with an error." } },
       ])
     })
   })

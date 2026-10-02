@@ -4,8 +4,8 @@
  * Runs `claude --version` via Tauri shell once per app session. A zero
  * exit code counts as installed; a version below `MIN_CLAUDE_CLI_VERSION`
  * (the release that added `--restricted`) is outdated. Output with no
- * parseable version counts as ready, because some users alias `claude`
- * to a local script.
+ * `X.Y.Z (Claude Code)` line counts as ready, because some users alias
+ * `claude` to a wrapper that prints its own version.
  *
  * The settings UI re-checks via `recheckClaudeCli()` when it opens,
  * so a user who installs Claude Code mid-session can pick it up
@@ -25,7 +25,7 @@ async function probe(): Promise<ClaudeCliStatus> {
   try {
     const output = await Command.create("claude", ["--version"]).execute()
     if (output.code !== 0) return "missing"
-    const version = /\d+\.\d+\.\d+/.exec(output.stdout)?.[0]
+    const version = /(\d+\.\d+\.\d+)\s*\(Claude Code\)/.exec(output.stdout)?.[1]
     return version && isOlder(version, MIN_CLAUDE_CLI_VERSION) ? "outdated" : "ready"
   } catch {
     return "missing"
