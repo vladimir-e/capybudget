@@ -6,11 +6,15 @@ declare const __PROJECT_ROOT__: string
 
 const tauriHost: ClaudeCliHost = {
   projectRoot: __PROJECT_ROOT__,
-  async spawn(args, env, events) {
-    const command = Command.create("claude", [...args], { env: { ...env } })
+  async spawn(args, { cwd, env }, events) {
+    const command = Command.create("claude", [...args], { cwd, env: { ...env } })
+    const diagnostic = (line: string) => {
+      console.debug("[claude-cli]", line)
+      events.stderr(line)
+    }
     command.stdout.on("data", events.line)
-    command.stderr.on("data", (line: string) => console.debug("[claude-cli-stderr]", line))
-    command.on("error", (message) => console.debug("[claude-cli-error]", message))
+    command.stderr.on("data", diagnostic)
+    command.on("error", diagnostic)
     command.on("close", () => events.exit())
     return command.spawn()
   },

@@ -112,7 +112,8 @@
     "openBilling": "Open billing page"
   },
   "session": {
-    "endedUnexpectedly": "Session ended unexpectedly. Send a message to start a new conversation.",
+    "endedUnexpectedly": "Session ended unexpectedly. Send a message to continue.",
+    "endedUnexpectedlyWithReason": "Session ended unexpectedly. Claude Code reported:\n\n{{reason}}\n\nSend a message to continue.",
     "notConfigured": "Capy is not configured. Open settings to pick an AI provider.",
     "sendFailed": "Failed to send message",
     "interrupted": "Session interrupted. Send a message to continue.",

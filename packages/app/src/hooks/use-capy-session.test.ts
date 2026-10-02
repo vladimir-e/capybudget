@@ -31,13 +31,13 @@ interface FakeSession {
   sendSpy: ReturnType<typeof vi.fn>
   stopSpy: ReturnType<typeof vi.fn>
   emit: (event: StreamEvent) => void
-  exit: () => void
+  exit: (reason?: string) => void
 }
 
 const { createdSessions, createSessionMock } = vi.hoisted(() => {
   const list: FakeSession[] = []
   const mock = vi.fn(
-    (opts: { onEvent: (event: StreamEvent) => void; onExit?: () => void }): CapySession => {
+    (opts: { onEvent: (event: StreamEvent) => void; onExit?: (reason?: string) => void }): CapySession => {
       const killSpy = vi.fn(async () => {})
       const sendSpy = vi.fn(async () => {})
       const stopSpy = vi.fn(async () => {})
@@ -49,7 +49,7 @@ const { createdSessions, createSessionMock } = vi.hoisted(() => {
         restart: restartSpy,
         kill: killSpy,
       }
-      list.push({ session, killSpy, sendSpy, stopSpy, emit: opts.onEvent, exit: () => opts.onExit?.() })
+      list.push({ session, killSpy, sendSpy, stopSpy, emit: opts.onEvent, exit: (reason) => opts.onExit?.(reason) })
       return session
     },
   )
@@ -887,7 +887,7 @@ describe("useCapySession error copy", () => {
         sendSpy: vi.fn(),
         stopSpy: vi.fn(),
         emit: opts.onEvent,
-        exit: () => opts.onExit?.(),
+        exit: (reason) => opts.onExit?.(reason),
       })
       return session
     })
@@ -967,6 +967,42 @@ describe("useCapySession error copy", () => {
     })
     expect(createdSessions[0].sendSpy).toHaveBeenCalledTimes(2)
     expect(getBudgetSnapshot).toHaveBeenCalledTimes(2)
+  })
+
+  it("hands the conversation to the adapter on a crash so the respawned process gets it back", () => {
+    useIntelligenceStore.setState({
+      hydrated: true,
+      config: { ...DEFAULT_INTELLIGENCE_CONFIG, provider: "claude-cli" },
+    })
+    const { result } = renderHook(() => useCapySession(baseOpts))
+    act(() => {
+      result.current.sendMessage("hi")
+    })
+    const markInterrupted = vi.fn()
+    createdSessions[0].session.markInterrupted = markInterrupted
+    const before = result.current.messages
+    act(() => {
+      createdSessions[0].exit()
+    })
+    expect(markInterrupted).toHaveBeenCalledWith(before)
+  })
+
+  it("shows the process's last words when it exits unexpectedly", () => {
+    useIntelligenceStore.setState({
+      hydrated: true,
+      config: { ...DEFAULT_INTELLIGENCE_CONFIG, provider: "claude-cli" },
+    })
+    const { result } = renderHook(() => useCapySession(baseOpts))
+    act(() => {
+      result.current.sendMessage("hi")
+    })
+    act(() => {
+      createdSessions[0].exit("error: unknown option '--restricted'")
+    })
+    expect(result.current.messages.at(-1)?.blocks[0]).toMatchObject({
+      type: "text",
+      content: expect.stringContaining("error: unknown option '--restricted'"),
+    })
   })
 
   it("refreshes data when a mutation lands after New Chat killed its turn", () => {

@@ -84,18 +84,18 @@ describe("parseStreamLine", () => {
   describe("endings", () => {
     it("ends with done on a successful result", () => {
       expect(parseStreamLine(line({ type: "result", subtype: "success", stop_reason: "end_turn" }))).toEqual([
-        { type: "end", event: { type: "done" } },
+        { type: "result", event: { type: "done" } },
       ])
-      expect(parseStreamLine(line({ type: "result" }))).toEqual([{ type: "end", event: { type: "done" } }])
+      expect(parseStreamLine(line({ type: "result" }))).toEqual([{ type: "result", event: { type: "done" } }])
     })
 
     it("maps the result's stop_reason onto the shared ending vocabulary", () => {
       const ending = (stop_reason: string) =>
         parseStreamLine(line({ type: "result", subtype: "success", is_error: false, stop_reason }))
-      expect(ending("stop_sequence")).toEqual([{ type: "end", event: endingEvent("done") }])
-      expect(ending("max_tokens")).toEqual([{ type: "end", event: endingEvent("cutOff") }])
-      expect(ending("refusal")).toEqual([{ type: "end", event: endingEvent("refused") }])
-      expect(ending("pause_turn")).toEqual([{ type: "end", event: endingEvent("cutOff") }])
+      expect(ending("stop_sequence")).toEqual([{ type: "result", event: endingEvent("done") }])
+      expect(ending("max_tokens")).toEqual([{ type: "result", event: endingEvent("cutOff") }])
+      expect(ending("refusal")).toEqual([{ type: "result", event: endingEvent("refused") }])
+      expect(ending("pause_turn")).toEqual([{ type: "result", event: endingEvent("cutOff") }])
     })
 
     it("maps a terminal stop_reason on an assistant message the same way, after its content", () => {
@@ -131,34 +131,34 @@ describe("parseStreamLine", () => {
             errors: ["Reached maximum number of turns (100)"],
           }),
         ),
-      ).toEqual([{ type: "end", event: endingEvent("budgetExhausted") }])
+      ).toEqual([{ type: "result", event: endingEvent("budgetExhausted") }])
     })
 
     it("surfaces the result text of a failed run, then its first error, then a fallback", () => {
       expect(parseStreamLine(line({ type: "result", is_error: true, result: "Prompt is too long", errors: ["other"] }))).toEqual([
-        { type: "end", event: { type: "error", message: "Prompt is too long" } },
+        { type: "result", event: { type: "error", message: "Prompt is too long" } },
       ])
       expect(parseStreamLine(line({ type: "result", is_error: true, subtype: "error_during_execution", errors: ["Tool crashed"] }))).toEqual([
-        { type: "end", event: { type: "error", message: "Tool crashed" } },
+        { type: "result", event: { type: "error", message: "Tool crashed" } },
       ])
       expect(parseStreamLine(line({ type: "result", is_error: true }))).toEqual([
-        { type: "end", event: { type: "error", message: "Claude Code ended the reply with an error." } },
+        { type: "result", event: { type: "error", message: "Claude Code ended the reply with an error." } },
       ])
     })
 
     it("unwraps an API error body and keeps its status", () => {
       const body = JSON.stringify({ type: "error", error: { type: "invalid_request_error", message: "prompt is too long: 226000 tokens > 200000 maximum" } })
       expect(parseStreamLine(line({ type: "result", is_error: true, result: `API Error: 400 ${body}` }))).toEqual([
-        { type: "end", event: { type: "error", message: "prompt is too long: 226000 tokens > 200000 maximum", status: 400 } },
+        { type: "result", event: { type: "error", message: "prompt is too long: 226000 tokens > 200000 maximum", status: 400 } },
       ])
       expect(parseStreamLine(line({ type: "result", is_error: true, result: "Overloaded", api_error_status: 529 }))).toEqual([
-        { type: "end", event: { type: "error", message: "Overloaded", status: 529 } },
+        { type: "result", event: { type: "error", message: "Overloaded", status: 529 } },
       ])
     })
 
     it("words a 429 as a rate limit", () => {
       expect(parseStreamLine(line({ type: "result", is_error: true, result: "Too many requests", api_error_status: 429 }))).toEqual([
-        { type: "end", event: { type: "error", message: "Too many requests", status: 429, code: "rateLimited" } },
+        { type: "result", event: { type: "error", message: "Too many requests", status: 429, code: "rateLimited" } },
       ])
     })
 
@@ -181,10 +181,10 @@ describe("parseStreamLine", () => {
 
     it("surfaces a top-level error line", () => {
       expect(parseStreamLine(line({ type: "error", error: { message: "Rate limit exceeded" } }))).toEqual([
-        { type: "end", event: { type: "error", message: "Rate limit exceeded" } },
+        { type: "result", event: { type: "error", message: "Rate limit exceeded" } },
       ])
       expect(parseStreamLine(line({ type: "error" }))).toEqual([
-        { type: "end", event: { type: "error", message: "Claude Code ended the reply with an error." } },
+        { type: "result", event: { type: "error", message: "Claude Code ended the reply with an error." } },
       ])
     })
   })

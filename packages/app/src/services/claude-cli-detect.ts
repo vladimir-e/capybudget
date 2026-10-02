@@ -1,9 +1,11 @@
 /**
  * Probe for the Claude Code CLI on the host machine.
  *
- * Runs `claude --version` via Tauri shell once per app session. Any
- * zero exit code counts as "detected" — we deliberately don't parse
- * output strictly because some users alias `claude` to a local script.
+ * Runs `claude --version` via Tauri shell once per app session. A zero
+ * exit code counts as installed; a version below `MIN_CLAUDE_CLI_VERSION`
+ * (the release that added `--restricted`) is outdated. Output with no
+ * parseable version counts as ready, because some users alias `claude`
+ * to a local script.
  *
  * The settings UI re-checks via `recheckClaudeCli()` when it opens,
  * so a user who installs Claude Code mid-session can pick it up
@@ -12,19 +14,34 @@
 
 import { Command } from "@tauri-apps/plugin-shell"
 
-let cached: boolean | null = null
-let inFlight: Promise<boolean> | null = null
+export type ClaudeCliStatus = "ready" | "outdated" | "missing"
 
-async function probe(): Promise<boolean> {
+export const MIN_CLAUDE_CLI_VERSION = "2.1.248"
+
+let cached: ClaudeCliStatus | null = null
+let inFlight: Promise<ClaudeCliStatus> | null = null
+
+async function probe(): Promise<ClaudeCliStatus> {
   try {
     const output = await Command.create("claude", ["--version"]).execute()
-    return output.code === 0
+    if (output.code !== 0) return "missing"
+    const version = /\d+\.\d+\.\d+/.exec(output.stdout)?.[0]
+    return version && isOlder(version, MIN_CLAUDE_CLI_VERSION) ? "outdated" : "ready"
   } catch {
-    return false
+    return "missing"
   }
 }
 
-export async function detectClaudeCli(): Promise<boolean> {
+function isOlder(version: string, minimum: string): boolean {
+  const a = version.split(".").map(Number)
+  const b = minimum.split(".").map(Number)
+  for (let i = 0; i < b.length; i++) {
+    if (a[i] !== b[i]) return a[i] < b[i]
+  }
+  return false
+}
+
+export async function detectClaudeCli(): Promise<ClaudeCliStatus> {
   if (cached !== null) return cached
   if (!inFlight) {
     inFlight = probe().then((result) => {
@@ -37,7 +54,7 @@ export async function detectClaudeCli(): Promise<boolean> {
 }
 
 /** Bust the cache. Call when re-opening the settings UI. */
-export function recheckClaudeCli(): Promise<boolean> {
+export function recheckClaudeCli(): Promise<ClaudeCliStatus> {
   cached = null
   inFlight = null
   return detectClaudeCli()

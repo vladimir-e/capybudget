@@ -99,13 +99,15 @@ Alongside the agentic `CapySession`, the in-process API adapters expose a second
 
 The providers constrain generation to the schema server-side (Anthropic `output_config.format`, OpenAI `text.format` json_schema, Ollama `response_format` json_schema). `parseStructured` is the client-side enforcement layer: it parses the returned text and validates it against the same schema, so a malformed or off-schema response throws (`SchemaValidationError`) at the call site rather than landing as a silently-wrong object downstream. User turns may carry multimodal content (receipt images, PDF bytes); assistant turns are text-only, because the API rejects image/document blocks in an assistant turn.
 
+An optional `signal` aborts the call; Smart Import's Stop and Cancel ride it. The adapter links a per-request signal to it and unlinks it once the reply lands, so a later abort never reaches a finished request (see **Streaming Behavior** on WKWebView). Structured requests retry at most once (`maxRetries: 1`); the SDK default of two would bill a failing extraction three times. A connection failure surfaces as `UnreachableError` — Ollama's names the server ("Can't reach Ollama at http://localhost:11434").
+
 The Anthropic, OpenAI, and Ollama adapters implement both `CapySession` and `StructuredSession`. The Claude Code CLI adapter implements only `CapySession` — its structured-call path is not available, which is why import is gated to the API providers (see **Settings** and `IMPORT.md`).
 
 ## Adapters
 
 ### Claude Code adapter
 
-Spawns `claude` in pipe mode with stream-json I/O on both ends. `ClaudeCliSession` owns the flags, the lifecycle, and the stream decoding; it reaches the platform through an injected `ClaudeCliHost` — the project root the MCP server runs from, and a `spawn(args, env, events)` that streams stdout lines and reports the exit. The desktop app's host wraps Tauri's shell plugin; the live suite's wraps `node:child_process`.
+Spawns `claude` in pipe mode with stream-json I/O on both ends. `ClaudeCliSession` owns the flags, the lifecycle, and the stream decoding; it reaches the platform through an injected `ClaudeCliHost` — the project root the MCP server runs from, and a `spawn(args, { cwd, env }, events)` that streams stdout and stderr lines and reports the exit. The session spawns the CLI with the budget folder as its working directory. The desktop app's host wraps Tauri's shell plugin; the live suite reuses that same host, with `@tauri-apps/plugin-shell` aliased to a `node:child_process` shim (`test/live/tauri-node.ts`).
 
 CLI flags supplied at spawn:
 
@@ -114,7 +116,7 @@ CLI flags supplied at spawn:
 - `--strict-mcp-config` — load only that server. Without it the CLI also loads the user's own MCP servers and claude.ai connectors (mail, drive, calendar…): hundreds of tool schemas that overflow a small model's context and hand Capy's chat tools that reach the user's accounts.
 - `--tools Read` — the only built-in tool the model sees; the rest of the CLI's built-ins are not described to it at all
 - `--allowedTools "mcp__capy__*,Read"` — runs Capy's tools and `Read` without a permission prompt
-- `--add-dir <budget-path>` — grant Read access to the budget folder
+- `--restricted` — confines the file tools to the working directory, the budget folder: a `Read` anywhere else is denied, not merely un-preapproved. In `-p` mode the denied call returns a permission error to the model and the turn carries on; nothing waits on a prompt. It also strips the CLI's code-running built-ins. The flag arrived in Claude Code 2.1.248, so detection treats an older CLI as outdated (see **Settings**).
 - `--setting-sources ""` — load no user, project, or local settings: no hooks, permission rules, plugins, or CLAUDE.md
 - `--disable-slash-commands` — no user skills or commands
 - `--no-session-persistence` — Capy's conversations are never written to the CLI's session store
@@ -127,16 +129,17 @@ Lifecycle:
 - The process spawns lazily on the first send and serves every later turn; each spawn is a fresh CLI session. It survives overlay close/reopen; `kill()` ends it for good.
 - Sends queue one at a time, the way the API adapters' do (a send epoch, `hasQueuedSend`). `send()` resolves when its turn ends, and a spawn or write failure arrives as one `error` event, with the process dropped so the next send respawns.
 - Each spawn gets a generation; stdout and the exit of an earlier generation are ignored, so a stopped process's late output never reaches the next turn and its exit never reports a crash. Output that arrives between turns is ignored too.
-- An exit the session did not ask for fires `onExit` once and ends the running turn; the next send spawns a fresh process. The CLI keeps running after a reply ends in an error (`error_max_turns` included), so an error never stands in for an exit.
+- An exit the session did not ask for fires `onExit` once, with the last few stderr lines as its reason (an older CLI rejecting a flag says so there), and ends the running turn; the next send spawns a fresh process. The chat shows the reason and hands its history to `markInterrupted`, so the fresh process gets the recovery prefix below. The CLI keeps running after a reply ends in an error (`error_max_turns` included), so an error never stands in for an exit.
 - `kill()` ends the process and emits nothing more — a write the MCP server already started still lands, but without a `tool-result`.
 
-Stop / restart recovery (serialize prior conversation, prepend `[Previous conversation]` on next send) is unique to this adapter — API adapters get a simpler abort-and-continue model.
+Stop and crash recovery (serialize the prior conversation, prepend `[Previous conversation]` on the next send) is unique to this adapter — API adapters get a simpler abort-and-continue model. With `--no-session-persistence` that prefix, capped at 5000 characters, is the only context a fresh process gets.
 
 How a CLI turn ends — the CLI runs its own loop, so the adapter only maps its ending onto the shared vocabulary (`endingEvent` in `agent-turn.ts`):
 
 - `end_turn` / `stop_sequence` — `done`.
 - `max_tokens`, a `max_output_tokens` error message, or any other stop reason — `cutOff`; `refusal` — `refused`; an `error_max_turns` result — `budgetExhausted`. The turn's display stays as streamed: the CLI has already run its calls.
 - An assistant message the CLI marks with `error` (a failed API call — "Prompt is too long", an overloaded server) ends the turn with that text as the error, never as a reply, even when the `result` line that follows claims success. A failed `result` line carries its message in `result`, else in `errors`. An `API Error: <status> <body>` text is unwrapped through `extractErrorMessage`, keeping the status; a 429 or a `rate_limit` message surfaces as `rateLimited`.
+- The ending reaches the chat the moment it is known, but the CLI still streams up to its `result` line. The session releases the turn, and any send queued behind it, only on that `result` line or a top-level `error` line, and discards what arrives in between, so a fast next send never ends on the previous turn's trailing output.
 
 ### Anthropic adapter
 
@@ -185,6 +188,8 @@ Honest differences from a hosted OpenAI server — the streaming ones absorbed b
 - **Tool-call deltas may omit `index`.** A delta with a new `id` opens a call; one with neither continues the last.
 - **No documents.** The compatibility shim has no `file` content part, so `canReadPdf("ollama")` is false and callers never build a `document` block for it. Statements go in as CSV/OFX.
 - **`max_completion_tokens` is not an Ollama parameter.** It rides along in the request and is ignored, leaving generation uncapped — acceptable for a local model where the cost is wall-clock, not tokens.
+- **A small context window.** Ollama runs a model with a context of a few thousand tokens unless the user raises `num_ctx`, which the shim can't set per request, and it truncates an oversized prompt silently rather than refusing it. Import therefore sends compact JSON and batches Categorizing 8 rows at a time instead of 25.
+- **Vision depends on the model.** Before an import's first image, `ollamaReadsImages` reads the model's `capabilities` from `/api/show`: without `vision` the image is skipped with a warning; when the server doesn't say (an older Ollama), the import warns and tries anyway.
 
 Whether a given model can call tools or honor a JSON schema is the model's business, not the adapter's; Settings steers users toward tool-capable ones. Because there is no key, Ollama never touches the OS keychain: its entire config (endpoint + model) lives in the plaintext store file.
 
@@ -331,7 +336,7 @@ to opt a dev build back into the keychain), keys persist inline in the store
 file, with the same deferred-load surface. See `src-tauri/src/keychain.rs` and
 `stores/secret-config.ts`.
 
-Settings lives in the `/budget` Intelligence section. It renders a provider radio + per-provider config (API key where applicable, model picker, test-connection button). The radio order is **Off / Anthropic API / OpenAI API / Ollama / Claude Code**; Ollama carries a `local` badge and sits below the hosted APIs (it needs a server the user installs themselves); Claude Code carries an `advanced` badge and sits last as the source-build option — the Mac App Store build omits it entirely, since the App Sandbox forbids the subprocess spawning it relies on. First-run defaults to `null` — users must explicitly pick a provider so they're never surprised by quota usage. The radio's "Off" label maps to `null` at the form boundary. Claude Code is auto-detected via `claude --version` and disabled in the picker if not installed.
+Settings lives in the `/budget` Intelligence section. It renders a provider radio + per-provider config (API key where applicable, model picker, test-connection button). The radio order is **Off / Anthropic API / OpenAI API / Ollama / Claude Code**; Ollama carries a `local` badge and sits below the hosted APIs (it needs a server the user installs themselves); Claude Code carries an `advanced` badge and sits last as the source-build option — the Mac App Store build omits it entirely, since the App Sandbox forbids the subprocess spawning it relies on. First-run defaults to `null` — users must explicitly pick a provider so they're never surprised by quota usage. The radio's "Off" label maps to `null` at the form boundary. Claude Code is auto-detected via `claude --version` and disabled in the picker if not installed, or if the reported version predates 2.1.248 (the settings card then asks the user to run `claude update`; output with no parseable version counts as ready).
 
 Every provider uses one shared model picker: a dropdown plus a "Use a custom model" toggle that swaps in a free-text field for any model ID outside the list. A saved model the list doesn't offer is appended to it as its own option, so a pinned model always shows as selected and is never silently rewritten. The lists:
 
@@ -413,10 +418,11 @@ The brief is sourced from `packages/intelligence/src/specs.generated.ts`, regene
 
 ## Import Sessions
 
-Smart Import is a code-orchestrated pipeline (`IMPORT.md`), not an agent session. It calls the model through `structured()` at two points, each a single constrained call with no tools and no accumulated context:
+Smart Import is a code-orchestrated pipeline (`IMPORT.md`), not an agent session. It calls the model through `structured()` in three kinds of call, each a single constrained call with no tools and no accumulated context:
 
 - **Mapping / extraction** (Normalizing) — a CSV's headers + samples become a `CsvMapping`; an image or PDF's bytes become the same intermediate transaction records directly. Receipt images ride as base64 `image` content, PDFs as base64 `document` content, on the user turn the structured call sends.
-- **Categorizing** — batches of ~25 rows, each carrying its distilled history context and the category list, return `{ id, merchant, categoryId, confidence }[]`. Batches are bounded-parallel and fail in isolation.
+- **Categorizing batch** — ~25 rows (8 on Ollama), each carrying its distilled history context, plus the category list, return `{ id, merchant, category, confidence }[]`, where `category` is a category *name* code maps back to a `categoryId`. Batches are bounded-parallel and fail in isolation.
+- **Transfer batch** — transfer rows plus their transfer context return `{ id, account }[]`, where `account` is the counterpart account's name.
 
 All these calls share one short import system prompt (`import/system-prompt.ts`): it sets the role and two invariants — extract only what the source contains, and answer with the requested structure — while each call's task and schema ride in the request itself. The per-run hints and `import-instructions.md` from the Import tab compose onto this prompt. There is no per-call tool surface, no agent loop, and no `categoryConfidence` REPL between AI and tools; confidence is just a field each Categorizing row returns (`high` / `low`), which the preview renders as a dot.
 

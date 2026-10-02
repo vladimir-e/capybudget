@@ -144,15 +144,30 @@ describe("CliTurn", () => {
     })
   })
 
+  describe("calls", () => {
+    it("shows a repeated tool_use id once and keeps its finished status", () => {
+      const { blocks } = play([say("a", call("t", "list_accounts")), result("t"), say("a", call("t", "list_accounts"))])
+      expect(blocks).toEqual([{ type: "tool-activity", tool: "list_accounts", status: "done" }])
+    })
+  })
+
   describe("ending", () => {
-    it("ends once, on the first terminal line, and emits nothing after", () => {
+    it("shows the first ending at once but completes only on the result line", () => {
       const { events, turn } = play([
         JSON.stringify({ type: "assistant", message: { content: [textPart("Hi")], stop_reason: "end_turn" } }),
-        DONE,
         say("z", textPart("late")),
       ])
-      expect(turn.isOver).toBe(true)
       expect(events).toEqual([{ type: "content", blocks: [text("Hi")] }, { type: "done" }])
+      expect(turn.isComplete).toBe(false)
+      turn.feed(DONE)
+      expect(turn.isComplete).toBe(true)
+      expect(events).toHaveLength(2)
+    })
+
+    it("completes on a top-level error line", () => {
+      const { events, turn } = play([JSON.stringify({ type: "error", error: { message: "Overloaded" } })])
+      expect(turn.isComplete).toBe(true)
+      expect(events).toEqual([{ type: "error", message: "Overloaded" }])
     })
 
     it("ends a cut-off reply with the shared cutOff error, keeping what streamed", () => {

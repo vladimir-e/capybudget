@@ -2,11 +2,11 @@ import { describe, it, expect, vi, type Mock } from "vitest"
 import { REPLY_TOOL_CALL_BUDGET } from "../../tools"
 import type { ChatMessage, StreamEvent } from "../../types"
 import { endingEvent } from "../agent-turn"
-import { ClaudeCliSession, type ClaudeCliHost, type ClaudeCliProcessEvents } from "./claude-cli-session"
+import { ClaudeCliSession, type ClaudeCliHost, type ClaudeCliProcessEvents, type ClaudeCliSpawnOptions } from "./claude-cli-session"
 
 interface FakeProcess {
   args: readonly string[]
-  env: Readonly<Record<string, string>>
+  options: ClaudeCliSpawnOptions
   events: ClaudeCliProcessEvents
   writes: string[]
   write: Mock<(data: string) => Promise<void>>
@@ -17,7 +17,7 @@ interface FakeProcess {
 function fakeHost() {
   const spawned: FakeProcess[] = []
   let failNextSpawn: Error | null = null
-  const spawn = vi.fn<ClaudeCliHost["spawn"]>(async (args, env, events) => {
+  const spawn = vi.fn<ClaudeCliHost["spawn"]>(async (args, options, events) => {
     if (failNextSpawn) {
       const err = failNextSpawn
       failNextSpawn = null
@@ -26,7 +26,7 @@ function fakeHost() {
     const writes: string[] = []
     const proc: FakeProcess = {
       args,
-      env,
+      options,
       events,
       writes,
       write: vi.fn(async (data: string) => {
@@ -85,17 +85,26 @@ describe("ClaudeCliSession", () => {
     it("keeps the user's own Claude Code setup out of Capy's session", async () => {
       const { session, last } = makeSession()
       await started(session, "hi")
-      const { args, env } = last()
+      const { args, options } = last()
       expect(args).toContain("--strict-mcp-config")
       expect(argValue(args, "--tools")).toBe("Read")
       expect(argValue(args, "--allowedTools")).toBe("mcp__capy__*,Read")
       expect(argValue(args, "--setting-sources")).toBe("")
       expect(args).toContain("--disable-slash-commands")
       expect(args).toContain("--no-session-persistence")
-      expect(env).toEqual({ ENABLE_TOOL_SEARCH: "false" })
+      expect(options.env).toEqual({ ENABLE_TOOL_SEARCH: "false" })
     })
 
-    it("passes Capy's MCP server inline and grants Read on the budget folder", async () => {
+    it("confines Read to the budget folder by running there in restricted mode", async () => {
+      const { session, last } = makeSession()
+      await started(session, "hi")
+      const { args, options } = last()
+      expect(options.cwd).toBe("/budget")
+      expect(args).toContain("--restricted")
+      expect(args).not.toContain("--add-dir")
+    })
+
+    it("passes Capy's MCP server inline", async () => {
       const { session, last } = makeSession()
       await started(session, "hi")
       const { args } = last()
@@ -104,7 +113,6 @@ describe("ClaudeCliSession", () => {
           capy: { command: "npx", args: ["tsx", "/repo/mcp/server.ts"], cwd: "/repo", env: { BUDGET_PATH: "/budget" } },
         },
       })
-      expect(argValue(args, "--add-dir")).toBe("/budget")
       expect(argValue(args, "--system-prompt")).toBe("you are capy")
       expect(argValue(args, "--max-turns")).toBe(String(REPLY_TOOL_CALL_BUDGET))
     })
@@ -177,6 +185,26 @@ describe("ClaudeCliSession", () => {
       expect(events).toEqual([])
     })
 
+    it("holds the session until the result line, so a queued send never ends on the old turn's trailing output", async () => {
+      const { session, events, last } = makeSession()
+      const first = await started(session, "one")
+      last().say({ type: "assistant", error: "invalid_request", message: { content: [{ type: "text", text: "Prompt is too long" }] } })
+      expect(events).toEqual([{ type: "error", message: "Prompt is too long", provider: "claude-cli" }])
+      const second = await started(session, "two")
+      expect(first.isResolved()).toBe(false)
+      expect(last().writes).toHaveLength(1)
+      last().say(DONE)
+      await first.sent
+      await flush()
+      expect(last().writes).toHaveLength(2)
+      expect(second.isResolved()).toBe(false)
+      expect(events).toHaveLength(1)
+      last().say(TEXT("Real reply", "m2"))
+      last().say(DONE)
+      await second.sent
+      expect(events.slice(1)).toEqual([{ type: "content", blocks: [{ type: "text", content: "Real reply" }] }, { type: "done" }])
+    })
+
     it("queues a send behind the running turn", async () => {
       const { session, last } = makeSession()
       const first = await started(session, "one")
@@ -201,8 +229,18 @@ describe("ClaudeCliSession", () => {
       last().events.exit()
       await turn.sent
       expect(onExit).toHaveBeenCalledTimes(1)
+      expect(onExit).toHaveBeenCalledWith(undefined)
       expect(events).toEqual([])
       expect(session.isAlive).toBe(false)
+    })
+
+    it("passes the last stderr lines of an unexpected exit as its reason", async () => {
+      const { session, onExit, last } = makeSession()
+      const turn = await started(session, "hi")
+      for (const line of ["warming up", "", "line two", "line three", "error: unknown option '--restricted'"]) last().events.stderr(line)
+      last().events.exit()
+      await turn.sent
+      expect(onExit).toHaveBeenCalledWith("line two\nline three\nerror: unknown option '--restricted'")
     })
 
     it("still reports a crash after a max-turns ending, since the CLI survives it", async () => {
@@ -323,7 +361,7 @@ describe("ClaudeCliSession", () => {
       session.markInterrupted(prior)
       const second = await started(session, "two")
       const sentText = JSON.parse(spawned[1].writes[0]).message.content as string
-      expect(sentText).toContain("[Previous conversation — session was interrupted by user]")
+      expect(sentText).toContain("[Previous conversation — the session was interrupted]")
       expect(sentText).toContain("User: What did I spend?")
       expect(sentText.endsWith("\ntwo")).toBe(true)
       spawned[1].say(DONE)

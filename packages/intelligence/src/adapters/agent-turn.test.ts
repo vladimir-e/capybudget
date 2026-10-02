@@ -121,6 +121,18 @@ describe("TurnDisplay", () => {
     ])
   })
 
+  it("refuses a second card for a call id already shown", () => {
+    const { display, published } = recordingDisplay()
+    expect(display.addCall("a", { type: "tool-activity", tool: "first", status: "pending" })).toBe(true)
+    display.appendText("Between")
+    expect(display.addCall("a", { type: "tool-activity", tool: "first", status: "pending" })).toBe(false)
+    display.appendText(" still open")
+    expect(published.at(-1)).toEqual([
+      { type: "tool-activity", tool: "first", status: "pending" },
+      { type: "text", content: "Between still open" },
+    ])
+  })
+
   it("trims from the first unrun call, dropping the text after it", () => {
     const { display, published } = recordingDisplay()
     display.beginIteration()

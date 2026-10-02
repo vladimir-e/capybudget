@@ -10,6 +10,7 @@ export type CliEvent =
   | { type: "message"; id?: string; parts: CliPart[] }
   | { type: "tool-result"; id: string; ok: boolean }
   | { type: "end"; event: StreamEvent }
+  | { type: "result"; event: StreamEvent }
 
 type ErrorEvent = Extract<StreamEvent, { type: "error" }>
 
@@ -32,10 +33,10 @@ export function parseStreamLine(line: string): CliEvent[] {
     case "user":
       return parseToolResults(event)
     case "result":
-      return [{ type: "end", event: parseResult(event) }]
+      return [{ type: "result", event: parseResult(event) }]
     case "error": {
       const message = (event.error as { message?: unknown } | undefined)?.message
-      return [{ type: "end", event: failureEvent(typeof message === "string" ? message : "") }]
+      return [{ type: "result", event: failureEvent(typeof message === "string" ? message : "") }]
     }
     default:
       return []

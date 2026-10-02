@@ -22,6 +22,7 @@ import {
   _resetStoreForTests,
 } from "@/stores/intelligence-store"
 import { DEFAULT_INTELLIGENCE_CONFIG, type ChatMessage } from "@capybudget/intelligence"
+import type { ClaudeCliStatus } from "@/services/claude-cli-detect"
 
 declare const __MAS__: boolean
 
@@ -30,10 +31,10 @@ vi.mock("sonner", () => ({
   Toaster: () => null,
 }))
 
-// Module-level mock for the Claude CLI detector. Default: detected (true).
-// Individual tests override with detectMock.mockResolvedValueOnce(false).
+// Module-level mock for the Claude CLI detector. Default: "ready".
+// Individual tests override with detectMock.mockResolvedValueOnce("missing").
 const { detectMock } = vi.hoisted(() => ({
-  detectMock: vi.fn<() => Promise<boolean>>(),
+  detectMock: vi.fn<() => Promise<ClaudeCliStatus>>(),
 }))
 
 vi.mock("@/services/claude-cli-detect", () => ({
@@ -138,7 +139,7 @@ beforeEach(() => {
     clearGateSeen: async () => {},
   }))
   detectMock.mockReset()
-  detectMock.mockResolvedValue(true)
+  detectMock.mockResolvedValue("ready")
 })
 
 afterEach(() => {
@@ -349,7 +350,7 @@ describe("CapyOverlay click-through behavior", () => {
   it.skipIf(__MAS__)("disables the Claude Code chip when the CLI is not detected", async () => {
     const user = userEvent.setup()
     detectMock.mockReset()
-    detectMock.mockResolvedValue(false)
+    detectMock.mockResolvedValue("missing")
     useIntelligenceStore.setState({
       hydrated: true,
       config: { ...DEFAULT_INTELLIGENCE_CONFIG, provider: null },

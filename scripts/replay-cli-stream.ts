@@ -66,7 +66,7 @@ function record(event: StreamEvent): void {
 let turn = new CliTurn(record)
 for (const line of readFileSync(capturePath, "utf8").split("\n")) {
   turn.feed(line)
-  if (turn.isOver) turn = new CliTurn(record)
+  if (turn.isComplete) turn = new CliTurn(record)
 }
 
 if (lastBlocks.length > 0 || toolResults.length > 0) printCycle("EOF — cycle never closed!")

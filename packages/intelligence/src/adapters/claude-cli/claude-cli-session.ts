@@ -13,15 +13,22 @@ export interface ClaudeCliProcess {
 
 export interface ClaudeCliProcessEvents {
   line(line: string): void
+  stderr(line: string): void
   exit(): void
+}
+
+export interface ClaudeCliSpawnOptions {
+  cwd: string
+  env: Readonly<Record<string, string>>
 }
 
 export interface ClaudeCliHost {
   readonly projectRoot: string
-  spawn(args: readonly string[], env: Readonly<Record<string, string>>, events: ClaudeCliProcessEvents): Promise<ClaudeCliProcess>
+  spawn(args: readonly string[], options: ClaudeCliSpawnOptions, events: ClaudeCliProcessEvents): Promise<ClaudeCliProcess>
 }
 
 const RECOVERY_CONTEXT_MAX_CHARS = 5000
+const EXIT_REASON_LINES = 3
 const MCP_SERVER_NAME = "capy"
 
 export class ClaudeCliSession implements CapySession {
@@ -34,6 +41,7 @@ export class ClaudeCliSession implements CapySession {
   private idle: Promise<void> = Promise.resolve()
   private turn: { cli: CliTurn; end: () => void } | null = null
   private interruptedMessages: readonly ChatMessage[] | null = null
+  private stderrTail: string[] = []
 
   constructor(
     private readonly opts: ClaudeCliAdapterOptions,
@@ -99,9 +107,14 @@ export class ClaudeCliSession implements CapySession {
 
   private async spawn(): Promise<ClaudeCliProcess | null> {
     const generation = ++this.generation
-    const child = await this.host.spawn(this.args(), { ENABLE_TOOL_SEARCH: "false" }, {
+    this.stderrTail = []
+    const options = { cwd: this.opts.budgetPath, env: { ENABLE_TOOL_SEARCH: "false" } }
+    const child = await this.host.spawn(this.args(), options, {
       line: (line) => {
         if (generation === this.generation) this.receive(line)
+      },
+      stderr: (line) => {
+        if (generation === this.generation) this.noteStderr(line)
       },
       exit: () => this.exited(generation),
     })
@@ -136,7 +149,7 @@ export class ClaudeCliSession implements CapySession {
       "--strict-mcp-config",
       "--tools", "Read",
       "--allowedTools", `mcp__${MCP_SERVER_NAME}__*,Read`,
-      "--add-dir", budgetPath,
+      "--restricted",
       "--setting-sources", "",
       "--disable-slash-commands",
       "--no-session-persistence",
@@ -149,7 +162,7 @@ export class ClaudeCliSession implements CapySession {
     const turn = this.turn
     if (!turn) return
     turn.cli.feed(line)
-    if (turn.cli.isOver) this.finishTurn()
+    if (turn.cli.isComplete) this.finishTurn()
   }
 
   private exited(generation: number): void {
@@ -157,7 +170,12 @@ export class ClaudeCliSession implements CapySession {
     this.generation++
     this.child = null
     this.finishTurn()
-    this.opts.onExit?.()
+    this.opts.onExit?.(this.stderrTail.join("\n") || undefined)
+  }
+
+  private noteStderr(line: string): void {
+    const trimmed = line.trim()
+    if (trimmed) this.stderrTail = [...this.stderrTail, trimmed].slice(-EXIT_REASON_LINES)
   }
 
   private async endProcess(): Promise<void> {
@@ -179,9 +197,9 @@ export class ClaudeCliSession implements CapySession {
     if (!prior) return content
     this.interruptedMessages = null
     const prefix = [
-      "[Previous conversation — session was interrupted by user]",
+      "[Previous conversation — the session was interrupted]",
       serializeConversation(prior, RECOVERY_CONTEXT_MAX_CHARS),
-      "[Session was interrupted. This is a fresh session. The user may want to continue the conversation — pick up where you left off or ask for clarification if needed.]",
+      "[This is a fresh session. The user may want to continue the conversation — pick up where you left off or ask for clarification if needed.]",
       "",
     ].join("\n")
     return typeof content === "string" ? `${prefix}\n${content}` : [{ type: "text", text: prefix }, ...content]

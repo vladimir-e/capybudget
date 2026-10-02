@@ -112,7 +112,8 @@
     "openBilling": "Abrir a página de cobrança"
   },
   "session": {
-    "endedUnexpectedly": "A sessão terminou inesperadamente. Envie uma mensagem para começar uma nova conversa.",
+    "endedUnexpectedly": "A sessão terminou inesperadamente. Envie uma mensagem para continuar.",
+    "endedUnexpectedlyWithReason": "A sessão terminou inesperadamente. O Claude Code informou:\n\n{{reason}}\n\nEnvie uma mensagem para continuar.",
     "notConfigured": "O Capy não está configurado. Abra as configurações para escolher um provedor de IA.",
     "sendFailed": "Falha ao enviar a mensagem",
     "interrupted": "Sessão interrompida. Envie uma mensagem para continuar.",

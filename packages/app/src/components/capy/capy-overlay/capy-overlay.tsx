@@ -136,8 +136,8 @@ export function CapyOverlay({
     if (__MAS__) return
     let cancelled = false
     detectClaudeCli()
-      .then((available) => {
-        if (!cancelled) setClaudeCliAvailable(available)
+      .then((status) => {
+        if (!cancelled) setClaudeCliAvailable(status === "ready")
       })
       .catch(() => {
         if (!cancelled) setClaudeCliAvailable(false)

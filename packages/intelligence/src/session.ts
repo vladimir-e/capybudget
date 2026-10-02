@@ -13,12 +13,7 @@ export interface CapySession {
    * `content` flattens them (text inlined, images base64) past reconstruction,
    * and the model can't echo them back through a tool argument. The Claude CLI
    * adapter ignores it (file import routes through the Import tab there).
-   *
-   * Sends run one at a time: a send issued while an earlier turn is still
-   * winding down waits for it. The promise resolves when this send's turn is
-   * over — it ended, was stopped, or the session was killed — and never
-   * rejects: every failure arrives as an `error` event. After `kill()` a send
-   * is a no-op.
+   * Queueing and resolution: specs/INTELLIGENCE.md § Session Interface.
    */
   send(content: MessageContent, attachments?: readonly FileAttachment[]): Promise<void>
   stop(): Promise<void>
@@ -31,13 +26,13 @@ export interface CapySession {
    */
   readonly hasQueuedSend?: boolean
   /**
-   * Optional: signal to the adapter that the user interrupted the
-   * previous turn (clicked Stop). Adapters that need a recovery
-   * dance use this; API adapters that preserve `messages` natively
-   * make it a no-op. The next `send()` is the post-interrupt turn —
-   * the hook may pass `priorMessages` so the adapter can synthesize
-   * a `[Previous conversation]` prefix when its own state isn't
-   * enough to resume context.
+   * Optional: signal to the adapter that the previous turn was
+   * interrupted (the user clicked Stop, or the process crashed).
+   * Adapters that need a recovery dance use this; API adapters that
+   * preserve `messages` natively make it a no-op. The next `send()` is
+   * the post-interrupt turn — the hook may pass `priorMessages` so the
+   * adapter can synthesize a `[Previous conversation]` prefix when its
+   * own state isn't enough to resume context.
    */
   markInterrupted?(priorMessages: readonly ChatMessage[]): void
 }

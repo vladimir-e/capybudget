@@ -35,11 +35,11 @@ export class Command {
   private constructor(
     private readonly program: string,
     private readonly args: string[],
-    private readonly env: Record<string, string>,
+    private readonly options: { cwd?: string; env?: Record<string, string> },
   ) {}
 
-  static create(program: string, args: string[] = [], options: { env?: Record<string, string> } = {}): Command {
-    return new Command(program, args, options.env ?? {})
+  static create(program: string, args: string[] = [], options: { cwd?: string; env?: Record<string, string> } = {}): Command {
+    return new Command(program, args, options)
   }
 
   on(event: "close", listener: Listener<CloseEvent>): this
@@ -52,7 +52,8 @@ export class Command {
 
   async spawn(): Promise<Child> {
     const proc = spawnProcess(this.program, this.args, {
-      env: { ...outsideClaudeCode(process.env), ...this.env },
+      cwd: this.options.cwd,
+      env: { ...outsideClaudeCode(process.env), ...this.options.env },
       stdio: ["pipe", "pipe", "pipe"],
     })
     if (process.env.LIVE_DEBUG) {

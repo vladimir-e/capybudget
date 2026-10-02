@@ -70,6 +70,7 @@
     "demoNoticeBody": "A demonstração web roda inteiramente no seu navegador e não pode guardar um provedor de IA. Baixe o app para desktop para conversar com o Capy e usar a importação inteligente.",
     "missingTitle": "O Claude Code não é mais detectado",
     "missingBody": "Reinstale o Claude Code ou escolha outro provedor para continuar usando o Capy.",
+    "outdatedTitle": "O Claude Code precisa de uma atualização",
     "sourceBuildTitle": "O Claude Code exige uma build a partir do código-fonte",
     "sourceBuildBody": "O app para desktop ainda não consegue rodar o Claude Code. Escolha outro provedor ou",
     "runFromSource": "rode o Capy a partir do código-fonte",
@@ -102,6 +103,8 @@
       "detected": "Detectado",
       "notDetected": "Não detectado",
       "notDetectedHint": "Não detectado — instale a partir de",
+      "outdated": "Precisa de atualização",
+      "outdatedHint": "É necessário o Claude Code {{minimum}} ou mais recente — execute `claude update`.",
       "testConnection": "Testar conexão",
       "testing": "Testando…",
       "connectionWorks": "A conexão funciona"

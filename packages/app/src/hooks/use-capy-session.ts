@@ -202,7 +202,8 @@ export function useCapySession(opts: UseCapySessionOptions): UseCapySessionRetur
     },
     "capy",
     // onExit — process crashed unexpectedly, append recovery message
-    () => {
+    (reason, session) => {
+      session?.markInterrupted?.(messagesRef.current)
       endTurn()
       snapshotSentRef.current = false
       hadMutationsRef.current = false
@@ -215,7 +216,9 @@ export function useCapySession(opts: UseCapySessionOptions): UseCapySessionRetur
           blocks: [
             {
               type: "text",
-              content: tRef.current("session.endedUnexpectedly"),
+              content: reason
+                ? tRef.current("session.endedUnexpectedlyWithReason", { reason })
+                : tRef.current("session.endedUnexpectedly"),
             },
           ],
         },

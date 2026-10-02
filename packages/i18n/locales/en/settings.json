@@ -70,6 +70,7 @@
     "demoNoticeBody": "The web demo runs entirely in your browser and can't store an AI provider. Download the desktop app to chat with Capy and use smart import.",
     "missingTitle": "Claude Code is no longer detected",
     "missingBody": "Reinstall Claude Code or pick another provider to keep using Capy.",
+    "outdatedTitle": "Claude Code needs an update",
     "sourceBuildTitle": "Claude Code requires a source build",
     "sourceBuildBody": "The desktop app can't run Claude Code yet. Pick another provider, or",
     "runFromSource": "run Capy from source",
@@ -102,6 +103,8 @@
       "detected": "Detected",
       "notDetected": "Not detected",
       "notDetectedHint": "Not detected — install from",
+      "outdated": "Needs an update",
+      "outdatedHint": "Claude Code {{minimum}} or newer is required — run `claude update`.",
       "testConnection": "Test connection",
       "testing": "Testing…",
       "connectionWorks": "Connection works"

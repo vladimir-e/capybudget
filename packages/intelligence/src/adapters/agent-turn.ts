@@ -137,10 +137,12 @@ export class TurnDisplay {
     this.draftText = ""
   }
 
-  addCall(id: string, block: ContentBlock): void {
+  addCall(id: string, block: ContentBlock): boolean {
+    if (this.entries.some((e) => e.callId === id)) return false
     this.endText()
     this.entries.push({ block, callId: id })
     this.publish()
+    return true
   }
 
   replaceIteration(texts: readonly string[]): void {

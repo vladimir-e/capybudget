@@ -66,7 +66,9 @@ export interface UseSessionLifecycleReturn<TOpts extends SessionLifecycleOptions
  *                        to avoid stale closures.
  * @param label           Log prefix for debug output (e.g. "import", "enrich", "capy")
  * @param onExit          Called only by the Claude-CLI adapter when its subprocess dies
- *                        unexpectedly (kill()/stop()/restart() suppress it). API adapters
+ *                        unexpectedly (kill()/stop()/restart() suppress it), with the
+ *                        process's last stderr lines when it wrote any and the session
+ *                        it belonged to. API adapters
  *                        have no process to die so they never invoke this. Use it for
  *                        recovery UX (e.g. appending a "session ended" message).
  *                        Kept fresh via ref like onStreamEvent.
@@ -75,7 +77,7 @@ export function useSessionLifecycle<TOpts extends SessionLifecycleOptions>(
   opts: TOpts,
   onStreamEvent: (event: StreamEvent, ctx: StreamEventContext<TOpts>) => void,
   label: string,
-  onExit?: () => void,
+  onExit?: (reason: string | undefined, session: CapySession | null) => void,
 ): UseSessionLifecycleReturn<TOpts> {
   const [isStreaming, _setIsStreaming] = useState(false);
   const isStreamingRef = useRef(false);
@@ -107,10 +109,10 @@ export function useSessionLifecycle<TOpts extends SessionLifecycleOptions>(
     [setIsStreaming],
   );
 
-  const handleExit = useCallback(() => {
-    console.debug(`[${label}-session] process exited`);
+  const handleExit = useCallback((reason?: string) => {
+    console.debug(`[${label}-session] process exited`, reason ?? "");
     setIsStreaming(false);
-    onExitRef.current?.();
+    onExitRef.current?.(reason, sessionRef.current);
   }, [label, setIsStreaming]);
 
   // Cleanup on unmount

@@ -70,6 +70,7 @@
     "demoNoticeBody": "Веб-демо работает целиком в браузере и не может хранить поставщика ИИ. Скачай настольное приложение, чтобы общаться с Капи и пользоваться умным импортом.",
     "missingTitle": "Claude Code больше не обнаружен",
     "missingBody": "Переустанови Claude Code или выбери другого поставщика, чтобы продолжить пользоваться Капи.",
+    "outdatedTitle": "Claude Code нужно обновить",
     "sourceBuildTitle": "Для Claude Code нужна сборка из исходников",
     "sourceBuildBody": "Настольное приложение пока не может запускать Claude Code. Выбери другого поставщика или",
     "runFromSource": "запусти Капи из исходников",
@@ -102,6 +103,8 @@
       "detected": "Обнаружен",
       "notDetected": "Не обнаружен",
       "notDetectedHint": "Не обнаружен — установи с",
+      "outdated": "Нужно обновить",
+      "outdatedHint": "Нужен Claude Code {{minimum}} или новее — выполни `claude update`.",
       "testConnection": "Проверить подключение",
       "testing": "Проверка…",
       "connectionWorks": "Подключение работает"

@@ -9,23 +9,29 @@ export class CliTurn {
   private openText: string | null = null
   private followupsShown = false
   private ended = false
+  private complete = false
 
   constructor(private readonly emit: (event: StreamEvent) => void) {
     this.display = new TurnDisplay((blocks) => emit({ type: "content", blocks }))
   }
 
-  get isOver(): boolean {
-    return this.ended
+  get isComplete(): boolean {
+    return this.complete
   }
 
   feed(line: string): void {
     for (const event of parseStreamLine(line)) {
-      if (this.ended) return
-      this.apply(event)
+      if (this.complete) return
+      if (event.type === "result") {
+        this.complete = true
+        this.end(event.event)
+      } else if (!this.ended) {
+        this.apply(event)
+      }
     }
   }
 
-  private apply(event: CliEvent): void {
+  private apply(event: Exclude<CliEvent, { type: "result" }>): void {
     switch (event.type) {
       case "message":
         if (event.id !== undefined && event.id !== this.messageId) {
@@ -42,11 +48,16 @@ export class CliTurn {
         return
       }
       case "end":
-        this.ended = true
-        this.display.settle()
-        this.emit(event.event)
+        this.end(event.event)
         return
     }
+  }
+
+  private end(event: StreamEvent): void {
+    if (this.ended) return
+    this.ended = true
+    this.display.settle()
+    this.emit(event)
   }
 
   private show(part: CliPart): void {
@@ -62,9 +73,9 @@ export class CliTurn {
       return
     }
     const block = toolCallBlock(part.name, part.input)
+    if (!this.display.addCall(part.id, block)) return
+    this.openText = null
     this.calls.set(part.id, part.name)
-    this.closeText()
-    this.display.addCall(part.id, block)
     this.display.markStarted(part.id)
     if (block.type === "followups") this.followupsShown = true
   }
