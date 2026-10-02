@@ -622,16 +622,6 @@ describe("normalizeMapping", () => {
     expect(m.amount).toMatchObject({ style: "single", column: amount });
   });
 
-  it("auto-detects an amount column of suffixed local currency text", () => {
-    const m = normalizeMapping(
-      { date: { column: "Date" }, description: { column: "Memo" } },
-      [{ Date: "2026-01-05", Memo: "X", Ref: "1042", Kwota: "12,50 zł" }],
-      "f.csv",
-      IMPORT_DATE,
-    );
-    expect(m.amount).toMatchObject({ style: "single", column: "Kwota" });
-  });
-
   it("does not auto-detect a column of rejected amount cells", () => {
     const m = normalizeMapping(
       { date: { column: "Date" }, description: { column: "Memo" } },
@@ -643,52 +633,133 @@ describe("normalizeMapping", () => {
   });
 
   describe("amount fallback", () => {
-    const detected = (row: Record<string, string>) =>
-      (normalizeMapping(
-        { date: { column: "Date" }, description: { column: "Memo" } },
-        [{ Date: "2026-01-05", Memo: "X", ...row }],
-        "f.csv",
-        IMPORT_DATE,
-      ).amount as { column: string }).column;
+    const detected = (row: Record<string, string>, ...more: Record<string, string>[]): string | null => {
+      try {
+        const m = normalizeMapping(
+          { date: { column: "Date" }, description: { column: "Memo" } },
+          [row, ...more].map((r) => ({ Date: "2026-01-05", Memo: "X", ...r })),
+          "f.csv",
+          IMPORT_DATE,
+        );
+        return (m.amount as { column: string }).column;
+      } catch (err) {
+        if (err instanceof SchemaValidationError) return null;
+        throw err;
+      }
+    };
 
-    it("passes over an id column listed before the amount", () => {
-      expect(detected({ Ref: "R1001", Total: "12.50" })).toBe("Total");
-    });
-    it.each(["R1001", "RM101", "FT2305112345", "TOP5", "S123", "H200", "C1042", "D5", "1042CR"])(
-      "reads %j as an id, not an amount",
-      (id) => {
-        expect(detected({ Ref: id, Total: "12" })).toBe("Total");
-      },
-    );
-    it("still counts spaced or cents-bearing currency text as money", () => {
-      expect(detected({ Ref: "1042", Total: "R 100" })).toBe("Total");
-      expect(detected({ Ref: "1042", Total: "R12.50" })).toBe("Total");
-      expect(detected({ Ref: "1042", Total: "1234円" })).toBe("Total");
-    });
-    it.each(["Summary", "Checksum", "Consumption", "Insumos"])("doesn't read %j as an amount header", (header) => {
-      expect(detected({ [header]: "5", Total: "12" })).toBe(header);
-      expect(detected({ [header]: "5", Sum: "12" })).toBe("Sum");
-    });
-    it.each(["Sum", "Sum (EUR)", "Summe", "TransactionAmount", "transaction_amount", "Buchungsbetrag"])(
-      "reads %j as an amount header",
-      (header) => {
+    describe("an amount-named column settles it", () => {
+      it.each([
+        ["R100", { Ref: "1042", Amount: "R100" }],
+        ["1500р", { Ref: "1042", Amount: "1500р" }],
+        ["kr500", { Ref: "1042", Amount: "kr500" }],
+        ["Rs500", { Ref: "1042", Amount: "Rs500" }],
+        ["a bare integer", { Ref: "-12.50", Amount: "1250" }],
+      ])("picks Amount of %s over a Ref column", (_, row) => {
+        expect(detected(row)).toBe("Amount");
+      });
+
+      it("picks an Amount column mixing cents with a glued CR marker", () => {
+        expect(detected({ Ref: "1042", Amount: "100.00" }, { Ref: "1043", Amount: "1042CR" })).toBe("Amount");
+      });
+
+      it.each([
+        "Amount (Ledger Currency)",
+        "Sum",
+        "Sum (EUR)",
+        "Summe",
+        "TransactionAmount",
+        "transactionAmount",
+        "TxnAmount",
+        "transaction_amount",
+        "Buchungsbetrag",
+        "Importe",
+        "Montant",
+        "Valor",
+        "Сумма",
+        "金額",
+        "金额",
+      ])("reads %j as an amount header", (header) => {
         expect(detected({ Ref: "-1", [header]: "12" })).toBe(header);
-      },
-    );
-    it.each(["Foreign Amount", "Original Amount", "Orig. Amount", "Betrag (Fremdwährung)"])(
-      "prefers the plain amount over %j",
-      (foreign) => {
-        expect(detected({ [foreign]: "-12.50", Amount: "1250" })).toBe("Amount");
-      },
-    );
-    it.each(["Bal.", "Bal", "Running Total", "Ledger", "잔액", "Bakiye", "Zůstatek", "Egyenleg"])(
-      "excludes the %j column",
-      (balance) => {
-        expect(detected({ [balance]: "-1,234.56", Total: "12" })).toBe("Total");
-      },
-    );
-    it("doesn't read a word merely containing bal as a balance", () => {
-      expect(detected({ Global: "-12.50", Ref: "1042" })).toBe("Global");
+      });
+
+      it.each(["Foreign Amount", "Original Amount", "Orig. Amount", "OriginalAmount", "Betrag (Fremdwährung)"])(
+        "prefers the plain amount over %j",
+        (foreign) => {
+          expect(detected({ [foreign]: "-12.50", Amount: "1250" })).toBe("Amount");
+        },
+      );
+
+      it.each([
+        ["two plain amount columns", { Amount: "-12.50", Sum: "12.50" }],
+        ["Amount and TransactionAmount", { Amount: "-12.50", TransactionAmount: "-12.50" }],
+        ["only a foreign amount", { "Foreign Amount": "-12.50", Total: "-12.50" }],
+        ["only a balance-led amount", { "Ledger Amount": "1,234.56", Total: "-12.50" }],
+        ["an amount column that doesn't parse", { Amount: "n/a", Total: "-12.50" }],
+        ["an amount column of dates", { Amount: "2026-01-05", Total: "-12.50" }],
+      ])("refuses %s", (_, row) => {
+        expect(detected(row)).toBeNull();
+      });
+
+      it("keeps a balance-led amount column out of the plain contest", () => {
+        expect(detected({ "Running Balance Amount": "1,234.56", Amount: "-12.50" })).toBe("Amount");
+      });
+    });
+
+    describe("with no amount-named column, one money-signalled column or nothing", () => {
+      it.each([
+        ["negative", { Ref: "1042", Total: "-12.50" }, "Total"],
+        ["cents", { Ref: "1042", Total: "12.50" }, "Total"],
+        ["spaced currency text", { Ref: "1042", Total: "R 100" }, "Total"],
+        ["cents-bearing glued currency", { Ref: "1042", Total: "R12.50" }, "Total"],
+        ["yen suffix", { Ref: "1042", Total: "1234円" }, "Total"],
+        ["złoty suffix", { Ref: "1042", Kwota: "12,50 zł" }, "Kwota"],
+        ["a direction marker", { Ref: "1042", Total: "12 CR" }, "Total"],
+        ["a word merely containing bal", { Global: "-12.50", Ref: "1042" }, "Global"],
+      ])("picks the column with a money signal (%s)", (_, row, column) => {
+        expect(detected(row)).toBe(column);
+      });
+
+      it.each(["R1001", "RM101", "FT2305112345", "TOP5", "S123", "H200", "C1042", "D5", "1042CR"])(
+        "passes over an id column of %j listed before the amount",
+        (id) => {
+          expect(detected({ Ref: id, Total: "12.50" })).toBe("Total");
+        },
+      );
+
+      it.each(["Summary", "Checksum", "CheckSum", "ControlSum", "HashSum", "Consumption", "Insumos"])(
+        "doesn't read %j as an amount header",
+        (header) => {
+          expect(detected({ [header]: "5", Total: "12.50" })).toBe("Total");
+          expect(detected({ [header]: "5", Sum: "12" })).toBe("Sum");
+        },
+      );
+
+      it.each([
+        "Balance",
+        "Current Balance",
+        "RunningBalance",
+        "Bal.",
+        "Bal",
+        "Running Total",
+        "Ledger",
+        "Available",
+        "잔액",
+        "Bakiye",
+        "Zůstatek",
+        "Egyenleg",
+      ])("excludes the %j column", (balance) => {
+        expect(detected({ [balance]: "-1,234.56", Total: "12.50" })).toBe("Total");
+      });
+
+      it.each([
+        ["no column carries a signal", { Ref: "1042", Total: "12" }],
+        ["two columns carry a signal", { Fee: "-1.50", Total: "-12.50" }],
+        ["only balances carry one", { "Running Balance": "1,234.56", Available: "1,200.00", Ref: "1042" }],
+        ["the only signalled column is id-like", { Ref: "R1001", Total: "12" }],
+      ])("refuses when %s", (_, row) => {
+        expect(detected(row)).toBeNull();
+      });
     });
   });
 
