@@ -1,5 +1,6 @@
-import { describe, it, expect, vi } from "vitest";
+import { afterEach, describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
+import { i18n } from "@capybudget/i18n";
 import userEvent from "@testing-library/user-event";
 import type { ImportPhase } from "@capybudget/intelligence";
 import { ImportProgress } from "./import-progress";
@@ -11,7 +12,7 @@ function renderProgress(
   return render(
     <ImportProgress
       running={false}
-      status=""
+      status={null}
       log={[]}
       normalizeProgress={null}
       batchProgress={null}
@@ -59,5 +60,35 @@ describe("ImportProgress — Normalizing meter", () => {
     // Its totals were estimates — the done segment is simply done, no count.
     renderProgress({ phase: "categorizing", running: true, normalizeProgress });
     expect(screen.queryByText("12 of 30")).toBeNull();
+  });
+});
+
+describe("ImportProgress — localized run copy", () => {
+  afterEach(async () => {
+    await i18n.changeLanguage("en");
+  });
+
+  it("renders the status line and log notices in the active language", async () => {
+    await i18n.changeLanguage("ru");
+    renderProgress({
+      phase: "categorizing",
+      running: true,
+      status: { code: "categorize.progress", params: { done: 12, total: 30 } },
+      log: [
+        { ts: 0, level: "info", phase: "history", notice: { code: "history.payoff", params: { resolved: 5, total: 9, duplicates: 0 } } },
+        {
+          ts: 0,
+          level: "warn",
+          phase: "categorizing",
+          notice: { code: "categorize.transferBatchFailed", params: { count: 3, cause: { kind: "refused" } } },
+        },
+      ],
+    });
+
+    expect(screen.getByText("Распределяю по категориям: 12 из 30…")).toBeInTheDocument();
+    expect(screen.getByText("5 из 9 определено по твоей истории")).toBeInTheDocument();
+    expect(
+      screen.getByText("Пакет переводов не обработан (для повторного запуска остались 3 строки): ИИ отказался распределять эти строки по категориям"),
+    ).toBeInTheDocument();
   });
 });

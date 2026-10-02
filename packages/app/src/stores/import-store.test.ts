@@ -1,10 +1,10 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import type { ImportEvent, TerminalLogEntry } from "@capybudget/intelligence";
+import type { ImportEvent, ImportStatus, TerminalLogEntry } from "@capybudget/intelligence";
 import { reduce, useImportStore } from "@/stores/import-store";
 
 const IDLE = {
   phase: "idle" as const,
-  status: "",
+  status: null as ImportStatus | null,
   log: [] as TerminalLogEntry[],
   normalizeProgress: null,
   batchProgress: null,
@@ -14,9 +14,11 @@ const IDLE = {
   rowsVersion: 0,
 };
 
-function logEntry(message: string, level: TerminalLogEntry["level"] = "info"): TerminalLogEntry {
-  return { ts: 1_700_000_000_000, level, phase: "reading", message };
+function logEntry(count: number, level: TerminalLogEntry["level"] = "info"): TerminalLogEntry {
+  return { ts: 1_700_000_000_000, level, phase: "reading", notice: { code: "normalize.done", params: { count } } };
 }
+
+const progress = (done: number): ImportStatus => ({ code: "categorize.progress", params: { done, total: 30 } });
 
 describe("import-store reduce", () => {
   it("advances phase and clears running on terminal phases", () => {
@@ -35,13 +37,13 @@ describe("import-store reduce", () => {
   });
 
   it("replaces the status line", () => {
-    const next = reduce({ ...IDLE, status: "old" }, { type: "status", phase: "reading", message: "new" });
-    expect(next.status).toBe("new");
+    const next = reduce({ ...IDLE, status: progress(1) }, { type: "status", phase: "categorizing", notice: progress(2) });
+    expect(next.status).toEqual(progress(2));
   });
 
   it("appends log entries oldest-first", () => {
-    const a = logEntry("first");
-    const b = logEntry("second");
+    const a = logEntry(1);
+    const b = logEntry(2);
     const afterA = { ...IDLE, ...reduce(IDLE, { type: "log", entry: a }) };
     const afterB = reduce(afterA, { type: "log", entry: b });
     expect(afterB.log).toEqual([a, b]);
@@ -51,7 +53,6 @@ describe("import-store reduce", () => {
     const grounding: Extract<ImportEvent, { type: "grounding" }> = {
       type: "grounding",
       stats: { total: 77, resolved: 47, duplicates: 4 },
-      message: "47 of 77 resolved from your history · 4 duplicates",
     };
     // The store only keeps a boolean — the payoff numbers reach the user via
     // the log line, so it doesn't double-store the typed stats.
@@ -74,19 +75,15 @@ describe("import-store reduce", () => {
   it("captures recoverable errors and stops running", () => {
     const next = reduce(
       { ...IDLE, running: true },
-      { type: "error", reason: "read", message: "No source files to import.", recoverable: true },
+      { type: "error", notice: { code: "read.noSources" }, recoverable: true },
     );
-    expect(next.error).toEqual({
-      reason: "read",
-      message: "No source files to import.",
-      recoverable: true,
-    });
+    expect(next.error).toEqual({ notice: { code: "read.noSources" }, recoverable: true });
     expect(next.running).toBe(false);
   });
 
   it("clears running and status on done", () => {
-    const next = reduce({ ...IDLE, running: true, status: "Categorizing 30 of 30…" }, { type: "done" });
-    expect(next).toEqual({ running: false, status: "" });
+    const next = reduce({ ...IDLE, running: true, status: progress(30) }, { type: "done" });
+    expect(next).toEqual({ running: false, status: null });
   });
 });
 
@@ -98,7 +95,7 @@ describe("import-store actions", () => {
   it("beginRun('start') clears everything for a fresh reading run, reload counter included", () => {
     useImportStore.setState({
       rowsVersion: 5,
-      log: [logEntry("stale")],
+      log: [logEntry(3)],
       grounded: true,
     });
     useImportStore.getState().beginRun("start");
@@ -111,7 +108,7 @@ describe("import-store actions", () => {
   });
 
   it("beginRun('enrich') keeps the log + grounding + reload counter, re-enters categorizing", () => {
-    const entry = logEntry("47 of 77 resolved");
+    const entry = logEntry(47);
     useImportStore.setState({
       log: [entry],
       grounded: true,
@@ -133,12 +130,12 @@ describe("import-store actions", () => {
   });
 
   it("reset returns fully to idle, reload counter zeroed (no stale run carries over)", () => {
-    useImportStore.setState({ phase: "categorizing", running: true, rowsVersion: 9, status: "busy" });
+    useImportStore.setState({ phase: "categorizing", running: true, rowsVersion: 9, status: progress(4) });
     useImportStore.getState().reset();
     const s = useImportStore.getState();
     expect(s.phase).toBe("idle");
     expect(s.running).toBe(false);
-    expect(s.status).toBe("");
+    expect(s.status).toBeNull();
     expect(s.rowsVersion).toBe(0);
   });
 

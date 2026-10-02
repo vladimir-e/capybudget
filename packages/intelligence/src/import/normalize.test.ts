@@ -1268,7 +1268,9 @@ describe("normalizeCsv — skip rules", () => {
 
     expect(rows).toHaveLength(5);
     expect(rows.every((r) => r.skipRule === null)).toBe(true);
-    expect(warnings).toEqual(['1 row matched skip rules in bank.csv: "OPENING BALANCE"']);
+    expect(warnings).toEqual([
+      { code: "normalize.skipRules", params: { file: "bank.csv", sample: { items: ["OPENING BALANCE"], more: 0 }, held: 0 } },
+    ]);
   });
 
   it("drops a pending row whose amount is blank", async () => {
@@ -1313,7 +1315,10 @@ describe("normalizeCsv — skip rules", () => {
         ["Total", rules[2]],
       ]);
       expect(warnings).toEqual([
-        '4 rows matched skip rules in bank.csv: "Opening balance", "Balance forward", "Saldovortrag" (+1 more) — 4 with an amount left unselected in the preview',
+        {
+          code: "normalize.skipRules",
+          params: { file: "bank.csv", sample: { items: ["Opening balance", "Balance forward", "Saldovortrag"], more: 1 }, held: 4 },
+        },
       ]);
     });
   });
@@ -1384,7 +1389,7 @@ describe("normalizeImage — extraction warnings", () => {
 
     const { warnings } = await normalizeImage(session, { name: "scan.png", content: "B64", mediaType: "image/png" });
 
-    expect(warnings).toEqual(["scan.png: the AI counted 5 transactions but returned 2 — 3 may be missing."]);
+    expect(warnings).toEqual([{ code: "normalize.countMismatch", params: { file: "scan.png", counted: 5, returned: 2 } }]);
   });
 
   it("flags amounts that all end in .00 as dropped cents", async () => {
@@ -1392,7 +1397,7 @@ describe("normalizeImage — extraction warnings", () => {
 
     const { warnings } = await normalizeImage(session, { name: "scan.png", content: "B64", mediaType: "image/png" });
 
-    expect(warnings).toEqual(["scan.png: every amount ends in .00 — the AI may have dropped the cents. Check the amounts."]);
+    expect(warnings).toEqual([{ code: "normalize.droppedCents", params: { file: "scan.png" } }]);
   });
 
   it("flags amounts that are all under one unit as whole units", async () => {
@@ -1400,9 +1405,7 @@ describe("normalizeImage — extraction warnings", () => {
 
     const { warnings } = await normalizeImage(session, { name: "scan.png", content: "B64", mediaType: "image/png" });
 
-    expect(warnings).toEqual([
-      "scan.png: every amount is under 1.00 — the AI may have returned whole units instead of cents. Check the amounts.",
-    ]);
+    expect(warnings).toEqual([{ code: "normalize.wholeUnits", params: { file: "scan.png" } }]);
   });
 
   it("needs three rows before judging the amounts", async () => {

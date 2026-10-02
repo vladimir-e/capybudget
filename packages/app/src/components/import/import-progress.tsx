@@ -3,6 +3,7 @@ import { Check, Loader2, Sparkles, Square } from "lucide-react";
 import type {
   BatchProgress,
   ImportPhase,
+  ImportStatus,
   NormalizeProgress,
   TerminalLogEntry,
 } from "@capybudget/intelligence";
@@ -10,6 +11,7 @@ import { useTranslation } from "@capybudget/i18n";
 import type { TFunction } from "i18next";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { useImportNoticeText } from "./import-notice-text";
 import {
   PROGRESS_SEGMENTS,
   meterView,
@@ -30,8 +32,8 @@ interface ImportProgressProps {
   phase: ImportPhase;
   /** Whether a run is in flight (drives the active-segment animation). */
   running: boolean;
-  /** Current-status line under the bar; empty hides it. */
-  status: string;
+  /** Current-status line under the bar; null hides it. */
+  status: ImportStatus | null;
   /** Accumulated terminal log, oldest first. */
   log: TerminalLogEntry[];
   /** Normalizing row counter, or null before it ticks. */
@@ -67,6 +69,7 @@ export function ImportProgress({
   enrich,
 }: ImportProgressProps) {
   const { t } = useTranslation(["import", "common"]);
+  const noticeText = useImportNoticeText();
   const showEnrich = !running && !!enrich && enrich.count > 0;
   return (
     <div className="space-y-4">
@@ -121,7 +124,7 @@ export function ImportProgress({
       {status && (
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
           {running && <Loader2 className="h-3.5 w-3.5 animate-spin text-brand shrink-0" />}
-          <span className="truncate">{status}</span>
+          <span className="truncate">{noticeText(status)}</span>
         </div>
       )}
 
@@ -210,6 +213,7 @@ const LEVEL_CLASS: Record<TerminalLogEntry["level"], string> = {
 };
 
 function LogPane({ log }: { log: TerminalLogEntry[] }) {
+  const noticeText = useImportNoticeText();
   const scrollRef = useRef<HTMLDivElement>(null);
 
   // Keep the newest line in view — the run record reads bottom-up like a tail.
@@ -226,7 +230,7 @@ function LogPane({ log }: { log: TerminalLogEntry[] }) {
       {log.map((entry, i) => (
         <div key={`${entry.ts}-${i}`} className="flex gap-2">
           <span className="shrink-0 tabular-nums text-muted-foreground/50">{formatTime(entry.ts)}</span>
-          <span className={cn("min-w-0 break-words", LEVEL_CLASS[entry.level])}>{entry.message}</span>
+          <span className={cn("min-w-0 break-words", LEVEL_CLASS[entry.level])}>{noticeText(entry.notice)}</span>
         </div>
       ))}
     </div>

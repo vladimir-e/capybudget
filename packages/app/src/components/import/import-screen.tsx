@@ -21,8 +21,7 @@ import {
 } from "@/components/ui/dialog";
 import { useImportRepository, type SourceFileInfo } from "@/hooks/use-import-repository";
 import { MAX_ATTACHMENT_SIZE, MAX_IMPORT_PDF_SIZE, isPdfFilename, type ImportPhase } from "@capybudget/intelligence";
-import { useImportStore } from "@/stores/import-store";
-import { useIntelligenceStore } from "@/stores/intelligence-store";
+import { useImportStore, type ImportRunError } from "@/stores/import-store";
 import { useImportOrchestrator } from "@/hooks/use-import-orchestrator";
 import { useImportInstructions } from "@/hooks/use-custom-instructions";
 import { useAccounts } from "@/hooks/use-budget-data";
@@ -37,7 +36,7 @@ import { ImportDropZone } from "./import-drop-zone";
 import { ImportProgress } from "./import-progress";
 import { resumeMeter } from "./import-progress-utils";
 import { ImportPreview } from "./import-preview";
-import { importErrorCopy } from "./import-error-copy";
+import { useImportNoticeText } from "./import-notice-text";
 
 interface ImportScreenProps {
   budgetPath: string;
@@ -65,7 +64,7 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
   const batchProgress = useImportStore((s) => s.batchProgress);
   const grounded = useImportStore((s) => s.grounded);
   const error = useImportStore((s) => s.error);
-  const ollamaBaseUrl = useIntelligenceStore((s) => s.config.ollama.baseUrl);
+  const noticeText = useImportNoticeText();
   const running = useImportStore((s) => s.running);
   const rowsVersion = useImportStore((s) => s.rowsVersion);
   const reset = useImportStore((s) => s.reset);
@@ -251,23 +250,22 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
   // to file-attach so the user can retry; if rows did land, the preview stays put
   // with the partial result. A run that finds no transaction data is not an
   // error — it lands on an empty preview and never reaches here.
-  const reportedErrorRef = useRef<string | null>(null);
+  const reportedErrorRef = useRef<ImportRunError | null>(null);
   useEffect(() => {
     if (!error) {
       reportedErrorRef.current = null;
       return;
     }
-    const key = `${error.reason}:${error.message}`;
-    if (reportedErrorRef.current === key) return;
-    reportedErrorRef.current = key;
+    if (reportedErrorRef.current === error) return;
+    reportedErrorRef.current = error;
 
-    toast.error(importErrorCopy(error, t, ollamaBaseUrl));
+    toast.error(noticeText(error.notice));
     if (error.recoverable || !hasStaging) {
       reset();
       setHasStaging(false);
       void refreshSourceFiles();
     }
-  }, [error, hasStaging, reset, refreshSourceFiles, t, ollamaBaseUrl]);
+  }, [error, hasStaging, reset, refreshSourceFiles, noticeText]);
 
   // ── Derived view state ────────────────────────────────────────
   let viewState: ImportViewState;

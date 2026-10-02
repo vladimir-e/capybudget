@@ -1,20 +1,17 @@
 import { create } from "zustand";
 import type {
   BatchProgress,
-  ImportErrorReason,
   ImportEvent,
+  ImportFailure,
   ImportPhase,
+  ImportStatus,
   NormalizeProgress,
-  SessionProvider,
   TerminalLogEntry,
 } from "@capybudget/intelligence";
 
 export interface ImportRunError {
-  reason: ImportErrorReason;
-  message: string;
+  notice: ImportFailure;
   recoverable: boolean;
-  status?: number;
-  provider?: SessionProvider;
 }
 
 /**
@@ -42,7 +39,7 @@ interface ImportRunState {
   /** The orchestrator's current phase, or `idle` before a run starts. */
   phase: ImportPhase;
   /** The single current-status line (with spinner), replaced as it ticks. */
-  status: string;
+  status: ImportStatus | null;
   /** Timestamped terminal log, oldest first. */
   log: TerminalLogEntry[];
   /** Normalizing row counter (streamed extraction rows, CSV counts); null until it ticks. */
@@ -100,7 +97,7 @@ interface ImportStore extends ImportRunState {
 
 const IDLE_RUN: ImportRunState = {
   phase: "idle",
-  status: "",
+  status: null,
   log: [],
   normalizeProgress: null,
   batchProgress: null,
@@ -130,7 +127,7 @@ export const useImportStore = create<ImportStore>((set) => ({
             running: true,
             error: null,
             phase: "categorizing",
-            status: "",
+            status: null,
             normalizeProgress: null,
             batchProgress: null,
             rowsVersion: s.rowsVersion,
@@ -159,7 +156,7 @@ export function reduce(s: ImportRunState, event: ImportEvent): Partial<ImportRun
         running: event.phase !== "done" && event.phase !== "error",
       };
     case "status":
-      return { status: event.message };
+      return { status: event.notice };
     case "log":
       return { log: appendLog(s.log, event.entry) };
     case "grounding":
@@ -171,18 +168,9 @@ export function reduce(s: ImportRunState, event: ImportEvent): Partial<ImportRun
     case "rows-changed":
       return { rowsVersion: s.rowsVersion + 1 };
     case "error":
-      return {
-        error: {
-          reason: event.reason,
-          message: event.message,
-          recoverable: event.recoverable,
-          status: event.status,
-          provider: event.provider,
-        },
-        running: false,
-      };
+      return { error: { notice: event.notice, recoverable: event.recoverable }, running: false };
     case "done":
-      return { running: false, status: "" };
+      return { running: false, status: null };
   }
 }
 

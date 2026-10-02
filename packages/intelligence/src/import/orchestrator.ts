@@ -16,8 +16,8 @@ import {
   type RowContext,
   type TransferContext,
 } from "@capybudget/core";
-import { extractErrorMessage, isDeadEnd } from "../error-message";
-import { UnreachableError, type StructuredSession } from "../structured";
+import { deadEndKind, extractErrorMessage, isDeadEnd } from "../error-message";
+import { CutOffError, RefusedError, SchemaValidationError, type StructuredSession } from "../structured";
 import type { SessionProvider } from "../types";
 import type { BudgetDataProvider } from "./budget-data";
 import {
@@ -33,12 +33,17 @@ import {
 import type { EnrichedRow, TransferEnriched } from "./schemas";
 import {
   PIPELINE_PHASES,
+  type BatchFailureCause,
+  type FileFailureCause,
   type ImportEvent,
   type ImportEventHandler,
-  type ImportErrorReason,
+  type ImportFailure,
+  type ImportLogNotice,
   type ImportPhase,
+  type ImportStatus,
   type LogLevel,
   type NormalizeProgress,
+  type Sample,
   type TerminalLogEntry,
 } from "./events";
 import { normalizeCsv, normalizeImage } from "./normalize";
@@ -99,9 +104,9 @@ export class ImportOrchestrator {
       if (existing) {
         // Resume: staging exists → pick up at Categorizing over the remainder.
         if (existing.dropped.length > 0) {
-          this.log("warn", "categorizing", describeDroppedRows(existing.dropped));
+          this.log("warn", "categorizing", { code: "categorize.droppedRows", params: { sample: sample(existing.dropped) } });
         }
-        this.log("info", "categorizing", `Resuming import — ${existing.rows.length} rows already staged.`);
+        this.log("info", "categorizing", { code: "categorize.resuming", params: { count: existing.rows.length } });
         await this.runCategorizing(existing.rows);
         return;
       }
@@ -118,11 +123,11 @@ export class ImportOrchestrator {
     return this.run(async () => {
       const staged = await this.deps.staging.readTransactions();
       if (!staged) {
-        this.fail("internal", "No staged transactions to enrich.");
+        this.fail({ code: "enrich.noStaging" });
         return;
       }
       if (staged.dropped.length > 0) {
-        this.log("warn", "categorizing", describeDroppedRows(staged.dropped));
+        this.log("warn", "categorizing", { code: "categorize.droppedRows", params: { sample: sample(staged.dropped) } });
       }
       await this.runCategorizing(staged.rows);
     });
@@ -183,10 +188,10 @@ export class ImportOrchestrator {
     this.enterPhase("reading");
     const sources = await this.deps.staging.listSources();
     if (sources.length === 0) {
-      this.fail("read", "No source files to import.", { recoverable: true });
+      this.fail({ code: "read.noSources" }, { recoverable: true });
       return;
     }
-    this.log("info", "reading", `Read ${sources.length} file(s): ${sources.map((s) => s.name).join(", ")}.`);
+    this.log("info", "reading", { code: "reading.files", params: { files: sources.map((s) => s.name) } });
     if (this.stopReturn()) return;
 
     // Normalizing — held in memory; staging isn't written until History has
@@ -197,7 +202,7 @@ export class ImportOrchestrator {
     this.enterPhase("normalizing");
     const normalized = await this.normalize(sources);
     if (!normalized) return;
-    this.log("info", "normalizing", `Normalized ${normalized.length} transactions.`);
+    this.log("info", "normalizing", { code: "normalize.done", params: { count: normalized.length } });
     if (this.stopReturn()) return;
 
     // History — first staging write (transactions.csv + context.json together).
@@ -234,20 +239,19 @@ export class ImportOrchestrator {
         },
       });
     };
-    let failure: { name: string; err: unknown } | null = null;
+    let failure: { file: string; cause: FileFailureCause } | null = null;
     for (const source of sources) {
       if (this.stopRequested) break;
       try {
         all.push(...(await this.normalizeSource(source, all.length + 1, existingAccounts, fileProgress)));
       } catch (err) {
         if (this.aborted || isDeadEnd(err)) throw err;
-        failure = { name: source.name, err };
-        this.log("warn", "normalizing", `Skipped ${source.name} — ${extractErrorMessage(err).message}`);
+        failure = { file: source.name, cause: fileFailureCause(err) };
+        this.log("warn", "normalizing", { code: "normalize.fileSkipped", params: failure });
       }
     }
     if (all.length === 0 && failure) {
-      const { message, status } = extractErrorMessage(failure.err);
-      this.fail("internal", `Couldn't import ${failure.name} — ${message}`, { status });
+      this.fail({ code: "normalize.fileFailed", params: failure });
       return null;
     }
     // Settle the meter on the actual landed count — per-file totals were
@@ -264,9 +268,9 @@ export class ImportOrchestrator {
     const firstAsk = this.imageSupport === null;
     this.imageSupport ??= this.deps.imageSupport(this.controller.signal);
     const supported = await this.imageSupport;
-    if (supported === false) throw new Error("the selected model can't read images. Pick a vision model in Settings.");
+    if (supported === false) throw new UnreadableSourceError("noVision");
     if (supported === null && firstAsk) {
-      this.log("warn", "normalizing", "Couldn't confirm the selected model reads images — trying anyway.");
+      this.log("warn", "normalizing", { code: "normalize.visionUnknown" });
     }
   }
 
@@ -281,15 +285,15 @@ export class ImportOrchestrator {
     const { signal } = this.controller;
     const kind = classifySource(source.mediaType);
     if (kind === "pdf" && this.deps.pdfSupported === false) {
-      throw new Error("the selected AI provider can't read PDFs. Switch to Anthropic or OpenAI, or import a CSV export.");
+      throw new UnreadableSourceError("pdfUnsupported");
     }
     if (kind === "image") await this.assertReadsImages();
     if (kind === "image" || kind === "pdf") {
-      this.status("normalizing", `Extracting transactions from ${source.name}…`);
+      this.status("normalizing", { code: "normalize.extracting", params: { file: source.name } });
       const result = await normalizeImage(this.deps.session, source, { startId, existingAccounts, onProgress, signal });
       for (const warning of result.warnings) this.log("warn", "normalizing", warning);
       if (result.noData) {
-        this.log("warn", "normalizing", `Skipped ${source.name} — no transaction data found.`);
+        this.log("warn", "normalizing", { code: "normalize.noData", params: { file: source.name } });
         return [];
       }
       return result.rows;
@@ -297,22 +301,25 @@ export class ImportOrchestrator {
     if (kind === "ofx") {
       // Deterministic — no model call. OFX fields are standardized, so the
       // rows are known the moment they parse; report progress in one shot.
-      this.status("normalizing", `Reading transactions from ${source.name}…`);
+      this.status("normalizing", { code: "normalize.readingOfx", params: { file: source.name } });
       const result = normalizeOfx(source, { startId });
       if (result.dropped.length > 0) {
-        this.log("warn", "normalizing", describeSkippedRows(source.name, result.dropped));
+        this.log("warn", "normalizing", { code: "normalize.rowsUnparsed", params: { file: source.name, sample: sample(result.dropped) } });
       }
       if (result.rows.length === 0) {
-        this.log("warn", "normalizing", `Skipped ${source.name} — no transaction data found.`);
+        this.log("warn", "normalizing", { code: "normalize.noData", params: { file: source.name } });
         return [];
       }
       onProgress({ rows: result.rows.length, total: result.rows.length });
       return result.rows;
     }
-    this.status("normalizing", `Mapping columns in ${source.name}…`);
+    this.status("normalizing", { code: "normalize.mappingColumns", params: { file: source.name } });
     const result = await normalizeCsv(this.deps.session, source, { startId, existingAccounts, onProgress, signal });
     if (result.errors.length > 0) {
-      this.log("warn", "normalizing", describeSkippedRows(source.name, result.errors.map((e) => e.message)));
+      this.log("warn", "normalizing", {
+        code: "normalize.rowsUnparsed",
+        params: { file: source.name, sample: sample(result.errors.map((e) => e.message)) },
+      });
     }
     for (const warning of result.warnings) this.log("warn", "normalizing", warning);
     return result.rows;
@@ -322,7 +329,7 @@ export class ImportOrchestrator {
    *  Writes resolved fields back to staging + the context sidecar, then reports
    *  the payoff stats. */
   private async runHistory(rows: ImportTransaction[]): Promise<ImportTransaction[]> {
-    this.status("history", "Matching against your history…");
+    this.status("history", { code: "history.matching" });
     const [history, categories, accounts] = await Promise.all([
       this.deps.budget.getHistory(),
       this.deps.budget.getCategories(),
@@ -357,11 +364,9 @@ export class ImportOrchestrator {
     this.emit({ type: "rows-changed" });
 
     const { total, resolved, duplicates } = outcome.stats;
-    const message =
-      `${resolved} of ${total} resolved from your history` +
-      (duplicates > 0 ? ` · ${duplicates} duplicate${duplicates === 1 ? "" : "s"}` : "");
-    this.emit({ type: "grounding", stats: { total, resolved, duplicates }, message });
-    this.log("info", "history", message);
+    const stats = { total, resolved, duplicates };
+    this.emit({ type: "grounding", stats });
+    this.log("info", "history", { code: "history.payoff", params: stats });
 
     return grounded;
   }
@@ -388,7 +393,7 @@ export class ImportOrchestrator {
     const pendingTransfer = rows.filter((r) => needsTransferEnrich(r, r.id in transferContext));
     const total = pendingCategory.length + pendingTransfer.length;
     if (total === 0) {
-      this.log("info", "categorizing", "Nothing to categorize — all rows resolved.");
+      this.log("info", "categorizing", { code: "categorize.nothingToDo" });
       this.finish();
       return;
     }
@@ -412,7 +417,7 @@ export class ImportOrchestrator {
 
     let done = 0;
     this.emit({ type: "batch-progress", progress: { done, total } });
-    this.status("categorizing", `Categorizing ${done} of ${total}…`);
+    this.status("categorizing", { code: "categorize.progress", params: { done, total } });
 
     let persistChain: Promise<void> = Promise.resolve();
     const persistSnapshot = (): Promise<void> => {
@@ -425,7 +430,7 @@ export class ImportOrchestrator {
     const { signal } = this.controller;
     let cursor = 0;
     let deadEnd: unknown = null;
-    let lastFailure: unknown = null;
+    let lastFailure: BatchFailureCause | null = null;
 
     const runNext = async (): Promise<void> => {
       while (true) {
@@ -447,22 +452,24 @@ export class ImportOrchestrator {
             deadEnd ??= err;
             return;
           }
-          lastFailure = err;
+          const cause = batchFailureCause(err);
+          lastFailure = cause;
+          const count = job.rows.length;
           this.log(
             "warn",
             "categorizing",
-            `${job.kind === "transfer" ? "Transfer batch" : `Batch ${index + 1}`} failed (${job.rows.length} rows left for re-run): ${
-              extractErrorMessage(err).message
-            }`,
+            job.kind === "transfer"
+              ? { code: "categorize.transferBatchFailed", params: { count, cause } }
+              : { code: "categorize.batchFailed", params: { batch: index + 1, count, cause } },
           );
         }
         this.emit({ type: "batch-progress", progress: { done, total } });
-        this.status("categorizing", `Categorizing ${done} of ${total}…`);
+        this.status("categorizing", { code: "categorize.progress", params: { done, total } });
       }
     };
 
     if (pendingTransfer.length > 0) {
-      this.log("info", "categorizing", `Resolving ${pendingTransfer.length} transfer ${pendingTransfer.length === 1 ? "counterpart" : "counterparts"}…`);
+      this.log("info", "categorizing", { code: "categorize.transfers", params: { count: pendingTransfer.length } });
     }
 
     const workers = Array.from({ length: Math.min(concurrency, jobs.length) }, runNext);
@@ -480,14 +487,9 @@ export class ImportOrchestrator {
       return;
     }
     if (this.stopRequested) {
-      this.log("info", "categorizing", "Stopped — landed batches kept; re-run Enrich to finish.");
+      this.log("info", "categorizing", { code: "categorize.stopped" });
     } else if (done === 0) {
-      const cause = lastFailure === null ? null : extractErrorMessage(lastFailure);
-      this.fail(
-        "categorize",
-        `Couldn't categorize any of ${total} rows${cause ? ` — ${cause.message}` : ""}. Re-run Enrich to try again.`,
-        { status: cause?.status },
-      );
+      this.fail({ code: "categorize.noneLanded", params: { count: total, cause: lastFailure } });
       return;
     }
     this.finish();
@@ -500,12 +502,12 @@ export class ImportOrchestrator {
     this.emit({ type: "phase", phase });
   }
 
-  private status(phase: ImportPhase, message: string): void {
-    this.emit({ type: "status", phase, message });
+  private status(phase: ImportPhase, notice: ImportStatus): void {
+    this.emit({ type: "status", phase, notice });
   }
 
-  private log(level: LogLevel, phase: ImportPhase, message: string): void {
-    const entry: TerminalLogEntry = { ts: Date.now(), level, phase, message };
+  private log(level: LogLevel, phase: ImportPhase, notice: ImportLogNotice): void {
+    const entry: TerminalLogEntry = { ts: Date.now(), level, phase, notice };
     this.emit({ type: "log", entry });
   }
 
@@ -515,7 +517,7 @@ export class ImportOrchestrator {
    *  symmetric with a Categorizing stop. */
   private stopReturn(): boolean {
     if (!this.stopRequested) return false;
-    this.log("info", this.phase, "Stopped — re-run to continue from here.");
+    this.log("info", this.phase, { code: "stopped" });
     this.finish();
     return true;
   }
@@ -527,26 +529,20 @@ export class ImportOrchestrator {
   }
 
   private failWith(err: unknown): void {
-    const { message, status } = extractErrorMessage(err);
-    this.fail(err instanceof UnreachableError ? "unreachable" : "internal", message, { status });
+    const kind = deadEndKind(err);
+    const { provider } = this.deps;
+    this.fail(
+      kind && provider
+        ? { code: "deadEnd", params: { kind, provider } }
+        : { code: "failed", params: { detail: extractErrorMessage(err).message } },
+    );
   }
 
-  private fail(
-    reason: ImportErrorReason,
-    message: string,
-    { recoverable = false, status }: { recoverable?: boolean; status?: number } = {},
-  ): void {
+  private fail(notice: ImportFailure, { recoverable = false }: { recoverable?: boolean } = {}): void {
     this.phase = "error";
     this.emit({ type: "phase", phase: "error" });
-    this.log("error", "error", message);
-    this.emit({
-      type: "error",
-      reason,
-      message,
-      recoverable,
-      ...(status !== undefined ? { status } : {}),
-      ...(this.deps.provider ? { provider: this.deps.provider } : {}),
-    });
+    this.log("error", "error", notice);
+    this.emit({ type: "error", notice, recoverable });
   }
 
   private emit(event: ImportEvent): void {
@@ -554,24 +550,30 @@ export class ImportOrchestrator {
   }
 }
 
+class UnreadableSourceError extends Error {
+  constructor(readonly kind: "pdfUnsupported" | "noVision") {
+    super(kind);
+    this.name = "UnreadableSourceError";
+  }
+}
+
+function batchFailureCause(err: unknown): BatchFailureCause {
+  if (err instanceof CutOffError) return { kind: "cutOff" };
+  if (err instanceof RefusedError) return { kind: "refused" };
+  if (err instanceof SchemaValidationError) return { kind: "unusable" };
+  return { kind: "other", detail: extractErrorMessage(err).message };
+}
+
+function fileFailureCause(err: unknown): FileFailureCause {
+  return err instanceof UnreadableSourceError ? { kind: err.kind } : batchFailureCause(err);
+}
+
+const SAMPLE_SIZE = 3;
+
 /** Cap a per-row note list so a wholly broken file logs a line, not a wall. */
-function truncateNotes(notes: string[]): string {
-  const shown = notes.slice(0, 3);
-  const more = notes.length > shown.length ? ` (+${notes.length - shown.length} more)` : "";
-  return `${shown.join("; ")}${more}`;
-}
-
-/** Warn-log line for rows a normalizer couldn't parse (CSV transform errors,
- *  OFX field failures). Each message already carries its own row/txn context. */
-function describeSkippedRows(name: string, messages: string[]): string {
-  const noun = messages.length === 1 ? "row" : "rows";
-  return `${messages.length} ${noun} skipped in ${name} — couldn't parse: ${truncateNotes(messages)}`;
-}
-
-/** Warn-log line for staged rows the resume read's validation dropped. */
-function describeDroppedRows(dropped: string[]): string {
-  const noun = dropped.length === 1 ? "row" : "rows";
-  return `${dropped.length} staged ${noun} skipped — failed validation: ${truncateNotes(dropped)}`;
+function sample(notes: string[]): Sample {
+  const items = notes.slice(0, SAMPLE_SIZE);
+  return { items, more: notes.length - items.length };
 }
 
 // ── Pure row transforms ──────────────────────────────────────────

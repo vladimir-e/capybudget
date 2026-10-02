@@ -41,7 +41,7 @@ import type { MessageContent } from "../types";
 import { sourceContentBlock } from "../source-files";
 import { extractErrorMessage } from "../error-message";
 import { SchemaValidationError, type StructuredSession } from "../structured";
-import type { NormalizeProgress } from "./events";
+import type { NormalizeProgress, NormalizeWarning } from "./events";
 import {
   CSV_MAPPING_SCHEMA,
   EXTRACTION_SCHEMA,
@@ -81,7 +81,7 @@ export interface NormalizeCsvResult {
    *  preview re-call). Dropped from `rows`; the orchestrator surfaces them as a
    *  warn-level log so the user sees what was skipped instead of it vanishing. */
   errors: TransformError[];
-  warnings: string[];
+  warnings: NormalizeWarning[];
 }
 
 /**
@@ -148,14 +148,13 @@ export async function normalizeCsv(
 
 const SKIPPED_SHOWN = 3;
 
-function describeSkippedByRules(filename: string, held: number, rows: Record<string, string>[], mapping: CsvMapping): string {
+function describeSkippedByRules(filename: string, held: number, rows: Record<string, string>[], mapping: CsvMapping): NormalizeWarning {
   const matched = rows.filter((row) => shouldSkipRow(row, mapping.skipRules));
-  const shown = matched
-    .slice(0, SKIPPED_SHOWN)
-    .map((row) => JSON.stringify(truncateValue(rowDescription(row, mapping.description))));
-  const more = matched.length > shown.length ? ` (+${matched.length - shown.length} more)` : "";
-  const heldNote = held > 0 ? ` — ${held} with an amount left unselected in the preview` : "";
-  return `${matched.length} ${matched.length === 1 ? "row" : "rows"} matched skip rules in ${filename}: ${shown.join(", ")}${more}${heldNote}`;
+  const items = matched.slice(0, SKIPPED_SHOWN).map((row) => truncateValue(rowDescription(row, mapping.description)));
+  return {
+    code: "normalize.skipRules",
+    params: { file: filename, sample: { items, more: matched.length - items.length }, held },
+  };
 }
 
 function rowDescription(row: Record<string, string>, ref: ColumnRef): string {
@@ -705,7 +704,7 @@ export interface NormalizeImageResult {
   rows: ImportTransaction[];
   /** Set when the source carried no transaction data (the selfie case). */
   noData?: { message: string };
-  warnings: string[];
+  warnings: NormalizeWarning[];
 }
 
 /**
@@ -786,22 +785,17 @@ export async function normalizeImage(
 const AMOUNT_CHECK_MIN_ROWS = 3;
 const ROUND_AMOUNT_CEILING = 10_000;
 
-function extractionWarnings(filename: string, result: { count: number; rows: StagedRecord[] }): string[] {
-  const warnings: string[] = [];
-  const missing = result.count - result.rows.length;
-  if (missing > 0) {
-    warnings.push(
-      `${filename}: the AI counted ${result.count} transactions but returned ${result.rows.length} — ${missing} may be missing.`,
-    );
+function extractionWarnings(filename: string, result: { count: number; rows: StagedRecord[] }): NormalizeWarning[] {
+  const warnings: NormalizeWarning[] = [];
+  if (result.count > result.rows.length) {
+    warnings.push({ code: "normalize.countMismatch", params: { file: filename, counted: result.count, returned: result.rows.length } });
   }
   const amounts = result.rows.map((r) => Math.abs(r.amount));
   if (amounts.length >= AMOUNT_CHECK_MIN_ROWS) {
     if (amounts.every((a) => a < 100)) {
-      warnings.push(
-        `${filename}: every amount is under 1.00 — the AI may have returned whole units instead of cents. Check the amounts.`,
-      );
+      warnings.push({ code: "normalize.wholeUnits", params: { file: filename } });
     } else if (amounts.every((a) => a % 100 === 0 && a < ROUND_AMOUNT_CEILING)) {
-      warnings.push(`${filename}: every amount ends in .00 — the AI may have dropped the cents. Check the amounts.`);
+      warnings.push({ code: "normalize.droppedCents", params: { file: filename } });
     }
   }
   return warnings;

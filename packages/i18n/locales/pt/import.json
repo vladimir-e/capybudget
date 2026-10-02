@@ -26,7 +26,15 @@
     "keyRejected": "{{provider}} recusou a chave de API — verifique nas Configurações.",
     "forbidden": "{{provider}} recusou a solicitação — verifique sua chave e seu acesso nas Configurações.",
     "modelNotFound": "{{provider}} não encontra o modelo selecionado — escolha outro nas Configurações.",
-    "categorizeFailed": "O Capy não conseguiu categorizar nenhuma linha. Elas continuam preparadas — rode Enriquecer para tentar de novo."
+    "noSources": "Nenhum arquivo de origem para importar.",
+    "noStaging": "Nenhuma transação preparada para enriquecer.",
+    "fileFailed": "Não foi possível importar {{file}} — {{cause}}.",
+    "noneLanded_one": "Não foi possível categorizar {{count}} linha — {{cause}}. Rode Enriquecer para tentar de novo.",
+    "noneLanded_many": "Não foi possível categorizar nenhuma das {{count}} linhas — {{cause}}. Rode Enriquecer para tentar de novo.",
+    "noneLanded_other": "Não foi possível categorizar nenhuma das {{count}} linhas — {{cause}}. Rode Enriquecer para tentar de novo.",
+    "noneLandedNoCause_one": "O Capy não conseguiu categorizar {{count}} linha. Ela continua preparada — rode Enriquecer para tentar de novo.",
+    "noneLandedNoCause_many": "O Capy não conseguiu categorizar nenhuma das {{count}} linhas. Elas continuam preparadas — rode Enriquecer para tentar de novo.",
+    "noneLandedNoCause_other": "O Capy não conseguiu categorizar nenhuma das {{count}} linhas. Elas continuam preparadas — rode Enriquecer para tentar de novo."
   },
   "dropZone": {
     "browseLabel": "Procurar arquivos para importar",
@@ -59,6 +67,75 @@
     "countRows_one": "{{count}} linha",
     "countRows_many": "{{count}} linhas",
     "countRows_other": "{{count}} linhas"
+  },
+  "run": {
+    "status": {
+      "extracting": "Extraindo transações de {{file}}…",
+      "readingOfx": "Lendo transações de {{file}}…",
+      "mappingColumns": "Mapeando colunas em {{file}}…",
+      "matchingHistory": "Comparando com seu histórico…",
+      "categorizing": "Categorizando {{done}} de {{total}}…"
+    },
+    "log": {
+      "readFiles_one": "{{count}} arquivo lido: {{files, list}}.",
+      "readFiles_many": "{{count}} arquivos lidos: {{files, list}}.",
+      "readFiles_other": "{{count}} arquivos lidos: {{files, list}}.",
+      "visionUnknown": "Não foi possível confirmar se o modelo selecionado lê imagens — tentando mesmo assim.",
+      "noData": "{{file}} foi ignorado — nenhuma transação encontrada.",
+      "fileSkipped": "{{file}} foi ignorado — {{cause}}.",
+      "rowsUnparsed_one": "{{count}} linha ignorada em {{file}} — não foi possível ler: {{sample}}",
+      "rowsUnparsed_many": "{{count}} linhas ignoradas em {{file}} — não foi possível ler: {{sample}}",
+      "rowsUnparsed_other": "{{count}} linhas ignoradas em {{file}} — não foi possível ler: {{sample}}",
+      "skipRules_one": "{{count}} linha correspondeu às regras de exclusão em {{file}}: {{sample}}",
+      "skipRules_many": "{{count}} linhas corresponderam às regras de exclusão em {{file}}: {{sample}}",
+      "skipRules_other": "{{count}} linhas corresponderam às regras de exclusão em {{file}}: {{sample}}",
+      "skipRulesHeld_one": "{{count}} linha correspondeu às regras de exclusão em {{file}}: {{sample}} — {{held}} com valor ficaram desmarcadas na prévia",
+      "skipRulesHeld_many": "{{count}} linhas corresponderam às regras de exclusão em {{file}}: {{sample}} — {{held}} com valor ficaram desmarcadas na prévia",
+      "skipRulesHeld_other": "{{count}} linhas corresponderam às regras de exclusão em {{file}}: {{sample}} — {{held}} com valor ficaram desmarcadas na prévia",
+      "countMismatch": "{{file}}: a IA contou {{counted}} transações, mas retornou {{returned}} — {{missing}} podem estar faltando.",
+      "wholeUnits": "{{file}}: todos os valores são menores que 1,00 — a IA pode ter retornado unidades inteiras em vez de centavos. Confira os valores.",
+      "droppedCents": "{{file}}: todos os valores terminam em ,00 — a IA pode ter perdido os centavos. Confira os valores.",
+      "normalized_one": "{{count}} transação normalizada.",
+      "normalized_many": "{{count}} transações normalizadas.",
+      "normalized_other": "{{count}} transações normalizadas.",
+      "payoff": "{{resolved}} de {{total}} resolvidas pelo seu histórico",
+      "payoffDuplicates_one": "{{resolved}} de {{total}} resolvidas pelo seu histórico · {{count}} duplicata",
+      "payoffDuplicates_many": "{{resolved}} de {{total}} resolvidas pelo seu histórico · {{count}} duplicatas",
+      "payoffDuplicates_other": "{{resolved}} de {{total}} resolvidas pelo seu histórico · {{count}} duplicatas",
+      "resuming_one": "Retomando a importação — {{count}} linha já preparada.",
+      "resuming_many": "Retomando a importação — {{count}} linhas já preparadas.",
+      "resuming_other": "Retomando a importação — {{count}} linhas já preparadas.",
+      "droppedRows_one": "{{count}} linha preparada ignorada — falhou na validação: {{sample}}",
+      "droppedRows_many": "{{count}} linhas preparadas ignoradas — falharam na validação: {{sample}}",
+      "droppedRows_other": "{{count}} linhas preparadas ignoradas — falharam na validação: {{sample}}",
+      "nothingToDo": "Nada para categorizar — todas as linhas foram resolvidas.",
+      "transfers_one": "Resolvendo a contrapartida de {{count}} transferência…",
+      "transfers_many": "Resolvendo as contrapartidas de {{count}} transferências…",
+      "transfers_other": "Resolvendo as contrapartidas de {{count}} transferências…",
+      "batchFailed_one": "O lote {{batch}} falhou ({{count}} linha pendente para rodar de novo): {{cause}}",
+      "batchFailed_many": "O lote {{batch}} falhou ({{count}} linhas pendentes para rodar de novo): {{cause}}",
+      "batchFailed_other": "O lote {{batch}} falhou ({{count}} linhas pendentes para rodar de novo): {{cause}}",
+      "transferBatchFailed_one": "O lote de transferências falhou ({{count}} linha pendente para rodar de novo): {{cause}}",
+      "transferBatchFailed_many": "O lote de transferências falhou ({{count}} linhas pendentes para rodar de novo): {{cause}}",
+      "transferBatchFailed_other": "O lote de transferências falhou ({{count}} linhas pendentes para rodar de novo): {{cause}}",
+      "categorizeStopped": "Parado — os lotes concluídos foram mantidos; rode Enriquecer para terminar.",
+      "stopped": "Parado — rode de novo para continuar daqui.",
+      "sampleMore": "{{sample}} (+{{count}} mais)"
+    },
+    "cause": {
+      "file": {
+        "cutOff": "a resposta da IA foi cortada antes de os dados ficarem completos. Tente um arquivo menor ou divida-o em partes",
+        "refused": "a IA se recusou a ler este arquivo. Verifique se é um extrato bancário ou uma exportação de transações",
+        "unusable": "não foi possível transformar a resposta da IA em transações",
+        "pdfUnsupported": "o provedor de IA selecionado não lê PDF. Mude para Anthropic ou OpenAI, ou importe uma exportação CSV",
+        "noVision": "o modelo selecionado não lê imagens. Escolha um modelo com visão nas Configurações"
+      },
+      "batch": {
+        "cutOff": "a resposta da IA foi cortada antes de o lote ficar completo",
+        "refused": "a IA se recusou a categorizar estas linhas",
+        "unusable": "não foi possível usar a resposta da IA"
+      }
+    }
   },
   "preview": {
     "skippedRows_one": "{{count}} linha foi ignorada (não foi possível ler)",

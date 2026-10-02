@@ -7,7 +7,7 @@ import {
 } from "@capybudget/core/test-factories";
 import type { ImportTransaction } from "@capybudget/core";
 import { ImportOrchestrator } from "./orchestrator";
-import type { ImportEvent, ImportPhase } from "./events";
+import type { ImportEvent, ImportLogNotice, ImportPhase } from "./events";
 import { CSV_MAPPING_SCHEMA, ENRICH_BATCH_SCHEMA, EXTRACTION_SCHEMA } from "./schemas";
 import { CutOffError, UnreachableError } from "../structured";
 import {
@@ -94,6 +94,9 @@ function collect() {
   return { events, onEvent: (e: ImportEvent) => events.push(e) };
 }
 
+const warnNotices = (events: ImportEvent[]): ImportLogNotice[] =>
+  events.flatMap((e) => (e.type === "log" && e.entry.level === "warn" ? [e.entry.notice] : []));
+
 const phases = (events: ImportEvent[]): ImportPhase[] =>
   events.filter((e): e is { type: "phase"; phase: ImportPhase } => e.type === "phase").map((e) => e.phase);
 
@@ -155,6 +158,26 @@ describe("ImportOrchestrator — phase progression", () => {
     const grounding = events.find((e) => e.type === "grounding");
     expect(grounding).toBeDefined();
     expect(grounding && grounding.type === "grounding" && grounding.stats.total).toBe(2);
+  });
+
+  it("speaks in notice codes with params, never prose", async () => {
+    const staging = new MemoryStagingStore({ sources: [csvSource(csvWithRows(2), "bank.csv")] });
+    const session = new MockStructuredSession([mapResponder, enrichResponder()]);
+    const { events, onEvent } = collect();
+
+    await new ImportOrchestrator({ session, staging, budget: emptyBudget(), onEvent, concurrency: 1 }).start();
+
+    expect(events.flatMap((e) => (e.type === "status" ? [e.notice] : []))).toEqual([
+      { code: "normalize.mappingColumns", params: { file: "bank.csv" } },
+      { code: "history.matching" },
+      { code: "categorize.progress", params: { done: 0, total: 2 } },
+      { code: "categorize.progress", params: { done: 2, total: 2 } },
+    ]);
+    expect(events.flatMap((e) => (e.type === "log" ? [e.entry.notice] : []))).toEqual([
+      { code: "reading.files", params: { files: ["bank.csv"] } },
+      { code: "normalize.done", params: { count: 2 } },
+      { code: "history.payoff", params: { total: 2, resolved: 0, duplicates: 0 } },
+    ]);
   });
 
   it("passes the right schema to each model call", async () => {
@@ -431,7 +454,7 @@ describe("ImportOrchestrator — empty import", () => {
     expect(events.find((e) => e.type === "error")).toBeUndefined();
     expect(staging.transactions).toHaveLength(2);
     const warn = events.find((e) => e.type === "log" && e.entry.level === "warn");
-    expect(warn && warn.type === "log" && warn.entry.message).toContain("selfie.png");
+    expect(warn && warn.type === "log" && warn.entry.notice).toEqual({ code: "normalize.noData", params: { file: "selfie.png" } });
     // Ids continue from 1 — the skipped file consumed none.
     expect(staging.transactions![0].id).toBe("imp-1");
   });
@@ -524,8 +547,10 @@ describe("ImportOrchestrator — CSV path", () => {
     expect(staging.transactions).toHaveLength(1); // only the good row staged
     const warn = events.find((e) => e.type === "log" && e.entry.level === "warn");
     expect(warn && warn.type === "log" && warn.entry.phase).toBe("normalizing");
-    expect(warn && warn.type === "log" && warn.entry.message).toContain("skipped");
-    expect(warn && warn.type === "log" && warn.entry.message).toContain("NOTADATE");
+    expect(warn && warn.type === "log" && warn.entry.notice).toMatchObject({
+      code: "normalize.rowsUnparsed",
+      params: { file: "statement.csv", sample: { items: [expect.stringContaining("NOTADATE")], more: 0 } },
+    });
   });
 });
 
@@ -651,13 +676,14 @@ describe("ImportOrchestrator — re-run idempotency + resume", () => {
     const logs = events.flatMap((e) => (e.type === "log" ? [e.entry] : []));
     const warn = logs.find((l) => l.level === "warn");
     expect(warn).toBeDefined();
-    expect(warn!.message).toContain("5 staged rows skipped — failed validation");
-    expect(warn!.message).toContain('invalid date "Pending"');
-    expect(warn!.message).toContain("(+2 more)"); // detail capped at 3 samples
-    expect(warn!.message).not.toContain("missing id"); // the fix isn't a drop
+    expect(warn!.notice.code).toBe("categorize.droppedRows");
+    const { sample } = (warn!.notice as Extract<ImportLogNotice, { code: "categorize.droppedRows" }>).params;
+    expect(sample.items).toHaveLength(3);
+    expect(sample.more).toBe(2);
+    expect(sample.items[0]).toContain('invalid date "Pending"');
+    expect(sample.items.join()).not.toContain("missing id"); // the fix isn't a drop
     // The run resumes over the survivors: the fixed row + the intact one.
-    const resume = logs.find((l) => l.message.startsWith("Resuming import"));
-    expect(resume!.message).toContain("2 rows already staged");
+    expect(logs.map((l) => l.notice)).toContainEqual({ code: "categorize.resuming", params: { count: 2 } });
   });
 });
 
@@ -1044,8 +1070,7 @@ describe("ImportOrchestrator — a failed file", () => {
 
     expect(events.find((e) => e.type === "error")).toBeUndefined();
     expect(staging.transactions).toHaveLength(5);
-    const warning = events.find((e) => e.type === "log" && e.entry.level === "warn" && e.entry.message.includes("c.png"));
-    expect(warning && warning.type === "log" && warning.entry.message).toContain(new CutOffError().message);
+    expect(warnNotices(events)).toEqual([{ code: "normalize.fileSkipped", params: { file: "c.png", cause: { kind: "cutOff" } } }]);
   });
 
   it("fails the run when every file failed", async () => {
@@ -1055,12 +1080,15 @@ describe("ImportOrchestrator — a failed file", () => {
 
     await new ImportOrchestrator({ session, staging, budget: emptyBudget(), onEvent }).start();
 
-    const error = events.find((e) => e.type === "error");
-    expect(error && error.type === "error" && error.message).toContain("c.png");
+    expect(events.find((e) => e.type === "error")).toEqual({
+      type: "error",
+      notice: { code: "normalize.fileFailed", params: { file: "c.png", cause: { kind: "cutOff" } } },
+      recoverable: false,
+    });
     expect(staging.transactions).toBeNull();
   });
 
-  it("ends the run at once on a dead-end provider error, with its status and provider", async () => {
+  it("ends the run at once on a dead-end provider error, naming its kind and provider", async () => {
     const rejected = Object.assign(new Error('401 {"error":{"message":"invalid x-api-key"}}'), {
       status: 401,
       error: { type: "error", error: { type: "authentication_error", message: "invalid x-api-key" } },
@@ -1075,10 +1103,7 @@ describe("ImportOrchestrator — a failed file", () => {
 
     expect(session.calls).toHaveLength(1);
     expect(events.find((e) => e.type === "error")).toMatchObject({
-      reason: "internal",
-      message: "invalid x-api-key",
-      status: 401,
-      provider: "anthropic",
+      notice: { code: "deadEnd", params: { kind: "keyRejected", provider: "anthropic" } },
     });
   });
 
@@ -1093,7 +1118,9 @@ describe("ImportOrchestrator — a failed file", () => {
 
     expect(session.calls[0].schema).toBe(CSV_MAPPING_SCHEMA);
     expect(staging.transactions).toHaveLength(2);
-    expect(events.some((e) => e.type === "log" && e.entry.level === "warn" && e.entry.message.includes("scan.pdf"))).toBe(true);
+    expect(warnNotices(events)).toEqual([
+      { code: "normalize.fileSkipped", params: { file: "scan.pdf", cause: { kind: "pdfUnsupported" } } },
+    ]);
   });
 
   it("skips an image the model can't read, asking only once", async () => {
@@ -1113,10 +1140,9 @@ describe("ImportOrchestrator — a failed file", () => {
     expect(imageSupport).toHaveBeenCalledTimes(1);
     expect(session.calls[0].schema).toBe(CSV_MAPPING_SCHEMA);
     expect(staging.transactions).toHaveLength(1);
-    const warnings = events.filter((e) => e.type === "log" && e.entry.level === "warn");
-    expect(warnings.map((e) => e.type === "log" && e.entry.message)).toEqual([
-      expect.stringContaining("a.png"),
-      expect.stringContaining("b.png"),
+    expect(warnNotices(events)).toEqual([
+      { code: "normalize.fileSkipped", params: { file: "a.png", cause: { kind: "noVision" } } },
+      { code: "normalize.fileSkipped", params: { file: "b.png", cause: { kind: "noVision" } } },
     ]);
   });
 
@@ -1132,7 +1158,7 @@ describe("ImportOrchestrator — a failed file", () => {
 
     expect(session.calls[0].schema).toBe(EXTRACTION_SCHEMA);
     expect(staging.transactions).toHaveLength(1);
-    expect(events.some((e) => e.type === "log" && e.entry.level === "warn" && e.entry.message.includes("images"))).toBe(true);
+    expect(warnNotices(events)).toEqual([{ code: "normalize.visionUnknown" }]);
   });
 });
 
@@ -1151,7 +1177,9 @@ describe("ImportOrchestrator — Categorizing failures", () => {
     await new ImportOrchestrator({ session, staging, budget: emptyBudget(), onEvent, concurrency: 1, provider: "ollama" }).enrich();
 
     expect(session.calls).toHaveLength(1);
-    expect(events.find((e) => e.type === "error")).toMatchObject({ reason: "unreachable", provider: "ollama" });
+    expect(events.find((e) => e.type === "error")).toMatchObject({
+      notice: { code: "deadEnd", params: { kind: "unreachable", provider: "ollama" } },
+    });
     expect(events.some((e) => e.type === "done")).toBe(false);
   });
 
@@ -1162,7 +1190,21 @@ describe("ImportOrchestrator — Categorizing failures", () => {
 
     await new ImportOrchestrator({ session, staging, budget: emptyBudget(), onEvent, concurrency: 1 }).enrich();
 
-    expect(events.find((e) => e.type === "error")).toMatchObject({ reason: "categorize" });
+    expect(events.find((e) => e.type === "error")).toMatchObject({
+      notice: { code: "categorize.noneLanded", params: { count: 30, cause: { kind: "other", detail: "overloaded" } } },
+    });
+  });
+
+  it("words a cut-off batch as a batch failure, not a file failure", async () => {
+    const staging = new MemoryStagingStore({ transactions: pendingRows(30) });
+    const session = new MockStructuredSession([() => new CutOffError(), enrichResponder()]);
+    const { events, onEvent } = collect();
+
+    await new ImportOrchestrator({ session, staging, budget: emptyBudget(), onEvent, concurrency: 1 }).enrich();
+
+    expect(warnNotices(events)).toEqual([
+      { code: "categorize.batchFailed", params: { batch: 1, count: 25, cause: { kind: "cutOff" } } },
+    ]);
   });
 
   it("meters only rows whose category landed, and sets confidence only on them", async () => {

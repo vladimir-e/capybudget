@@ -26,7 +26,13 @@
     "keyRejected": "{{provider}} rejected the API key — check it in Settings.",
     "forbidden": "{{provider}} refused the request — check your key and access in Settings.",
     "modelNotFound": "{{provider}} can't find the selected model — pick another in Settings.",
-    "categorizeFailed": "Capy couldn't categorize any rows. They're staged — run Enrich to try again."
+    "noSources": "No source files to import.",
+    "noStaging": "No staged transactions to enrich.",
+    "fileFailed": "Couldn't import {{file}} — {{cause}}.",
+    "noneLanded_one": "Couldn't categorize {{count}} row — {{cause}}. Run Enrich to try again.",
+    "noneLanded_other": "Couldn't categorize any of {{count}} rows — {{cause}}. Run Enrich to try again.",
+    "noneLandedNoCause_one": "Capy couldn't categorize {{count}} row. It's staged — run Enrich to try again.",
+    "noneLandedNoCause_other": "Capy couldn't categorize any of {{count}} rows. They're staged — run Enrich to try again."
   },
   "dropZone": {
     "browseLabel": "Browse for files to import",
@@ -57,6 +63,64 @@
     "countOf": "{{done}} of {{total}}",
     "countRows_one": "{{count}} row",
     "countRows_other": "{{count}} rows"
+  },
+  "run": {
+    "status": {
+      "extracting": "Extracting transactions from {{file}}…",
+      "readingOfx": "Reading transactions from {{file}}…",
+      "mappingColumns": "Mapping columns in {{file}}…",
+      "matchingHistory": "Matching against your history…",
+      "categorizing": "Categorizing {{done}} of {{total}}…"
+    },
+    "log": {
+      "readFiles_one": "Read {{count}} file: {{files, list}}.",
+      "readFiles_other": "Read {{count}} files: {{files, list}}.",
+      "visionUnknown": "Couldn't confirm the selected model reads images — trying anyway.",
+      "noData": "Skipped {{file}} — no transaction data found.",
+      "fileSkipped": "Skipped {{file}} — {{cause}}.",
+      "rowsUnparsed_one": "{{count}} row skipped in {{file}} — couldn't parse: {{sample}}",
+      "rowsUnparsed_other": "{{count}} rows skipped in {{file}} — couldn't parse: {{sample}}",
+      "skipRules_one": "{{count}} row matched skip rules in {{file}}: {{sample}}",
+      "skipRules_other": "{{count}} rows matched skip rules in {{file}}: {{sample}}",
+      "skipRulesHeld_one": "{{count}} row matched skip rules in {{file}}: {{sample}} — {{held}} with an amount left unselected in the preview",
+      "skipRulesHeld_other": "{{count}} rows matched skip rules in {{file}}: {{sample}} — {{held}} with an amount left unselected in the preview",
+      "countMismatch": "{{file}}: the AI counted {{counted}} transactions but returned {{returned}} — {{missing}} may be missing.",
+      "wholeUnits": "{{file}}: every amount is under 1.00 — the AI may have returned whole units instead of cents. Check the amounts.",
+      "droppedCents": "{{file}}: every amount ends in .00 — the AI may have dropped the cents. Check the amounts.",
+      "normalized_one": "Normalized {{count}} transaction.",
+      "normalized_other": "Normalized {{count}} transactions.",
+      "payoff": "{{resolved}} of {{total}} resolved from your history",
+      "payoffDuplicates_one": "{{resolved}} of {{total}} resolved from your history · {{count}} duplicate",
+      "payoffDuplicates_other": "{{resolved}} of {{total}} resolved from your history · {{count}} duplicates",
+      "resuming_one": "Resuming import — {{count}} row already staged.",
+      "resuming_other": "Resuming import — {{count}} rows already staged.",
+      "droppedRows_one": "{{count}} staged row skipped — failed validation: {{sample}}",
+      "droppedRows_other": "{{count}} staged rows skipped — failed validation: {{sample}}",
+      "nothingToDo": "Nothing to categorize — all rows resolved.",
+      "transfers_one": "Resolving {{count}} transfer counterpart…",
+      "transfers_other": "Resolving {{count}} transfer counterparts…",
+      "batchFailed_one": "Batch {{batch}} failed ({{count}} row left for re-run): {{cause}}",
+      "batchFailed_other": "Batch {{batch}} failed ({{count}} rows left for re-run): {{cause}}",
+      "transferBatchFailed_one": "Transfer batch failed ({{count}} row left for re-run): {{cause}}",
+      "transferBatchFailed_other": "Transfer batch failed ({{count}} rows left for re-run): {{cause}}",
+      "categorizeStopped": "Stopped — landed batches kept; re-run Enrich to finish.",
+      "stopped": "Stopped — re-run to continue from here.",
+      "sampleMore": "{{sample}} (+{{count}} more)"
+    },
+    "cause": {
+      "file": {
+        "cutOff": "the AI's reply was cut off before the data was complete. Try a smaller file, or split it into parts",
+        "refused": "the AI declined to read this file. Check that it's a bank statement or transaction export",
+        "unusable": "the AI's answer couldn't be turned into transactions",
+        "pdfUnsupported": "the selected AI provider can't read PDFs. Switch to Anthropic or OpenAI, or import a CSV export",
+        "noVision": "the selected model can't read images. Pick a vision model in Settings"
+      },
+      "batch": {
+        "cutOff": "the AI's reply was cut off before the batch was complete",
+        "refused": "the AI declined to categorize these rows",
+        "unusable": "the AI's answer couldn't be used"
+      }
+    }
   },
   "preview": {
     "skippedRows_one": "{{count}} row was skipped (couldn't be read)",

@@ -94,14 +94,14 @@ export type Ending = "finished" | "refused" | "cutOff"
 
 export class CutOffError extends Error {
   constructor() {
-    super("The AI's reply was cut off before the data was complete. Try a smaller file, or split it into parts.")
+    super("structured reply was cut off before it completed")
     this.name = "CutOffError"
   }
 }
 
 export class RefusedError extends Error {
   constructor() {
-    super("The AI declined to read this file. Check that it's a bank statement or transaction export.")
+    super("model refused the structured request")
     this.name = "RefusedError"
   }
 }

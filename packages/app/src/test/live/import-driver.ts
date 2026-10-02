@@ -75,9 +75,9 @@ export class ImportDriver {
     return {
       events,
       rows: staged?.rows ?? [],
-      error: failure?.type === "error" ? failure.message : undefined,
+      error: failure?.type === "error" ? JSON.stringify(failure.notice) : undefined,
       warnings: events.flatMap((e) =>
-        e.type === "log" && e.entry.level !== "info" ? [e.entry.message] : [],
+        e.type === "log" && e.entry.level !== "info" ? [JSON.stringify(e.entry.notice)] : [],
       ),
     }
   }
