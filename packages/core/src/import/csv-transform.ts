@@ -185,6 +185,7 @@ type Direction = "inflow" | "outflow";
 interface AmountCell {
   cents: number;
   direction: Direction | null;
+  marker: string | null;
   currencyText: boolean;
 }
 
@@ -277,7 +278,7 @@ export function parseAmountCell(raw: string, columnMark: DecimalMark, rowNum: nu
 
   if (!parts) {
     const tokens = affixTokens(text) ?? fail();
-    return tokens.some(isWord) ? fail() : { cents: 0, direction: null, currencyText: tokens.some(isSymbol) };
+    return tokens.some(isWord) ? fail() : { cents: 0, direction: null, marker: null, currencyText: tokens.some(isSymbol) };
   }
 
   const prefix = affixTokens(parts.prefix) ?? fail();
@@ -286,7 +287,7 @@ export function parseAmountCell(raw: string, columnMark: DecimalMark, rowNum: nu
   const magnitude = coreToCents(parts.core, decimalMarkOf(parts.core) ?? columnMark) ?? fail();
   const cents = magnitude === 0 ? 0 : sign.negative ? -magnitude : magnitude;
   const currencyText = [...prefix, ...suffix].some((t) => isSymbol(t) || (isWord(t) && !markerOf(t)));
-  return { cents, direction: sign.direction, currencyText };
+  return { cents, direction: sign.marker ? MARKERS[sign.marker] : null, marker: sign.marker, currencyText };
 }
 
 function affixTokens(text: string): string[] | null {
@@ -309,14 +310,15 @@ function isSymbol(token: string): boolean {
   return /^\p{Sc}$/u.test(token);
 }
 
-function markerOf(word: string): Direction | undefined {
-  return MARKERS[word.replace(/\.$/, "").toUpperCase()];
+function markerOf(word: string): string | undefined {
+  const marker = word.replace(/\.$/, "").toUpperCase();
+  return marker in MARKERS ? marker : undefined;
 }
 
 function readSign(
   prefix: string[],
   suffix: string[],
-): { negative: boolean; direction: Direction | null } | null {
+): { negative: boolean; marker: string | null } | null {
   const tokens = [...prefix, ...suffix];
   const count = (...symbols: string[]) => tokens.filter((t) => symbols.includes(t)).length;
   const known = (side: AffixSide) => (t: string) => !isWord(t) || !!markerOf(t) || isCurrencyText(t, side);
@@ -332,7 +334,7 @@ function readSign(
 
   return {
     negative: parens || count(...MINUS) > 0,
-    direction: markers[0] ?? null,
+    marker: markers[0] ?? null,
   };
 }
 

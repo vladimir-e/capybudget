@@ -11,7 +11,7 @@ const ISO_4217 = new Set(
 
 const LOCAL_CURRENCY_TEXT = new Set(
   [
-    "euro", "euros", "rmb", "mn", "m.n", "br",
+    "euro", "euros", "rmb", "m.n", "br",
     "kr", "kn", "zł", "zl", "kč", "kc", "ft", "lei", "din", "tl", "fr", "sfr",
     "руб", "р", "лв", "грн", "дин", "ден", "сом", "тг",
     "rs", "rp", "rm", "tk", "ksh", "bs", "gs",

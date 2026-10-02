@@ -345,13 +345,15 @@ function normalizeAmount(raw: unknown, samples: Record<string, string>[]): Amoun
  * positive-expense. One-sided direction markers are the exception, since they
  * do reveal it: a column of unsigned values marking only credits (`CR`) leaves
  * the unmarked ones as outflows, and one marking only debits leaves them inflows.
+ * A single-letter marker is too easily a stray flag to drive that on its own.
  */
 function normalizeSign(raw: unknown, samples: Record<string, string>[], column: string): SingleAmountMapping["sign"] {
   const cells = columnSamples(samples, column).flatMap((v) => parsedCell(v) ?? []);
   const hasNegative = cells.some((c) => c.cents < 0);
   const inflowMarked = cells.some((c) => c.direction === "inflow");
   const outflowMarked = cells.some((c) => c.direction === "outflow");
-  if (!hasNegative && inflowMarked !== outflowMarked) {
+  const wordMarked = cells.some((c) => (c.marker?.length ?? 0) > 1);
+  if (!hasNegative && wordMarked && inflowMarked !== outflowMarked) {
     return inflowMarked ? "positive_expense" : "negative_expense";
   }
   const coerced = coerceSign(typeof raw === "string" ? raw.toLowerCase() : "");
@@ -421,34 +423,36 @@ function looksLikeDate(value: string): boolean {
   return /^\d{4}[-/]\d{2}[-/]\d{2}$/.test(v) || /^\d{1,2}[./-]\d{1,2}[./-]\d{4}$/.test(v);
 }
 
-const BALANCE_HEADERS = ["balance", "available", "saldo", "solde", "остаток", "баланс", "kontostand", "残高", "余额"];
-const AMOUNT_HEADERS = ["amount", "sum", "сумма", "betrag", "montant", "importe", "valor", "金額", "金额"];
+const word = (terms: string) => `(?<![\\p{L}\\p{M}])(?:${terms})(?![\\p{L}\\p{M}])`;
+const BALANCE_HEADER = new RegExp(
+  `balance|available|running|ledger|saldo|solde|kontostand|zůstatek|egyenleg|bakiye|остаток|баланс|残高|余额|잔액|${word("bal")}`,
+  "u",
+);
+const AMOUNT_HEADER = new RegExp(`${word("amount|sum|summe|montant|importe|valor")}|betrag|сумма|金額|金额`, "u");
+const FOREIGN_HEADER = new RegExp(`foreign|original|fremd|${word("orig")}`, "u");
 
-function headerMentions(header: string, terms: string[]): boolean {
-  const h = header.normalize("NFC").toLowerCase();
-  return terms.some((term) => h.includes(term));
+function headerMatches(header: string, pattern: RegExp): boolean {
+  return pattern.test(header.normalize("NFC").replace(/(\p{Ll})(\p{Lu})/gu, "$1 $2").toLowerCase());
 }
 
 /**
- * A column whose values read as money, ranked by an amount-like header, then a
- * clear monetary signal (sign, cents, currency text, or direction marker) over
- * a bare-integer column that might be an id. Date columns are excluded so a
- * dotted European date isn't mistaken for a number, and running-balance
- * columns are never picked: importing balances as transactions is worse than
- * asking.
+ * A column whose values read as money, ranked by an amount-like header (one
+ * naming a foreign or original amount below the rest), then a clear monetary
+ * signal (sign, cents, currency text, or direction marker) over a bare-integer
+ * column that might be an id. Date columns are excluded so a dotted European
+ * date isn't mistaken for a number, and balance-named columns are excluded:
+ * importing balances as transactions is worse than asking.
  */
 function detectAmountColumn(samples: Record<string, string>[]): string | undefined {
   if (samples.length === 0) return undefined;
   const candidates = Object.keys(samples[0]).filter((header) => {
     const values = columnSamples(samples, header);
-    return (
-      !headerMentions(header, BALANCE_HEADERS) &&
-      values.length > 0 &&
-      values.every((v) => looksLikeAmount(v) && !looksLikeDate(v))
-    );
+    return !headerMatches(header, BALANCE_HEADER) && values.length > 0 && values.every(looksLikeAmount);
   });
+  const headerTier = (header: string): number =>
+    headerMatches(header, AMOUNT_HEADER) ? (headerMatches(header, FOREIGN_HEADER) ? 1 : 2) : 0;
   const rank = (header: string): number =>
-    (headerMentions(header, AMOUNT_HEADERS) ? 2 : 0) + (columnSamples(samples, header).some(hasMoneySignal) ? 1 : 0);
+    2 * headerTier(header) + (columnSamples(samples, header).some(hasMoneySignal) ? 1 : 0);
   return candidates.reduce<string | undefined>(
     (best, header) => (best === undefined || rank(header) > rank(best) ? header : best),
     undefined,
@@ -463,15 +467,29 @@ function parsedCell(value: string): ReturnType<typeof parseAmountCell> | null {
   }
 }
 
+const CENTS = /[.,]\d{2}(?!\d)/;
+const ATTACHED_LETTERS = /\p{LC}[.$/]*\d|\d\p{LC}/u;
+
+/**
+ * A cell the fallback can read as an amount. Cased letters glued to the digits
+ * with no cents (`R1001`, `TOP5`, `D5`) read as an id, even though the same
+ * cell parses in a column named as the amount.
+ */
+function fallbackCell(value: string): ReturnType<typeof parseAmountCell> | null {
+  if (!/\d/.test(value) || looksLikeDate(value)) return null;
+  if (ATTACHED_LETTERS.test(value) && !CENTS.test(value)) return null;
+  return parsedCell(value);
+}
+
 function looksLikeAmount(value: string): boolean {
-  return /\d/.test(value) && parsedCell(value) !== null;
+  return fallbackCell(value) !== null;
 }
 
 function hasMoneySignal(value: string): boolean {
-  const cell = parsedCell(value);
+  const cell = fallbackCell(value);
   return (
     cell !== null &&
-    (cell.cents < 0 || cell.direction !== null || cell.currencyText || /[.,]\d{2}\b|^\s*\+/.test(value))
+    (cell.cents < 0 || cell.direction !== null || cell.currencyText || CENTS.test(value) || /^\s*\+/.test(value))
   );
 }
 

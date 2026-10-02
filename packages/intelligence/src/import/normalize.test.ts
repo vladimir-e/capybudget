@@ -642,6 +642,56 @@ describe("normalizeMapping", () => {
     expect(m.amount).toMatchObject({ style: "single", column: "Total" });
   });
 
+  describe("amount fallback", () => {
+    const detected = (row: Record<string, string>) =>
+      (normalizeMapping(
+        { date: { column: "Date" }, description: { column: "Memo" } },
+        [{ Date: "2026-01-05", Memo: "X", ...row }],
+        "f.csv",
+        IMPORT_DATE,
+      ).amount as { column: string }).column;
+
+    it("passes over an id column listed before the amount", () => {
+      expect(detected({ Ref: "R1001", Total: "12.50" })).toBe("Total");
+    });
+    it.each(["R1001", "RM101", "FT2305112345", "TOP5", "S123", "H200", "C1042", "D5", "1042CR"])(
+      "reads %j as an id, not an amount",
+      (id) => {
+        expect(detected({ Ref: id, Total: "12" })).toBe("Total");
+      },
+    );
+    it("still counts spaced or cents-bearing currency text as money", () => {
+      expect(detected({ Ref: "1042", Total: "R 100" })).toBe("Total");
+      expect(detected({ Ref: "1042", Total: "R12.50" })).toBe("Total");
+      expect(detected({ Ref: "1042", Total: "1234円" })).toBe("Total");
+    });
+    it.each(["Summary", "Checksum", "Consumption", "Insumos"])("doesn't read %j as an amount header", (header) => {
+      expect(detected({ [header]: "5", Total: "12" })).toBe(header);
+      expect(detected({ [header]: "5", Sum: "12" })).toBe("Sum");
+    });
+    it.each(["Sum", "Sum (EUR)", "Summe", "TransactionAmount", "transaction_amount", "Buchungsbetrag"])(
+      "reads %j as an amount header",
+      (header) => {
+        expect(detected({ Ref: "-1", [header]: "12" })).toBe(header);
+      },
+    );
+    it.each(["Foreign Amount", "Original Amount", "Orig. Amount", "Betrag (Fremdwährung)"])(
+      "prefers the plain amount over %j",
+      (foreign) => {
+        expect(detected({ [foreign]: "-12.50", Amount: "1250" })).toBe("Amount");
+      },
+    );
+    it.each(["Bal.", "Bal", "Running Total", "Ledger", "잔액", "Bakiye", "Zůstatek", "Egyenleg"])(
+      "excludes the %j column",
+      (balance) => {
+        expect(detected({ [balance]: "-1,234.56", Total: "12" })).toBe("Total");
+      },
+    );
+    it("doesn't read a word merely containing bal as a balance", () => {
+      expect(detected({ Global: "-12.50", Ref: "1042" })).toBe("Global");
+    });
+  });
+
   it("reads bare-string column refs", () => {
     const m = normalizeMapping(
       { date: "Date", description: "Memo", amount: { column: "Amt", sign: "negative_expense" } },
@@ -704,6 +754,12 @@ describe("normalizeMapping", () => {
     it("unmarked values are inflows in a column that marks only debits", () => {
       expect(sign("positive_expense", "12.50", "40.00 DR")).toBe("negative_expense");
       expect(sign("positive_expense", "12.50", "40.00 D", "1.00 DB")).toBe("negative_expense");
+    });
+    it("a lone single-letter marker doesn't flip the column", () => {
+      expect(sign("positive_expense", "12.50", "40.00 S", "3.10")).toBe("positive_expense");
+      expect(sign("negative_expense", "12.50", "40.00 s")).toBe("negative_expense");
+      expect(sign("negative_expense", "12.50", "40.00 H")).toBe("negative_expense");
+      expect(sign("positive_expense", "12.50", "40.00 D")).toBe("positive_expense");
     });
     it("leaves the model's sign alone when markers are mixed or negatives exist", () => {
       expect(sign("positive_expense", "12.50", "40.00 CR", "3.10 DR")).toBe("positive_expense");
