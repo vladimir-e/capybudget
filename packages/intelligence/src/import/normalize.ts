@@ -347,13 +347,7 @@ function normalizeAmount(raw: unknown, samples: Record<string, string>[]): Amoun
  * the unmarked ones as outflows, and one marking only debits leaves them inflows.
  */
 function normalizeSign(raw: unknown, samples: Record<string, string>[], column: string): SingleAmountMapping["sign"] {
-  const cells = columnSamples(samples, column).flatMap((v) => {
-    try {
-      return [parseAmountCell(v, ".", 0)];
-    } catch {
-      return [];
-    }
-  });
+  const cells = columnSamples(samples, column).flatMap((v) => parsedCell(v) ?? []);
   const hasNegative = cells.some((c) => c.cents < 0);
   const inflowMarked = cells.some((c) => c.direction === "inflow");
   const outflowMarked = cells.some((c) => c.direction === "outflow");
@@ -429,7 +423,7 @@ function looksLikeDate(value: string): boolean {
 
 /**
  * A column whose values read as money — preferring one with a clear monetary
- * signal (sign, cents, or currency symbol) over a bare-integer column that might
+ * signal (sign, cents, currency text, or direction marker) over a bare-integer column that might
  * be an id. Date columns are excluded so a dotted European date isn't mistaken
  * for a number.
  */
@@ -446,13 +440,24 @@ function detectAmountColumn(samples: Record<string, string>[]): string | undefin
   );
 }
 
+function parsedCell(value: string): ReturnType<typeof parseAmountCell> | null {
+  try {
+    return parseAmountCell(value, ".", 0);
+  } catch {
+    return null;
+  }
+}
+
 function looksLikeAmount(value: string): boolean {
-  const cleaned = value.replace(/[$€£¥₽₹₱₴₫₦₩₪₿()\s'’]/g, "");
-  return /^[-+]?[\d.,]+$/.test(cleaned) && /\d/.test(cleaned);
+  return /\d/.test(value) && parsedCell(value) !== null;
 }
 
 function hasMoneySignal(value: string): boolean {
-  return /[$€£¥₽₹₱₴₫₦₩₪₿]/.test(value) || /[.,]\d{2}\b/.test(value) || /^\s*[-+(]/.test(value);
+  const cell = parsedCell(value);
+  return (
+    cell !== null &&
+    (cell.cents < 0 || cell.direction !== null || cell.currencyText || /[.,]\d{2}\b|^\s*\+/.test(value))
+  );
 }
 
 /** A `string`, `{ column }`, or `{ columns, separator }` → `ColumnRef`; else null. */

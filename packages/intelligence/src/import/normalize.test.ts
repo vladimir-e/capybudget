@@ -567,6 +567,39 @@ describe("normalizeMapping", () => {
     expect(m.amount).toMatchObject({ style: "single", column: "Total" });
   });
 
+  it("auto-detects a direction-marked amount column over a Balance column", () => {
+    const m = normalizeMapping(
+      { date: { column: "Date" }, description: { column: "Memo" } },
+      [
+        { Date: "2026-01-05", Memo: "X", Amount: "12.50", Balance: "1,234.56" },
+        { Date: "2026-01-06", Memo: "Y", Amount: "1,000.00 CR", Balance: "2,234.56" },
+      ],
+      "f.csv",
+      IMPORT_DATE,
+    );
+    expect(m.amount).toMatchObject({ style: "single", column: "Amount" });
+  });
+
+  it("auto-detects an amount column of suffixed local currency text", () => {
+    const m = normalizeMapping(
+      { date: { column: "Date" }, description: { column: "Memo" } },
+      [{ Date: "2026-01-05", Memo: "X", Ref: "1042", Kwota: "12,50 zł" }],
+      "f.csv",
+      IMPORT_DATE,
+    );
+    expect(m.amount).toMatchObject({ style: "single", column: "Kwota" });
+  });
+
+  it("does not auto-detect a column of rejected amount cells", () => {
+    const m = normalizeMapping(
+      { date: { column: "Date" }, description: { column: "Memo" } },
+      [{ Date: "2026-01-05", Memo: "X", Flagged: "12.50 R", Total: "12.50" }],
+      "f.csv",
+      IMPORT_DATE,
+    );
+    expect(m.amount).toMatchObject({ style: "single", column: "Total" });
+  });
+
   it("reads bare-string column refs", () => {
     const m = normalizeMapping(
       { date: "Date", description: "Memo", amount: { column: "Amt", sign: "negative_expense" } },

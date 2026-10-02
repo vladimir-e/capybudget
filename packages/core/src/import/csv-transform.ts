@@ -9,7 +9,7 @@
 import type { ImportTransaction, StagedRecord } from "./import-types";
 import { buildStaged } from "./build-staged";
 import { DATE_FORMATS, isCalendarDate } from "./import-dates";
-import { isCurrencyText } from "./currency-text";
+import { isCurrencyText, type AffixSide } from "./currency-text";
 import type {
   CsvMapping,
   ColumnRef,
@@ -185,6 +185,7 @@ type Direction = "inflow" | "outflow";
 interface AmountCell {
   cents: number;
   direction: Direction | null;
+  currencyText: boolean;
 }
 
 function parseAmount(
@@ -217,19 +218,29 @@ function directed(cents: number, direction: Direction): number {
 }
 
 const AMOUNT_GROUPING = /[\s'’]/g;
-const NUMERIC_CORE = /^(.*?)((?<![\p{L}\p{M}/])[.,]?\d(?:[\d.,'’\s]*\d)?)(.*)$/su;
-const AFFIX_TOKEN = /\s*(\p{L}[\p{L}\p{M}]*[$/]?\.?|[\p{Sc}*.()+\-−])\s*/uy;
+const NUMERIC_CORE = /^(.*?)((?:(?<![\p{L}\p{M}/])[.,])?\d(?:[\d.,'’\s]*\d)?)(.*)$/su;
+const AFFIX_TOKEN = /\s*(\p{L}[\p{L}\p{M}]*(?:\.\p{L}[\p{L}\p{M}]*)*[$/]?\.?|[\p{Sc}*.()+\-−△▲])\s*/uy;
+const MINUS = ["-", "−", "△", "▲"];
+const LEADING_ONLY_MINUS = ["△", "▲"];
 const MARKERS: Record<string, Direction> = {
   C: "inflow",
   CR: "inflow",
+  H: "inflow",
   D: "outflow",
   DB: "outflow",
   DR: "outflow",
+  S: "outflow",
 };
 
-function splitAmount(raw: string): { prefix: string; core: string; suffix: string } | null {
-  const match = raw.trim().replace(/^'/, "").match(NUMERIC_CORE);
-  return match && { prefix: match[1], core: match[2], suffix: match[3] };
+interface AmountParts {
+  text: string;
+  parts: { prefix: string; core: string; suffix: string } | null;
+}
+
+function splitAmount(raw: string): AmountParts {
+  const text = raw.trim().replace(/^'/, "");
+  const match = text.match(NUMERIC_CORE);
+  return { text, parts: match && { prefix: match[1], core: match[2], suffix: match[3] } };
 }
 
 /**
@@ -237,7 +248,7 @@ function splitAmount(raw: string): { prefix: string; core: string; suffix: strin
  * `1.234` / `1,234` are ambiguous; `1234.567` and `0.500` are not.
  */
 export function decimalMarkOf(raw: string): DecimalMark | null {
-  const core = splitAmount(raw)?.core.replace(AMOUNT_GROUPING, "") ?? "";
+  const core = splitAmount(raw).parts?.core.replace(AMOUNT_GROUPING, "") ?? "";
   const marks = core.match(/[.,](?=\d)/g) as DecimalMark[] | null;
   if (!marks) return null;
   const last = marks[marks.length - 1];
@@ -262,11 +273,11 @@ export function parseAmountCell(raw: string, columnMark: DecimalMark, rowNum: nu
   const fail = (): never => {
     throw new Error(`Row ${rowNum}: cannot parse amount "${raw}"`);
   };
-  const parts = splitAmount(raw);
+  const { text, parts } = splitAmount(raw);
 
   if (!parts) {
-    const tokens = affixTokens(raw.trim().replace(/^'/, "")) ?? fail();
-    return tokens.some(isWord) ? fail() : { cents: 0, direction: null };
+    const tokens = affixTokens(text) ?? fail();
+    return tokens.some(isWord) ? fail() : { cents: 0, direction: null, currencyText: tokens.some(isSymbol) };
   }
 
   const prefix = affixTokens(parts.prefix) ?? fail();
@@ -274,7 +285,8 @@ export function parseAmountCell(raw: string, columnMark: DecimalMark, rowNum: nu
   const sign = readSign(prefix, suffix) ?? fail();
   const magnitude = coreToCents(parts.core, decimalMarkOf(parts.core) ?? columnMark) ?? fail();
   const cents = magnitude === 0 ? 0 : sign.negative ? -magnitude : magnitude;
-  return { cents, direction: sign.direction };
+  const currencyText = [...prefix, ...suffix].some((t) => isSymbol(t) || (isWord(t) && !markerOf(t)));
+  return { cents, direction: sign.direction, currencyText };
 }
 
 function affixTokens(text: string): string[] | null {
@@ -293,6 +305,10 @@ function isWord(token: string): boolean {
   return /^\p{L}/u.test(token);
 }
 
+function isSymbol(token: string): boolean {
+  return /^\p{Sc}$/u.test(token);
+}
+
 function markerOf(word: string): Direction | undefined {
   return MARKERS[word.replace(/\.$/, "").toUpperCase()];
 }
@@ -303,18 +319,19 @@ function readSign(
 ): { negative: boolean; direction: Direction | null } | null {
   const tokens = [...prefix, ...suffix];
   const count = (...symbols: string[]) => tokens.filter((t) => symbols.includes(t)).length;
-  const words = tokens.filter(isWord);
-  if (words.some((w) => !markerOf(w) && !isCurrencyText(w))) return null;
+  const known = (side: AffixSide) => (t: string) => !isWord(t) || !!markerOf(t) || isCurrencyText(t, side);
+  if (!prefix.every(known("prefix")) || !suffix.every(known("suffix"))) return null;
+  if (suffix.some((t) => LEADING_ONLY_MINUS.includes(t))) return null;
 
-  const markers = words.flatMap((w) => markerOf(w) ?? []);
+  const markers = tokens.filter(isWord).flatMap((w) => markerOf(w) ?? []);
   const parens = prefix.includes("(") && suffix.includes(")");
-  const signs = count("-", "−", "+");
+  const signs = count(...MINUS, "+");
   if (count("(") + count(")") !== (parens ? 2 : 0)) return null;
   if (signs > 1 || markers.length > 1) return null;
   if (markers.length === 1 && (signs > 0 || parens)) return null;
 
   return {
-    negative: parens || count("-", "−") > 0,
+    negative: parens || count(...MINUS) > 0,
     direction: markers[0] ?? null,
   };
 }

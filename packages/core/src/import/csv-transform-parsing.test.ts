@@ -211,6 +211,42 @@ describe("parseCurrencyToCents", () => {
     ["()", ".", 0],
     ["($)", ".", 0],
     ["−", ".", 0],
+    ["USD12.50", ".", 1250],
+    ["R12.50", ".", 1250],
+    ["R 12.50", ".", 1250],
+    ["R-12.50", ".", -1250],
+    ["Rs500", ".", 50000],
+    ["kr12,50", ".", 1250],
+    ["RM12.50", ".", 1250],
+    ["Rp12.500", ",", 1250000],
+    ["EUR1.234,56", ".", 123456],
+    ["S/12.50", ".", 1250],
+    ["CR12.50", ".", 1250],
+    ["DR12.50", ".", -1250],
+    ["12.50CR", ".", 1250],
+    ["12.50 usd", ".", 1250],
+    ["eur 12.50", ".", 1250],
+    ["Eur 12.50", ".", 1250],
+    ["12.50 rub", ".", 1250],
+    ["Php 12.50", ".", 1250],
+    ["RMB 12.50", ".", 1250],
+    ["12.50 MN", ".", 1250],
+    ["12.50 M.N.", ".", 1250],
+    ["$12.50 M.N.", ".", 1250],
+    ["AU$12.50", ".", 1250],
+    ["CA$ 12.50", ".", 1250],
+    ["12,50 Br", ".", 1250],
+    ["12,50 Kc\u030C", ".", 1250],
+    ["△1,234", ".", -123400],
+    ["▲1,234", ".", -123400],
+    ["△ ¥1,234", ".", -123400],
+    ["▲1,234円", ".", -123400],
+    ["△(1,234)", ".", -123400],
+    ["12,50 S", ",", -1250],
+    ["12,50 H", ",", 1250],
+    ["1.234,56 S", ".", -123456],
+    ["S/ 12.50", ".", 1250],
+    ["12.50 р", ".", 1250],
   ] as const)("%j (%s) → %i cents", (raw, mark, cents) => {
     expect(parseCurrencyToCents(raw, mark, 1)).toBe(cents);
   });
@@ -246,7 +282,17 @@ describe("parseCurrencyToCents", () => {
     "12.50 DEB",
     "12.50 CRED",
     "12.50 X",
-    "12.50 usd",
+    "12.50 R",
+    "12.50R",
+    "12.50 R.",
+    "R",
+    "1,234△",
+    "1,234 ▲",
+    "△-1,234",
+    "-12.50 S",
+    "12.50 S H",
+    "12.50 SH",
+    "12.50 usdx",
     "12.50 ABC",
     "-12.50 D",
     "12.50 D C",
@@ -273,6 +319,8 @@ describe("direction markers set the direction under every amount convention", ()
     expect(amountOf(mapping, { Amount: "1.234,56 D" })).toEqual([-123456, "expense"]);
     expect(amountOf(mapping, { Amount: "12.50 DB" })).toEqual([-1250, "expense"]);
     expect(amountOf(mapping, { Amount: "1.234,56 C" })).toEqual([123456, "income"]);
+    expect(amountOf(mapping, { Amount: "1.234,56 S" })).toEqual([-123456, "expense"]);
+    expect(amountOf(mapping, { Amount: "1.234,56 H" })).toEqual([123456, "income"]);
   });
 
   it("split columns: the marker wins over the column's direction", () => {
@@ -295,10 +343,12 @@ describe("unparseable amounts are skipped rows, not guesses", () => {
     const rows = [
       makeRow({ Date: "2025-03-01", Description: "A", Amount: "12.50 (pending)" }),
       makeRow({ Date: "2025-03-02", Description: "B", Amount: "12,50 zł" }),
+      makeRow({ Date: "2025-03-03", Description: "C", Amount: "12,50 R" }),
+      makeRow({ Date: "2025-03-04", Description: "D", Amount: "R12,50" }),
     ];
     const result = transformCsv(rows, baseMapping({ decimalMark: "," }));
-    expect(result.errors.map((e) => e.row)).toEqual([1]);
-    expect(result.transactions.map((t) => t.amount)).toEqual([1250]);
+    expect(result.errors.map((e) => e.row)).toEqual([1, 3]);
+    expect(result.transactions.map((t) => t.amount)).toEqual([1250, 1250]);
   });
 });
 

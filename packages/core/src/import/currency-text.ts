@@ -11,17 +11,25 @@ const ISO_4217 = new Set(
 
 const LOCAL_CURRENCY_TEXT = new Set(
   [
-    "euro", "euros",
+    "euro", "euros", "rmb", "mn", "m.n", "br",
     "kr", "kn", "zł", "zl", "kč", "kc", "ft", "lei", "din", "tl", "fr", "sfr",
     "руб", "р", "лв", "грн", "дин", "ден", "сом", "тг",
-    "rs", "rp", "rm", "tk", "ksh", "bs", "gs", "r",
+    "rs", "rp", "rm", "tk", "ksh", "bs", "gs",
     "रु", "रू", "円", "元", "圓", "원", "บาท",
-    "s/", "r$", "us$", "c$", "a$", "nz$", "hk$", "s$", "nt$", "mx$", "rd$",
+    "s/", "r$", "us$", "c$", "a$", "au$", "ca$", "nz$", "hk$", "s$", "nt$", "mx$", "rd$",
   ],
 );
 
-export function isCurrencyText(token: string): boolean {
+const PREFIX_ONLY_CURRENCY_TEXT = new Set(["r"]);
+
+export type AffixSide = "prefix" | "suffix";
+
+export function isCurrencyText(token: string, side: AffixSide): boolean {
   if (/^\p{Sc}$/u.test(token)) return true;
-  const word = token.replace(/\.$/, "");
-  return ISO_4217.has(word) || LOCAL_CURRENCY_TEXT.has(word.toLowerCase());
+  const word = token.normalize("NFC").replace(/\.$/, "").toLowerCase();
+  return (
+    ISO_4217.has(word.toUpperCase()) ||
+    LOCAL_CURRENCY_TEXT.has(word) ||
+    (side === "prefix" && PREFIX_ONLY_CURRENCY_TEXT.has(word))
+  );
 }
