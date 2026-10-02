@@ -26,7 +26,7 @@ import {
   type ImportSortConfig,
 } from "@/components/import/import-table-utils";
 import { ImportMappingRows } from "./import-mapping";
-import { Search, X, GitMerge, AlertTriangle, Copy, Loader2 } from "lucide-react";
+import { Search, X, GitMerge, AlertTriangle, Copy, ListFilter, Loader2 } from "lucide-react";
 
 interface ImportPreviewProps {
   budgetPath: string;
@@ -96,6 +96,7 @@ export function ImportPreview({
     sourceAccounts,
     duplicateIds,
     possibleDuplicateCount,
+    skipRuleCount,
     uncategorizedCount,
     lowConfidenceCount,
     incompleteCount,
@@ -295,6 +296,7 @@ export function ImportPreview({
 
   const showSkippedNote = skippedRowCount > 0;
   const showDuplicatesNote = duplicateIds.size > 0;
+  const showSkipRuleNote = skipRuleCount > 0;
   // Issue counts are still settling while a run is in flight.
   const showIssuesNote = !running && (uncategorizedCount > 0 || lowConfidenceCount > 0);
 
@@ -303,7 +305,7 @@ export function ImportPreview({
       {/* Run notes — one compact panel, a line per note. Certain duplicate
           matches and the speculative (close-date) tier read differently: the
           former are settled, the latter prompt review. */}
-      {(showSkippedNote || showDuplicatesNote || showIssuesNote) && (
+      {(showSkippedNote || showDuplicatesNote || showSkipRuleNote || showIssuesNote) && (
         <div className="w-fit max-w-full space-y-1.5 rounded-xl border border-border/40 bg-card/30 px-3.5 py-2.5">
           {showSkippedNote && (
             <div className="flex items-center gap-2.5 text-sm text-foreground/70">
@@ -324,6 +326,12 @@ export function ImportPreview({
                   .filter(Boolean)
                   .join(" · ")}
               </span>
+            </div>
+          )}
+          {showSkipRuleNote && (
+            <div className="flex items-center gap-2.5 text-sm text-foreground/70">
+              <ListFilter className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+              <span>{t("preview.skipRuleRows", { count: skipRuleCount })}</span>
             </div>
           )}
           {showIssuesNote && (

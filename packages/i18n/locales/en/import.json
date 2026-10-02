@@ -89,7 +89,9 @@
     "mergeConfirmDescriptionBefore": "This will add ",
     "mergeConfirmDescriptionAfter": " to your budget.",
     "unmappedTransfers_one": "{{count}} transfer had no matching counterpart — it'll import as income/expense.",
-    "unmappedTransfers_other": "{{count}} transfers had no matching counterpart — they'll import as income/expense."
+    "unmappedTransfers_other": "{{count}} transfers had no matching counterpart — they'll import as income/expense.",
+    "skipRuleRows_one": "{{count}} row matched a skip rule — left unselected; select it to import it",
+    "skipRuleRows_other": "{{count}} rows matched a skip rule — left unselected; select any you want to import"
   },
   "table": {
     "selectAll": "Select all transactions",
@@ -121,7 +123,11 @@
       "expense": "expense",
       "income": "income",
       "transfer": "transfer"
-    }
+    },
+    "skipRuleTag": "skipped by rule",
+    "skipRuleContains": "{{column}} contains “{{value}}”",
+    "skipRuleEquals": "{{column}} is “{{value}}”",
+    "skipRuleTitle": "Matched the rule {{rule}}, so it starts unselected. Select it to import it."
   },
   "editors": {
     "merchantPlaceholder": "Merchant"

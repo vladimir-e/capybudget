@@ -99,7 +99,10 @@
     "mergeConfirmDescriptionAfter": " ao seu orçamento.",
     "unmappedTransfers_one": "{{count}} transferência não teve contrapartida correspondente — será importada como receita/despesa.",
     "unmappedTransfers_many": "{{count}} transferências não tiveram contrapartida correspondente — serão importadas como receita/despesa.",
-    "unmappedTransfers_other": "{{count}} transferências não tiveram contrapartida correspondente — serão importadas como receita/despesa."
+    "unmappedTransfers_other": "{{count}} transferências não tiveram contrapartida correspondente — serão importadas como receita/despesa.",
+    "skipRuleRows_one": "{{count}} linha corresponde a uma regra de omissão — está desmarcada; marque-a para importá-la",
+    "skipRuleRows_many": "{{count}} linhas correspondem a uma regra de omissão — estão desmarcadas; marque as que você quer importar",
+    "skipRuleRows_other": "{{count}} linhas correspondem a uma regra de omissão — estão desmarcadas; marque as que você quer importar"
   },
   "table": {
     "selectAll": "Selecionar todas as transações",
@@ -131,7 +134,11 @@
       "expense": "despesa",
       "income": "receita",
       "transfer": "transferência"
-    }
+    },
+    "skipRuleTag": "omitida por regra",
+    "skipRuleContains": "{{column}} contém “{{value}}”",
+    "skipRuleEquals": "{{column}} é “{{value}}”",
+    "skipRuleTitle": "Corresponde à regra {{rule}}, então começa desmarcada. Marque-a para importá-la."
   },
   "editors": {
     "merchantPlaceholder": "Estabelecimento"

@@ -706,6 +706,35 @@ describe("ImportOrchestrator — duplicate persistence", () => {
   });
 });
 
+describe("ImportOrchestrator — skip-rule rows", () => {
+  it("stages a held row with its rule through a round-trip and never sends it to the classifier", async () => {
+    const rule = { column: "Description", contains: "balance" };
+    const csv = ["Date,Description,Amount", "2026-01-01,Opening balance,1520.00", "2026-01-02,MERCHANT A,-10.00", "2026-01-03,MERCHANT B,-11.00"].join("\n");
+    const staging = new MemoryStagingStore({ sources: [csvSource(csv)] });
+    const session = new MockStructuredSession([() => ({ ...MAPPING, skipRules: [rule] }), enrichResponder()]);
+
+    await new ImportOrchestrator({ session, staging, budget: emptyBudget(), onEvent: () => {}, concurrency: 1 }).start();
+
+    expect(session.calls).toHaveLength(2);
+    const enriched = JSON.stringify(session.calls[1].messages);
+    expect(enriched).toContain("MERCHANT A");
+    expect(enriched).not.toContain("Opening balance");
+    const reread = await staging.readTransactions();
+    const held = reread!.rows.find((r) => r.description === "Opening balance")!;
+    expect(held).toMatchObject({ skipRule: rule, amount: 152000, merchant: "", categoryId: "" });
+  });
+
+  it("an Enrich re-run leaves held rows alone", async () => {
+    const held = makeImportTransaction({ id: "imp-1", description: "Saldovortrag", skipRule: { column: "Description", equals: "Saldovortrag" } });
+    const staging = new MemoryStagingStore({ transactions: [held] });
+    const session = new MockStructuredSession([]);
+
+    await new ImportOrchestrator({ session, staging, budget: emptyBudget(), onEvent: () => {}, concurrency: 1 }).enrich();
+
+    expect(session.calls).toHaveLength(0);
+  });
+});
+
 // ── Resume contract: staging means normalized + grounded ─────────
 
 describe("ImportOrchestrator — resume contract", () => {

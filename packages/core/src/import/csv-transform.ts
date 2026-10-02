@@ -28,6 +28,7 @@ export interface TransformResult {
     totalRows: number;
     transformed: number;
     skipped: number;
+    held: number;
     errored: number;
   };
 }
@@ -58,14 +59,21 @@ export function transformCsv(
   const records: StagedRecord[] = [];
   const errors: TransformError[] = [];
   let skipped = 0;
+  let held = 0;
 
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i];
-    const rowNum = i + 1; // 1-indexed for user display
+    const rowNum = i + 1;
 
-    // Check skip rules
-    if (shouldSkipRow(row, mapping.skipRules)) {
-      skipped++;
+    const skipRule = matchingSkipRule(row, mapping.skipRules);
+    if (skipRule) {
+      const record = mapHeldRow(row, rowNum, mapping);
+      if (record && record.amount !== 0) {
+        records.push({ ...record, skipRule });
+        held++;
+      } else {
+        skipped++;
+      }
       continue;
     }
 
@@ -89,12 +97,24 @@ export function transformCsv(
       totalRows: rows.length,
       transformed: transactions.length,
       skipped,
+      held,
       errored: errors.length,
     },
   };
 }
 
 // ── Row → intermediate record ───────────────────────────────────
+
+function mapHeldRow(row: Record<string, string>, rowNum: number, mapping: CsvMapping): StagedRecord | null {
+  for (const attempt of [mapping, { ...mapping, date: { literal: "" } }]) {
+    try {
+      return mapRowToRecord(row, rowNum, attempt);
+    } catch {
+      continue;
+    }
+  }
+  return null;
+}
 
 function mapRowToRecord(
   row: Record<string, string>,
@@ -419,19 +439,23 @@ function detectType(
 
 // ── Skip rules ──────────────────────────────────────────────────
 
+export function matchingSkipRule(
+  row: Record<string, string>,
+  rules?: SkipRule[],
+): SkipRule | null {
+  for (const rule of rules ?? []) {
+    const value = (row[rule.column] ?? "").toLowerCase();
+    if (rule.contains && value.includes(rule.contains.toLowerCase())) return rule;
+    if (rule.equals && value === rule.equals.toLowerCase()) return rule;
+  }
+  return null;
+}
+
 export function shouldSkipRow(
   row: Record<string, string>,
   rules?: SkipRule[],
 ): boolean {
-  if (!rules || rules.length === 0) return false;
-
-  for (const rule of rules) {
-    const value = (row[rule.column] ?? "").toLowerCase();
-    if (rule.contains && value.includes(rule.contains.toLowerCase())) return true;
-    if (rule.equals && value === rule.equals.toLowerCase()) return true;
-  }
-
-  return false;
+  return matchingSkipRule(row, rules) !== null;
 }
 
 // ── CSV serialization ───────────────────────────────────────────
@@ -440,16 +464,21 @@ const IMPORT_COLUMNS = [
   "id", "date", "description", "amount", "type",
   "sourceAccount", "sourceCategory",
   "merchant", "accountId", "targetAccountId", "categoryId", "categoryConfidence",
-  "duplicate", "duplicateConfidence",
+  "duplicate", "duplicateConfidence", "skipRule",
 ] as const;
 
 /** Serialize ImportTransaction[] to a CSV string. */
 export function serializeImportCsv(transactions: ImportTransaction[]): string {
   const header = IMPORT_COLUMNS.join(",");
   const rows = transactions.map((t) =>
-    IMPORT_COLUMNS.map((col) => csvEscape(String(t[col] ?? ""))).join(","),
+    IMPORT_COLUMNS.map((col) => csvEscape(cellText(t, col))).join(","),
   );
   return [header, ...rows].join("\n");
+}
+
+function cellText(t: ImportTransaction, col: (typeof IMPORT_COLUMNS)[number]): string {
+  if (col === "skipRule") return t.skipRule ? JSON.stringify(t.skipRule) : "";
+  return String(t[col] ?? "");
 }
 
 function csvEscape(value: string): string {

@@ -12,7 +12,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { EmptyState } from "@/components/ui/empty-state";
 import { CategorySelector } from "@/components/budget/category-selector";
 import { AccountSelector } from "@/components/budget/account-selector";
-import type { ImportTransaction } from "@capybudget/core";
+import type { ImportTransaction, SkipRule } from "@capybudget/core";
 import type { Category, Account } from "@capybudget/core";
 import { useTranslation } from "@capybudget/i18n";
 import type { TFunction } from "i18next";
@@ -329,6 +329,7 @@ export function ImportTable({
                         {txn.description}
                       </span>
                     )}
+                    {txn.skipRule && <SkipRuleTag rule={txn.skipRule} t={t} />}
                   </div>
                 )}
               </TableCell>
@@ -471,6 +472,23 @@ function MappedAccountCell({
         </span>
       )}
     </button>
+  );
+}
+
+// ── Skip Rule Tag ───────────────────────────────────────────────
+
+function SkipRuleTag({ rule, t }: { rule: SkipRule; t: TFunction<["import", "common"]> }) {
+  const ruleText =
+    rule.equals !== undefined
+      ? t("table.skipRuleEquals", { column: rule.column, value: rule.equals })
+      : t("table.skipRuleContains", { column: rule.column, value: rule.contains ?? "" });
+  return (
+    <span className="mt-0.5 flex min-w-0 items-center gap-1.5" title={t("table.skipRuleTitle", { rule: ruleText })}>
+      <span className="shrink-0 rounded bg-muted px-1 py-px text-[10px] font-medium text-muted-foreground">
+        {t("table.skipRuleTag")}
+      </span>
+      <span className="truncate text-[11px] text-muted-foreground/70">{ruleText}</span>
+    </span>
   );
 }
 

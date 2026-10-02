@@ -386,6 +386,7 @@ describe("ClaudeCliSession", () => {
       await turn.sent
       last().events.exit(1)
       expect(onExit).toHaveBeenCalledTimes(1)
+      expect(onExit).toHaveBeenCalledWith(undefined, false)
     })
 
     it("respawns after a crash", async () => {

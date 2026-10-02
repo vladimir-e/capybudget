@@ -1259,7 +1259,7 @@ describe("normalizeCsv — skip rules", () => {
     "2026-01-06,SALARY,2000.00",
   ].join("\n");
 
-  it("reports how many rows skip rules dropped, naming the first few", async () => {
+  it("drops matched rows with no amount and logs them with the first few descriptions", async () => {
     const session = new MockStructuredSession([
       () => ({ ...MAPPING, skipRules: [{ column: "Description", contains: "OPENING" }] }),
     ]);
@@ -1267,177 +1267,11 @@ describe("normalizeCsv — skip rules", () => {
     const { rows, warnings } = await normalizeCsv(session, { name: "bank.csv", content: csv });
 
     expect(rows).toHaveLength(5);
-    expect(warnings).toEqual(['1 row skipped in bank.csv by skip rules: "OPENING BALANCE"']);
+    expect(rows.every((r) => r.skipRule === null)).toBe(true);
+    expect(warnings).toEqual(['1 row matched skip rules in bank.csv: "OPENING BALANCE"']);
   });
 
-  it("sends a rule that drops a mid-file row with a non-zero amount back for correction", async () => {
-    const session = new MockStructuredSession([
-      () => ({ ...MAPPING, skipRules: [{ column: "Description", equals: "BOOKS" }] }),
-      () => MAPPING,
-    ]);
-
-    const clean = csv.replace("2026-01-01,OPENING BALANCE,\n", "");
-    const { rows } = await normalizeCsv(session, { name: "bank.csv", content: clean });
-
-    expect(session.calls).toHaveLength(2);
-    const retry = JSON.stringify(session.calls[1].messages);
-    expect(retry).toContain("non-zero amount");
-    expect(retry).toContain("BOOKS");
-    expect(rows.map((r) => r.description)).toContain("BOOKS");
-  });
-
-  describe("balance and total rows", () => {
-    const statement = (first: string, middle: string, last: string) =>
-      [
-        "Date,Description,Amount",
-        `2026-01-01,${first}`,
-        "2026-01-02,COFFEE,-4.50",
-        "2026-01-03,GROCER,-30.00",
-        "2026-01-04,BOOKS,-12.00",
-        `2026-01-05,${middle}`,
-        "2026-01-06,PHARMACY,-8.20",
-        "2026-01-07,CINEMA,-15.00",
-        "2026-01-08,BAKERY,-3.10",
-        "2026-01-09,SALARY,2000.00",
-        `2026-01-10,${last}`,
-      ].join("\n");
-    const skipping = (rule: Record<string, string>) => new MockStructuredSession([() => ({ ...MAPPING, skipRules: [rule] }), () => MAPPING]);
-
-    it("lets a rule drop an opening balance in the first row", async () => {
-      const session = skipping({ column: "Description", equals: "Opening balance" });
-
-      const { rows } = await normalizeCsv(session, { name: "bank.csv", content: statement("Opening balance,1520.00", "RENT,-900.00", "GYM,-40.00") });
-
-      expect(session.calls).toHaveLength(1);
-      expect(rows.map((r) => r.description)).not.toContain("Opening balance");
-    });
-
-    it("lets a rule drop a total in the last row", async () => {
-      const session = skipping({ column: "Description", equals: "Итого" });
-
-      const { rows } = await normalizeCsv(session, { name: "bank.csv", content: statement("GYM,-40.00", "RENT,-900.00", "Итого,1087.20") });
-
-      expect(session.calls).toHaveLength(1);
-      expect(rows.map((r) => r.description)).not.toContain("Итого");
-    });
-
-    it("lets a rule drop a balance carried forward mid-file", async () => {
-      const session = skipping({ column: "Description", contains: "carried forward" });
-
-      const { rows } = await normalizeCsv(session, {
-        name: "bank.csv",
-        content: statement("GYM,-40.00", "Balance carried forward,1473.50", "RENT,-900.00"),
-      });
-
-      expect(session.calls).toHaveLength(1);
-      expect(rows).toHaveLength(9);
-    });
-
-    it.each([
-      ["Остаток на начало периода,1473.50", "Остаток"],
-      ["前月残高,1473.50", "前月残高"],
-    ])("lets a rule drop %s mid-file", async (middle, contains) => {
-      const session = skipping({ column: "Description", contains });
-
-      const { rows } = await normalizeCsv(session, { name: "bank.csv", content: statement("GYM,-40.00", middle, "RENT,-900.00") });
-
-      expect(session.calls).toHaveLength(1);
-      expect(rows).toHaveLength(9);
-    });
-
-    it("lets a rule drop an edge row with no merchant text", async () => {
-      const session = skipping({ column: "Description", equals: "***" });
-
-      const { rows } = await normalizeCsv(session, { name: "bank.csv", content: statement("***,1520.00", "RENT,-900.00", "GYM,-40.00") });
-
-      expect(session.calls).toHaveLength(1);
-      expect(rows).toHaveLength(9);
-    });
-
-    it.each([
-      ["first", "Recarga de saldo"],
-      ["middle", "TOTAL WINE & MORE"],
-      ["last", "Balance transfer fee"],
-    ])("refuses a %s-row transaction that only borrows a balance word: %s", async (position, description) => {
-      const session = skipping({ column: "Description", equals: description });
-      const row = `${description},-25.00`;
-
-      await normalizeCsv(session, {
-        name: "bank.csv",
-        content: statement(position === "first" ? row : "GYM,-40.00", position === "middle" ? row : "RENT,-900.00", position === "last" ? row : "TAXI,-18.00"),
-      });
-
-      expect(session.calls).toHaveLength(2);
-      const retry = JSON.stringify(session.calls[1].messages);
-      expect(retry).toContain("non-zero amount");
-      expect(retry).toContain("skipRules are only for non-transaction rows");
-    });
-
-    it("refuses more than two balance rows mid-file", async () => {
-      const session = skipping({ column: "Description", contains: "carried forward" });
-      const csv = [
-        "Date,Description,Amount",
-        ...Array.from({ length: 12 }, (_, i) =>
-          [3, 5, 7].includes(i) ? `2026-01-${10 + i},Balance carried forward,${100 + i}.00` : `2026-01-${10 + i},SHOP ${i},-${i + 1}.00`,
-        ),
-      ].join("\n");
-
-      await normalizeCsv(session, { name: "bank.csv", content: csv });
-
-      expect(session.calls).toHaveLength(2);
-      expect(JSON.stringify(session.calls[1].messages)).toContain("matches 3 rows with a non-zero amount");
-    });
-
-    it.each([
-      [4, false],
-      [5, true],
-    ])("on a %i-row file, lets a rule drop one opening balance: %s", async (length, allowed) => {
-      const session = skipping({ column: "Description", equals: "Opening balance" });
-      const csv = [
-        "Date,Description,Amount",
-        "2026-01-01,Opening balance,1520.00",
-        ...Array.from({ length: length - 1 }, (_, i) => `2026-01-0${i + 2},SHOP ${i},-${i + 1}.00`),
-      ].join("\n");
-
-      await normalizeCsv(session, { name: "bank.csv", content: csv });
-
-      expect(session.calls).toHaveLength(allowed ? 1 : 2);
-      if (!allowed) {
-        const retry = JSON.stringify(session.calls[1].messages);
-        expect(retry).toContain(`this file has only ${length} rows and a skipRule may drop at most 20% of them`);
-        expect(retry).not.toContain("too broad");
-      }
-    });
-
-    it("still refuses a broad rule that drops real transactions", async () => {
-      const session = skipping({ column: "Description", contains: "TRANSFER" });
-
-      await normalizeCsv(session, {
-        name: "bank.csv",
-        content: statement("TRANSFER IN,500.00", "TRANSFER TO SAVINGS,-200.00", "GYM,-40.00"),
-      });
-
-      expect(session.calls).toHaveLength(2);
-      const retry = JSON.stringify(session.calls[1].messages);
-      expect(retry).toContain("non-zero amount");
-      expect(retry).toContain("TRANSFER TO SAVINGS");
-    });
-  });
-
-  it("sends a rule matching more than a fifth of the rows back for correction", async () => {
-    const zeros = ["Date,Description,Amount", ...Array.from({ length: 8 }, (_, i) => `2026-01-0${i + 1},${i < 2 ? "HOLD" : "SHOP"} ${i},${i < 2 ? "0.00" : `-${i}.00`}`)].join("\n");
-    const session = new MockStructuredSession([
-      () => ({ ...MAPPING, skipRules: [{ column: "Description", contains: "HOLD" }] }),
-      () => MAPPING,
-    ]);
-
-    await normalizeCsv(session, { name: "bank.csv", content: zeros });
-
-    expect(session.calls).toHaveLength(2);
-    expect(JSON.stringify(session.calls[1].messages)).toContain("too broad");
-  });
-
-  it("never counts rows whose amount isn't a number against a rule", async () => {
+  it("drops a pending row whose amount is blank", async () => {
     const pending = ["Date,Description,Amount", "2026-01-01,A,-1.00", "2026-01-02,B,-2.00", "2026-01-03,C,-3.00", "2026-01-04,D,PENDING"].join("\n");
     const session = new MockStructuredSession([
       () => ({ ...MAPPING, skipRules: [{ column: "Amount", equals: "PENDING" }] }),
@@ -1446,7 +1280,85 @@ describe("normalizeCsv — skip rules", () => {
     const { rows } = await normalizeCsv(session, { name: "bank.csv", content: pending });
 
     expect(session.calls).toHaveLength(1);
-    expect(rows).toHaveLength(3);
+    expect(rows.map((r) => r.description)).toEqual(["A", "B", "C"]);
+  });
+
+  describe("rows with an amount are staged with their rule, not dropped", () => {
+    const statement = [
+      "Date,Description,Amount",
+      "2026-01-01,Opening balance,1520.00",
+      "2026-01-02,Balance forward,1520.00",
+      ...["COFFEE,-4.50", "GROCER,-30.00", "BOOKS,-12.00", "PHARMACY,-8.20", "CINEMA,-15.00"].map((r, i) => `2026-01-0${i + 3},${r}`),
+      "2026-01-08,Saldovortrag,1450.30",
+      ...["BAKERY,-3.10", "GYM,-40.00", "TAXI,-18.00", "RENT,-900.00", "SALARY,2000.00", "TAXES,-120.00"].map((r, i) => `2026-01-${10 + i},${r}`),
+      "2026-01-20,Total,4087.20",
+    ].join("\n");
+    const rules = [
+      { column: "Description", contains: "balance" },
+      { column: "Description", equals: "Saldovortrag" },
+      { column: "Description", equals: "Total" },
+    ];
+
+    it("keeps each balance and total row, tagged with the rule that matched it", async () => {
+      const session = new MockStructuredSession([() => ({ ...MAPPING, skipRules: rules })]);
+
+      const { rows, warnings } = await normalizeCsv(session, { name: "bank.csv", content: statement });
+
+      expect(session.calls).toHaveLength(1);
+      expect(rows).toHaveLength(15);
+      expect(rows.filter((r) => r.skipRule).map((r) => [r.description, r.skipRule])).toEqual([
+        ["Opening balance", rules[0]],
+        ["Balance forward", rules[0]],
+        ["Saldovortrag", rules[1]],
+        ["Total", rules[2]],
+      ]);
+      expect(warnings).toEqual([
+        '4 rows matched skip rules in bank.csv: "Opening balance", "Balance forward", "Saldovortrag" (+1 more) — 4 with an amount left unselected in the preview',
+      ]);
+    });
+  });
+
+  it("refuses a broad rule that would hold more than a fifth of the rows with an amount", async () => {
+    const transfers = [
+      "Date,Description,Amount",
+      ...Array.from({ length: 10 }, (_, i) => `2026-01-${10 + i},${i % 3 === 0 ? `TRANSFER ${i}` : `SHOP ${i}`},-${i + 1}.00`),
+    ].join("\n");
+    const session = new MockStructuredSession([
+      () => ({ ...MAPPING, skipRules: [{ column: "Description", contains: "TRANSFER" }] }),
+      () => MAPPING,
+    ]);
+
+    const { rows } = await normalizeCsv(session, { name: "bank.csv", content: transfers });
+
+    expect(session.calls).toHaveLength(2);
+    expect(JSON.stringify(session.calls[1].messages)).toContain(
+      'matches 4 of 10 rows with an amount (\\"TRANSFER 0\\", \\"TRANSFER 3\\", \\"TRANSFER 6\\") — too broad',
+    );
+    expect(rows.every((r) => r.skipRule === null)).toBe(true);
+  });
+
+  it("lets a short statement hold its opening and closing balance", async () => {
+    const short = ["Date,Description,Amount", "2026-01-01,Opening balance,100.00", "2026-01-02,SHOP,-5.00", "2026-01-03,Closing balance,95.00"].join("\n");
+    const session = new MockStructuredSession([
+      () => ({ ...MAPPING, skipRules: [{ column: "Description", contains: "balance" }] }),
+    ]);
+
+    const { rows } = await normalizeCsv(session, { name: "bank.csv", content: short });
+
+    expect(session.calls).toHaveLength(1);
+    expect(rows.filter((r) => r.skipRule)).toHaveLength(2);
+  });
+
+  it("never counts rows without an amount toward a rule's share", async () => {
+    const zeros = ["Date,Description,Amount", ...Array.from({ length: 8 }, (_, i) => `2026-01-0${i + 1},${i < 4 ? "HOLD" : "SHOP"} ${i},${i < 4 ? "0.00" : `-${i}.00`}`)].join("\n");
+    const session = new MockStructuredSession([
+      () => ({ ...MAPPING, skipRules: [{ column: "Description", contains: "HOLD" }] }),
+    ]);
+
+    const { rows } = await normalizeCsv(session, { name: "bank.csv", content: zeros });
+
+    expect(session.calls).toHaveLength(1);
+    expect(rows).toHaveLength(4);
   });
 
   it("does not ask again once the caller's signal aborted", async () => {

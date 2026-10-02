@@ -5,6 +5,7 @@ import {
   DEFAULT_TRANSFER_PATTERNS,
 } from "./csv-transform";
 import { baseMapping, makeRow } from "./csv-transform.test-helpers";
+import { getToday } from "../utils/date-utils";
 
 // ── 2. Single signed amount column ─────────────────────────────────
 
@@ -617,18 +618,43 @@ describe("default transfer patterns", () => {
 // ── 6. Skip rules ──────────────────────────────────────────────────
 
 describe("skip rules", () => {
-  it("contains match skips the row", () => {
+  it("contains match drops a row with no amount", () => {
     const mapping = baseMapping({
-      skipRules: [{ column: "Description", contains: "opening balance" }],
+      skipRules: [{ column: "Description", contains: "pending" }],
     });
     const rows = [
-      makeRow({ Date: "2025-01-01", Description: "Opening Balance", Amount: "1000.00" }),
+      makeRow({ Date: "2025-01-01", Description: "Pending charge", Amount: "" }),
       makeRow({ Date: "2025-01-02", Description: "Coffee shop", Amount: "-5.00" }),
     ];
     const result = transformCsv(rows, mapping);
     expect(result.transactions).toHaveLength(1);
     expect(result.transactions[0].description).toBe("Coffee shop");
     expect(result.stats.skipped).toBe(1);
+    expect(result.errors).toEqual([]);
+  });
+
+  it("holds a matched row with an amount, tagged with the rule that matched", () => {
+    const rule = { column: "Description", contains: "opening balance" };
+    const mapping = baseMapping({ skipRules: [rule] });
+    const rows = [
+      makeRow({ Date: "2025-01-01", Description: "Opening Balance", Amount: "1000.00" }),
+      makeRow({ Date: "2025-01-02", Description: "Coffee shop", Amount: "-5.00" }),
+    ];
+    const result = transformCsv(rows, mapping);
+    expect(result.transactions.map((t) => [t.description, t.amount, t.skipRule])).toEqual([
+      ["Opening Balance", 100000, rule],
+      ["Coffee shop", -500, null],
+    ]);
+    expect(result.stats).toMatchObject({ transformed: 2, skipped: 0, held: 1 });
+  });
+
+  it("holds a dateless total row, dating it to today", () => {
+    const mapping = baseMapping({ skipRules: [{ column: "Description", equals: "Total" }] });
+    const rows = [makeRow({ Date: "", Description: "Total", Amount: "-25.00" })];
+    const result = transformCsv(rows, mapping);
+    expect(result.transactions).toHaveLength(1);
+    expect(result.transactions[0].date).toBe(getToday());
+    expect(result.errors).toEqual([]);
   });
 
   it("equals match skips the row (case-insensitive)", () => {
@@ -664,7 +690,7 @@ describe("skip rules", () => {
     });
     const rows = [
       makeRow({ Date: "2025-01-01", Description: "Opening balance", Amount: "0.00" }),
-      makeRow({ Date: "2025-01-02", Description: "Pending", Amount: "-10.00" }),
+      makeRow({ Date: "2025-01-02", Description: "Pending", Amount: "" }),
       makeRow({ Date: "2025-01-03", Description: "Coffee", Amount: "-5.00" }),
     ];
     const result = transformCsv(rows, mapping);

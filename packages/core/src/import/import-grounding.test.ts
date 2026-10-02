@@ -852,3 +852,40 @@ describe("groundImport — stats", () => {
     expect(stats.fastPathed).toBe(200);
   });
 });
+
+describe("groundImport — skip-rule rows", () => {
+  const existing = makeTransaction({
+    id: "ex-1",
+    merchant: "Whole Foods",
+    note: "WHOLE FOODS #998",
+    categoryId: "cat-groceries",
+    accountId: "acct-checking",
+    amount: -4550,
+    datetime: "2026-01-15T00:00:00.000",
+  });
+  const held = makeImportTransaction({
+    id: "held",
+    description: "WHOLE FOODS #998",
+    amount: -4550,
+    date: "2026-01-15",
+    sourceAccount: "Chase Checking",
+    skipRule: { column: "Description", contains: "WHOLE" },
+  });
+  const real = makeImportTransaction({ ...held, id: "real", skipRule: null });
+
+  it("resolves only the account, never claiming a history match another row needs", () => {
+    const { results, context, stats } = groundImport(
+      input({ rows: [held, real], history: [existing, ...historyFor("Whole Foods", "cat-groceries", 3)] }),
+    );
+    expect(results.get("held")).toMatchObject({
+      resolution: "skip-rule",
+      accountId: "acct-checking",
+      merchant: "",
+      categoryId: "",
+      duplicate: false,
+    });
+    expect(context.has("held")).toBe(false);
+    expect(results.get("real")!.duplicate).toBe(true);
+    expect(stats.total).toBe(1);
+  });
+});

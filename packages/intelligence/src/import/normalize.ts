@@ -142,19 +142,20 @@ export async function normalizeCsv(
   const fallbackAccount = accountFromFilename(source.name);
   const rows = transactions.map((t) => (t.sourceAccount ? t : { ...t, sourceAccount: fallbackAccount }));
   const warnings =
-    stats.skipped > 0 ? [describeSkippedByRules(source.name, stats.skipped, resolved.table.rows, resolved.mapping)] : [];
+    stats.skipped + stats.held > 0 ? [describeSkippedByRules(source.name, stats.held, resolved.table.rows, resolved.mapping)] : [];
   return { rows, mapping: resolved.mapping, errors, warnings };
 }
 
 const SKIPPED_SHOWN = 3;
 
-function describeSkippedByRules(filename: string, skipped: number, rows: Record<string, string>[], mapping: CsvMapping): string {
-  const shown = rows
-    .filter((row) => shouldSkipRow(row, mapping.skipRules))
+function describeSkippedByRules(filename: string, held: number, rows: Record<string, string>[], mapping: CsvMapping): string {
+  const matched = rows.filter((row) => shouldSkipRow(row, mapping.skipRules));
+  const shown = matched
     .slice(0, SKIPPED_SHOWN)
     .map((row) => JSON.stringify(truncateValue(rowDescription(row, mapping.description))));
-  const more = skipped > shown.length ? ` (+${skipped - shown.length} more)` : "";
-  return `${skipped} ${skipped === 1 ? "row" : "rows"} skipped in ${filename} by skip rules: ${shown.join(", ")}${more}`;
+  const more = matched.length > shown.length ? ` (+${matched.length - shown.length} more)` : "";
+  const heldNote = held > 0 ? ` — ${held} with an amount left unselected in the preview` : "";
+  return `${matched.length} ${matched.length === 1 ? "row" : "rows"} matched skip rules in ${filename}: ${shown.join(", ")}${more}${heldNote}`;
 }
 
 function rowDescription(row: Record<string, string>, ref: ColumnRef): string {
@@ -227,68 +228,29 @@ async function resolveMapping(
   }
 }
 
-const MAX_SKIPPED_SHARE = 0.2;
-const EDGE_ROWS = 2;
-const MAX_BALANCE_ROWS = 2;
-const BALANCE_ROW = new RegExp(
-  [
-    "^(opening|closing|beginning|ending|previous|starting) balance",
-    "balance (brought|carried) forward",
-    "^total:?$",
-    "^total (debits|credits|amount)",
-    "saldo (de |al )?(inicial|final|anterior|apertura|cierre)",
-    "^solde (initial|final|précédent)",
-    "anfangssaldo|endsaldo|kontostand",
-    "^итого",
-    "остаток на (начало|конец)",
-    "^(входящий|исходящий) остаток",
-    "前月残高|繰越",
-    "期初余额|期末余额",
-  ].join("|"),
-  "iu",
-);
-
-const readsAsBalance = (description: string) => BALANCE_ROW.test(description.replace(/\s+/g, " ").trim());
-const readsAsMerchant = (description: string) => /\p{L}/u.test(description);
+const MAX_HELD_SHARE = 0.2;
+const MIN_HELD_ALLOWANCE = 2;
 
 /**
- * Skip rules exist for non-transaction rows, and a rule that is too broad drops
- * real money without a trace. A rule may drop a row carrying a non-zero amount
- * only when its description reads as a balance or total — or, in the first or
- * last `EDGE_ROWS` data rows (where statements put opening and closing
- * balances), carries no merchant text at all — and at most `MAX_BALANCE_ROWS`
- * such rows sit mid-file. It is also refused when the rows it matches that hold
- * an amount at all exceed `MAX_SKIPPED_SHARE` of the file. Rows whose amount
- * cells don't parse (`PENDING`, a repeated header) are what skip rules are for
- * and never count.
+ * A row a skip rule matches is dropped only when it carries no amount; one with
+ * an amount is staged unselected for the user to judge. That keeps a wrong rule
+ * from deleting money, but a broad one would bury the preview in unselected
+ * rows — so a rule is refused when the rows it holds exceed `MAX_HELD_SHARE` of
+ * the rows carrying an amount (never below `MIN_HELD_ALLOWANCE`, so a short
+ * statement keeps its opening and closing balance).
  */
 function vetSkipRules(rows: Record<string, string>[], mapping: CsvMapping): void {
   const columns = amountColumns(mapping.amount);
-  const amountsOf = (row: Record<string, string>) =>
-    columns.flatMap((c) => ((row[c] ?? "").trim() === "" ? [] : (parsedCell(row[c]) ?? [])));
-  const descriptionOf = (row: Record<string, string>) => rowDescription(row, mapping.description);
-  const isEdge = (index: number) => index < EDGE_ROWS || index >= rows.length - EDGE_ROWS;
-  const isBalanceRow = (row: Record<string, string>, index: number) =>
-    readsAsBalance(descriptionOf(row)) || (isEdge(index) && !readsAsMerchant(descriptionOf(row)));
-  const described = (subset: Record<string, string>[]) =>
-    subset.slice(0, SKIPPED_SHOWN).map((row) => JSON.stringify(truncateValue(descriptionOf(row)))).join(", ");
+  const carriesAmount = (row: Record<string, string>) =>
+    columns.some((c) => (parsedCell(row[c] ?? "")?.cents ?? 0) !== 0);
+  const withAmount = rows.filter(carriesAmount);
+  const allowance = Math.max(MIN_HELD_ALLOWANCE, Math.floor(withAmount.length * MAX_HELD_SHARE));
   for (const rule of mapping.skipRules ?? []) {
-    const matched = rows.flatMap((row, index) => (shouldSkipRow(row, [rule]) ? [{ row, index }] : []));
-    const carrying = matched.filter(({ row }) => amountsOf(row).some((cell) => cell.cents !== 0));
-    const unexplained = carrying.filter(({ row, index }) => !isBalanceRow(row, index)).map(({ row }) => row);
-    const inner = carrying.filter(({ index }) => !isEdge(index)).map(({ row }) => row);
-    const refused = unexplained.length > 0 ? unexplained : inner.length > MAX_BALANCE_ROWS ? inner : [];
-    if (refused.length > 0) {
+    const held = withAmount.filter((row) => shouldSkipRow(row, [rule]));
+    if (held.length > allowance) {
+      const shown = held.slice(0, SKIPPED_SHOWN).map((row) => JSON.stringify(truncateValue(rowDescription(row, mapping.description))));
       throw new SchemaValidationError(
-        `the skipRule ${JSON.stringify(rule)} matches ${refused.length} ${refused.length === 1 ? "row" : "rows"} with a non-zero amount (${described(refused)}) — skipRules are only for non-transaction rows; narrow or drop it`,
-      );
-    }
-    const withAmount = matched.filter(({ row }) => amountsOf(row).length > 0).map(({ row }) => row);
-    if (rows.length > 0 && withAmount.length / rows.length > MAX_SKIPPED_SHARE) {
-      throw new SchemaValidationError(
-        withAmount.length === 1
-          ? `the skipRule ${JSON.stringify(rule)} matches 1 row with an amount (${described(withAmount)}), but this file has only ${rows.length} rows and a skipRule may drop at most ${MAX_SKIPPED_SHARE * 100}% of them; drop the rule`
-          : `the skipRule ${JSON.stringify(rule)} matches ${withAmount.length} of ${rows.length} rows (${described(withAmount)}) — too broad for non-transaction rows; narrow or drop it`,
+        `the skipRule ${JSON.stringify(rule)} matches ${held.length} of ${withAmount.length} rows with an amount (${shown.join(", ")}) — too broad for non-transaction rows; narrow or drop it`,
       );
     }
   }

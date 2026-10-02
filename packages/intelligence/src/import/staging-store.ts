@@ -23,6 +23,7 @@ import {
   validateImportTransactions,
   type ImportTransaction,
   type RowContext,
+  type SkipRule,
   type TransferContext,
 } from "@capybudget/core";
 import type { FileAdapter } from "@capybudget/persistence";
@@ -156,10 +157,26 @@ export function parseImportCsv(content: string): StagedTransactions {
         row.duplicateConfidence === "high" || row.duplicateConfidence === "low"
           ? row.duplicateConfidence
           : "",
+      skipRule: parseSkipRule(row.skipRule),
     };
   });
   const { valid, dropped, fixed } = validateImportTransactions(rows);
   return { rows: valid, dropped, fixed };
+}
+
+function parseSkipRule(cell: string | undefined): SkipRule | null {
+  if (!cell) return null;
+  try {
+    const rule: unknown = JSON.parse(cell);
+    if (typeof rule !== "object" || rule === null) return null;
+    const { column, contains, equals } = rule as Record<string, unknown>;
+    if (typeof column !== "string") return null;
+    if (typeof contains === "string") return { column, contains };
+    if (typeof equals === "string") return { column, equals };
+    return null;
+  } catch {
+    return null;
+  }
 }
 
 const IMPORT_DIR_REL = ".capy/import";

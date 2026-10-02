@@ -110,7 +110,7 @@ export interface TransferContext {
   topAccounts: AccountCount[];
 }
 
-export type Resolution = "fast-path" | "duplicate" | "payment-leg" | "ambiguous";
+export type Resolution = "fast-path" | "duplicate" | "payment-leg" | "ambiguous" | "skip-rule";
 
 /**
  * Per-row grounding result. Carries the fields the orchestrator writes back to
@@ -120,6 +120,7 @@ export type Resolution = "fast-path" | "duplicate" | "payment-leg" | "ambiguous"
  *   - `payment-leg` — an outflow expense recognized as a card-payment transfer
  *                     leg; retyped with the counterpart prefilled.
  *   - `ambiguous`   — needs the classifier; `RowContext` carries the signal.
+ *   - `skip-rule`   — a row a mapping skip rule matched; only its account resolves.
  */
 export interface GroundingResult {
   rowId: string;
@@ -231,6 +232,20 @@ export function groundImport(
   for (const row of rows) {
     const accountId = resolveAccountId(row.sourceAccount);
 
+    if (row.skipRule) {
+      results.set(row.id, {
+        rowId: row.id,
+        resolution: "skip-rule",
+        merchant: "",
+        categoryId: "",
+        categoryConfidence: "",
+        accountId,
+        duplicate: false,
+        duplicateConfidence: "",
+      });
+      continue;
+    }
+
     // Payment-leg recognition: an outflow expense whose description both
     // payment-keywords and unambiguously names one other budget account is a
     // card payment — one leg of a transfer between the user's own accounts.
@@ -296,7 +311,7 @@ export function groundImport(
 
   // Second pass: dedup, now able to leverage the merchant resolved above.
   const dupMatches = detectDuplicates(
-    rows,
+    rows.filter((r) => !r.skipRule),
     history,
     accountMapping,
     (imp) => results.get(imp.id)?.merchant ?? "",
@@ -577,7 +592,10 @@ function tallyStats(results: Map<string, GroundingResult>): GroundingStats {
   let fastPathed = 0;
   let resolved = 0;
   let ambiguous = 0;
+  let total = 0;
   for (const r of results.values()) {
+    if (r.resolution === "skip-rule") continue;
+    total++;
     if (r.duplicate) duplicates++;
     if (r.resolution === "fast-path") fastPathed++;
     // "resolved" = won't need the classifier (dup, merchant+category set, or a
@@ -585,5 +603,5 @@ function tallyStats(results: Map<string, GroundingResult>): GroundingStats {
     if (r.duplicate || (r.merchant && r.categoryId) || r.targetAccountId) resolved++;
     else if (r.resolution === "ambiguous") ambiguous++;
   }
-  return { total: results.size, resolved, duplicates, fastPathed, ambiguous };
+  return { total, resolved, duplicates, fastPathed, ambiguous };
 }

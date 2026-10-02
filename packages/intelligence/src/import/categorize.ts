@@ -37,9 +37,9 @@ export const OLLAMA_ENRICH_BATCH_SIZE = 8;
 export const ENRICH_CONCURRENCY = 4;
 
 /**
- * The enrichment gate: `!duplicate && (!merchant || !categoryId)`. A row needs
- * the classifier when it isn't a duplicate and is missing either a merchant or a
- * category. Transfers are exempt — they carry no merchant/category by design.
+ * The enrichment gate: `!duplicate && !skipRule && (!merchant || !categoryId)`.
+ * A row needs the classifier when it isn't a duplicate or a skip-rule row and is
+ * missing either a merchant or a category. Transfers are exempt — they carry no merchant/category by design.
  * Duplicates are excluded explicitly: a dup of an *uncategorized* historical txn
  * has no category to carry, so the missing-field test alone would re-feed it to
  * the model — the `duplicate` flag is what keeps it out. One predicate thus
@@ -48,15 +48,15 @@ export const ENRICH_CONCURRENCY = 4;
  */
 export function needsEnrich(row: ImportTransaction): boolean {
   if (row.type === "transfer") return false;
-  if (row.duplicate) return false;
+  if (row.duplicate || row.skipRule) return false;
   return !row.merchant || !row.categoryId;
 }
 
 /**
  * The transfer-enrichment gate. A transfer participates in enrichment *only* to
- * resolve its counterpart, and only when it (a) isn't a duplicate, (b) has no
- * counterpart yet (`targetAccountId` empty), and (c) carries transfer context to
- * pick from. No context → the model has nothing to ground a pick on, so the row
+ * resolve its counterpart, and only when it (a) isn't a duplicate or a skip-rule
+ * row, (b) has no counterpart yet (`targetAccountId` empty), and (c) carries
+ * transfer context to pick from. No context → the model has nothing to ground a pick on, so the row
  * is left blank for the user. Idempotent like {@link needsEnrich}: once the
  * counterpart is set (by the model or by hand), the row drops out, so a re-run
  * never re-asks. `hasContext` is the orchestrator's "this row has a
@@ -67,7 +67,7 @@ export function needsTransferEnrich(
   hasContext: boolean,
 ): boolean {
   if (row.type !== "transfer") return false;
-  if (row.duplicate) return false;
+  if (row.duplicate || row.skipRule) return false;
   if (row.targetAccountId) return false;
   return hasContext;
 }

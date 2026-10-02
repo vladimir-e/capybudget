@@ -85,7 +85,7 @@ export function useImportData(budgetPath: string, staging: StagingStore, rowsVer
   // The row set is stable after Normalizing — reloads (a landed batch bumping
   // `rowsVersion`) only fill merchant/category/counterpart on existing rows, and
   // duplicate flags are set during History, before any enrichment. So we
-  // select-all-non-duplicates only on the FIRST load; subsequent reloads preserve
+  // select everything but duplicates and skip-rule rows only on the FIRST load; subsequent reloads preserve
   // the user's selection (an Enrich re-run happens over an already-interactive
   // preview, where blowing away a manual unselect every batch would be visible).
   const firstLoadRef = useRef(true);
@@ -100,7 +100,7 @@ export function useImportData(budgetPath: string, staging: StagingStore, rowsVer
     setTransferCtxIds(new Set(Object.keys(transferCtx)));
     if (firstLoadRef.current) {
       firstLoadRef.current = false;
-      setSelectedIds(new Set(rows.filter((r) => !r.duplicate).map((r) => r.id)));
+      setSelectedIds(new Set(rows.filter((r) => !r.duplicate && !r.skipRule).map((r) => r.id)));
     } else {
       // Reconcile to current ids defensively — the set shouldn't change, but a row
       // dropped between reads must not strand a phantom id in the selection.
@@ -241,8 +241,13 @@ export function useImportData(budgetPath: string, staging: StagingStore, rowsVer
     [transactions],
   );
 
+  const skipRuleCount = useMemo(
+    () => transactions.filter((t) => t.skipRule).length,
+    [transactions],
+  );
+
   const uncategorizedCount = useMemo(
-    () => transactions.filter((t) => !t.categoryId && t.type !== "transfer" && !t.duplicate).length,
+    () => transactions.filter((t) => !t.categoryId && t.type !== "transfer" && !t.duplicate && !t.skipRule).length,
     [transactions],
   );
 
@@ -278,6 +283,7 @@ export function useImportData(budgetPath: string, staging: StagingStore, rowsVer
     sourceAccounts,
     duplicateIds,
     possibleDuplicateCount,
+    skipRuleCount,
     uncategorizedCount,
     lowConfidenceCount,
     incompleteCount,

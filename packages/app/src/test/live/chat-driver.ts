@@ -53,7 +53,9 @@ export class ChatDriver {
       currencies: meta.currencies,
       getCurrencies: () => meta.currencies,
       onEvent: (event) => this.listener?.(event),
-      onExit: (reason) => this.listener?.({ type: "error", message: `session process exited unexpectedly${reason ? `: ${reason}` : ""}` }),
+      onExit: (reason, reported) => {
+        if (!reported) this.listener?.({ type: "error", message: `session process exited unexpectedly${reason ? `: ${reason}` : ""}` })
+      },
       repo: budget.repo,
       fileAdapter: nodeFileAdapter,
     })

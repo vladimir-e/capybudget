@@ -24,6 +24,17 @@ describe("parseImportCsv", () => {
     expect(parsed.rows[0]).toMatchObject({ id: "imp-1", amount: -100, merchant: "", categoryId: "", type: "expense", duplicate: false, duplicateConfidence: "" });
   });
 
+  it("round-trips a row's skip rule", () => {
+    const skipRule = { column: "Description", contains: 'Saldo, "anterior"' };
+    const parsed = parseImportCsv(serializeImportCsv([makeImportTransaction({ skipRule }), makeImportTransaction({ id: "imp-2" })]));
+    expect(parsed.rows.map((r) => r.skipRule)).toEqual([skipRule, null]);
+  });
+
+  it("reads a malformed skip rule as none", () => {
+    const parsed = parseImportCsv('id,date,amount,skipRule\nimp-1,2026-01-01,-100,{oops\nimp-2,2026-01-01,-100,"{""column"":1}"');
+    expect(parsed.rows.map((r) => r.skipRule)).toEqual([null, null]);
+  });
+
   it("degrades a garbage duplicateConfidence value to empty", () => {
     const parsed = parseImportCsv("id,date,amount,duplicate,duplicateConfidence\nimp-1,2026-01-01,-100,true,maybe");
     expect(parsed.rows[0]).toMatchObject({ duplicate: true, duplicateConfidence: "" });

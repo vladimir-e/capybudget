@@ -81,6 +81,7 @@ const TXN: ImportTransaction = {
   categoryConfidence: "high",
   duplicate: false,
   duplicateConfidence: "",
+  skipRule: null,
 };
 
 beforeEach(() => {
@@ -102,6 +103,7 @@ beforeEach(() => {
     sourceAccounts: [],
     duplicateIds: new Set<string>(),
     possibleDuplicateCount: 0,
+    skipRuleCount: 0,
     uncategorizedCount: 0,
     lowConfidenceCount: 0,
     incompleteCount: 0,
@@ -188,6 +190,15 @@ describe("ImportPreview — run notes panel", () => {
 
     expect(
       screen.getByText("3 rows were skipped (couldn't be read)"),
+    ).toBeInTheDocument();
+  });
+
+  it("counts rows a skip rule left unselected", () => {
+    Object.assign(dataReturn, { skipRuleCount: 2 });
+    renderPreview();
+
+    expect(
+      screen.getByText("2 rows matched a skip rule — left unselected; select any you want to import"),
     ).toBeInTheDocument();
   });
 

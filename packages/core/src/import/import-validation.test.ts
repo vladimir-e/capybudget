@@ -18,6 +18,7 @@ function makeRow(overrides: Partial<ImportTransaction> = {}): ImportTransaction 
     categoryConfidence: "",
     duplicate: false,
     duplicateConfidence: "",
+    skipRule: null,
     ...overrides,
   };
 }

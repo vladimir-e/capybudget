@@ -85,6 +85,27 @@ describe("ImportTable — duplicate badge tiers", () => {
   });
 });
 
+describe("ImportTable — skip-rule tag", () => {
+  it("tags the row and names the rule that matched it", () => {
+    renderTable([
+      makeImportTransaction({ id: "imp-1", description: "Saldovortrag", skipRule: { column: "Buchungstext", equals: "Saldovortrag" } }),
+      makeImportTransaction({ id: "imp-2", description: "Opening balance", skipRule: { column: "Description", contains: "balance" } }),
+    ]);
+
+    expect(screen.getAllByText("skipped by rule")).toHaveLength(2);
+    expect(screen.getByText("Buchungstext is “Saldovortrag”")).toBeInTheDocument();
+    expect(
+      screen.getByTitle("Matched the rule Description contains “balance”, so it starts unselected. Select it to import it."),
+    ).toBeInTheDocument();
+  });
+
+  it("leaves ordinary rows untagged", () => {
+    renderTable([makeImportTransaction({ id: "imp-1" })]);
+
+    expect(screen.queryByText("skipped by rule")).toBeNull();
+  });
+});
+
 describe("ImportTable — mapped account column", () => {
   it("shows only the mapped target's name — the raw import lives in the mapping dialog", () => {
     renderTable([makeImportTransaction({ id: "imp-1", sourceAccount: "BOFA CHK 1234" })], {

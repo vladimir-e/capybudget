@@ -215,6 +215,7 @@ export {
   parseAmountCell,
   decimalMarkOf,
   shouldSkipRow,
+  matchingSkipRule,
   DEFAULT_TRANSFER_PATTERNS,
 } from "./import/csv-transform";
 

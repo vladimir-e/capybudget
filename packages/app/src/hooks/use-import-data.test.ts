@@ -40,6 +40,7 @@ function makeTxn(overrides: Partial<ImportTransaction>): ImportTransaction {
     categoryConfidence: "",
     duplicate: false,
     duplicateConfidence: "",
+    skipRule: null,
     ...overrides,
   };
 }
@@ -132,6 +133,21 @@ describe("useImportData — selection across reloads", () => {
   beforeEach(() => {
     hookState.accounts = { data: [{ id: "acc-1", name: "Checking" }] };
     hookState.categories = { data: [{ id: "cat-1" }], isSuccess: true };
+  });
+
+  it("leaves skip-rule rows unselected on first load, and out of the uncategorized count", async () => {
+    const staging = makeStaging([
+      makeTxn({ id: "imp-1" }),
+      makeTxn({ id: "imp-2", merchant: "", skipRule: { column: "Description", equals: "Total" } }),
+    ]);
+
+    const { result } = renderHook(() => useImportData("/b", staging, 0));
+
+    await waitFor(() => expect(result.current.transactions).toHaveLength(2));
+    expect(result.current.selectedIds).toEqual(new Set(["imp-1"]));
+    expect(result.current.skipRuleCount).toBe(1);
+    expect(result.current.uncategorizedCount).toBe(1);
+    expect(result.current.incompleteCount).toBe(1);
   });
 
   it("preserves a manual unselect when a landed batch reloads", async () => {

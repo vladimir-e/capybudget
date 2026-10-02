@@ -1,5 +1,7 @@
 /** Domain types for the Smart Import feature. */
 
+import type { SkipRule } from "./csv-mapping";
+
 /** Source name assigned to a row that has neither a `sourceAccount` nor a
  *  grounded `accountId` — applied at staging read-back and backstopped at
  *  merge, so no row is ever account-less. */
@@ -23,6 +25,7 @@ export interface StagedRecord {
   description: string;
   sourceAccount: string;
   sourceCategory: string;
+  skipRule?: SkipRule;
 }
 
 export interface ImportTransaction {
@@ -40,6 +43,7 @@ export interface ImportTransaction {
   categoryConfidence: string; // "high" | "low" | ""
   duplicate: boolean; // matches an existing budget txn — skip enrichment, unselect at merge
   duplicateConfidence: string; // "high" | "low" | "" — low = relaxed ±day-window match, flagged for review
+  skipRule: SkipRule | null; // the mapping skip rule that matched — staged unselected, never enriched or grounded
 }
 
 /** Stored in .capy/aliases.json — survives across imports. */

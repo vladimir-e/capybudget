@@ -68,6 +68,7 @@ export function makeImportTransaction(
     categoryConfidence: "",
     duplicate: false,
     duplicateConfidence: "",
+    skipRule: null,
     ...overrides,
   };
 }
