@@ -8,8 +8,27 @@ import type { StagingStore } from "@capybudget/intelligence";
 // what this test exercises — the merge race and dialog wiring are. The table
 // mock exposes its Map-accounts trigger so the dialog plumbing is reachable.
 vi.mock("./import-table", () => ({
-  ImportTable: ({ onOpenAccountMapping }: { onOpenAccountMapping: () => void }) => (
-    <button onClick={onOpenAccountMapping}>open account mapping</button>
+  ImportTable: ({
+    transactions,
+    onOpenAccountMapping,
+    onToggleAll,
+    onToggleSelect,
+  }: {
+    transactions: ImportTransaction[];
+    onOpenAccountMapping: () => void;
+    onToggleAll: () => void;
+    onToggleSelect: (id: string, shiftKey: boolean) => void;
+  }) => (
+    <div>
+      <button onClick={onOpenAccountMapping}>open account mapping</button>
+      <button onClick={onToggleAll}>toggle all</button>
+      {transactions.map((t) => (
+        <div key={t.id}>
+          <button onClick={() => onToggleSelect(t.id, false)}>toggle {t.id}</button>
+          <button onClick={() => onToggleSelect(t.id, true)}>shift-toggle {t.id}</button>
+        </div>
+      ))}
+    </div>
   ),
 }));
 // The mapping rows are the reused element — both dialogs render the same
@@ -206,6 +225,63 @@ describe("ImportPreview — run notes panel", () => {
     renderPreview();
 
     expect(screen.queryByText(/skipped/)).toBeNull();
+  });
+});
+
+describe("ImportPreview — selection sweeps", () => {
+  const HELD_RULE = { column: "Description", contains: "balance" };
+  const rows: ImportTransaction[] = [
+    { ...TXN, id: "imp-a", date: "2026-01-01" },
+    { ...TXN, id: "imp-held", date: "2026-01-02", skipRule: HELD_RULE },
+    { ...TXN, id: "imp-dup", date: "2026-01-03", duplicate: true, duplicateConfidence: "high" },
+    { ...TXN, id: "imp-b", date: "2026-01-04" },
+  ];
+
+  function trackSelection(initial: string[]) {
+    let selection = new Set(initial);
+    const setSelectedIds = vi.fn((update: (prev: Set<string>) => Set<string>) => {
+      selection = update(selection);
+    });
+    Object.assign(dataReturn, { transactions: rows, selectedIds: selection, setSelectedIds });
+    return () => [...selection].sort();
+  }
+
+  it("select-all leaves held rows unselected but sweeps duplicates", async () => {
+    const selection = trackSelection([]);
+    renderPreview();
+
+    await userEvent.click(screen.getByRole("button", { name: "toggle all" }));
+
+    expect(selection()).toEqual(["imp-a", "imp-b", "imp-dup"]);
+  });
+
+  it("a shift-range over a held row selects around it", async () => {
+    const selection = trackSelection([]);
+    renderPreview();
+
+    await userEvent.click(screen.getByRole("button", { name: "toggle imp-a" }));
+    await userEvent.click(screen.getByRole("button", { name: "shift-toggle imp-b" }));
+
+    expect(selection()).toEqual(["imp-a", "imp-b", "imp-dup"]);
+  });
+
+  it("a shift-click ending on a held row selects that row on purpose", async () => {
+    const selection = trackSelection([]);
+    renderPreview();
+
+    await userEvent.click(screen.getByRole("button", { name: "toggle imp-a" }));
+    await userEvent.click(screen.getByRole("button", { name: "shift-toggle imp-held" }));
+
+    expect(selection()).toEqual(["imp-a", "imp-held"]);
+  });
+
+  it("deselect-all clears held rows the user picked too", async () => {
+    const selection = trackSelection(["imp-a", "imp-held", "imp-dup", "imp-b"]);
+    renderPreview();
+
+    await userEvent.click(screen.getByRole("button", { name: "toggle all" }));
+
+    expect(selection()).toEqual([]);
   });
 });
 

@@ -135,7 +135,7 @@
       "income": "receita",
       "transfer": "transferência"
     },
-    "skipRuleTag": "omitida por regra",
+    "skipRuleTag": "retida por regra",
     "skipRuleContains": "{{column}} contém “{{value}}”",
     "skipRuleEquals": "{{column}} é “{{value}}”",
     "skipRuleTitle": "Corresponde à regra {{rule}}, então começa desmarcada. Marque-a para importá-la."

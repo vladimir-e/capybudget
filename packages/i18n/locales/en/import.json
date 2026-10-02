@@ -124,7 +124,7 @@
       "income": "income",
       "transfer": "transfer"
     },
-    "skipRuleTag": "skipped by rule",
+    "skipRuleTag": "held by rule",
     "skipRuleContains": "{{column}} contains “{{value}}”",
     "skipRuleEquals": "{{column}} is “{{value}}”",
     "skipRuleTitle": "Matched the rule {{rule}}, so it starts unselected. Select it to import it."

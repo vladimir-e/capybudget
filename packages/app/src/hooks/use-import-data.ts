@@ -84,10 +84,11 @@ export function useImportData(budgetPath: string, staging: StagingStore, rowsVer
   // ── Load staging ─────────────────────────────────────────────
   // The row set is stable after Normalizing — reloads (a landed batch bumping
   // `rowsVersion`) only fill merchant/category/counterpart on existing rows, and
-  // duplicate flags are set during History, before any enrichment. So we
-  // select everything but duplicates and skip-rule rows only on the FIRST load; subsequent reloads preserve
-  // the user's selection (an Enrich re-run happens over an already-interactive
-  // preview, where blowing away a manual unselect every batch would be visible).
+  // duplicate flags are set during History, before any enrichment. So we select
+  // everything but duplicates and skip-rule rows only on the FIRST load;
+  // subsequent reloads preserve the user's selection (an Enrich re-run happens
+  // over an already-interactive preview, where blowing away a manual unselect
+  // every batch would be visible).
   const firstLoadRef = useRef(true);
   const loadCsv = useCallback(async () => {
     const [staged, transferCtx] = await Promise.all([

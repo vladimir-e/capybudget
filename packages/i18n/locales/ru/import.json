@@ -146,7 +146,7 @@
       "income": "доход",
       "transfer": "перевод"
     },
-    "skipRuleTag": "пропущено правилом",
+    "skipRuleTag": "отложено правилом",
     "skipRuleContains": "{{column}} содержит «{{value}}»",
     "skipRuleEquals": "{{column}} равно «{{value}}»",
     "skipRuleTitle": "Подходит под правило {{rule}}, поэтому выбор снят. Отметь строку, чтобы импортировать её."

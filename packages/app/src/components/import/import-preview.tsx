@@ -131,7 +131,8 @@ export function ImportPreview({
   const sorted = useMemo(() => sortImportTransactions(filtered, sort), [filtered, sort]);
 
   // ── Selection helpers ──────────────────────────────────────────
-  const allSelected = sorted.length > 0 && sorted.every((t) => selectedIds.has(t.id));
+  const sweepable = useMemo(() => sorted.filter((t) => !t.skipRule), [sorted]);
+  const allSelected = sweepable.length > 0 && sweepable.every((t) => selectedIds.has(t.id));
   const indeterminate = !allSelected && sorted.some((t) => selectedIds.has(t.id));
   const lastToggledRef = useRef<string | null>(null);
 
@@ -147,8 +148,8 @@ export function ImportPreview({
             const [start, end] = from < to ? [from, to] : [to, from];
             const shouldSelect = !prev.has(id);
             for (let i = start; i <= end; i++) {
-              if (shouldSelect) next.add(ids[i]);
-              else next.delete(ids[i]);
+              if (!shouldSelect) next.delete(ids[i]);
+              else if (ids[i] === id || !sorted[i].skipRule) next.add(ids[i]);
             }
           }
         } else if (next.has(id)) {
@@ -165,16 +166,15 @@ export function ImportPreview({
 
   const handleToggleAll = useCallback(() => {
     setSelectedIds((prev) => {
-      const visibleIds = sorted.map((t) => t.id);
-      const allChecked = visibleIds.every((id) => prev.has(id));
       const next = new Set(prev);
-      for (const id of visibleIds) {
-        if (allChecked) next.delete(id);
-        else next.add(id);
+      if (sweepable.every((t) => prev.has(t.id))) {
+        for (const t of sorted) next.delete(t.id);
+      } else {
+        for (const t of sweepable) next.add(t.id);
       }
       return next;
     });
-  }, [sorted, setSelectedIds]);
+  }, [sorted, sweepable, setSelectedIds]);
 
   // ── Stats ──────────────────────────────────────────────────────
   const selected = transactions.filter((t) => selectedIds.has(t.id));

@@ -92,7 +92,7 @@ describe("ImportTable — skip-rule tag", () => {
       makeImportTransaction({ id: "imp-2", description: "Opening balance", skipRule: { column: "Description", contains: "balance" } }),
     ]);
 
-    expect(screen.getAllByText("skipped by rule")).toHaveLength(2);
+    expect(screen.getAllByText("held by rule")).toHaveLength(2);
     expect(screen.getByText("Buchungstext is “Saldovortrag”")).toBeInTheDocument();
     expect(
       screen.getByTitle("Matched the rule Description contains “balance”, so it starts unselected. Select it to import it."),
@@ -102,7 +102,7 @@ describe("ImportTable — skip-rule tag", () => {
   it("leaves ordinary rows untagged", () => {
     renderTable([makeImportTransaction({ id: "imp-1" })]);
 
-    expect(screen.queryByText("skipped by rule")).toBeNull();
+    expect(screen.queryByText("held by rule")).toBeNull();
   });
 });
 

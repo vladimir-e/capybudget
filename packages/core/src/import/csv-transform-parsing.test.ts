@@ -657,6 +657,15 @@ describe("skip rules", () => {
     expect(result.errors).toEqual([]);
   });
 
+  it("errors a matched row whose date cell holds an unparseable date", () => {
+    const mapping = baseMapping({ skipRules: [{ column: "Description", equals: "Total" }] });
+    const rows = [makeRow({ Date: "not a date", Description: "Total", Amount: "-25.00" })];
+    const result = transformCsv(rows, mapping);
+    expect(result.transactions).toEqual([]);
+    expect(result.errors.map((e) => e.row)).toEqual([1]);
+    expect(result.stats).toMatchObject({ skipped: 0, held: 0, errored: 1 });
+  });
+
   it("equals match skips the row (case-insensitive)", () => {
     const mapping = baseMapping({
       skipRules: [{ column: "Type", equals: "void" }],

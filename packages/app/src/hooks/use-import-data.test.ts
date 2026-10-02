@@ -150,6 +150,23 @@ describe("useImportData — selection across reloads", () => {
     expect(result.current.incompleteCount).toBe(1);
   });
 
+  it("re-deselects a held row the user picked once the preview remounts", async () => {
+    const staging = makeStaging([
+      makeTxn({ id: "imp-1" }),
+      makeTxn({ id: "imp-2", skipRule: { column: "Description", equals: "Total" } }),
+    ]);
+
+    const first = renderHook(() => useImportData("/b", staging, 0));
+    await waitFor(() => expect(first.result.current.transactions).toHaveLength(2));
+    act(() => first.result.current.setSelectedIds(new Set(["imp-1", "imp-2"])));
+    expect(first.result.current.selectedIds).toEqual(new Set(["imp-1", "imp-2"]));
+    first.unmount();
+
+    const second = renderHook(() => useImportData("/b", staging, 0));
+    await waitFor(() => expect(second.result.current.transactions).toHaveLength(2));
+    expect(second.result.current.selectedIds).toEqual(new Set(["imp-1"]));
+  });
+
   it("preserves a manual unselect when a landed batch reloads", async () => {
     const staging = makeStaging([
       makeTxn({ id: "imp-1" }),

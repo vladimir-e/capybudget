@@ -66,19 +66,18 @@ export function transformCsv(
     const rowNum = i + 1;
 
     const skipRule = matchingSkipRule(row, mapping.skipRules);
-    if (skipRule) {
-      const record = mapHeldRow(row, rowNum, mapping);
-      if (record && record.amount !== 0) {
-        records.push({ ...record, skipRule });
-        held++;
-      } else {
-        skipped++;
-      }
+    if (skipRule && !hasNonZeroAmount(row, rowNum, mapping)) {
+      skipped++;
       continue;
     }
 
     try {
-      records.push(mapRowToRecord(row, rowNum, mapping));
+      if (skipRule) {
+        records.push({ ...mapRowToRecord(row, rowNum, heldRowMapping(row, mapping)), skipRule });
+        held++;
+      } else {
+        records.push(mapRowToRecord(row, rowNum, mapping));
+      }
     } catch (e) {
       errors.push({
         row: rowNum,
@@ -105,15 +104,17 @@ export function transformCsv(
 
 // ── Row → intermediate record ───────────────────────────────────
 
-function mapHeldRow(row: Record<string, string>, rowNum: number, mapping: CsvMapping): StagedRecord | null {
-  for (const attempt of [mapping, { ...mapping, date: { literal: "" } }]) {
-    try {
-      return mapRowToRecord(row, rowNum, attempt);
-    } catch {
-      continue;
-    }
+function hasNonZeroAmount(row: Record<string, string>, rowNum: number, mapping: CsvMapping): boolean {
+  try {
+    return parseAmount(row, mapping.amount, mapping.decimalMark, rowNum).amount !== 0;
+  } catch {
+    return false;
   }
-  return null;
+}
+
+function heldRowMapping(row: Record<string, string>, mapping: CsvMapping): CsvMapping {
+  const dateless = "column" in mapping.date && !(row[mapping.date.column] ?? "").trim();
+  return dateless ? { ...mapping, date: { literal: "" } } : mapping;
 }
 
 function mapRowToRecord(
@@ -439,7 +440,7 @@ function detectType(
 
 // ── Skip rules ──────────────────────────────────────────────────
 
-export function matchingSkipRule(
+function matchingSkipRule(
   row: Record<string, string>,
   rules?: SkipRule[],
 ): SkipRule | null {

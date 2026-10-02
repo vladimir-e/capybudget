@@ -43,7 +43,7 @@ export interface ImportTransaction {
   categoryConfidence: string; // "high" | "low" | ""
   duplicate: boolean; // matches an existing budget txn — skip enrichment, unselect at merge
   duplicateConfidence: string; // "high" | "low" | "" — low = relaxed ±day-window match, flagged for review
-  skipRule: SkipRule | null; // the mapping skip rule that matched — staged unselected, never enriched or grounded
+  skipRule: SkipRule | null; // the mapping skip rule that matched — staged unselected, never matched against history or enriched
 }
 
 /** Stored in .capy/aliases.json — survives across imports. */

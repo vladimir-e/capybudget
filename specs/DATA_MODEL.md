@@ -233,7 +233,7 @@ The three normalization paths (a `CsvMapping` applied to a CSV, a model reading 
 | `categoryConfidence`| string  | `high` · `low` · `""` — set alongside `categoryId`                                       |
 | `duplicate`         | boolean | True when the row matches an existing budget transaction — skipped by enrichment, unselected at merge |
 | `duplicateConfidence`| string | `high` · `low` · `""` — the dup match tier; `low` (relaxed date window) renders as a possible duplicate to review |
-| `skipRule`          | SkipRule \| null | The mapping skip rule that matched the row (JSON in the CSV cell) — never grounded or enriched, unselected at merge |
+| `skipRule`          | SkipRule \| null | The mapping skip rule that matched the row (JSON in the CSV cell) — never matched against history or enriched, unselected at merge |
 
 There is no `memo` field. At merge, `note` is the trimmed `description` and nothing else; `merchant` on `Transaction` is reserved for the cleaned name.
 
