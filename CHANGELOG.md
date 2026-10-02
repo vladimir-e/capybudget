@@ -12,7 +12,7 @@ CHANGELOG PHILOSOPHY:
 ## Unreleased
 
 - **Capy** - Long multi-step replies no longer break the chat, Stop leaves the conversation usable, OpenAI's newest models work, and model pickers list each provider's current models.
-- **Import** - Bank CSVs in more formats and currencies import with the right amounts and signs, and rows a skip rule matches are held unselected instead of dropped.
+- **Import** - Bank CSVs in more formats and currencies import with the right amounts and signs, and rows a skip rule matches that carry an amount are held unselected instead of dropped.
 
 ## 1.6.0 — 2026-09-23
 

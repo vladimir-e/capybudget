@@ -55,6 +55,7 @@ function toolSlot(
 
 export class OllamaSession extends AgentSession<ChatParam> implements StructuredSession {
   private readonly client = ollamaClient(this.opts.baseUrl)
+  private unnamedCalls = 0
   private readonly tools: OpenAI.Chat.Completions.ChatCompletionTool[] = this.toolDefinitions.map((t) => ({
     type: "function",
     function: {
@@ -216,6 +217,7 @@ export class OllamaSession extends AgentSession<ChatParam> implements Structured
       }
 
       const accs = [...toolAccs.keys()].sort((a, b) => a - b).map((idx) => toolAccs.get(idx)!)
+      for (const acc of accs) acc.id ||= `ollama-call-${++this.unnamedCalls}`
       const calls = accs.map((acc) => ({ id: acc.id, name: acc.name, input: parseToolArguments(acc.argsString) }))
       for (const call of calls) {
         // Malformed args degrade to {} so the tool block still renders;

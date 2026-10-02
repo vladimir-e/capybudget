@@ -386,6 +386,31 @@ describe("OllamaSession", () => {
       expect(toolRoles()).toEqual(["call_a", "call_b"])
     })
 
+    it("gives every id-less tool call its own id, unique across rounds", async () => {
+      queueTurn({
+        toolCallDeltas: [
+          { index: 0, name: "list_transactions", arguments: "{}" },
+          { index: 1, name: "list_categories", arguments: "{}" },
+        ],
+        finish_reason: "tool_calls",
+      })
+      queueTurn({ toolCallDeltas: [{ index: 0, name: "list_accounts", arguments: "{}" }], finish_reason: "tool_calls" })
+      queueTurn({ textDeltas: ["Done."], finish_reason: "stop" })
+      mockRunTool.mockResolvedValue("ok")
+
+      const { session } = makeSession()
+      await session.send("hi")
+
+      const ids = toolRoles()
+      expect(ids).toHaveLength(3)
+      expect(new Set(ids).size).toBe(3)
+      expect(ids.every((id) => typeof id === "string" && id.length > 0)).toBe(true)
+      const assistantIds = history(session)
+        .flatMap((m) => (m.tool_calls as Array<{ id: string }> | undefined) ?? [])
+        .map((c) => c.id)
+      expect(assistantIds).toEqual(ids)
+    })
+
     it("appends index-less argument fragments to the call they follow", async () => {
       queueTurn({
         toolCallDeltas: [{ id: "call_a", name: "list_transactions", argFragments: ['{"limit"', ":2}"] }],

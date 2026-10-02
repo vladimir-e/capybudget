@@ -86,7 +86,7 @@ export class ClaudeCliSession implements CapySession {
       child = this.child ?? (await this.spawn())
     } catch (err) {
       this.finishTurn()
-      if (!this.cancelled) this.emit({ type: "error", message: extractErrorMessage(err).message })
+      if (!this.cancelled) this.emit({ type: "error", message: extractErrorMessage(err).message, rolledBack: true })
       return
     }
     if (!child || this.cancelled) return this.finishTurn()

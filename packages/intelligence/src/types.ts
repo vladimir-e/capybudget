@@ -143,7 +143,7 @@ export type StreamEvent =
        *  synthetic errors raised by the hook layer (e.g. unconfigured). */
       provider?: SessionProvider
       /** Set on errors the UI words itself (`session.<code>` in the capy
-       *  namespace); `message` is the untranslated fallback. */
+       *  namespace); `message` is then a terse diagnostic. */
       code?: SessionErrorCode
       /** The failed send was taken back out of the model's history, so the
        *  chat must not show it as delivered. */

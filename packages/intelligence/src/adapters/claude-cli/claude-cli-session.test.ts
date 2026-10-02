@@ -413,11 +413,11 @@ describe("ClaudeCliSession", () => {
       expect(spawned[1].writes).toHaveLength(1)
     })
 
-    it("reports a failed spawn once, as an error event", async () => {
+    it("reports a failed spawn once, as an error that takes the send back", async () => {
       const { session, events, onExit, failSpawn } = makeSession()
       failSpawn(new Error("program not found"))
       await session.send("hi")
-      expect(events).toEqual([{ type: "error", message: "program not found", provider: "claude-cli" }])
+      expect(events).toEqual([{ type: "error", message: "program not found", provider: "claude-cli", rolledBack: true }])
       expect(onExit).not.toHaveBeenCalled()
     })
 

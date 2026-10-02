@@ -422,10 +422,7 @@ export function useCapySession(opts: UseCapySessionOptions): UseCapySessionRetur
     // reaches the model, so its bubbles go rather than read as delivered.
     const neverSent = !turn.handedOff || session?.hasQueuedSend === true
     if (neverSent && turn.carriesSnapshot) snapshotSentRef.current = false
-    // Hand the chat history to the adapter so Claude CLI can synthesize
-    // a `[Previous conversation]` recovery prefix on its next send.
-    // API adapters keep their own messages array and treat this as a
-    // no-op (the method is optional on the interface).
+    // Before stop(): stopping kills the CLI process, so the history it rebuilds from must already be handed over.
     const cancelledIds = neverSent ? turn.bubbleIds : []
     session?.markInterrupted?.(messagesRef.current.filter((m) => !cancelledIds.includes(m.id)))
     session?.stop()
