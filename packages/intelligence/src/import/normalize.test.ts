@@ -248,7 +248,7 @@ describe("normalizeCsv", () => {
       expect(session.calls).toHaveLength(2);
       const correction = session.calls[1].messages[0].content as string;
       expect(correction).toContain("add skipRules for non-transaction rows");
-      expect(correction).toContain('"Amount" holds amounts apart from "PENDING", "Amount" — keep this column; add a skipRule for rows like "PENDING"');
+      expect(correction).toContain('"Amount" holds amounts apart from "PENDING", "Amount" — keep this column; add a skipRule for rows whose "Amount" is "PENDING" or "Amount"');
       expect(rows.map((r) => r.amount)).toEqual(amounts);
       expect(errors.map((e) => e.row)).toEqual([2, 7]);
     });
@@ -263,19 +263,69 @@ describe("normalizeCsv", () => {
       expect(rows.map((r) => r.amount)).toEqual(amounts);
     });
 
-    it("never tells the model to keep a column it would refuse", async () => {
-      const refs = [
-        "Date,Description,Amount",
-        "2026-01-05,COFFEE,-4.50",
-        "2026-01-06,CARD AUTH,REF-1",
-        "2026-01-07,SALARY,2000.00",
-        "2026-01-08,LUNCH,REF-2",
-        "2026-01-09,BOOKS,-3.00",
-      ].join("\n");
+    describe("strays the sample misses but the preview catches", () => {
+      // 40 rows: the sample is rows 0-9 plus a spread hitting 12, 15, …, so
+      // strays at 10, 11, 13, 14 sit in the 15-row preview but not the sample.
+      const withPreviewStrays = (strays: string[]) =>
+        [
+          "Date,Description,Amount",
+          ...Array.from({ length: 40 }, (_, i) => {
+            const k = [10, 11, 13, 14].indexOf(i);
+            return `2026-01-05,ROW ${i},${k >= 0 && k < strays.length ? strays[k] : `-${i + 1}.00`}`;
+          }),
+        ].join("\n");
+
+      it("tells the model to keep a column whose preview strays a skipRule would clear", async () => {
+        const session = new MockStructuredSession([() => MAPPING, () => MAPPING]);
+
+        await normalizeCsv(session, { name: "f.csv", content: withPreviewStrays(["PENDING", "Pending", "PENDING", "pending"]) });
+
+        expect(session.calls).toHaveLength(2);
+        expect(session.calls[1].messages[0].content).toContain(
+          '"Amount" holds amounts apart from "PENDING" — keep this column; add a skipRule for rows whose "Amount" is "PENDING"',
+        );
+      });
+
+      it("never tells the model to keep a column it would refuse", async () => {
+        const session = new MockStructuredSession([() => MAPPING, () => MAPPING]);
+
+        await normalizeCsv(session, { name: "f.csv", content: withPreviewStrays(["REF-1", "REF-2", "REF-3"]) });
+
+        expect(session.calls).toHaveLength(2);
+        const correction = session.calls[1].messages[0].content as string;
+        expect(correction).toMatch(/- Row \d+: /);
+        expect(correction).not.toContain("keep this column");
+      });
+    });
+  });
+
+  describe("a small file whose strays fall under the parse share", () => {
+    const csv = [
+      "Date,Description,Amount",
+      "2026-01-05,COFFEE,-4.50",
+      "2026-01-06,CARD AUTH,PENDING",
+      "2026-01-07,SALARY,2000.00",
+      "2026-01-08,LUNCH,-12.00",
+    ].join("\n");
+
+    it("is refused with a skipRule to add, and imports once the correction adds it", async () => {
+      const skipping = { ...MAPPING, skipRules: [{ column: "Amount", equals: "PENDING" }] };
+      const session = new MockStructuredSession([() => MAPPING, () => skipping]);
+
+      const { rows, errors } = await normalizeCsv(session, { name: "f.csv", content: csv });
+
+      expect(session.calls).toHaveLength(2);
+      expect(session.calls[1].messages[0].content).toContain(
+        'column "Amount" holds amounts apart from "PENDING", too many to leave as row errors — keep this column and add a skipRule for rows whose "Amount" is "PENDING"',
+      );
+      expect(errors).toEqual([]);
+      expect(rows.map((r) => r.amount)).toEqual([-450, 200000, -1200]);
+    });
+
+    it("fails loudly when the correction repeats the mapping", async () => {
       const session = new MockStructuredSession([() => MAPPING, () => MAPPING]);
 
-      await expect(normalizeCsv(session, { name: "f.csv", content: refs })).rejects.toThrow(/column "Amount" does not hold amounts/);
-      expect(session.calls[1].messages[0].content).not.toContain("keep this column");
+      await expect(normalizeCsv(session, { name: "f.csv", content: csv })).rejects.toThrow(/add a skipRule for rows whose "Amount" is "PENDING"/);
     });
   });
 
@@ -787,14 +837,35 @@ describe("normalizeMapping", () => {
     });
 
     it.each([
-      ["exactly 80% parse", ["PENDING"], 4, true],
-      ["just under 80% parse", ["PENDING", "PENDING"], 7, false],
-      ["exactly 80% parse with two distinct strays", ["PENDING", "Amount"], 8, true],
-      ["60% parse", ["REF-1", "REF-1"], 3, false],
-    ])("judges %s", (_, strays, parsing, accepted) => {
+      ["exactly 80% parse", ["PENDING"], 4, "accepted"],
+      ["just under 80% parse", ["PENDING", "PENDING"], 7, "skippable"],
+      ["exactly 80% parse with two distinct strays", ["PENDING", "Amount"], 8, "accepted"],
+      ["60% parse", ["REF-1", "REF-1"], 3, "skippable"],
+      ["exactly 50% parse", ["PENDING", "PENDING"], 2, "skippable"],
+      ["under 50% parse", ["N/A", "N/A", "N/A"], 2, "refused"],
+    ])("judges %s", (_, strays, parsing, verdict) => {
       const rows = amountsWith(strays, parsing);
-      if (accepted) expect(accepts(rows)).toMatchObject({ column: "Amount" });
+      if (verdict === "accepted") expect(accepts(rows)).toMatchObject({ column: "Amount" });
+      else if (verdict === "skippable") expect(refusal({ column: "Amount" }, rows)).toMatch(/^column "Amount" holds amounts apart from .*add a skipRule for rows whose "Amount" is /);
       else expect(refusal({ column: "Amount" }, rows)).toMatch(/^column "Amount" does not hold amounts\./);
+    });
+
+    it("counts strays trimmed and case-insensitively, naming the first spelling", () => {
+      expect(accepts(amountsWith(["Pending", " PENDING ", "pending", "Amount"], 16))).toMatchObject({ column: "Amount" });
+      expect(refusal({ column: "Amount" }, amountsWith(["Pending", "PENDING", "Amount", "amount"], 4))).toContain(
+        'apart from "Pending", "Amount", too many to leave as row errors — keep this column and add a skipRule for rows whose "Amount" is "Pending" or "Amount"',
+      );
+    });
+
+    it("accepts a skippable column once a skipRule drops its strays", () => {
+      const rows = amountsWith(["PENDING", "PENDING"], 3);
+      const m = normalizeMapping(
+        { amount: { column: "Amount" }, skipRules: [{ column: "Amount", equals: "PENDING" }] },
+        rows,
+        "f.csv",
+        IMPORT_DATE,
+      );
+      expect(m.amount).toMatchObject({ column: "Amount" });
     });
 
     it("refuses three distinct strays even when the rest parse", () => {

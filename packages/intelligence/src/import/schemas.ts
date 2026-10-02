@@ -74,8 +74,7 @@ const COLUMN_REF_SCHEMA: JsonSchema = {
  * `additionalProperties`); the loosening we actually need is value-level, above.
  *
  * Anthropic caps a request at 24 optional parameters and 16 union-typed
- * parameters across its schemas; this one uses about 20 and 3, so new optional
- * fields here spend scarce headroom.
+ * parameters across all its schemas.
  *
  * `typeDetection.typeMap` is intentionally absent: an open-keyed map can't
  * satisfy `additionalProperties: false`, and `normalizeMapping` defaults

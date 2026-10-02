@@ -152,11 +152,9 @@ function previewTransformErrors(rows: Record<string, string>[], mapping: CsvMapp
 function strayAmountNotes(rows: Record<string, string>[], mapping: CsvMapping): string[] {
   const kept = rows.filter((row) => !shouldSkipRow(row, mapping.skipRules));
   return amountColumns(mapping.amount).flatMap((column) => {
-    const strays = acceptedStrays(kept, column)?.map((v) => JSON.stringify(truncateValue(v)));
-    if (!strays?.length) return [];
-    return [
-      `"${column}" holds amounts apart from ${strays.join(", ")} — keep this column; add a skipRule for rows like ${strays[0]}`,
-    ];
+    const fit = amountColumnFit(kept, column);
+    if (fit.verdict === "refused" || fit.strays.length === 0) return [];
+    return [`"${column}" holds amounts apart from ${quoteValues(fit.strays, ", ")} — keep this column; ${skipRuleAdvice(column, fit.strays)}`];
   });
 }
 
@@ -345,7 +343,7 @@ function normalizeDescription(raw: unknown): ColumnRef {
  * The amount role is the one place the mapping never guesses: a wrong column
  * is a silent money error, a refusal is a correction round and then a loud
  * failure. So the model must name one shape — a single column or a debit/credit
- * pair, never both — and the column(s) must exist and pass `acceptedStrays`.
+ * pair, never both — and the column(s) must exist and fit `amountColumnFit`.
  * Otherwise the error tells the model exactly what to fix, with every column's
  * sample values to pick from.
  */
@@ -390,7 +388,13 @@ function normalizeAmount(
   const headers = samples.length > 0 ? Object.keys(samples[0]) : null;
   for (const c of columns) {
     if (headers && !headers.includes(c)) refuse(`column "${c}" does not exist`);
-    if (!acceptedStrays(rows, c)) refuse(`column "${c}" does not hold amounts`);
+    const fit = amountColumnFit(rows, c);
+    if (fit.verdict === "refused") refuse(`column "${c}" does not hold amounts`);
+    if (fit.verdict === "skippable") {
+      refuse(
+        `column "${c}" holds amounts apart from ${quoteValues(fit.strays, ", ")}, too many to leave as row errors — keep this column and ${skipRuleAdvice(c, fit.strays)}`,
+      );
+    }
   }
   if (rows.length > 0 && !columns.some((c) => columnSamples(rows, c).some((v) => /\d/.test(v)))) {
     refuse(`no sampled row has an amount in ${columns.map((c) => `"${c}"`).join(" or ")}`);
@@ -398,21 +402,44 @@ function normalizeAmount(
   return amount;
 }
 
+const MIN_PARSED_SHARE = 0.8;
+const MIN_SKIPPABLE_SHARE = 0.5;
 const MAX_STRAY_VALUES = 2;
 
+type AmountColumnFit = { verdict: "amounts" | "skippable"; strays: string[] } | { verdict: "refused" };
+
 /**
- * A column holds amounts when at least 80% of its non-blank cells parse and the
- * rest come from at most two distinct values — real strays repeat (`PENDING`,
+ * A column holds amounts when at least `MIN_PARSED_SHARE` of its non-blank
+ * cells parse and the rest come from at most `MAX_STRAY_VALUES` distinct values
+ * (compared trimmed and case-insensitively) — real strays repeat (`PENDING`,
  * the header text, `VOID`), while a reference or memo column fails in many
- * different ways. Returns those distinct stray values, or null when the column
- * is refused.
+ * different ways. A column with those few strays that misses the share only
+ * because they are dense (a tiny file, strays bunched at the top) is
+ * "skippable": skipping its stray values leaves pure amounts. The strays are
+ * returned as first seen.
  */
-function acceptedStrays(rows: Record<string, string>[], column: string): string[] | null {
+function amountColumnFit(rows: Record<string, string>[], column: string): AmountColumnFit {
   const values = columnSamples(rows, column);
-  const strays = values.filter((v) => parsedCell(v) === null);
-  const distinct = [...new Set(strays.map((v) => v.trim()))];
-  const mostlyParse = (values.length - strays.length) * 5 >= values.length * 4;
-  return mostlyParse && distinct.length <= MAX_STRAY_VALUES ? distinct : null;
+  const strays = new Map<string, string>();
+  for (const v of values) {
+    if (parsedCell(v) !== null) continue;
+    const value = v.trim();
+    if (!strays.has(value.toLowerCase())) strays.set(value.toLowerCase(), value);
+  }
+  if (strays.size > MAX_STRAY_VALUES) return { verdict: "refused" };
+  const distinct = [...strays.values()];
+  if (distinct.length === 0) return { verdict: "amounts", strays: distinct };
+  const parsedShare = values.filter((v) => parsedCell(v) !== null).length / values.length;
+  if (parsedShare >= MIN_PARSED_SHARE) return { verdict: "amounts", strays: distinct };
+  return parsedShare >= MIN_SKIPPABLE_SHARE ? { verdict: "skippable", strays: distinct } : { verdict: "refused" };
+}
+
+function quoteValues(values: string[], separator: string): string {
+  return values.map((v) => JSON.stringify(truncateValue(v))).join(separator);
+}
+
+function skipRuleAdvice(column: string, strays: string[]): string {
+  return `add a skipRule for rows whose "${column}" is ${quoteValues(strays, " or ")}`;
 }
 
 const DESCRIBED_COLUMNS = 30;
