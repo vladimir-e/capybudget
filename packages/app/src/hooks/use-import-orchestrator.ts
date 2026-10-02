@@ -147,7 +147,7 @@ export function useImportOrchestrator(budgetPath: string) {
         pdfSupported: canReadPdf(config.provider),
         imageSupport:
           config.provider === "ollama"
-            ? () => ollamaReadsImages(config.ollama.baseUrl, config.ollama.model)
+            ? (signal) => ollamaReadsImages(config.ollama.baseUrl, config.ollama.model, signal)
             : undefined,
         onEvent: (event) => {
           if (activeOrchestrator === orchestrator) apply(event);

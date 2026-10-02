@@ -66,7 +66,7 @@ export function OllamaConfig() {
     } else {
       setTestState({
         kind: "error",
-        message: result.unreachable ? t("provider.ollama.notRunningHint") : result.message,
+        message: "unreachable" in result ? t("provider.ollama.notRunningHint") : result.message,
       })
     }
   }

@@ -68,13 +68,21 @@ export function isRejectedRequest(err: unknown): boolean {
   return typeof code === "string" && !TRANSIENT_STREAM_CODES.includes(code)
 }
 
-const DEAD_END_STATUSES = [401, 403, 404]
+export type DeadEndKind = "unreachable" | "keyRejected" | "forbidden" | "modelNotFound"
 
-/** Every further call fails the same way: the key is rejected, the model or
- *  endpoint doesn't exist, or the provider can't be reached at all. */
+const DEAD_END_STATUSES: Partial<Record<number, DeadEndKind>> = { 401: "keyRejected", 403: "forbidden", 404: "modelNotFound" }
+
+/** Every further call fails the same way: the key is rejected, access is
+ *  refused, the model or endpoint doesn't exist, or the provider can't be
+ *  reached at all. Null for anything a later call might survive. */
+export function deadEndKind(err: unknown): DeadEndKind | null {
+  if (err instanceof UnreachableError) return "unreachable"
+  if (!isObject(err) || typeof err.status !== "number") return null
+  return DEAD_END_STATUSES[err.status] ?? null
+}
+
 export function isDeadEnd(err: unknown): boolean {
-  if (err instanceof UnreachableError) return true
-  return isObject(err) && typeof err.status === "number" && DEAD_END_STATUSES.includes(err.status)
+  return deadEndKind(err) !== null
 }
 
 function isObject(value: unknown): value is Record<string, unknown> {

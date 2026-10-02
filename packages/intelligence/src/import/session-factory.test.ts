@@ -12,6 +12,7 @@ import {
   canReadPdf,
   createStructuredImportSession,
   importReady,
+  ollamaReadsImages,
 } from "./session-factory";
 
 // A session that exposes the structured surface — the factory's #6 guard
@@ -53,6 +54,58 @@ describe("canImport", () => {
     expect(canImport("ollama")).toBe(true);
     expect(canImport("claude-cli")).toBe(false);
     expect(canImport(null)).toBe(false);
+  });
+});
+
+describe("ollamaReadsImages", () => {
+  function stalledServer() {
+    return vi.fn(
+      (_url: string, init: RequestInit) =>
+        new Promise<Response>((_, reject) => {
+          init.signal?.addEventListener("abort", () => reject(init.signal?.reason));
+        }),
+    );
+  }
+
+  it("reads vision from the model's capabilities", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => Response.json({ capabilities: ["completion", "vision"] })));
+    try {
+      await expect(ollamaReadsImages("http://box:11434/v1", "llava")).resolves.toBe(true);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("gives up as unknown when the run aborts mid-probe", async () => {
+    vi.stubGlobal("fetch", stalledServer());
+    const run = new AbortController();
+    try {
+      const probe = ollamaReadsImages("http://box:11434/v1", "llava", run.signal);
+      run.abort();
+      await expect(probe).resolves.toBeNull();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("gives up as unknown when the server stalls past the timeout", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout"] });
+    const timeout = vi.spyOn(AbortSignal, "timeout").mockImplementation((ms) => {
+      const controller = new AbortController();
+      setTimeout(() => controller.abort(new DOMException("timed out", "TimeoutError")), ms);
+      return controller.signal;
+    });
+    vi.stubGlobal("fetch", stalledServer());
+    try {
+      const probe = ollamaReadsImages("http://box:11434/v1", "llava", new AbortController().signal);
+      await vi.advanceTimersByTimeAsync(5000);
+      await expect(probe).resolves.toBeNull();
+      expect(timeout).toHaveBeenCalledWith(5000);
+    } finally {
+      vi.unstubAllGlobals();
+      timeout.mockRestore();
+      vi.useRealTimers();
+    }
   });
 });
 

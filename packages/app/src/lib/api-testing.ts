@@ -11,13 +11,11 @@ import {
   DEFAULT_INTELLIGENCE_CONFIG,
   OLLAMA_PLACEHOLDER_KEY,
   extractErrorMessage,
-  ollamaOrigin,
 } from "@capybudget/intelligence"
 
 export interface PingResult {
   ok: boolean
   message: string
-  unreachable?: boolean
 }
 
 function failed(err: unknown): PingResult {
@@ -45,7 +43,7 @@ export async function listOllamaModels(baseUrl: string): Promise<string[]> {
 }
 
 /** A one-shot chat — unlike the model list, this fails when the model isn't pulled. */
-export async function pingOllama(baseUrl: string, model: string): Promise<PingResult> {
+export async function pingOllama(baseUrl: string, model: string): Promise<PingResult | { ok: false; unreachable: true }> {
   const { OpenAI, client } = await ollamaClient(baseUrl)
   try {
     await client.chat.completions.create({
@@ -56,7 +54,7 @@ export async function pingOllama(baseUrl: string, model: string): Promise<PingRe
     return { ok: true, message: "" }
   } catch (err) {
     if (err instanceof OpenAI.APIConnectionError) {
-      return { ok: false, message: `Can't reach Ollama at ${ollamaOrigin(baseUrl)}`, unreachable: true }
+      return { ok: false, unreachable: true }
     }
     return failed(err)
   }

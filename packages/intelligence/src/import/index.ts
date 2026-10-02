@@ -44,7 +44,6 @@ export {
   needsTransferEnrich,
   ENRICH_BATCH_SIZE,
   ENRICH_CONCURRENCY,
-  OLLAMA_ENRICH_BATCH_SIZE,
 } from "./categorize";
 
 // Structured-call schemas + result types

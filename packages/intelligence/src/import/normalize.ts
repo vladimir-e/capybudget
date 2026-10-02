@@ -228,29 +228,39 @@ async function resolveMapping(
 }
 
 const MAX_SKIPPED_SHARE = 0.2;
+const EDGE_ROWS = 2;
+const MAX_BALANCE_ROWS = 2;
+const BALANCE_ROW = /\b(balance|opening|closing|beginning|ending|total|carried forward|saldo|solde|kontostand)\b|остаток|итого|сальдо|残高|余额/i;
 
 /**
  * Skip rules exist for non-transaction rows, and a rule that is too broad drops
- * real money without a trace. So a rule is refused when it matches a row whose
- * amount is non-zero, or when the rows it matches that hold an amount at all
- * exceed `MAX_SKIPPED_SHARE` of the file. Rows whose amount cells don't parse
+ * real money without a trace. A rule may drop rows carrying a non-zero amount
+ * only when each sits in the first or last `EDGE_ROWS` data rows (where
+ * statements put opening and closing balances), or is one of at most
+ * `MAX_BALANCE_ROWS` rows whose description reads as a balance or total. It is
+ * also refused when the rows it matches that hold an amount at all exceed
+ * `MAX_SKIPPED_SHARE` of the file. Rows whose amount cells don't parse
  * (`PENDING`, a repeated header) are what skip rules are for and never count.
  */
 function vetSkipRules(rows: Record<string, string>[], mapping: CsvMapping): void {
   const columns = amountColumns(mapping.amount);
   const amountsOf = (row: Record<string, string>) =>
     columns.flatMap((c) => ((row[c] ?? "").trim() === "" ? [] : (parsedCell(row[c]) ?? [])));
+  const isEdge = (index: number) => index < EDGE_ROWS || index >= rows.length - EDGE_ROWS;
+  const described = (subset: Record<string, string>[]) =>
+    subset.slice(0, SKIPPED_SHOWN).map((row) => JSON.stringify(truncateValue(rowDescription(row, mapping.description)))).join(", ");
   for (const rule of mapping.skipRules ?? []) {
-    const matched = rows.filter((row) => shouldSkipRow(row, [rule]));
-    const carrying = matched.filter((row) => amountsOf(row).some((cell) => cell.cents !== 0));
-    const withAmount = matched.filter((row) => amountsOf(row).length > 0);
-    const described = (subset: Record<string, string>[]) =>
-      subset.slice(0, SKIPPED_SHOWN).map((row) => JSON.stringify(truncateValue(rowDescription(row, mapping.description)))).join(", ");
-    if (carrying.length > 0) {
+    const matched = rows.flatMap((row, index) => (shouldSkipRow(row, [rule]) ? [{ row, index }] : []));
+    const carrying = matched.filter(({ row }) => amountsOf(row).some((cell) => cell.cents !== 0));
+    const inner = carrying.filter(({ index }) => !isEdge(index)).map(({ row }) => row);
+    const innerAllowed =
+      inner.length <= MAX_BALANCE_ROWS && inner.every((row) => BALANCE_ROW.test(rowDescription(row, mapping.description)));
+    if (!innerAllowed) {
       throw new SchemaValidationError(
-        `the skipRule ${JSON.stringify(rule)} matches ${carrying.length} ${carrying.length === 1 ? "row" : "rows"} with a non-zero amount (${described(carrying)}) — skipRules are only for non-transaction rows; narrow or drop it`,
+        `the skipRule ${JSON.stringify(rule)} matches ${inner.length} ${inner.length === 1 ? "row" : "rows"} with a non-zero amount (${described(inner)}) — skipRules are only for non-transaction rows; narrow or drop it`,
       );
     }
+    const withAmount = matched.filter(({ row }) => amountsOf(row).length > 0).map(({ row }) => row);
     if (rows.length > 0 && withAmount.length / rows.length > MAX_SKIPPED_SHARE) {
       throw new SchemaValidationError(
         `the skipRule ${JSON.stringify(rule)} matches ${withAmount.length} of ${rows.length} rows (${described(withAmount)}) — too broad for non-transaction rows; narrow or drop it`,
@@ -798,13 +808,14 @@ function extractionWarnings(filename: string, result: { count: number; rows: Sta
     );
   }
   const amounts = result.rows.map((r) => Math.abs(r.amount));
-  if (
-    amounts.length >= WHOLE_UNIT_MIN_ROWS &&
-    amounts.every((a) => a % 100 === 0 && a < WHOLE_UNIT_CEILING)
-  ) {
-    warnings.push(
-      `${filename}: every amount is a small round number — the AI may have returned whole units instead of cents. Check the amounts.`,
-    );
+  if (amounts.length >= WHOLE_UNIT_MIN_ROWS) {
+    if (amounts.every((a) => a < 100)) {
+      warnings.push(
+        `${filename}: every amount is under 1.00 — the AI may have returned whole units instead of cents. Check the amounts.`,
+      );
+    } else if (amounts.every((a) => a % 100 === 0 && a < WHOLE_UNIT_CEILING)) {
+      warnings.push(`${filename}: every amount ends in .00 — the AI may have dropped the cents. Check the amounts.`);
+    }
   }
   return warnings;
 }

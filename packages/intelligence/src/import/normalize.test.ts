@@ -1270,9 +1270,9 @@ describe("normalizeCsv — skip rules", () => {
     expect(warnings).toEqual(['1 row skipped in bank.csv by skip rules: "OPENING BALANCE"']);
   });
 
-  it("sends a rule that drops rows with a non-zero amount back for correction", async () => {
+  it("sends a rule that drops a mid-file row with a non-zero amount back for correction", async () => {
     const session = new MockStructuredSession([
-      () => ({ ...MAPPING, skipRules: [{ column: "Description", equals: "RENT" }] }),
+      () => ({ ...MAPPING, skipRules: [{ column: "Description", equals: "BOOKS" }] }),
       () => MAPPING,
     ]);
 
@@ -1282,8 +1282,70 @@ describe("normalizeCsv — skip rules", () => {
     expect(session.calls).toHaveLength(2);
     const retry = JSON.stringify(session.calls[1].messages);
     expect(retry).toContain("non-zero amount");
-    expect(retry).toContain("RENT");
-    expect(rows.map((r) => r.description)).toContain("RENT");
+    expect(retry).toContain("BOOKS");
+    expect(rows.map((r) => r.description)).toContain("BOOKS");
+  });
+
+  describe("balance and total rows", () => {
+    const statement = (first: string, middle: string, last: string) =>
+      [
+        "Date,Description,Amount",
+        `2026-01-01,${first}`,
+        "2026-01-02,COFFEE,-4.50",
+        "2026-01-03,GROCER,-30.00",
+        "2026-01-04,BOOKS,-12.00",
+        `2026-01-05,${middle}`,
+        "2026-01-06,PHARMACY,-8.20",
+        "2026-01-07,CINEMA,-15.00",
+        "2026-01-08,BAKERY,-3.10",
+        "2026-01-09,SALARY,2000.00",
+        `2026-01-10,${last}`,
+      ].join("\n");
+    const skipping = (rule: Record<string, string>) => new MockStructuredSession([() => ({ ...MAPPING, skipRules: [rule] }), () => MAPPING]);
+
+    it("lets a rule drop an opening balance in the first row", async () => {
+      const session = skipping({ column: "Description", equals: "Opening" });
+
+      const { rows } = await normalizeCsv(session, { name: "bank.csv", content: statement("Opening,1520.00", "RENT,-900.00", "GYM,-40.00") });
+
+      expect(session.calls).toHaveLength(1);
+      expect(rows.map((r) => r.description)).not.toContain("Opening");
+    });
+
+    it("lets a rule drop a total in the last row", async () => {
+      const session = skipping({ column: "Description", equals: "Итого" });
+
+      const { rows } = await normalizeCsv(session, { name: "bank.csv", content: statement("GYM,-40.00", "RENT,-900.00", "Итого,1087.20") });
+
+      expect(session.calls).toHaveLength(1);
+      expect(rows.map((r) => r.description)).not.toContain("Итого");
+    });
+
+    it("lets a rule drop a balance carried forward mid-file", async () => {
+      const session = skipping({ column: "Description", contains: "carried forward" });
+
+      const { rows } = await normalizeCsv(session, {
+        name: "bank.csv",
+        content: statement("GYM,-40.00", "Balance carried forward,1473.50", "RENT,-900.00"),
+      });
+
+      expect(session.calls).toHaveLength(1);
+      expect(rows).toHaveLength(9);
+    });
+
+    it("still refuses a broad rule that drops real transactions", async () => {
+      const session = skipping({ column: "Description", contains: "TRANSFER" });
+
+      await normalizeCsv(session, {
+        name: "bank.csv",
+        content: statement("TRANSFER IN,500.00", "TRANSFER TO SAVINGS,-200.00", "GYM,-40.00"),
+      });
+
+      expect(session.calls).toHaveLength(2);
+      const retry = JSON.stringify(session.calls[1].messages);
+      expect(retry).toContain("non-zero amount");
+      expect(retry).toContain("TRANSFER TO SAVINGS");
+    });
   });
 
   it("sends a rule matching more than a fifth of the rows back for correction", async () => {
@@ -1337,13 +1399,30 @@ describe("normalizeImage — extraction warnings", () => {
     expect(warnings).toEqual(["scan.png: the AI counted 5 transactions but returned 2 — 3 may be missing."]);
   });
 
-  it("flags amounts that all look like whole units", async () => {
+  it("flags amounts that all end in .00 as dropped cents", async () => {
     const session = new MockStructuredSession([() => ({ result: { count: 3, rows: [row(-1200), row(-4500), row(-800)] } })]);
 
     const { warnings } = await normalizeImage(session, { name: "scan.png", content: "B64", mediaType: "image/png" });
 
-    expect(warnings).toHaveLength(1);
-    expect(warnings[0]).toContain("whole units");
+    expect(warnings).toEqual(["scan.png: every amount ends in .00 — the AI may have dropped the cents. Check the amounts."]);
+  });
+
+  it("flags amounts that are all under one unit as whole units", async () => {
+    const session = new MockStructuredSession([() => ({ result: { count: 3, rows: [row(-12), row(-45), row(-8)] } })]);
+
+    const { warnings } = await normalizeImage(session, { name: "scan.png", content: "B64", mediaType: "image/png" });
+
+    expect(warnings).toEqual([
+      "scan.png: every amount is under 1.00 — the AI may have returned whole units instead of cents. Check the amounts.",
+    ]);
+  });
+
+  it("needs three rows before judging the amounts", async () => {
+    const session = new MockStructuredSession([() => ({ result: { count: 2, rows: [row(-12), row(-45)] } })]);
+
+    const { warnings } = await normalizeImage(session, { name: "scan.png", content: "B64", mediaType: "image/png" });
+
+    expect(warnings).toEqual([]);
   });
 
   it("stays quiet on ordinary cents", async () => {

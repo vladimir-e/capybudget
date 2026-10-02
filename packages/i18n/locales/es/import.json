@@ -20,10 +20,11 @@
     "providerRequired": "La importación necesita Anthropic, OpenAI u Ollama configurado.",
     "clearFailed": "No se pudo limpiar la preparación de importación — inténtalo de nuevo.",
     "removeFileFailed": "No se pudo eliminar {{name}}",
-    "tooLarge": "{{name}} supera el límite de 5 MB",
+    "tooLarge": "{{name}} supera el límite de {{limit}} MB",
     "unreachable": "No se puede conectar con {{provider}} — revisa tu conexión a internet.",
     "ollamaUnreachable": "No se puede conectar con Ollama en {{url}}. Inícialo con `ollama serve` o revisa la URL en Ajustes.",
     "keyRejected": "{{provider}} rechazó la clave de API — revísala en Ajustes.",
+    "forbidden": "{{provider}} rechazó la solicitud — revisa tu clave y tu acceso en Ajustes.",
     "modelNotFound": "{{provider}} no encuentra el modelo seleccionado — elige otro en Ajustes.",
     "categorizeFailed": "Capy no pudo categorizar ninguna fila. Siguen preparadas — ejecuta Enriquecer para intentarlo de nuevo."
   },

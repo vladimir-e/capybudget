@@ -25,13 +25,14 @@ export type {
 } from "./types"
 
 // Error extraction (shared across API adapters)
-export { extractErrorMessage, isDeadEnd } from "./error-message"
+export { deadEndKind, extractErrorMessage } from "./error-message"
+export type { DeadEndKind } from "./error-message"
 
 // Session interface
 export type { CapySessionOptions, CapySession } from "./session"
 
 // Structured-output primitive (stateless, schema-validated single call)
-export { parseStructured, SchemaValidationError, UnreachableError } from "./structured"
+export { parseStructured, SchemaValidationError } from "./structured"
 export type {
   JsonSchema,
   StructuredCallOptions,
@@ -85,6 +86,7 @@ export {
   isImageAttachment,
   isPdfAttachment,
   MAX_ATTACHMENT_SIZE,
+  MAX_IMPORT_PDF_SIZE,
   MAX_TOTAL_ATTACHMENT_SIZE,
 } from "./attachments"
 

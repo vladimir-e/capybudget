@@ -946,6 +946,55 @@ describe("ImportOrchestrator — cancellation", () => {
     expect(staging.transactions!.every((r) => r.categoryId === "")).toBe(true);
     expect(orch.currentPhase).toBe("done");
   });
+  it("cancel() resolves only after a batch whose call already resolved has written", async () => {
+    const staging = new MemoryStagingStore({ transactions: pendingRows(3) });
+    const write = staging.writeTransactions.bind(staging);
+    let releaseWrite!: () => void;
+    const writeGate = new Promise<void>((res) => { releaseWrite = res; });
+    let markWriting!: () => void;
+    const writing = new Promise<void>((res) => { markWriting = res; });
+    staging.writeTransactions = async (rows) => {
+      markWriting();
+      await writeGate;
+      await write(rows);
+    };
+    const orch = new ImportOrchestrator({ session: new MockStructuredSession([enrichResponder()]), staging, budget: emptyBudget(), onEvent: () => {} });
+
+    const run = orch.enrich();
+    await writing;
+    let cancelled = false;
+    const cancel = orch.cancel().then(() => { cancelled = true; });
+    await Promise.resolve();
+    expect(cancelled).toBe(false);
+    releaseWrite();
+    await cancel;
+    await run;
+
+    expect(staging.transactions!.every((r) => r.categoryId === "cat-dining")).toBe(true);
+    expect(orch.currentPhase).toBe("done");
+  });
+
+  it("a stop after the last file's request completed ends cleanly, staging nothing", async () => {
+    const staging = new MemoryStagingStore({ sources: [csvSource(csvWithRows(2), "a.csv"), csvSource(csvWithRows(3), "b.csv")] });
+    const { events, onEvent } = collect();
+    const session = new MockStructuredSession([mapResponder, mapResponder, enrichResponder()]);
+    const orch = new ImportOrchestrator({
+      session,
+      staging,
+      budget: emptyBudget(),
+      onEvent: (e) => {
+        onEvent(e);
+        if (e.type === "normalize-progress" && session.calls.length === 2 && e.progress.rows === 5) void orch.stop();
+      },
+    });
+
+    await orch.start();
+
+    expect(session.calls).toHaveLength(2);
+    expect(events.find((e) => e.type === "error")).toBeUndefined();
+    expect(events.at(-1)?.type).toBe("done");
+    expect(staging.transactions).toBeNull();
+  });
 });
 
 // ── Per-file failure ─────────────────────────────────────────────

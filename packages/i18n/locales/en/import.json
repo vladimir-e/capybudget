@@ -20,10 +20,11 @@
     "providerRequired": "Import needs Anthropic, OpenAI, or Ollama configured.",
     "clearFailed": "Couldn't clear the import staging — try again.",
     "removeFileFailed": "Couldn't remove {{name}}",
-    "tooLarge": "{{name}} exceeds the 5MB limit",
+    "tooLarge": "{{name}} exceeds the {{limit}} MB limit",
     "unreachable": "Can't reach {{provider}} — check your internet connection.",
     "ollamaUnreachable": "Can't reach Ollama at {{url}}. Start it with `ollama serve`, or check the URL in Settings.",
     "keyRejected": "{{provider}} rejected the API key — check it in Settings.",
+    "forbidden": "{{provider}} refused the request — check your key and access in Settings.",
     "modelNotFound": "{{provider}} can't find the selected model — pick another in Settings.",
     "categorizeFailed": "Capy couldn't categorize any rows. They're staged — run Enrich to try again."
   },

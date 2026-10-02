@@ -1,5 +1,5 @@
 import type { TFunction } from "i18next";
-import { PROVIDER_LABELS, ollamaOrigin } from "@capybudget/intelligence";
+import { PROVIDER_LABELS, deadEndKind, ollamaOrigin } from "@capybudget/intelligence";
 import type { ImportRunError } from "@/stores/import-store";
 
 export function importErrorCopy(
@@ -13,8 +13,8 @@ export function importErrorCopy(
       ? t("errors.ollamaUnreachable", { url: ollamaOrigin(ollamaBaseUrl) })
       : t("errors.unreachable", { provider });
   }
-  if (provider && (error.status === 401 || error.status === 403)) return t("errors.keyRejected", { provider });
-  if (provider && error.status === 404) return t("errors.modelNotFound", { provider });
+  const deadEnd = deadEndKind(error);
+  if (provider && deadEnd && deadEnd !== "unreachable") return t(`errors.${deadEnd}`, { provider });
   if (error.reason === "categorize") return t("errors.categorizeFailed");
   return error.message;
 }

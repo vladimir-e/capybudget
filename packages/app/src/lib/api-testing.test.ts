@@ -64,15 +64,11 @@ describe("pingOllama", () => {
 })
 
 describe("pingOllama — routed failures", () => {
-  it("flags an unreachable server and names it", async () => {
+  it("flags an unreachable server", async () => {
     const { default: OpenAI } = await import("openai")
     chatCreate.mockRejectedValue(new OpenAI.APIConnectionError({ message: "Connection error." }))
 
-    expect(await pingOllama("http://box:11434/v1", "qwen3")).toEqual({
-      ok: false,
-      message: "Can't reach Ollama at http://box:11434",
-      unreachable: true,
-    })
+    expect(await pingOllama("http://box:11434/v1", "qwen3")).toEqual({ ok: false, unreachable: true })
   })
 
   it("reports the vendor message, not the raw status line", async () => {

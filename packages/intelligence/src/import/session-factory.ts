@@ -60,15 +60,20 @@ export function canReadPdf(provider: IntelligenceConfig["provider"]): boolean {
   return provider === "anthropic" || provider === "openai";
 }
 
+const OLLAMA_PROBE_TIMEOUT_MS = 5000;
+
 /** Whether a local Ollama model reads images, from the `capabilities` that
  *  `/api/show` reports. Null when the server doesn't say (older Ollama, an
- *  unreachable server) — the caller warns rather than guesses. */
-export async function ollamaReadsImages(baseUrl: string, model: string): Promise<boolean | null> {
+ *  unreachable or stalled server, an aborted run) — the caller warns rather
+ *  than guesses. */
+export async function ollamaReadsImages(baseUrl: string, model: string, signal?: AbortSignal): Promise<boolean | null> {
   try {
+    const timeout = AbortSignal.timeout(OLLAMA_PROBE_TIMEOUT_MS);
     const response = await fetch(`${ollamaOrigin(baseUrl)}/api/show`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ model }),
+      signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
     });
     if (!response.ok) return null;
     const { capabilities } = (await response.json()) as { capabilities?: unknown };

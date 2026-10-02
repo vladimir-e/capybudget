@@ -20,7 +20,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useImportRepository, type SourceFileInfo } from "@/hooks/use-import-repository";
-import { MAX_ATTACHMENT_SIZE, isPdfFilename, type ImportPhase } from "@capybudget/intelligence";
+import { MAX_ATTACHMENT_SIZE, MAX_IMPORT_PDF_SIZE, isPdfFilename, type ImportPhase } from "@capybudget/intelligence";
 import { useImportStore } from "@/stores/import-store";
 import { useIntelligenceStore } from "@/stores/intelligence-store";
 import { useImportOrchestrator } from "@/hooks/use-import-orchestrator";
@@ -294,8 +294,9 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
           toast.error(t("errors.pdfNeedsCapableProvider", { name: file.name }));
           continue;
         }
-        if (isImportBinaryFile(file) && file.size > MAX_ATTACHMENT_SIZE) {
-          toast.error(t("errors.tooLarge", { name: file.name }));
+        const sizeCap = isPdfFile(file) ? MAX_IMPORT_PDF_SIZE : MAX_ATTACHMENT_SIZE;
+        if (isImportBinaryFile(file) && file.size > sizeCap) {
+          toast.error(t("errors.tooLarge", { name: file.name, limit: sizeCap / 1_048_576 }));
           continue;
         }
         setUploadingFiles((prev) => new Set(prev).add(file.name));

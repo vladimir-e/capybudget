@@ -26,9 +26,12 @@ describe("importErrorCopy", () => {
     );
   });
 
-  it("words a rejected key and a missing model", () => {
+  it("words a rejected key, a refused request, and a missing model", () => {
     expect(importErrorCopy(error({ status: 401, provider: "anthropic" }), t, "")).toBe(
       'errors.keyRejected {"provider":"Anthropic API"}',
+    );
+    expect(importErrorCopy(error({ status: 403, provider: "anthropic" }), t, "")).toBe(
+      'errors.forbidden {"provider":"Anthropic API"}',
     );
     expect(importErrorCopy(error({ status: 404, provider: "ollama" }), t, "")).toBe(
       'errors.modelNotFound {"provider":"Ollama"}',

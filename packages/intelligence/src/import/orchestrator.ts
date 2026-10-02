@@ -58,7 +58,7 @@ export interface OrchestratorDeps {
   pdfSupported?: boolean;
   /** Whether the model reads images — null when that can't be determined.
    *  Asked once, on the first image source. Omitted means it does. */
-  imageSupport?: () => Promise<boolean | null>;
+  imageSupport?: (signal: AbortSignal) => Promise<boolean | null>;
 }
 
 /**
@@ -210,15 +210,9 @@ export class ImportOrchestrator {
   }
 
   /**
-   * Normalize all sources → one staged set with continuing ids. An empty result
-   * (every file yielded no transaction data) is not an error: it flows through
-   * History and stages an empty `transactions.csv`, so the run completes on an
-   * empty preview — the empty state is the feedback, Cancel is the escape hatch.
-   * A no-data file among several (a selfie dropped alongside a real statement —
-   * the chat on-ramp can do this) is skipped with a warning, and so is a file
-   * that fails; the run fails (null) only when no file yielded a row and one
-   * failed. A dead-end provider error or an abort ends the run at once. A stop
-   * is handled by the caller's terminal check after this returns.
+   * Normalize all sources → one staged set with continuing ids. A no-data or
+   * failed file is skipped with a warning; null only when no file yielded a
+   * row and one failed. A dead end or an abort throws.
    */
   private async normalize(sources: SourceFile[]): Promise<ImportTransaction[] | null> {
     // Existing account names ground the model's `sourceAccount` answers: an
@@ -268,7 +262,7 @@ export class ImportOrchestrator {
   private async assertReadsImages(): Promise<void> {
     if (!this.deps.imageSupport) return;
     const firstAsk = this.imageSupport === null;
-    this.imageSupport ??= this.deps.imageSupport();
+    this.imageSupport ??= this.deps.imageSupport(this.controller.signal);
     const supported = await this.imageSupport;
     if (supported === false) throw new Error("the selected model can't read images. Pick a vision model in Settings.");
     if (supported === null && firstAsk) {
@@ -430,12 +424,12 @@ export class ImportOrchestrator {
     const concurrency = this.deps.concurrency ?? ENRICH_CONCURRENCY;
     const { signal } = this.controller;
     let cursor = 0;
-    let deadEnd = null as { err: unknown } | null;
+    const deadEnds: unknown[] = [];
     let lastFailure: unknown = null;
 
     const runNext = async (): Promise<void> => {
       while (true) {
-        if (this.stopRequested || deadEnd) return;
+        if (this.stopRequested || deadEnds.length > 0) return;
         const index = cursor++;
         if (index >= jobs.length) return;
         const job = jobs[index];
@@ -450,7 +444,7 @@ export class ImportOrchestrator {
         } catch (err) {
           if (this.aborted) return;
           if (isDeadEnd(err)) {
-            deadEnd ??= { err };
+            deadEnds.push(err);
             return;
           }
           lastFailure = err;
@@ -481,8 +475,8 @@ export class ImportOrchestrator {
       updatedAt: new Date().toISOString(),
     });
 
-    if (deadEnd) {
-      this.failWith(deadEnd.err);
+    if (deadEnds.length > 0) {
+      this.failWith(deadEnds[0]);
       return;
     }
     if (this.stopRequested) {

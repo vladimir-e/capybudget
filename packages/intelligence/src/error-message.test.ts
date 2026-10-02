@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest"
-import { extractErrorMessage, isRejectedRequest } from "./error-message"
+import { deadEndKind, extractErrorMessage, isDeadEnd, isRejectedRequest } from "./error-message"
+import { UnreachableError } from "./structured"
 
 /**
  * The shapes below mirror what the Anthropic and OpenAI SDKs actually
@@ -98,3 +99,31 @@ function makeError(status: number, message: string, body: unknown): Error {
   err.error = body
   return err
 }
+
+describe("deadEndKind / isDeadEnd", () => {
+  it.each([
+    [401, "keyRejected"],
+    [403, "forbidden"],
+    [404, "modelNotFound"],
+  ] as const)("names a %i as a dead end", (status, kind) => {
+    const err = Object.assign(new Error(`${status}`), { status })
+    expect(deadEndKind(err)).toBe(kind)
+    expect(isDeadEnd(err)).toBe(true)
+  })
+
+  it("counts an unreachable provider", () => {
+    const err = new UnreachableError("Can't reach Ollama at http://localhost:11434")
+    expect(deadEndKind(err)).toBe("unreachable")
+    expect(isDeadEnd(err)).toBe(true)
+  })
+
+  it.each([429, 500])("leaves a %i to a later call", (status) => {
+    const err = Object.assign(new Error(`${status}`), { status })
+    expect(deadEndKind(err)).toBeNull()
+    expect(isDeadEnd(err)).toBe(false)
+  })
+
+  it("leaves an error without a status alone", () => {
+    expect(isDeadEnd(new Error("boom"))).toBe(false)
+  })
+})
