@@ -213,6 +213,7 @@ export {
   parseCurrencyToCents,
   parseAmountCell,
   decimalMarkOf,
+  shouldSkipRow,
   DEFAULT_TRANSFER_PATTERNS,
 } from "./import/csv-transform";
 

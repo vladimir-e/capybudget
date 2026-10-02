@@ -20,6 +20,7 @@ import {
   getToday,
   isViableHeaderRow,
   parseAmountCell,
+  shouldSkipRow,
   transformCsv,
   HEADER_SCAN_ROWS,
   SUPPORTED_DATE_FORMATS,
@@ -178,7 +179,7 @@ async function resolveMapping(
     return heal(await callMapper(session, prompt));
   } catch (err) {
     if (!(err instanceof SchemaValidationError)) throw err;
-    const retryPrompt = `${prompt}\n\nYour previous response could not be used: ${err.message}. Return a mapping that clearly identifies the amount column(s).`;
+    const retryPrompt = `${prompt}\n\nYour previous mapping could not be used: ${err.message}\nReturn a corrected mapping that names the amount column, or both the debit and credit columns, exactly as the headers list them.`;
     return heal(await callMapper(session, retryPrompt));
   }
 }
@@ -227,6 +228,7 @@ function buildMappingPrompt(
     `Sample rows (${sample.length} of ${rows.length} data rows — the head plus rows spread across the file):`,
     JSON.stringify(sample, null, 2),
     `Identify the date column, the description column(s), and how amounts are structured: a single signed column ({ style: "single", column, sign }) or split debit/credit ({ style: "split", expenseColumn, incomeColumn }). Optionally include date.format, the source account, the source category column, and skipRules for non-transaction rows (opening balances, voids).`,
+    `Always name the amount: the one column holding each transaction's amount in the account's currency, or BOTH the debit and credit columns. Foreign/original-currency amounts, exchange rates, fees, taxes, and running balances are never the amount.`,
     accountsNote,
     `Determine the sign convention from the account type and the merchant context, not from a default. "sign" says which polarity is an expense: "negative_expense" (negatives are spending, positives are income — typical of bank/checking exports) or "positive_expense" (positives are spending — typical of CREDIT-CARD statements). On a credit-card statement such as Apple Card, purchases are POSITIVE and represent expenses, while NEGATIVE amounts are payments toward the card — treat those as transfers, not income. For split debit/credit columns, the outflow/debit column is expenses. Add transferPatterns for descriptions that name a card payment or account-to-account move (e.g. "Payment", "ACH Pmt", "Transfer") so they classify as transfers.`,
     `Guidance (the engine heals any deviation, so approximate freely): date.format like MM/DD/YYYY, YYYY-MM-DD, or DD.MM.YYYY. Amount formatting is read from the data, so don't worry about it.`,
@@ -246,9 +248,9 @@ function callMapper(session: StructuredSession, prompt: string): Promise<CsvMapp
  * guaranteed-valid `CsvMapping`. Column roles are read defensively (tolerating
  * synonyms and a bare-string form); every metadata field is healed — amount
  * formatting is always inferred from the data, and the rest is coerced to a
- * valid value or defaulted. Amount is the only role that can fail (a file with
- * no amount column isn't a transaction file); date and description default —
- * date to an auto-detected column else the import date, description to empty.
+ * valid value or defaulted. Amount is the only role that can fail — it is never
+ * guessed; date and description default — date to an auto-detected column else
+ * the import date, description to empty.
  */
 export function normalizeMapping(
   raw: CsvMappingResult,
@@ -256,7 +258,8 @@ export function normalizeMapping(
   filename: string,
   importDate: string,
 ): CsvMapping {
-  const amount = normalizeAmount(raw.amount, samples);
+  const skipRules = normalizeSkipRules(raw.skipRules);
+  const amount = normalizeAmount(raw.amount, samples, skipRules);
   return {
     date: normalizeDate(raw.date, samples, importDate),
     description: normalizeDescription(raw.description),
@@ -265,7 +268,7 @@ export function normalizeMapping(
     typeDetection: normalizeTypeDetection(raw.typeDetection),
     sourceAccount: normalizeSourceAccount(raw.sourceAccount, filename),
     sourceCategory: toColumnRef(raw.sourceCategory),
-    skipRules: normalizeSkipRules(raw.skipRules),
+    skipRules,
   };
 }
 
@@ -321,17 +324,70 @@ function normalizeDescription(raw: unknown): ColumnRef {
   return toColumnRef(raw) ?? EMPTY_DESCRIPTION;
 }
 
-function normalizeAmount(raw: unknown, samples: Record<string, string>[]): AmountMapping {
+/**
+ * The amount role is the one place the mapping never guesses: a wrong column
+ * is a silent money error, a refusal is a correction round and then a loud
+ * failure. So the model must name the column(s), and they must exist and hold
+ * amounts in the sample; otherwise the error tells the model exactly what to
+ * fix, with every column's sample values to pick from.
+ */
+function normalizeAmount(
+  raw: unknown,
+  samples: Record<string, string>[],
+  skipRules: SkipRule[] | undefined,
+): AmountMapping {
   const obj = isRecord(raw) ? raw : {};
   const expenseColumn = pickString(obj, ["expenseColumn", "debitColumn", "outflowColumn", "outflow", "debit"]);
   const incomeColumn = pickString(obj, ["incomeColumn", "creditColumn", "inflowColumn", "inflow", "credit"]);
-  if (expenseColumn && incomeColumn) {
-    return { style: "split", expenseColumn, incomeColumn };
+  const column = asString(raw) ?? pickString(obj, ["column", "amountColumn", "amount", "value"]);
+  const refuse = (problem: string): never => {
+    throw new SchemaValidationError(`${problem}. ${describeColumns(samples)}`);
+  };
+
+  const split = expenseColumn && incomeColumn ? { expenseColumn, incomeColumn } : null;
+  const columns = split ? [split.expenseColumn, split.incomeColumn] : column ? [column] : [];
+  if (columns.length === 0) {
+    if (expenseColumn || incomeColumn) {
+      const [side, named] = expenseColumn ? ["debit", expenseColumn] : ["credit", incomeColumn];
+      refuse(
+        `only the ${side} side ("${named}") was named — name both debit and credit columns, or a single signed amount column`,
+      );
+    }
+    refuse("no amount column named — name the column holding each transaction's amount, or both the debit and credit columns");
   }
-  const column =
-    asString(raw) ?? pickString(obj, ["column", "amountColumn", "amount", "value"]) ?? detectAmountColumn(samples);
-  if (!column) throw new SchemaValidationError("CSV mapping has no identifiable amount column");
-  return { style: "single", column, sign: normalizeSign(obj.sign, samples, column) };
+
+  const rows = samples.filter((row) => !shouldSkipRow(row, skipRules));
+  const headers = samples.length > 0 ? Object.keys(samples[0]) : null;
+  for (const c of columns) {
+    if (headers && !headers.includes(c)) refuse(`column "${c}" does not exist`);
+    if (!columnSamples(rows, c).every((v) => parsedCell(v) !== null)) refuse(`column "${c}" does not hold amounts`);
+  }
+  if (rows.length > 0 && !columns.some((c) => columnSamples(rows, c).some((v) => /\d/.test(v)))) {
+    refuse(`no sampled row has an amount in ${columns.map((c) => `"${c}"`).join(" or ")}`);
+  }
+
+  if (split) return { style: "split", ...split };
+  return { style: "single", column: columns[0], sign: normalizeSign(obj.sign, rows, columns[0]) };
+}
+
+const DESCRIBED_COLUMNS = 30;
+const DESCRIBED_VALUES = 3;
+const DESCRIBED_VALUE_LENGTH = 24;
+
+function describeColumns(samples: Record<string, string>[]): string {
+  if (samples.length === 0) return "The file has no data rows.";
+  const headers = Object.keys(samples[0]);
+  const described = headers.slice(0, DESCRIBED_COLUMNS).map((header) => {
+    const values = [...new Set(columnSamples(samples, header))].slice(0, DESCRIBED_VALUES).map(truncateValue);
+    return `"${header}" (${values.length > 0 ? values.map((v) => JSON.stringify(v)).join(", ") : "blank"})`;
+  });
+  const more = headers.length > DESCRIBED_COLUMNS ? `, +${headers.length - DESCRIBED_COLUMNS} more` : "";
+  return `Columns with sample values: ${described.join("; ")}${more}`;
+}
+
+function truncateValue(value: string): string {
+  const v = value.trim();
+  return v.length > DESCRIBED_VALUE_LENGTH ? `${v.slice(0, DESCRIBED_VALUE_LENGTH - 1)}…` : v;
 }
 
 /**
@@ -404,7 +460,7 @@ function normalizeSourceAccount(raw: unknown, filename: string): CsvMapping["sou
   return { literal: accountFromFilename(filename) };
 }
 
-// ── Column auto-detection (when the model named no role) ─────────
+// ── Date column auto-detection (when the model named none) ───────
 
 /** A column whose every non-empty sample value parses as a supported date. */
 function detectDateColumn(samples: Record<string, string>[]): CsvMapping["date"] | null {
@@ -423,86 +479,12 @@ function looksLikeDate(value: string): boolean {
   return /^\d{4}[-/]\d{2}[-/]\d{2}$/.test(v) || /^\d{1,2}[./-]\d{1,2}[./-]\d{4}$/.test(v);
 }
 
-const word = (terms: string) => `(?<![\\p{L}\\p{M}])(?:${terms})(?![\\p{L}\\p{M}])`;
-const AMOUNT_HEADER = new RegExp(`${word("amount|sum|summe|montant|importe|valor")}|betrag|сумма|金額|金额`, "u");
-const CAMEL_AMOUNT_HEADER = /\p{Ll}Amount$/u;
-const FOREIGN_HEADER = new RegExp(`${word("foreign|original|orig")}|fremd`, "u");
-const BALANCE_HEADER = new RegExp(
-  `${word("balance|available|running|ledger|saldo|solde|kontostand|zůstatek|egyenleg|bakiye|bal")}|остаток|баланс|残高|余额|잔액`,
-  "u",
-);
-
-const lowered = (header: string) => header.normalize("NFC").toLowerCase();
-const spaced = (header: string) => lowered(header.normalize("NFC").replace(/(\p{Ll})(\p{Lu})/gu, "$1 $2"));
-
-function isAmountNamed(header: string): boolean {
-  return AMOUNT_HEADER.test(lowered(header)) || CAMEL_AMOUNT_HEADER.test(header.normalize("NFC"));
-}
-
-function isBalanceNamed(header: string): boolean {
-  return BALANCE_HEADER.test(spaced(header));
-}
-
-function isPlainAmountNamed(header: string): boolean {
-  const text = spaced(header);
-  const amountAt = text.search(AMOUNT_HEADER);
-  return !FOREIGN_HEADER.test(text) && !BALANCE_HEADER.test(amountAt < 0 ? text : text.slice(0, amountAt));
-}
-
-/**
- * The fallback when the model named no amount column; it refuses rather than
- * guess. An amount-named header settles the question: exactly one plain one
- * whose cells parse, else nothing. Without one, exactly one unnamed column may
- * carry a money signal, ignoring balances and id-like columns.
- */
-function detectAmountColumn(samples: Record<string, string>[]): string | undefined {
-  if (samples.length === 0) return undefined;
-  const headers = Object.keys(samples[0]);
-  const values = (header: string) => columnSamples(samples, header);
-
-  if (headers.some(isAmountNamed)) {
-    const plain = headers.filter((h) => isAmountNamed(h) && isPlainAmountNamed(h));
-    return plain.length === 1 && readsAsAmounts(values(plain[0])) ? plain[0] : undefined;
-  }
-
-  const signalled = headers.filter((header) => {
-    const cells = values(header);
-    return (
-      !isBalanceNamed(header) && readsAsAmounts(cells) && !cells.some(looksLikeId) && cells.some(hasMoneySignal)
-    );
-  });
-  return signalled.length === 1 ? signalled[0] : undefined;
-}
-
 function parsedCell(value: string): ReturnType<typeof parseAmountCell> | null {
   try {
     return parseAmountCell(value, ".", 0);
   } catch {
     return null;
   }
-}
-
-const CENTS = /[.,]\d{2}(?!\d)/;
-const ATTACHED_LETTERS = /\p{LC}[.$/]*\d|\d\p{LC}/u;
-
-function amountCell(value: string): ReturnType<typeof parseAmountCell> | null {
-  return /\d/.test(value) && !looksLikeDate(value) ? parsedCell(value) : null;
-}
-
-function readsAsAmounts(values: string[]): boolean {
-  return values.length > 0 && values.every((v) => amountCell(v) !== null);
-}
-
-function looksLikeId(value: string): boolean {
-  return ATTACHED_LETTERS.test(value) && !CENTS.test(value);
-}
-
-function hasMoneySignal(value: string): boolean {
-  const cell = amountCell(value);
-  return (
-    cell !== null &&
-    (cell.cents < 0 || cell.direction !== null || cell.currencyText || CENTS.test(value) || /^\s*\+/.test(value))
-  );
 }
 
 /** A `string`, `{ column }`, or `{ columns, separator }` → `ColumnRef`; else null. */

@@ -355,6 +355,43 @@ describe("unparseable amounts are skipped rows, not guesses", () => {
   });
 });
 
+describe("a row with no amount is an error, never a $0 transaction", () => {
+  const split = { amount: { style: "split", expenseColumn: "Debit", incomeColumn: "Credit" } } as const;
+
+  it.each([
+    ["blank", { Amount: "" }],
+    ["a bare dash", { Amount: "-" }],
+    ["a bare currency symbol", { Amount: "$" }],
+  ])("single column: %s", (_, fields) => {
+    const result = transformCsv([makeRow({ Date: "2025-03-01", Description: "X", ...fields })], baseMapping());
+    expect(result.transactions).toEqual([]);
+    expect(result.errors.map((e) => e.message)).toEqual(['Row 1: no amount in "Amount"']);
+  });
+
+  it("split columns: both halves blank", () => {
+    const rows = [
+      makeRow({ Date: "2025-03-01", Description: "A", Debit: "12.50", Credit: "" }),
+      makeRow({ Date: "2025-03-02", Description: "B", Debit: "", Credit: " " }),
+      makeRow({ Date: "2025-03-03", Description: "C", Debit: "", Credit: "40.00" }),
+    ];
+    const result = transformCsv(rows, baseMapping(split));
+    expect(result.transactions.map((t) => t.amount)).toEqual([-1250, 4000]);
+    expect(result.errors.map((e) => e.message)).toEqual(['Row 2: no amount in "Debit" or "Credit"']);
+  });
+
+  it("an explicit zero still imports as a visible $0 row", () => {
+    const single = transformCsv([makeRow({ Date: "2025-03-01", Description: "X", Amount: "0.00" })], baseMapping());
+    const pair = transformCsv([makeRow({ Date: "2025-03-01", Description: "X", Debit: "0.00", Credit: "" })], baseMapping(split));
+    expect(single.transactions.map((t) => t.amount)).toEqual([0]);
+    expect(pair.transactions.map((t) => t.amount)).toEqual([0]);
+  });
+
+  it("a word is still a parse error, not a missing amount", () => {
+    const result = transformCsv([makeRow({ Date: "2025-03-01", Description: "X", Amount: "VOID" })], baseMapping());
+    expect(result.errors.map((e) => e.message)).toEqual(['Row 1: cannot parse amount "VOID"']);
+  });
+});
+
 // ── 4. Date format parsing ─────────────────────────────────────────
 
 describe("date format parsing", () => {

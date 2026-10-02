@@ -178,6 +178,73 @@ describe("normalizeCsv", () => {
     expect(session.calls).toHaveLength(2);
   });
 
+  describe("a refused amount gets one correction round, then imports", () => {
+    const csv = "Date,Description,Amount,Local amount\n2026-01-05,COFFEE,-4.50,-5.20\n2026-01-06,SALARY,2000.00,2300.00";
+    const roles = { date: { column: "Date" }, description: { column: "Description" } };
+
+    it("a mapping with no amount at all", async () => {
+      const session = new MockStructuredSession([() => roles, () => MAPPING]);
+
+      const { rows } = await normalizeCsv(session, { name: "monzo.csv", content: csv });
+
+      expect(session.calls).toHaveLength(2);
+      expect(session.calls[1].messages[0].content).toContain("names the amount column");
+      expect(rows.map((r) => r.amount)).toEqual([-450, 200000]);
+    });
+
+    it("a named column that doesn't exist, answered with the column listing", async () => {
+      const session = new MockStructuredSession([
+        () => ({ ...roles, amount: { column: "Transaction amount", sign: "negative_expense" } }),
+        () => MAPPING,
+      ]);
+
+      const { rows } = await normalizeCsv(session, { name: "monzo.csv", content: csv });
+
+      expect(session.calls).toHaveLength(2);
+      const correction = session.calls[1].messages[0].content as string;
+      expect(correction).toContain('column "Transaction amount" does not exist');
+      expect(correction).toContain('"Amount" ("-4.50", "2000.00"); "Local amount" ("-5.20", "2300.00")');
+      expect(rows.map((r) => r.amount)).toEqual([-450, 200000]);
+    });
+  });
+
+  describe("a debit/credit file whose credits fall outside the sample", () => {
+    // 60 rows: the sample is rows 0-9 plus a spread from 14 on, so the lone
+    // credit at row 10 is never shown to the model or the mapping checks.
+    const csv = [
+      "Date,Description,Debit,Credit",
+      ...Array.from({ length: 60 }, (_, i) =>
+        i === 10 ? "2026-01-11,REFUND,,25.00" : `2026-01-${String((i % 28) + 1).padStart(2, "0")},SHOP ${i},4.50,`,
+      ),
+    ].join("\n");
+    const roles = { date: { column: "Date" }, description: { column: "Description" } };
+
+    it("imports the late credit as income once both sides are named", async () => {
+      const session = new MockStructuredSession([
+        () => ({ ...roles, amount: { column: "Credit", sign: "positive_expense" } }),
+        () => ({ ...roles, amount: { expenseColumn: "Debit", incomeColumn: "Credit" } }),
+      ]);
+
+      const { rows, errors } = await normalizeCsv(session, { name: "f.csv", content: csv });
+
+      expect(session.calls).toHaveLength(2);
+      expect(session.calls[1].messages[0].content).toContain('no sampled row has an amount in "Credit"');
+      expect(errors).toEqual([]);
+      expect(rows.find((r) => r.description === "REFUND")).toMatchObject({ amount: 2500, type: "income" });
+    });
+
+    it("never imports the late credit as $0 when only Debit is mapped as the amount", async () => {
+      const debitOnly = () => ({ ...roles, amount: { column: "Debit", sign: "positive_expense" } });
+      const session = new MockStructuredSession([debitOnly, debitOnly]);
+
+      const { rows, errors } = await normalizeCsv(session, { name: "f.csv", content: csv });
+
+      expect(rows.some((r) => r.description === "REFUND")).toBe(false);
+      expect(rows.some((r) => r.amount === 0)).toBe(false);
+      expect(errors.map((e) => e.message)).toEqual(['Row 11: no amount in "Debit"']);
+    });
+  });
+
   it("imports a CSV with no date column, dating every row to the import date", async () => {
     const csv = "Description,Amount\nCOFFEE,-4.50\nSALARY,2000.00";
     const mapping = {
@@ -541,225 +608,105 @@ describe("normalizeMapping", () => {
     expect(m.description).toEqual({ columns: [], separator: " " });
   });
 
-  it("throws only when no amount column can be identified", () => {
-    expect(() =>
-      normalizeMapping({ amount: {} }, [{ Memo: "X", Note: "Y" }], "f.csv", IMPORT_DATE),
-    ).toThrow(SchemaValidationError);
-  });
-
-  it("auto-detects an amount column when the model named none", () => {
-    const m = normalizeMapping(
-      { date: { column: "Date" }, description: { column: "Memo" } },
-      [{ Date: "2026-01-05", Memo: "X", Total: "-12.50" }],
-      "f.csv",
-      IMPORT_DATE,
-    );
-    expect(m.amount).toMatchObject({ style: "single", column: "Total" });
-  });
-
-  it("auto-detects an apostrophe-grouped Swiss amount column", () => {
-    const m = normalizeMapping(
-      { date: { column: "Date" }, description: { column: "Memo" } },
-      [{ Date: "2026-01-05", Memo: "X", Total: "-1'234.50" }],
-      "f.csv",
-      IMPORT_DATE,
-    );
-    expect(m.amount).toMatchObject({ style: "single", column: "Total" });
-  });
-
-  it("auto-detects a direction-marked amount column over a Balance column", () => {
-    const m = normalizeMapping(
-      { date: { column: "Date" }, description: { column: "Memo" } },
-      [
-        { Date: "2026-01-05", Memo: "X", Amount: "12.50", Balance: "1,234.56" },
-        { Date: "2026-01-06", Memo: "Y", Amount: "1,000.00 CR", Balance: "2,234.56" },
-      ],
-      "f.csv",
-      IMPORT_DATE,
-    );
-    expect(m.amount).toMatchObject({ style: "single", column: "Amount" });
-  });
-
-  it("never auto-detects a running balance listed before the amount", () => {
-    const m = normalizeMapping(
-      { date: { column: "Date" }, description: { column: "Memo" } },
-      [
-        { Date: "2026-01-05", Memo: "X", Balance: "1,234.56", Amount: "-12.50" },
-        { Date: "2026-01-06", Memo: "Y", Balance: "2,234.56", Amount: "1,000.00" },
-      ],
-      "f.csv",
-      IMPORT_DATE,
-    );
-    expect(m.amount).toMatchObject({ style: "single", column: "Amount" });
-  });
-
-  it("refuses when only balance-like columns read as money", () => {
-    expect(() =>
-      normalizeMapping(
-        { date: { column: "Date" }, description: { column: "Memo" } },
-        [{ Date: "2026-01-05", Memo: "X", "Running Balance": "1,234.56", "Available": "1,200.00" }],
-        "f.csv",
-        IMPORT_DATE,
-      ),
-    ).toThrow(SchemaValidationError);
-  });
-
-  it.each([
-    ["Saldo", "Importe"],
-    ["Solde", "Montant"],
-    ["Остаток", "Сумма"],
-    ["Kontostand", "Betrag"],
-    ["Saldo disponível", "Valor"],
-    ["残高", "金額"],
-    ["余额", "金额"],
-  ])("prefers the localized amount column over %s", (balance, amount) => {
-    const m = normalizeMapping(
-      { date: { column: "Date" }, description: { column: "Memo" } },
-      [{ Date: "2026-01-05", Memo: "X", Ref: "-1", [balance]: "1234,56", [amount]: "12,50" }],
-      "f.csv",
-      IMPORT_DATE,
-    );
-    expect(m.amount).toMatchObject({ style: "single", column: amount });
-  });
-
-  it("does not auto-detect a column of rejected amount cells", () => {
-    const m = normalizeMapping(
-      { date: { column: "Date" }, description: { column: "Memo" } },
-      [{ Date: "2026-01-05", Memo: "X", Flagged: "12.50 R", Total: "12.50" }],
-      "f.csv",
-      IMPORT_DATE,
-    );
-    expect(m.amount).toMatchObject({ style: "single", column: "Total" });
-  });
-
-  describe("amount fallback", () => {
-    const detected = (row: Record<string, string>, ...more: Record<string, string>[]): string | null => {
+  describe("the amount is never guessed", () => {
+    const refusal = (amount: unknown, rows: Record<string, string>[], skipRules?: unknown): string => {
       try {
-        const m = normalizeMapping(
-          { date: { column: "Date" }, description: { column: "Memo" } },
-          [row, ...more].map((r) => ({ Date: "2026-01-05", Memo: "X", ...r })),
+        normalizeMapping(
+          { date: { column: "Date" }, description: { column: "Memo" }, amount, skipRules },
+          rows.map((r) => ({ Date: "2026-01-05", Memo: "X", ...r })),
           "f.csv",
           IMPORT_DATE,
         );
-        return (m.amount as { column: string }).column;
       } catch (err) {
-        if (err instanceof SchemaValidationError) return null;
+        if (err instanceof SchemaValidationError) return err.message;
         throw err;
       }
+      throw new Error("expected a refusal");
     };
 
-    describe("an amount-named column settles it", () => {
-      it.each([
-        ["R100", { Ref: "1042", Amount: "R100" }],
-        ["1500р", { Ref: "1042", Amount: "1500р" }],
-        ["kr500", { Ref: "1042", Amount: "kr500" }],
-        ["Rs500", { Ref: "1042", Amount: "Rs500" }],
-        ["a bare integer", { Ref: "-12.50", Amount: "1250" }],
-      ])("picks Amount of %s over a Ref column", (_, row) => {
-        expect(detected(row)).toBe("Amount");
-      });
-
-      it("picks an Amount column mixing cents with a glued CR marker", () => {
-        expect(detected({ Ref: "1042", Amount: "100.00" }, { Ref: "1043", Amount: "1042CR" })).toBe("Amount");
-      });
-
-      it.each([
-        "Amount (Ledger Currency)",
-        "Sum",
-        "Sum (EUR)",
-        "Summe",
-        "TransactionAmount",
-        "transactionAmount",
-        "TxnAmount",
-        "transaction_amount",
-        "Buchungsbetrag",
-        "Importe",
-        "Montant",
-        "Valor",
-        "Сумма",
-        "金額",
-        "金额",
-      ])("reads %j as an amount header", (header) => {
-        expect(detected({ Ref: "-1", [header]: "12" })).toBe(header);
-      });
-
-      it.each(["Foreign Amount", "Original Amount", "Orig. Amount", "OriginalAmount", "Betrag (Fremdwährung)"])(
-        "prefers the plain amount over %j",
-        (foreign) => {
-          expect(detected({ [foreign]: "-12.50", Amount: "1250" })).toBe("Amount");
-        },
-      );
-
-      it.each([
-        ["two plain amount columns", { Amount: "-12.50", Sum: "12.50" }],
-        ["Amount and TransactionAmount", { Amount: "-12.50", TransactionAmount: "-12.50" }],
-        ["only a foreign amount", { "Foreign Amount": "-12.50", Total: "-12.50" }],
-        ["only a balance-led amount", { "Ledger Amount": "1,234.56", Total: "-12.50" }],
-        ["an amount column that doesn't parse", { Amount: "n/a", Total: "-12.50" }],
-        ["an amount column of dates", { Amount: "2026-01-05", Total: "-12.50" }],
-      ])("refuses %s", (_, row) => {
-        expect(detected(row)).toBeNull();
-      });
-
-      it("keeps a balance-led amount column out of the plain contest", () => {
-        expect(detected({ "Running Balance Amount": "1,234.56", Amount: "-12.50" })).toBe("Amount");
-      });
+    it.each([
+      ["Debit/Credit with Credit blank in every sample", [{ Debit: "12.50", Credit: "", Balance: "987.50" }]],
+      ["a whole-number KRW amount beside foreign and FX columns", [{ Amount: "15000", "Foreign Amount": "-11.20", "FX Rate": "1339.29" }]],
+      ["Fee Amount and Tax Amount beside an unnamed amount", [{ "Fee Amount": "0.50", "Tax Amount": "1.20", "Column 4": "-12.50" }]],
+      ["Monzo Amount and Local amount", [{ Amount: "-4.50", "Local amount": "-5.20", "Local currency": "EUR" }]],
+      ["Ref and Total", [{ Ref: "1042", Total: "-12.50" }]],
+      ["Balance listed before Amount", [{ Balance: "1,234.56", Amount: "-12.50" }]],
+    ])("refuses when no amount column is named: %s", (_, rows) => {
+      const message = refusal({}, rows);
+      expect(message).toMatch(/^no amount column named — name the column holding each transaction's amount, or both the debit and credit columns\./);
+      for (const header of Object.keys(rows[0])) expect(message).toContain(`"${header}" (`);
     });
 
-    describe("with no amount-named column, one money-signalled column or nothing", () => {
-      it.each([
-        ["negative", { Ref: "1042", Total: "-12.50" }, "Total"],
-        ["cents", { Ref: "1042", Total: "12.50" }, "Total"],
-        ["spaced currency text", { Ref: "1042", Total: "R 100" }, "Total"],
-        ["cents-bearing glued currency", { Ref: "1042", Total: "R12.50" }, "Total"],
-        ["yen suffix", { Ref: "1042", Total: "1234円" }, "Total"],
-        ["złoty suffix", { Ref: "1042", Kwota: "12,50 zł" }, "Kwota"],
-        ["a direction marker", { Ref: "1042", Total: "12 CR" }, "Total"],
-        ["a word merely containing bal", { Global: "-12.50", Ref: "1042" }, "Global"],
-      ])("picks the column with a money signal (%s)", (_, row, column) => {
-        expect(detected(row)).toBe(column);
-      });
-
-      it.each(["R1001", "RM101", "FT2305112345", "TOP5", "S123", "H200", "C1042", "D5", "1042CR"])(
-        "passes over an id column of %j listed before the amount",
-        (id) => {
-          expect(detected({ Ref: id, Total: "12.50" })).toBe("Total");
-        },
+    it("lists each column with its sample values", () => {
+      expect(refusal({}, [{ Debit: "12.50", Credit: "" }, { Debit: "3.10", Credit: "" }])).toBe(
+        'no amount column named — name the column holding each transaction\'s amount, or both the debit and credit columns. ' +
+          'Columns with sample values: "Date" ("2026-01-05"); "Memo" ("X"); "Debit" ("12.50", "3.10"); "Credit" (blank)',
       );
+    });
 
-      it.each(["Summary", "Checksum", "CheckSum", "ControlSum", "HashSum", "Consumption", "Insumos"])(
-        "doesn't read %j as an amount header",
-        (header) => {
-          expect(detected({ [header]: "5", Total: "12.50" })).toBe("Total");
-          expect(detected({ [header]: "5", Sum: "12" })).toBe("Sum");
-        },
+    it("caps the listing: three distinct values, truncated long cells, a bounded column count", () => {
+      const wide = Object.fromEntries(Array.from({ length: 40 }, (_, i) => [`C${i}`, "1"]));
+      const message = refusal({}, [
+        { ...wide, Memo: "A very long merchant description that goes on" },
+        { ...wide, Memo: "B" },
+        { ...wide, Memo: "C" },
+        { ...wide, Memo: "D" },
+      ]);
+      expect(message).toContain('"Memo" ("A very long merchant de…", "B", "C")');
+      expect(message).toContain(", +12 more");
+      expect(message).not.toContain('"C39"');
+    });
+
+    it.each([
+      [{ expenseColumn: "Debit" }, 'only the debit side ("Debit") was named'],
+      [{ style: "split", debit: "Debit" }, 'only the debit side ("Debit") was named'],
+      [{ incomeColumn: "Credit" }, 'only the credit side ("Credit") was named'],
+    ])("refuses a half-named debit/credit pair %j", (amount, problem) => {
+      const message = refusal(amount, [{ Debit: "12.50", Credit: "" }]);
+      expect(message).toContain(`${problem} — name both debit and credit columns, or a single signed amount column.`);
+      expect(message).toContain('"Credit" (blank)');
+    });
+
+    it("refuses a column that does not exist", () => {
+      expect(refusal({ column: "Amount" }, [{ Amt: "-1.00" }])).toMatch(/^column "Amount" does not exist\./);
+      expect(refusal({ expenseColumn: "Out", incomeColumn: "In" }, [{ Out: "1.00" }])).toMatch(/^column "In" does not exist\./);
+    });
+
+    it.each([
+      ["descriptions", { Memo2: "COFFEE" }, "Memo2"],
+      ["dates", { Posted: "2026-01-05" }, "Posted"],
+      ["a mix with an unparseable cell", { Total: "12.50 (pending)" }, "Total"],
+    ])("refuses a named column of %s", (_, row, column) => {
+      expect(refusal({ column }, [{ Amount: "-1.00", ...row }])).toMatch(new RegExp(`^column "${column}" does not hold amounts\\.`));
+    });
+
+    it("refuses named columns blank in every sampled row", () => {
+      expect(refusal({ column: "Credit" }, [{ Debit: "1.00", Credit: "" }])).toMatch(/^no sampled row has an amount in "Credit"\./);
+      expect(refusal({ expenseColumn: "Debit", incomeColumn: "Credit" }, [{ Debit: "", Credit: "-" }])).toMatch(
+        /^no sampled row has an amount in "Debit" or "Credit"\./,
       );
+    });
 
-      it.each([
-        "Balance",
-        "Current Balance",
-        "RunningBalance",
-        "Bal.",
-        "Bal",
-        "Running Total",
-        "Ledger",
-        "Available",
-        "잔액",
-        "Bakiye",
-        "Zůstatek",
-        "Egyenleg",
-      ])("excludes the %j column", (balance) => {
-        expect(detected({ [balance]: "-1,234.56", Total: "12.50" })).toBe("Total");
-      });
+    it("judges only the rows the mapping's skip rules keep", () => {
+      const rows: Record<string, string>[] = [{ Amount: "-1.00" }, { Amount: "PENDING", Memo: "Pending auth" }];
+      expect(refusal({ column: "Amount" }, rows)).toMatch(/^column "Amount" does not hold amounts/);
+      const m = normalizeMapping(
+        { amount: { column: "Amount" }, skipRules: [{ column: "Memo", contains: "Pending" }] },
+        rows.map((r) => ({ Memo: "X", ...r })),
+        "f.csv",
+        IMPORT_DATE,
+      );
+      expect(m.amount).toMatchObject({ style: "single", column: "Amount" });
+    });
 
-      it.each([
-        ["no column carries a signal", { Ref: "1042", Total: "12" }],
-        ["two columns carry a signal", { Fee: "-1.50", Total: "-12.50" }],
-        ["only balances carry one", { "Running Balance": "1,234.56", Available: "1,200.00", Ref: "1042" }],
-        ["the only signalled column is id-like", { Ref: "R1001", Total: "12" }],
-      ])("refuses when %s", (_, row) => {
-        expect(detected(row)).toBeNull();
-      });
+    it("accepts a named debit/credit pair whose credit side is blank in every sample", () => {
+      const m = normalizeMapping(
+        { amount: { expenseColumn: "Debit", incomeColumn: "Credit" } },
+        [{ Debit: "12.50", Credit: "" }],
+        "f.csv",
+        IMPORT_DATE,
+      );
+      expect(m.amount).toEqual({ style: "split", expenseColumn: "Debit", incomeColumn: "Credit" });
     });
   });
 

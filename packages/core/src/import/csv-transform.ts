@@ -195,18 +195,25 @@ function parseAmount(
   decimalMark: DecimalMark,
   rowNum: number,
 ): { amount: number; isExpense: boolean } {
-  const cell = (column: string) => parseAmountCell(getColumn(row, column, rowNum), decimalMark, rowNum);
+  const columns =
+    amountMapping.style === "single"
+      ? [amountMapping.column]
+      : [amountMapping.expenseColumn, amountMapping.incomeColumn];
+  const raws = columns.map((column) => getColumn(row, column, rowNum));
+  const cells = raws.map((raw) => parseAmountCell(raw, decimalMark, rowNum));
+  if (raws.every((raw) => !/\d/.test(raw))) {
+    throw new Error(`Row ${rowNum}: no amount in ${columns.map((c) => `"${c}"`).join(" or ")}`);
+  }
 
   if (amountMapping.style === "single") {
-    const { cents, direction } = cell(amountMapping.column);
+    const { cents, direction } = cells[0];
     const flow = direction
       ? directed(cents, direction)
       : amountMapping.sign === "negative_expense" ? cents : -cents;
     return { amount: Math.abs(flow), isExpense: flow < 0 };
   }
 
-  const expense = cell(amountMapping.expenseColumn);
-  const income = cell(amountMapping.incomeColumn);
+  const [expense, income] = cells;
   if (expense.cents === 0 && income.cents === 0) return { amount: 0, isExpense: true };
   const flow =
     directed(expense.cents, expense.direction ?? "outflow") +
@@ -411,7 +418,7 @@ function detectType(
 
 // ── Skip rules ──────────────────────────────────────────────────
 
-function shouldSkipRow(
+export function shouldSkipRow(
   row: Record<string, string>,
   rules?: SkipRule[],
 ): boolean {
