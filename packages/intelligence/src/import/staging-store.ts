@@ -5,7 +5,7 @@
  * lands on reopen is a pure function of which artifacts exist. The orchestrator
  * never touches a filesystem directly; it reads and writes through this
  * interface, so the engine is headless and unit-testable against an in-memory
- * double. Unit 3 supplies the concrete {@link FileStagingStore}.
+ * double. The app supplies the concrete {@link FileStagingStore}.
  *
  * ```
  * .capy/import/
@@ -186,7 +186,7 @@ const IMPORT_DIR_REL = ".capy/import";
  *
  * Imports only `intelligence` / `persistence` types, so it lives in the
  * intelligence layer per `STRUCTURE.md` and any consumer (the app, a CLI)
- * reuses it. Unit 3 constructs one with the Tauri file adapter; tests use the
+ * reuses it. The app constructs one with the Tauri file adapter; tests use the
  * in-memory double instead.
  */
 export class FileStagingStore implements StagingStore {

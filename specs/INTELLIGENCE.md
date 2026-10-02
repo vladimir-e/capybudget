@@ -14,12 +14,13 @@ Capy is an AI financial assistant. The intelligence layer is **provider-pluggabl
 ┌──────────────────────────────────────────────────────────────┐
 │  Session Factory  (provider, config, options)                │
 │  ┌────────────────┐  ┌────────────────┐  ┌────────────────┐  │
-│  │ ClaudeCliSession│  │AnthropicSession│  │ OpenAiSession  │  │
-│  │ subprocess+MCP  │  │ in-process loop│  │ in-process loop│  │
-│  └────────┬────────┘  └────────┬───────┘  └────────┬───────┘  │
-└───────────┼────────────────────┼───────────────────┼──────────┘
-            │                    │                   │
-            ▼                    ▼                   ▼
+│  │ClaudeCliSession│  │AnthropicSession│  │ OpenAiSession  │  │
+│  │ subprocess+MCP │  │ in-process loop│  │ OllamaSession  │  │
+│  │                │  │                │  │ in-process loop│  │
+│  └────────┬───────┘  └────────┬───────┘  └────────┬───────┘  │
+└───────────┼───────────────────┼───────────────────┼──────────┘
+            │                   │                   │
+            ▼                   ▼                   ▼
 ┌──────────────────────┐  ┌─────────────────────────────────────┐
 │ MCP server           │  │ In-process tool dispatch            │
 │ stdio + node fs      │  │ data + mutation + start_import +    │

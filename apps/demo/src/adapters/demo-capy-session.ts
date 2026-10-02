@@ -6,8 +6,8 @@
  * so chat is the only flow this stub serves.
  *
  * Wire shape: emits typed `StreamEvent`s directly — same contract the
- * real adapters use post-refactor. The demo never has a process to
- * die, so `onExit` is unused.
+ * real adapters use. The demo never has a process to die, so `onExit`
+ * is unused.
  */
 
 import type {

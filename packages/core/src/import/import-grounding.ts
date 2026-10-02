@@ -71,7 +71,7 @@ export interface NameCount {
 
 /**
  * Per-row history signal — ephemeral classifier input, persisted to
- * `context.json` by the orchestrator (Unit 2), never a staging column.
+ * `context.json` by the orchestrator, never a staging column.
  */
 export interface RowContext {
   examples: GroundingExample[];

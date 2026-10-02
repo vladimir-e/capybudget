@@ -9,7 +9,9 @@ placement, decomposition. When unsure where something belongs, look here.
 A package's `src` stays flat until ~12 files or two distinct domains, then
 splits into domain subfolders. The `index.ts` barrel is the only public
 surface: consumers import from `@capybudget/<pkg>`, never a deep path; internal
-references are relative.
+references are relative. A barrel exports only what some consumer imports
+through it. The one subpath is `@capybudget/intelligence/adapters`, which keeps
+the provider SDKs out of the main barrel.
 
 `core` groups by domain:
 
@@ -23,8 +25,9 @@ references are relative.
 
 `persistence` and `mcp` stay flat (small, single-domain). `intelligence` groups
 under `prompts/`, `tools/`, `tools/handlers/`, and `adapters/` (provider
-session implementations; the Claude Code CLI's stream parser, turn decoder,
-and session sit in `adapters/claude-cli/`).
+session implementations, SDK clients, and the Settings ping and model listing;
+the Claude Code CLI's stream parser, turn decoder, and session sit in
+`adapters/claude-cli/`).
 
 ## Placement Law
 

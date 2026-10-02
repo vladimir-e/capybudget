@@ -3,7 +3,7 @@
  *
  * The orchestrator is headless: it never narrates in prose and never touches
  * React. It drives the pipeline as a deterministic state machine and emits
- * these events so any consumer (Unit 3's progress UI, a test harness, a CLI)
+ * these events so any consumer (the app's progress UI, a test harness, a CLI)
  * can render where the run is. Code always knows the phase, so the surface is
  * state, not a transcript. User-facing lines travel as `ImportNotice` codes;
  * the consumer owns the wording and the language.

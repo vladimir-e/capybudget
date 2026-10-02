@@ -67,7 +67,7 @@ export interface OrchestratorDeps {
 }
 
 /**
- * The driver API Unit 3's hook calls. `start()` runs the full pipeline from
+ * The driver API the app's hook calls. `start()` runs the full pipeline from
  * the source files; `enrich()` runs Categorizing only (the idempotent re-run,
  * over rows that still need it); `stop()` interrupts cleanly. All three are
  * safe to call against existing staging — resume is `start()` noticing rows

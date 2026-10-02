@@ -3,16 +3,16 @@ import { UnreachableError } from "./structured"
 /**
  * Extract a human-readable message from an SDK error.
  *
- * Both Anthropic and OpenAI throw `APIError` instances whose `.message`
- * is `${status} ${stringified-body}` — fine for logs, useless in the chat
- * UI. The cleaner copy is buried in the parsed body the SDK already
+ * Both SDKs (Anthropic, and OpenAI, which also drives Ollama) throw
+ * `APIError` instances whose `.message` is `${status} ${stringified-body}`
+ * — fine for logs, useless in the chat UI. The cleaner copy is buried in the parsed body the SDK already
  * attached as `.error`. The shapes differ:
  *
  *   Anthropic: `.error = { type: "error", error: { type, message } }`
  *   OpenAI:    `.error = { type, code, message, ... }`  (pre-unwrapped)
  *
  * We duck-type rather than `instanceof`-ing each SDK so this module stays
- * provider-agnostic (intelligence has no SDK deps). Anything that isn't
+ * SDK-free (it ships in the package barrel). Anything that isn't
  * an APIError-shaped object falls back to `Error.message`.
  */
 export function extractErrorMessage(err: unknown): { message: string; status?: number } {

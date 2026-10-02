@@ -46,8 +46,8 @@ export interface Keychain {
 /**
  * The seam the app talks to. Boot reads plaintext (`load`); the actual secrets
  * are pulled from the keychain on demand (`loadSecrets`); user edits persist
- * through `save`. Unit 2 can swap the internals (e.g. a data-protection
- * keychain) without any consumer noticing.
+ * through `save`. The internals can change (e.g. a data-protection keychain)
+ * without any consumer noticing.
  */
 export interface SecretConfigBackend {
   /** Plaintext read — provider, models, key-presence, gate flag. Never touches
