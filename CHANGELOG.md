@@ -9,6 +9,11 @@ CHANGELOG PHILOSOPHY:
 - Resist the urge to be thorough here. Thoroughness goes in specs, not changelog.
 -->
 
+## Unreleased
+
+- **Capy** - Long multi-step replies no longer break the chat, Stop leaves the conversation usable, OpenAI's newest models work, and model pickers list each provider's current models.
+- **Import** - Bank CSVs in more formats and currencies import with the right amounts and signs, and rows a skip rule matches are held unselected instead of dropped.
+
 ## 1.6.0 — 2026-09-23
 
 - **Capy** - Run Capy fully on your own machine with Ollama — no API key, no per-token cost (#111).

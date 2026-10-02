@@ -29,12 +29,14 @@ const FILE_CAUSE_KEYS = {
   unusable: "run.cause.file.unusable",
   pdfUnsupported: "run.cause.file.pdfUnsupported",
   noVision: "run.cause.file.noVision",
+  rateLimited: "run.cause.file.rateLimited",
 } as const satisfies Record<Exclude<FileFailureCause["kind"], "other">, ImportKey>;
 
 const BATCH_CAUSE_KEYS = {
   cutOff: "run.cause.batch.cutOff",
   refused: "run.cause.batch.refused",
   unusable: "run.cause.batch.unusable",
+  rateLimited: "run.cause.batch.rateLimited",
 } as const satisfies Record<Exclude<BatchFailureCause["kind"], "other">, ImportKey>;
 
 const DEAD_END_KEYS = {

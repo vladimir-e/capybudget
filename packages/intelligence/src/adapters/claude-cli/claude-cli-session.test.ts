@@ -293,6 +293,23 @@ describe("ClaudeCliSession", () => {
       }
     })
 
+    it("restarts quietly when a cleanly ended turn never sends the result line", async () => {
+      vi.useFakeTimers()
+      try {
+        const { session, events, onExit, spawned } = makeSession()
+        const first = session.send("one")
+        await vi.advanceTimersByTimeAsync(0)
+        spawned[0].say({ type: "assistant", message: { id: "msg_1", content: [{ type: "text", text: "All set" }], stop_reason: "end_turn" } })
+        await vi.advanceTimersByTimeAsync(30_000)
+        await first
+        expect(spawned[0].kill).toHaveBeenCalled()
+        expect(onExit).toHaveBeenCalledWith(undefined, true)
+        expect(events.at(-1)).toEqual({ type: "done" })
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
     it("leaves a turn that completes normally alone past the grace period", async () => {
       vi.useFakeTimers()
       try {
@@ -404,7 +421,7 @@ describe("ClaudeCliSession", () => {
       expect(onExit).not.toHaveBeenCalled()
     })
 
-    it("reports a failed write once and drops the process", async () => {
+    it("routes a failed write through onExit once and drops the process", async () => {
       const { session, events, onExit, spawned } = makeSession()
       const turn = await started(session, "one")
       spawned[0].say(DONE)
@@ -412,9 +429,29 @@ describe("ClaudeCliSession", () => {
       spawned[0].write.mockRejectedValueOnce(new Error("broken pipe"))
       await session.send("two")
       spawned[0].events.exit(1)
-      expect(events.filter((e) => e.type === "error")).toEqual([{ type: "error", message: "broken pipe", provider: "claude-cli" }])
-      expect(onExit).not.toHaveBeenCalled()
+      expect(events.filter((e) => e.type === "error")).toEqual([])
+      expect(onExit).toHaveBeenCalledTimes(1)
+      expect(onExit).toHaveBeenCalledWith(undefined, false)
       expect(spawned[0].kill).toHaveBeenCalled()
+    })
+
+    it("keeps the recovery context when the write that carried it fails", async () => {
+      const { session, spawn, spawned } = makeSession()
+      await started(session, "one")
+      await session.stop()
+      session.markInterrupted([{ id: "u", role: "user", blocks: [{ type: "text", content: "What did I spend?" }] }])
+      const realSpawn = spawn.getMockImplementation()!
+      spawn.mockImplementationOnce(async (...args) => {
+        const proc = await realSpawn(...args)
+        ;(proc as FakeProcess).write.mockRejectedValueOnce(new Error("broken pipe"))
+        return proc
+      })
+      await session.send("two")
+      await started(session, "three")
+      expect(spawned).toHaveLength(3)
+      const sentText = JSON.parse(spawned[2].writes[0]).message.content as string
+      expect(sentText).toContain("User: What did I spend?")
+      expect(sentText.endsWith("\nthree")).toBe(true)
     })
   })
 

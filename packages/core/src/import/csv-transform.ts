@@ -66,7 +66,7 @@ export function transformCsv(
     const rowNum = i + 1;
 
     const skipRule = matchingSkipRule(row, mapping.skipRules);
-    if (skipRule && !hasNonZeroAmount(row, rowNum, mapping)) {
+    if (skipRule && hasNoAmount(row, rowNum, mapping)) {
       skipped++;
       continue;
     }
@@ -104,11 +104,11 @@ export function transformCsv(
 
 // ── Row → intermediate record ───────────────────────────────────
 
-function hasNonZeroAmount(row: Record<string, string>, rowNum: number, mapping: CsvMapping): boolean {
+function hasNoAmount(row: Record<string, string>, rowNum: number, mapping: CsvMapping): boolean {
   try {
-    return parseAmount(row, mapping.amount, mapping.decimalMark, rowNum).amount !== 0;
+    return parseAmount(row, mapping.amount, mapping.decimalMark, rowNum).amount === 0;
   } catch {
-    return false;
+    return !amountColumns(mapping.amount).some((column) => /\d/.test(row[column] ?? ""));
   }
 }
 

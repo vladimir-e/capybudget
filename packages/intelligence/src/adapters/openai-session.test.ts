@@ -135,7 +135,7 @@ describe("OpenAiSession", () => {
     expect(input[3]).toEqual({ type: "function_call_output", call_id: "call_abc", output: "5 transactions found" })
     expect(lastBlocks(events)).toEqual([
       { type: "text", content: "Looking up..." },
-      { type: "tool-activity", tool: "list_transactions", status: "done" },
+      { type: "tool-activity", tool: "list_transactions", status: "done", id: "call_abc" },
       { type: "text", content: "Found 5 transactions." },
     ])
     expect(events.at(-1)).toEqual({ type: "done" })

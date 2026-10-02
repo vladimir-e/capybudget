@@ -122,7 +122,9 @@
     "budgetExhausted": "Capy alcanzó su límite de llamadas a herramientas en esta respuesta. Envía un mensaje para continuar.",
     "keyAccessDismissed": "Capy necesita tu clave de IA para responder. Envía de nuevo y elige Permitir para desbloquearla.",
     "keyReadFailed": "Capy no pudo leer tu clave de IA del llavero del sistema. Envía de nuevo para reintentarlo.",
-    "rateLimited": "{{provider}} está limitando las solicitudes ahora mismo. Inténtalo de nuevo en un momento."
+    "rateLimited": "{{provider}} está limitando las solicitudes ahora mismo. Inténtalo de nuevo en un momento.",
+    "unreachable": "No se puede conectar con {{provider}} — revisa tu conexión a internet.",
+    "ollamaUnreachable": "No se puede conectar con Ollama en {{url}}. Inícialo con `ollama serve` o revisa la URL en Ajustes."
   },
   "secretGate": {
     "title": "Desbloquea tu clave de IA",

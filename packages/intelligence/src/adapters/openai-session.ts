@@ -4,7 +4,7 @@ import { openAiClient } from "./clients"
 import { UNANSWERED_RESULT, parseToolArguments, readToTerminal, toolCallBlock } from "./agent-turn"
 import type { LoopOutcome, TurnDisplay } from "./agent-turn"
 import type { MessageContent, SessionProvider } from "../types"
-import { STRUCTURED_MAX_RETRIES, UnreachableError, assertStructuredFinished, parseStructured, requestSignal, schemaBody } from "../structured"
+import { STRUCTURED_MAX_RETRIES, assertStructuredFinished, parseStructured, schemaBody } from "../structured"
 import type { Ending, JsonSchema, StructuredCallOptions, StructuredMessage, StructuredSession } from "../structured"
 
 type ModelResponse = OpenAI.Responses.Response
@@ -109,6 +109,10 @@ export class OpenAiSession extends AgentSession<InputItem> implements Structured
     return "openai"
   }
 
+  protected isConnectionError(err: unknown): boolean {
+    return err instanceof OpenAI.APIConnectionError
+  }
+
   async structured<T = unknown>(
     messages: readonly StructuredMessage[],
     schema: JsonSchema,
@@ -133,9 +137,8 @@ export class OpenAiSession extends AgentSession<InputItem> implements Structured
       },
     }
 
-    const request = requestSignal(options?.signal)
-    const requestOptions = { signal: request.signal, maxRetries: STRUCTURED_MAX_RETRIES }
-    try {
+    return this.withStructuredRequest(options?.signal, async (signal) => {
+      const requestOptions = { signal, maxRetries: STRUCTURED_MAX_RETRIES }
       if (!options?.onText) {
         const response = await this.withOutputCap((maxTokens) =>
           this.client.responses.create({ ...params, max_output_tokens: maxTokens }, requestOptions),
@@ -156,12 +159,7 @@ export class OpenAiSession extends AgentSession<InputItem> implements Structured
       })
       assertStructuredFinished(endingOf(response))
       return parseStructured<T>(text, schema)
-    } catch (err) {
-      if (err instanceof OpenAI.APIConnectionError) throw new UnreachableError("Can't reach OpenAI. Check your internet connection.")
-      throw err
-    } finally {
-      request.release()
-    }
+    })
   }
 
   protected async runAgenticLoop(display: TurnDisplay): Promise<LoopOutcome> {

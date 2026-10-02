@@ -3,6 +3,7 @@ import { REPLY_TOOL_CALL_BUDGET } from "../../tools"
 import type { ClaudeCliAdapterOptions } from "../../factory"
 import type { CapySession } from "../../session"
 import type { ChatMessage, MessageContent, StreamEvent } from "../../types"
+import { TurnQueue } from "../agent-turn"
 import { CliTurn } from "./cli-turn"
 import { serializeConversation } from "./serialize-conversation"
 
@@ -37,10 +38,7 @@ export class ClaudeCliSession implements CapySession {
   private child: ClaudeCliProcess | null = null
   private generation = 0
   private killed = false
-  private sendSeq = 0
-  private cancelledThrough = 0
-  private turnEpoch = 0
-  private idle: Promise<void> = Promise.resolve()
+  private readonly queue = new TurnQueue()
   private turn: { cli: CliTurn; end: () => void } | null = null
   private interruptedMessages: readonly ChatMessage[] | null = null
   private stderrTail: string[] = []
@@ -52,13 +50,12 @@ export class ClaudeCliSession implements CapySession {
   ) {}
 
   get hasQueuedSend(): boolean {
-    return this.sendSeq > Math.max(this.turnEpoch, this.cancelledThrough)
+    return this.queue.hasQueued
   }
 
   send(content: MessageContent): Promise<void> {
     if (this.killed) return Promise.resolve()
-    const epoch = ++this.sendSeq
-    return this.exclusive(() => this.runTurn(epoch, content))
+    return this.queue.enqueue(() => this.runTurn(content))
   }
 
   markInterrupted(priorMessages: readonly ChatMessage[]): void {
@@ -66,7 +63,7 @@ export class ClaudeCliSession implements CapySession {
   }
 
   async stop(): Promise<void> {
-    this.cancelledThrough = this.sendSeq
+    this.queue.cancelAll()
     await this.endProcess()
   }
 
@@ -76,24 +73,30 @@ export class ClaudeCliSession implements CapySession {
   }
 
   private get cancelled(): boolean {
-    return this.killed || this.turnEpoch <= this.cancelledThrough
+    return this.killed || this.queue.isCancelled
   }
 
-  private async runTurn(epoch: number, content: MessageContent): Promise<void> {
-    if (this.killed || epoch <= this.cancelledThrough) return
-    this.turnEpoch = epoch
+  private async runTurn(content: MessageContent): Promise<void> {
+    if (this.killed) return
     const ended = new Promise<void>((end) => {
       this.turn = { cli: new CliTurn((event) => this.emit(event)), end }
     })
+    let child: ClaudeCliProcess | null
     try {
-      const child = this.child ?? (await this.spawn())
-      if (!child || this.cancelled) return this.finishTurn()
-      await child.write(JSON.stringify({ type: "user", message: { role: "user", content: this.withRecovery(content) } }) + "\n")
+      child = this.child ?? (await this.spawn())
     } catch (err) {
-      if (this.cancelled) return this.finishTurn()
-      await this.endProcess()
-      this.emit({ type: "error", message: extractErrorMessage(err).message })
+      this.finishTurn()
+      if (!this.cancelled) this.emit({ type: "error", message: extractErrorMessage(err).message })
       return
+    }
+    if (!child || this.cancelled) return this.finishTurn()
+    const prior = this.interruptedMessages
+    try {
+      await child.write(JSON.stringify({ type: "user", message: { role: "user", content: this.withRecovery(content) } }) + "\n")
+    } catch {
+      if (this.cancelled) return this.finishTurn()
+      this.interruptedMessages ??= prior
+      this.abandonProcess()
     }
     await ended
   }
@@ -162,17 +165,21 @@ export class ClaudeCliSession implements CapySession {
     if (this.resultWatchdog) clearTimeout(this.resultWatchdog)
     this.resultWatchdog = setTimeout(() => {
       this.resultWatchdog = null
-      const child = this.child
-      this.exited(this.generation, null)
-      void child?.kill().catch(() => undefined)
+      this.abandonProcess()
     }, RESULT_GRACE_MS)
+  }
+
+  private abandonProcess(): void {
+    const child = this.child
+    this.exited(this.generation, null)
+    void child?.kill().catch(() => undefined)
   }
 
   private exited(generation: number, code: number | null): void {
     if (generation !== this.generation) return
     this.generation++
     this.child = null
-    const reported = this.turn?.cli.hasFailed ?? false
+    const reported = this.turn?.cli.hasEnded ?? false
     this.finishTurn()
     this.opts.onExit?.(code === 0 ? undefined : this.stderrTail.join("\n") || undefined, reported)
   }
@@ -214,14 +221,5 @@ export class ClaudeCliSession implements CapySession {
   private emit(event: StreamEvent): void {
     if (this.killed) return
     this.opts.onEvent(event.type === "error" ? { ...event, provider: "claude-cli" } : event)
-  }
-
-  private exclusive(task: () => Promise<void>): Promise<void> {
-    const run = this.idle.then(task)
-    this.idle = run.then(
-      () => undefined,
-      () => undefined,
-    )
-    return run
   }
 }

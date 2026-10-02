@@ -1,4 +1,4 @@
-import { AlertTriangle, Check, ExternalLink, Loader2, X } from "lucide-react"
+import { AlertTriangle, Check, ExternalLink, Loader2, Minus, X } from "lucide-react"
 import { openUrl } from "@tauri-apps/plugin-opener"
 import { useTranslation } from "@capybudget/i18n"
 import { getToolLabel } from "@/lib/tool-labels"
@@ -166,11 +166,13 @@ function ToolGroupCard({
   )
 }
 
-function shownStatus(block: ToolActivityBlock, inProgress: boolean): ToolCallStatus {
-  return block.status === "running" && !inProgress ? "done" : block.status
+type ShownStatus = ToolCallStatus | "stopped"
+
+function shownStatus(block: ToolActivityBlock, inProgress: boolean): ShownStatus {
+  return block.status === "running" && !inProgress ? "stopped" : block.status
 }
 
-function ToolStatusIcon({ status }: { status: ToolCallStatus }) {
+function ToolStatusIcon({ status }: { status: ShownStatus }) {
   switch (status) {
     case "pending":
       return (
@@ -184,6 +186,8 @@ function ToolStatusIcon({ status }: { status: ToolCallStatus }) {
       return <Check className="h-3.5 w-3.5 shrink-0 text-brand/80" />
     case "failed":
       return <X className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+    case "stopped":
+      return <Minus className="h-3.5 w-3.5 shrink-0 text-muted-foreground/60" />
   }
 }
 

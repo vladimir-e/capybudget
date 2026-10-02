@@ -65,6 +65,7 @@ export interface ToolActivityBlock {
   type: "tool-activity"
   tool: string
   status: ToolCallStatus
+  id?: string
 }
 
 export interface FileAttachmentBlock {
@@ -149,6 +150,6 @@ export type StreamEvent =
       rolledBack?: boolean
     }
 
-export type SessionErrorCode = "cutOff" | "refused" | "budgetExhausted" | "rateLimited"
+export type SessionErrorCode = "cutOff" | "refused" | "budgetExhausted" | "rateLimited" | "unreachable"
 
 export type SessionProvider = "anthropic" | "openai" | "claude-cli" | "ollama"

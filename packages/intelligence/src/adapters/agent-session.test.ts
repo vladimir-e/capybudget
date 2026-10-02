@@ -6,8 +6,8 @@ import type { ApiAdapterOptions } from "../factory"
 import { REPLY_TOOL_CALL_BUDGET, getToolDefinitions } from "../tools"
 import type { StreamEvent } from "../types"
 import { MAX_OUTPUT_TOKENS, STOPPED_MARKER, STOPPED_RESULT, UNANSWERED_RESULT } from "./agent-turn"
-import { anthropicApiError, anthropicSdk } from "./test-doubles/anthropic-sdk"
-import { chatApiError, chatSdk, responsesApiError, responsesSdk } from "./test-doubles/openai-sdk"
+import { FakeAnthropic, anthropicApiError, anthropicSdk } from "./test-doubles/anthropic-sdk"
+import { FakeOpenAI, chatApiError, chatSdk, responsesApiError, responsesSdk } from "./test-doubles/openai-sdk"
 import { blockingTools, lastBlocks, mockRunTool } from "./test-doubles/harness"
 import { API_ADAPTERS } from "."
 
@@ -35,6 +35,7 @@ interface AdapterDriver {
   failMidStream(text: string[], calls: readonly ToolCall[], err: Error): void
   structured(json: string): void
   apiError(status: number, message: string): Error
+  connectionError(): Error
   capError(limit: number): Error
   requests(): number
   lastOutputCap(): number | undefined
@@ -72,6 +73,7 @@ const anthropic: AdapterDriver = {
     }),
   structured: (json) => anthropicSdk.queueTurn({ textDeltas: [json], stop_reason: "end_turn" }),
   apiError: anthropicApiError,
+  connectionError: () => new FakeAnthropic.APIConnectionError("Connection error."),
   capError: (limit) =>
     anthropicApiError(400, `max_tokens: 32000 > ${limit}, which is the maximum allowed number of output tokens for claude-haiku`),
   requests: () => anthropicSdk.stream.mock.calls.length,
@@ -116,6 +118,7 @@ const openai: AdapterDriver = {
     }),
   structured: (text) => responsesSdk.queueStructured({ text }),
   apiError: (status, message) => responsesApiError(status, message, null),
+  connectionError: () => new FakeOpenAI.APIConnectionError("Connection error."),
   capError: (limit) =>
     responsesApiError(
       400,
@@ -162,6 +165,7 @@ const ollama: AdapterDriver = {
     }),
   structured: (content) => chatSdk.queueStructured({ content }),
   apiError: chatApiError,
+  connectionError: () => new FakeOpenAI.APIConnectionError("Connection error."),
   capError: (limit) =>
     chatApiError(400, `max_tokens is too large: 32000. This model supports at most ${limit} completion tokens, whereas you provided 32000.`),
   requests: () => chatSdk.create.mock.calls.length,
@@ -315,8 +319,8 @@ describe.each([anthropic, openai, ollama])("$provider session contract", (d) => 
         { type: "tool-result", tool: "create_transaction", id: "call_err", ok: false },
       ])
       expect(lastBlocks(events)).toEqual([
-        { type: "tool-activity", tool: "create_transaction", status: "done" },
-        { type: "tool-activity", tool: "create_transaction", status: "failed" },
+        { type: "tool-activity", tool: "create_transaction", status: "done", id: "call_ok" },
+        { type: "tool-activity", tool: "create_transaction", status: "failed", id: "call_err" },
         { type: "text", content: "Sorry." },
       ])
       expect(d.sent()).toContainEqual({ result: "call_err", output: "Error: disk full" })
@@ -485,7 +489,7 @@ describe.each([anthropic, openai, ollama])("$provider session contract", (d) => 
       tools.resolvers[0]("created")
       await sending
 
-      expect(lastBlocks(events)).toEqual([{ type: "tool-activity", tool: "create_transaction", status: "running" }])
+      expect(lastBlocks(events)).toEqual([{ type: "tool-activity", tool: "create_transaction", status: "running", id: "call_a" }])
       expect(events.slice(afterStop)).toEqual([{ type: "tool-result", tool: "create_transaction", id: "call_a", ok: true }])
     })
 
@@ -612,6 +616,15 @@ describe.each([anthropic, openai, ollama])("$provider session contract", (d) => 
       await session.send("hi")
 
       expect(events.at(-1)).toMatchObject({ type: "error", code: "rateLimited", status: 429, provider: d.provider })
+    })
+
+    it("reports a provider it can't reach as unreachable", async () => {
+      d.reject(d.connectionError())
+
+      const { session, events } = open()
+      await session.send("hi")
+
+      expect(events.at(-1)).toMatchObject({ type: "error", code: "unreachable", provider: d.provider })
     })
 
     it("stamps the provider on a cut-off reply's error", async () => {

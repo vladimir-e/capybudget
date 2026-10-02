@@ -1220,7 +1220,7 @@ describe("ImportOrchestrator — Categorizing failures", () => {
   it("stops dispatching on an unreachable provider and fails with that reason", async () => {
     const staging = new MemoryStagingStore({ transactions: pendingRows(60) });
     const session = new MockStructuredSession([
-      () => new UnreachableError("Can't reach Ollama at http://localhost:11434"),
+      () => new UnreachableError("ollama"),
       enrichResponder(),
       enrichResponder(),
     ]);
@@ -1256,6 +1256,19 @@ describe("ImportOrchestrator — Categorizing failures", () => {
 
     expect(warnNotices(events)).toEqual([
       { code: "categorize.batchFailed", params: { batch: 1, count: 25, cause: { kind: "cutOff" } } },
+    ]);
+  });
+
+  it("words a rate-limited batch as a rate limit, not the provider's raw text", async () => {
+    const staging = new MemoryStagingStore({ transactions: pendingRows(30) });
+    const rateLimited = () => Object.assign(new Error("429 Rate limit reached"), { status: 429 });
+    const session = new MockStructuredSession([rateLimited, enrichResponder()]);
+    const { events, onEvent } = collect();
+
+    await new ImportOrchestrator({ session, staging, budget: emptyBudget(), onEvent, concurrency: 1 }).enrich();
+
+    expect(warnNotices(events)).toEqual([
+      { code: "categorize.batchFailed", params: { batch: 1, count: 25, cause: { kind: "rateLimited" } } },
     ]);
   });
 

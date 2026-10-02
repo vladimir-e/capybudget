@@ -130,12 +130,14 @@
         "refused": "la IA se negó a leer este archivo. Comprueba que sea un extracto bancario o una exportación de transacciones",
         "unusable": "la respuesta de la IA no se pudo convertir en transacciones",
         "pdfUnsupported": "el proveedor de IA seleccionado no puede leer PDF. Cambia a Anthropic u OpenAI, o importa una exportación CSV",
-        "noVision": "el modelo seleccionado no puede leer imágenes. Elige un modelo con visión en Ajustes"
+        "noVision": "el modelo seleccionado no puede leer imágenes. Elige un modelo con visión en Ajustes",
+        "rateLimited": "el proveedor de IA está limitando las solicitudes ahora mismo. Espera un momento e inténtalo de nuevo"
       },
       "batch": {
         "cutOff": "la respuesta de la IA se cortó antes de completar el lote",
         "refused": "la IA se negó a categorizar estas filas",
-        "unusable": "la respuesta de la IA no se pudo usar"
+        "unusable": "la respuesta de la IA no se pudo usar",
+        "rateLimited": "el proveedor de IA está limitando las solicitudes ahora mismo. Espera un momento e inténtalo de nuevo"
       },
       "unknown": "error desconocido"
     }

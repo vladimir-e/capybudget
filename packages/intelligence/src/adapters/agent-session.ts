@@ -1,5 +1,6 @@
 import { RENDER_FOLLOWUPS_TOOL_NAME } from "../render-map"
-import { extractErrorMessage, isRateLimited, isRejectedRequest } from "../error-message"
+import { extractErrorMessage, isRejectedRequest, sessionErrorCode } from "../error-message"
+import { UnreachableError, requestSignal } from "../structured"
 import { getToolDefinitions, runTool, REPLY_TOOL_CALL_BUDGET } from "../tools"
 import type { ToolDefinition } from "../tools"
 import {
@@ -8,6 +9,7 @@ import {
   STOPPED_MARKER,
   STOPPED_RESULT,
   TurnDisplay,
+  TurnQueue,
   clampedOutputCap,
   outcomeEvent,
 } from "./agent-turn"
@@ -39,12 +41,9 @@ export abstract class AgentSession<Message> implements CapySession {
   private outputCap = MAX_OUTPUT_TOKENS
   private abortController: AbortController | null = null
   private killed = false
-  private sendSeq = 0
-  private cancelledThrough = 0
-  private turnEpoch = 0
+  private readonly queue = new TurnQueue()
   private toolCallCount = 0
   private replyStored = false
-  private idle: Promise<void> = Promise.resolve()
   private turnAttachments: readonly FileAttachment[] = []
   private display: TurnDisplay | null = null
 
@@ -55,23 +54,23 @@ export abstract class AgentSession<Message> implements CapySession {
   protected abstract get providerId(): SessionProvider
   protected abstract appendUserTurn(content: MessageContent): void
   protected abstract runAgenticLoop(display: TurnDisplay): Promise<LoopOutcome>
+  protected abstract isConnectionError(err: unknown): boolean
 
   get hasQueuedSend(): boolean {
-    return this.sendSeq > Math.max(this.turnEpoch, this.cancelledThrough)
+    return this.queue.hasQueued
   }
 
   protected get stopped(): boolean {
-    return this.killed || this.turnEpoch <= this.cancelledThrough
+    return this.killed || this.queue.isCancelled
   }
 
   send(content: MessageContent, attachments: readonly FileAttachment[] = []): Promise<void> {
     if (this.killed) return Promise.resolve()
-    const epoch = ++this.sendSeq
-    return this.exclusive(() => this.runTurn(epoch, content, attachments))
+    return this.queue.enqueue(() => this.runTurn(content, attachments))
   }
 
   async stop(): Promise<void> {
-    this.cancelledThrough = this.sendSeq
+    this.queue.cancelAll()
     this.abortRequest()
     this.display?.settle()
   }
@@ -88,6 +87,17 @@ export abstract class AgentSession<Message> implements CapySession {
 
   protected closeRequest(): void {
     this.abortController = null
+  }
+
+  protected async withStructuredRequest<T>(signal: AbortSignal | undefined, request: (signal?: AbortSignal) => Promise<T>): Promise<T> {
+    const scoped = requestSignal(signal)
+    try {
+      return await request(scoped.signal)
+    } catch (err) {
+      throw this.classified(err)
+    } finally {
+      scoped.release()
+    }
   }
 
   protected async withOutputCap<T>(request: (maxTokens: number) => Promise<T>): Promise<T> {
@@ -145,9 +155,8 @@ export abstract class AgentSession<Message> implements CapySession {
     return { replies, outcome }
   }
 
-  private async runTurn(epoch: number, content: MessageContent, attachments: readonly FileAttachment[]): Promise<void> {
-    if (this.killed || epoch <= this.cancelledThrough) return
-    this.turnEpoch = epoch
+  private async runTurn(content: MessageContent, attachments: readonly FileAttachment[]): Promise<void> {
+    if (this.killed) return
     this.turnAttachments = attachments
     this.toolCallCount = 0
     this.replyStored = false
@@ -161,7 +170,7 @@ export abstract class AgentSession<Message> implements CapySession {
     } catch (err) {
       const rolledBack = !this.replyStored && !this.stopped && isRejectedRequest(err)
       if (rolledBack) rollback()
-      end = failureEvent(err, rolledBack)
+      end = failureEvent(this.classified(err), rolledBack)
     } finally {
       this.turnAttachments = []
       this.closeRequest()
@@ -203,13 +212,8 @@ export abstract class AgentSession<Message> implements CapySession {
     }
   }
 
-  private exclusive(task: () => Promise<void>): Promise<void> {
-    const run = this.idle.then(task)
-    this.idle = run.then(
-      () => undefined,
-      () => undefined,
-    )
-    return run
+  private classified(err: unknown): unknown {
+    return this.isConnectionError(err) ? new UnreachableError(this.providerId) : err
   }
 
   private abortRequest(): void {
@@ -224,11 +228,12 @@ export abstract class AgentSession<Message> implements CapySession {
 
 function failureEvent(err: unknown, rolledBack: boolean): StreamEvent {
   const { message, status } = extractErrorMessage(err)
+  const code = sessionErrorCode(err)
   return {
     type: "error",
     message,
     status,
-    ...(isRateLimited(err) ? { code: "rateLimited" as const } : {}),
+    ...(code ? { code } : {}),
     ...(rolledBack ? { rolledBack } : {}),
   }
 }

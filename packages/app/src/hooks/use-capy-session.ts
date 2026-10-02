@@ -25,6 +25,7 @@ import {
   buildSystemPrompt,
   MUTATION_TOOL_NAMES,
   PROVIDER_LABELS,
+  ollamaOrigin,
   START_IMPORT_TOOL_NAME,
   type BudgetSnapshot,
   type FileAttachment,
@@ -32,9 +33,11 @@ import {
   type StreamEvent,
   type ChatMessage,
   type ContentBlock,
+  type ToolActivityBlock,
 } from "@capybudget/intelligence"
 import type { BudgetRepository, FileAdapter } from "@capybudget/persistence"
 import type { CurrencySettings } from "@capybudget/core"
+import type { TFunction } from "i18next"
 
 export interface UseCapySessionOptions {
   budgetPath: string
@@ -134,6 +137,7 @@ export function useCapySession(opts: UseCapySessionOptions): UseCapySessionRetur
         }
 
         case "tool-result": {
+          setMessages((prev) => settleToolCall(prev, event.id, event.ok))
           if (!event.ok) break
           if (ackedToolCallsRef.current.has(event.id)) break
           if (event.tool === START_IMPORT_TOOL_NAME) {
@@ -163,18 +167,14 @@ export function useCapySession(opts: UseCapySessionOptions): UseCapySessionRetur
           ctx.setIsStreaming(false)
           hadMutationsRef.current = false
           ackedToolCallsRef.current = new Set()
-          const unsentId = event.rolledBack ? turn.bubbleIds[0] : undefined
+          const unsentId = event.rolledBack || !turn.handedOff ? turn.bubbleIds[0] : undefined
           setMessages((current) => {
             const prev = unsentId
               ? current.map((m) => (m.id === unsentId ? { ...m, unsent: true } : m))
               : current
             const errorBlock: ContentBlock = {
               type: "error",
-              message: event.code
-                ? tRef.current(`session.${event.code}`, {
-                    provider: event.provider ? PROVIDER_LABELS[event.provider] : "",
-                  })
-                : event.message,
+              message: sessionErrorText(event, tRef.current),
               status: event.status,
               provider: event.provider,
             }
@@ -422,18 +422,18 @@ export function useCapySession(opts: UseCapySessionOptions): UseCapySessionRetur
     // reaches the model, so its bubbles go rather than read as delivered.
     const neverSent = !turn.handedOff || session?.hasQueuedSend === true
     if (neverSent && turn.carriesSnapshot) snapshotSentRef.current = false
+    // Hand the chat history to the adapter so Claude CLI can synthesize
+    // a `[Previous conversation]` recovery prefix on its next send.
+    // API adapters keep their own messages array and treat this as a
+    // no-op (the method is optional on the interface).
+    const cancelledIds = neverSent ? turn.bubbleIds : []
+    session?.markInterrupted?.(messagesRef.current.filter((m) => !cancelledIds.includes(m.id)))
     session?.stop()
     lifecycle.setIsStreaming(false)
 
     if (neverSent) {
       setMessages((prev) => prev.filter((m) => !turn.bubbleIds.includes(m.id)))
     } else {
-      // Hand the chat history to the adapter so Claude CLI can synthesize
-      // a `[Previous conversation]` recovery prefix on its next send.
-      // API adapters keep their own messages array and treat this as a
-      // no-op (the method is optional on the interface).
-      session?.markInterrupted?.(messagesRef.current)
-
       // Replace empty in-flight assistant bubble or append separator
       const interruptBlock = { type: "text" as const, content: tRef.current("session.interrupted") }
       setMessages((prev) => {
@@ -458,4 +458,24 @@ export function useCapySession(opts: UseCapySessionOptions): UseCapySessionRetur
   }, [lifecycle, cancelPendingSend])
 
   return { messages, isStreaming: lifecycle.isStreaming, sendMessage, stopStreaming, newChat: resetConversation }
+}
+
+function sessionErrorText(event: Extract<StreamEvent, { type: "error" }>, t: TFunction<"capy">): string {
+  if (!event.code) return event.message
+  if (event.code === "unreachable" && event.provider === "ollama") {
+    return t("session.ollamaUnreachable", { url: ollamaOrigin(useIntelligenceStore.getState().config.ollama.baseUrl) })
+  }
+  return t(`session.${event.code}`, { provider: event.provider ? PROVIDER_LABELS[event.provider] : "" })
+}
+
+function settleToolCall(messages: ChatMessage[], id: string, ok: boolean): ChatMessage[] {
+  const isRunningCall = (b: ContentBlock): b is ToolActivityBlock =>
+    b.type === "tool-activity" && b.id === id && b.status === "running"
+  if (!messages.some((m) => m.blocks.some(isRunningCall))) return messages
+  const status = ok ? "done" : "failed"
+  return messages.map((m) =>
+    m.blocks.some(isRunningCall)
+      ? { ...m, blocks: m.blocks.map((b) => (isRunningCall(b) ? { ...b, status } : b)) }
+      : m,
+  )
 }

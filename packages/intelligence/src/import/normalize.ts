@@ -146,8 +146,6 @@ export async function normalizeCsv(
   return { rows, mapping: resolved.mapping, errors, warnings };
 }
 
-const SKIPPED_SHOWN = 3;
-
 function describeSkippedByRules(filename: string, held: number, rows: Record<string, string>[], mapping: CsvMapping): NormalizeWarning {
   const matched = rows.filter((row) => shouldSkipRow(row, mapping.skipRules));
   return {
@@ -246,7 +244,7 @@ function vetSkipRules(rows: Record<string, string>[], mapping: CsvMapping): void
   for (const rule of mapping.skipRules ?? []) {
     const held = withAmount.filter((row) => shouldSkipRow(row, [rule]));
     if (held.length > allowance) {
-      const shown = held.slice(0, SKIPPED_SHOWN).map((row) => JSON.stringify(truncateValue(rowDescription(row, mapping.description))));
+      const shown = sample(held, (row) => JSON.stringify(truncateValue(rowDescription(row, mapping.description)))).items;
       throw new SchemaValidationError(
         `the skipRule ${JSON.stringify(rule)} matches ${held.length} of ${withAmount.length} rows with an amount (${shown.join(", ")}) — too broad for non-transaction rows; narrow or drop it`,
       );

@@ -122,7 +122,9 @@
     "budgetExhausted": "Capy reached its limit of tool calls for this reply. Send a message to continue.",
     "keyAccessDismissed": "Capy needs your AI key to reply. Send again and choose Allow to unlock it.",
     "keyReadFailed": "Capy couldn't read your AI key from the system keychain. Send again to retry.",
-    "rateLimited": "{{provider}} is rate-limiting requests right now. Try again in a moment."
+    "rateLimited": "{{provider}} is rate-limiting requests right now. Try again in a moment.",
+    "unreachable": "Can't reach {{provider}} — check your internet connection.",
+    "ollamaUnreachable": "Can't reach Ollama at {{url}}. Start it with `ollama serve`, or check the URL in Settings."
   },
   "secretGate": {
     "title": "Unlock your AI key",

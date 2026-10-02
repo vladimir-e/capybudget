@@ -71,7 +71,7 @@ describe("CliTurn", () => {
           say("a", call("t1", "render_table", { headers: [], rows: [] })),
           say("a", textPart("Numbers: none, table failed.")),
         ]).blocks,
-      ).toEqual([text("Numbers:"), { type: "tool-activity", tool: "render_table", status: "running" }, text("Numbers: none, table failed.")])
+      ).toEqual([text("Numbers:"), { type: "tool-activity", tool: "render_table", status: "running", id: "t1" }, text("Numbers: none, table failed.")])
     })
 
     it("does not let a thinking-only line clobber the earlier text", () => {
@@ -107,8 +107,8 @@ describe("CliTurn", () => {
         result("t2", true),
       ])
       expect(blocks).toEqual([
-        { type: "tool-activity", tool: "create_transaction", status: "done" },
-        { type: "tool-activity", tool: "list_accounts", status: "failed" },
+        { type: "tool-activity", tool: "create_transaction", status: "done", id: "t1" },
+        { type: "tool-activity", tool: "list_accounts", status: "failed", id: "t2" },
       ])
       expect(events.filter((e) => e.type === "tool-result")).toEqual([
         { type: "tool-result", tool: "create_transaction", id: "t1", ok: true },
@@ -138,7 +138,7 @@ describe("CliTurn", () => {
 
     it("keeps the recovery text after a followups payload that failed to render", () => {
       expect(play([say("a", call("f", "render_followups", { chips: [] })), say("b", textPart("Anything else?"))]).blocks).toEqual([
-        { type: "tool-activity", tool: "render_followups", status: "running" },
+        { type: "tool-activity", tool: "render_followups", status: "running", id: "f" },
         text("Anything else?"),
       ])
     })
@@ -147,7 +147,7 @@ describe("CliTurn", () => {
   describe("calls", () => {
     it("shows a repeated tool_use id once and keeps its finished status", () => {
       const { blocks } = play([say("a", call("t", "list_accounts")), result("t"), say("a", call("t", "list_accounts"))])
-      expect(blocks).toEqual([{ type: "tool-activity", tool: "list_accounts", status: "done" }])
+      expect(blocks).toEqual([{ type: "tool-activity", tool: "list_accounts", status: "done", id: "t" }])
     })
   })
 

@@ -5,7 +5,7 @@ import type { ToolReply } from "./agent-session"
 import { UNANSWERED_RESULT, toolCallBlock } from "./agent-turn"
 import type { LoopOutcome, TurnDisplay } from "./agent-turn"
 import type { MessageContent, SessionProvider } from "../types"
-import { STRUCTURED_MAX_RETRIES, UnreachableError, assertStructuredFinished, parseStructured, requestSignal, schemaBody } from "../structured"
+import { STRUCTURED_MAX_RETRIES, assertStructuredFinished, parseStructured, schemaBody } from "../structured"
 import type { Ending, JsonSchema, StructuredCallOptions, StructuredMessage, StructuredSession } from "../structured"
 
 function endingOf(reason: Anthropic.StopReason | null): Ending {
@@ -71,6 +71,10 @@ export class AnthropicSession extends AgentSession<Anthropic.MessageParam> imple
     return "anthropic"
   }
 
+  protected isConnectionError(err: unknown): boolean {
+    return err instanceof Anthropic.APIConnectionError
+  }
+
   async structured<T = unknown>(
     messages: readonly StructuredMessage[],
     schema: JsonSchema,
@@ -90,18 +94,9 @@ export class AnthropicSession extends AgentSession<Anthropic.MessageParam> imple
       },
     }
 
-    const request = requestSignal(options?.signal)
-    let message: Anthropic.Message
-    try {
-      message = await this.withOutputCap((maxTokens) =>
-        this.streamStructured({ ...params, max_tokens: maxTokens }, request.signal, options?.onText),
-      )
-    } catch (err) {
-      if (err instanceof Anthropic.APIConnectionError) throw new UnreachableError("Can't reach Anthropic. Check your internet connection.")
-      throw err
-    } finally {
-      request.release()
-    }
+    const message = await this.withStructuredRequest(options?.signal, (signal) =>
+      this.withOutputCap((maxTokens) => this.streamStructured({ ...params, max_tokens: maxTokens }, signal, options?.onText)),
+    )
     assertStructuredFinished(endingOf(message.stop_reason))
 
     const text = message.content

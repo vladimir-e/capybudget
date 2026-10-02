@@ -460,6 +460,24 @@ describe("useCapySession live cache invalidation", () => {
     expect(blocks.at(-1)).toMatchObject({ type: "error", message })
   })
 
+  it.each([
+    [true, "done"],
+    [false, "failed"],
+  ] as const)("shows the real outcome of a call that was running at Stop (ok: %s)", (ok, status) => {
+    const { emit, result } = setup()
+    act(() => {
+      emit({ type: "content", blocks: [{ type: "tool-activity", tool: "create_transaction", status: "running", id: "c1" }] })
+    })
+    act(() => {
+      result.current.stopStreaming()
+    })
+    act(() => {
+      emit({ type: "tool-result", tool: "create_transaction", id: "c1", ok })
+    })
+    const blocks = result.current.messages.flatMap((m) => m.blocks)
+    expect(blocks.find((b) => b.type === "tool-activity")).toMatchObject({ id: "c1", status })
+  })
+
   it("fires onImportStarted when a start_import tool-result lands", () => {
     const { onImportStarted, onDataChanged, emit } = setup()
 
@@ -824,6 +842,51 @@ describe("useCapySession sends that never reach the model", () => {
     expect(result.current.messages).toEqual(afterFirstStop)
     expect(createdSessions[0].stopSpy).toHaveBeenCalledTimes(2)
   })
+
+  it("Stop with a send queued behind a winding-down turn keeps the history for the next send", () => {
+    useIntelligenceStore.setState({
+      hydrated: true,
+      config: { ...DEFAULT_INTELLIGENCE_CONFIG, provider: "claude-cli" },
+    })
+    const { result } = renderHook(() => useCapySession(baseOpts))
+    act(() => {
+      result.current.sendMessage("first")
+    })
+    const fake = createdSessions[0]
+    const markInterrupted = vi.fn()
+    fake.session.markInterrupted = markInterrupted
+    act(() => {
+      fake.emit({ type: "content", blocks: [{ type: "text", content: "answer" }] })
+      fake.emit({ type: "done" })
+    })
+    const answered = result.current.messages
+
+    act(() => {
+      result.current.sendMessage("second")
+    })
+    ;(fake.session as { hasQueuedSend?: boolean }).hasQueuedSend = true
+    act(() => {
+      result.current.stopStreaming()
+    })
+
+    expect(markInterrupted).toHaveBeenCalledWith(answered)
+    expect(markInterrupted.mock.invocationCallOrder[0]).toBeLessThan(fake.stopSpy.mock.invocationCallOrder[0])
+    expect(result.current.messages).toEqual(answered)
+  })
+
+  it("marks a question unsent when it failed before reaching the session", async () => {
+    lockedAnthropic()
+    const { result } = renderHook(() => useCapySession(baseOpts))
+    act(() => {
+      result.current.sendMessage("hi")
+    })
+    act(() => {
+      useIntelligenceStore.getState().dismissSecretGate()
+    })
+    await settle()
+
+    expect(result.current.messages[0]).toMatchObject({ role: "user", unsent: true })
+  })
 })
 
 describe("useCapySession error copy", () => {
@@ -852,6 +915,31 @@ describe("useCapySession error copy", () => {
     expect(result.current.messages.at(-1)?.blocks.at(-1)).toMatchObject({
       type: "error",
       message: "OpenAI API is rate-limiting requests right now. Try again in a moment.",
+    })
+  })
+
+  it("words an unreachable provider with its name", () => {
+    const { result, fake } = setup()
+    act(() => {
+      fake.emit({ type: "error", code: "unreachable", provider: "openai", message: "openai unreachable" })
+    })
+    expect(result.current.messages.at(-1)?.blocks.at(-1)).toMatchObject({
+      type: "error",
+      message: "Can't reach OpenAI API — check your internet connection.",
+    })
+  })
+
+  it("points an unreachable Ollama at its server and `ollama serve`", () => {
+    const { result, fake } = setup()
+    act(() => {
+      useIntelligenceStore.setState((s) => ({ config: { ...s.config, ollama: { ...s.config.ollama, baseUrl: "http://box:11434/v1" } } }))
+    })
+    act(() => {
+      fake.emit({ type: "error", code: "unreachable", provider: "ollama", message: "ollama unreachable" })
+    })
+    expect(result.current.messages.at(-1)?.blocks.at(-1)).toMatchObject({
+      type: "error",
+      message: "Can't reach Ollama at http://box:11434. Start it with `ollama serve`, or check the URL in Settings.",
     })
   })
 

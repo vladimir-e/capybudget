@@ -666,6 +666,23 @@ describe("skip rules", () => {
     expect(result.stats).toMatchObject({ skipped: 0, held: 0, errored: 1 });
   });
 
+  it("errors a matched row whose amount has digits but doesn't parse", () => {
+    const mapping = baseMapping({ skipRules: [{ column: "Description", equals: "Total" }] });
+    const rows = [makeRow({ Date: "2025-01-01", Description: "Total", Amount: "12.3.4" })];
+    const result = transformCsv(rows, mapping);
+    expect(result.transactions).toEqual([]);
+    expect(result.errors.map((e) => e.row)).toEqual([1]);
+    expect(result.stats).toMatchObject({ skipped: 0, held: 0, errored: 1 });
+  });
+
+  it("drops a matched row whose amount cell holds no digits", () => {
+    const mapping = baseMapping({ skipRules: [{ column: "Description", equals: "Total" }] });
+    const rows = [makeRow({ Date: "2025-01-01", Description: "Total", Amount: "n/a" })];
+    const result = transformCsv(rows, mapping);
+    expect(result.errors).toEqual([]);
+    expect(result.stats).toMatchObject({ skipped: 1, held: 0, errored: 0 });
+  });
+
   it("equals match skips the row (case-insensitive)", () => {
     const mapping = baseMapping({
       skipRules: [{ column: "Type", equals: "void" }],

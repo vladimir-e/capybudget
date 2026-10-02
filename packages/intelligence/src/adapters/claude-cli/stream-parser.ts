@@ -1,4 +1,4 @@
-import { extractErrorMessage, isRateLimited } from "../../error-message"
+import { extractErrorMessage, sessionErrorCode } from "../../error-message"
 import { endingEvent, type Ending } from "../agent-turn"
 import type { StreamEvent } from "../../types"
 
@@ -119,11 +119,12 @@ function assistantErrorEvent(kind: string, text: string): StreamEvent {
 function failureEvent(text: string, status?: number): ErrorEvent {
   const err = apiError(text || FALLBACK_ERROR, status)
   const { message, status: parsedStatus } = extractErrorMessage(err)
+  const code = sessionErrorCode(err)
   return {
     type: "error",
     message,
     ...(parsedStatus !== undefined ? { status: parsedStatus } : {}),
-    ...(isRateLimited(err) ? { code: "rateLimited" as const } : {}),
+    ...(code ? { code } : {}),
   }
 }
 

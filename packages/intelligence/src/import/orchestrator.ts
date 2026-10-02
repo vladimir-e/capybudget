@@ -16,7 +16,7 @@ import {
   type RowContext,
   type TransferContext,
 } from "@capybudget/core";
-import { deadEndKind, extractErrorMessage, isDeadEnd } from "../error-message";
+import { deadEndKind, extractErrorMessage, isDeadEnd, isRateLimited } from "../error-message";
 import { CutOffError, RefusedError, SchemaValidationError, type StructuredSession } from "../structured";
 import type { SessionProvider } from "../types";
 import type { BudgetDataProvider } from "./budget-data";
@@ -560,6 +560,7 @@ class UnreadableSourceError extends Error {
 function modelFailureCause(err: unknown): ModelFailureCause {
   if (err instanceof CutOffError) return { kind: "cutOff" };
   if (err instanceof RefusedError) return { kind: "refused" };
+  if (isRateLimited(err)) return { kind: "rateLimited" };
   if (err instanceof SchemaValidationError) return { kind: "unusable", detail: err.message };
   return { kind: "other", detail: extractErrorMessage(err).message };
 }

@@ -38,7 +38,7 @@ export type LogLevel = "info" | "warn" | "error";
  *  message: `other` is the provider's own words, shown to the user; an
  *  `unusable` detail is for the log only. */
 export type ModelFailureCause =
-  | { kind: "cutOff" | "refused" }
+  | { kind: "cutOff" | "refused" | "rateLimited" }
   | { kind: "unusable" | "other"; detail: string };
 
 /** Why a Categorizing batch failed. */

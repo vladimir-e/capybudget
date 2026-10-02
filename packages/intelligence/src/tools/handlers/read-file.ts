@@ -1,9 +1,9 @@
 /**
  * Generic text-file reader for the agent.
  *
- * Mirrors the allow-list scope that the Claude CLI gets via
- * `--add-dir <budgetPath>`: any file at or beneath the budget folder is
- * fair game. Filenames may be a name relative to the budget folder
+ * Mirrors the scope the Claude CLI's Read gets by running with the budget
+ * folder as cwd under `--restricted`: any file at or beneath the budget
+ * folder is fair game. Filenames may be a name relative to the budget folder
  * (`.capy/import/sources/2024.csv`) or to the import sources folder
  * (`2024.csv`). Absolute paths and `..` are rejected up-front; the
  * resolved path is then string-prefix-checked against the budget folder

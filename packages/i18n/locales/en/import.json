@@ -115,12 +115,14 @@
         "refused": "the AI declined to read this file. Check that it's a bank statement or transaction export",
         "unusable": "the AI's answer couldn't be turned into transactions",
         "pdfUnsupported": "the selected AI provider can't read PDFs. Switch to Anthropic or OpenAI, or import a CSV export",
-        "noVision": "the selected model can't read images. Pick a vision model in Settings"
+        "noVision": "the selected model can't read images. Pick a vision model in Settings",
+        "rateLimited": "the AI provider is rate-limiting requests right now. Wait a moment and try again"
       },
       "batch": {
         "cutOff": "the AI's reply was cut off before the batch was complete",
         "refused": "the AI declined to categorize these rows",
-        "unusable": "the AI's answer couldn't be used"
+        "unusable": "the AI's answer couldn't be used",
+        "rateLimited": "the AI provider is rate-limiting requests right now. Wait a moment and try again"
       },
       "unknown": "unknown error"
     }

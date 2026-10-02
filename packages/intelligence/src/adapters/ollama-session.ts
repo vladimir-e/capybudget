@@ -3,9 +3,8 @@ import { AgentSession } from "./agent-session"
 import { ollamaClient } from "./clients"
 import { UNANSWERED_RESULT, parseToolArguments, readToTerminal, toolCallBlock } from "./agent-turn"
 import type { LoopOutcome, TurnDisplay } from "./agent-turn"
-import { ollamaOrigin } from "../config"
 import type { MessageContent, SessionProvider } from "../types"
-import { STRUCTURED_MAX_RETRIES, UnreachableError, assertStructuredFinished, parseStructured, requestSignal, schemaBody } from "../structured"
+import { STRUCTURED_MAX_RETRIES, assertStructuredFinished, parseStructured, schemaBody } from "../structured"
 import type { Ending, JsonSchema, StructuredCallOptions, StructuredMessage, StructuredSession } from "../structured"
 
 type ChatParam = OpenAI.Chat.Completions.ChatCompletionMessageParam
@@ -69,6 +68,10 @@ export class OllamaSession extends AgentSession<ChatParam> implements Structured
     return "ollama"
   }
 
+  protected isConnectionError(err: unknown): boolean {
+    return err instanceof OpenAI.APIConnectionError
+  }
+
   async structured<T = unknown>(
     messages: readonly StructuredMessage[],
     schema: JsonSchema,
@@ -98,9 +101,8 @@ export class OllamaSession extends AgentSession<ChatParam> implements Structured
       },
     }
 
-    const request = requestSignal(options?.signal)
-    const requestOptions = { signal: request.signal, maxRetries: STRUCTURED_MAX_RETRIES }
-    try {
+    return this.withStructuredRequest(options?.signal, async (signal) => {
+      const requestOptions = { signal, maxRetries: STRUCTURED_MAX_RETRIES }
       if (!options?.onText) {
         const completion = await this.withOutputCap((maxTokens) =>
           this.client.chat.completions.create({ ...params, max_completion_tokens: maxTokens }, requestOptions),
@@ -130,12 +132,7 @@ export class OllamaSession extends AgentSession<ChatParam> implements Structured
       })
       assertStructuredFinished(endingOf(finishReason, refusal))
       return parseStructured<T>(text, schema)
-    } catch (err) {
-      if (err instanceof OpenAI.APIConnectionError) throw new UnreachableError(`Can't reach Ollama at ${ollamaOrigin(this.opts.baseUrl)}`)
-      throw err
-    } finally {
-      request.release()
-    }
+    })
   }
 
   protected async runAgenticLoop(display: TurnDisplay): Promise<LoopOutcome> {

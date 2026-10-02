@@ -23,10 +23,10 @@ describe("MessageBubble tool card", () => {
     ).toEqual(["failed", "running", "pending"])
   })
 
-  it("never spins once the message has settled", () => {
+  it("never spins once the message has settled, and never claims an unresolved call succeeded", () => {
     expect(
       statuses([{ type: "tool-activity", tool: "create_transaction", status: "running" }], false),
-    ).toEqual(["done"])
+    ).toEqual(["stopped"])
   })
 
   it("keeps the faint dot on a call that never ran, once the message has settled", () => {

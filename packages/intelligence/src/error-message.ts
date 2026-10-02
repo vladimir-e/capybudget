@@ -1,4 +1,5 @@
 import { UnreachableError } from "./structured"
+import type { SessionErrorCode } from "./types"
 
 /**
  * Extract a human-readable message from an SDK error.
@@ -83,6 +84,11 @@ export function deadEndKind(err: unknown): DeadEndKind | null {
 
 export function isDeadEnd(err: unknown): boolean {
   return deadEndKind(err) !== null
+}
+
+export function sessionErrorCode(err: unknown): Extract<SessionErrorCode, "rateLimited" | "unreachable"> | null {
+  if (isRateLimited(err)) return "rateLimited"
+  return deadEndKind(err) === "unreachable" ? "unreachable" : null
 }
 
 function isObject(value: unknown): value is Record<string, unknown> {

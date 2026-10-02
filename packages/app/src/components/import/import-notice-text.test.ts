@@ -35,6 +35,12 @@ describe("importNoticeText", () => {
     ).toBe("Не удалось распределить по категориям ни одну из 5 строк — overloaded. Нажми «Обработать», чтобы попробовать ещё раз.");
   });
 
+  it("words a rate-limited batch in the UI language", () => {
+    expect(
+      textIn("pt", { code: "categorize.batchFailed", params: { batch: 1, count: 25, cause: { kind: "rateLimited" } } }),
+    ).toContain("o provedor de IA está limitando as solicitações agora");
+  });
+
   it("names the Ollama server it can't reach", () => {
     expect(
       textIn("en", { code: "deadEnd", params: { kind: "unreachable", provider: "ollama" } }, "http://box:11434/v1"),

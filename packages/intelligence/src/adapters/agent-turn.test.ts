@@ -105,19 +105,19 @@ describe("TurnDisplay", () => {
     display.addCall("a", { type: "tool-activity", tool: "first", status: "pending" })
     display.addCall("b", { type: "tool-activity", tool: "second", status: "pending" })
     expect(published.at(-1)).toEqual([
-      { type: "tool-activity", tool: "first", status: "pending" },
-      { type: "tool-activity", tool: "second", status: "pending" },
+      { type: "tool-activity", tool: "first", status: "pending", id: "a" },
+      { type: "tool-activity", tool: "second", status: "pending", id: "b" },
     ])
 
     display.markStarted("a")
-    expect(published.at(-1)?.[0]).toEqual({ type: "tool-activity", tool: "first", status: "running" })
+    expect(published.at(-1)?.[0]).toEqual({ type: "tool-activity", tool: "first", status: "running", id: "a" })
 
     display.markFinished("a", true)
     display.markStarted("b")
     display.markFinished("b", false)
     expect(published.at(-1)).toEqual([
-      { type: "tool-activity", tool: "first", status: "done" },
-      { type: "tool-activity", tool: "second", status: "failed" },
+      { type: "tool-activity", tool: "first", status: "done", id: "a" },
+      { type: "tool-activity", tool: "second", status: "failed", id: "b" },
     ])
   })
 
@@ -128,7 +128,7 @@ describe("TurnDisplay", () => {
     expect(display.addCall("a", { type: "tool-activity", tool: "first", status: "pending" })).toBe(false)
     display.appendText(" still open")
     expect(published.at(-1)).toEqual([
-      { type: "tool-activity", tool: "first", status: "pending" },
+      { type: "tool-activity", tool: "first", status: "pending", id: "a" },
       { type: "text", content: "Between still open" },
     ])
   })
@@ -148,7 +148,7 @@ describe("TurnDisplay", () => {
 
     expect(published.at(-1)).toEqual([
       { type: "text", content: "Looking" },
-      { type: "tool-activity", tool: "first", status: "running" },
+      { type: "tool-activity", tool: "first", status: "running", id: "a" },
     ])
   })
 

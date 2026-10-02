@@ -891,11 +891,11 @@ describe("OllamaSession.structured — cancellation and retries", () => {
     expect(requestOptions().signal?.aborted).toBe(false)
   })
 
-  it("names the server when it can't be reached", async () => {
+  it("reports a server it can't reach as unreachable", async () => {
     queueStructured({ error: new OpenAI.APIConnectionError({ message: "Connection error." }) })
     const { session } = makeSession(undefined, "http://box:11434/v1")
     const err = await session.structured([{ role: "user", content: "x" }], SCHEMA).catch((e: unknown) => e)
     expect(err).toBeInstanceOf(UnreachableError)
-    expect((err as Error).message).toBe("Can't reach Ollama at http://box:11434")
+    expect((err as Error).message).toBe("ollama unreachable")
   })
 })

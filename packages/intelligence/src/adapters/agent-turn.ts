@@ -6,10 +6,10 @@ import type { ContentBlock, SessionErrorCode, StreamEvent, ToolCallStatus } from
 export const MAX_OUTPUT_TOKENS = 32000
 export const FALLBACK_OUTPUT_TOKENS = 8192
 
-export type LoopOutcome = "done" | "stopped" | Exclude<SessionErrorCode, "rateLimited">
+export type LoopOutcome = "done" | "stopped" | Exclude<SessionErrorCode, "rateLimited" | "unreachable">
 
-const CUT_OFF_MESSAGE = "Capy's reply was cut off before it finished. Try again, or ask for less at once."
-const REFUSED_MESSAGE = "Capy declined to answer that one. Try rephrasing."
+const CUT_OFF_MESSAGE = "reply cut off"
+const REFUSED_MESSAGE = "reply refused"
 const BUDGET_EXHAUSTED_MESSAGE = `Tool-call budget exhausted (${REPLY_TOOL_CALL_BUDGET} calls). Stopping. Run again if more work is needed.`
 
 export const BUDGET_EXHAUSTED_RESULT = `Error: ${BUDGET_EXHAUSTED_MESSAGE}`
@@ -140,7 +140,7 @@ export class TurnDisplay {
   addCall(id: string, block: ContentBlock): boolean {
     if (this.entries.some((e) => e.callId === id)) return false
     this.endText()
-    this.entries.push({ block, callId: id })
+    this.entries.push({ block: block.type === "tool-activity" ? { ...block, id } : block, callId: id })
     this.publish()
     return true
   }
@@ -185,5 +185,42 @@ export class TurnDisplay {
   private publish(): void {
     if (this.settled) return
     this.onChange(this.entries.map((e) => e.block))
+  }
+}
+
+export class TurnQueue {
+  private seq = 0
+  private current = 0
+  private cancelledThrough = 0
+  private idle: Promise<void> = Promise.resolve()
+
+  get hasQueued(): boolean {
+    return this.seq > Math.max(this.current, this.cancelledThrough)
+  }
+
+  get isCancelled(): boolean {
+    return this.current <= this.cancelledThrough
+  }
+
+  enqueue(turn: () => Promise<void>): Promise<void> {
+    const ticket = ++this.seq
+    return this.exclusive(async () => {
+      if (ticket <= this.cancelledThrough) return
+      this.current = ticket
+      await turn()
+    })
+  }
+
+  cancelAll(): void {
+    this.cancelledThrough = this.seq
+  }
+
+  private exclusive(task: () => Promise<void>): Promise<void> {
+    const run = this.idle.then(task)
+    this.idle = run.then(
+      () => undefined,
+      () => undefined,
+    )
+    return run
   }
 }

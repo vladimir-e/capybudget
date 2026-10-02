@@ -11,7 +11,7 @@
  * than as a silently-wrong object downstream.
  */
 
-import type { MessageContent } from "./types"
+import type { MessageContent, SessionProvider } from "./types"
 
 /**
  * A user or assistant turn. Only user turns may carry non-text content:
@@ -107,8 +107,8 @@ export class RefusedError extends Error {
 }
 
 export class UnreachableError extends Error {
-  constructor(message: string) {
-    super(message)
+  constructor(provider: SessionProvider) {
+    super(`${provider} unreachable`)
     this.name = "UnreachableError"
   }
 }

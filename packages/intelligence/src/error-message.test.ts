@@ -112,7 +112,7 @@ describe("deadEndKind / isDeadEnd", () => {
   })
 
   it("counts an unreachable provider", () => {
-    const err = new UnreachableError("Can't reach Ollama at http://localhost:11434")
+    const err = new UnreachableError("ollama")
     expect(deadEndKind(err)).toBe("unreachable")
     expect(isDeadEnd(err)).toBe(true)
   })
