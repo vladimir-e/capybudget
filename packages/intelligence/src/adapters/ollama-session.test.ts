@@ -1657,6 +1657,42 @@ describe("OllamaSession lifecycle", () => {
     ])
   })
 
+  it("Stop mid-stream aborts the request and reports stopped, not the abort", async () => {
+    queueTurn({ textDeltas: ["One", " two", " three"], finish_reason: "stop" })
+
+    const { session, events } = makeSession((e, s) => {
+      if (e.type === "content") void s.stop()
+    })
+    await session.send("Hi")
+
+    expect(abortSignals[0].aborted).toBe(true)
+    expect(events.filter((e) => e.type !== "content")).toEqual([])
+    expect(lastBlocks(events)).toEqual([{ type: "text", content: "One" }])
+  })
+
+  it("a second Stop cancels a send queued behind the stopped round", async () => {
+    queueTurn({
+      toolCallDeltas: [{ index: 0, id: "call_a", name: "create_transaction", argFragments: ["{}"] }],
+      finish_reason: "tool_calls",
+    })
+    const tools = blockingTools()
+
+    const { session, events } = makeSession()
+    const first = session.send("Add it")
+    await tools.started()
+    await session.stop()
+    const queued = session.send("Next")
+    expect(session.hasQueuedSend).toBe(true)
+    await session.stop()
+    expect(session.hasQueuedSend).toBe(false)
+    tools.resolvers[0]("created")
+    await Promise.all([first, queued])
+
+    expect(mockCreate).toHaveBeenCalledTimes(1)
+    expect(events.some((e) => e.type === "done" || e.type === "error")).toBe(false)
+    expect(history(session).at(-1)).toEqual({ role: "tool", tool_call_id: "call_a", content: "created" })
+  })
+
   it("a send whose content can't be converted reports an error and doesn't wedge the session", async () => {
     const { session, events } = makeSession()
     await session.send([42] as unknown as string)
@@ -1777,12 +1813,32 @@ describe("OllamaSession failures", () => {
       { type: "text", text: "what's on this receipt?" },
       { type: "image", source: { type: "base64", media_type: "image/png", data: "AAAA" } },
     ])
-    expect(events.at(-1)).toMatchObject({ type: "error", status: 400, provider: "ollama" })
+    expect(events.at(-1)).toMatchObject({ type: "error", status: 400, provider: "ollama", rolledBack: true })
     expect(history(session)).toEqual([])
 
     queueTurn({ textDeltas: ["Hi"], finish_reason: "stop" })
     await session.send("hello")
     expect((lastCreateCall().messages as unknown[]).slice(1)).toEqual([{ role: "user", content: "hello" }])
+  })
+
+  it.each([
+    ["a 429", apiError(429, "too many requests")],
+    ["a 5xx", apiError(500, "server error")],
+    ["a dropped connection", new Error("network lost")],
+  ])("keeps the question in history after %s, so the next send carries it", async (_, error) => {
+    queueTurn({ finish_reason: null, error })
+
+    const { session, events } = makeSession()
+    await session.send("first")
+    expect(events.at(-1)).toMatchObject({ type: "error" })
+    expect(events.at(-1)).not.toHaveProperty("rolledBack")
+
+    queueTurn({ textDeltas: ["ok"], finish_reason: "stop" })
+    await session.send("again")
+    expect((lastCreateCall().messages as unknown[]).slice(1)).toEqual([
+      { role: "user", content: "first" },
+      { role: "user", content: "again" },
+    ])
   })
 
   it("a failure after a stored reply never rolls history back", async () => {
@@ -1848,6 +1904,29 @@ describe("OllamaSession failures", () => {
     await session.send("hi")
 
     expect(events.at(-1)).toMatchObject({ type: "error", code: "rateLimited", status: 429, provider: "ollama" })
+  })
+
+  it("reports a usage-cap 429 with a plain-string error body as rateLimited", async () => {
+    const error = Object.assign(new Error("429 you have reached your hourly usage limit"), {
+      status: 429,
+      error: "you have reached your hourly usage limit",
+    })
+    queueTurn({ finish_reason: null, error })
+
+    const { session, events } = makeSession()
+    await session.send("hi")
+
+    expect(events.at(-1)).toMatchObject({ type: "error", code: "rateLimited", status: 429, provider: "ollama" })
+  })
+
+  it("an error while a finished stream drains in the background raises nothing and emits nothing", async () => {
+    queueTurn({ textDeltas: ["Hi"], finish_reason: "stop", failAfter: new Error("socket closed") })
+
+    const { session, events } = makeSession()
+    await session.send("hi")
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    expect(events.filter((e) => e.type !== "content")).toEqual([{ type: "done" }])
   })
 
   it("stamps the provider on a cut-off reply's error", async () => {

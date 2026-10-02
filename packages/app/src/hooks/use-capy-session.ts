@@ -3,7 +3,8 @@
  *
  * - Creates the provider's session lazily on the first message
  * - Parses streaming events into ChatMessage[]
- * - Rebuilds the session on "New Chat" or when its inputs change
+ * - Rebuilds the session on "New Chat" or when its inputs change; custom
+ *   instructions apply from the next chat
  * - Detects mutation tool calls and notifies for cache invalidation
  * - On stop: forwards conversation context to the next session
  */
@@ -12,7 +13,7 @@ import { useCallback, useEffect, useRef, useState } from "react"
 import { useTranslation } from "@capybudget/i18n"
 import { useSessionLifecycle } from "@/hooks/use-session-lifecycle"
 import { mergeStreamContent } from "@/hooks/merge-stream-content"
-import { needsSecrets, useIntelligenceStore } from "@/stores/intelligence-store"
+import { needsSecrets, useIntelligenceStore, type SecretsOutcome } from "@/stores/intelligence-store"
 import {
   buildContext,
   canReadPdf,
@@ -76,10 +77,12 @@ interface PendingTurn {
   handedOff: boolean
 }
 
+const NO_TURN: PendingTurn = { bubbleIds: [], handedOff: true }
+
 export function useCapySession(opts: UseCapySessionOptions): UseCapySessionReturn {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const sendGenerationRef = useRef(0)
-  const turnRef = useRef<PendingTurn>({ bubbleIds: [], handedOff: true })
+  const turnRef = useRef<PendingTurn>(NO_TURN)
   const hadMutationsRef = useRef(false)
   const ackedToolCallsRef = useRef<Set<string>>(new Set())
   // Snapshot rides on the first message of each session only.
@@ -103,6 +106,12 @@ export function useCapySession(opts: UseCapySessionOptions): UseCapySessionRetur
   const lifecycle = useSessionLifecycle(
     opts,
     (event: StreamEvent, ctx) => {
+      if (!ctx.current) {
+        if (event.type === "tool-result" && event.ok && MUTATION_TOOL_NAMES.has(event.tool)) {
+          ctx.optsRef.current.onDataChanged?.()
+        }
+        return
+      }
       switch (event.type) {
         case "content": {
           setMessages((prev) => mergeStreamContent(prev, event.blocks))
@@ -144,7 +153,11 @@ export function useCapySession(opts: UseCapySessionOptions): UseCapySessionRetur
           ctx.setIsStreaming(false)
           hadMutationsRef.current = false
           ackedToolCallsRef.current = new Set()
-          setMessages((prev) => {
+          setMessages((current) => {
+            const unsentId = event.rolledBack ? turnRef.current.bubbleIds[0] : undefined
+            const prev = unsentId
+              ? current.map((m) => (m.id === unsentId ? { ...m, unsent: true } : m))
+              : current
             const errorBlock: ContentBlock = {
               type: "error",
               message: event.code
@@ -217,18 +230,26 @@ export function useCapySession(opts: UseCapySessionOptions): UseCapySessionRetur
     return lifecycle.sessionRef.current
   }, [lifecycle, pdfSupported])
 
+  const cancelPendingSend = useCallback((): PendingTurn => {
+    sendGenerationRef.current++
+    const turn = turnRef.current
+    turnRef.current = NO_TURN
+    if (!turn.handedOff) useIntelligenceStore.getState().dismissSecretGate()
+    return turn
+  }, [])
+
   // Tear down the session and wipe the on-screen conversation. The session
   // bakes its adapter, model, and instructions in at creation, so a fresh
   // chat is the only honest reset — carrying old messages into a new session
   // would show a continuous thread the new model never actually saw.
   const resetConversation = useCallback(() => {
-    sendGenerationRef.current++
+    cancelPendingSend()
     lifecycle.cancel()
     setMessages([])
     hadMutationsRef.current = false
     ackedToolCallsRef.current = new Set()
     snapshotSentRef.current = false
-  }, [lifecycle])
+  }, [lifecycle, cancelPendingSend])
 
   // When the user changes provider or swaps the model within a provider,
   // start a fresh chat: the running session targets the old adapter/model and
@@ -241,26 +262,21 @@ export function useCapySession(opts: UseCapySessionOptions): UseCapySessionRetur
   const claudeCliModel = useIntelligenceStore((s) => s.config.claudeCli.model)
   const ollamaModel = useIntelligenceStore((s) => s.config.ollama.model)
   const ollamaBaseUrl = useIntelligenceStore((s) => s.config.ollama.baseUrl)
-  const secretsVersion = useIntelligenceStore((s) => s.secretsVersion)
+  const anthropicKeyVersion = useIntelligenceStore((s) => s.secretsVersion.anthropic)
+  const openaiKeyVersion = useIntelligenceStore((s) => s.secretsVersion.openai)
   const providerSignature =
     provider === "anthropic"
-      ? `anthropic:${anthropicModel}`
+      ? `anthropic:${anthropicModel}:${anthropicKeyVersion}`
       : provider === "openai"
-        ? `openai:${openaiModel}`
+        ? `openai:${openaiModel}:${openaiKeyVersion}`
         : provider === "ollama"
           ? `ollama:${ollamaBaseUrl}:${ollamaModel}`
           : provider === "claude-cli"
             ? `claude-cli:${claudeCliModel}`
             : (provider ?? "off") // null carries no model — stable string signature
-  // The key, currency, language, and custom instructions are baked into the
-  // session, so they join the signature: a change rebuilds it.
-  const sessionSignature = [
-    providerSignature,
-    `keys=${secretsVersion}`,
-    `cur=${opts.currency}`,
-    `lng=${opts.language ?? "en"}`,
-    `instr=${opts.customInstructions?.trim() ?? ""}`,
-  ].join(":")
+  // The key, currency, and language are baked into the session, so they join
+  // the signature: a change rebuilds it.
+  const sessionSignature = [providerSignature, `cur=${opts.currency}`, `lng=${opts.language ?? "en"}`].join(":")
   const prevSignatureRef = useRef(sessionSignature)
   useEffect(() => {
     if (prevSignatureRef.current !== sessionSignature) {
@@ -271,6 +287,19 @@ export function useCapySession(opts: UseCapySessionOptions): UseCapySessionRetur
       prevSignatureRef.current = sessionSignature
     }
   }, [sessionSignature, resetConversation])
+
+  // Instructions are read when a session is created, so an edit reaches the
+  // next chat. An empty chat has nothing to lose, so it rebuilds right away.
+  const instructions = opts.customInstructions?.trim() ?? ""
+  const prevInstructionsRef = useRef(instructions)
+  useEffect(() => {
+    if (prevInstructionsRef.current === instructions) return
+    prevInstructionsRef.current = instructions
+    if (messagesRef.current.length === 0 && !lifecycle.isStreamingRef.current) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      resetConversation()
+    }
+  }, [instructions, resetConversation, lifecycle])
 
   const sendMessage = useCallback(
     (text: string, files?: FileAttachment[]) => {
@@ -329,11 +358,10 @@ export function useCapySession(opts: UseCapySessionOptions): UseCapySessionRetur
 
       const fail = (message: string) => lifecycle.dispatchStreamEvent({ type: "error", message })
 
-      const buildAndSend = () => {
+      const buildAndSend = (secrets: SecretsOutcome) => {
         if (generation !== sendGenerationRef.current) return
-        const store = useIntelligenceStore.getState()
-        if (needsSecrets(store.config)) {
-          fail(tRef.current(store.secretsError ? "session.keyReadFailed" : "session.keyAccessDismissed"))
+        if (needsSecrets(useIntelligenceStore.getState().config)) {
+          fail(tRef.current(secrets === "dismissed" ? "session.keyAccessDismissed" : "session.keyReadFailed"))
           return
         }
         const session = ensureSession()
@@ -346,6 +374,7 @@ export function useCapySession(opts: UseCapySessionOptions): UseCapySessionRetur
         // `start_import` tool can stage their bytes — the content itself inlines
         // text files and base64-encodes images past reconstruction.
         session.send(content, allFiles).catch((err) => {
+          if (lifecycle.sessionRef.current !== session) return
           const { message, status } = extractErrorMessage(err)
           lifecycle.dispatchStreamEvent({ type: "error", message: message || tRef.current("session.sendFailed"), status })
         })
@@ -359,16 +388,15 @@ export function useCapySession(opts: UseCapySessionOptions): UseCapySessionRetur
       if (needsSecrets(store.config)) {
         void store.ensureSecrets().then(buildAndSend)
       } else {
-        buildAndSend()
+        buildAndSend("ready")
       }
     },
     [ensureSession, lifecycle],
   )
 
   const stopStreaming = useCallback(() => {
-    sendGenerationRef.current++
     const session = lifecycle.sessionRef.current
-    const turn = turnRef.current
+    const turn = cancelPendingSend()
     // A send still waiting on its key or queued behind a stopped round never
     // reaches the model, so its bubbles go rather than read as delivered.
     const neverSent = !turn.handedOff || session?.hasQueuedSend === true
@@ -405,7 +433,7 @@ export function useCapySession(opts: UseCapySessionOptions): UseCapySessionRetur
     }
     hadMutationsRef.current = false
     ackedToolCallsRef.current = new Set()
-  }, [lifecycle])
+  }, [lifecycle, cancelPendingSend])
 
   return { messages, isStreaming: lifecycle.isStreaming, sendMessage, stopStreaming, newChat: resetConversation }
 }

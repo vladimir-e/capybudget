@@ -108,6 +108,7 @@ export interface ChatMessage {
   id: string
   role: MessageRole
   blocks: ContentBlock[]
+  unsent?: boolean
 }
 
 // ── Stream event types ──────────────────────────────────────────
@@ -148,6 +149,9 @@ export type StreamEvent =
       /** Set on errors the UI words itself (`session.<code>` in the capy
        *  namespace); `message` is the untranslated fallback. */
       code?: SessionErrorCode
+      /** The failed send was taken back out of the model's history, so the
+       *  chat must not show it as delivered. */
+      rolledBack?: boolean
     }
 
 export type SessionErrorCode = "cutOff" | "refused" | "budgetExhausted" | "rateLimited"

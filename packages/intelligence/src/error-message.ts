@@ -39,13 +39,24 @@ export function extractErrorMessage(err: unknown): { message: string; status?: n
 }
 
 const QUOTA_EXHAUSTED = "insufficient_quota"
+const RATE_LIMIT_EXCEEDED = "rate_limit_exceeded"
 
-/** A 429 that asks the caller to slow down. OpenAI also answers an exhausted
+/** A 429 that asks the caller to slow down, or an OpenAI stream that failed
+ *  mid-response with `rate_limit_exceeded`. OpenAI also answers an exhausted
  *  quota with 429 — that one is a billing problem, not a rate limit. */
 export function isRateLimited(err: unknown): boolean {
-  if (!isObject(err) || err.status !== 429) return false
+  if (!isObject(err)) return false
+  if (err.code === RATE_LIMIT_EXCEEDED) return true
+  if (err.status !== 429) return false
   const body = isObject(err.error) ? err.error : {}
   return ![err.code, body.code, body.type].includes(QUOTA_EXHAUSTED)
+}
+
+/** The provider refused this request's content — a 4xx other than a rate
+ *  limit — so retrying the same history fails the same way. */
+export function isRejectedRequest(err: unknown): boolean {
+  const status = isObject(err) ? err.status : undefined
+  return typeof status === "number" && status >= 400 && status < 500 && status !== 429
 }
 
 function isObject(value: unknown): value is Record<string, unknown> {

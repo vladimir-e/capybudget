@@ -25,6 +25,7 @@ interface FakeTurn {
   error?: Error
   /** Ends the stream with `response.failed` carrying this message. */
   failure?: string
+  failureCode?: string
   /** Ends the stream with an `error` event carrying this message. */
   errorEvent?: string
   /** Fails the stream with this error after its content events. */
@@ -123,7 +124,7 @@ const { mockCreate, queueTurn, queueStructured, lastCreateCall, allCreateCalls, 
       if (turn.trailingTextDeltas) message("msg_2", turn.trailingTextDeltas)
 
       if (turn.failure) {
-        events.push({ type: "response.failed", response: { ...response("failed", output), error: { code: "server_error", message: turn.failure } } })
+        events.push({ type: "response.failed", response: { ...response("failed", output), error: { code: turn.failureCode ?? "server_error", message: turn.failure } } })
       } else if (turn.errorEvent) {
         events.push({ type: "error", code: null, message: turn.errorEvent, param: null })
       } else if (turn.status) {
@@ -1277,6 +1278,39 @@ describe("OpenAiSession lifecycle", () => {
     ])
   })
 
+  it("Stop mid-stream aborts the request and reports stopped, not the abort", async () => {
+    queueTurn({ textDeltas: ["One", " two", " three"], status: "completed" })
+
+    const { session, events } = makeSession((e, s) => {
+      if (e.type === "content") void s.stop()
+    })
+    await session.send("Hi")
+
+    expect(abortSignals[0].aborted).toBe(true)
+    expect(events.filter((e) => e.type !== "content")).toEqual([])
+    expect(lastBlocks(events)).toEqual([{ type: "text", content: "One" }])
+  })
+
+  it("a second Stop cancels a send queued behind the stopped round", async () => {
+    queueTurn({ calls: [{ id: "call_a", name: "create_transaction", argFragments: ["{}"] }], status: "completed" })
+    const tools = blockingTools()
+
+    const { session, events } = makeSession()
+    const first = session.send("Add it")
+    await tools.started()
+    await session.stop()
+    const queued = session.send("Next")
+    expect(session.hasQueuedSend).toBe(true)
+    await session.stop()
+    expect(session.hasQueuedSend).toBe(false)
+    tools.resolvers[0]("created")
+    await Promise.all([first, queued])
+
+    expect(mockCreate).toHaveBeenCalledTimes(1)
+    expect(events.some((e) => e.type === "done" || e.type === "error")).toBe(false)
+    expect(history(session).at(-1)).toEqual({ type: "function_call_output", call_id: "call_a", output: "created" })
+  })
+
   it("a send whose content can't be converted reports an error and doesn't wedge the session", async () => {
     const { session, events } = makeSession()
     await session.send([42] as unknown as string)
@@ -1359,12 +1393,32 @@ describe("OpenAiSession failures", () => {
       { type: "text", text: "what's on this receipt?" },
       { type: "image", source: { type: "base64", media_type: "image/heic", data: "AAAA" } },
     ])
-    expect(events.at(-1)).toMatchObject({ type: "error", status: 400, provider: "openai" })
+    expect(events.at(-1)).toMatchObject({ type: "error", status: 400, provider: "openai", rolledBack: true })
     expect(history(session)).toEqual([])
 
     queueTurn({ textDeltas: ["Hi"], status: "completed" })
     await session.send("hello")
     expect(lastCreateCall().input).toEqual([{ role: "user", content: "hello" }])
+  })
+
+  it.each([
+    ["a 429", apiError(429, "Rate limit reached for requests", null, "rate_limit_exceeded")],
+    ["a 5xx", apiError(500, "server error", null)],
+    ["a dropped connection", new Error("network lost")],
+  ])("keeps the question in history after %s, so the next send carries it", async (_, error) => {
+    queueTurn({ status: null, error })
+
+    const { session, events } = makeSession()
+    await session.send("first")
+    expect(events.at(-1)).toMatchObject({ type: "error" })
+    expect(events.at(-1)).not.toHaveProperty("rolledBack")
+
+    queueTurn({ textDeltas: ["ok"], status: "completed" })
+    await session.send("again")
+    expect(lastCreateCall().input).toEqual([
+      { role: "user", content: "first" },
+      { role: "user", content: "again" },
+    ])
   })
 
   it("a failure after a stored reply never rolls history back", async () => {
@@ -1417,6 +1471,26 @@ describe("OpenAiSession failures", () => {
     await session.send("hi")
 
     expect(events.at(-1)).toMatchObject({ type: "error", code: "rateLimited", status: 429, provider: "openai" })
+  })
+
+  it("reports a response that fails mid-stream with rate_limit_exceeded as rateLimited", async () => {
+    queueTurn({ status: null, failure: "Rate limit reached for gpt-6-astra", failureCode: "rate_limit_exceeded" })
+
+    const { session, events } = makeSession()
+    await session.send("hi")
+
+    expect(events.at(-1)).toMatchObject({ type: "error", code: "rateLimited", provider: "openai" })
+    expect(history(session)).toEqual([{ role: "user", content: "hi" }])
+  })
+
+  it("an error while a completed stream drains in the background raises nothing and emits nothing", async () => {
+    queueTurn({ textDeltas: ["visible"], status: "completed", failAfter: new Error("socket closed") })
+
+    const { session, events } = makeSession()
+    await session.send("Hi")
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    expect(events.filter((e) => e.type !== "content")).toEqual([{ type: "done" }])
   })
 
   it("leaves an exhausted-quota 429 as the vendor's billing message", async () => {

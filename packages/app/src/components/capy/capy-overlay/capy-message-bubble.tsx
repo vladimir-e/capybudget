@@ -84,11 +84,12 @@ export function MessageBubble({
   isStreaming: boolean
   onSend: (text: string) => void
 }) {
+  const { t } = useTranslation("capy")
   const isUser = message.role === "user"
   const groups = groupBlocks(message.blocks)
 
   return (
-    <div className="space-y-3">
+    <div className={`space-y-3 ${message.unsent ? "opacity-60" : ""}`}>
       {groups.map((group, gi) => {
         if (group.kind === "followups") {
           return <FollowupChips key={gi} chips={group.chips} onSend={onSend} disabled={isStreaming} />
@@ -120,6 +121,9 @@ export function MessageBubble({
           </div>
         )
       })}
+      {message.unsent && (
+        <p className="text-right text-xs text-muted-foreground">{t("message.notSent")}</p>
+      )}
     </div>
   )
 }
@@ -143,7 +147,7 @@ function ToolGroupCard({
     <div className="rounded-xl bg-muted/40 px-3.5 py-2.5">
       <div className="flex flex-col gap-1.5">
         {blocks.map((block, i) => {
-          const status = shownStatus(block, inProgress && i === blocks.length - 1, inProgress)
+          const status = shownStatus(block, i === blocks.length - 1, inProgress)
           return (
             <div
               key={i}
@@ -162,11 +166,11 @@ function ToolGroupCard({
   )
 }
 
-// Claude CLI blocks carry no status, so their trailing row stands in for
-// the running call.
-function shownStatus(block: ToolActivityBlock, isTrailing: boolean, streaming: boolean): ToolCallStatus {
-  const status = block.status ?? (isTrailing ? "running" : "done")
-  return status === "running" && !streaming ? "done" : status
+// Claude CLI blocks carry no status, so their last row stands in for the
+// running call.
+function shownStatus(block: ToolActivityBlock, isLast: boolean, inProgress: boolean): ToolCallStatus {
+  const status = block.status ?? (isLast ? "running" : "done")
+  return status === "running" && !inProgress ? "done" : status
 }
 
 function ToolStatusIcon({ status }: { status: ToolCallStatus }) {
@@ -182,7 +186,7 @@ function ToolStatusIcon({ status }: { status: ToolCallStatus }) {
     case "done":
       return <Check className="h-3.5 w-3.5 shrink-0 text-brand/80" />
     case "failed":
-      return <X className="h-3.5 w-3.5 shrink-0 text-destructive/70" />
+      return <X className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
   }
 }
 

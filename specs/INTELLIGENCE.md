@@ -60,9 +60,9 @@ Smart Import does not run through the agent loop. It's a code-orchestrated pipel
 | Event | Meaning |
 |---|---|
 | `content` | Full cumulative blocks array for the current user→done cycle (entire agentic loop, across iterations and tool calls). Consumer replaces the trailing assistant message's blocks wholesale on every emit. |
-| `tool-result` | A tool call finished executing. Carries the tool name, the adapter-specific call id, and an `ok` flag. Used by the hook to invalidate caches live, per-call, instead of waiting for `done`. Distinct from the `tool-activity` ContentBlock, which signals the call was *requested*. It fires even after `kill()` for a call that was already running, so a write that lands after New Chat or a provider switch still refreshes the app. |
+| `tool-result` | A tool call finished executing. Carries the tool name, the adapter-specific call id, and an `ok` flag. Used by the hook to invalidate caches live, per-call, instead of waiting for `done`. Distinct from the `tool-activity` ContentBlock, which signals the call was *requested*. It fires even after `kill()` for a call that was already running, so a write that lands after New Chat or a provider switch still refreshes the app. The chat routes events from a session it has since killed or replaced only to that data refresh — they never reach the new conversation, its per-turn bookkeeping, or the import hand-off. |
 | `done` | Cycle complete |
-| `error` | Error message. The API adapters stamp every error with their `provider`. A `code` marks errors the UI words itself (`session.<code>`): `cutOff`, `refused`, `budgetExhausted`, and `rateLimited` |
+| `error` | Error message. The API adapters stamp every error with their `provider`. A `code` marks errors the UI words itself (`session.<code>`): `cutOff`, `refused`, `budgetExhausted`, and `rateLimited`. `rolledBack` marks a failed send taken back out of the model's history (see **Failure** below); the chat marks that question as not sent. |
 
 ### Content Blocks
 
@@ -78,7 +78,7 @@ Smart Import does not run through the agent loop. It's a code-orchestrated pipel
 
 A `BlockRenderer` routes each block to its specialized renderer.
 
-Consecutive `tool-activity` blocks render as one card, one row per call, each marked by its own status: a faint dot while queued, a spinner while running, a check when done, and a quiet cross when the tool failed (`ok: false`). A settled message never spins — a call still running when its turn settled ran to completion. Claude CLI blocks carry no status, so their card marks the trailing row running while the message streams and the rest done.
+Consecutive `tool-activity` blocks render as one card, one row per call, each marked by its own status (`failed` is a tool that reported `ok: false`); the card's visual treatment lives in `FRONTEND_DESIGN.md` (Chat Panel).
 
 ### Streaming Behavior
 
@@ -174,9 +174,9 @@ The Anthropic, OpenAI, and Ollama adapters share one session lifecycle (`AgentSe
 - **Clean finish** — Anthropic `tool_use`, an OpenAI `completed` response carrying function calls, Ollama `tool_calls` (or `stop` carrying calls): the turn is stored whole and its calls run. Anthropic `end_turn` / `stop_sequence`, a call-less OpenAI `completed`, and a call-less Ollama `stop` store the reply and end the cycle with `done`.
 - **Cut off** — every other ending: Anthropic `max_tokens`, `refusal`, `pause_turn`, or an unknown reason; OpenAI `incomplete` (`max_output_tokens` or `content_filter`), a `refusal` content part (which arrives on a `completed` response), or a stream with no terminal event; Ollama `length`, `content_filter`, a `refusal` message (which ends with `stop`), or a stream with no finish reason. Its tool calls never run and are never stored. The turn keeps its text — Anthropic stores the turn up to its last text block before the first `tool_use`, OpenAI the text of the messages streamed before its first function call, as plain assistant messages, with its reasoning items dropped — and with no text it is dropped whole. Thinking blocks are never edited: models with preserved thinking reject a history whose earlier turns were, and truncating from the end leaves the context every kept block was produced in intact. The displayed blocks for that response are replaced with exactly the stored text, so a `[tool_use, text]` response shows nothing. The cycle always ends with an error, so a truncated reply never passes for a finished one: `refused` for an Anthropic `refusal`, an OpenAI or Ollama refusal, or a content filter, `cutOff` for everything else. Calls skipped by the tool-call budget are retracted from the display the same way before the `budgetExhausted` error. `structured()` treats the same endings as errors rather than parsing truncated JSON — a `RefusedError` for a refusal or content filter, a `CutOffError` for everything else; their messages speak to the import flow, its only caller.
 - **Output cap** — 32,000 tokens per response on every client. A model with a lower output limit rejects that with a 400: Anthropic `max_tokens: 32000 > LIMIT`, OpenAI `supports at most LIMIT output tokens` (or `completion tokens`, or `Expected a value <= LIMIT`). The adapter retries the request once at the named limit (8,192 when a cap error names none; a limit below 1,024 is ignored), and only a retry that succeeds makes that cap stick for the rest of the session, `structured()` included. A context-window overflow also names `max_tokens` but is not a cap error — it surfaces as is. Anthropic's `structured()` always streams, since the SDK refuses a non-streaming request with a cap that large.
-- **Stop** — `stop()` cancels the running turn and every send queued behind it; `restart()` does the same before it clears history. It aborts a stream still in flight, and the aborted turn keeps what streamed by the cut-off rule — Anthropic's partial message up to its last text before any `tool_use`, OpenAI's text before its first call, Ollama's text without its calls — with " [stopped by the user]" appended to the stored text so the model knows it was interrupted; the display shows the same text. A stream whose message has already arrived is never aborted (see **Streaming Behavior**). A send queued behind the stopped round, which a second Stop cancels, never reaches the model, so the chat removes its bubble. The tool loop checks for Stop before each call: the running call finishes (its write lands and its `tool-result` fires), the remaining calls get a "not run — stopped" error result, and the round is stored whole, so the model knows exactly what was written. Their cards are retracted from the display the moment Stop lands, and no further content is emitted for the turn. `kill()` answers unrun calls as stopped and emits nothing further except the `tool-result` of the call already running, so the app refreshes once that write lands.
+- **Stop** — `stop()` cancels the running turn and every send queued behind it; `restart()` does the same before it clears history. It aborts a stream still in flight, and the aborted turn keeps what streamed by the cut-off rule — Anthropic's partial message up to its last text before any `tool_use`, OpenAI's text before its first call, Ollama's text without its calls — with " [stopped by the user]" appended to the stored text so the model knows it was interrupted; the display shows the same text. A stream whose message has already arrived is never aborted (see **Streaming Behavior**). A send queued behind the stopped round, which a second Stop cancels, never reaches the model, so the chat removes its bubbles. The tool loop checks for Stop before each call: the running call finishes (its write lands and its `tool-result` fires), the remaining calls get a "not run — stopped" error result, and the round is stored whole, so the model knows exactly what was written. Their cards are retracted from the display the moment Stop lands, and no further content is emitted for the turn. `kill()` answers unrun calls as stopped and emits nothing further except the `tool-result` of the call already running, so the app refreshes once that write lands.
 - **Ordering** — every `send()` and `restart()` runs after the previous one finishes, so a send issued while a stopped round winds down, or a restart issued mid-tool, never touches history the in-flight round is still writing.
-- **Failure** — a request that throws ends the cycle with an `error`. A failure before the model's reply is stored this turn (a 400 for an unsupported or oversized image, an Ollama model without vision) rolls history back to how it was before the send, a merged Anthropic user turn included, so one bad message can't fail every later send. Once a reply is stored, history is append-only — preserved thinking rejects edited history — so a failure later in the tool loop keeps everything before it. A stream that fails mid-reply keeps its text by the cut-off rule, unmarked, and the display shows exactly that text. A 429 surfaces as `rateLimited`, which the chat words as "{provider} is rate-limiting requests right now"; the SDKs already retry before giving up, so the adapters add no retries of their own. OpenAI's exhausted-quota 429 is a billing problem, not a rate limit, and keeps the vendor's message and the billing link.
+- **Failure** — a request that throws ends the cycle with an `error`. Only a request the provider rejected for its content — a 4xx other than 429, such as an unsupported or oversized image or an Ollama model without vision — is rolled back, and only when it fails before the model's reply is stored this turn: history returns to how it was before the send, a merged Anthropic user turn included, so one bad message can't fail every later send, and the error carries `rolledBack` so the chat marks the question as not sent. A 429, a 5xx, or an error with no status (a dropped connection, a stream that fails mid-response) keeps the question in history, matching the bubble still on screen, so a retry arrives with it: the next send lands as a second consecutive user message, which Anthropic merges into the trailing user turn and OpenAI Responses and Ollama Chat Completions accept as is. Once a reply is stored, history is append-only — preserved thinking rejects edited history — so a failure later in the tool loop keeps everything before it. A stream that fails mid-reply keeps its text by the cut-off rule, unmarked, and the display shows exactly that text. A 429, or an OpenAI response that fails mid-stream with `rate_limit_exceeded`, surfaces as `rateLimited`, which the chat words as a rate limit naming the provider; the SDKs already retry before giving up, so the adapters add no retries of their own. Ollama's usage caps answer with a 429 too (a plain-string error body), so on Ollama an exhausted usage cap reads as a rate limit. OpenAI's exhausted-quota 429 is a billing problem, not a rate limit, and keeps the vendor's message and the billing link.
 - **Self-repair** — before a user message is appended, a trailing assistant turn whose calls lack replies gets error replies for them (Anthropic `is_error` `tool_result` blocks, OpenAI `function_call_output` items, Ollama `tool` messages). Every error result — failed, stopped, budget-exhausted, unanswered — carries `is_error` on Anthropic.
 
 All adapters share `buildRenderToolMap()` from `@capybudget/intelligence` for the render-tool → ContentBlock contract. Adding a new render tool means defining it once in `RENDER_TOOL_DEFS` plus its mapping in `render-map.ts`; every adapter picks it up automatically.
@@ -274,13 +274,15 @@ those sessions touch the keychain zero times. Saving settings before a key has
 loaded preserves it — only an explicit clear deletes it — and a load that waited
 on an OS prompt never overwrites settings or keys saved in the meantime.
 
-Saving or clearing a key bumps a `secretsVersion` counter (so does the dev reset
-that drops loaded keys), and the counter joins the chat session's signature: the
-next send runs on a session built with the new key, while the key itself never
-enters the signature. A chat send that lands while its key is still loading
-waits for the load; Stop or New Chat in the meantime cancels it and removes its
-bubble. A dismissed heads-up and a failed keychain read each end the turn with
-their own copy, never "not configured".
+Saving or clearing a key bumps that provider's `secretsVersion` counter (the dev
+reset that drops loaded keys bumps both), and the active provider's counter joins
+the chat session's signature: the next send runs on a session built with the new
+key, while the key itself never enters the signature, and a key saved for another
+provider leaves the chat alone. A chat send that lands while its key is still
+loading waits for the load; Stop or New Chat in the meantime cancels it, closes a
+heads-up it is waiting behind, and removes its bubbles. A dismissed heads-up and a
+failed keychain read each end the turn with their own copy, never the
+unconfigured one — chosen by how that send's own load attempt ended.
 
 The **first-ever** keychain read of an install is gated behind a one-time
 heads-up (a small dialog in Capy's visual language, "Allow" its only action),
@@ -321,7 +323,7 @@ When Capy is not configured (`isConfigured` false), the overlay shows an empty-s
 
 Smart Import needs the structured-output primitive, which the Anthropic, OpenAI, and Ollama adapters implement. `canImport(provider)` is the single gate — true for `anthropic`, `openai`, and `ollama`, false for `claude-cli` and `null`. `importReady(config)` adds the "configured enough to run" check: a chosen model for every provider, plus a key for the API providers. The Import tab shows an offline CTA when it's false, and the chat `start_import` tool returns switch-provider guidance.
 
-The Intelligence section also hosts a chat-instructions editor for `capy-instructions.md` (see Custom Instructions). The same file is editable from the Capy overlay; an edit starts a fresh chat, so it applies from the next send. The web demo can't store an AI provider, so it renders the provider list disabled behind a desktop-only notice and omits the per-provider config and the chat-instructions editor; Categories management stays fully functional.
+The Intelligence section also hosts a chat-instructions editor for `capy-instructions.md` (see Custom Instructions). The same file is editable from the Capy overlay; an edit applies to new chats (see Custom Instructions). The web demo can't store an AI provider, so it renders the provider list disabled behind a desktop-only notice and omits the per-provider config and the chat-instructions editor; Categories management stays fully functional.
 
 ## Context Enrichment
 
@@ -367,7 +369,7 @@ Users can write custom instructions for the chat assistant in `capy-instructions
 {contents of capy-instructions.md}
 ```
 
-Import sessions read a separate `import-instructions.md` from the same folder — the chat-tuning instructions ("answer in fewer words", "always show charts") rarely overlap with import-tuning instructions ("treat ATM withdrawals as transfers to cash"), so the two surfaces are kept distinct. Each file is user-provided. A chat-instructions edit rebuilds the chat session — a fresh chat, like a provider or model switch — so it applies from the next send; import instructions apply from the next import run.
+Import sessions read a separate `import-instructions.md` from the same folder — the chat-tuning instructions ("answer in fewer words", "always show charts") rarely overlap with import-tuning instructions ("treat ATM withdrawals as transfers to cash"), so the two surfaces are kept distinct. Each file is user-provided. Chat instructions are read when a session is created, so an edit applies from the next New Chat and never wipes the conversation on screen; an empty chat rebuilds right away. While a chat is open, the overlay's instructions dialog says the edit applies to new chats and offers to start one. Import instructions apply from the next import run.
 
 ## Custom Commands
 
@@ -399,14 +401,14 @@ All these calls share one short import system prompt (`import/system-prompt.ts`)
 
 ## Tool-Call Budget per Reply
 
-Each reply may dispatch at most **100 tool calls** (`REPLY_TOOL_CALL_BUDGET`), a runaway-loop backstop. The count resets on every send. When a reply exceeds it, the session ends that turn cleanly with a `budgetExhausted` error ("Capy reached its limit of tool calls for this reply. Send a message to continue."), and the next send starts with a fresh budget.
+Each reply may dispatch at most **100 tool calls** (`REPLY_TOOL_CALL_BUDGET`), a runaway-loop backstop. The count resets on every send. When a reply exceeds it, the session ends that turn cleanly with a `budgetExhausted` error, which the chat words as a per-reply limit the next message lifts, and the next send starts with a fresh budget.
 
 This is a hard backstop on the chat agent loop, not the normal path. A well-formed answer converges in a handful of calls. The cap exists to bound the failure mode when something goes wrong. (Smart Import is not an agent loop — its stateless `structured()` calls make no tool calls and don't draw on this budget.)
 
 Enforcement varies by adapter:
 
 - **Anthropic / OpenAI / Ollama** count tool calls inline as they dispatch them. When the cap trips mid-turn, remaining calls in the same turn receive a budget-exhausted error result (so the API doesn't see dangling calls) and the agentic loop exits without making the next request.
-- **Claude CLI** passes the cap as `--max-turns` at spawn, which the CLI applies to each send; it ends the run with `error_max_turns` when it trips.
+- **Claude CLI** passes the cap as `--max-turns` at spawn, which the CLI applies to each send; it ends the run with `error_max_turns` when it trips. The CLI counts model turns, not tool calls — a turn may issue several calls — so this bound is looser than the API adapters'.
 
 ## Per-provider Stop / Restart
 

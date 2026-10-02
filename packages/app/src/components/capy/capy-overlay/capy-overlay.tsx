@@ -601,6 +601,7 @@ export function CapyOverlay({
         onOpenChange={setInstructionsOpen}
         instructions={instructions}
         onSave={onSaveInstructions}
+        onStartNewChat={messages.length > 0 ? onNewChat : undefined}
       />
     </aside>
   )

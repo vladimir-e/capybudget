@@ -105,10 +105,10 @@ interface IntelligenceStore {
    *  present; `ensureSecrets` can be re-run to recover. A provider change
    *  clears it. */
   secretsError: boolean
-  /** Bumped whenever a key is saved, cleared, or dropped from memory, so a
-   *  session built on the old key rebuilds without the key itself ever
-   *  leaving the store. */
-  secretsVersion: number
+  /** Per provider, bumped whenever its key is saved, cleared, or dropped from
+   *  memory, so a session built on the old key rebuilds without the key itself
+   *  ever leaving the store. */
+  secretsVersion: Record<SecretProvider, number>
 
   /** Load the plaintext config from disk. Idempotent — repeat calls are
    *  no-ops. Never touches the keychain. */
@@ -117,9 +117,9 @@ interface IntelligenceStore {
   /** Ensure the current provider's secret is merged into `config`, reading the
    *  keychain while its key is present but unloaded. The first-ever read shows
    *  the heads-up and waits for the user to allow it; dismissing leaves secrets
-   *  unloaded. Resolves when secrets are in memory (or there were none to load).
-   *  No-op for non-API providers. */
-  ensureSecrets(): Promise<void>
+   *  unloaded. Resolves with how this attempt ended — `ready` when secrets are
+   *  in memory (or there were none to load). No-op for non-API providers. */
+  ensureSecrets(): Promise<SecretsOutcome>
 
   /** Heads-up "Allow": mark it seen and let the pending load proceed. */
   confirmSecretGate(): void
@@ -177,6 +177,10 @@ function withSecretsDropped(config: IntelligenceConfig): IntelligenceConfig {
   return { ...config, anthropic: drop("anthropic"), openai: drop("openai") }
 }
 
+export type SecretsOutcome = "ready" | "dismissed" | "failed"
+
+const NO_KEY_CHANGES: Record<SecretProvider, number> = { anthropic: 0, openai: 0 }
+
 export function needsSecrets(config: IntelligenceConfig): boolean {
   const p = config.provider
   return (p === "anthropic" || p === "openai") && isUnloaded(config[p])
@@ -184,8 +188,12 @@ export function needsSecrets(config: IntelligenceConfig): boolean {
 
 let backend: SecretConfigBackend | null = null
 let hydratePromise: Promise<void> | null = null
-let secretsPromise: Promise<void> | null = null
+let secretsPromise: Promise<SecretsOutcome> | null = null
 let gateResolve: ((allowed: boolean) => void) | null = null
+
+function bumped(versions: Record<SecretProvider, number>, provider: SecretProvider): Record<SecretProvider, number> {
+  return { ...versions, [provider]: versions[provider] + 1 }
+}
 
 async function loadBackend(): Promise<SecretConfigBackend> {
   if (!backend) backend = await backendLoader()
@@ -203,7 +211,7 @@ export const useIntelligenceStore = create<IntelligenceStore>((set, get) => ({
   secretGateSeen: false,
   secretGateOpen: false,
   secretsError: false,
-  secretsVersion: 0,
+  secretsVersion: NO_KEY_CHANGES,
 
   async hydrate() {
     if (get().hydrated) return
@@ -238,15 +246,15 @@ export const useIntelligenceStore = create<IntelligenceStore>((set, get) => ({
   },
 
   async ensureSecrets() {
-    if (!needsSecrets(get().config)) return
+    if (!needsSecrets(get().config)) return "ready"
     if (!secretsPromise) {
-      secretsPromise = (async () => {
+      secretsPromise = (async (): Promise<SecretsOutcome> => {
         if (!get().secretGateSeen) {
           const allowed = await new Promise<boolean>((resolve) => {
             gateResolve = resolve
             set({ secretGateOpen: true })
           })
-          if (!allowed) return
+          if (!allowed) return "dismissed"
         }
         const b = await loadBackend()
         let secrets: Partial<ProviderSecrets>
@@ -257,12 +265,12 @@ export const useIntelligenceStore = create<IntelligenceStore>((set, get) => ({
           // mis-report a configured key as absent and never retry) — surface a
           // retryable error; the next `ensureSecrets` re-reads.
           set({ secretsError: true })
-          return
+          return "failed"
         }
-        set((s) => {
-          const config = mergeSecrets(s.config, secrets)
-          return { config, secretsError: needsSecrets(config) }
-        })
+        const config = mergeSecrets(get().config, secrets)
+        const unresolved = needsSecrets(config)
+        set({ config, secretsError: unresolved })
+        return unresolved ? "failed" : "ready"
       })().finally(() => {
         secretsPromise = null
       })
@@ -288,7 +296,7 @@ export const useIntelligenceStore = create<IntelligenceStore>((set, get) => ({
       config: withSecretsDropped(s.config),
       secretGateSeen: false,
       secretsError: false,
-      secretsVersion: s.secretsVersion + 1,
+      secretsVersion: { anthropic: s.secretsVersion.anthropic + 1, openai: s.secretsVersion.openai + 1 },
     }))
     void loadBackend().then((b) => b.clearGateSeen())
   },
@@ -303,7 +311,7 @@ export const useIntelligenceStore = create<IntelligenceStore>((set, get) => ({
     const apiKey = key.trim()
     const cur = get().config
     const next = { ...cur, anthropic: { ...cur.anthropic, apiKey, keyPresent: Boolean(apiKey) } }
-    set((s) => ({ config: next, secretsError: false, secretsVersion: s.secretsVersion + 1 }))
+    set((s) => ({ config: next, secretsError: false, secretsVersion: bumped(s.secretsVersion, "anthropic") }))
     void persist(next)
   },
 
@@ -318,7 +326,7 @@ export const useIntelligenceStore = create<IntelligenceStore>((set, get) => ({
     const apiKey = key.trim()
     const cur = get().config
     const next = { ...cur, openai: { ...cur.openai, apiKey, keyPresent: Boolean(apiKey) } }
-    set((s) => ({ config: next, secretsError: false, secretsVersion: s.secretsVersion + 1 }))
+    set((s) => ({ config: next, secretsError: false, secretsVersion: bumped(s.secretsVersion, "openai") }))
     void persist(next)
   },
 
@@ -366,6 +374,6 @@ export function _resetIntelligenceStoreForTests(): void {
     secretGateSeen: false,
     secretGateOpen: false,
     secretsError: false,
-    secretsVersion: 0,
+    secretsVersion: NO_KEY_CHANGES,
   })
 }

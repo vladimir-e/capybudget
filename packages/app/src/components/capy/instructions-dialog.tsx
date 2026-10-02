@@ -15,6 +15,7 @@ interface InstructionsDialogProps {
   onOpenChange: (open: boolean) => void
   instructions: string
   onSave: (text: string) => Promise<void>
+  onStartNewChat?: () => void
 }
 
 export function InstructionsDialog({
@@ -22,6 +23,7 @@ export function InstructionsDialog({
   onOpenChange,
   instructions,
   onSave,
+  onStartNewChat,
 }: InstructionsDialogProps) {
   const { t } = useTranslation(["capy", "common"])
   const [draft, setDraft] = useState(instructions)
@@ -31,17 +33,18 @@ export function InstructionsDialog({
     if (open) setDraft(instructions)
   }, [open, instructions])
 
-  const handleSave = async () => {
+  const hasChanges = draft !== instructions
+
+  const save = async (then?: () => void) => {
     setSaving(true)
     try {
-      await onSave(draft)
+      if (hasChanges) await onSave(draft)
+      then?.()
       onOpenChange(false)
     } finally {
       setSaving(false)
     }
   }
-
-  const hasChanges = draft !== instructions
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -63,13 +66,27 @@ export function InstructionsDialog({
 
         <DialogFooter>
           <Button
-            onClick={handleSave}
+            onClick={() => void save()}
             disabled={!hasChanges || saving}
             size="sm"
           >
             {saving ? t("common:actions.saving") : t("common:actions.save")}
           </Button>
         </DialogFooter>
+
+        {onStartNewChat && (
+          <p className="text-right text-xs text-muted-foreground">
+            {t("instructionsDialog.appliesToNewChats")}{" "}
+            <button
+              type="button"
+              onClick={() => void save(onStartNewChat)}
+              disabled={saving}
+              className="action-link cursor-pointer"
+            >
+              {t("instructionsDialog.startNewChat")}
+            </button>
+          </p>
+        )}
       </DialogContent>
     </Dialog>
   )

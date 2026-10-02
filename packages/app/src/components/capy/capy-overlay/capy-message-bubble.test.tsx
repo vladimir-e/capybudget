@@ -29,6 +29,18 @@ describe("MessageBubble tool card", () => {
     ).toEqual(["done"])
   })
 
+  it("keeps the faint dot on a call that never ran, once the message has settled", () => {
+    expect(
+      statuses(
+        [
+          { type: "tool-activity", tool: "create_transaction", status: "failed" },
+          { type: "tool-activity", tool: "list_accounts", status: "pending" },
+        ],
+        false,
+      ),
+    ).toEqual(["failed", "pending"])
+  })
+
   it("falls back to position for status-less Claude CLI blocks", () => {
     const blocks: ContentBlock[] = [
       { type: "tool-activity", tool: "list_accounts" },
@@ -36,5 +48,13 @@ describe("MessageBubble tool card", () => {
     ]
     expect(statuses(blocks, true)).toEqual(["done", "running"])
     expect(statuses(blocks, false)).toEqual(["done", "done"])
+  })
+})
+
+describe("MessageBubble unsent question", () => {
+  it("marks a question the model never kept as not sent", () => {
+    const message: ChatMessage = { id: "u", role: "user", blocks: [{ type: "text", content: "hi" }], unsent: true }
+    const { getByText } = render(<MessageBubble message={message} isStreaming={false} onSend={() => {}} />)
+    expect(getByText("Not sent")).toBeTruthy()
   })
 })

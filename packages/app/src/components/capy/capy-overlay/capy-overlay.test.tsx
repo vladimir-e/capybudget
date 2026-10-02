@@ -398,6 +398,37 @@ describe("CapyOverlay click-through behavior", () => {
     await user.click(screen.getByRole("button", { name: /New chat/i }))
     expect(onNewChat).toHaveBeenCalledTimes(1)
   })
+
+  it("tells an active chat that instructions apply to new chats, with a way to start one", async () => {
+    const user = userEvent.setup()
+    const onNewChat = vi.fn()
+    useIntelligenceStore.setState({
+      hydrated: true,
+      config: { ...DEFAULT_INTELLIGENCE_CONFIG, provider: "claude-cli" },
+    })
+    const messages: ChatMessage[] = [
+      { id: "m1", role: "user", blocks: [{ type: "text", content: "hi" }] },
+    ]
+    await mountOverlay({ messages, onNewChat })
+
+    await user.click(screen.getByRole("button", { name: "Custom instructions" }))
+    expect(await screen.findByText(/Applies to new chats/)).toBeInTheDocument()
+    await user.click(screen.getByRole("button", { name: "Start new chat" }))
+    expect(onNewChat).toHaveBeenCalledTimes(1)
+  })
+
+  it("says nothing about new chats when the chat is empty", async () => {
+    const user = userEvent.setup()
+    useIntelligenceStore.setState({
+      hydrated: true,
+      config: { ...DEFAULT_INTELLIGENCE_CONFIG, provider: "claude-cli" },
+    })
+    await mountOverlay()
+
+    await user.click(screen.getByRole("button", { name: "Custom instructions" }))
+    await screen.findByRole("dialog")
+    expect(screen.queryByText(/Applies to new chats/)).not.toBeInTheDocument()
+  })
 })
 
 describe("CapyOverlay file attachments", () => {

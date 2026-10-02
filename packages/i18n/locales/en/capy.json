@@ -27,6 +27,9 @@
     "newLineHint": "Shift + Enter for new line"
   },
   "thinking": "Thinking...",
+  "message": {
+    "notSent": "Not sent"
+  },
   "jumpToLatest": "Scroll to latest",
   "chart": {
     "total": "total"
@@ -71,7 +74,9 @@
   "instructionsDialog": {
     "title": "Custom Instructions",
     "description": "Help Capy understand your financial situation. Describe common patterns, account purposes, or categorization preferences.",
-    "placeholder": "e.g. I use my Chase card for daily expenses.\nWhole Foods and Trader Joe's are groceries.\nVenmo transfers to Sarah are rent splits."
+    "placeholder": "e.g. I use my Chase card for daily expenses.\nWhole Foods and Trader Joe's are groceries.\nVenmo transfers to Sarah are rent splits.",
+    "appliesToNewChats": "Applies to new chats.",
+    "startNewChat": "Start new chat"
   },
   "unconfigured": {
     "title": "Set up your AI assistant",

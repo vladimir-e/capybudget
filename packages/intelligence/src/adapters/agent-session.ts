@@ -1,5 +1,5 @@
 import { RENDER_FOLLOWUPS_TOOL_NAME } from "../render-map"
-import { extractErrorMessage, isRateLimited } from "../error-message"
+import { extractErrorMessage, isRateLimited, isRejectedRequest } from "../error-message"
 import { runTool, REPLY_TOOL_CALL_BUDGET } from "../tools"
 import {
   BUDGET_EXHAUSTED_RESULT,
@@ -171,8 +171,9 @@ export abstract class AgentSession<Message> implements CapySession {
       this.alive = true
       end = outcomeEvent(await this.runAgenticLoop(display))
     } catch (err) {
-      if (!this.replyStored && !this.stopped) rollback()
-      end = failureEvent(err)
+      const rolledBack = !this.replyStored && !this.stopped && isRejectedRequest(err)
+      if (rolledBack) rollback()
+      end = failureEvent(err, rolledBack)
     } finally {
       this.turnAttachments = []
       this.closeRequest()
@@ -233,9 +234,13 @@ export abstract class AgentSession<Message> implements CapySession {
   }
 }
 
-function failureEvent(err: unknown): StreamEvent {
+function failureEvent(err: unknown, rolledBack: boolean): StreamEvent {
   const { message, status } = extractErrorMessage(err)
-  return isRateLimited(err)
-    ? { type: "error", code: "rateLimited", message, status }
-    : { type: "error", message, status }
+  return {
+    type: "error",
+    message,
+    status,
+    ...(isRateLimited(err) ? { code: "rateLimited" as const } : {}),
+    ...(rolledBack ? { rolledBack } : {}),
+  }
 }

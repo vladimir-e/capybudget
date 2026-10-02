@@ -446,6 +446,7 @@ describe("AnthropicSession", () => {
       message: "Your credit balance is too low to access the Anthropic API.",
       status: 400,
       provider: "anthropic",
+      rolledBack: true,
     })
   })
 
@@ -1646,7 +1647,7 @@ describe("AnthropicSession failures", () => {
       { type: "text", text: "what's on this receipt?" },
       { type: "image", source: { type: "base64", media_type: "image/png", data: "AAAA" } },
     ])
-    expect(events.at(-1)).toMatchObject({ type: "error", status: 400, provider: "anthropic" })
+    expect(events.at(-1)).toMatchObject({ type: "error", status: 400, provider: "anthropic", rolledBack: true })
     expect(history(session)).toEqual([])
 
     queueTurn({ textDeltas: ["Hi"], stop_reason: "end_turn" })
@@ -1671,6 +1672,31 @@ describe("AnthropicSession failures", () => {
     queueTurn({ textDeltas: ["Reply"], stop_reason: "end_turn" })
     await session.send("Second")
     expect(JSON.stringify(lastStreamCall().messages)).not.toContain("Poisoned")
+  })
+
+  it.each([
+    ["a 429", apiError(429, "Number of request tokens has exceeded your rate limit")],
+    ["a 5xx", apiError(529, "Overloaded")],
+    ["a dropped connection", new Error("network lost")],
+  ])("keeps the question in history after %s, merging the next send into it", async (_, error) => {
+    queueTurn({ stop_reason: null, error })
+
+    const { session, events } = makeSession()
+    await session.send("first")
+    expect(events.at(-1)).toMatchObject({ type: "error" })
+    expect(events.at(-1)).not.toHaveProperty("rolledBack")
+
+    queueTurn({ textDeltas: ["ok"], stop_reason: "end_turn" })
+    await session.send("again")
+    expect(lastStreamCall().messages).toEqual([
+      {
+        role: "user",
+        content: [
+          { type: "text", text: "first" },
+          { type: "text", text: "again" },
+        ],
+      },
+    ])
   })
 
   it("a failure after a stored reply never rolls history back", async () => {

@@ -184,6 +184,29 @@ describe("useIntelligenceStore.ensureSecrets", () => {
     expect(useIntelligenceStore.getState().config.anthropic.apiKey).toBe("sk-typed")
   })
 
+  it("resolves with how this attempt ended: ready, dismissed, or failed", async () => {
+    const backend = makeBackend(
+      stored({ provider: "anthropic", anthropic: { apiKey: "", model: "m", keyPresent: true } }, false),
+      { anthropic: "sk-loaded", openai: "" },
+    )
+    _setStoreLoaderForTests(async () => backend)
+    await useIntelligenceStore.getState().hydrate()
+
+    const dismissed = useIntelligenceStore.getState().ensureSecrets()
+    await vi.waitFor(() => expect(useIntelligenceStore.getState().secretGateOpen).toBe(true))
+    useIntelligenceStore.getState().dismissSecretGate()
+    expect(await dismissed).toBe("dismissed")
+
+    backend.loadSecrets.mockRejectedValueOnce(new Error("denied"))
+    const failed = useIntelligenceStore.getState().ensureSecrets()
+    await vi.waitFor(() => expect(useIntelligenceStore.getState().secretGateOpen).toBe(true))
+    useIntelligenceStore.getState().confirmSecretGate()
+    expect(await failed).toBe("failed")
+
+    expect(await useIntelligenceStore.getState().ensureSecrets()).toBe("ready")
+    expect(await useIntelligenceStore.getState().ensureSecrets()).toBe("ready")
+  })
+
   it("never touches the keychain for a non-API provider", async () => {
     const backend = makeBackend(stored({ provider: "claude-cli" }, false))
     _setStoreLoaderForTests(async () => backend)
@@ -384,23 +407,23 @@ describe("useIntelligenceStore dev gate controls", () => {
 })
 
 describe("useIntelligenceStore setters", () => {
-  it("bumps secretsVersion when a key is saved, cleared, or dropped — and not on other edits", () => {
+  it("bumps a provider's secretsVersion when its key is saved, cleared, or dropped — and not on other edits", () => {
     _setStoreLoaderForTests(async () => makeBackend(null))
     const version = () => useIntelligenceStore.getState().secretsVersion
     const s = useIntelligenceStore.getState()
 
     s.setAnthropicKey("sk-1")
-    expect(version()).toBe(1)
+    expect(version()).toEqual({ anthropic: 1, openai: 0 })
     s.setOpenAiKey("sk-2")
-    expect(version()).toBe(2)
+    expect(version()).toEqual({ anthropic: 1, openai: 1 })
     s.setOpenAiKey("")
-    expect(version()).toBe(3)
+    expect(version()).toEqual({ anthropic: 1, openai: 2 })
     s.resetSecretGate()
-    expect(version()).toBe(4)
+    expect(version()).toEqual({ anthropic: 2, openai: 3 })
 
     s.setAnthropicModel("claude-opus-5")
     s.setProvider("openai")
-    expect(version()).toBe(4)
+    expect(version()).toEqual({ anthropic: 2, openai: 3 })
   })
 
   it("setProvider updates state and persists", () => {

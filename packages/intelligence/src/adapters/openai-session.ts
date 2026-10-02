@@ -42,14 +42,18 @@ async function readStream(
         response = event.response
         return true
       case "response.failed":
-        throw new Error(event.response.error?.message ?? "The response failed.")
+        throw streamError(event.response.error?.message ?? "The response failed.", event.response.error?.code)
       case "error":
-        throw new Error(event.message)
+        throw streamError(event.message, event.code)
       default:
         return false
     }
   })
   return response
+}
+
+function streamError(message: string, code: string | null | undefined): Error {
+  return Object.assign(new Error(message), { code })
 }
 
 function endingOf(response: ModelResponse | null): Ending {

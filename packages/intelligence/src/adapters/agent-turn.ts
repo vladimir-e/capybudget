@@ -63,7 +63,8 @@ export async function readToTerminal<T>(stream: AsyncIterable<T>, handle: (event
 
 async function drain(events: AsyncIterator<unknown>): Promise<void> {
   try {
-    while (!(await events.next()).done) continue
+    let next = await events.next()
+    while (!next.done) next = await events.next()
   } catch {
     return
   }

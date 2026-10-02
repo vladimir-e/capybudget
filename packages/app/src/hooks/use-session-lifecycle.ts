@@ -39,6 +39,8 @@ export interface SessionLifecycleOptions {
 export interface StreamEventContext<TOpts> {
   setIsStreaming: (value: boolean) => void;
   optsRef: React.RefObject<TOpts>;
+  /** False for events from a session that has since been killed or replaced. */
+  current: boolean;
 }
 
 export interface UseSessionLifecycleReturn<TOpts extends SessionLifecycleOptions> {
@@ -98,14 +100,11 @@ export function useSessionLifecycle<TOpts extends SessionLifecycleOptions>(
     onExitRef.current = onExit;
   });
 
-  // Stable context object passed to the stream event callback
-  const streamEventCtxRef = useRef<StreamEventContext<TOpts>>({ setIsStreaming, optsRef });
-
   const handleStreamEvent = useCallback(
-    (event: StreamEvent) => {
-      onStreamEventRef.current(event, streamEventCtxRef.current);
+    (event: StreamEvent, current: boolean) => {
+      onStreamEventRef.current(event, { setIsStreaming, optsRef, current });
     },
-    [],
+    [setIsStreaming],
   );
 
   const handleExit = useCallback(() => {
@@ -126,7 +125,8 @@ export function useSessionLifecycle<TOpts extends SessionLifecycleOptions>(
     (systemPrompt: string): CapySession | null => {
       sessionRef.current?.kill();
       const o = optsRef.current;
-      const session = createSession({
+      let session: CapySession | null = null;
+      session = createSession({
         budgetPath: o.budgetPath,
         mcpServerPath: o.mcpServerPath,
         systemPrompt,
@@ -136,7 +136,7 @@ export function useSessionLifecycle<TOpts extends SessionLifecycleOptions>(
         // so a manual rate edit reaches the running session's next tool call
         // without a rebuild. `o` is a snapshot; `optsRef.current` stays fresh.
         getCurrencies: () => optsRef.current.currencies,
-        onEvent: handleStreamEvent,
+        onEvent: (event) => handleStreamEvent(event, session !== null && sessionRef.current === session),
         onExit: handleExit,
         repo: o.repo,
         fileAdapter: o.fileAdapter,
@@ -155,10 +155,8 @@ export function useSessionLifecycle<TOpts extends SessionLifecycleOptions>(
   );
 
   const dispatchStreamEvent = useCallback(
-    (event: StreamEvent) => {
-      onStreamEventRef.current(event, streamEventCtxRef.current);
-    },
-    [],
+    (event: StreamEvent) => handleStreamEvent(event, true),
+    [handleStreamEvent],
   );
 
   const cancel = useCallback(() => {

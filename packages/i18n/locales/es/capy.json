@@ -27,6 +27,9 @@
     "newLineHint": "Shift + Enter para salto de línea"
   },
   "thinking": "Pensando...",
+  "message": {
+    "notSent": "No enviado"
+  },
   "jumpToLatest": "Ir al último mensaje",
   "chart": {
     "total": "total"
@@ -71,7 +74,9 @@
   "instructionsDialog": {
     "title": "Instrucciones personalizadas",
     "description": "Ayuda a Capy a entender tu situación financiera. Describe tus patrones habituales, para qué usas cada cuenta o cómo prefieres categorizar.",
-    "placeholder": "p. ej. Uso mi tarjeta Chase para los gastos diarios.\nWhole Foods y Trader Joe's son alimentación.\nLas transferencias por Venmo a Sarah son su parte del alquiler."
+    "placeholder": "p. ej. Uso mi tarjeta Chase para los gastos diarios.\nWhole Foods y Trader Joe's son alimentación.\nLas transferencias por Venmo a Sarah son su parte del alquiler.",
+    "appliesToNewChats": "Se aplica a los chats nuevos.",
+    "startNewChat": "Empezar un chat nuevo"
   },
   "unconfigured": {
     "title": "Configura tu asistente con IA",
