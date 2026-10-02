@@ -9,7 +9,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import type { ModelOption } from "@/lib/model-option"
+import type { ModelOption } from "@capybudget/intelligence"
 
 interface ModelFieldProps {
   id: string

@@ -3,14 +3,13 @@
  *
  * The structured path targets the in-process API adapters (Anthropic, OpenAI,
  * Ollama), which implement `StructuredSession` alongside `CapySession`. The
- * Claude Code CLI provider's structured call is deferred (per the redesign
- * spec), so it has no `structured()` — this factory returns `null` for it, and
- * Unit 3 gates the UI on {@link canImport}.
+ * Claude Code CLI has no `structured()`, so this factory returns `null` for it
+ * and the UI gates on {@link canImport}.
  *
  * Distinct from `createIntelligenceSession`: that builds the chat/agent
  * `CapySession`; this builds the import-only structured session with an
- * import-specific system prompt and no agent loop. Both share the
- * app-injected {@link AdapterConstructors} so the package stays platform-free.
+ * import-specific system prompt and no agent loop. Both take the adapter map
+ * injected by the caller (`API_ADAPTERS`), which keeps this module SDK-free.
  */
 
 import {
@@ -18,14 +17,15 @@ import {
   hasProviderKey,
   ollamaOrigin,
   resolveApiTarget,
+  type ApiProvider,
   type IntelligenceConfig,
 } from "../config";
-import type { AdapterConstructors } from "../factory";
+import type { ApiAdapterOptions } from "../factory";
 import type { StructuredSession } from "../structured";
 import type { BudgetRepository, FileAdapter } from "@capybudget/persistence";
 
-/** Whether a provider can run the structured import pipeline. The CLI provider
- *  is deferred; `null` means AI is off. */
+/** Whether a provider can run the structured import pipeline. The CLI has no
+ *  structured call; `null` means AI is off. */
 export function canImport(provider: IntelligenceConfig["provider"]): boolean {
   return provider === "anthropic" || provider === "openai" || provider === "ollama";
 }
@@ -90,9 +90,13 @@ export async function ollamaReadsImages(baseUrl: string, model: string, signal?:
   }
 }
 
+export type StructuredAdapterConstructors = Partial<
+  Record<ApiProvider, (opts: ApiAdapterOptions) => StructuredSession>
+>;
+
 export interface StructuredImportSessionDeps {
   config: IntelligenceConfig;
-  adapters: AdapterConstructors;
+  adapters: StructuredAdapterConstructors;
   options: {
     budgetPath: string;
     systemPrompt: string;
@@ -108,9 +112,8 @@ export interface StructuredImportSessionDeps {
  * session's `structured()` uses the import system prompt and the provider's
  * configured model.
  *
- * The API adapter implements both interfaces; only `structured()` is exercised
- * here. `onEvent` is a no-op — the adapter ctor requires it for its agent-loop
- * path, which the structured calls never take.
+ * `onEvent` is a no-op — the adapter ctor requires it for its agent-loop path,
+ * which the structured calls never take.
  */
 export function createStructuredImportSession(
   deps: StructuredImportSessionDeps,
@@ -121,7 +124,7 @@ export function createStructuredImportSession(
   const ctor = adapters[target.provider];
   if (!ctor) return null;
 
-  const session = ctor({
+  return ctor({
     budgetPath: options.budgetPath,
     systemPrompt: options.systemPrompt,
     apiKey: target.apiKey,
@@ -132,11 +135,4 @@ export function createStructuredImportSession(
     fileAdapter: options.fileAdapter,
     currency: options.currency,
   });
-
-  // The API adapters implement StructuredSession; verify the surface is
-  // actually there before narrowing, so a provider that can't do structured
-  // calls fails honestly at the gate rather than deep inside Normalizing.
-  const candidate = session as unknown as Partial<StructuredSession>;
-  if (typeof candidate.structured !== "function") return null;
-  return candidate as StructuredSession;
 }

@@ -1,9 +1,8 @@
 import OpenAI from "openai"
-import { getToolDefinitions } from "../tools"
 import { AgentSession } from "./agent-session"
+import { openAiClient } from "./clients"
 import { UNANSWERED_RESULT, parseToolArguments, readToTerminal, toolCallBlock } from "./agent-turn"
 import type { LoopOutcome, TurnDisplay } from "./agent-turn"
-import type { ApiAdapterOptions } from "../factory"
 import type { MessageContent, SessionProvider } from "../types"
 import { STRUCTURED_MAX_RETRIES, UnreachableError, assertStructuredFinished, parseStructured, requestSignal, schemaBody } from "../structured"
 import type { Ending, JsonSchema, StructuredCallOptions, StructuredMessage, StructuredSession } from "../structured"
@@ -96,26 +95,15 @@ function toResponsesUserContent(content: MessageContent): string | OpenAI.Respon
 }
 
 export class OpenAiSession extends AgentSession<InputItem> implements StructuredSession {
-  private readonly client: OpenAI
-  private readonly tools: OpenAI.Responses.FunctionTool[]
+  private readonly client = openAiClient(this.opts.apiKey)
+  private readonly tools: OpenAI.Responses.FunctionTool[] = this.toolDefinitions.map((t) => ({
+    type: "function",
+    name: t.name,
+    description: t.description,
+    parameters: t.inputSchema as Record<string, unknown>,
+    strict: false,
+  }))
   private replayReasoning = true
-
-  constructor(opts: ApiAdapterOptions) {
-    super(opts)
-    this.tools = getToolDefinitions({ pdfSupported: opts.pdfSupported }).map((t) => ({
-      type: "function",
-      name: t.name,
-      description: t.description,
-      parameters: t.inputSchema as Record<string, unknown>,
-      strict: false,
-    }))
-    this.client = new OpenAI({
-      apiKey: opts.apiKey,
-      baseURL: opts.baseUrl,
-      // Tauri webview — key lives on disk, not bundled into a public app.
-      dangerouslyAllowBrowser: true,
-    })
-  }
 
   protected get providerId(): SessionProvider {
     return "openai"

@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 import { cleanup, render, screen } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { ModelField } from "./model-field"
-import type { ModelOption } from "@/lib/model-option"
+import type { ModelOption } from "@capybudget/intelligence"
 
 const MODELS: ModelOption[] = [
   { value: "alpha", label: "Alpha" },

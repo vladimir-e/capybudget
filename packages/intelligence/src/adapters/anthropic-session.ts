@@ -1,15 +1,17 @@
 import Anthropic from "@anthropic-ai/sdk"
-import { getToolDefinitions } from "../tools"
 import { AgentSession } from "./agent-session"
+import { anthropicClient } from "./clients"
 import type { ToolReply } from "./agent-session"
 import { UNANSWERED_RESULT, toolCallBlock } from "./agent-turn"
 import type { LoopOutcome, TurnDisplay } from "./agent-turn"
-import type { ApiAdapterOptions } from "../factory"
 import type { MessageContent, SessionProvider } from "../types"
-import { CutOffError, RefusedError, STRUCTURED_MAX_RETRIES, UnreachableError, parseStructured, requestSignal, schemaBody } from "../structured"
-import type { JsonSchema, StructuredCallOptions, StructuredMessage, StructuredSession } from "../structured"
+import { STRUCTURED_MAX_RETRIES, UnreachableError, assertStructuredFinished, parseStructured, requestSignal, schemaBody } from "../structured"
+import type { Ending, JsonSchema, StructuredCallOptions, StructuredMessage, StructuredSession } from "../structured"
 
-const FINISHED = new Set<Anthropic.StopReason | null>(["end_turn", "stop_sequence"])
+function endingOf(reason: Anthropic.StopReason | null): Ending {
+  if (reason === "end_turn" || reason === "stop_sequence" || reason === "tool_use") return "finished"
+  return reason === "refusal" ? "refused" : "cutOff"
+}
 
 interface StreamedTurn {
   message: Anthropic.Message
@@ -58,22 +60,12 @@ function toAnthropicUserContent(
 }
 
 export class AnthropicSession extends AgentSession<Anthropic.MessageParam> implements StructuredSession {
-  private readonly client: Anthropic
-  private readonly tools: Anthropic.Tool[]
-
-  constructor(opts: ApiAdapterOptions) {
-    super(opts)
-    this.tools = getToolDefinitions({ pdfSupported: opts.pdfSupported }).map((t) => ({
-      name: t.name,
-      description: t.description,
-      input_schema: t.inputSchema as Anthropic.Tool.InputSchema,
-    }))
-    this.client = new Anthropic({
-      apiKey: opts.apiKey,
-      // Tauri webview — key lives on disk, not bundled into a public app.
-      dangerouslyAllowBrowser: true,
-    })
-  }
+  private readonly client = anthropicClient(this.opts.apiKey)
+  private readonly tools: Anthropic.Tool[] = this.toolDefinitions.map((t) => ({
+    name: t.name,
+    description: t.description,
+    input_schema: t.inputSchema as Anthropic.Tool.InputSchema,
+  }))
 
   protected get providerId(): SessionProvider {
     return "anthropic"
@@ -110,9 +102,7 @@ export class AnthropicSession extends AgentSession<Anthropic.MessageParam> imple
     } finally {
       request.release()
     }
-    if (!FINISHED.has(message.stop_reason)) {
-      throw message.stop_reason === "refusal" ? new RefusedError() : new CutOffError()
-    }
+    assertStructuredFinished(endingOf(message.stop_reason))
 
     const text = message.content
       .filter((block): block is Anthropic.TextBlock => block.type === "text")
@@ -155,18 +145,19 @@ export class AnthropicSession extends AgentSession<Anthropic.MessageParam> imple
       this.closeRequest()
 
       const { content, stop_reason } = message
-      if (failure === undefined && FINISHED.has(stop_reason)) {
-        if (content.length > 0) this.storeReply({ role: "assistant", content })
-        return "done"
-      }
-      if (failure !== undefined || stop_reason !== "tool_use") {
+      if (failure !== undefined) {
         this.keepPartialTurn(content, display)
         if (this.stopped) return "stopped"
-        if (failure !== undefined) throw failure
-        return stop_reason === "refusal" ? "refused" : "cutOff"
+        throw failure
+      }
+      const ending = endingOf(stop_reason)
+      if (ending !== "finished") {
+        this.keepPartialTurn(content, display)
+        return this.stopped ? "stopped" : ending
       }
 
-      this.storeReply({ role: "assistant", content })
+      if (content.length > 0) this.storeReply({ role: "assistant", content })
+      if (stop_reason !== "tool_use") return "done"
       const round = await this.runToolCalls(
         content
           .filter((b): b is Anthropic.ToolUseBlock => b.type === "tool_use")

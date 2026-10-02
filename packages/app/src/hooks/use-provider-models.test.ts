@@ -1,6 +1,17 @@
-import { beforeEach, describe, expect, it } from "vitest"
+import { beforeEach, describe, expect, it, vi } from "vitest"
 import { renderHook } from "@testing-library/react"
-import { anthropicList, page } from "@/test/model-sdk-mocks"
+import type { ModelOption } from "@capybudget/intelligence"
+import type { ProviderEndpoint } from "@capybudget/intelligence/adapters"
+
+const { listModels } = vi.hoisted(() => ({
+  listModels: vi.fn<(endpoint: ProviderEndpoint) => Promise<ModelOption[]>>(),
+}))
+
+vi.mock("@capybudget/intelligence/adapters", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@capybudget/intelligence/adapters")>()),
+  listModels,
+}))
+
 import {
   _resetProviderModelsForTests,
   cachedProviderModels,
@@ -8,12 +19,10 @@ import {
 } from "@/lib/provider-models"
 import { useProviderModels } from "./use-provider-models"
 
-const FABLE = { id: "claude-fable-6", display_name: "Claude Fable 6", created_at: "2026-09-20T00:00:00Z" }
-
 beforeEach(async () => {
   _resetProviderModelsForTests()
-  anthropicList.mockReset()
-  anthropicList.mockImplementation(() => page([FABLE]))
+  listModels.mockReset()
+  listModels.mockResolvedValue([{ value: "claude-fable-6", label: "Claude Fable 6" }])
   await loadProviderModels("anthropic", "sk-1")
 })
 

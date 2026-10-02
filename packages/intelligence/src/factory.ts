@@ -2,10 +2,10 @@
  * Intelligence session factory.
  *
  * Picks the right adapter based on `config.provider` and constructs it
- * via app-injected constructors. The factory itself is platform-agnostic:
- * the app wraps it with platform-specific adapter constructors (Tauri
- * shell for Claude CLI, fetch for the API adapters) — that keeps this
- * package free of Tauri / SDK deps.
+ * via injected constructors: `API_ADAPTERS` from
+ * `@capybudget/intelligence/adapters` for the API providers, plus the
+ * shell's Claude CLI constructor (it needs a platform `ClaudeCliHost`).
+ * Injection keeps this module free of Tauri and the provider SDKs.
  *
  * Returns null when:
  *   - config.provider is null (AI features disabled by the user)
@@ -51,7 +51,7 @@ export interface ApiAdapterOptions {
   systemPrompt: string
   apiKey: string
   model: string
-  /** OpenAI-compatible endpoint override (Ollama); undefined = SDK default. */
+  /** The Ollama server; the hosted providers use their SDK default. */
   baseUrl?: string
   onEvent: (event: StreamEvent) => void
   repo: BudgetRepository

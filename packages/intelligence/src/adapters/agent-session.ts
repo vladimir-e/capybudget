@@ -1,6 +1,7 @@
 import { RENDER_FOLLOWUPS_TOOL_NAME } from "../render-map"
 import { extractErrorMessage, isRateLimited, isRejectedRequest } from "../error-message"
-import { runTool, REPLY_TOOL_CALL_BUDGET } from "../tools"
+import { getToolDefinitions, runTool, REPLY_TOOL_CALL_BUDGET } from "../tools"
+import type { ToolDefinition } from "../tools"
 import {
   BUDGET_EXHAUSTED_RESULT,
   MAX_OUTPUT_TOKENS,
@@ -34,6 +35,7 @@ interface ToolRound {
 
 export abstract class AgentSession<Message> implements CapySession {
   protected readonly messages: Message[] = []
+  protected readonly toolDefinitions: readonly ToolDefinition[]
   private outputCap = MAX_OUTPUT_TOKENS
   private abortController: AbortController | null = null
   private killed = false
@@ -46,7 +48,9 @@ export abstract class AgentSession<Message> implements CapySession {
   private turnAttachments: readonly FileAttachment[] = []
   private display: TurnDisplay | null = null
 
-  constructor(protected readonly opts: ApiAdapterOptions) {}
+  constructor(protected readonly opts: ApiAdapterOptions) {
+    this.toolDefinitions = getToolDefinitions({ pdfSupported: opts.pdfSupported })
+  }
 
   protected abstract get providerId(): SessionProvider
   protected abstract appendUserTurn(content: MessageContent): void

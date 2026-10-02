@@ -1,12 +1,12 @@
 import { useEffect, useState } from "react"
 import { AlertTriangle, Check, Loader2, RefreshCw } from "lucide-react"
-import { DEFAULT_OLLAMA_BASE_URL } from "@capybudget/intelligence"
+import { DEFAULT_OLLAMA_BASE_URL, type ModelOption } from "@capybudget/intelligence"
+import { listModels, pingProvider } from "@capybudget/intelligence/adapters"
 import { useTranslation } from "@capybudget/i18n"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useIntelligenceStore } from "@/stores/intelligence-store"
-import { listOllamaModels, pingOllama } from "@/lib/api-testing"
 import { ExternalLinkButton } from "./external-link-button"
 import { ModelField } from "./model-field"
 import { TestResult, type TestState } from "./test-result"
@@ -16,7 +16,7 @@ const OLLAMA_LIBRARY_URL = "https://ollama.com/library"
 
 type ProbeState =
   | { kind: "probing" }
-  | { kind: "ok"; models: string[] }
+  | { kind: "ok"; models: ModelOption[] }
   | { kind: "unreachable" }
 
 /** Ollama's settings: no key, and a model list discovered from the server. */
@@ -36,7 +36,7 @@ export function OllamaConfig() {
   // effect body never sets state synchronously.
   useEffect(() => {
     let cancelled = false
-    listOllamaModels(baseUrl)
+    listModels({ provider: "ollama", baseUrl })
       .then((models) => {
         if (!cancelled) setProbe({ kind: "ok", models })
       })
@@ -59,21 +59,20 @@ export function OllamaConfig() {
   async function handleTest() {
     if (!model) return
     setTestState({ kind: "running" })
-    const result = await pingOllama(baseUrl, model)
+    const result = await pingProvider({ provider: "ollama", baseUrl, model })
     if (result.ok) {
       setTestState({ kind: "success" })
       setTimeout(() => setTestState({ kind: "idle" }), 3000)
     } else {
       setTestState({
         kind: "error",
-        message: "unreachable" in result ? t("provider.ollama.notRunningHint") : result.message,
+        message: result.unreachable ? t("provider.ollama.notRunningHint") : result.message,
       })
     }
   }
 
   const detected = probe.kind === "ok" ? probe.models : []
   const nothingPulled = probe.kind === "ok" && detected.length === 0
-  const modelOptions = detected.map((id) => ({ value: id, label: id }))
 
   return (
     <div className="space-y-5">
@@ -160,7 +159,7 @@ export function OllamaConfig() {
         id="ollama-model"
         model={model}
         onSaveModel={setModel}
-        models={modelOptions}
+        models={detected}
         freeText={nothingPulled}
       />
 

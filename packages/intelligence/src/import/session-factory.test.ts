@@ -2,31 +2,27 @@ import { describe, it, expect, vi } from "vitest";
 import type { BudgetRepository, FileAdapter } from "@capybudget/persistence";
 import {
   DEFAULT_INTELLIGENCE_CONFIG,
-  OLLAMA_PLACEHOLDER_KEY,
   type IntelligenceConfig,
 } from "../config";
-import type { AdapterConstructors } from "../factory";
-import type { CapySession } from "../session";
+import type { StructuredSession } from "../structured";
 import {
   canImport,
   canReadPdf,
   createStructuredImportSession,
   importReady,
   ollamaReadsImages,
+  type StructuredAdapterConstructors,
 } from "./session-factory";
 
-// A session that exposes the structured surface — the factory's #6 guard
-// returns null for anything missing it.
-const stubSession = { structured: vi.fn() } as unknown as CapySession;
+const stubSession: StructuredSession = { structured: vi.fn() };
 const repo = {} as BudgetRepository;
 const fileAdapter = {} as FileAdapter;
 
-function adapters(): AdapterConstructors {
+function adapters(): Required<StructuredAdapterConstructors> {
   return {
     anthropic: vi.fn(() => stubSession),
     openai: vi.fn(() => stubSession),
     ollama: vi.fn(() => stubSession),
-    "claude-cli": vi.fn(() => stubSession),
   };
 }
 
@@ -165,7 +161,7 @@ describe("createStructuredImportSession", () => {
       expect.objectContaining({
         model: "qwen3",
         baseUrl: "http://localhost:11434/v1",
-        apiKey: OLLAMA_PLACEHOLDER_KEY,
+        apiKey: "",
         systemPrompt: "P",
       }),
     );
@@ -182,15 +178,13 @@ describe("createStructuredImportSession", () => {
     expect(adapterSet.ollama).not.toHaveBeenCalled();
   });
 
-  it("returns null for the deferred CLI provider", () => {
-    const adapterSet = adapters();
+  it("returns null for the CLI provider", () => {
     const session = createStructuredImportSession({
       config: config({ provider: "claude-cli" }),
-      adapters: adapterSet,
+      adapters: adapters(),
       options: baseOptions,
     });
     expect(session).toBeNull();
-    expect(adapterSet["claude-cli"]).not.toHaveBeenCalled();
   });
 
   it("returns null when AI is off", () => {
@@ -217,12 +211,4 @@ describe("createStructuredImportSession", () => {
     expect(session).toBeNull();
   });
 
-  it("returns null when the adapter lacks a structured() surface", () => {
-    const session = createStructuredImportSession({
-      config: config({ provider: "anthropic" }),
-      adapters: { anthropic: vi.fn(() => ({}) as unknown as CapySession) },
-      options: baseOptions,
-    });
-    expect(session).toBeNull();
-  });
 });

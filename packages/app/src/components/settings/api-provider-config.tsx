@@ -1,14 +1,13 @@
 import { useEffect, useState } from "react"
 import { Eye, EyeOff, Loader2 } from "lucide-react"
-import { hasProviderKey } from "@capybudget/intelligence"
+import { hasProviderKey, type HostedProvider } from "@capybudget/intelligence"
+import { pingProvider } from "@capybudget/intelligence/adapters"
 import { useTranslation } from "@capybudget/i18n"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useIntelligenceStore } from "@/stores/intelligence-store"
-import { pingApi } from "@/lib/api-testing"
 import { useProviderModels } from "@/hooks/use-provider-models"
-import type { ApiProvider } from "@/lib/provider-models"
 import { ExternalLinkButton } from "./external-link-button"
 import { InlineLinkButton } from "./inline-link-button"
 import { ModelField } from "./model-field"
@@ -24,7 +23,7 @@ interface ProviderUi {
   docHref: string
 }
 
-const PROVIDER_UI: Record<ApiProvider, ProviderUi> = {
+const PROVIDER_UI: Record<HostedProvider, ProviderUi> = {
   anthropic: {
     keyPlaceholder: "sk-ant-…",
     providerName: "Anthropic",
@@ -76,7 +75,7 @@ export function OpenAiConfig() {
 }
 
 interface ApiProviderConfigProps {
-  providerKey: ApiProvider
+  providerKey: HostedProvider
   apiKey: string
   keyPresent: boolean
   onSaveKey: (k: string) => void
@@ -138,7 +137,7 @@ function ApiProviderConfig({
       setLastSyncedKey(draftKey)
     }
     setTestState({ kind: "running" })
-    const result = await pingApi(providerKey, draftKey, model)
+    const result = await pingProvider({ provider: providerKey, apiKey: draftKey, model })
     if (result.ok) {
       setTestState({ kind: "success" })
       setTimeout(() => setTestState({ kind: "idle" }), 3000)

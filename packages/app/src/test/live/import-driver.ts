@@ -6,11 +6,7 @@ import {
   type ImportEvent,
   type ImportPhase,
 } from "@capybudget/intelligence"
-import {
-  AnthropicSession,
-  OllamaSession,
-  OpenAiSession,
-} from "@capybudget/intelligence/adapters"
+import { API_ADAPTERS } from "@capybudget/intelligence/adapters"
 import type { ImportTransaction } from "@capybudget/core"
 import { nodeFileAdapter } from "@capybudget/mcp"
 import type { LiveBudget } from "./budget-fixture"
@@ -39,11 +35,7 @@ export class ImportDriver {
     const { budget } = this
     const session = createStructuredImportSession({
       config: intelligenceConfig(this.target),
-      adapters: {
-        anthropic: (o) => new AnthropicSession(o),
-        openai: (o) => new OpenAiSession(o),
-        ollama: (o) => new OllamaSession(o),
-      },
+      adapters: API_ADAPTERS,
       options: {
         budgetPath: budget.path,
         systemPrompt: buildImportSystemPrompt(),

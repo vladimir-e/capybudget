@@ -9,7 +9,6 @@
     ".": "./src/index.ts"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.92.0",
     "@capybudget/core": "*",
     "@capybudget/i18n": "*",
     "@capybudget/intelligence": "*",
@@ -17,7 +16,6 @@
     "@tanstack/react-virtual": "^3.13.23",
     "@tauri-apps/plugin-process": "^2",
     "@tauri-apps/plugin-updater": "^2",
-    "openai": "^6.35.0",
     "recharts": "^3.8.1"
   },
   "devDependencies": {

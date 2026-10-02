@@ -1,12 +1,6 @@
 import { useEffect, useState } from "react"
-import {
-  cachedProviderModels,
-  FALLBACK_MODELS,
-  forgetProviderModels,
-  loadProviderModels,
-  type ApiProvider,
-} from "@/lib/provider-models"
-import type { ModelOption } from "@/lib/model-option"
+import { FALLBACK_MODELS, type HostedProvider, type ModelOption } from "@capybudget/intelligence"
+import { cachedProviderModels, forgetProviderModels, loadProviderModels } from "@/lib/provider-models"
 
 type Outcome = { apiKey: string } & ({ models: ModelOption[] } | { failed: true })
 
@@ -17,7 +11,7 @@ export interface ProviderModels {
 }
 
 export function useProviderModels(
-  provider: ApiProvider,
+  provider: HostedProvider,
   apiKey: string,
   keyPresent: boolean,
 ): ProviderModels {

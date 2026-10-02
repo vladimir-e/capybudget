@@ -1,15 +1,14 @@
 import OpenAI from "openai"
-import { getToolDefinitions } from "../tools"
 import { AgentSession } from "./agent-session"
+import { ollamaClient } from "./clients"
 import { UNANSWERED_RESULT, parseToolArguments, readToTerminal, toolCallBlock } from "./agent-turn"
 import type { LoopOutcome, TurnDisplay } from "./agent-turn"
-import type { ApiAdapterOptions } from "../factory"
 import { ollamaOrigin } from "../config"
 import type { MessageContent, SessionProvider } from "../types"
 import { STRUCTURED_MAX_RETRIES, UnreachableError, assertStructuredFinished, parseStructured, requestSignal, schemaBody } from "../structured"
 import type { Ending, JsonSchema, StructuredCallOptions, StructuredMessage, StructuredSession } from "../structured"
 
-type ChatMessage = OpenAI.Chat.Completions.ChatCompletionMessageParam
+type ChatParam = OpenAI.Chat.Completions.ChatCompletionMessageParam
 
 // A model refusal arrives as `stop` with a refusal message; Ollama reports "stop" alongside tool calls.
 function endingOf(reason: string | null | undefined, refusal: string | null | undefined): Ending {
@@ -55,27 +54,16 @@ function toolSlot(
   return Math.max(lastSlot, 0)
 }
 
-export class OllamaSession extends AgentSession<ChatMessage> implements StructuredSession {
-  private readonly client: OpenAI
-  private readonly tools: OpenAI.Chat.Completions.ChatCompletionTool[]
-
-  constructor(opts: ApiAdapterOptions) {
-    super(opts)
-    this.tools = getToolDefinitions({ pdfSupported: opts.pdfSupported }).map((t) => ({
-      type: "function",
-      function: {
-        name: t.name,
-        description: t.description,
-        parameters: t.inputSchema as Record<string, unknown>,
-      },
-    }))
-    this.client = new OpenAI({
-      apiKey: opts.apiKey,
-      baseURL: opts.baseUrl,
-      // Tauri webview — key lives on disk, not bundled into a public app.
-      dangerouslyAllowBrowser: true,
-    })
-  }
+export class OllamaSession extends AgentSession<ChatParam> implements StructuredSession {
+  private readonly client = ollamaClient(this.opts.baseUrl)
+  private readonly tools: OpenAI.Chat.Completions.ChatCompletionTool[] = this.toolDefinitions.map((t) => ({
+    type: "function",
+    function: {
+      name: t.name,
+      description: t.description,
+      parameters: t.inputSchema as Record<string, unknown>,
+    },
+  }))
 
   protected get providerId(): SessionProvider {
     return "ollama"
@@ -86,7 +74,7 @@ export class OllamaSession extends AgentSession<ChatMessage> implements Structur
     schema: JsonSchema,
     options?: StructuredCallOptions,
   ): Promise<T> {
-    const requestMessages: ChatMessage[] = [
+    const requestMessages: ChatParam[] = [
       { role: "system", content: this.opts.systemPrompt },
       ...messages.map((m) =>
         m.role === "assistant"
@@ -160,7 +148,7 @@ export class OllamaSession extends AgentSession<ChatMessage> implements Structur
       // The tools + system prefix stay byte-identical across turns so the
       // server's prompt cache keeps hitting — all per-turn context (budget
       // snapshot, date, attachments) rides in the user messages, never here.
-      const requestMessages: ChatMessage[] = [
+      const requestMessages: ChatParam[] = [
         { role: "system", content: this.opts.systemPrompt },
         ...this.messages,
       ]

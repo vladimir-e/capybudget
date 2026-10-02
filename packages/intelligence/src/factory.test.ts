@@ -6,7 +6,6 @@ import {
 } from "./factory"
 import {
   DEFAULT_INTELLIGENCE_CONFIG,
-  OLLAMA_PLACEHOLDER_KEY,
   type IntelligenceConfig,
 } from "./config"
 import type { CapySession } from "./session"
@@ -159,7 +158,7 @@ describe("createIntelligenceSession", () => {
     expect(ctor).not.toHaveBeenCalled()
   })
 
-  it("invokes ollama ctor with the local endpoint, a placeholder key, and no PDF support", () => {
+  it("invokes ollama ctor with the local endpoint, no key, and no PDF support", () => {
     const ctor = vi.fn().mockImplementation(() => makeStubSession())
     const opts = makeOptions()
     const session = createIntelligenceSession({
@@ -175,7 +174,7 @@ describe("createIntelligenceSession", () => {
     expect(ctor).toHaveBeenCalledWith({
       budgetPath: opts.budgetPath,
       systemPrompt: opts.systemPrompt,
-      apiKey: OLLAMA_PLACEHOLDER_KEY,
+      apiKey: "",
       model: "qwen3",
       baseUrl: "http://127.0.0.1:9999/v1",
       onEvent: opts.onEvent,

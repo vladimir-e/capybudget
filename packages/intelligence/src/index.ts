@@ -44,17 +44,21 @@ export type {
 export {
   DEFAULT_INTELLIGENCE_CONFIG,
   DEFAULT_OLLAMA_BASE_URL,
-  OLLAMA_PLACEHOLDER_KEY,
   PROVIDER_LABELS,
   hasProviderKey,
   ollamaOrigin,
 } from "./config"
 export type {
+  HostedProvider,
   IntelligenceConfig,
   IntelligenceProvider,
   OllamaSettings,
   ProviderCredentials,
 } from "./config"
+
+// Model choices
+export { FALLBACK_MODELS } from "./models"
+export type { ModelOption } from "./models"
 
 // Session factory
 export { createIntelligenceSession } from "./factory"
