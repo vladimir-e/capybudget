@@ -751,6 +751,52 @@ describe("useCapySession sends that never reach the model", () => {
     })
   })
 
+  it("a New Chat after a failed send never closes a gate opened since", async () => {
+    lockedAnthropic()
+    const { result } = renderHook(() => useCapySession(baseOpts))
+    act(() => {
+      result.current.sendMessage("hi")
+    })
+    await vi.waitFor(() => expect(useIntelligenceStore.getState().secretGateOpen).toBe(true))
+    act(() => {
+      useIntelligenceStore.getState().dismissSecretGate()
+    })
+    await settle()
+
+    void useIntelligenceStore.getState().ensureSecrets()
+    await vi.waitFor(() => expect(useIntelligenceStore.getState().secretGateOpen).toBe(true))
+    act(() => {
+      result.current.newChat()
+    })
+    expect(useIntelligenceStore.getState().secretGateOpen).toBe(true)
+  })
+
+  it("a first send that never reached the model hands the budget snapshot to the next one", async () => {
+    lockedAnthropic()
+    const getBudgetSnapshot = vi.fn(() => undefined)
+    const { result } = renderHook(() => useCapySession({ ...baseOpts, getBudgetSnapshot }))
+    act(() => {
+      result.current.sendMessage("hi")
+    })
+    act(() => {
+      useIntelligenceStore.getState().dismissSecretGate()
+    })
+    await settle()
+
+    act(() => {
+      result.current.sendMessage("again")
+    })
+    act(() => {
+      result.current.stopStreaming()
+    })
+    await settle()
+
+    act(() => {
+      result.current.sendMessage("third")
+    })
+    expect(getBudgetSnapshot).toHaveBeenCalledTimes(3)
+  })
+
   it("a second Stop drops the bubbles of a send queued behind the stopped round", () => {
     useIntelligenceStore.setState({
       hydrated: true,
@@ -870,6 +916,32 @@ describe("useCapySession error copy", () => {
       fake.emit({ type: "error", status: 500, provider: "openai", message: "server error" })
     })
     expect(result.current.messages[0]).not.toHaveProperty("unsent")
+  })
+
+  it.each([
+    ["rolled back", true, 2],
+    ["kept in history", false, 1],
+  ])("reads the budget snapshot again only when the first send was %s", (_, rolledBack, reads) => {
+    useIntelligenceStore.setState({
+      hydrated: true,
+      config: {
+        ...DEFAULT_INTELLIGENCE_CONFIG,
+        provider: "openai",
+        openai: { apiKey: "sk-x", model: "gpt-6-sol" },
+      },
+    })
+    const getBudgetSnapshot = vi.fn(() => undefined)
+    const { result } = renderHook(() => useCapySession({ ...baseOpts, getBudgetSnapshot }))
+    act(() => {
+      result.current.sendMessage("hi")
+    })
+    act(() => {
+      createdSessions[0].emit({ type: "error", status: 400, provider: "openai", message: "Invalid image", rolledBack })
+    })
+    act(() => {
+      result.current.sendMessage("again")
+    })
+    expect(getBudgetSnapshot).toHaveBeenCalledTimes(reads)
   })
 
   it("refreshes data when a mutation lands after New Chat killed its turn", () => {

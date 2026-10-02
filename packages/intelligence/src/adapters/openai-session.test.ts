@@ -1483,6 +1483,34 @@ describe("OpenAiSession failures", () => {
     expect(history(session)).toEqual([{ role: "user", content: "hi" }])
   })
 
+  it.each(["invalid_image", "image_too_large", "invalid_prompt", "image_content_policy_violation"])(
+    "rolls back a send whose response fails mid-stream with %s",
+    async (failureCode) => {
+      queueTurn({ status: null, failure: "The image could not be processed.", failureCode })
+
+      const { session, events } = makeSession()
+      await session.send("what's on this receipt?")
+      expect(events.at(-1)).toMatchObject({ type: "error", provider: "openai", rolledBack: true })
+      expect(history(session)).toEqual([])
+
+      queueTurn({ textDeltas: ["Hi"], status: "completed" })
+      await session.send("hello")
+      expect(lastCreateCall().input).toEqual([{ role: "user", content: "hello" }])
+    },
+  )
+
+  it.each(["server_error", "vector_store_timeout"])(
+    "keeps the question in history after a response fails mid-stream with %s",
+    async (failureCode) => {
+      queueTurn({ status: null, failure: "Something went wrong.", failureCode })
+
+      const { session, events } = makeSession()
+      await session.send("hi")
+      expect(events.at(-1)).not.toHaveProperty("rolledBack")
+      expect(history(session)).toEqual([{ role: "user", content: "hi" }])
+    },
+  )
+
   it("an error while a completed stream drains in the background raises nothing and emits nothing", async () => {
     queueTurn({ textDeltas: ["visible"], status: "completed", failAfter: new Error("socket closed") })
 

@@ -52,11 +52,16 @@ export function isRateLimited(err: unknown): boolean {
   return ![err.code, body.code, body.type].includes(QUOTA_EXHAUSTED)
 }
 
+const TRANSIENT_STREAM_CODES = ["server_error", RATE_LIMIT_EXCEEDED, "vector_store_timeout"]
+
 /** The provider refused this request's content — a 4xx other than a rate
- *  limit — so retrying the same history fails the same way. */
+ *  limit, or an OpenAI stream failure coded with anything but a transient
+ *  code — so retrying the same history fails the same way. */
 export function isRejectedRequest(err: unknown): boolean {
-  const status = isObject(err) ? err.status : undefined
-  return typeof status === "number" && status >= 400 && status < 500 && status !== 429
+  if (!isObject(err)) return false
+  const { status, code } = err
+  if (typeof status === "number") return status >= 400 && status < 500 && status !== 429
+  return typeof code === "string" && !TRANSIENT_STREAM_CODES.includes(code)
 }
 
 function isObject(value: unknown): value is Record<string, unknown> {

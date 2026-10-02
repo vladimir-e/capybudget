@@ -125,6 +125,8 @@ export function useSessionLifecycle<TOpts extends SessionLifecycleOptions>(
     (systemPrompt: string): CapySession | null => {
       sessionRef.current?.kill();
       const o = optsRef.current;
+      // Declared before the call: an adapter can emit during construction, and
+      // `onEvent` must read `null` then rather than hit the TDZ of a `const`.
       let session: CapySession | null = null;
       session = createSession({
         budgetPath: o.budgetPath,

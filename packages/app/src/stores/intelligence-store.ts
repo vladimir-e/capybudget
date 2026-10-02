@@ -191,8 +191,10 @@ let hydratePromise: Promise<void> | null = null
 let secretsPromise: Promise<SecretsOutcome> | null = null
 let gateResolve: ((allowed: boolean) => void) | null = null
 
-function bumped(versions: Record<SecretProvider, number>, provider: SecretProvider): Record<SecretProvider, number> {
-  return { ...versions, [provider]: versions[provider] + 1 }
+function bumped(versions: Record<SecretProvider, number>, ...providers: SecretProvider[]): Record<SecretProvider, number> {
+  const next = { ...versions }
+  for (const provider of providers) next[provider]++
+  return next
 }
 
 async function loadBackend(): Promise<SecretConfigBackend> {
@@ -296,7 +298,7 @@ export const useIntelligenceStore = create<IntelligenceStore>((set, get) => ({
       config: withSecretsDropped(s.config),
       secretGateSeen: false,
       secretsError: false,
-      secretsVersion: { anthropic: s.secretsVersion.anthropic + 1, openai: s.secretsVersion.openai + 1 },
+      secretsVersion: bumped(s.secretsVersion, "anthropic", "openai"),
     }))
     void loadBackend().then((b) => b.clearGateSeen())
   },

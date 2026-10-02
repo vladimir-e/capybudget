@@ -75,9 +75,10 @@ interface UseCapySessionReturn {
 interface PendingTurn {
   bubbleIds: readonly string[]
   handedOff: boolean
+  carriesSnapshot: boolean
 }
 
-const NO_TURN: PendingTurn = { bubbleIds: [], handedOff: true }
+const NO_TURN: PendingTurn = { bubbleIds: [], handedOff: true, carriesSnapshot: false }
 
 export function useCapySession(opts: UseCapySessionOptions): UseCapySessionReturn {
   const [messages, setMessages] = useState<ChatMessage[]>([])
@@ -102,6 +103,13 @@ export function useCapySession(opts: UseCapySessionOptions): UseCapySessionRetur
   useEffect(() => {
     messagesRef.current = messages
   })
+
+  const endTurn = (rolledBack = false): PendingTurn => {
+    const turn = turnRef.current
+    turnRef.current = NO_TURN
+    if (turn.carriesSnapshot && (rolledBack || !turn.handedOff)) snapshotSentRef.current = false
+    return turn
+  }
 
   const lifecycle = useSessionLifecycle(
     opts,
@@ -140,6 +148,7 @@ export function useCapySession(opts: UseCapySessionOptions): UseCapySessionRetur
         }
 
         case "done":
+          endTurn()
           ctx.setIsStreaming(false)
           // Fallback: mutation was requested but no per-call ack landed.
           if (hadMutationsRef.current && ackedToolCallsRef.current.size === 0) {
@@ -149,12 +158,13 @@ export function useCapySession(opts: UseCapySessionOptions): UseCapySessionRetur
           ackedToolCallsRef.current = new Set()
           break
 
-        case "error":
+        case "error": {
+          const turn = endTurn(event.rolledBack)
           ctx.setIsStreaming(false)
           hadMutationsRef.current = false
           ackedToolCallsRef.current = new Set()
+          const unsentId = event.rolledBack ? turn.bubbleIds[0] : undefined
           setMessages((current) => {
-            const unsentId = event.rolledBack ? turnRef.current.bubbleIds[0] : undefined
             const prev = unsentId
               ? current.map((m) => (m.id === unsentId ? { ...m, unsent: true } : m))
               : current
@@ -187,6 +197,7 @@ export function useCapySession(opts: UseCapySessionOptions): UseCapySessionRetur
             return updated
           })
           break
+        }
       }
     },
     "capy",
@@ -306,7 +317,8 @@ export function useCapySession(opts: UseCapySessionOptions): UseCapySessionRetur
       if (lifecycle.isStreamingRef.current) return
       const generation = sendGenerationRef.current
       const o = lifecycle.optsRef.current
-      const snapshot = snapshotSentRef.current ? undefined : o.getBudgetSnapshot?.()
+      const carriesSnapshot = !snapshotSentRef.current
+      const snapshot = carriesSnapshot ? o.getBudgetSnapshot?.() : undefined
       snapshotSentRef.current = true
       const context = buildContext({
         budgetName: o.budgetName,
@@ -353,7 +365,7 @@ export function useCapySession(opts: UseCapySessionOptions): UseCapySessionRetur
       lifecycle.setIsStreaming(true)
       hadMutationsRef.current = false
       ackedToolCallsRef.current = new Set()
-      const turn: PendingTurn = { bubbleIds: [userMsg.id, assistantMsg.id], handedOff: false }
+      const turn: PendingTurn = { bubbleIds: [userMsg.id, assistantMsg.id], handedOff: false, carriesSnapshot }
       turnRef.current = turn
 
       const fail = (message: string) => lifecycle.dispatchStreamEvent({ type: "error", message })
@@ -400,6 +412,7 @@ export function useCapySession(opts: UseCapySessionOptions): UseCapySessionRetur
     // A send still waiting on its key or queued behind a stopped round never
     // reaches the model, so its bubbles go rather than read as delivered.
     const neverSent = !turn.handedOff || session?.hasQueuedSend === true
+    if (neverSent && turn.carriesSnapshot) snapshotSentRef.current = false
     session?.stop()
     lifecycle.setIsStreaming(false)
 
