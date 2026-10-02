@@ -93,11 +93,33 @@ describe("clampedOutputCap", () => {
   })
 })
 
-describe("TurnDisplay.settle", () => {
+describe("TurnDisplay", () => {
   function recordingDisplay() {
     const published: ContentBlock[][] = []
     return { display: new TurnDisplay((blocks) => published.push(blocks)), published }
   }
+
+  it("tracks each call card from pending through running to done or failed", () => {
+    const { display, published } = recordingDisplay()
+    display.beginIteration()
+    display.addCall("a", { type: "tool-activity", tool: "first" })
+    display.addCall("b", { type: "tool-activity", tool: "second" })
+    expect(published.at(-1)).toEqual([
+      { type: "tool-activity", tool: "first", status: "pending" },
+      { type: "tool-activity", tool: "second", status: "pending" },
+    ])
+
+    display.markStarted("a")
+    expect(published.at(-1)?.[0]).toEqual({ type: "tool-activity", tool: "first", status: "running" })
+
+    display.markFinished("a", true)
+    display.markStarted("b")
+    display.markFinished("b", false)
+    expect(published.at(-1)).toEqual([
+      { type: "tool-activity", tool: "first", status: "done" },
+      { type: "tool-activity", tool: "second", status: "failed" },
+    ])
+  })
 
   it("trims from the first unrun call, dropping the text after it", () => {
     const { display, published } = recordingDisplay()
@@ -114,7 +136,7 @@ describe("TurnDisplay.settle", () => {
 
     expect(published.at(-1)).toEqual([
       { type: "text", content: "Looking" },
-      { type: "tool-activity", tool: "first" },
+      { type: "tool-activity", tool: "first", status: "running" },
     ])
   })
 

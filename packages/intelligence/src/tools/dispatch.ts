@@ -65,7 +65,7 @@ export interface ToolContext {
    */
   attachments?: FileAttachment[]
   /**
-   * Whether the active provider can run the import pipeline (Anthropic / OpenAI).
+   * Whether the active provider can run the import pipeline (the API providers).
    * `start_import` reads this to gate cleanly — false (claude-cli / off / MCP)
    * returns switch-provider guidance instead of staging. Mirrors `canImport`.
    */
@@ -107,7 +107,7 @@ const HANDLERS: Record<string, ToolHandler> = {
     handleBulkUpdateTransactions(repo, args),
 
   // Chat on-ramp into the import pipeline (stages the turn's attachments;
-  // gated to Anthropic / OpenAI via ctx.importSupported)
+  // gated to the API providers via ctx.importSupported)
   start_import: (ctx) => handleStartImport(ctx),
 
   // Generic file reader (claude-cli has Read built-in; api adapters get this

@@ -1,16 +1,16 @@
 import { buildRenderToolMap } from "../render-map"
 import { extractErrorMessage } from "../error-message"
-import { SESSION_TOOL_CALL_BUDGET } from "../tools"
-import type { ContentBlock, SessionErrorCode, StreamEvent } from "../types"
+import { REPLY_TOOL_CALL_BUDGET } from "../tools"
+import type { ContentBlock, SessionErrorCode, StreamEvent, ToolCallStatus } from "../types"
 
 export const MAX_OUTPUT_TOKENS = 32000
 export const FALLBACK_OUTPUT_TOKENS = 8192
 
-export type LoopOutcome = "done" | "stopped" | SessionErrorCode
+export type LoopOutcome = "done" | "stopped" | Exclude<SessionErrorCode, "rateLimited">
 
 const CUT_OFF_MESSAGE = "Capy's reply was cut off before it finished. Try again, or ask for less at once."
 const REFUSED_MESSAGE = "Capy declined to answer that one. Try rephrasing."
-const BUDGET_EXHAUSTED_MESSAGE = `Tool-call budget exhausted (${SESSION_TOOL_CALL_BUDGET} calls). Stopping. Run again if more work is needed.`
+const BUDGET_EXHAUSTED_MESSAGE = `Tool-call budget exhausted (${REPLY_TOOL_CALL_BUDGET} calls). Stopping. Run again if more work is needed.`
 
 export const BUDGET_EXHAUSTED_RESULT = `Error: ${BUDGET_EXHAUSTED_MESSAGE}`
 export const STOPPED_RESULT = "Error: not run — the user stopped the response before this call."
@@ -49,6 +49,25 @@ const CAP_LIMIT_SHAPES = [
   new RegExp(String.raw`expected a value <= ${COUNT}`, "i"),
 ]
 const MIN_PLAUSIBLE_CAP = 1024
+
+export async function readToTerminal<T>(stream: AsyncIterable<T>, handle: (event: T) => boolean): Promise<void> {
+  const events = stream[Symbol.asyncIterator]()
+  try {
+    for (let next = await events.next(); !next.done; next = await events.next()) {
+      if (handle(next.value)) return
+    }
+  } finally {
+    void drain(events)
+  }
+}
+
+async function drain(events: AsyncIterator<unknown>): Promise<void> {
+  try {
+    while (!(await events.next()).done) continue
+  } catch {
+    return
+  }
+}
 
 export function parseToolArguments(json: string): Record<string, unknown> | Error {
   try {
@@ -115,7 +134,7 @@ export class TurnDisplay {
 
   addCall(id: string, block: ContentBlock): void {
     this.endText()
-    this.entries.push({ block, callId: id })
+    this.entries.push({ block: block.type === "tool-activity" ? { ...block, status: "pending" } : block, callId: id })
     this.publish()
   }
 
@@ -131,6 +150,11 @@ export class TurnDisplay {
 
   markStarted(id: string): void {
     this.started.add(id)
+    this.setStatus(id, "running")
+  }
+
+  markFinished(id: string, ok: boolean): void {
+    this.setStatus(id, ok ? "done" : "failed")
   }
 
   settle(): void {
@@ -141,6 +165,14 @@ export class TurnDisplay {
       this.publish()
     }
     this.settled = true
+  }
+
+  private setStatus(id: string, status: ToolCallStatus): void {
+    const i = this.entries.findIndex((e) => e.callId === id)
+    const entry = this.entries[i]
+    if (entry?.block.type !== "tool-activity") return
+    this.entries[i] = { ...entry, block: { ...entry.block, status } }
+    this.publish()
   }
 
   private publish(): void {

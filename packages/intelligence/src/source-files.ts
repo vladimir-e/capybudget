@@ -26,6 +26,8 @@ const IMAGE_MEDIA_TYPE_BY_EXT: Record<string, string> = {
   ".webp": "image/webp",
 }
 
+const SUPPORTED_IMAGE_MEDIA_TYPES = new Set(Object.values(IMAGE_MEDIA_TYPE_BY_EXT))
+
 const OFX_EXTENSIONS = new Set([".ofx", ".qfx", ".qbo"])
 
 /** Extension including the leading dot, lowercased; "" when the name has none. */
@@ -36,6 +38,10 @@ export function fileExtension(name: string): string {
 
 export function isImageFilename(name: string): boolean {
   return fileExtension(name) in IMAGE_MEDIA_TYPE_BY_EXT
+}
+
+export function isSupportedImageType(mediaType: string): boolean {
+  return SUPPORTED_IMAGE_MEDIA_TYPES.has(mediaType)
 }
 
 export function isPdfFilename(name: string): boolean {

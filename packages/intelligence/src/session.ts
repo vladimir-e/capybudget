@@ -20,6 +20,11 @@ export interface CapySession {
   kill(): Promise<void>
   readonly isAlive: boolean
   /**
+   * Optional: whether a send is waiting behind an earlier turn that is still
+   * winding down. `stop()` cancels it before the model ever sees it.
+   */
+  readonly hasQueuedSend?: boolean
+  /**
    * Optional: signal to the adapter that the user interrupted the
    * previous turn (clicked Stop). Adapters that need a recovery
    * dance use this; API adapters that preserve `messages` natively

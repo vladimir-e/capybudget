@@ -57,6 +57,31 @@ describe("validateRenderInput", () => {
     ).toContain("render_chart expects")
   })
 
+  it("rejects chart data whose items aren't {label, value} points", () => {
+    for (const data of [
+      [{ foo: 1 }],
+      [{ label: "Food" }],
+      [{ label: "Food", value: "50" }],
+      [{ label: 3, value: 50 }],
+      [{ label: "Food", value: Number.NaN }],
+      [{ label: "Refund", value: -20 }],
+      [{ label: "Food", value: 0 }],
+      ["Food"],
+    ]) {
+      for (const type of ["bar", "donut"]) {
+        expect(validateRenderInput("render_chart", { title: "x", type, data })).toContain("render_chart expects")
+      }
+    }
+  })
+
+  it("accepts chart data with a zero point among positive ones", () => {
+    const data = [
+      { label: "Food", value: 50 },
+      { label: "Gifts", value: 0 },
+    ]
+    expect(validateRenderInput("render_chart", { title: "x", type: "donut", data })).toBeNull()
+  })
+
   it("returns null for render tools without a builder", () => {
     expect(validateRenderInput("render_anything", {})).toBeNull()
   })

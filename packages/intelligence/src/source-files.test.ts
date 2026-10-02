@@ -6,6 +6,7 @@ import {
   effectiveMediaType,
   fileExtension,
   isImageFilename,
+  isSupportedImageType,
   isOfxFilename,
   isPdfFilename,
   mediaTypeForFilename,
@@ -71,6 +72,17 @@ describe("classifyFile", () => {
     expect(classifyFile({ name: "card.qfx", mediaType: "text/plain" })).toBe("ofx")
     expect(classifyFile({ name: "photo.jpg", mediaType: "application/octet-stream" })).toBe("image")
     expect(classifyFile({ name: "unknown", mediaType: "application/octet-stream" })).toBe("tabular")
+  })
+})
+
+describe("isSupportedImageType", () => {
+  it("accepts exactly the media types the extension table maps to", () => {
+    for (const type of ["image/png", "image/jpeg", "image/gif", "image/webp"]) {
+      expect(isSupportedImageType(type)).toBe(true)
+    }
+    for (const type of ["image/heic", "image/tiff", "image/bmp", "image/svg+xml", ""]) {
+      expect(isSupportedImageType(type)).toBe(false)
+    }
   })
 })
 

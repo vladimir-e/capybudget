@@ -1,7 +1,7 @@
 import OpenAI from "openai"
 import { getToolDefinitions } from "../tools"
 import { AgentSession } from "./agent-session"
-import { UNANSWERED_RESULT, parseToolArguments, toolCallBlock } from "./agent-turn"
+import { UNANSWERED_RESULT, parseToolArguments, readToTerminal, toolCallBlock } from "./agent-turn"
 import type { LoopOutcome, TurnDisplay } from "./agent-turn"
 import type { ApiAdapterOptions } from "../factory"
 import type { MessageContent, SessionProvider } from "../types"
@@ -124,21 +124,18 @@ export class OllamaSession extends AgentSession<ChatMessage> implements Structur
     let text = ""
     let refusal = ""
     let finishReason: string | null = null
-    for await (const chunk of stream) {
+    await readToTerminal(stream, (chunk) => {
       const choice = chunk.choices[0]
-      if (!choice) continue
+      if (!choice) return false
       if (typeof choice.delta?.content === "string" && choice.delta.content.length > 0) {
         text += choice.delta.content
-        options.onText(text)
+        options.onText?.(text)
       }
       if (choice.delta?.refusal) refusal += choice.delta.refusal
-      // Same early break as the agentic loop — the terminal usage chunk
-      // isn't needed and `return()` lets the SDK clean up.
-      if (choice.finish_reason) {
-        finishReason = choice.finish_reason
-        break
-      }
-    }
+      if (!choice.finish_reason) return false
+      finishReason = choice.finish_reason
+      return true
+    })
     assertStructuredFinished(endingOf(finishReason, refusal))
     return parseStructured<T>(text, schema)
   }
@@ -179,9 +176,9 @@ export class OllamaSession extends AgentSession<ChatMessage> implements Structur
       let lastSlot = -1
 
       try {
-        for await (const chunk of stream) {
+        await readToTerminal(stream, (chunk) => {
           const choice = chunk.choices[0]
-          if (!choice) continue
+          if (!choice) return false
           const delta = choice.delta
 
           if (typeof delta.content === "string" && delta.content.length > 0) {
@@ -206,22 +203,22 @@ export class OllamaSession extends AgentSession<ChatMessage> implements Structur
             }
           }
 
-          if (choice.finish_reason) {
-            finishReason = choice.finish_reason
-            // Breaking out of `for await` skips any trailing usage chunk and
-            // lets the SDK clean up through the iterator's `return()`.
-            break
-          }
-        }
+          if (!choice.finish_reason) return false
+          finishReason = choice.finish_reason
+          return true
+        })
       } catch (err) {
-        if (!this.stopped) throw err
+        if (!this.stopped) {
+          this.keepText(text)
+          throw err
+        }
       }
       this.closeRequest()
 
       const ending = endingOf(finishReason, refusal)
       if (ending !== "finished") {
-        if (text.length > 0) this.messages.push({ role: "assistant", content: this.markedIfStopped(text) })
-        return ending
+        this.keepText(text)
+        return this.stopped ? "stopped" : ending
       }
 
       const accs = [...toolAccs.keys()].sort((a, b) => a - b).map((idx) => toolAccs.get(idx)!)
@@ -248,7 +245,7 @@ export class OllamaSession extends AgentSession<ChatMessage> implements Structur
             function: { name: acc.name, arguments: acc.argsString },
           }))
         }
-        this.messages.push(assistantMessage)
+        this.storeReply(assistantMessage)
       }
 
       // No calls = terminal: re-sending unchanged history spins.
@@ -260,6 +257,10 @@ export class OllamaSession extends AgentSession<ChatMessage> implements Structur
       )
       if (round.outcome) return round.outcome
     }
+  }
+
+  private keepText(text: string): void {
+    if (text.length > 0) this.storeReply({ role: "assistant", content: this.markedIfStopped(text) })
   }
 
   protected appendUserTurn(content: MessageContent): void {

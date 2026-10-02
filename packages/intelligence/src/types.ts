@@ -42,21 +42,29 @@ export interface TableBlock {
   rows: string[][]
 }
 
+export interface ChartPoint {
+  label: string
+  value: number
+}
+
 export interface BarChartBlock {
   type: "bar-chart"
   title: string
-  data: { label: string; value: number }[]
+  data: ChartPoint[]
 }
 
 export interface DonutChartBlock {
   type: "donut-chart"
   title: string
-  data: { label: string; value: number }[]
+  data: ChartPoint[]
 }
+
+export type ToolCallStatus = "pending" | "running" | "done" | "failed"
 
 export interface ToolActivityBlock {
   type: "tool-activity"
   tool: string
+  status?: ToolCallStatus
 }
 
 export interface FileAttachmentBlock {
@@ -134,14 +142,14 @@ export type StreamEvent =
       message: string
       status?: number
       /** Set by the adapter so the UI can route billing CTAs to the
-       *  right provider's console. Omitted on synthetic errors raised
-       *  by the hook layer (e.g. budget exhausted, unconfigured). */
+       *  right provider's console and name it in copy. Omitted on
+       *  synthetic errors raised by the hook layer (e.g. unconfigured). */
       provider?: SessionProvider
       /** Set on errors the UI words itself (`session.<code>` in the capy
        *  namespace); `message` is the untranslated fallback. */
       code?: SessionErrorCode
     }
 
-export type SessionErrorCode = "cutOff" | "refused" | "budgetExhausted"
+export type SessionErrorCode = "cutOff" | "refused" | "budgetExhausted" | "rateLimited"
 
 export type SessionProvider = "anthropic" | "openai" | "claude-cli" | "ollama"

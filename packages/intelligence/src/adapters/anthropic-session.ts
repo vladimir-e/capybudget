@@ -11,6 +11,11 @@ import type { JsonSchema, StructuredCallOptions, StructuredMessage, StructuredSe
 
 const FINISHED = new Set<Anthropic.StopReason | null>(["end_turn", "stop_sequence"])
 
+interface StreamedTurn {
+  message: Anthropic.Message
+  failure?: unknown
+}
+
 type UserContentBlock = Exclude<Anthropic.MessageParam["content"], string>[number]
 
 function normalizeUserContent(
@@ -136,20 +141,22 @@ export class AnthropicSession extends AgentSession<Anthropic.MessageParam> imple
 
       display.beginIteration()
       const signal = this.openRequest()
-      const message = await this.withOutputCap((maxTokens) => this.streamTurn(maxTokens, signal, display))
+      const { message, failure } = await this.withOutputCap((maxTokens) => this.streamTurn(maxTokens, signal, display))
       this.closeRequest()
 
       const { content, stop_reason } = message
-      if (FINISHED.has(stop_reason)) {
-        if (content.length > 0) this.messages.push({ role: "assistant", content })
+      if (failure === undefined && FINISHED.has(stop_reason)) {
+        if (content.length > 0) this.storeReply({ role: "assistant", content })
         return "done"
       }
-      if (stop_reason !== "tool_use") {
+      if (failure !== undefined || stop_reason !== "tool_use") {
         this.keepPartialTurn(content, display)
+        if (this.stopped) return "stopped"
+        if (failure !== undefined) throw failure
         return stop_reason === "refusal" ? "refused" : "cutOff"
       }
 
-      this.messages.push({ role: "assistant", content })
+      this.storeReply({ role: "assistant", content })
       const round = await this.runToolCalls(
         content
           .filter((b): b is Anthropic.ToolUseBlock => b.type === "tool_use")
@@ -161,7 +168,7 @@ export class AnthropicSession extends AgentSession<Anthropic.MessageParam> imple
     }
   }
 
-  private streamTurn(maxTokens: number, signal: AbortSignal, display: TurnDisplay): Promise<Anthropic.Message> {
+  private streamTurn(maxTokens: number, signal: AbortSignal, display: TurnDisplay): Promise<StreamedTurn> {
     const stream = this.client.messages.stream(
       {
         model: this.opts.model,
@@ -194,10 +201,12 @@ export class AnthropicSession extends AgentSession<Anthropic.MessageParam> imple
     // Resolve on `message` (message_stop) instead of `finalMessage()` — and don't
     // abort afterwards. WKWebView leaves the aborted fetch body half-open, which
     // can stall the next request for minutes.
-    return new Promise<Anthropic.Message>((resolve, reject) => {
-      stream.once("message", resolve)
-      stream.once("abort", (err) => (stream.currentMessage ? resolve(stream.currentMessage) : reject(err)))
-      stream.once("error", reject)
+    return new Promise<StreamedTurn>((resolve, reject) => {
+      const interrupted = (failure: unknown) =>
+        stream.currentMessage ? resolve({ message: stream.currentMessage, failure }) : reject(failure)
+      stream.once("message", (message) => resolve({ message }))
+      stream.once("abort", interrupted)
+      stream.once("error", interrupted)
     })
   }
 
@@ -210,7 +219,7 @@ export class AnthropicSession extends AgentSession<Anthropic.MessageParam> imple
     display.replaceIteration(kept.flatMap((b) => (b.type === "text" && b.text.length > 0 ? [b.text] : [])))
     const tail = kept.pop()
     if (tail?.type !== "text") return
-    this.messages.push({ role: "assistant", content: [...kept, { ...tail, text: this.markedIfStopped(tail.text) }] })
+    this.storeReply({ role: "assistant", content: [...kept, { ...tail, text: this.markedIfStopped(tail.text) }] })
   }
 
   protected appendUserTurn(content: MessageContent): void {
@@ -234,11 +243,11 @@ export class AnthropicSession extends AgentSession<Anthropic.MessageParam> imple
 
   // Merge into a trailing user turn — Anthropic rejects two consecutive user roles.
   private appendUserContent(content: Anthropic.MessageParam["content"]): void {
-    const last = this.messages[this.messages.length - 1]
+    const end = this.messages.length - 1
+    const last = this.messages[end]
     const incomingBlocks = normalizeUserContent(content)
     if (last && last.role === "user") {
-      const existing = normalizeUserContent(last.content)
-      last.content = [...existing, ...incomingBlocks]
+      this.messages[end] = { role: "user", content: [...normalizeUserContent(last.content), ...incomingBlocks] }
       return
     }
     this.messages.push({ role: "user", content: incomingBlocks })

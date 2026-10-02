@@ -2,7 +2,7 @@ import { Command, type Child } from "@tauri-apps/plugin-shell"
 import { writeTextFile } from "@tauri-apps/plugin-fs"
 import { tempDir, join as joinPath } from "@tauri-apps/api/path"
 import {
-  SESSION_TOOL_CALL_BUDGET,
+  REPLY_TOOL_CALL_BUDGET,
   type StreamEvent,
   type ClaudeCliAdapterOptions,
   type MessageContent,
@@ -95,7 +95,7 @@ export class ClaudeCliSession implements CapySession {
       ...(this.model ? ["--model", this.model] : []),
       // Runaway-loop backstop; the CLI exits with `error_max_turns` when tripped.
       "--max-turns",
-      String(SESSION_TOOL_CALL_BUDGET),
+      String(REPLY_TOOL_CALL_BUDGET),
     ], {
       // Undocumented CLI switch: since 2.1.69 the CLI defers MCP tool
       // schemas behind a ToolSearch lookup, and the model sometimes calls

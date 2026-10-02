@@ -1,6 +1,6 @@
 import { RENDER_FOLLOWUPS_TOOL_NAME } from "../render-map"
-import { extractErrorMessage } from "../error-message"
-import { runTool, SESSION_TOOL_CALL_BUDGET } from "../tools"
+import { extractErrorMessage, isRateLimited } from "../error-message"
+import { runTool, REPLY_TOOL_CALL_BUDGET } from "../tools"
 import {
   BUDGET_EXHAUSTED_RESULT,
   MAX_OUTPUT_TOKENS,
@@ -42,6 +42,7 @@ export abstract class AgentSession<Message> implements CapySession {
   private cancelledThrough = 0
   private turnEpoch = 0
   private toolCallCount = 0
+  private replyStored = false
   private idle: Promise<void> = Promise.resolve()
   private turnAttachments: readonly FileAttachment[] = []
   private display: TurnDisplay | null = null
@@ -54,6 +55,10 @@ export abstract class AgentSession<Message> implements CapySession {
 
   get isAlive(): boolean {
     return this.alive
+  }
+
+  get hasQueuedSend(): boolean {
+    return this.sendSeq > Math.max(this.turnEpoch, this.cancelledThrough)
   }
 
   protected get stopped(): boolean {
@@ -78,7 +83,6 @@ export abstract class AgentSession<Message> implements CapySession {
     await this.exclusive(async () => {
       this.messages.length = 0
       this.alive = false
-      this.toolCallCount = 0
     })
   }
 
@@ -109,6 +113,12 @@ export abstract class AgentSession<Message> implements CapySession {
     }
   }
 
+  protected storeReply(...items: Message[]): void {
+    if (items.length === 0) return
+    this.messages.push(...items)
+    this.replyStored = true
+  }
+
   protected markedIfStopped(text: string): string {
     return this.stopped ? text + STOPPED_MARKER : text
   }
@@ -123,13 +133,14 @@ export abstract class AgentSession<Message> implements CapySession {
         continue
       }
       this.toolCallCount++
-      if (this.toolCallCount > SESSION_TOOL_CALL_BUDGET) {
+      if (this.toolCallCount > REPLY_TOOL_CALL_BUDGET) {
         budgetExhausted = true
         replies.push({ id: call.id, content: BUDGET_EXHAUSTED_RESULT, isError: true })
         continue
       }
       display.markStarted(call.id)
       const { content, ok } = await this.execute(call)
+      display.markFinished(call.id, ok)
       // A failed followups call is not terminal — the model sees the error and recovers.
       if (ok && call.name === RENDER_FOLLOWUPS_TOOL_NAME) terminal = true
       this.emit({ type: "tool-result", tool: call.name, id: call.id, ok })
@@ -149,16 +160,19 @@ export abstract class AgentSession<Message> implements CapySession {
     if (this.killed || epoch <= this.cancelledThrough) return
     this.turnEpoch = epoch
     this.turnAttachments = attachments
+    this.toolCallCount = 0
+    this.replyStored = false
     const display = new TurnDisplay((blocks) => this.emit({ type: "content", blocks }))
     this.display = display
+    const rollback = this.checkpoint()
     let end: StreamEvent | null
     try {
       this.appendUserTurn(content)
       this.alive = true
       end = outcomeEvent(await this.runAgenticLoop(display))
     } catch (err) {
-      const { message, status } = extractErrorMessage(err)
-      end = { type: "error", message, status, provider: this.providerId }
+      if (!this.replyStored && !this.stopped) rollback()
+      end = failureEvent(err)
     } finally {
       this.turnAttachments = []
       this.closeRequest()
@@ -166,7 +180,16 @@ export abstract class AgentSession<Message> implements CapySession {
     }
     if (!end || this.stopped) return
     display.settle()
-    this.emit(end)
+    this.emit(end.type === "error" ? { ...end, provider: this.providerId } : end)
+  }
+
+  private checkpoint(): () => void {
+    const length = this.messages.length
+    const tail = this.messages[length - 1]
+    return () => {
+      this.messages.length = length
+      if (length > 0) this.messages[length - 1] = tail
+    }
   }
 
   private async execute(call: ToolCall): Promise<{ content: string; ok: boolean }> {
@@ -206,6 +229,13 @@ export abstract class AgentSession<Message> implements CapySession {
   }
 
   private emit(event: StreamEvent): void {
-    if (!this.killed) this.opts.onEvent(event)
+    if (!this.killed || event.type === "tool-result") this.opts.onEvent(event)
   }
+}
+
+function failureEvent(err: unknown): StreamEvent {
+  const { message, status } = extractErrorMessage(err)
+  return isRateLimited(err)
+    ? { type: "error", code: "rateLimited", message, status }
+    : { type: "error", message, status }
 }

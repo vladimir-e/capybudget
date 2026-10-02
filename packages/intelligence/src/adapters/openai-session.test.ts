@@ -27,6 +27,8 @@ interface FakeTurn {
   failure?: string
   /** Ends the stream with an `error` event carrying this message. */
   errorEvent?: string
+  /** Fails the stream with this error after its content events. */
+  failAfter?: Error
   /** A text delta queued after the terminal event — must never be observed. */
   tailDelta?: string
 }
@@ -53,9 +55,10 @@ interface RecordedCall {
 type Item = Record<string, unknown>
 type Event = Record<string, unknown>
 
-const { mockCreate, queueTurn, queueStructured, lastCreateCall, allCreateCalls, abortSignals } = vi.hoisted(
+const { mockCreate, queueTurn, queueStructured, lastCreateCall, allCreateCalls, abortSignals, streams } = vi.hoisted(
   () => {
     const queue: Array<FakeTurn> = []
+    const streamList: Array<{ controller: AbortController; drained: boolean }> = []
     const structuredQueue: Array<StructuredReply | { error: Error }> = []
     const calls: RecordedCall[] = []
     const signals: AbortSignal[] = []
@@ -156,14 +159,24 @@ const { mockCreate, queueTurn, queueStructured, lastCreateCall, allCreateCalls, 
       const sig = opts?.signal as AbortSignal | undefined
       const events = streamEvents(turn)
       const controller = new AbortController()
+      const record = { controller, drained: false }
+      const failAfter = turn.failAfter
+      streamList.push(record)
+      // Mirrors the SDK: leaving the iterator before the end aborts the request.
       async function* iterate() {
-        for (const event of events) {
-          if (sig?.aborted || controller.signal.aborted) {
-            const err = new Error("Aborted")
-            err.name = "AbortError"
-            throw err
+        try {
+          for (const event of events) {
+            if (sig?.aborted || controller.signal.aborted) {
+              const err = new Error("Aborted")
+              err.name = "AbortError"
+              throw err
+            }
+            yield event
           }
-          yield event
+          if (failAfter) throw failAfter
+          record.drained = true
+        } finally {
+          if (!record.drained) controller.abort()
         }
       }
       return { [Symbol.asyncIterator]: iterate, controller }
@@ -176,6 +189,7 @@ const { mockCreate, queueTurn, queueStructured, lastCreateCall, allCreateCalls, 
       lastCreateCall: () => calls[calls.length - 1],
       allCreateCalls: () => calls,
       abortSignals: signals,
+      streams: streamList,
     }
   },
 )
@@ -272,6 +286,7 @@ beforeEach(() => {
   mockCreate.mockClear()
   mockRunTool.mockReset()
   abortSignals.length = 0
+  streams.length = 0
 })
 
 describe("OpenAiSession", () => {
@@ -408,7 +423,7 @@ describe("OpenAiSession", () => {
     expect(input[3]).toEqual({ type: "function_call_output", call_id: "call_abc", output: "5 transactions found" })
     expect(lastBlocks(events)).toEqual([
       { type: "text", content: "Looking up..." },
-      { type: "tool-activity", tool: "list_transactions" },
+      { type: "tool-activity", tool: "list_transactions", status: "done" },
       { type: "text", content: "Found 5 transactions." },
     ])
     expect(events.at(-1)).toEqual({ type: "done" })
@@ -638,9 +653,9 @@ describe("OpenAiSession", () => {
     expect(content[0]).toMatchObject({ type: "input_file", filename: "document.pdf" })
   })
 
-  it("terminates with a budget-exhausted error after SESSION_TOOL_CALL_BUDGET tool calls", async () => {
-    const { SESSION_TOOL_CALL_BUDGET } = await import("@capybudget/intelligence")
-    for (let i = 0; i < SESSION_TOOL_CALL_BUDGET + 1; i++) {
+  it("terminates with a budget-exhausted error after REPLY_TOOL_CALL_BUDGET tool calls", async () => {
+    const { REPLY_TOOL_CALL_BUDGET } = await import("@capybudget/intelligence")
+    for (let i = 0; i < REPLY_TOOL_CALL_BUDGET + 1; i++) {
       queueTurn({ calls: [{ id: `tc-${i}`, name: "list_accounts", argFragments: ["{}"] }], status: "completed" })
     }
     mockRunTool.mockResolvedValue("ok")
@@ -648,7 +663,7 @@ describe("OpenAiSession", () => {
     const { session, events } = makeSession()
     await session.send("Loop forever")
 
-    expect(mockRunTool).toHaveBeenCalledTimes(SESSION_TOOL_CALL_BUDGET)
+    expect(mockRunTool).toHaveBeenCalledTimes(REPLY_TOOL_CALL_BUDGET)
     const errorEvent = events.find((e) => e.type === "error")
     expect(errorEvent).toMatchObject({ code: "budgetExhausted" })
     expect(events.some((e) => e.type === "done")).toBe(false)
@@ -702,21 +717,20 @@ describe("OpenAiSession", () => {
     expect(lastBlocks(events)).toEqual([{ type: "text", content: "visible" }])
   })
 
-  it("restart() resets the budget counter so the next session starts fresh", async () => {
-    const { SESSION_TOOL_CALL_BUDGET } = await import("@capybudget/intelligence")
-    for (let i = 0; i < SESSION_TOOL_CALL_BUDGET + 1; i++) {
+  it("the next send starts with a fresh tool-call budget", async () => {
+    const { REPLY_TOOL_CALL_BUDGET } = await import("@capybudget/intelligence")
+    for (let i = 0; i < REPLY_TOOL_CALL_BUDGET + 1; i++) {
       queueTurn({ calls: [{ id: `tc-${i}`, name: "list_accounts", argFragments: ["{}"] }], status: "completed" })
     }
     mockRunTool.mockResolvedValue("ok")
 
     const { session } = makeSession()
     await session.send("Loop forever")
-    await session.restart()
     mockRunTool.mockClear()
-    queueTurn({ calls: [{ id: "tc-post-restart", name: "list_accounts", argFragments: ["{}"] }], status: "completed" })
+    queueTurn({ calls: [{ id: "tc-next-send", name: "list_accounts", argFragments: ["{}"] }], status: "completed" })
     queueTurn({ textDeltas: ["Done."], status: "completed" })
 
-    await session.send("After restart")
+    await session.send("Keep going")
 
     expect(mockRunTool).toHaveBeenCalledTimes(1)
   })
@@ -1174,7 +1188,7 @@ describe("OpenAiSession lifecycle", () => {
     tools.resolvers[0]("created")
     await sending
 
-    expect(lastBlocks(events)).toEqual([{ type: "tool-activity", tool: "create_transaction" }])
+    expect(lastBlocks(events)).toEqual([{ type: "tool-activity", tool: "create_transaction", status: "running" }])
     expect(events.slice(afterStop)).toEqual([
       { type: "tool-result", tool: "create_transaction", id: "call_a", ok: true },
     ])
@@ -1194,7 +1208,7 @@ describe("OpenAiSession lifecycle", () => {
     expect(abortSignals[0].aborted).toBe(false)
   })
 
-  it("kill() during the tool loop answers the rest with STOPPED and emits nothing more", async () => {
+  it("kill() during the tool loop answers the rest with STOPPED and emits only the running call's tool-result", async () => {
     queueTurn({
       calls: [
         { id: "call_a", name: "create_transaction", argFragments: ["{}"] },
@@ -1213,7 +1227,7 @@ describe("OpenAiSession lifecycle", () => {
     tools.resolvers[0]("created")
     await Promise.all([sending, queued])
 
-    expect(events.slice(afterKill)).toEqual([])
+    expect(events.slice(afterKill)).toEqual([{ type: "tool-result", tool: "create_transaction", id: "call_a", ok: true }])
     expect(mockCreate).toHaveBeenCalledTimes(1)
     expect(history(session).slice(-2)).toEqual([
       { type: "function_call_output", call_id: "call_a", output: "created" },
@@ -1333,5 +1347,95 @@ describe("OpenAiSession output cap", () => {
     queueTurn({ textDeltas: ['{"ok": true}'], status: "completed" })
     expect(await fresh.structured([{ role: "user", content: "x" }], SCHEMA, { onText: () => {} })).toEqual({ ok: true })
     expect(lastCreateCall().max_output_tokens).toBe(16384)
+  })
+})
+
+describe("OpenAiSession failures", () => {
+  it("a request that fails before any reply leaves no trace in history", async () => {
+    queueTurn({ status: null, error: apiError(400, "Invalid image format", "input") })
+
+    const { session, events } = makeSession()
+    await session.send([
+      { type: "text", text: "what's on this receipt?" },
+      { type: "image", source: { type: "base64", media_type: "image/heic", data: "AAAA" } },
+    ])
+    expect(events.at(-1)).toMatchObject({ type: "error", status: 400, provider: "openai" })
+    expect(history(session)).toEqual([])
+
+    queueTurn({ textDeltas: ["Hi"], status: "completed" })
+    await session.send("hello")
+    expect(lastCreateCall().input).toEqual([{ role: "user", content: "hello" }])
+  })
+
+  it("a failure after a stored reply never rolls history back", async () => {
+    queueTurn({ calls: [{ id: "call_a", name: "list_accounts", argFragments: ["{}"] }], status: "completed" })
+    queueTurn({ status: null, error: apiError(500, "server error", null) })
+    mockRunTool.mockResolvedValue("accounts")
+
+    const { session } = makeSession()
+    await session.send("accounts?")
+
+    expect(history(session).map((item) => item.type ?? item.role)).toEqual([
+      "user",
+      "function_call",
+      "function_call_output",
+    ])
+  })
+
+  it("an error mid-stream keeps the text before the first call in history and on screen", async () => {
+    queueTurn({
+      textDeltas: ["Partial ", "answer"],
+      calls: [{ id: "call_a", name: "create_transaction", argFragments: ["{}"] }],
+      status: null,
+      failAfter: new Error("network lost"),
+    })
+
+    const { session, events } = makeSession()
+    await session.send("q")
+
+    expect(history(session).at(-1)).toEqual({ role: "assistant", content: "Partial answer" })
+    expect(lastBlocks(events)).toEqual([{ type: "text", content: "Partial answer" }])
+    expect(events.at(-1)).toMatchObject({ type: "error", message: "network lost", provider: "openai" })
+    expect(mockRunTool).not.toHaveBeenCalled()
+  })
+
+  it("never aborts a stream that finished — the rest drains in the background", async () => {
+    queueTurn({ textDeltas: ["visible"], status: "completed", tailDelta: "INVISIBLE" })
+
+    const { session, events } = makeSession()
+    await session.send("Hi")
+
+    await vi.waitFor(() => expect(streams[0].drained).toBe(true))
+    expect(streams[0].controller.signal.aborted).toBe(false)
+    expect(lastBlocks(events)).toEqual([{ type: "text", content: "visible" }])
+  })
+
+  it("reports a 429 rate limit as rateLimited, stamped with the provider", async () => {
+    queueTurn({ status: null, error: apiError(429, "Rate limit reached for requests", null, "rate_limit_exceeded") })
+
+    const { session, events } = makeSession()
+    await session.send("hi")
+
+    expect(events.at(-1)).toMatchObject({ type: "error", code: "rateLimited", status: 429, provider: "openai" })
+  })
+
+  it("leaves an exhausted-quota 429 as the vendor's billing message", async () => {
+    queueTurn({ status: null, error: apiError(429, "You exceeded your current quota.", null, "insufficient_quota") })
+
+    const { session, events } = makeSession()
+    await session.send("hi")
+
+    const end = events.at(-1)
+    expect(end).toMatchObject({ type: "error", status: 429, message: "You exceeded your current quota." })
+    expect(end).not.toHaveProperty("code")
+  })
+
+  it("stamps the provider on a cut-off reply's error", async () => {
+    queueTurn({ textDeltas: ["Half"], status: "incomplete", incompleteReason: "max_output_tokens" })
+
+    const { session, events } = makeSession()
+    await session.send("hi")
+
+    expect(events.at(-1)).toMatchObject({ type: "error", code: "cutOff", provider: "openai" })
   })
 })

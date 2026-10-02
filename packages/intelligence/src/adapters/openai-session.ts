@@ -1,7 +1,7 @@
 import OpenAI from "openai"
 import { getToolDefinitions } from "../tools"
 import { AgentSession } from "./agent-session"
-import { UNANSWERED_RESULT, parseToolArguments, toolCallBlock } from "./agent-turn"
+import { UNANSWERED_RESULT, parseToolArguments, readToTerminal, toolCallBlock } from "./agent-turn"
 import type { LoopOutcome, TurnDisplay } from "./agent-turn"
 import type { ApiAdapterOptions } from "../factory"
 import type { MessageContent, SessionProvider } from "../types"
@@ -28,24 +28,28 @@ async function readStream(
   stream: AsyncIterable<OpenAI.Responses.ResponseStreamEvent>,
   on: StreamHandlers = {},
 ): Promise<ModelResponse | null> {
-  for await (const event of stream) {
+  let response: ModelResponse | null = null
+  await readToTerminal(stream, (event) => {
     switch (event.type) {
       case "response.output_text.delta":
         on.text?.(event)
-        break
+        return false
       case "response.output_item.done":
         on.itemDone?.(event.item)
-        break
+        return false
       case "response.completed":
       case "response.incomplete":
-        return event.response
+        response = event.response
+        return true
       case "response.failed":
         throw new Error(event.response.error?.message ?? "The response failed.")
       case "error":
         throw new Error(event.message)
+      default:
+        return false
     }
-  }
-  return null
+  })
+  return response
 }
 
 function endingOf(response: ModelResponse | null): Ending {
@@ -212,20 +216,23 @@ export class OpenAiSession extends AgentSession<InputItem> implements Structured
           },
         })
       } catch (err) {
-        if (!this.stopped) throw err
+        if (!this.stopped) {
+          this.keepLeadingTexts(leadingTexts, display)
+          throw err
+        }
       }
       this.closeRequest()
 
       const ending = endingOf(response)
       if (ending !== "finished") {
-        this.keepLeadingTexts([...leadingTexts.values()].filter((t) => t.length > 0), display)
-        return ending
+        this.keepLeadingTexts(leadingTexts, display)
+        return this.stopped ? "stopped" : ending
       }
 
       const output = (response?.output ?? []).filter(isReplayed)
       // A reasoning item replayed without the item it led to is rejected, so a
       // reasoning-only response leaves no trace in history.
-      if (output.some((item) => item.type !== "reasoning")) this.messages.push(...output)
+      if (output.some((item) => item.type !== "reasoning")) this.storeReply(...output)
 
       const calls = output.flatMap((item) =>
         item.type === "function_call"
@@ -247,11 +254,15 @@ export class OpenAiSession extends AgentSession<InputItem> implements Structured
     this.messages.push({ role: "user", content: toResponsesUserContent(content) })
   }
 
-  private keepLeadingTexts(texts: string[], display: TurnDisplay): void {
+  private keepLeadingTexts(streamed: ReadonlyMap<string, string>, display: TurnDisplay): void {
+    const texts = [...streamed.values()].filter((t) => t.length > 0)
     display.replaceIteration(texts)
-    texts.forEach((text, i) => {
-      this.messages.push({ role: "assistant", content: i === texts.length - 1 ? this.markedIfStopped(text) : text })
-    })
+    this.storeReply(
+      ...texts.map((text, i) => ({
+        role: "assistant" as const,
+        content: i === texts.length - 1 ? this.markedIfStopped(text) : text,
+      })),
+    )
   }
 
   private async withReasoningReplay<T>(request: (include: Includable[] | undefined) => Promise<T>): Promise<T> {

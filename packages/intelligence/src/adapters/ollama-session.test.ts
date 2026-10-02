@@ -22,6 +22,8 @@ interface FakeTurn {
   /** Null ends the stream without a finish chunk. */
   finish_reason: "stop" | "tool_calls" | "length" | "content_filter" | null
   error?: Error
+  /** Fails the stream with this error after its content chunks. */
+  failAfter?: Error
   /** Extra chunk appended AFTER finish_reason — must never be observed. */
   tailChunk?: { content: string }
 }
@@ -32,9 +34,10 @@ interface StructuredReply {
   refusal?: string
 }
 
-const { mockCreate, queueTurn, queueStructured, lastCreateCall, allCreateCalls, abortSignals } = vi.hoisted(
+const { mockCreate, queueTurn, queueStructured, lastCreateCall, allCreateCalls, abortSignals, streams } = vi.hoisted(
   () => {
     const queue: FakeTurn[] = []
+    const streamList: Array<{ controller: AbortController; drained: boolean }> = []
     const calls: Array<{
       messages: unknown
       tools: unknown
@@ -180,15 +183,25 @@ const { mockCreate, queueTurn, queueStructured, lastCreateCall, allCreateCalls, 
       }
 
       const controller = new AbortController()
+      const record = { controller, drained: false }
+      const failAfter = turn.failAfter
+      streamList.push(record)
 
+      // Mirrors the SDK: leaving the iterator before the end aborts the request.
       async function* iterate() {
-        for (const chunk of chunks) {
-          if (sig?.aborted || controller.signal.aborted) {
-            const err = new Error("Aborted")
-            err.name = "AbortError"
-            throw err
+        try {
+          for (const chunk of chunks) {
+            if (sig?.aborted || controller.signal.aborted) {
+              const err = new Error("Aborted")
+              err.name = "AbortError"
+              throw err
+            }
+            yield chunk
           }
-          yield chunk
+          if (failAfter) throw failAfter
+          record.drained = true
+        } finally {
+          if (!record.drained) controller.abort()
         }
       }
       return {
@@ -212,6 +225,7 @@ const { mockCreate, queueTurn, queueStructured, lastCreateCall, allCreateCalls, 
       lastCreateCall: () => calls[calls.length - 1],
       allCreateCalls: () => calls,
       abortSignals: signals,
+      streams: streamList,
     }
   },
 )
@@ -281,6 +295,7 @@ beforeEach(() => {
   mockCreate.mockClear()
   mockRunTool.mockReset()
   abortSignals.length = 0
+  streams.length = 0
 })
 
 describe("OllamaSession", () => {
@@ -763,9 +778,9 @@ describe("OllamaSession", () => {
     expect(userBlocks[1].image_url).toEqual({ url: "data:image/png;base64,AAAA" })
   })
 
-  it("terminates with a budget-exhausted error after SESSION_TOOL_CALL_BUDGET tool calls", async () => {
-    const { SESSION_TOOL_CALL_BUDGET } = await import("@capybudget/intelligence")
-    for (let i = 0; i < SESSION_TOOL_CALL_BUDGET + 1; i++) {
+  it("terminates with a budget-exhausted error after REPLY_TOOL_CALL_BUDGET tool calls", async () => {
+    const { REPLY_TOOL_CALL_BUDGET } = await import("@capybudget/intelligence")
+    for (let i = 0; i < REPLY_TOOL_CALL_BUDGET + 1; i++) {
       queueTurn({
         toolCallDeltas: [
           {
@@ -783,7 +798,7 @@ describe("OllamaSession", () => {
     const { session, events } = makeSession()
     await session.send("Loop forever")
 
-    expect(mockRunTool).toHaveBeenCalledTimes(SESSION_TOOL_CALL_BUDGET)
+    expect(mockRunTool).toHaveBeenCalledTimes(REPLY_TOOL_CALL_BUDGET)
     const errorEvent = events.find((e) => e.type === "error")
     expect(errorEvent).toMatchObject({ code: "budgetExhausted" })
     expect(errorEvent?.message).toMatch(/budget exhausted/i)
@@ -1023,9 +1038,9 @@ describe("OllamaSession", () => {
     expect(events.some((e) => e.type === "done")).toBe(false)
   })
 
-  it("restart() resets the budget counter so the next session starts fresh", async () => {
-    const { SESSION_TOOL_CALL_BUDGET } = await import("@capybudget/intelligence")
-    for (let i = 0; i < SESSION_TOOL_CALL_BUDGET + 1; i++) {
+  it("the next send starts with a fresh tool-call budget", async () => {
+    const { REPLY_TOOL_CALL_BUDGET } = await import("@capybudget/intelligence")
+    for (let i = 0; i < REPLY_TOOL_CALL_BUDGET + 1; i++) {
       queueTurn({
         toolCallDeltas: [
           {
@@ -1042,15 +1057,14 @@ describe("OllamaSession", () => {
 
     const { session } = makeSession()
     await session.send("Loop forever")
-    expect(mockRunTool).toHaveBeenCalledTimes(SESSION_TOOL_CALL_BUDGET)
+    expect(mockRunTool).toHaveBeenCalledTimes(REPLY_TOOL_CALL_BUDGET)
 
-    await session.restart()
     mockRunTool.mockClear()
     queueTurn({
       toolCallDeltas: [
         {
           index: 0,
-          id: "tc-post-restart",
+          id: "tc-next-send",
           name: "list_accounts",
           argFragments: ["{}"],
         },
@@ -1062,7 +1076,7 @@ describe("OllamaSession", () => {
       finish_reason: "stop",
     })
 
-    await session.send("After restart")
+    await session.send("Keep going")
 
     expect(mockRunTool).toHaveBeenCalledTimes(1)
   })
@@ -1544,7 +1558,7 @@ describe("OllamaSession lifecycle", () => {
     tools.resolvers[0]("created")
     await sending
 
-    expect(lastBlocks(events)).toEqual([{ type: "tool-activity", tool: "create_transaction" }])
+    expect(lastBlocks(events)).toEqual([{ type: "tool-activity", tool: "create_transaction", status: "running" }])
     expect(events.slice(afterStop)).toEqual([
       { type: "tool-result", tool: "create_transaction", id: "call_a", ok: true },
     ])
@@ -1568,7 +1582,7 @@ describe("OllamaSession lifecycle", () => {
     expect(abortSignals[0].aborted).toBe(false)
   })
 
-  it("kill() during the tool loop answers the rest with STOPPED and emits nothing more", async () => {
+  it("kill() during the tool loop answers the rest with STOPPED and emits only the running call's tool-result", async () => {
     queueTurn({
       toolCallDeltas: [
         { index: 0, id: "call_a", name: "create_transaction", argFragments: ["{}"] },
@@ -1587,7 +1601,7 @@ describe("OllamaSession lifecycle", () => {
     tools.resolvers[0]("created")
     await Promise.all([sending, queued])
 
-    expect(events.slice(afterKill)).toEqual([])
+    expect(events.slice(afterKill)).toEqual([{ type: "tool-result", tool: "create_transaction", id: "call_a", ok: true }])
     expect(mockCreate).toHaveBeenCalledTimes(1)
     expect(history(session).slice(-2)).toEqual([
       { role: "tool", tool_call_id: "call_a", content: "created" },
@@ -1751,5 +1765,114 @@ describe("OllamaSession output cap", () => {
     await expect(
       session.structured([{ role: "user", content: "x" }], SCHEMA, { onText: () => {} }),
     ).rejects.toBeInstanceOf(RefusedError)
+  })
+})
+
+describe("OllamaSession failures", () => {
+  it("a request that fails before any reply leaves no trace in history", async () => {
+    queueTurn({ finish_reason: null, error: apiError(400, "this model does not support images") })
+
+    const { session, events } = makeSession()
+    await session.send([
+      { type: "text", text: "what's on this receipt?" },
+      { type: "image", source: { type: "base64", media_type: "image/png", data: "AAAA" } },
+    ])
+    expect(events.at(-1)).toMatchObject({ type: "error", status: 400, provider: "ollama" })
+    expect(history(session)).toEqual([])
+
+    queueTurn({ textDeltas: ["Hi"], finish_reason: "stop" })
+    await session.send("hello")
+    expect((lastCreateCall().messages as unknown[]).slice(1)).toEqual([{ role: "user", content: "hello" }])
+  })
+
+  it("a failure after a stored reply never rolls history back", async () => {
+    queueTurn({
+      toolCallDeltas: [{ index: 0, id: "call_a", name: "list_accounts", argFragments: ["{}"] }],
+      finish_reason: "tool_calls",
+    })
+    queueTurn({ finish_reason: null, error: apiError(500, "server error") })
+    mockRunTool.mockResolvedValue("accounts")
+
+    const { session } = makeSession()
+    await session.send("accounts?")
+
+    expect(history(session).map((m) => m.role)).toEqual(["user", "assistant", "tool"])
+  })
+
+  it("an error mid-stream keeps the streamed text in history and on screen", async () => {
+    queueTurn({
+      textDeltas: ["Partial ", "answer"],
+      toolCallDeltas: [{ index: 0, id: "call_a", name: "create_transaction", argFragments: ["{}"] }],
+      finish_reason: null,
+      failAfter: new Error("network lost"),
+    })
+
+    const { session, events } = makeSession()
+    await session.send("q")
+
+    expect(history(session).at(-1)).toEqual({ role: "assistant", content: "Partial answer" })
+    expect(lastBlocks(events)).toEqual([{ type: "text", content: "Partial answer" }])
+    expect(events.at(-1)).toMatchObject({ type: "error", message: "network lost", provider: "ollama" })
+    expect(mockRunTool).not.toHaveBeenCalled()
+  })
+
+  it("never aborts a stream that finished — the rest drains in the background", async () => {
+    queueTurn({ textDeltas: ["Hi"], finish_reason: "stop", tailChunk: { content: "IGNORED" } })
+
+    const { session, events } = makeSession()
+    await session.send("hi")
+
+    await vi.waitFor(() => expect(streams[0].drained).toBe(true))
+    expect(streams[0].controller.signal.aborted).toBe(false)
+    expect(lastBlocks(events)).toEqual([{ type: "text", content: "Hi" }])
+  })
+
+  it("never aborts a finished structured stream", async () => {
+    queueTurn({ textDeltas: ['{"ok": true}'], finish_reason: "stop", tailChunk: { content: "IGNORED" } })
+
+    const { session } = makeSession()
+    await session.structured(
+      [{ role: "user", content: "x" }],
+      { type: "object", properties: { ok: { type: "boolean" } }, required: ["ok"] },
+      { onText: () => {} },
+    )
+
+    await vi.waitFor(() => expect(streams[0].drained).toBe(true))
+    expect(streams[0].controller.signal.aborted).toBe(false)
+  })
+
+  it("reports a 429 as rateLimited, stamped with the provider", async () => {
+    queueTurn({ finish_reason: null, error: apiError(429, "too many requests") })
+
+    const { session, events } = makeSession()
+    await session.send("hi")
+
+    expect(events.at(-1)).toMatchObject({ type: "error", code: "rateLimited", status: 429, provider: "ollama" })
+  })
+
+  it("stamps the provider on a cut-off reply's error", async () => {
+    queueTurn({ textDeltas: ["Half"], finish_reason: "length" })
+
+    const { session, events } = makeSession()
+    await session.send("hi")
+
+    expect(events.at(-1)).toMatchObject({ type: "error", code: "cutOff", provider: "ollama" })
+  })
+
+  it("marks a call whose tool throws as failed on its card", async () => {
+    queueTurn({
+      toolCallDeltas: [{ index: 0, id: "call_a", name: "create_transaction", argFragments: ["{}"] }],
+      finish_reason: "tool_calls",
+    })
+    queueTurn({ textDeltas: ["That didn't work."], finish_reason: "stop" })
+    mockRunTool.mockRejectedValue(new Error("bad input"))
+
+    const { session, events } = makeSession()
+    await session.send("add it")
+
+    expect(lastBlocks(events)).toEqual([
+      { type: "tool-activity", tool: "create_transaction", status: "failed" },
+      { type: "text", content: "That didn't work." },
+    ])
   })
 })

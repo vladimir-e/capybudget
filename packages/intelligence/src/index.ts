@@ -9,8 +9,10 @@ export type {
   TextBlock,
   TableBlock,
   BarChartBlock,
+  ChartPoint,
   DonutChartBlock,
   ToolActivityBlock,
+  ToolCallStatus,
   FileAttachmentBlock,
   FollowupChip,
   FollowupsBlock,
@@ -92,6 +94,7 @@ export {
 export {
   fileExtension,
   isImageFilename,
+  isSupportedImageType,
   isPdfFilename,
   isOfxFilename,
   effectiveMediaType,
@@ -113,7 +116,7 @@ export {
   // Dispatch
   runTool,
   isDispatchTool,
-  SESSION_TOOL_CALL_BUDGET,
+  REPLY_TOOL_CALL_BUDGET,
   // Handlers (re-exported for transports / tests that use them directly)
   handleListAccounts,
   handleListTransactions,

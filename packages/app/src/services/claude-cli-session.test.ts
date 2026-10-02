@@ -147,7 +147,7 @@ describe("ClaudeCliSession", () => {
   })
 
   it("passes --max-turns to the CLI as the runaway-loop backstop", async () => {
-    const { SESSION_TOOL_CALL_BUDGET } = await import("@capybudget/intelligence")
+    const { REPLY_TOOL_CALL_BUDGET } = await import("@capybudget/intelligence")
     const { Command } = await import("@tauri-apps/plugin-shell")
     const { session } = makeSession()
     await session.send("hi")
@@ -155,7 +155,7 @@ describe("ClaudeCliSession", () => {
     const args = (Command.create as ReturnType<typeof vi.fn>).mock.calls[0][1] as string[]
     const idx = args.indexOf("--max-turns")
     expect(idx).toBeGreaterThan(-1)
-    expect(args[idx + 1]).toBe(String(SESSION_TOOL_CALL_BUDGET))
+    expect(args[idx + 1]).toBe(String(REPLY_TOOL_CALL_BUDGET))
   })
 
   it("spawns the CLI with ENABLE_TOOL_SEARCH=false so MCP schemas load upfront", async () => {

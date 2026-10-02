@@ -20,6 +20,8 @@ interface FakeTurn {
   toolUses?: Array<{ id: string; name: string; input: Record<string, unknown> }>
   stop_reason: Anthropic.StopReason | null
   error?: Error
+  /** Fails the stream with this error after its content has streamed. */
+  failAfter?: Error
 }
 
 const { mockStream, queueTurn, lastStreamCall, abortSignals, streamStubs } = vi.hoisted(() => {
@@ -83,6 +85,7 @@ const { mockStream, queueTurn, lastStreamCall, abortSignals, streamStubs } = vi.
       once,
       controller,
       get currentMessage() {
+        if (turn.error) return undefined
         const inProgress: FakeBlock[] = textAccum ? [{ type: "text", text: textAccum }] : []
         return { content: [...(turn.thinking ?? []), ...toContent([...completed, ...inProgress])], stop_reason: null }
       },
@@ -145,6 +148,11 @@ const { mockStream, queueTurn, lastStreamCall, abortSignals, streamStubs } = vi.
             emit("contentBlock", block)
             completed.push(block)
           }
+        }
+        if (turn.failAfter) {
+          emit("error", turn.failAfter)
+          ended = true
+          return
         }
         emit("message", {
           content: [...(turn.thinking ?? []), ...toContent(completed)],
@@ -720,9 +728,9 @@ describe("AnthropicSession", () => {
     expect(blocks[2].title).toBe("statement.pdf")
   })
 
-  it("terminates with a budget-exhausted error after SESSION_TOOL_CALL_BUDGET tool calls", async () => {
-    const { SESSION_TOOL_CALL_BUDGET } = await import("@capybudget/intelligence")
-    for (let i = 0; i < SESSION_TOOL_CALL_BUDGET + 1; i++) {
+  it("terminates with a budget-exhausted error after REPLY_TOOL_CALL_BUDGET tool calls", async () => {
+    const { REPLY_TOOL_CALL_BUDGET } = await import("@capybudget/intelligence")
+    for (let i = 0; i < REPLY_TOOL_CALL_BUDGET + 1; i++) {
       queueTurn({
         toolUses: [{ id: `tu-${i}`, name: "list_accounts", input: {} }],
         stop_reason: "tool_use",
@@ -733,7 +741,7 @@ describe("AnthropicSession", () => {
     const { session, events } = makeSession()
     await session.send("Loop forever")
 
-    expect(mockRunTool).toHaveBeenCalledTimes(SESSION_TOOL_CALL_BUDGET)
+    expect(mockRunTool).toHaveBeenCalledTimes(REPLY_TOOL_CALL_BUDGET)
 
     const errorEvent = events.find((e) => e.type === "error")
     expect(errorEvent).toMatchObject({ code: "budgetExhausted" })
@@ -785,9 +793,9 @@ describe("AnthropicSession", () => {
     expect(types).toContain("table")
   })
 
-  it("restart() resets the budget counter so the next session starts fresh", async () => {
-    const { SESSION_TOOL_CALL_BUDGET } = await import("@capybudget/intelligence")
-    for (let i = 0; i < SESSION_TOOL_CALL_BUDGET + 1; i++) {
+  it("the next send starts with a fresh tool-call budget", async () => {
+    const { REPLY_TOOL_CALL_BUDGET } = await import("@capybudget/intelligence")
+    for (let i = 0; i < REPLY_TOOL_CALL_BUDGET + 1; i++) {
       queueTurn({
         toolUses: [{ id: `tu-${i}`, name: "list_accounts", input: {} }],
         stop_reason: "tool_use",
@@ -797,12 +805,11 @@ describe("AnthropicSession", () => {
 
     const { session } = makeSession()
     await session.send("Loop forever")
-    expect(mockRunTool).toHaveBeenCalledTimes(SESSION_TOOL_CALL_BUDGET)
+    expect(mockRunTool).toHaveBeenCalledTimes(REPLY_TOOL_CALL_BUDGET)
 
-    await session.restart()
     mockRunTool.mockClear()
     queueTurn({
-      toolUses: [{ id: "tu-post-restart", name: "list_accounts", input: {} }],
+      toolUses: [{ id: "tu-next-send", name: "list_accounts", input: {} }],
       stop_reason: "tool_use",
     })
     queueTurn({
@@ -810,7 +817,7 @@ describe("AnthropicSession", () => {
       stop_reason: "end_turn",
     })
 
-    await session.send("After restart")
+    await session.send("Keep going")
 
     expect(mockRunTool).toHaveBeenCalledTimes(1)
   })
@@ -1302,7 +1309,7 @@ describe("AnthropicSession lifecycle", () => {
     tools.resolvers[0]("created")
     await sending
 
-    expect(lastBlocks(events)).toEqual([{ type: "tool-activity", tool: "create_transaction" }])
+    expect(lastBlocks(events)).toEqual([{ type: "tool-activity", tool: "create_transaction", status: "running" }])
     expect(events.slice(afterStop)).toEqual([
       { type: "tool-result", tool: "create_transaction", id: "tu1", ok: true },
     ])
@@ -1327,7 +1334,7 @@ describe("AnthropicSession lifecycle", () => {
     expect(streamStubs[0].abortSpy).not.toHaveBeenCalled()
   })
 
-  it("kill() during the tool loop answers the rest with STOPPED and emits nothing more", async () => {
+  it("kill() during the tool loop answers the rest with STOPPED and emits only the running call's tool-result", async () => {
     queueTurn({
       toolUses: [
         { id: "tu1", name: "create_transaction", input: {} },
@@ -1346,7 +1353,7 @@ describe("AnthropicSession lifecycle", () => {
     tools.resolvers[0]("created")
     await Promise.all([sending, queued])
 
-    expect(events.slice(afterKill)).toEqual([])
+    expect(events.slice(afterKill)).toEqual([{ type: "tool-result", tool: "create_transaction", id: "tu1", ok: true }])
     expect(mockStream).toHaveBeenCalledTimes(1)
     expect(history(session).at(-1)).toEqual({
       role: "user",
@@ -1387,9 +1394,12 @@ describe("AnthropicSession lifecycle", () => {
     const { session, events } = makeSession()
     const first = session.send("Add it")
     await tools.started()
+    expect(session.hasQueuedSend).toBe(false)
     await session.stop()
     const queued = session.send("Next")
+    expect(session.hasQueuedSend).toBe(true)
     await session.stop()
+    expect(session.hasQueuedSend).toBe(false)
     tools.resolvers[0]("created")
     await Promise.all([first, queued])
 
@@ -1510,8 +1520,8 @@ describe("AnthropicSession lifecycle", () => {
   })
 
   it("marks the budget-exhausted result as an error", async () => {
-    const { SESSION_TOOL_CALL_BUDGET } = await import("@capybudget/intelligence")
-    for (let i = 0; i < SESSION_TOOL_CALL_BUDGET + 1; i++) {
+    const { REPLY_TOOL_CALL_BUDGET } = await import("@capybudget/intelligence")
+    for (let i = 0; i < REPLY_TOOL_CALL_BUDGET + 1; i++) {
       queueTurn({ toolUses: [{ id: `tu-${i}`, name: "list_accounts", input: {} }], stop_reason: "tool_use" })
     }
     mockRunTool.mockResolvedValue("ok")
@@ -1624,5 +1634,87 @@ describe("AnthropicSession output cap", () => {
     await expect(
       session.structured([{ role: "user", content: "x" }], { type: "object", properties: {} }),
     ).rejects.toBeInstanceOf(RefusedError)
+  })
+})
+
+describe("AnthropicSession failures", () => {
+  it("a request that fails before any reply leaves no trace in history", async () => {
+    queueTurn({ stop_reason: null, error: apiError(400, "Image does not match the provided media type image/png") })
+
+    const { session, events } = makeSession()
+    await session.send([
+      { type: "text", text: "what's on this receipt?" },
+      { type: "image", source: { type: "base64", media_type: "image/png", data: "AAAA" } },
+    ])
+    expect(events.at(-1)).toMatchObject({ type: "error", status: 400, provider: "anthropic" })
+    expect(history(session)).toEqual([])
+
+    queueTurn({ textDeltas: ["Hi"], stop_reason: "end_turn" })
+    await session.send("hello")
+    expect(lastStreamCall().messages).toEqual([{ role: "user", content: [{ type: "text", text: "hello" }] }])
+  })
+
+  it("a failed send merged into a trailing user turn leaves that turn as it was", async () => {
+    queueTurn({
+      toolUses: [{ id: "tu_f", name: "render_followups", input: { chips: [{ label: "More", prompt: "More" }] } }],
+      stop_reason: "tool_use",
+    })
+    mockRunTool.mockResolvedValueOnce("Rendered.")
+    const { session } = makeSession()
+    await session.send("First")
+    const before = structuredClone(history(session))
+
+    queueTurn({ stop_reason: null, error: apiError(400, "image exceeds 5 MB maximum") })
+    await session.send("Poisoned")
+    expect(history(session)).toEqual(before)
+
+    queueTurn({ textDeltas: ["Reply"], stop_reason: "end_turn" })
+    await session.send("Second")
+    expect(JSON.stringify(lastStreamCall().messages)).not.toContain("Poisoned")
+  })
+
+  it("a failure after a stored reply never rolls history back", async () => {
+    queueTurn({ toolUses: [{ id: "tu1", name: "list_accounts", input: {} }], stop_reason: "tool_use" })
+    queueTurn({ stop_reason: null, error: apiError(500, "overloaded") })
+    mockRunTool.mockResolvedValue("accounts")
+
+    const { session } = makeSession()
+    await session.send("accounts?")
+
+    expect(history(session).map((m) => m.role)).toEqual(["user", "assistant", "user"])
+  })
+
+  it("an error mid-stream keeps the text before any call in history and on screen", async () => {
+    queueTurn({
+      blocks: [{ text: "Partial answer" }, { toolUse: { id: "tu1", name: "create_transaction", input: {} } }],
+      stop_reason: null,
+      failAfter: new Error("network lost"),
+    })
+
+    const { session, events } = makeSession()
+    await session.send("q")
+
+    expect(history(session).at(-1)).toEqual({ role: "assistant", content: [{ type: "text", text: "Partial answer" }] })
+    expect(lastBlocks(events)).toEqual([{ type: "text", content: "Partial answer" }])
+    expect(events.at(-1)).toMatchObject({ type: "error", message: "network lost", provider: "anthropic" })
+    expect(mockRunTool).not.toHaveBeenCalled()
+  })
+
+  it("reports a 429 as rateLimited, stamped with the provider", async () => {
+    queueTurn({ stop_reason: null, error: apiError(429, "Number of request tokens has exceeded your rate limit") })
+
+    const { session, events } = makeSession()
+    await session.send("hi")
+
+    expect(events.at(-1)).toMatchObject({ type: "error", code: "rateLimited", status: 429, provider: "anthropic" })
+  })
+
+  it("stamps the provider on a cut-off reply's error", async () => {
+    queueTurn({ textDeltas: ["Half"], stop_reason: "max_tokens" })
+
+    const { session, events } = makeSession()
+    await session.send("hi")
+
+    expect(events.at(-1)).toMatchObject({ type: "error", code: "cutOff", provider: "anthropic" })
   })
 })

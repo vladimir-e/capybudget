@@ -38,6 +38,16 @@ export function extractErrorMessage(err: unknown): { message: string; status?: n
   return { message: String(err) }
 }
 
+const QUOTA_EXHAUSTED = "insufficient_quota"
+
+/** A 429 that asks the caller to slow down. OpenAI also answers an exhausted
+ *  quota with 429 — that one is a billing problem, not a rate limit. */
+export function isRateLimited(err: unknown): boolean {
+  if (!isObject(err) || err.status !== 429) return false
+  const body = isObject(err.error) ? err.error : {}
+  return ![err.code, body.code, body.type].includes(QUOTA_EXHAUSTED)
+}
+
 function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null
 }
