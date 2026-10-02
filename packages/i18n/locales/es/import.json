@@ -19,7 +19,13 @@
     "saveFailed": "No se pudo guardar {{name}}",
     "providerRequired": "La importación necesita Anthropic, OpenAI u Ollama configurado.",
     "clearFailed": "No se pudo limpiar la preparación de importación — inténtalo de nuevo.",
-    "removeFileFailed": "No se pudo eliminar {{name}}"
+    "removeFileFailed": "No se pudo eliminar {{name}}",
+    "tooLarge": "{{name}} supera el límite de 5 MB",
+    "unreachable": "No se puede conectar con {{provider}} — revisa tu conexión a internet.",
+    "ollamaUnreachable": "No se puede conectar con Ollama en {{url}}. Inícialo con `ollama serve` o revisa la URL en Ajustes.",
+    "keyRejected": "{{provider}} rechazó la clave de API — revísala en Ajustes.",
+    "modelNotFound": "{{provider}} no encuentra el modelo seleccionado — elige otro en Ajustes.",
+    "categorizeFailed": "Capy no pudo categorizar ninguna fila. Siguen preparadas — ejecuta Enriquecer para intentarlo de nuevo."
   },
   "dropZone": {
     "browseLabel": "Buscar archivos para importar",
@@ -34,7 +40,8 @@
     "instructionsPlaceholder": "p. ej. «Es la exportación de mi presupuesto en Excel, los importes están en las columnas Debe/Haber»",
     "anyAccount": "Cualquier cuenta",
     "start": "Empezar importación",
-    "rerunHint": "¿No te gusta el resultado? Cancela, dale más instrucciones a Capy y vuelve a ejecutarla."
+    "rerunHint": "¿No te gusta el resultado? Cancela, dale más instrucciones a Capy y vuelve a ejecutarla.",
+    "pdfUnreadable": "no se leerá — la importación de PDF necesita Anthropic u OpenAI"
   },
   "setupAi": {
     "title": "Configura la IA para importar",

@@ -5,8 +5,17 @@ import type {
   ImportEvent,
   ImportPhase,
   NormalizeProgress,
+  SessionProvider,
   TerminalLogEntry,
 } from "@capybudget/intelligence";
+
+export interface ImportRunError {
+  reason: ImportErrorReason;
+  message: string;
+  recoverable: boolean;
+  status?: number;
+  provider?: SessionProvider;
+}
 
 /**
  * Import store — the event-driven view of an orchestrator run.
@@ -46,7 +55,7 @@ interface ImportRunState {
   grounded: boolean;
   /** Terminal run error, or null. `recoverable` (e.g. no source files) routes
    *  the screen back to file-attach rather than to a hard error state. */
-  error: { reason: ImportErrorReason; message: string; recoverable: boolean } | null;
+  error: ImportRunError | null;
   /** True between `start`/`enrich` and the terminal `done`/`error`. Drives Stop
    *  vs Enrich availability and the live/read-only preview split. */
   running: boolean;
@@ -163,7 +172,13 @@ export function reduce(s: ImportRunState, event: ImportEvent): Partial<ImportRun
       return { rowsVersion: s.rowsVersion + 1 };
     case "error":
       return {
-        error: { reason: event.reason, message: event.message, recoverable: event.recoverable },
+        error: {
+          reason: event.reason,
+          message: event.message,
+          recoverable: event.recoverable,
+          status: event.status,
+          provider: event.provider,
+        },
         running: false,
       };
     case "done":

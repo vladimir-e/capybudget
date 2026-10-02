@@ -7,6 +7,7 @@ import {
   Loader2,
   Settings,
   Sparkles,
+  AlertTriangle,
   Upload,
   X,
 } from "lucide-react";
@@ -14,7 +15,7 @@ import { useTranslation } from "@capybudget/i18n";
 import { Button } from "@/components/ui/button";
 import { AccountSelector } from "@/components/budget/account-selector";
 import { type SourceFileInfo } from "@/hooks/use-import-repository";
-import { formatFileSize, isImageFilename } from "@capybudget/intelligence";
+import { formatFileSize, isImageFilename, isPdfFilename } from "@capybudget/intelligence";
 import { type Account } from "@capybudget/core";
 import { useFormatters } from "@/hooks/use-formatters";
 
@@ -35,6 +36,7 @@ interface ImportDropZoneProps {
   onAccountChange: (id: string) => void;
   onStart: () => void;
   canStart: boolean;
+  pdfSupported: boolean;
   providerIsClaudeCli: boolean;
   onSetupAi: () => void;
 }
@@ -56,6 +58,7 @@ export function ImportDropZone({
   onAccountChange,
   onStart,
   canStart,
+  pdfSupported,
   providerIsClaudeCli,
   onSetupAi,
 }: ImportDropZoneProps) {
@@ -120,11 +123,12 @@ export function ImportDropZone({
             ))}
             {sourceFiles.map((file) => {
               const dupDate = fileDuplicates[file.name];
+              const unreadable = !pdfSupported && isPdfFilename(file.name);
               return (
                 <div
                   key={file.name}
                   className={`flex items-center gap-3 rounded-xl px-4 py-3 border ${
-                    dupDate
+                    dupDate || unreadable
                       ? "bg-amber-500/10 border-amber-500/30"
                       : "bg-muted/50 border-border"
                   }`}
@@ -142,6 +146,12 @@ export function ImportDropZone({
                       <span className="flex items-center gap-1 text-[11px] text-amber-600 dark:text-amber-400">
                         <Copy className="h-3 w-3 shrink-0" />
                         {t("dropZone.duplicateHint", { date: date(dupDate.slice(0, 10)) })}
+                      </span>
+                    )}
+                    {unreadable && (
+                      <span className="flex items-center gap-1 text-[11px] text-amber-600 dark:text-amber-400">
+                        <AlertTriangle className="h-3 w-3 shrink-0" />
+                        {t("dropZone.pdfUnreadable")}
                       </span>
                     )}
                   </div>

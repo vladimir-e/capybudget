@@ -10,6 +10,7 @@ const { ctorArgs, modelsList, chatCreate, responsesCreate } = vi.hoisted(() => (
 
 vi.mock("openai", () => ({
   default: class {
+    static APIConnectionError = class extends Error {}
     models = { list: modelsList }
     chat = { completions: { create: chatCreate } }
     responses = { create: responsesCreate }
@@ -54,6 +55,32 @@ describe("pingOllama", () => {
 
   it("reports the failure message instead of throwing", async () => {
     chatCreate.mockRejectedValue(new Error("model 'qwen3' not found"))
+
+    expect(await pingOllama("http://box:11434/v1", "qwen3")).toEqual({
+      ok: false,
+      message: "model 'qwen3' not found",
+    })
+  })
+})
+
+describe("pingOllama — routed failures", () => {
+  it("flags an unreachable server and names it", async () => {
+    const { default: OpenAI } = await import("openai")
+    chatCreate.mockRejectedValue(new OpenAI.APIConnectionError({ message: "Connection error." }))
+
+    expect(await pingOllama("http://box:11434/v1", "qwen3")).toEqual({
+      ok: false,
+      message: "Can't reach Ollama at http://box:11434",
+      unreachable: true,
+    })
+  })
+
+  it("reports the vendor message, not the raw status line", async () => {
+    const err = Object.assign(new Error('404 {"error":{"message":"model \'qwen3\' not found"}}'), {
+      status: 404,
+      error: { message: "model 'qwen3' not found" },
+    })
+    chatCreate.mockRejectedValue(err)
 
     expect(await pingOllama("http://box:11434/v1", "qwen3")).toEqual({
       ok: false,

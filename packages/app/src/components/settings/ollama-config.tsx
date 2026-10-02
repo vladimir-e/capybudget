@@ -64,7 +64,10 @@ export function OllamaConfig() {
       setTestState({ kind: "success" })
       setTimeout(() => setTestState({ kind: "idle" }), 3000)
     } else {
-      setTestState({ kind: "error", message: result.message })
+      setTestState({
+        kind: "error",
+        message: result.unreachable ? t("provider.ollama.notRunningHint") : result.message,
+      })
     }
   }
 

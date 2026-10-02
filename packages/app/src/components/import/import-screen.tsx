@@ -20,8 +20,9 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useImportRepository, type SourceFileInfo } from "@/hooks/use-import-repository";
-import type { ImportPhase } from "@capybudget/intelligence";
+import { MAX_ATTACHMENT_SIZE, isPdfFilename, type ImportPhase } from "@capybudget/intelligence";
 import { useImportStore } from "@/stores/import-store";
+import { useIntelligenceStore } from "@/stores/intelligence-store";
 import { useImportOrchestrator } from "@/hooks/use-import-orchestrator";
 import { useImportInstructions } from "@/hooks/use-custom-instructions";
 import { useAccounts } from "@/hooks/use-budget-data";
@@ -36,6 +37,7 @@ import { ImportDropZone } from "./import-drop-zone";
 import { ImportProgress } from "./import-progress";
 import { resumeMeter } from "./import-progress-utils";
 import { ImportPreview } from "./import-preview";
+import { importErrorCopy } from "./import-error-copy";
 
 interface ImportScreenProps {
   budgetPath: string;
@@ -63,6 +65,7 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
   const batchProgress = useImportStore((s) => s.batchProgress);
   const grounded = useImportStore((s) => s.grounded);
   const error = useImportStore((s) => s.error);
+  const ollamaBaseUrl = useIntelligenceStore((s) => s.config.ollama.baseUrl);
   const running = useImportStore((s) => s.running);
   const rowsVersion = useImportStore((s) => s.rowsVersion);
   const reset = useImportStore((s) => s.reset);
@@ -258,13 +261,13 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
     if (reportedErrorRef.current === key) return;
     reportedErrorRef.current = key;
 
-    toast.error(error.message);
+    toast.error(importErrorCopy(error, t, ollamaBaseUrl));
     if (error.recoverable || !hasStaging) {
       reset();
       setHasStaging(false);
       void refreshSourceFiles();
     }
-  }, [error, hasStaging, reset, refreshSourceFiles]);
+  }, [error, hasStaging, reset, refreshSourceFiles, t, ollamaBaseUrl]);
 
   // ── Derived view state ────────────────────────────────────────
   let viewState: ImportViewState;
@@ -289,6 +292,10 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
         // run the model never sees.
         if (isPdfFile(file) && !pdfSupported) {
           toast.error(t("errors.pdfNeedsCapableProvider", { name: file.name }));
+          continue;
+        }
+        if (isImportBinaryFile(file) && file.size > MAX_ATTACHMENT_SIZE) {
+          toast.error(t("errors.tooLarge", { name: file.name }));
           continue;
         }
         setUploadingFiles((prev) => new Set(prev).add(file.name));
@@ -387,6 +394,11 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
   // ── Actions ───────────────────────────────────────────────────
   const handleStart = useCallback(async () => {
     if (sourceFiles.length === 0 || running) return;
+    if (!pdfSupported) {
+      const unreadable = sourceFiles.filter((f) => isPdfFilename(f.name));
+      for (const f of unreadable) toast.error(t("errors.pdfNeedsCapableProvider", { name: f.name }));
+      if (unreadable.length === sourceFiles.length) return;
+    }
     const instructions = (localInstructions ?? "").trim();
     await customInstructions.save(instructions);
     const accountName = accounts.find((a) => a.id === selectedAccountId)?.name;
@@ -401,6 +413,7 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
     accounts,
     selectedAccountId,
     start,
+    pdfSupported,
     t,
   ]);
 
@@ -466,7 +479,7 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
   // History all completed, so a resting `idle` phase renders as `done`. It only
   // disappears at file-attach. (`grounded` keeps the bar up for the brief window
   // between History's stats and the first staged-rows flip.)
-  const barPhase: ImportPhase = phase === "idle" && hasStaging ? "done" : phase;
+  const barPhase: ImportPhase = (phase === "idle" || phase === "error") && hasStaging ? "done" : phase;
   const showProgressBar = showRun && (running || barPhase !== "idle" || grounded);
 
   const subtitle = running
@@ -544,6 +557,7 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
               onAccountChange={setSelectedAccountId}
               onStart={handleStart}
               canStart={canStart}
+              pdfSupported={pdfSupported}
               providerIsClaudeCli={provider === "claude-cli"}
               onSetupAi={() =>
                 navigate({ to: "/budget/settings", search: { path: budgetPath, name: budgetName, section: "intelligence" } })

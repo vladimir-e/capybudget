@@ -19,7 +19,13 @@
     "saveFailed": "Failed to save {{name}}",
     "providerRequired": "Import needs Anthropic, OpenAI, or Ollama configured.",
     "clearFailed": "Couldn't clear the import staging — try again.",
-    "removeFileFailed": "Couldn't remove {{name}}"
+    "removeFileFailed": "Couldn't remove {{name}}",
+    "tooLarge": "{{name}} exceeds the 5MB limit",
+    "unreachable": "Can't reach {{provider}} — check your internet connection.",
+    "ollamaUnreachable": "Can't reach Ollama at {{url}}. Start it with `ollama serve`, or check the URL in Settings.",
+    "keyRejected": "{{provider}} rejected the API key — check it in Settings.",
+    "modelNotFound": "{{provider}} can't find the selected model — pick another in Settings.",
+    "categorizeFailed": "Capy couldn't categorize any rows. They're staged — run Enrich to try again."
   },
   "dropZone": {
     "browseLabel": "Browse for files to import",
@@ -33,7 +39,8 @@
     "instructionsPlaceholder": "e.g. \"This is my Excel budget export, amounts are in the Debit/Credit columns\"",
     "anyAccount": "Any account",
     "start": "Start Import",
-    "rerunHint": "Don't like the results? Cancel, give Capy more instructions, and run again."
+    "rerunHint": "Don't like the results? Cancel, give Capy more instructions, and run again.",
+    "pdfUnreadable": "won't be read — PDF import needs Anthropic or OpenAI"
   },
   "setupAi": {
     "title": "Set up AI to import",

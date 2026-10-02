@@ -7,11 +7,21 @@
  * don't need elsewhere. Round 4 spec calls this out explicitly.
  */
 
-import { DEFAULT_INTELLIGENCE_CONFIG, OLLAMA_PLACEHOLDER_KEY } from "@capybudget/intelligence"
+import {
+  DEFAULT_INTELLIGENCE_CONFIG,
+  OLLAMA_PLACEHOLDER_KEY,
+  extractErrorMessage,
+  ollamaOrigin,
+} from "@capybudget/intelligence"
 
 export interface PingResult {
   ok: boolean
   message: string
+  unreachable?: boolean
+}
+
+function failed(err: unknown): PingResult {
+  return { ok: false, message: extractErrorMessage(err).message || "Connection failed" }
 }
 
 export async function pingApi(
@@ -25,19 +35,19 @@ export async function pingApi(
 
 async function ollamaClient(baseUrl: string) {
   const { default: OpenAI } = await import("openai")
-  return new OpenAI({ apiKey: OLLAMA_PLACEHOLDER_KEY, baseURL: baseUrl, dangerouslyAllowBrowser: true })
+  return { OpenAI, client: new OpenAI({ apiKey: OLLAMA_PLACEHOLDER_KEY, baseURL: baseUrl, dangerouslyAllowBrowser: true }) }
 }
 
 /** Models the server has pulled. Throws on an unreachable server. */
 export async function listOllamaModels(baseUrl: string): Promise<string[]> {
-  const list = await (await ollamaClient(baseUrl)).models.list()
+  const list = await (await ollamaClient(baseUrl)).client.models.list()
   return list.data.map((m) => m.id).sort((a, b) => a.localeCompare(b))
 }
 
 /** A one-shot chat — unlike the model list, this fails when the model isn't pulled. */
 export async function pingOllama(baseUrl: string, model: string): Promise<PingResult> {
+  const { OpenAI, client } = await ollamaClient(baseUrl)
   try {
-    const client = await ollamaClient(baseUrl)
     await client.chat.completions.create({
       model,
       max_tokens: 8,
@@ -45,10 +55,10 @@ export async function pingOllama(baseUrl: string, model: string): Promise<PingRe
     })
     return { ok: true, message: "" }
   } catch (err) {
-    return {
-      ok: false,
-      message: err instanceof Error ? err.message : "Connection failed",
+    if (err instanceof OpenAI.APIConnectionError) {
+      return { ok: false, message: `Can't reach Ollama at ${ollamaOrigin(baseUrl)}`, unreachable: true }
     }
+    return failed(err)
   }
 }
 
@@ -66,10 +76,7 @@ export async function pingAnthropic(
     })
     return { ok: true, message: "" }
   } catch (err) {
-    return {
-      ok: false,
-      message: err instanceof Error ? err.message : "Connection failed",
-    }
+    return failed(err)
   }
 }
 
@@ -88,9 +95,6 @@ export async function pingOpenAi(
     })
     return { ok: true, message: "" }
   } catch (err) {
-    return {
-      ok: false,
-      message: err instanceof Error ? err.message : "Connection failed",
-    }
+    return failed(err)
   }
 }

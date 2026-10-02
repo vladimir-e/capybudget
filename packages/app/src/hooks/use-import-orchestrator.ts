@@ -6,6 +6,7 @@ import {
   canReadPdf,
   createStructuredImportSession,
   importReady,
+  ollamaReadsImages,
   type BudgetDataProvider,
 } from "@capybudget/intelligence";
 import {
@@ -116,8 +117,9 @@ export function useImportOrchestrator(budgetPath: string) {
       // Read the live config, not the render-time closure: `start`/`enrich`
       // await `ensureSecrets` first, so the freshly-loaded API key is on the
       // store by the time we build here.
+      const config = useIntelligenceStore.getState().config;
       const session = createStructuredImportSession({
-        config: useIntelligenceStore.getState().config,
+        config,
         adapters: {
           anthropic: (o) => new AnthropicSession(o),
           openai: (o) => new OpenAiSession(o),
@@ -141,6 +143,12 @@ export function useImportOrchestrator(budgetPath: string) {
         session,
         staging,
         budget,
+        provider: config.provider ?? undefined,
+        pdfSupported: canReadPdf(config.provider),
+        imageSupport:
+          config.provider === "ollama"
+            ? () => ollamaReadsImages(config.ollama.baseUrl, config.ollama.model)
+            : undefined,
         onEvent: (event) => {
           if (activeOrchestrator === orchestrator) apply(event);
         },
@@ -188,7 +196,7 @@ export function useImportOrchestrator(budgetPath: string) {
     await activeOrchestrator?.stop();
   }, []);
 
-  /** Cancel = stop + discard. Detaches the orchestrator first so its trailing
+  /** Cancel = abort + discard. Detaches the orchestrator first so its trailing
    *  events (the in-flight batch's `rows-changed`) can't re-flip the store after
    *  the caller clears staging, then awaits the in-flight batch so the clear
    *  races nothing. The caller clears staging once this resolves.
@@ -200,7 +208,7 @@ export function useImportOrchestrator(budgetPath: string) {
     const orchestrator = activeOrchestrator;
     if (!orchestrator) return;
     activeOrchestrator = null;
-    await orchestrator.stop();
+    await orchestrator.cancel();
   }, []);
 
   return { canStart, pdfSupported, provider: config.provider, start, enrich, stop, cancel, staging };

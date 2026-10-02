@@ -35,6 +35,7 @@ function renderZone(overrides: Record<string, unknown> = {}) {
     onAccountChange: vi.fn(),
     onStart: vi.fn(),
     canStart: true,
+    pdfSupported: true,
     providerIsClaudeCli: false,
     onSetupAi: vi.fn(),
     ...overrides,
@@ -72,5 +73,22 @@ describe("ImportDropZone — run gate", () => {
 
     expect(screen.getByText("setupAi.cliBody")).toBeInTheDocument();
     expect(screen.queryByText("setupAi.body")).toBeNull();
+  });
+});
+
+describe("ImportDropZone — unreadable PDFs", () => {
+  const files: SourceFileInfo[] = [
+    { name: "statement.csv", size: 1024 },
+    { name: "scan.pdf", size: 2048 },
+  ];
+
+  it("flags a PDF the provider can't read", () => {
+    renderZone({ sourceFiles: files, pdfSupported: false });
+    expect(screen.getAllByText("dropZone.pdfUnreadable")).toHaveLength(1);
+  });
+
+  it("flags nothing when the provider reads PDFs", () => {
+    renderZone({ sourceFiles: files, pdfSupported: true });
+    expect(screen.queryByText("dropZone.pdfUnreadable")).toBeNull();
   });
 });
