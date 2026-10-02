@@ -1,11 +1,8 @@
 /**
  * Thin app wrapper around `createIntelligenceSession`. Wires the
  * factory with platform-specific adapter constructors and reads the
- * current IntelligenceConfig from the Zustand store.
- *
- * Round 3 lights up the OpenAI adapter alongside Claude CLI and
- * Anthropic. Each adapter ctor is one line — the factory does all
- * the routing.
+ * current IntelligenceConfig from the Zustand store. Each adapter ctor
+ * is one line — the factory does all the routing.
  */
 
 import {

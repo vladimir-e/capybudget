@@ -113,7 +113,10 @@
     "interrupted": "Sessão interrompida. Envie uma mensagem para continuar.",
     "cutOff": "A resposta do Capy foi cortada antes de terminar. Tente de novo ou peça menos de uma vez.",
     "refused": "O Capy se recusou a responder isso. Tente reformular.",
-    "budgetExhausted": "O Capy atingiu o limite de chamadas de ferramentas nesta resposta. Envie uma mensagem para continuar."
+    "budgetExhausted": "O Capy atingiu o limite de chamadas de ferramentas nesta resposta. Envie uma mensagem para continuar.",
+    "keyAccessDismissed": "O Capy precisa da sua chave de IA para responder. Envie de novo e escolha Permitir para desbloqueá-la.",
+    "keyReadFailed": "O Capy não conseguiu ler sua chave de IA do chaveiro do sistema. Envie de novo para tentar outra vez.",
+    "rateLimited": "{{provider}} está limitando as solicitações agora. Tente de novo em instantes."
   },
   "secretGate": {
     "title": "Desbloqueie sua chave de IA",

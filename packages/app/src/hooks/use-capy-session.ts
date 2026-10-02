@@ -1,9 +1,9 @@
 /**
  * React hook managing the Capy AI session lifecycle and message state.
  *
- * - Lazy-spawns Claude CLI on first message
+ * - Creates the provider's session lazily on the first message
  * - Parses streaming events into ChatMessage[]
- * - Handles session restart on crash or "New Chat"
+ * - Rebuilds the session on "New Chat" or when its inputs change
  * - Detects mutation tool calls and notifies for cache invalidation
  * - On stop: forwards conversation context to the next session
  */
@@ -16,12 +16,14 @@ import { needsSecrets, useIntelligenceStore } from "@/stores/intelligence-store"
 import {
   buildContext,
   canReadPdf,
+  extractErrorMessage,
   formatAttachments,
   isImageAttachment,
   isPdfAttachment,
   sourceContentBlock,
   buildSystemPrompt,
   MUTATION_TOOL_NAMES,
+  PROVIDER_LABELS,
   START_IMPORT_TOOL_NAME,
   type BudgetSnapshot,
   type FileAttachment,
@@ -69,8 +71,15 @@ interface UseCapySessionReturn {
   newChat: () => void
 }
 
+interface PendingTurn {
+  bubbleIds: readonly string[]
+  handedOff: boolean
+}
+
 export function useCapySession(opts: UseCapySessionOptions): UseCapySessionReturn {
   const [messages, setMessages] = useState<ChatMessage[]>([])
+  const sendGenerationRef = useRef(0)
+  const turnRef = useRef<PendingTurn>({ bubbleIds: [], handedOff: true })
   const hadMutationsRef = useRef(false)
   const ackedToolCallsRef = useRef<Set<string>>(new Set())
   // Snapshot rides on the first message of each session only.
@@ -138,7 +147,11 @@ export function useCapySession(opts: UseCapySessionOptions): UseCapySessionRetur
           setMessages((prev) => {
             const errorBlock: ContentBlock = {
               type: "error",
-              message: event.code ? tRef.current(`session.${event.code}`) : event.message,
+              message: event.code
+                ? tRef.current(`session.${event.code}`, {
+                    provider: event.provider ? PROVIDER_LABELS[event.provider] : "",
+                  })
+                : event.message,
               status: event.status,
               provider: event.provider,
             }
@@ -209,6 +222,7 @@ export function useCapySession(opts: UseCapySessionOptions): UseCapySessionRetur
   // chat is the only honest reset — carrying old messages into a new session
   // would show a continuous thread the new model never actually saw.
   const resetConversation = useCallback(() => {
+    sendGenerationRef.current++
     lifecycle.cancel()
     setMessages([])
     hadMutationsRef.current = false
@@ -227,6 +241,7 @@ export function useCapySession(opts: UseCapySessionOptions): UseCapySessionRetur
   const claudeCliModel = useIntelligenceStore((s) => s.config.claudeCli.model)
   const ollamaModel = useIntelligenceStore((s) => s.config.ollama.model)
   const ollamaBaseUrl = useIntelligenceStore((s) => s.config.ollama.baseUrl)
+  const secretsVersion = useIntelligenceStore((s) => s.secretsVersion)
   const providerSignature =
     provider === "anthropic"
       ? `anthropic:${anthropicModel}`
@@ -237,9 +252,15 @@ export function useCapySession(opts: UseCapySessionOptions): UseCapySessionRetur
           : provider === "claude-cli"
             ? `claude-cli:${claudeCliModel}`
             : (provider ?? "off") // null carries no model — stable string signature
-  // Currency and language are baked into the prompt, so they join the signature:
-  // a switch changes it and rebuilds the session.
-  const sessionSignature = `${providerSignature}:cur=${opts.currency}:lng=${opts.language ?? "en"}`
+  // The key, currency, language, and custom instructions are baked into the
+  // session, so they join the signature: a change rebuilds it.
+  const sessionSignature = [
+    providerSignature,
+    `keys=${secretsVersion}`,
+    `cur=${opts.currency}`,
+    `lng=${opts.language ?? "en"}`,
+    `instr=${opts.customInstructions?.trim() ?? ""}`,
+  ].join(":")
   const prevSignatureRef = useRef(sessionSignature)
   useEffect(() => {
     if (prevSignatureRef.current !== sessionSignature) {
@@ -254,6 +275,7 @@ export function useCapySession(opts: UseCapySessionOptions): UseCapySessionRetur
   const sendMessage = useCallback(
     (text: string, files?: FileAttachment[]) => {
       if (lifecycle.isStreamingRef.current) return
+      const generation = sendGenerationRef.current
       const o = lifecycle.optsRef.current
       const snapshot = snapshotSentRef.current ? undefined : o.getBudgetSnapshot?.()
       snapshotSentRef.current = true
@@ -302,26 +324,30 @@ export function useCapySession(opts: UseCapySessionOptions): UseCapySessionRetur
       lifecycle.setIsStreaming(true)
       hadMutationsRef.current = false
       ackedToolCallsRef.current = new Set()
+      const turn: PendingTurn = { bubbleIds: [userMsg.id, assistantMsg.id], handedOff: false }
+      turnRef.current = turn
+
+      const fail = (message: string) => lifecycle.dispatchStreamEvent({ type: "error", message })
 
       const buildAndSend = () => {
-        const session = ensureSession()
-        if (!session) {
-          // Intelligence is unconfigured (or the chosen provider isn't
-          // available). Surface a single-turn error message and bail.
-          lifecycle.dispatchStreamEvent({
-            type: "error",
-            message: tRef.current("session.notConfigured"),
-          })
+        if (generation !== sendGenerationRef.current) return
+        const store = useIntelligenceStore.getState()
+        if (needsSecrets(store.config)) {
+          fail(tRef.current(store.secretsError ? "session.keyReadFailed" : "session.keyAccessDismissed"))
           return
         }
+        const session = ensureSession()
+        if (!session) {
+          fail(tRef.current("session.notConfigured"))
+          return
+        }
+        turn.handedOff = true
         // Raw attachments ride alongside the flattened content so the in-process
         // `start_import` tool can stage their bytes — the content itself inlines
         // text files and base64-encodes images past reconstruction.
         session.send(content, allFiles).catch((err) => {
-          lifecycle.dispatchStreamEvent({
-            type: "error",
-            message: err instanceof Error ? err.message : tRef.current("session.sendFailed"),
-          })
+          const { message, status } = extractErrorMessage(err)
+          lifecycle.dispatchStreamEvent({ type: "error", message: message || tRef.current("session.sendFailed"), status })
         })
       }
 
@@ -340,29 +366,39 @@ export function useCapySession(opts: UseCapySessionOptions): UseCapySessionRetur
   )
 
   const stopStreaming = useCallback(() => {
+    sendGenerationRef.current++
     const session = lifecycle.sessionRef.current
+    const turn = turnRef.current
+    // A send still waiting on its key or queued behind a stopped round never
+    // reaches the model, so its bubbles go rather than read as delivered.
+    const neverSent = !turn.handedOff || session?.hasQueuedSend === true
     session?.stop()
-    // Hand the chat history to the adapter so Claude CLI can synthesize
-    // a `[Previous conversation]` recovery prefix on its next send.
-    // API adapters keep their own messages array and treat this as a
-    // no-op (the method is optional on the interface).
-    session?.markInterrupted?.(messagesRef.current)
     lifecycle.setIsStreaming(false)
 
-    // Replace empty in-flight assistant bubble or append separator
-    const interruptBlock = { type: "text" as const, content: tRef.current("session.interrupted") }
-    setMessages((prev) => {
-      const last = prev[prev.length - 1]
-      if (last?.role === "assistant" && last.blocks.length === 0) {
-        const updated = [...prev]
-        updated[updated.length - 1] = { ...last, blocks: [interruptBlock] }
-        return updated
-      }
-      return [
-        ...prev,
-        { id: crypto.randomUUID(), role: "assistant" as const, blocks: [interruptBlock] },
-      ]
-    })
+    if (neverSent) {
+      setMessages((prev) => prev.filter((m) => !turn.bubbleIds.includes(m.id)))
+    } else {
+      // Hand the chat history to the adapter so Claude CLI can synthesize
+      // a `[Previous conversation]` recovery prefix on its next send.
+      // API adapters keep their own messages array and treat this as a
+      // no-op (the method is optional on the interface).
+      session?.markInterrupted?.(messagesRef.current)
+
+      // Replace empty in-flight assistant bubble or append separator
+      const interruptBlock = { type: "text" as const, content: tRef.current("session.interrupted") }
+      setMessages((prev) => {
+        const last = prev[prev.length - 1]
+        if (last?.role === "assistant" && last.blocks.length === 0) {
+          const updated = [...prev]
+          updated[updated.length - 1] = { ...last, blocks: [interruptBlock] }
+          return updated
+        }
+        return [
+          ...prev,
+          { id: crypto.randomUUID(), role: "assistant" as const, blocks: [interruptBlock] },
+        ]
+      })
+    }
 
     if (hadMutationsRef.current && ackedToolCallsRef.current.size === 0) {
       lifecycle.optsRef.current.onDataChanged?.()

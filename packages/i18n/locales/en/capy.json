@@ -113,7 +113,10 @@
     "interrupted": "Session interrupted. Send a message to continue.",
     "cutOff": "Capy's reply was cut off before it finished. Try again, or ask for less at once.",
     "refused": "Capy declined to answer that one. Try rephrasing.",
-    "budgetExhausted": "Capy reached its limit of tool calls for this reply. Send a message to continue."
+    "budgetExhausted": "Capy reached its limit of tool calls for this reply. Send a message to continue.",
+    "keyAccessDismissed": "Capy needs your AI key to reply. Send again and choose Allow to unlock it.",
+    "keyReadFailed": "Capy couldn't read your AI key from the system keychain. Send again to retry.",
+    "rateLimited": "{{provider}} is rate-limiting requests right now. Try again in a moment."
   },
   "secretGate": {
     "title": "Unlock your AI key",

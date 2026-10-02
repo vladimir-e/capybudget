@@ -384,6 +384,25 @@ describe("useIntelligenceStore dev gate controls", () => {
 })
 
 describe("useIntelligenceStore setters", () => {
+  it("bumps secretsVersion when a key is saved, cleared, or dropped — and not on other edits", () => {
+    _setStoreLoaderForTests(async () => makeBackend(null))
+    const version = () => useIntelligenceStore.getState().secretsVersion
+    const s = useIntelligenceStore.getState()
+
+    s.setAnthropicKey("sk-1")
+    expect(version()).toBe(1)
+    s.setOpenAiKey("sk-2")
+    expect(version()).toBe(2)
+    s.setOpenAiKey("")
+    expect(version()).toBe(3)
+    s.resetSecretGate()
+    expect(version()).toBe(4)
+
+    s.setAnthropicModel("claude-opus-5")
+    s.setProvider("openai")
+    expect(version()).toBe(4)
+  })
+
   it("setProvider updates state and persists", () => {
     _setStoreLoaderForTests(async () => makeBackend(null))
     useIntelligenceStore.getState().setProvider("anthropic")

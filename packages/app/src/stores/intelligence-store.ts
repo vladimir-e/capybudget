@@ -105,6 +105,10 @@ interface IntelligenceStore {
    *  present; `ensureSecrets` can be re-run to recover. A provider change
    *  clears it. */
   secretsError: boolean
+  /** Bumped whenever a key is saved, cleared, or dropped from memory, so a
+   *  session built on the old key rebuilds without the key itself ever
+   *  leaving the store. */
+  secretsVersion: number
 
   /** Load the plaintext config from disk. Idempotent — repeat calls are
    *  no-ops. Never touches the keychain. */
@@ -199,6 +203,7 @@ export const useIntelligenceStore = create<IntelligenceStore>((set, get) => ({
   secretGateSeen: false,
   secretGateOpen: false,
   secretsError: false,
+  secretsVersion: 0,
 
   async hydrate() {
     if (get().hydrated) return
@@ -279,7 +284,12 @@ export const useIntelligenceStore = create<IntelligenceStore>((set, get) => ({
   },
 
   resetSecretGate() {
-    set((s) => ({ config: withSecretsDropped(s.config), secretGateSeen: false, secretsError: false }))
+    set((s) => ({
+      config: withSecretsDropped(s.config),
+      secretGateSeen: false,
+      secretsError: false,
+      secretsVersion: s.secretsVersion + 1,
+    }))
     void loadBackend().then((b) => b.clearGateSeen())
   },
 
@@ -293,7 +303,7 @@ export const useIntelligenceStore = create<IntelligenceStore>((set, get) => ({
     const apiKey = key.trim()
     const cur = get().config
     const next = { ...cur, anthropic: { ...cur.anthropic, apiKey, keyPresent: Boolean(apiKey) } }
-    set({ config: next, secretsError: false })
+    set((s) => ({ config: next, secretsError: false, secretsVersion: s.secretsVersion + 1 }))
     void persist(next)
   },
 
@@ -308,7 +318,7 @@ export const useIntelligenceStore = create<IntelligenceStore>((set, get) => ({
     const apiKey = key.trim()
     const cur = get().config
     const next = { ...cur, openai: { ...cur.openai, apiKey, keyPresent: Boolean(apiKey) } }
-    set({ config: next, secretsError: false })
+    set((s) => ({ config: next, secretsError: false, secretsVersion: s.secretsVersion + 1 }))
     void persist(next)
   },
 
@@ -356,5 +366,6 @@ export function _resetIntelligenceStoreForTests(): void {
     secretGateSeen: false,
     secretGateOpen: false,
     secretsError: false,
+    secretsVersion: 0,
   })
 }

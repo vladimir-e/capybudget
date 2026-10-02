@@ -238,7 +238,7 @@ describe("Lifted BudgetLayout boundary", () => {
     expect(vi.mocked(stopActiveOrchestrator)).toHaveBeenCalled();
   }, TIMEOUT);
 
-  it("builds a new conversation's session with instructions edited in Settings", async () => {
+  it("starts a fresh conversation whose session carries instructions edited in Settings", async () => {
     const { user } = await renderApp({ seed: { accounts: [], categories: [], transactions: [] } });
     await waitFor(() => {
       expect(screen.getByRole("heading", { name: "All Accounts" })).toBeInTheDocument();
@@ -261,13 +261,13 @@ describe("Lifted BudgetLayout boundary", () => {
     await user.type(editor, INSTRUCTIONS);
     await user.click(screen.getByRole("button", { name: /Save/ }));
 
-    // Back to the budget and start a fresh conversation.
+    // Back to the budget: the edit already started a fresh conversation.
     await user.click(screen.getByRole("button", { name: "Back to budget" }));
     await waitFor(() => {
       expect(screen.getByRole("heading", { name: "All Accounts" })).toBeInTheDocument();
     });
     await openCapy(user);
-    await user.click(await screen.findByRole("button", { name: /New chat/i }));
+    expect(screen.queryByText("What did I spend?")).not.toBeInTheDocument();
 
     await sendOnce(user, "What did I spend now?");
 
