@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { getToday, parseCurrencyToCents } from "@capybudget/core";
+import { getToday, parseCurrencyToCents, transformCsv } from "@capybudget/core";
 import { countStreamedRows, normalizeCsv, normalizeImage, normalizeMapping } from "./normalize";
 import type { NormalizeProgress } from "./events";
 import { CSV_MAPPING_SCHEMA, EXTRACTION_SCHEMA } from "./schemas";
@@ -590,10 +590,10 @@ describe("normalizeMapping", () => {
   });
 
   describe("sign", () => {
-    const sign = (rawSign: unknown, amountValue: string) =>
+    const sign = (rawSign: unknown, ...amounts: string[]) =>
       (normalizeMapping(
         { date: { column: "Date" }, description: { column: "Memo" }, amount: { column: "Amount", sign: rawSign } },
-        [{ Date: "2026-01-05", Memo: "X", Amount: amountValue }],
+        amounts.map((Amount) => ({ Date: "2026-01-05", Memo: "X", Amount })),
         "f.csv",
         IMPORT_DATE,
       ).amount as { sign: string }).sign;
@@ -616,6 +616,40 @@ describe("normalizeMapping", () => {
       expect(sign(undefined, "4,50-")).toBe("negative_expense");
       expect(sign("???", "2.99")).toBe("positive_expense"); // unparseable → data: all-positive
     });
+    it.each(["$-12.50", "USD -12.50", "€-12,50", "R$ -1.234,56", "'-12.50"])(
+      "reads a negative %j after a currency prefix",
+      (value) => {
+        expect(sign(undefined, value)).toBe("negative_expense");
+      },
+    );
+    it("unmarked values are outflows in a column that marks only credits", () => {
+      expect(sign("negative_expense", "12.50", "40.00 CR", "3.10")).toBe("positive_expense");
+      expect(sign(undefined, "12.50", "40.00 C")).toBe("positive_expense");
+    });
+    it("unmarked values are inflows in a column that marks only debits", () => {
+      expect(sign("positive_expense", "12.50", "40.00 DR")).toBe("negative_expense");
+      expect(sign("positive_expense", "12.50", "40.00 D", "1.00 DB")).toBe("negative_expense");
+    });
+    it("leaves the model's sign alone when markers are mixed or negatives exist", () => {
+      expect(sign("positive_expense", "12.50", "40.00 CR", "3.10 DR")).toBe("positive_expense");
+      expect(sign("negative_expense", "-12.50", "40.00 CR")).toBe("negative_expense");
+    });
+    it("a CR-only column imports its unmarked debits as expenses", () => {
+      const rows = [
+        { Date: "2026-01-05", Memo: "Coffee", Amount: "12.50" },
+        { Date: "2026-01-06", Memo: "Salary", Amount: "1,000.00 CR" },
+      ];
+      const m = normalizeMapping(
+        { date: { column: "Date" }, description: { column: "Memo" }, amount: { column: "Amount", sign: "negative_expense" } },
+        rows,
+        "f.csv",
+        IMPORT_DATE,
+      );
+      expect(transformCsv(rows, m).transactions.map((t) => [t.amount, t.type])).toEqual([
+        [-1250, "expense"],
+        [100000, "income"],
+      ]);
+    });
   });
 
   describe("decimalMark inference", () => {
@@ -634,6 +668,14 @@ describe("normalizeMapping", () => {
       expect(mark("($50.00)")).toBe(".");
       expect(mark("-4.50")).toBe(".");
       expect(mark("1'234.56")).toBe(".");
+    });
+    it("a dotted abbreviation before the number casts no vote of its own", () => {
+      expect(mark("Rs. 1,234", "Rs. 5,678")).toBe(".");
+      expect(mark("Rs.1,234.00")).toBe(".");
+      expect(mark("Fr. 1'234.50")).toBe(".");
+      expect(mark("Fr.1'234.50")).toBe(".");
+      expect(mark("kr.1.234,56")).toBe(",");
+      expect(mark("руб.1 234,56")).toBe(",");
     });
     it("the majority wins in a mixed column", () => {
       expect(mark("1,50", "2,75", "3.10")).toBe(",");

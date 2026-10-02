@@ -211,6 +211,7 @@ export {
   transformCsv,
   serializeImportCsv,
   parseCurrencyToCents,
+  parseAmountCell,
   decimalMarkOf,
   DEFAULT_TRANSFER_PATTERNS,
 } from "./import/csv-transform";

@@ -162,7 +162,7 @@ describe("parseCurrencyToCents", () => {
     ["US$12.50", ".", 1250],
     ["R$ 1.234,56", ".", 123456],
     ["12.50*", ".", 1250],
-    ["£12.50p", ".", 1250],
+    ["*12.50", ".", 1250],
     ["+12.50", ".", 1250],
     ["12,50-", ",", -1250],
     ["1.234,50 €-", ",", -123450],
@@ -174,6 +174,39 @@ describe("parseCurrencyToCents", () => {
     ["12.50 dr", ".", -1250],
     ["12.50 USD DR", ".", -1250],
     ["$12.50 CR", ".", 1250],
+    ["12.50 D", ".", -1250],
+    ["12.50 DB", ".", -1250],
+    ["12.50 C", ".", 1250],
+    ["1.234,56 D", ",", -123456],
+    ["1.234,56 C", ",", 123456],
+    ["1.234,56 D", ".", -123456],
+    ["'-12.50", ".", -1250],
+    ["'12.50", ".", 1250],
+    ["'+12.50", ".", 1250],
+    ["Rs. 1,234", ".", 123400],
+    ["Rs.1,234.00", ".", 123400],
+    ["Rs.500", ".", 50000],
+    ["kr.1.234,56", ".", 123456],
+    ["руб.1 234,56", ".", 123456],
+    ["Fr. 1'234.50", ",", 123450],
+    ["Fr.1'234.50", ",", 123450],
+    ["$.50", ".", 50],
+    ["EUR 12.50", ".", 1250],
+    ["12.50 GBP", ".", 1250],
+    ["12.50 EURO", ".", 1250],
+    ["12,50 Ft", ".", 1250],
+    ["12,50 lei", ".", 1250],
+    ["12,50 din", ".", 1250],
+    ["1.234 円", ",", 123400],
+    ["12.50 元", ".", 1250],
+    ["S/ 12.50", ".", 1250],
+    ["S/.12.50", ".", 1250],
+    ["R$ -1.234,56", ".", -123456],
+    ["$-12.50", ".", -1250],
+    ["USD -12.50", ".", -1250],
+    ["€-12,50", ".", -1250],
+    ["रु 1,234", ".", 123400],
+    ["रु.500", ".", 50000],
     ["$", ".", 0],
     ["()", ".", 0],
     ["($)", ".", 0],
@@ -206,14 +239,26 @@ describe("parseCurrencyToCents", () => {
     "12.50 CR DR",
     "USD",
     "CR",
+    "£12.50p",
+    "12.50 VOID",
+    "12.50 HOLD",
+    "12.50 FEE",
+    "12.50 DEB",
+    "12.50 CRED",
+    "12.50 X",
+    "12.50 usd",
+    "12.50 ABC",
+    "-12.50 D",
+    "12.50 D C",
+    "''12.50",
   ])("rejects %j", (raw) => {
     expect(() => parseCurrencyToCents(raw, ".", 1)).toThrow(`cannot parse amount "${raw}"`);
   });
 });
 
-// ── CR/DR markers ──────────────────────────────────────────────────
+// ── Direction markers ──────────────────────────────────────────────────
 
-describe("CR/DR markers set the direction under every amount convention", () => {
+describe("direction markers set the direction under every amount convention", () => {
   const amountOf = (mapping: Parameters<typeof baseMapping>[0], fields: Record<string, string>) => {
     const result = transformCsv([makeRow({ Date: "2025-03-01", Description: "X", ...fields })], baseMapping(mapping));
     expect(result.errors).toEqual([]);
@@ -225,6 +270,9 @@ describe("CR/DR markers set the direction under every amount convention", () => 
     const mapping = { amount: { style: "single", column: "Amount", sign } } as const;
     expect(amountOf(mapping, { Amount: "12.50 DR" })).toEqual([-1250, "expense"]);
     expect(amountOf(mapping, { Amount: "12.50 CR" })).toEqual([1250, "income"]);
+    expect(amountOf(mapping, { Amount: "1.234,56 D" })).toEqual([-123456, "expense"]);
+    expect(amountOf(mapping, { Amount: "12.50 DB" })).toEqual([-1250, "expense"]);
+    expect(amountOf(mapping, { Amount: "1.234,56 C" })).toEqual([123456, "income"]);
   });
 
   it("split columns: the marker wins over the column's direction", () => {

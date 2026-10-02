@@ -9,6 +9,7 @@
 import type { ImportTransaction, StagedRecord } from "./import-types";
 import { buildStaged } from "./build-staged";
 import { DATE_FORMATS, isCalendarDate } from "./import-dates";
+import { isCurrencyText } from "./currency-text";
 import type {
   CsvMapping,
   ColumnRef,
@@ -216,17 +217,27 @@ function directed(cents: number, direction: Direction): number {
 }
 
 const AMOUNT_GROUPING = /[\s'’]/g;
-const NUMERIC_CORE = /^(.*?)([.,]?\d(?:[\d.,'’\s]*\d)?)(.*)$/su;
-const AFFIX_TOKEN = /\s*(\p{L}+\.?|[\p{Sc}*.()+\-−])\s*/uy;
-const MARKERS: Record<string, Direction> = { CR: "inflow", DR: "outflow" };
-const MAX_CURRENCY_TEXT = 4;
+const NUMERIC_CORE = /^(.*?)((?<![\p{L}\p{M}/])[.,]?\d(?:[\d.,'’\s]*\d)?)(.*)$/su;
+const AFFIX_TOKEN = /\s*(\p{L}[\p{L}\p{M}]*[$/]?\.?|[\p{Sc}*.()+\-−])\s*/uy;
+const MARKERS: Record<string, Direction> = {
+  C: "inflow",
+  CR: "inflow",
+  D: "outflow",
+  DB: "outflow",
+  DR: "outflow",
+};
+
+function splitAmount(raw: string): { prefix: string; core: string; suffix: string } | null {
+  const match = raw.trim().replace(/^'/, "").match(NUMERIC_CORE);
+  return match && { prefix: match[1], core: match[2], suffix: match[3] };
+}
 
 /**
  * The decimal mark a single amount proves on its own, or null when it can't.
  * `1.234` / `1,234` are ambiguous; `1234.567` and `0.500` are not.
  */
 export function decimalMarkOf(raw: string): DecimalMark | null {
-  const core = raw.replace(AMOUNT_GROUPING, "").match(/[.,]?\d[\d.,]*/)?.[0] ?? "";
+  const core = splitAmount(raw)?.core.replace(AMOUNT_GROUPING, "") ?? "";
   const marks = core.match(/[.,](?=\d)/g) as DecimalMark[] | null;
   if (!marks) return null;
   const last = marks[marks.length - 1];
@@ -246,23 +257,22 @@ export function parseCurrencyToCents(raw: string, decimalMark: DecimalMark, rowN
   return direction ? directed(cents, direction) : cents;
 }
 
-function parseAmountCell(raw: string, columnMark: DecimalMark, rowNum: number): AmountCell {
+/** The cell's own signed cents plus any direction marker, before a column convention applies. */
+export function parseAmountCell(raw: string, columnMark: DecimalMark, rowNum: number): AmountCell {
   const fail = (): never => {
     throw new Error(`Row ${rowNum}: cannot parse amount "${raw}"`);
   };
-  const trimmed = raw.trim();
-  const match = trimmed.match(NUMERIC_CORE);
+  const parts = splitAmount(raw);
 
-  if (!match) {
-    const tokens = affixTokens(trimmed) ?? fail();
+  if (!parts) {
+    const tokens = affixTokens(raw.trim().replace(/^'/, "")) ?? fail();
     return tokens.some(isWord) ? fail() : { cents: 0, direction: null };
   }
 
-  const [, prefixText, core, suffixText] = match;
-  const prefix = affixTokens(prefixText) ?? fail();
-  const suffix = affixTokens(suffixText) ?? fail();
+  const prefix = affixTokens(parts.prefix) ?? fail();
+  const suffix = affixTokens(parts.suffix) ?? fail();
   const sign = readSign(prefix, suffix) ?? fail();
-  const magnitude = coreToCents(core, decimalMarkOf(core) ?? columnMark) ?? fail();
+  const magnitude = coreToCents(parts.core, decimalMarkOf(parts.core) ?? columnMark) ?? fail();
   const cents = magnitude === 0 ? 0 : sign.negative ? -magnitude : magnitude;
   return { cents, direction: sign.direction };
 }
@@ -283,16 +293,20 @@ function isWord(token: string): boolean {
   return /^\p{L}/u.test(token);
 }
 
+function markerOf(word: string): Direction | undefined {
+  return MARKERS[word.replace(/\.$/, "").toUpperCase()];
+}
+
 function readSign(
   prefix: string[],
   suffix: string[],
 ): { negative: boolean; direction: Direction | null } | null {
   const tokens = [...prefix, ...suffix];
   const count = (...symbols: string[]) => tokens.filter((t) => symbols.includes(t)).length;
-  const words = tokens.filter(isWord).map((w) => w.replace(/\.$/, "").toUpperCase());
-  if (words.some((w) => w.length > MAX_CURRENCY_TEXT)) return null;
+  const words = tokens.filter(isWord);
+  if (words.some((w) => !markerOf(w) && !isCurrencyText(w))) return null;
 
-  const markers = words.filter((w) => w in MARKERS);
+  const markers = words.flatMap((w) => markerOf(w) ?? []);
   const parens = prefix.includes("(") && suffix.includes(")");
   const signs = count("-", "−", "+");
   if (count("(") + count(")") !== (parens ? 2 : 0)) return null;
@@ -301,7 +315,7 @@ function readSign(
 
   return {
     negative: parens || count("-", "−") > 0,
-    direction: markers.length === 1 ? MARKERS[markers[0]] : null,
+    direction: markers[0] ?? null,
   };
 }
 

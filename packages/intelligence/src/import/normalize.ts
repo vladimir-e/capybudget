@@ -19,6 +19,7 @@ import {
   detectHeaderRow,
   getToday,
   isViableHeaderRow,
+  parseAmountCell,
   transformCsv,
   HEADER_SCAN_ROWS,
   SUPPORTED_DATE_FORMATS,
@@ -337,16 +338,30 @@ function normalizeAmount(raw: unknown, samples: Record<string, string>[]): Amoun
  * Sign is genuine model judgment — it depends on account type and merchant
  * context (an Apple Card export reads positive purchases as expenses; a checking
  * export reads them as income), which the data can't reveal. So a model-provided
- * sign is authoritative and is never overridden by the data: any recognizable
- * phrasing is coerced to one of the two valid values. The data heuristic is the
- * last resort, reached only when the model offered no usable sign at all — a
- * column with negatives stores expenses as negatives; an all-positive column
- * reads as positive-expense.
+ * sign is authoritative over the data heuristic: any recognizable phrasing is
+ * coerced to one of the two valid values. The data heuristic is the last resort,
+ * reached only when the model offered no usable sign at all — a column with
+ * negatives stores expenses as negatives; an all-positive column reads as
+ * positive-expense. One-sided direction markers are the exception, since they
+ * do reveal it: a column of unsigned values marking only credits (`CR`) leaves
+ * the unmarked ones as outflows, and one marking only debits leaves them inflows.
  */
 function normalizeSign(raw: unknown, samples: Record<string, string>[], column: string): SingleAmountMapping["sign"] {
+  const cells = columnSamples(samples, column).flatMap((v) => {
+    try {
+      return [parseAmountCell(v, ".", 0)];
+    } catch {
+      return [];
+    }
+  });
+  const hasNegative = cells.some((c) => c.cents < 0);
+  const inflowMarked = cells.some((c) => c.direction === "inflow");
+  const outflowMarked = cells.some((c) => c.direction === "outflow");
+  if (!hasNegative && inflowMarked !== outflowMarked) {
+    return inflowMarked ? "positive_expense" : "negative_expense";
+  }
   const coerced = coerceSign(typeof raw === "string" ? raw.toLowerCase() : "");
   if (coerced) return coerced;
-  const hasNegative = columnSamples(samples, column).some((v) => /^[(\-−]|[-−]$/.test(v.trim()));
   return hasNegative ? "negative_expense" : "positive_expense";
 }
 
