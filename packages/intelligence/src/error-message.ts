@@ -54,9 +54,11 @@ export function isRateLimited(err: unknown): boolean {
 
 const TRANSIENT_STREAM_CODES = ["server_error", RATE_LIMIT_EXCEEDED, "vector_store_timeout"]
 
-/** The provider refused this request's content — a 4xx other than a rate
- *  limit, or an OpenAI stream failure coded with anything but a transient
- *  code — so retrying the same history fails the same way. */
+/** The provider refused this request's content, so retrying the same history
+ *  fails the same way. An HTTP status decides when there is one: any 4xx but a
+ *  429. Without a status, a string error code decides: anything but a transient
+ *  code (`server_error`, `rate_limit_exceeded`, `vector_store_timeout`). An
+ *  error with neither — a dropped connection — is not a rejection. */
 export function isRejectedRequest(err: unknown): boolean {
   if (!isObject(err)) return false
   const { status, code } = err

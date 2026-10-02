@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest"
-import { extractErrorMessage } from "./error-message"
+import { extractErrorMessage, isRejectedRequest } from "./error-message"
 
 /**
  * The shapes below mirror what the Anthropic and OpenAI SDKs actually
@@ -59,6 +59,36 @@ describe("extractErrorMessage", () => {
   it("stringifies non-Error throws", () => {
     expect(extractErrorMessage("just a string")).toEqual({ message: "just a string" })
     expect(extractErrorMessage(42)).toEqual({ message: "42" })
+  })
+})
+
+describe("isRejectedRequest", () => {
+  it("rejects a 4xx other than a rate limit", () => {
+    expect(isRejectedRequest({ status: 400 })).toBe(true)
+    expect(isRejectedRequest({ status: 413 })).toBe(true)
+    expect(isRejectedRequest({ status: 429 })).toBe(false)
+    expect(isRejectedRequest({ status: 500 })).toBe(false)
+  })
+
+  it("rejects a status-less error coded with anything but a transient code", () => {
+    expect(isRejectedRequest({ code: "invalid_image" })).toBe(true)
+    expect(isRejectedRequest({ code: "invalid_prompt" })).toBe(true)
+  })
+
+  it.each(["server_error", "rate_limit_exceeded", "vector_store_timeout"])("keeps a status-less %s error", (code) => {
+    expect(isRejectedRequest({ code })).toBe(false)
+  })
+
+  it("does not reject an error with neither a status nor a string code", () => {
+    expect(isRejectedRequest({ code: null })).toBe(false)
+    expect(isRejectedRequest(new Error("socket hang up"))).toBe(false)
+    expect(isRejectedRequest("boom")).toBe(false)
+    expect(isRejectedRequest(null)).toBe(false)
+  })
+
+  it("lets the status decide over the code", () => {
+    expect(isRejectedRequest({ status: 500, code: "invalid_image" })).toBe(false)
+    expect(isRejectedRequest({ status: 400, code: "server_error" })).toBe(true)
   })
 })
 
