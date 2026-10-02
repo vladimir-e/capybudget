@@ -28,6 +28,7 @@
     "modelNotFound": "{{provider}} can't find the selected model — pick another in Settings.",
     "noSources": "No source files to import.",
     "noStaging": "No staged transactions to enrich.",
+    "failed": "Import failed — {{detail}}",
     "fileFailed": "Couldn't import {{file}} — {{cause}}.",
     "noneLanded_one": "Couldn't categorize {{count}} row — {{cause}}. Run Enrich to try again.",
     "noneLanded_other": "Couldn't categorize any of {{count}} rows — {{cause}}. Run Enrich to try again.",
@@ -77,6 +78,7 @@
       "readFiles_other": "Read {{count}} files: {{files, list}}.",
       "visionUnknown": "Couldn't confirm the selected model reads images — trying anyway.",
       "noData": "Skipped {{file}} — no transaction data found.",
+      "noDataDetail": "Skipped {{file}} — no transaction data found ({{detail}}).",
       "fileSkipped": "Skipped {{file}} — {{cause}}.",
       "rowsUnparsed_one": "{{count}} row skipped in {{file}} — couldn't parse: {{sample}}",
       "rowsUnparsed_other": "{{count}} rows skipped in {{file}} — couldn't parse: {{sample}}",
@@ -119,7 +121,8 @@
         "cutOff": "the AI's reply was cut off before the batch was complete",
         "refused": "the AI declined to categorize these rows",
         "unusable": "the AI's answer couldn't be used"
-      }
+      },
+      "unknown": "unknown error"
     }
   },
   "preview": {

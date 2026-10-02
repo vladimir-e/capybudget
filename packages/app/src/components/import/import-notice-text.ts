@@ -16,6 +16,7 @@ import { useIntelligenceStore } from "@/stores/intelligence-store";
 interface NoticeContext {
   t: TFunction<["import", "common"]>;
   ollamaBaseUrl: string;
+  withDetail?: boolean;
 }
 
 type Renderers = {
@@ -43,12 +44,27 @@ const DEAD_END_KEYS = {
   modelNotFound: "errors.modelNotFound",
 } as const satisfies Record<DeadEndKind, ImportKey>;
 
-function fileCause(cause: FileFailureCause, t: NoticeContext["t"]): string {
-  return cause.kind === "other" ? cause.detail : t(FILE_CAUSE_KEYS[cause.kind]);
+function errorText(detail: string, t: NoticeContext["t"]): string {
+  return detail.trim() || t("run.cause.unknown");
 }
 
-function batchCause(cause: BatchFailureCause, t: NoticeContext["t"]): string {
-  return cause.kind === "other" ? cause.detail : t(BATCH_CAUSE_KEYS[cause.kind]);
+function logDetail(detail: string | undefined, { withDetail }: NoticeContext): string | undefined {
+  return (withDetail && detail?.trim()) || undefined;
+}
+
+function appendDetail(text: string, detail: string | undefined, ctx: NoticeContext): string {
+  const shown = logDetail(detail, ctx);
+  return shown ? `${text} (${shown})` : text;
+}
+
+function fileCause(cause: FileFailureCause, ctx: NoticeContext): string {
+  if (cause.kind === "other") return errorText(cause.detail, ctx.t);
+  return appendDetail(ctx.t(FILE_CAUSE_KEYS[cause.kind]), "detail" in cause ? cause.detail : undefined, ctx);
+}
+
+function batchCause(cause: BatchFailureCause, ctx: NoticeContext): string {
+  if (cause.kind === "other") return errorText(cause.detail, ctx.t);
+  return appendDetail(ctx.t(BATCH_CAUSE_KEYS[cause.kind]), "detail" in cause ? cause.detail : undefined, ctx);
 }
 
 function sampleText({ items, more }: Sample, separator: string, t: NoticeContext["t"]): string {
@@ -67,9 +83,12 @@ const RENDERERS: Renderers = {
 
   "reading.files": ({ params: { files } }, { t }) => t("run.log.readFiles", { count: files.length, files }),
   "normalize.visionUnknown": (_, { t }) => t("run.log.visionUnknown"),
-  "normalize.noData": ({ params }, { t }) => t("run.log.noData", params),
-  "normalize.fileSkipped": ({ params: { file, cause } }, { t }) =>
-    t("run.log.fileSkipped", { file, cause: fileCause(cause, t) }),
+  "normalize.noData": ({ params: { file, detail } }, ctx) => {
+    const shown = logDetail(detail, ctx);
+    return shown ? ctx.t("run.log.noDataDetail", { file, detail: shown }) : ctx.t("run.log.noData", { file });
+  },
+  "normalize.fileSkipped": ({ params: { file, cause } }, ctx) =>
+    ctx.t("run.log.fileSkipped", { file, cause: fileCause(cause, ctx) }),
   "normalize.rowsUnparsed": ({ params: { file, sample } }, { t }) =>
     t("run.log.rowsUnparsed", { file, count: sampleCount(sample), sample: sampleText(sample, "; ", t) }),
   "normalize.skipRules": ({ params: { file, sample, held } }, { t }) => {
@@ -91,26 +110,26 @@ const RENDERERS: Renderers = {
     t("run.log.droppedRows", { count: sampleCount(sample), sample: sampleText(sample, "; ", t) }),
   "categorize.nothingToDo": (_, { t }) => t("run.log.nothingToDo"),
   "categorize.transfers": ({ params }, { t }) => t("run.log.transfers", params),
-  "categorize.batchFailed": ({ params: { batch, count, cause } }, { t }) =>
-    t("run.log.batchFailed", { batch, count, cause: batchCause(cause, t) }),
-  "categorize.transferBatchFailed": ({ params: { count, cause } }, { t }) =>
-    t("run.log.transferBatchFailed", { count, cause: batchCause(cause, t) }),
+  "categorize.batchFailed": ({ params: { batch, count, cause } }, ctx) =>
+    ctx.t("run.log.batchFailed", { batch, count, cause: batchCause(cause, ctx) }),
+  "categorize.transferBatchFailed": ({ params: { count, cause } }, ctx) =>
+    ctx.t("run.log.transferBatchFailed", { count, cause: batchCause(cause, ctx) }),
   "categorize.stopped": (_, { t }) => t("run.log.categorizeStopped"),
   stopped: (_, { t }) => t("run.log.stopped"),
 
   "read.noSources": (_, { t }) => t("errors.noSources"),
   "enrich.noStaging": (_, { t }) => t("errors.noStaging"),
-  "normalize.fileFailed": ({ params: { file, cause } }, { t }) =>
-    t("errors.fileFailed", { file, cause: fileCause(cause, t) }),
-  "categorize.noneLanded": ({ params: { count, cause } }, { t }) =>
+  "normalize.fileFailed": ({ params: { file, cause } }, ctx) =>
+    ctx.t("errors.fileFailed", { file, cause: fileCause(cause, ctx) }),
+  "categorize.noneLanded": ({ params: { count, cause } }, ctx) =>
     cause
-      ? t("errors.noneLanded", { count, cause: batchCause(cause, t) })
-      : t("errors.noneLandedNoCause", { count }),
+      ? ctx.t("errors.noneLanded", { count, cause: batchCause(cause, ctx) })
+      : ctx.t("errors.noneLandedNoCause", { count }),
   deadEnd: ({ params: { kind, provider } }, { t, ollamaBaseUrl }) =>
     kind === "unreachable" && provider === "ollama"
       ? t("errors.ollamaUnreachable", { url: ollamaOrigin(ollamaBaseUrl) })
       : t(DEAD_END_KEYS[kind], { provider: PROVIDER_LABELS[provider] }),
-  failed: ({ params }) => params.detail,
+  failed: ({ params }, { t }) => t("errors.failed", { detail: errorText(params.detail, t) }),
 };
 
 export function importNoticeText(notice: ImportNotice, ctx: NoticeContext): string {
@@ -118,8 +137,11 @@ export function importNoticeText(notice: ImportNotice, ctx: NoticeContext): stri
   return render(notice, ctx);
 }
 
-export function useImportNoticeText(): (notice: ImportNotice) => string {
+export function useImportNoticeText({ withDetail = false }: { withDetail?: boolean } = {}): (notice: ImportNotice) => string {
   const { t } = useTranslation(["import", "common"]);
   const ollamaBaseUrl = useIntelligenceStore((s) => s.config.ollama.baseUrl);
-  return useCallback((notice: ImportNotice) => importNoticeText(notice, { t, ollamaBaseUrl }), [t, ollamaBaseUrl]);
+  return useCallback(
+    (notice: ImportNotice) => importNoticeText(notice, { t, ollamaBaseUrl, withDetail }),
+    [t, ollamaBaseUrl, withDetail],
+  );
 }

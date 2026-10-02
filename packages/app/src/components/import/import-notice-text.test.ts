@@ -9,6 +9,13 @@ function textIn(lng: string, notice: ImportNotice, ollamaBaseUrl = ""): string {
   return importNoticeText(notice, { t, ollamaBaseUrl });
 }
 
+function logLineIn(lng: string, notice: ImportNotice): string {
+  const t = i18n.getFixedT(lng, ["import", "common"]) as TFunction<["import", "common"]>;
+  return importNoticeText(notice, { t, ollamaBaseUrl: "", withDetail: true });
+}
+
+const UNUSABLE = { kind: "unusable", detail: 'column "Amount" does not hold amounts' } as const;
+
 describe("importNoticeText", () => {
   it("words a cut-off batch differently from a cut-off file", () => {
     const file = textIn("en", { code: "normalize.fileSkipped", params: { file: "scan.png", cause: { kind: "cutOff" } } });
@@ -58,5 +65,57 @@ describe("importNoticeText", () => {
     expect(textIn("pt", { code: "reading.files", params: { files: ["a.csv", "b.csv"] } })).toBe(
       "2 arquivos lidos: a.csv e b.csv.",
     );
+  });
+
+  it("frames a run failure and never renders a blank one", () => {
+    expect(textIn("en", { code: "failed", params: { detail: "disk full" } })).toBe("Import failed — disk full");
+    expect(textIn("ru", { code: "failed", params: { detail: "" } })).toBe("Импорт не удался — неизвестная ошибка");
+    expect(textIn("en", { code: "normalize.fileSkipped", params: { file: "x.csv", cause: { kind: "other", detail: " " } } })).toBe(
+      "Skipped x.csv — unknown error.",
+    );
+  });
+
+  it("keeps an unusable answer's reason out of the toast", () => {
+    expect(textIn("en", { code: "normalize.fileFailed", params: { file: "bank.csv", cause: UNUSABLE } })).toBe(
+      "Couldn't import bank.csv — the AI's answer couldn't be turned into transactions.",
+    );
+  });
+
+  it("appends an unusable answer's reason to log lines", () => {
+    const reason = '(column "Amount" does not hold amounts)';
+    expect(logLineIn("en", { code: "normalize.fileSkipped", params: { file: "bank.csv", cause: UNUSABLE } })).toBe(
+      `Skipped bank.csv — the AI's answer couldn't be turned into transactions ${reason}.`,
+    );
+    expect(logLineIn("en", { code: "normalize.fileFailed", params: { file: "bank.csv", cause: UNUSABLE } })).toBe(
+      `Couldn't import bank.csv — the AI's answer couldn't be turned into transactions ${reason}.`,
+    );
+    expect(logLineIn("en", { code: "categorize.batchFailed", params: { batch: 1, count: 1, cause: UNUSABLE } })).toBe(
+      `Batch 1 failed (1 row left for re-run): the AI's answer couldn't be used ${reason}`,
+    );
+    expect(logLineIn("en", { code: "categorize.transferBatchFailed", params: { count: 2, cause: UNUSABLE } })).toBe(
+      `Transfer batch failed (2 rows left for re-run): the AI's answer couldn't be used ${reason}`,
+    );
+  });
+
+  it("logs the model's reason for a file with no data", () => {
+    const notice = { code: "normalize.noData", params: { file: "selfie.png", detail: "Just a selfie." } } as const;
+    expect(logLineIn("en", notice)).toBe("Skipped selfie.png — no transaction data found (Just a selfie.).");
+    expect(textIn("en", notice)).toBe("Skipped selfie.png — no transaction data found.");
+  });
+
+  it("words a batch run that landed nothing without a cause", () => {
+    expect(textIn("en", { code: "categorize.noneLanded", params: { count: 3, cause: null } })).toBe(
+      "Capy couldn't categorize any of 3 rows. They're staged — run Enrich to try again.",
+    );
+  });
+
+  it("says when there is nothing staged to enrich", () => {
+    expect(textIn("pt", { code: "enrich.noStaging" })).toBe("Nenhuma transação preparada para enriquecer.");
+  });
+
+  it("words a single missing transaction grammatically", () => {
+    const notice = { code: "normalize.countMismatch", params: { file: "s.png", counted: 5, returned: 4 } } as const;
+    expect(textIn("es", notice)).toBe("s.png: la IA contó 5 transacciones pero devolvió 4 — puede que falten algunas (1).");
+    expect(textIn("pt", notice)).toBe("s.png: a IA contou 5 transações, mas retornou 4 — algumas podem estar faltando (1).");
   });
 });

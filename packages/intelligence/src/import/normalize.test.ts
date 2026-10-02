@@ -1200,13 +1200,13 @@ describe("normalizeImage", () => {
     const session = new MockStructuredSession([() => ({ result: { error: "no_data", message: "Just a selfie." } })]);
     const { rows, noData } = await normalizeImage(session, { name: "s.png", content: "B64", mediaType: "image/png" });
     expect(rows).toHaveLength(0);
-    expect(noData?.message).toBe("Just a selfie.");
+    expect(noData?.detail).toBe("Just a selfie.");
   });
 
   it("treats an empty extraction as noData", async () => {
     const session = new MockStructuredSession([() => ({ result: { count: 0, rows: [] } })]);
     const { noData } = await normalizeImage(session, { name: "s.png", content: "B64", mediaType: "image/png" });
-    expect(noData).toBeDefined();
+    expect(noData).toEqual({});
   });
 
   it("reports streamed progress with the model-declared count as the total", async () => {

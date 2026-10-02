@@ -28,6 +28,7 @@
     "modelNotFound": "{{provider}} não encontra o modelo selecionado — escolha outro nas Configurações.",
     "noSources": "Nenhum arquivo de origem para importar.",
     "noStaging": "Nenhuma transação preparada para enriquecer.",
+    "failed": "A importação falhou — {{detail}}",
     "fileFailed": "Não foi possível importar {{file}} — {{cause}}.",
     "noneLanded_one": "Não foi possível categorizar {{count}} linha — {{cause}}. Rode Enriquecer para tentar de novo.",
     "noneLanded_many": "Não foi possível categorizar nenhuma das {{count}} linhas — {{cause}}. Rode Enriquecer para tentar de novo.",
@@ -82,6 +83,7 @@
       "readFiles_other": "{{count}} arquivos lidos: {{files, list}}.",
       "visionUnknown": "Não foi possível confirmar se o modelo selecionado lê imagens — tentando mesmo assim.",
       "noData": "{{file}} foi ignorado — nenhuma transação encontrada.",
+      "noDataDetail": "{{file}} foi ignorado — nenhuma transação encontrada ({{detail}}).",
       "fileSkipped": "{{file}} foi ignorado — {{cause}}.",
       "rowsUnparsed_one": "{{count}} linha ignorada em {{file}} — não foi possível ler: {{sample}}",
       "rowsUnparsed_many": "{{count}} linhas ignoradas em {{file}} — não foi possível ler: {{sample}}",
@@ -92,7 +94,7 @@
       "skipRulesHeld_one": "{{count}} linha correspondeu às regras de exclusão em {{file}}: {{sample}} — {{held}} com valor ficaram desmarcadas na prévia",
       "skipRulesHeld_many": "{{count}} linhas corresponderam às regras de exclusão em {{file}}: {{sample}} — {{held}} com valor ficaram desmarcadas na prévia",
       "skipRulesHeld_other": "{{count}} linhas corresponderam às regras de exclusão em {{file}}: {{sample}} — {{held}} com valor ficaram desmarcadas na prévia",
-      "countMismatch": "{{file}}: a IA contou {{counted}} transações, mas retornou {{returned}} — {{missing}} podem estar faltando.",
+      "countMismatch": "{{file}}: a IA contou {{counted}} transações, mas retornou {{returned}} — algumas podem estar faltando ({{missing}}).",
       "wholeUnits": "{{file}}: todos os valores são menores que 1,00 — a IA pode ter retornado unidades inteiras em vez de centavos. Confira os valores.",
       "droppedCents": "{{file}}: todos os valores terminam em ,00 — a IA pode ter perdido os centavos. Confira os valores.",
       "normalized_one": "{{count}} transação normalizada.",
@@ -134,7 +136,8 @@
         "cutOff": "a resposta da IA foi cortada antes de o lote ficar completo",
         "refused": "a IA se recusou a categorizar estas linhas",
         "unusable": "não foi possível usar a resposta da IA"
-      }
+      },
+      "unknown": "erro desconhecido"
     }
   },
   "preview": {

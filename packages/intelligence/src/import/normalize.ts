@@ -41,7 +41,7 @@ import type { MessageContent } from "../types";
 import { sourceContentBlock } from "../source-files";
 import { extractErrorMessage } from "../error-message";
 import { SchemaValidationError, type StructuredSession } from "../structured";
-import type { NormalizeProgress, NormalizeWarning } from "./events";
+import { sample, type NormalizeProgress, type NormalizeWarning } from "./events";
 import {
   CSV_MAPPING_SCHEMA,
   EXTRACTION_SCHEMA,
@@ -150,10 +150,9 @@ const SKIPPED_SHOWN = 3;
 
 function describeSkippedByRules(filename: string, held: number, rows: Record<string, string>[], mapping: CsvMapping): NormalizeWarning {
   const matched = rows.filter((row) => shouldSkipRow(row, mapping.skipRules));
-  const items = matched.slice(0, SKIPPED_SHOWN).map((row) => truncateValue(rowDescription(row, mapping.description)));
   return {
     code: "normalize.skipRules",
-    params: { file: filename, sample: { items, more: matched.length - items.length }, held },
+    params: { file: filename, sample: sample(matched, (row) => truncateValue(rowDescription(row, mapping.description))), held },
   };
 }
 
@@ -702,8 +701,9 @@ export function accountFromFilename(filename: string): string {
 export interface NormalizeImageResult {
   /** Empty when the outcome was `no_data`. */
   rows: ImportTransaction[];
-  /** Set when the source carried no transaction data (the selfie case). */
-  noData?: { message: string };
+  /** Set when the source carried no transaction data (the selfie case), with
+   *  the model's own explanation when it gave one. */
+  noData?: { detail?: string };
   warnings: NormalizeWarning[];
 }
 
@@ -760,7 +760,7 @@ export async function normalizeImage(
   );
 
   if ("error" in result) {
-    return { rows: [], noData: { message: result.message }, warnings: [] };
+    return { rows: [], noData: { detail: result.message }, warnings: [] };
   }
 
   // The model can return `{ rows: [] }` without the explicit no_data outcome;
@@ -768,7 +768,7 @@ export async function normalizeImage(
   // declared no-data file — skipped with a warning when sibling files carry
   // rows, an empty completed preview when every file is empty.
   if (result.rows.length === 0) {
-    return { rows: [], noData: { message: "No transactions found in this file." }, warnings: [] };
+    return { rows: [], noData: {}, warnings: [] };
   }
 
   const records: StagedRecord[] = result.rows.map((r) => ({

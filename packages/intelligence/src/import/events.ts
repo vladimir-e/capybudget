@@ -34,20 +34,34 @@ export const PIPELINE_PHASES: readonly ImportPhase[] = [
 /** Severity of a terminal-log line. */
 export type LogLevel = "info" | "warn" | "error";
 
-/** Why a model call came back unusable inside a Categorizing batch. `other`
- *  carries the provider's own message, which the app shows verbatim. */
-export type BatchFailureCause =
-  | { kind: "cutOff" | "refused" | "unusable" }
-  | { kind: "other"; detail: string };
+/** Why a model call failed. `unusable` and `other` carry the underlying
+ *  message: `other` is the provider's own words, shown to the user; an
+ *  `unusable` detail is for the log only. */
+export type ModelFailureCause =
+  | { kind: "cutOff" | "refused" }
+  | { kind: "unusable" | "other"; detail: string };
 
-/** Why a source file couldn't be read. A batch cause, plus the two
+/** Why a Categorizing batch failed. */
+export type BatchFailureCause = ModelFailureCause;
+
+/** Why a source file couldn't be read: a model failure, or one of the two
  *  capability gaps only a file can hit. */
-export type FileFailureCause = BatchFailureCause | { kind: "pdfUnsupported" | "noVision" };
+export type FileFailureCause = ModelFailureCause | { kind: "pdfUnsupported" | "noVision" };
 
 /** The first few items of a list, and how many more were left out. */
 export interface Sample {
   items: string[];
   more: number;
+}
+
+const SAMPLE_SIZE = 3;
+
+/** Cap a list for a log line, so a wholly broken file logs a line, not a wall. */
+export function sample(notes: readonly string[]): Sample;
+export function sample<T>(notes: readonly T[], map: (note: T) => string): Sample;
+export function sample<T>(notes: readonly T[], map: (note: T) => string = String): Sample {
+  const items = notes.slice(0, SAMPLE_SIZE).map(map);
+  return { items, more: notes.length - items.length };
 }
 
 /** The current-status line. */
@@ -81,7 +95,7 @@ export type ImportLogNotice =
   | ImportFailure
   | { code: "reading.files"; params: { files: string[] } }
   | { code: "normalize.visionUnknown" }
-  | { code: "normalize.noData"; params: { file: string } }
+  | { code: "normalize.noData"; params: { file: string; detail?: string } }
   | { code: "normalize.fileSkipped"; params: { file: string; cause: FileFailureCause } }
   | { code: "normalize.rowsUnparsed"; params: { file: string; sample: Sample } }
   | { code: "normalize.done"; params: { count: number } }

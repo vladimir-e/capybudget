@@ -28,6 +28,7 @@
     "modelNotFound": "{{provider}} no encuentra el modelo seleccionado — elige otro en Ajustes.",
     "noSources": "No hay archivos de origen para importar.",
     "noStaging": "No hay transacciones preparadas para enriquecer.",
+    "failed": "La importación falló — {{detail}}",
     "fileFailed": "No se pudo importar {{file}} — {{cause}}.",
     "noneLanded_one": "No se pudo categorizar {{count}} fila — {{cause}}. Ejecuta Enriquecer para intentarlo de nuevo.",
     "noneLanded_many": "No se pudo categorizar ninguna de las {{count}} filas — {{cause}}. Ejecuta Enriquecer para intentarlo de nuevo.",
@@ -82,6 +83,7 @@
       "readFiles_other": "Leídos {{count}} archivos: {{files, list}}.",
       "visionUnknown": "No se pudo confirmar que el modelo seleccionado lea imágenes — se intentará de todos modos.",
       "noData": "{{file}} omitido — no se encontraron transacciones.",
+      "noDataDetail": "{{file}} omitido — no se encontraron transacciones ({{detail}}).",
       "fileSkipped": "{{file}} omitido — {{cause}}.",
       "rowsUnparsed_one": "{{count}} fila omitida en {{file}} — no se pudo leer: {{sample}}",
       "rowsUnparsed_many": "{{count}} filas omitidas en {{file}} — no se pudieron leer: {{sample}}",
@@ -92,7 +94,7 @@
       "skipRulesHeld_one": "{{count}} fila coincidió con reglas de omisión en {{file}}: {{sample}} — {{held}} con importe quedaron sin seleccionar en la vista previa",
       "skipRulesHeld_many": "{{count}} filas coincidieron con reglas de omisión en {{file}}: {{sample}} — {{held}} con importe quedaron sin seleccionar en la vista previa",
       "skipRulesHeld_other": "{{count}} filas coincidieron con reglas de omisión en {{file}}: {{sample}} — {{held}} con importe quedaron sin seleccionar en la vista previa",
-      "countMismatch": "{{file}}: la IA contó {{counted}} transacciones pero devolvió {{returned}} — puede que falten {{missing}}.",
+      "countMismatch": "{{file}}: la IA contó {{counted}} transacciones pero devolvió {{returned}} — puede que falten algunas ({{missing}}).",
       "wholeUnits": "{{file}}: todos los importes son menores que 1,00 — puede que la IA haya devuelto unidades enteras en lugar de céntimos. Revisa los importes.",
       "droppedCents": "{{file}}: todos los importes terminan en ,00 — puede que la IA haya perdido los céntimos. Revisa los importes.",
       "normalized_one": "{{count}} transacción normalizada.",
@@ -134,7 +136,8 @@
         "cutOff": "la respuesta de la IA se cortó antes de completar el lote",
         "refused": "la IA se negó a categorizar estas filas",
         "unusable": "la respuesta de la IA no se pudo usar"
-      }
+      },
+      "unknown": "error desconocido"
     }
   },
   "preview": {

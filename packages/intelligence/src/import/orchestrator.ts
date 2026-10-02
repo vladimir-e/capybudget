@@ -33,7 +33,7 @@ import {
 import type { EnrichedRow, TransferEnriched } from "./schemas";
 import {
   PIPELINE_PHASES,
-  type BatchFailureCause,
+  sample,
   type FileFailureCause,
   type ImportEvent,
   type ImportEventHandler,
@@ -42,8 +42,8 @@ import {
   type ImportPhase,
   type ImportStatus,
   type LogLevel,
+  type ModelFailureCause,
   type NormalizeProgress,
-  type Sample,
   type TerminalLogEntry,
 } from "./events";
 import { normalizeCsv, normalizeImage } from "./normalize";
@@ -293,7 +293,7 @@ export class ImportOrchestrator {
       const result = await normalizeImage(this.deps.session, source, { startId, existingAccounts, onProgress, signal });
       for (const warning of result.warnings) this.log("warn", "normalizing", warning);
       if (result.noData) {
-        this.log("warn", "normalizing", { code: "normalize.noData", params: { file: source.name } });
+        this.log("warn", "normalizing", { code: "normalize.noData", params: { file: source.name, ...result.noData } });
         return [];
       }
       return result.rows;
@@ -318,7 +318,7 @@ export class ImportOrchestrator {
     if (result.errors.length > 0) {
       this.log("warn", "normalizing", {
         code: "normalize.rowsUnparsed",
-        params: { file: source.name, sample: sample(result.errors.map((e) => e.message)) },
+        params: { file: source.name, sample: sample(result.errors, (e) => e.message) },
       });
     }
     for (const warning of result.warnings) this.log("warn", "normalizing", warning);
@@ -430,7 +430,7 @@ export class ImportOrchestrator {
     const { signal } = this.controller;
     let cursor = 0;
     let deadEnd: unknown = null;
-    let lastFailure: BatchFailureCause | null = null;
+    let lastFailure: ModelFailureCause | null = null;
 
     const runNext = async (): Promise<void> => {
       while (true) {
@@ -452,7 +452,7 @@ export class ImportOrchestrator {
             deadEnd ??= err;
             return;
           }
-          const cause = batchFailureCause(err);
+          const cause = modelFailureCause(err);
           lastFailure = cause;
           const count = job.rows.length;
           this.log(
@@ -557,23 +557,15 @@ class UnreadableSourceError extends Error {
   }
 }
 
-function batchFailureCause(err: unknown): BatchFailureCause {
+function modelFailureCause(err: unknown): ModelFailureCause {
   if (err instanceof CutOffError) return { kind: "cutOff" };
   if (err instanceof RefusedError) return { kind: "refused" };
-  if (err instanceof SchemaValidationError) return { kind: "unusable" };
+  if (err instanceof SchemaValidationError) return { kind: "unusable", detail: err.message };
   return { kind: "other", detail: extractErrorMessage(err).message };
 }
 
 function fileFailureCause(err: unknown): FileFailureCause {
-  return err instanceof UnreadableSourceError ? { kind: err.kind } : batchFailureCause(err);
-}
-
-const SAMPLE_SIZE = 3;
-
-/** Cap a per-row note list so a wholly broken file logs a line, not a wall. */
-function sample(notes: string[]): Sample {
-  const items = notes.slice(0, SAMPLE_SIZE);
-  return { items, more: notes.length - items.length };
+  return err instanceof UnreadableSourceError ? { kind: err.kind } : modelFailureCause(err);
 }
 
 // ── Pure row transforms ──────────────────────────────────────────

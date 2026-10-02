@@ -177,6 +177,7 @@ export type {
   ImportLogNotice,
   ImportFailure,
   NormalizeWarning,
+  ModelFailureCause,
   BatchFailureCause,
   FileFailureCause,
   Sample,

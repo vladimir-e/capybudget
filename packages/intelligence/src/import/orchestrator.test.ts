@@ -454,7 +454,10 @@ describe("ImportOrchestrator — empty import", () => {
     expect(events.find((e) => e.type === "error")).toBeUndefined();
     expect(staging.transactions).toHaveLength(2);
     const warn = events.find((e) => e.type === "log" && e.entry.level === "warn");
-    expect(warn && warn.type === "log" && warn.entry.notice).toEqual({ code: "normalize.noData", params: { file: "selfie.png" } });
+    expect(warn && warn.type === "log" && warn.entry.notice).toEqual({
+      code: "normalize.noData",
+      params: { file: "selfie.png", detail: "Just a selfie." },
+    });
     // Ids continue from 1 — the skipped file consumed none.
     expect(staging.transactions![0].id).toBe("imp-1");
   });
@@ -1088,6 +1091,22 @@ describe("ImportOrchestrator — a failed file", () => {
     expect(staging.transactions).toBeNull();
   });
 
+  it("carries the reason a refused mapping couldn't be used", async () => {
+    const staging = new MemoryStagingStore({ sources: [csvSource(csvWithRows(2), "a.csv"), csvSource(csvWithRows(2), "b.csv")] });
+    const amountless = () => ({ ...MAPPING, amount: { ...MAPPING.amount, column: "Missing" } });
+    const session = new MockStructuredSession([amountless, amountless, mapResponder, enrichResponder()]);
+    const { events, onEvent } = collect();
+
+    await new ImportOrchestrator({ session, staging, budget: emptyBudget(), onEvent, concurrency: 1 }).start();
+
+    expect(warnNotices(events)).toEqual([
+      {
+        code: "normalize.fileSkipped",
+        params: { file: "a.csv", cause: { kind: "unusable", detail: expect.stringContaining("Missing") } },
+      },
+    ]);
+  });
+
   it("ends the run at once on a dead-end provider error, naming its kind and provider", async () => {
     const rejected = Object.assign(new Error('401 {"error":{"message":"invalid x-api-key"}}'), {
       status: 401,
@@ -1163,6 +1182,39 @@ describe("ImportOrchestrator — a failed file", () => {
 });
 
 // ── Categorizing failures + meter ────────────────────────────────
+
+describe("ImportOrchestrator — run-level failures", () => {
+  it("fails with the raw message when a dependency throws", async () => {
+    const staging = new MemoryStagingStore();
+    vi.spyOn(staging, "listSources").mockRejectedValue(new Error("disk full"));
+    const { events, onEvent } = collect();
+
+    await new ImportOrchestrator({ session: new MockStructuredSession([]), staging, budget: emptyBudget(), onEvent }).start();
+
+    expect(events.find((e) => e.type === "error")).toEqual({
+      type: "error",
+      notice: { code: "failed", params: { detail: "disk full" } },
+      recoverable: false,
+    });
+  });
+
+  it("refuses to enrich when nothing is staged", async () => {
+    const { events, onEvent } = collect();
+
+    await new ImportOrchestrator({
+      session: new MockStructuredSession([]),
+      staging: new MemoryStagingStore(),
+      budget: emptyBudget(),
+      onEvent,
+    }).enrich();
+
+    expect(events.find((e) => e.type === "error")).toEqual({
+      type: "error",
+      notice: { code: "enrich.noStaging" },
+      recoverable: false,
+    });
+  });
+});
 
 describe("ImportOrchestrator — Categorizing failures", () => {
   it("stops dispatching on an unreachable provider and fails with that reason", async () => {

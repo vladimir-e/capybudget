@@ -213,7 +213,7 @@ const LEVEL_CLASS: Record<TerminalLogEntry["level"], string> = {
 };
 
 function LogPane({ log }: { log: TerminalLogEntry[] }) {
-  const noticeText = useImportNoticeText();
+  const noticeText = useImportNoticeText({ withDetail: true });
   const scrollRef = useRef<HTMLDivElement>(null);
 
   // Keep the newest line in view — the run record reads bottom-up like a tail.
