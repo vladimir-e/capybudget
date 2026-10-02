@@ -17,12 +17,16 @@ export const STOPPED_RESULT = "Error: not run — the user stopped the response 
 export const UNANSWERED_RESULT = "Error: not run — the response ended before this call could run."
 export const STOPPED_MARKER = " [stopped by the user]"
 
+export type Ending = Exclude<LoopOutcome, "stopped">
+
 export function outcomeEvent(outcome: LoopOutcome): StreamEvent | null {
-  switch (outcome) {
+  return outcome === "stopped" ? null : endingEvent(outcome)
+}
+
+export function endingEvent(ending: Ending): StreamEvent {
+  switch (ending) {
     case "done":
       return { type: "done" }
-    case "stopped":
-      return null
     case "cutOff":
       return { type: "error", code: "cutOff", message: CUT_OFF_MESSAGE }
     case "refused":
@@ -35,7 +39,7 @@ export function outcomeEvent(outcome: LoopOutcome): StreamEvent | null {
 const RENDER_TOOL_MAP = buildRenderToolMap()
 
 export function toolCallBlock(name: string, input: Record<string, unknown>): ContentBlock {
-  return RENDER_TOOL_MAP[name]?.(input) ?? { type: "tool-activity", tool: name }
+  return RENDER_TOOL_MAP[name]?.(input) ?? { type: "tool-activity", tool: name, status: "pending" }
 }
 
 const CAP_PARAM = /max_(?:completion_|output_)?tokens/i
@@ -135,7 +139,7 @@ export class TurnDisplay {
 
   addCall(id: string, block: ContentBlock): void {
     this.endText()
-    this.entries.push({ block: block.type === "tool-activity" ? { ...block, status: "pending" } : block, callId: id })
+    this.entries.push({ block, callId: id })
     this.publish()
   }
 

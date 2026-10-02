@@ -40,15 +40,6 @@ describe("MessageBubble tool card", () => {
       ),
     ).toEqual(["failed", "pending"])
   })
-
-  it("falls back to position for status-less Claude CLI blocks", () => {
-    const blocks: ContentBlock[] = [
-      { type: "tool-activity", tool: "list_accounts" },
-      { type: "tool-activity", tool: "list_categories" },
-    ]
-    expect(statuses(blocks, true)).toEqual(["done", "running"])
-    expect(statuses(blocks, false)).toEqual(["done", "done"])
-  })
 })
 
 describe("MessageBubble unsent question", () => {

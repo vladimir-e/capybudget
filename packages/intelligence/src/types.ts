@@ -64,7 +64,7 @@ export type ToolCallStatus = "pending" | "running" | "done" | "failed"
 export interface ToolActivityBlock {
   type: "tool-activity"
   tool: string
-  status?: ToolCallStatus
+  status: ToolCallStatus
 }
 
 export interface FileAttachmentBlock {
@@ -114,12 +114,7 @@ export interface ChatMessage {
 // ── Stream event types ──────────────────────────────────────────
 
 export type StreamEvent =
-  | {
-      type: "content"
-      blocks: ContentBlock[]
-      /** Per-turn boundary signal from Claude CLI's stream-json. */
-      messageId?: string
-    }
+  | { type: "content"; blocks: ContentBlock[] }
   | {
       /**
        * Signals that a tool call has *finished executing* and any side

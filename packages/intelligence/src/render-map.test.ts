@@ -33,6 +33,33 @@ describe("render builders — empty-data rejection", () => {
   })
 })
 
+describe("render_followups builder", () => {
+  it("keeps the well-formed chips and drops the rest", () => {
+    expect(
+      MAP.render_followups({
+        chips: [
+          { label: "Good chip", prompt: "Good prompt" },
+          { label: "", prompt: "missing label" },
+          { label: "missing prompt" },
+          null,
+          { label: "Another good", prompt: "Another good prompt" },
+        ],
+      }),
+    ).toEqual({
+      type: "followups",
+      chips: [
+        { label: "Good chip", prompt: "Good prompt" },
+        { label: "Another good", prompt: "Another good prompt" },
+      ],
+    })
+  })
+
+  it("returns null when no chip survives", () => {
+    expect(MAP.render_followups({ chips: [] })).toBeNull()
+    expect(MAP.render_followups({ suggestions: ["a"] })).toBeNull()
+  })
+})
+
 describe("validateRenderInput", () => {
   it("returns null for valid input", () => {
     expect(

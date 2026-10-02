@@ -18,8 +18,6 @@ export default defineConfig({
   resolve: {
     alias: {
       "@tauri-apps/plugin-shell": tauriNode,
-      "@tauri-apps/plugin-fs": tauriNode,
-      "@tauri-apps/api/path": tauriNode,
       "@": path.resolve(root, "packages/app/src"),
     },
   },

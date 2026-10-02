@@ -147,7 +147,7 @@ function ToolGroupCard({
     <div className="rounded-xl bg-muted/40 px-3.5 py-2.5">
       <div className="flex flex-col gap-1.5">
         {blocks.map((block, i) => {
-          const status = shownStatus(block, i === blocks.length - 1, inProgress)
+          const status = shownStatus(block, inProgress)
           return (
             <div
               key={i}
@@ -166,11 +166,8 @@ function ToolGroupCard({
   )
 }
 
-// Claude CLI blocks carry no status, so their last row stands in for the
-// running call.
-function shownStatus(block: ToolActivityBlock, isLast: boolean, inProgress: boolean): ToolCallStatus {
-  const status = block.status ?? (isLast ? "running" : "done")
-  return status === "running" && !inProgress ? "done" : status
+function shownStatus(block: ToolActivityBlock, inProgress: boolean): ToolCallStatus {
+  return block.status === "running" && !inProgress ? "done" : block.status
 }
 
 function ToolStatusIcon({ status }: { status: ToolCallStatus }) {

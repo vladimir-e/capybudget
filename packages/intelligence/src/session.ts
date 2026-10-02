@@ -13,6 +13,12 @@ export interface CapySession {
    * `content` flattens them (text inlined, images base64) past reconstruction,
    * and the model can't echo them back through a tool argument. The Claude CLI
    * adapter ignores it (file import routes through the Import tab there).
+   *
+   * Sends run one at a time: a send issued while an earlier turn is still
+   * winding down waits for it. The promise resolves when this send's turn is
+   * over — it ended, was stopped, or the session was killed — and never
+   * rejects: every failure arrives as an `error` event. After `kill()` a send
+   * is a no-op.
    */
   send(content: MessageContent, attachments?: readonly FileAttachment[]): Promise<void>
   stop(): Promise<void>

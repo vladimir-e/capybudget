@@ -24,8 +24,8 @@ export default defineConfig({
   resolve: {
     alias: [
       // Override the Claude CLI session with the demo stub (must
-      // precede the @/ catch-all). The shim re-exports the demo's
-      // CapySession class under the ClaudeCliSession name.
+      // precede the @/ catch-all). The shim's createClaudeCliSession
+      // builds the demo's CapySession.
       {
         find: /(.*)\/services\/claude-cli-session$/,
         replacement: path.resolve(__dirname, "src/adapters/demo-claude-cli-session"),

@@ -37,7 +37,7 @@ Capy is an AI financial assistant. The intelligence layer is **provider-pluggabl
 
 Two transport models share a single tool layer:
 
-- **Claude Code adapter** spawns the `claude` CLI as a subprocess and routes all tool calls through the MCP server, which uses node `fs`.
+- **Claude Code adapter** spawns the `claude` CLI as a subprocess and routes all tool calls through the MCP server, which uses node `fs`. The session logic lives in `intelligence/adapters/claude-cli/`; the app injects only the process driver (Tauri shell).
 - **API adapters** run the agentic loop in the renderer and dispatch tool calls **in-process**. They use the Tauri `fs` adapter for the same handlers — same `ToolContext` shape, different `FileAdapter` implementation.
 
 The tool handlers don't know which transport called them.
@@ -48,7 +48,7 @@ Smart Import does not run through the agent loop. It's a code-orchestrated pipel
 
 `CapySession` defines the contract:
 
-- `send(content)` — send user message (`MessageContent`: plain string or array of text / image / document blocks)
+- `send(content)` — send user message (`MessageContent`: plain string or array of text / image / document blocks). Sends run one at a time — a send issued while an earlier turn winds down waits for it — and the promise resolves when that send's turn is over (ended, stopped, or killed). It never rejects: every failure arrives as an `error` event. After `kill()`, `send()` is a no-op.
 - `stop()` — interrupt current response (provider-specific: CLI kills the subprocess; API adapters abort the in-flight request)
 - `restart()` — kill session and start fresh
 - `kill()` — terminate
@@ -72,7 +72,7 @@ Smart Import does not run through the agent loop. It's a code-orchestrated pipel
 | `table` | Headers + rows (amounts get semantic coloring) |
 | `bar-chart` | Title + label/value pairs |
 | `donut-chart` | Title + label/value pairs |
-| `tool-activity` | Tool name and an optional `status` — `pending`, `running`, `done`, `failed` (persists in chat history) |
+| `tool-activity` | Tool name and its `status` — `pending`, `running`, `done`, `failed` (persists in chat history) |
 | `file-attachment` | File name, size, mediaType (rendered as chip) |
 | `followups` | Array of `{label, prompt}` follow-up suggestion chips. Click sends `prompt` as next user message. |
 
@@ -87,11 +87,11 @@ Every `content` event carries the **complete cumulative blocks array** for the c
 Adapter accumulation:
 
 - API adapters (Anthropic, OpenAI, Ollama): one `TurnDisplay` per user→done cycle owns the blocks array and publishes it on every change. Streamed text grows the current text block; a tool call closes it and pushes its block (rendered or `tool-activity`), so text after a call opens a new one. A `tool-activity` block enters as `pending` and moves to `running` and then `done` or `failed` as the tool loop runs it. The array survives across tool-result rounds. An iteration that ends cut off or refused keeps only the text streamed before its first call. When the turn ends or the user stops it, the display settles: cards of calls that never started are dropped and nothing more is published.
-- Claude Code adapter: the CLI emits one `assistant` event per content block, all sharing the message's `id` (the id persists even across in-turn tool boundaries). The decoder is stateless and forwards `message.id` as the optional `messageId` on `StreamEvent.content`; `CycleAccumulator` stitches events into one cumulative array — appending same-id text blocks as distinct blocks (replacing in place only when the incoming text extends the in-progress one, the cumulative-snapshot shape older CLIs streamed), promoting blocks into a finished-turns buffer when `messageId` changes, and dropping text for the rest of the cycle once a rendered followups block lands (see the terminal-signal tool).
+- Claude Code adapter: the CLI emits one `assistant` event per content block, all sharing the message's `id` (the id persists even across in-turn tool boundaries). A stateless parser turns each stdout line into protocol facts — a message's text and calls with its id, a tool result, or the turn's ending. One `CliTurn` per send feeds them into the same `TurnDisplay` the API adapters use: a same-id text block appends as a new block, except one that extends the open text (the cumulative-snapshot shape older CLIs streamed), which grows it in place; a new message id or a call closes the open text; text is dropped for the rest of the turn once a rendered followups block lands (see the terminal-signal tool). The CLI runs each call itself, so its card enters as `running` and moves to `done` or `failed` when the matching `tool_result` arrives.
 
 Adapters emit `StreamEvent`s directly (`content` / `tool-result` / `done` / `error`) — there's no transport-level event layer above this.
 
-Adapters surface `done` off the model's terminal event (Anthropic `message`, OpenAI `response.completed`, Ollama `finish_reason`) rather than waiting for the SSE stream to end — gating on the transport adds seconds of post-content latency. The rest of the stream drains in the background and is never aborted: under WKWebView an abort on a finished fetch body can stall the next request for minutes, and the OpenAI SDK aborts a request whose iterator is left early, so the OpenAI and Ollama adapters read events by hand and never `break` out of a stream. Only Stop aborts a request. The Claude CLI populates no `stop_reason` on assistant events; its `done` rides the trailing `result` line. The parser still emits `done` early off a terminal `stop_reason` should one appear, with the `result` line as the guaranteed emitter so the UI never hangs.
+Adapters surface `done` off the model's terminal event (Anthropic `message`, OpenAI `response.completed`, Ollama `finish_reason`) rather than waiting for the SSE stream to end — gating on the transport adds seconds of post-content latency. The rest of the stream drains in the background and is never aborted: under WKWebView an abort on a finished fetch body can stall the next request for minutes, and the OpenAI SDK aborts a request whose iterator is left early, so the OpenAI and Ollama adapters read events by hand and never `break` out of a stream. Only Stop aborts a request. The Claude CLI populates no `stop_reason` on assistant events; its ending rides the trailing `result` line. The parser still ends the turn early off a terminal `stop_reason` should one appear; the first ending wins and the rest of the turn's output is ignored.
 
 ## Structured Output
 
@@ -105,17 +105,38 @@ The Anthropic, OpenAI, and Ollama adapters implement both `CapySession` and `Str
 
 ### Claude Code adapter
 
-Spawns `claude` via Tauri's shell plugin in pipe mode with stream-json I/O on both ends. CLI flags supplied at spawn:
+Spawns `claude` in pipe mode with stream-json I/O on both ends. `ClaudeCliSession` owns the flags, the lifecycle, and the stream decoding; it reaches the platform through an injected `ClaudeCliHost` — the project root the MCP server runs from, and a `spawn(args, env, events)` that streams stdout lines and reports the exit. The desktop app's host wraps Tauri's shell plugin; the live suite's wraps `node:child_process`.
 
-- `--session-id <uuid>` — conversation context
-- `--mcp-config <path>` — points to MCP server
-- `--allowedTools "mcp__capy__*,Read"` — allowlist MCP tools + file reading
-- `--disallowedTools "TodoWrite,Task,Bash,Edit,Write,Glob,Grep,WebFetch,WebSearch,NotebookEdit,KillBash,BashOutput"` — explicitly block the CLI's stock built-ins. Even when omitted from the allowlist the model still knows they exist and the CLI's baked-in system prompt nudges it to deliberate about them ("should I use TodoWrite for this?") — disallowing silences that meta-narration.
+CLI flags supplied at spawn:
+
+- `--system-prompt <prompt>` — Capy's prompt replaces the CLI's own
+- `--mcp-config <json>` — Capy's MCP server, inline
+- `--strict-mcp-config` — load only that server. Without it the CLI also loads the user's own MCP servers and claude.ai connectors (mail, drive, calendar…): hundreds of tool schemas that overflow a small model's context and hand Capy's chat tools that reach the user's accounts.
+- `--tools Read` — the only built-in tool the model sees; the rest of the CLI's built-ins are not described to it at all
+- `--allowedTools "mcp__capy__*,Read"` — runs Capy's tools and `Read` without a permission prompt
 - `--add-dir <budget-path>` — grant Read access to the budget folder
-- `--setting-sources ""` — skip CLAUDE.md files
+- `--setting-sources ""` — load no user, project, or local settings: no hooks, permission rules, plugins, or CLAUDE.md
+- `--disable-slash-commands` — no user skills or commands
+- `--no-session-persistence` — Capy's conversations are never written to the CLI's session store
+- `--model <model>` — only when one is configured
+- `--max-turns <n>` — the reply budget (see **Tool-Call Budget per Reply**)
 - env `ENABLE_TOOL_SEARCH=false` — disables the CLI's deferred MCP tool loading (undocumented knob) so every `mcp__capy__*` schema loads upfront. With deferral on, the model must fetch schemas via ToolSearch mid-turn and sometimes calls render tools blind with invented payloads.
 
-Lifecycle: spawn lazily on first message, fresh session ID per spawn, process survives overlay close/reopen, `kill()` ends it. Stop / restart recovery (serialize prior conversation, prepend `[Previous conversation]` on next send) is unique to this adapter — API adapters get a simpler abort-and-continue model.
+Lifecycle:
+
+- The process spawns lazily on the first send and serves every later turn; each spawn is a fresh CLI session. It survives overlay close/reopen; `kill()` ends it for good.
+- Sends queue one at a time, the way the API adapters' do (a send epoch, `hasQueuedSend`). `send()` resolves when its turn ends, and a spawn or write failure arrives as one `error` event, with the process dropped so the next send respawns.
+- Each spawn gets a generation; stdout and the exit of an earlier generation are ignored, so a stopped process's late output never reaches the next turn and its exit never reports a crash. Output that arrives between turns is ignored too.
+- An exit the session did not ask for fires `onExit` once and ends the running turn; the next send spawns a fresh process. The CLI keeps running after a reply ends in an error (`error_max_turns` included), so an error never stands in for an exit.
+- `kill()` ends the process and emits nothing more — a write the MCP server already started still lands, but without a `tool-result`.
+
+Stop / restart recovery (serialize prior conversation, prepend `[Previous conversation]` on next send) is unique to this adapter — API adapters get a simpler abort-and-continue model.
+
+How a CLI turn ends — the CLI runs its own loop, so the adapter only maps its ending onto the shared vocabulary (`endingEvent` in `agent-turn.ts`):
+
+- `end_turn` / `stop_sequence` — `done`.
+- `max_tokens`, a `max_output_tokens` error message, or any other stop reason — `cutOff`; `refusal` — `refused`; an `error_max_turns` result — `budgetExhausted`. The turn's display stays as streamed: the CLI has already run its calls.
+- An assistant message the CLI marks with `error` (a failed API call — "Prompt is too long", an overloaded server) ends the turn with that text as the error, never as a reply, even when the `result` line that follows claims success. A failed `result` line carries its message in `result`, else in `errors`. An `API Error: <status> <body>` text is unwrapped through `extractErrorMessage`, keeping the status; a 429 or a `rate_limit` message surfaces as `rateLimited`.
 
 ### Anthropic adapter
 
@@ -408,14 +429,14 @@ This is a hard backstop on the chat agent loop, not the normal path. A well-form
 Enforcement varies by adapter:
 
 - **Anthropic / OpenAI / Ollama** count tool calls inline as they dispatch them. When the cap trips mid-turn, remaining calls in the same turn receive a budget-exhausted error result (so the API doesn't see dangling calls) and the agentic loop exits without making the next request.
-- **Claude CLI** passes the cap as `--max-turns` at spawn, which the CLI applies to each send; it ends the run with `error_max_turns` when it trips. The CLI counts model turns, not tool calls — a turn may issue several calls — so this bound is looser than the API adapters'.
+- **Claude CLI** passes the cap as `--max-turns` at spawn, which the CLI applies to each send; it ends the run with `error_max_turns` when it trips, which the adapter surfaces as `budgetExhausted`, and the process stays up for the next send. The CLI caps model turns, not tool calls — a turn may issue several calls — so this bound is looser than the API adapters'.
 
 ## Per-provider Stop / Restart
 
 | | Claude CLI | Anthropic + OpenAI + Ollama |
 |---|---|---|
-| `stop()` | kill subprocess + new session ID; serialize prior chat and prepend on next send | abort in-flight request; let the running tool finish and answer the rest as stopped; messages otherwise intact |
-| `restart()` | kill + new session ID + clear recovery state | abort, wait for the in-flight round, then clear messages |
+| `stop()` | kill the subprocess (the next send spawns a fresh session); serialize prior chat and prepend on next send | abort in-flight request; let the running tool finish and answer the rest as stopped; messages otherwise intact |
+| `restart()` | kill the subprocess + clear recovery state | abort, wait for the in-flight round, then clear messages |
 | Recovery on next send | `[Previous conversation]` block prepended | continues normally |
 
 The recovery dance is unique to the CLI (it can't reliably resume a session interrupted mid-turn). API adapters get a clean model because `AbortController` doesn't leave them in an ambiguous state.

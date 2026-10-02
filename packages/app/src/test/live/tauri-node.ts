@@ -1,7 +1,4 @@
 import { spawn as spawnProcess, type ChildProcessWithoutNullStreams } from "node:child_process"
-import { writeFile } from "node:fs/promises"
-import { tmpdir } from "node:os"
-import { join as joinPath } from "node:path"
 import { createInterface } from "node:readline"
 
 type Listener<T> = (payload: T) => void
@@ -76,16 +73,4 @@ const PARENT_SESSION_VAR = /^(CLAUDECODE|CLAUDE_PID|CLAUDE_EFFORT|CLAUDE_PLUGIN_
 
 function outsideClaudeCode(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
   return Object.fromEntries(Object.entries(env).filter(([key]) => !PARENT_SESSION_VAR.test(key)))
-}
-
-export async function writeTextFile(path: string, content: string): Promise<void> {
-  await writeFile(path, content, "utf-8")
-}
-
-export async function tempDir(): Promise<string> {
-  return tmpdir()
-}
-
-export async function join(...parts: string[]): Promise<string> {
-  return joinPath(...parts)
 }

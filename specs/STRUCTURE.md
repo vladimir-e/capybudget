@@ -23,7 +23,8 @@ references are relative.
 
 `persistence` and `mcp` stay flat (small, single-domain). `intelligence` groups
 under `prompts/`, `tools/`, `tools/handlers/`, and `adapters/` (provider
-session implementations).
+session implementations; the Claude Code CLI's stream parser, turn decoder,
+and session sit in `adapters/claude-cli/`).
 
 ## Placement Law
 
@@ -43,7 +44,11 @@ imports*, not *who uses it*.
 A file that imports only `intelligence` types belongs there, not in `app`:
 provider sessions live in `intelligence/adapters` so any consumer (the app, the
 MCP server, a CLI) reuses them without depending on `app`, and the app keeps
-only the React context wrapper that injects them. Schema migrations are a
+only the React context wrapper that injects them. A provider that needs the
+platform takes it as an injected interface: `ClaudeCliSession` gets a
+`ClaudeCliHost`, and the Tauri implementation that spawns the process stays in
+`app/services/claude-cli-session.ts`, beside the `claude --version` probe
+(`claude-cli-detect.ts`). Schema migrations are a
 persistence concern — `persistence` owns the transform, the shell calls
 `repo.migrate()`.
 

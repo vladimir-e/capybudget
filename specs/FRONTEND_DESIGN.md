@@ -56,7 +56,7 @@ Empty states:
 - **Welcome** (configured, no messages): mascot + greeting + four suggestion cards (click sends prompt as user message).
 
 Conversation:
-- Tool calls render as a stacked card, one row per call, each row marked by its call's status: a faint dot while queued, a spinner while running, a check when done, and a muted cross when the tool failed — quiet, since the model usually recovers on its own. A settled message never spins (a call still running when its turn settled ran to completion), and a call that never ran keeps its faint dot. Claude CLI rows carry no status, so the trailing row spins while the message streams and the rest show checks. The card persists in history.
+- Tool calls render as a stacked card, one row per call, each row marked by its call's status: a faint dot while queued, a spinner while running, a check when done, and a muted cross when the tool failed — quiet, since the model usually recovers on its own. A settled message never spins (a call still running when its turn settled ran to completion), and a call that never ran keeps its faint dot. The card persists in history.
 - A question the model never kept (its send failed with a rejected request and was rolled back) stays on screen dimmed and marked as not sent, so the chat never shows as delivered what the model didn't see.
 - Money and percentages get inline emphasis via lightweight `**bold**` parsing rendered in brand color (bold/italic XOR — not nestable).
 - Follow-up suggestion chips appear after responses (model-driven via `render_followups`) and click-to-send.

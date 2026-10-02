@@ -1,3 +1,5 @@
 export { AnthropicSession } from "./anthropic-session"
 export { OpenAiSession } from "./openai-session"
 export { OllamaSession } from "./ollama-session"
+export { ClaudeCliSession } from "./claude-cli/claude-cli-session"
+export type { ClaudeCliHost, ClaudeCliProcess, ClaudeCliProcessEvents } from "./claude-cli/claude-cli-session"

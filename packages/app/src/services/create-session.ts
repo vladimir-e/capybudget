@@ -16,7 +16,7 @@ import {
   OllamaSession,
   OpenAiSession,
 } from "@capybudget/intelligence/adapters"
-import { ClaudeCliSession } from "@/services/claude-cli-session"
+import { createClaudeCliSession } from "@/services/claude-cli-session"
 import { useIntelligenceStore } from "@/stores/intelligence-store"
 
 declare const __MAS__: boolean
@@ -31,7 +31,7 @@ export function createSession(opts: SessionOptions): CapySession | null {
   // The Claude Code CLI adapter spawns a subprocess the App Sandbox forbids —
   // omit it from MAS; the shell plugin it drives is compiled out, so residual JS is inert.
   if (!__MAS__) {
-    adapters["claude-cli"] = (o) => new ClaudeCliSession(o)
+    adapters["claude-cli"] = createClaudeCliSession
   }
   return createIntelligenceSession({
     config,

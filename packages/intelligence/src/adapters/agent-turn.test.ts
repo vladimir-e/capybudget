@@ -102,8 +102,8 @@ describe("TurnDisplay", () => {
   it("tracks each call card from pending through running to done or failed", () => {
     const { display, published } = recordingDisplay()
     display.beginIteration()
-    display.addCall("a", { type: "tool-activity", tool: "first" })
-    display.addCall("b", { type: "tool-activity", tool: "second" })
+    display.addCall("a", { type: "tool-activity", tool: "first", status: "pending" })
+    display.addCall("b", { type: "tool-activity", tool: "second", status: "pending" })
     expect(published.at(-1)).toEqual([
       { type: "tool-activity", tool: "first", status: "pending" },
       { type: "tool-activity", tool: "second", status: "pending" },
@@ -125,10 +125,10 @@ describe("TurnDisplay", () => {
     const { display, published } = recordingDisplay()
     display.beginIteration()
     display.appendText("Looking")
-    display.addCall("a", { type: "tool-activity", tool: "first" })
-    display.addCall("b", { type: "tool-activity", tool: "second" })
+    display.addCall("a", { type: "tool-activity", tool: "first", status: "pending" })
+    display.addCall("b", { type: "tool-activity", tool: "second", status: "pending" })
     display.appendText("After")
-    display.addCall("c", { type: "tool-activity", tool: "third" })
+    display.addCall("c", { type: "tool-activity", tool: "third", status: "pending" })
     display.markStarted("a")
     display.markStarted("c")
 
@@ -143,7 +143,7 @@ describe("TurnDisplay", () => {
   it("leaves a display whose calls all ran untouched, and publishes nothing after settling", () => {
     const { display, published } = recordingDisplay()
     display.beginIteration()
-    display.addCall("a", { type: "tool-activity", tool: "first" })
+    display.addCall("a", { type: "tool-activity", tool: "first", status: "pending" })
     display.appendText("Done")
     display.markStarted("a")
     const before = published.length

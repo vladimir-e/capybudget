@@ -573,9 +573,9 @@ describe("CapyOverlay tool-progress grouping", () => {
         id: "a1",
         role: "assistant",
         blocks: [
-          { type: "tool-activity", tool: "list_transactions" },
-          { type: "tool-activity", tool: "list_accounts" },
-          { type: "tool-activity", tool: "list_categories" },
+          { type: "tool-activity", tool: "list_transactions", status: "done" },
+          { type: "tool-activity", tool: "list_accounts", status: "done" },
+          { type: "tool-activity", tool: "list_categories", status: "done" },
           { type: "text", content: "Done." },
         ],
       },
@@ -595,8 +595,8 @@ describe("CapyOverlay tool-progress grouping", () => {
         id: "a1",
         role: "assistant",
         blocks: [
-          { type: "tool-activity", tool: "list_transactions" },
-          { type: "tool-activity", tool: "list_accounts" },
+          { type: "tool-activity", tool: "list_transactions", status: "done" },
+          { type: "tool-activity", tool: "list_accounts", status: "running" },
         ],
       },
     ]
@@ -615,8 +615,8 @@ describe("CapyOverlay tool-progress grouping", () => {
         id: "a1",
         role: "assistant",
         blocks: [
-          { type: "tool-activity", tool: "list_transactions" },
-          { type: "tool-activity", tool: "list_accounts" },
+          { type: "tool-activity", tool: "list_transactions", status: "done" },
+          { type: "tool-activity", tool: "list_accounts", status: "running" },
           { type: "text", content: "Done." },
         ],
       },
@@ -633,9 +633,9 @@ describe("CapyOverlay tool-progress grouping", () => {
         id: "a1",
         role: "assistant",
         blocks: [
-          { type: "tool-activity", tool: "list_transactions" },
+          { type: "tool-activity", tool: "list_transactions", status: "done" },
           { type: "text", content: "Here you go." },
-          { type: "tool-activity", tool: "list_accounts" },
+          { type: "tool-activity", tool: "list_accounts", status: "done" },
         ],
       },
     ]
@@ -712,9 +712,9 @@ describe("CapyOverlay tool → text → tool while streaming", () => {
         id: "a1",
         role: "assistant",
         blocks: [
-          { type: "tool-activity", tool: "list_transactions" },
+          { type: "tool-activity", tool: "list_transactions", status: "done" },
           { type: "text", content: "I see…" },
-          { type: "tool-activity", tool: "list_accounts" },
+          { type: "tool-activity", tool: "list_accounts", status: "running" },
         ],
       },
     ]

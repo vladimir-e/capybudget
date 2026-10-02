@@ -47,7 +47,7 @@ Platform decoupling through three injected interfaces:
 
 **FileAdapter** (`@capybudget/persistence`) — file read/write/rename/join. Desktop: Tauri plugin-fs. Demo: not used (in-memory repository).
 
-**CapySession** (`@capybudget/intelligence`) — AI session lifecycle. Desktop: Claude CLI subprocess via Tauri shell. Demo: stub prompting local install.
+**CapySession** (`@capybudget/intelligence`) — AI session lifecycle. Desktop: Claude CLI subprocess through a `ClaudeCliHost` over the Tauri shell (`app/services/claude-cli-session.ts`), or an API adapter. Demo: stub prompting local install.
 
 **BudgetService** — budget detection and bootstrap. Desktop: Tauri fs + dialog. Demo: preset data loader.
 
@@ -59,7 +59,7 @@ Shells inject adapters via React context providers from `@capybudget/app`.
 
 **`@capybudget/persistence`** — `BudgetRepository` interface, `FileAdapter` interface, `CsvRepository` implementation, CSV parsing with typed coercion, debounced writer. Depends on core for types. The `BudgetRepository` interface is the extension point for future storage backends (database, etc.). `FileAdapter` is specific to the CSV implementation.
 
-**`@capybudget/intelligence`** — `CapySession` interface, stream event types, content block types, system prompt template, context builder, tool definitions and in-process dispatch (`runTool`), provider config types, and the `createIntelligenceSession` factory. The provider session adapters (`AnthropicSession`, `OpenAiSession` on the Responses API, and `OllamaSession` — Chat Completions against a local server) live in `intelligence/src/adapters/` and are exported via the `@capybudget/intelligence/adapters` subpath. Depends on core (types) and persistence (`BudgetRepository` + `FileAdapter` for tool dispatch). See `INTELLIGENCE.md`.
+**`@capybudget/intelligence`** — `CapySession` interface, stream event types, content block types, system prompt template, context builder, tool definitions and in-process dispatch (`runTool`), provider config types, and the `createIntelligenceSession` factory. The provider session adapters (`AnthropicSession`, `OpenAiSession` on the Responses API, `OllamaSession` — Chat Completions against a local server — and `ClaudeCliSession` under `adapters/claude-cli/`) live in `intelligence/src/adapters/` and are exported via the `@capybudget/intelligence/adapters` subpath. `ClaudeCliSession` takes its process driver as an injected `ClaudeCliHost`. Depends on core (types) and persistence (`BudgetRepository` + `FileAdapter` for tool dispatch). See `INTELLIGENCE.md`.
 
 **`@capybudget/app`** — all React components (budget UI, capy overlay, shadcn primitives), TanStack Query/Router hooks, Zustand stores, routes, context providers for dependency injection. Depends on core, persistence, intelligence.
 
