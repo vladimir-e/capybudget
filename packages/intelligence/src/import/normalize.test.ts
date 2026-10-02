@@ -1247,3 +1247,110 @@ describe("countStreamedRows", () => {
     expect(Object.keys(rowsAlternative.properties!)).toEqual(["count", "rows"]);
   });
 });
+
+describe("normalizeCsv — skip rules", () => {
+  const csv = [
+    "Date,Description,Amount",
+    "2026-01-01,OPENING BALANCE,",
+    "2026-01-02,COFFEE,-4.50",
+    "2026-01-03,GROCER,-30.00",
+    "2026-01-04,BOOKS,-12.00",
+    "2026-01-05,RENT,-900.00",
+    "2026-01-06,SALARY,2000.00",
+  ].join("\n");
+
+  it("reports how many rows skip rules dropped, naming the first few", async () => {
+    const session = new MockStructuredSession([
+      () => ({ ...MAPPING, skipRules: [{ column: "Description", contains: "OPENING" }] }),
+    ]);
+
+    const { rows, warnings } = await normalizeCsv(session, { name: "bank.csv", content: csv });
+
+    expect(rows).toHaveLength(5);
+    expect(warnings).toEqual(['1 row skipped in bank.csv by skip rules: "OPENING BALANCE"']);
+  });
+
+  it("sends a rule that drops rows with a non-zero amount back for correction", async () => {
+    const session = new MockStructuredSession([
+      () => ({ ...MAPPING, skipRules: [{ column: "Description", equals: "RENT" }] }),
+      () => MAPPING,
+    ]);
+
+    const clean = csv.replace("2026-01-01,OPENING BALANCE,\n", "");
+    const { rows } = await normalizeCsv(session, { name: "bank.csv", content: clean });
+
+    expect(session.calls).toHaveLength(2);
+    const retry = JSON.stringify(session.calls[1].messages);
+    expect(retry).toContain("non-zero amount");
+    expect(retry).toContain("RENT");
+    expect(rows.map((r) => r.description)).toContain("RENT");
+  });
+
+  it("sends a rule matching more than a fifth of the rows back for correction", async () => {
+    const zeros = ["Date,Description,Amount", ...Array.from({ length: 8 }, (_, i) => `2026-01-0${i + 1},${i < 2 ? "HOLD" : "SHOP"} ${i},${i < 2 ? "0.00" : `-${i}.00`}`)].join("\n");
+    const session = new MockStructuredSession([
+      () => ({ ...MAPPING, skipRules: [{ column: "Description", contains: "HOLD" }] }),
+      () => MAPPING,
+    ]);
+
+    await normalizeCsv(session, { name: "bank.csv", content: zeros });
+
+    expect(session.calls).toHaveLength(2);
+    expect(JSON.stringify(session.calls[1].messages)).toContain("too broad");
+  });
+
+  it("never counts rows whose amount isn't a number against a rule", async () => {
+    const pending = ["Date,Description,Amount", "2026-01-01,A,-1.00", "2026-01-02,B,-2.00", "2026-01-03,C,-3.00", "2026-01-04,D,PENDING"].join("\n");
+    const session = new MockStructuredSession([
+      () => ({ ...MAPPING, skipRules: [{ column: "Amount", equals: "PENDING" }] }),
+    ]);
+
+    const { rows } = await normalizeCsv(session, { name: "bank.csv", content: pending });
+
+    expect(session.calls).toHaveLength(1);
+    expect(rows).toHaveLength(3);
+  });
+
+  it("does not ask again once the caller's signal aborted", async () => {
+    const controller = new AbortController();
+    const session = new MockStructuredSession([
+      () => {
+        controller.abort();
+        return { ...MAPPING, amount: { column: "Nope" } };
+      },
+      () => MAPPING,
+    ]);
+
+    await expect(normalizeCsv(session, { name: "bank.csv", content: csv }, { signal: controller.signal })).rejects.toThrow();
+    expect(session.calls).toHaveLength(1);
+  });
+});
+
+describe("normalizeImage — extraction warnings", () => {
+  const row = (amount: number) => ({ date: "2026-01-05", amount, type: "expense", description: "Shop", sourceAccount: "Visa", sourceCategory: "" });
+
+  it("names the file and the gap when the model returns fewer rows than it counted", async () => {
+    const session = new MockStructuredSession([() => ({ result: { count: 5, rows: [row(-1234), row(-567)] } })]);
+
+    const { warnings } = await normalizeImage(session, { name: "scan.png", content: "B64", mediaType: "image/png" });
+
+    expect(warnings).toEqual(["scan.png: the AI counted 5 transactions but returned 2 — 3 may be missing."]);
+  });
+
+  it("flags amounts that all look like whole units", async () => {
+    const session = new MockStructuredSession([() => ({ result: { count: 3, rows: [row(-1200), row(-4500), row(-800)] } })]);
+
+    const { warnings } = await normalizeImage(session, { name: "scan.png", content: "B64", mediaType: "image/png" });
+
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toContain("whole units");
+  });
+
+  it("stays quiet on ordinary cents", async () => {
+    const session = new MockStructuredSession([() => ({ result: { count: 3, rows: [row(-1234), row(-4500), row(-800)] } })]);
+
+    const { warnings } = await normalizeImage(session, { name: "scan.png", content: "B64", mediaType: "image/png" });
+
+    expect(warnings).toEqual([]);
+  });
+});

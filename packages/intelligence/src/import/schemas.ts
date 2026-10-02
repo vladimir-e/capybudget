@@ -10,7 +10,7 @@
  *  3. enrichBatch — ~25 rows + context → `{ id, merchant, category, … }[]`
  *                   (`category` is a name; `enrichBatch` maps it to an id).
  *  4. transfers   — transfer rows + direction-aware transfer context →
- *                   `{ id, account, confidence }[]` (`account` is a name the
+ *                   `{ id, account }[]` (`account` is a name the
  *                   model picks for the counterpart; mapped to an id).
  *
  * Schemas mirror the `core` types they parse into (`CsvMapping`, `StagedRecord`)
@@ -298,7 +298,6 @@ export interface EnrichBatchResult {
 export interface TransferEnrichRaw {
   id: string;
   account: string;
-  confidence: "high" | "low";
 }
 
 /** One resolved transfer counterpart `enrichTransfers` returns, post name→id
@@ -307,7 +306,6 @@ export interface TransferEnrichRaw {
 export interface TransferEnriched {
   id: string;
   targetAccountId: string;
-  confidence: "high" | "low";
 }
 
 export const ENRICH_TRANSFER_SCHEMA: JsonSchema = {
@@ -323,9 +321,8 @@ export const ENRICH_TRANSFER_SCHEMA: JsonSchema = {
         properties: {
           id: { type: "string" },
           account: { type: "string" },
-          confidence: { type: "string", enum: ["high", "low"] },
         },
-        required: ["id", "account", "confidence"],
+        required: ["id", "account"],
       },
     },
   },

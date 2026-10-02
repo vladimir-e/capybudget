@@ -25,13 +25,13 @@ export type {
 } from "./types"
 
 // Error extraction (shared across API adapters)
-export { extractErrorMessage } from "./error-message"
+export { extractErrorMessage, isDeadEnd } from "./error-message"
 
 // Session interface
 export type { CapySessionOptions, CapySession } from "./session"
 
 // Structured-output primitive (stateless, schema-validated single call)
-export { parseStructured, SchemaValidationError } from "./structured"
+export { parseStructured, SchemaValidationError, UnreachableError } from "./structured"
 export type {
   JsonSchema,
   StructuredCallOptions,
@@ -46,6 +46,7 @@ export {
   OLLAMA_PLACEHOLDER_KEY,
   PROVIDER_LABELS,
   hasProviderKey,
+  ollamaOrigin,
 } from "./config"
 export type {
   IntelligenceConfig,
@@ -159,6 +160,7 @@ export {
   canImport,
   canReadPdf,
   importReady,
+  ollamaReadsImages,
   IMPORT_STRUCTURED_SYSTEM_PROMPT,
   buildImportSystemPrompt,
 } from "./import"

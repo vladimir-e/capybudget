@@ -16,7 +16,9 @@ import {
   type RowContext,
   type TransferContext,
 } from "@capybudget/core";
-import type { StructuredSession } from "../structured";
+import { extractErrorMessage, isDeadEnd } from "../error-message";
+import { UnreachableError, type StructuredSession } from "../structured";
+import type { SessionProvider } from "../types";
 import type { BudgetDataProvider } from "./budget-data";
 import {
   batchRows,
@@ -24,9 +26,11 @@ import {
   enrichTransfers,
   needsEnrich,
   needsTransferEnrich,
+  ENRICH_BATCH_SIZE,
   ENRICH_CONCURRENCY,
+  OLLAMA_ENRICH_BATCH_SIZE,
 } from "./categorize";
-import type { TransferEnriched } from "./schemas";
+import type { EnrichedRow, TransferEnriched } from "./schemas";
 import {
   PIPELINE_PHASES,
   type ImportEvent,
@@ -40,7 +44,7 @@ import {
 import { normalizeCsv, normalizeImage } from "./normalize";
 import { normalizeOfx } from "./ofx";
 import { classifySource } from "../source-files";
-import type { StagingStore } from "./staging-store";
+import type { SourceFile, StagingStore } from "./staging-store";
 
 export interface OrchestratorDeps {
   session: StructuredSession;
@@ -49,6 +53,12 @@ export interface OrchestratorDeps {
   onEvent: ImportEventHandler;
   /** Override the batch concurrency (tests use 1 for deterministic ordering). */
   concurrency?: number;
+  provider?: SessionProvider;
+  /** Defaults to true. A PDF the provider can't read is skipped with a warning. */
+  pdfSupported?: boolean;
+  /** Whether the model reads images — null when that can't be determined.
+   *  Asked once, on the first image source. Omitted means it does. */
+  imageSupport?: () => Promise<boolean | null>;
 }
 
 /**
@@ -63,6 +73,8 @@ export class ImportOrchestrator {
   private phase: ImportPhase = "idle";
   private stopRequested = false;
   private running = false;
+  private controller = new AbortController();
+  private imageSupport: Promise<boolean | null> | null = null;
   /** The in-flight run's promise, or null when idle. `stop()` awaits it so a
    *  caller can discard staging knowing no batch will write after the await. */
   private runPromise: Promise<void> | null = null;
@@ -117,15 +129,29 @@ export class ImportOrchestrator {
   }
 
   /**
-   * Request a clean stop and resolve once the in-flight batch has settled
-   * (landed + persisted). No new batches dispatch; the in-flight one finishes
-   * its write, so resume picks up from the persisted state — stop is a crash
-   * you chose. Awaiting the returned promise is what lets a *cancel* safely
-   * clear staging afterward: once it resolves, nothing will write again.
+   * Request a clean stop and resolve once the run has settled. A model call in
+   * Reading/Normalizing is aborted — nothing is staged yet, so its result would
+   * be thrown away. In Categorizing no new batches dispatch and the in-flight
+   * one finishes its write, so resume picks up from the persisted state — stop
+   * is a crash you chose.
    */
   stop(): Promise<void> {
     this.stopRequested = true;
+    if (this.phase === "reading" || this.phase === "normalizing") this.controller.abort();
     return this.runPromise ?? Promise.resolve();
+  }
+
+  /** Stop and abort whatever model call is in flight, in any phase. Once the
+   *  returned promise resolves nothing will write again, so the caller can
+   *  discard staging. */
+  cancel(): Promise<void> {
+    this.stopRequested = true;
+    this.controller.abort();
+    return this.runPromise ?? Promise.resolve();
+  }
+
+  private get aborted(): boolean {
+    return this.controller.signal.aborted;
   }
 
   /** Shared run wrapper: serializes against a run already in flight, tracks the
@@ -134,11 +160,13 @@ export class ImportOrchestrator {
     if (this.running) return this.runPromise ?? Promise.resolve();
     this.running = true;
     this.stopRequested = false;
+    this.controller = new AbortController();
     const promise = (async () => {
       try {
         await body();
       } catch (err) {
-        this.fail("internal", err instanceof Error ? err.message : String(err));
+        if (this.aborted) this.stopReturn();
+        else this.failWith(err);
       } finally {
         this.running = false;
         this.runPromise = null;
@@ -155,7 +183,7 @@ export class ImportOrchestrator {
     this.enterPhase("reading");
     const sources = await this.deps.staging.listSources();
     if (sources.length === 0) {
-      this.fail("read", "No source files to import.", true);
+      this.fail("read", "No source files to import.", { recoverable: true });
       return;
     }
     this.log("info", "reading", `Read ${sources.length} file(s): ${sources.map((s) => s.name).join(", ")}.`);
@@ -168,6 +196,7 @@ export class ImportOrchestrator {
     // → reopen lands on file-attach, never on a half-baked preview.
     this.enterPhase("normalizing");
     const normalized = await this.normalize(sources);
+    if (!normalized) return;
     this.log("info", "normalizing", `Normalized ${normalized.length} transactions.`);
     if (this.stopReturn()) return;
 
@@ -185,13 +214,13 @@ export class ImportOrchestrator {
    * (every file yielded no transaction data) is not an error: it flows through
    * History and stages an empty `transactions.csv`, so the run completes on an
    * empty preview — the empty state is the feedback, Cancel is the escape hatch.
-   * A single no-data file among several (a selfie dropped alongside a real
-   * statement — the chat on-ramp can do this) is skipped with a warning. A stop
+   * A no-data file among several (a selfie dropped alongside a real statement —
+   * the chat on-ramp can do this) is skipped with a warning, and so is a file
+   * that fails; the run fails (null) only when no file yielded a row and one
+   * failed. A dead-end provider error or an abort ends the run at once. A stop
    * is handled by the caller's terminal check after this returns.
    */
-  private async normalize(
-    sources: Awaited<ReturnType<StagingStore["listSources"]>>,
-  ): Promise<ImportTransaction[]> {
+  private async normalize(sources: SourceFile[]): Promise<ImportTransaction[] | null> {
     // Existing account names ground the model's `sourceAccount` answers: an
     // exact-name answer resolves deterministically during History instead of
     // staging a near-miss the user has to map by hand.
@@ -211,40 +240,21 @@ export class ImportOrchestrator {
         },
       });
     };
+    let failure: { name: string; err: unknown } | null = null;
     for (const source of sources) {
       if (this.stopRequested) break;
-      const startId = all.length + 1;
-      const kind = classifySource(source.mediaType);
-      if (kind === "image" || kind === "pdf") {
-        this.status("normalizing", `Extracting transactions from ${source.name}…`);
-        const result = await normalizeImage(this.deps.session, source, { startId, existingAccounts, onProgress: fileProgress });
-        if (result.noData) {
-          this.log("warn", "normalizing", `Skipped ${source.name} — no transaction data found.`);
-          continue;
-        }
-        all.push(...result.rows);
-      } else if (kind === "ofx") {
-        // Deterministic — no model call. OFX fields are standardized, so the
-        // rows are known the moment they parse; report progress in one shot.
-        this.status("normalizing", `Reading transactions from ${source.name}…`);
-        const result = normalizeOfx(source, { startId });
-        if (result.dropped.length > 0) {
-          this.log("warn", "normalizing", describeSkippedRows(source.name, result.dropped));
-        }
-        if (result.rows.length === 0) {
-          this.log("warn", "normalizing", `Skipped ${source.name} — no transaction data found.`);
-          continue;
-        }
-        fileProgress({ rows: result.rows.length, total: result.rows.length });
-        all.push(...result.rows);
-      } else {
-        this.status("normalizing", `Mapping columns in ${source.name}…`);
-        const result = await normalizeCsv(this.deps.session, source, { startId, existingAccounts, onProgress: fileProgress });
-        if (result.errors.length > 0) {
-          this.log("warn", "normalizing", describeSkippedRows(source.name, result.errors.map((e) => e.message)));
-        }
-        all.push(...result.rows);
+      try {
+        all.push(...(await this.normalizeSource(source, all.length + 1, existingAccounts, fileProgress)));
+      } catch (err) {
+        if (this.aborted || isDeadEnd(err)) throw err;
+        failure = { name: source.name, err };
+        this.log("warn", "normalizing", `Skipped ${source.name} — ${extractErrorMessage(err).message}`);
       }
+    }
+    if (all.length === 0 && failure) {
+      const { message, status } = extractErrorMessage(failure.err);
+      this.fail("internal", `Couldn't import ${failure.name} — ${message}`, { status });
+      return null;
     }
     // Settle the meter on the actual landed count — per-file totals were
     // estimates (pre-skip-rule row counts, the model's declared count). An empty
@@ -253,6 +263,65 @@ export class ImportOrchestrator {
       this.emit({ type: "normalize-progress", progress: { rows: all.length, total: all.length } });
     }
     return all;
+  }
+
+  private async assertReadsImages(): Promise<void> {
+    if (!this.deps.imageSupport) return;
+    const firstAsk = this.imageSupport === null;
+    this.imageSupport ??= this.deps.imageSupport();
+    const supported = await this.imageSupport;
+    if (supported === false) throw new Error("the selected model can't read images. Pick a vision model in Settings.");
+    if (supported === null && firstAsk) {
+      this.log("warn", "normalizing", "Couldn't confirm the selected model reads images — trying anyway.");
+    }
+  }
+
+  /** One source file → staged rows (empty for a no-data file). Throws when the
+   *  file can't be read; the caller skips it. */
+  private async normalizeSource(
+    source: SourceFile,
+    startId: number,
+    existingAccounts: string[],
+    onProgress: (p: NormalizeProgress) => void,
+  ): Promise<ImportTransaction[]> {
+    const { signal } = this.controller;
+    const kind = classifySource(source.mediaType);
+    if (kind === "pdf" && this.deps.pdfSupported === false) {
+      throw new Error("the selected AI provider can't read PDFs. Switch to Anthropic or OpenAI, or import a CSV export.");
+    }
+    if (kind === "image") await this.assertReadsImages();
+    if (kind === "image" || kind === "pdf") {
+      this.status("normalizing", `Extracting transactions from ${source.name}…`);
+      const result = await normalizeImage(this.deps.session, source, { startId, existingAccounts, onProgress, signal });
+      for (const warning of result.warnings) this.log("warn", "normalizing", warning);
+      if (result.noData) {
+        this.log("warn", "normalizing", `Skipped ${source.name} — no transaction data found.`);
+        return [];
+      }
+      return result.rows;
+    }
+    if (kind === "ofx") {
+      // Deterministic — no model call. OFX fields are standardized, so the
+      // rows are known the moment they parse; report progress in one shot.
+      this.status("normalizing", `Reading transactions from ${source.name}…`);
+      const result = normalizeOfx(source, { startId });
+      if (result.dropped.length > 0) {
+        this.log("warn", "normalizing", describeSkippedRows(source.name, result.dropped));
+      }
+      if (result.rows.length === 0) {
+        this.log("warn", "normalizing", `Skipped ${source.name} — no transaction data found.`);
+        return [];
+      }
+      onProgress({ rows: result.rows.length, total: result.rows.length });
+      return result.rows;
+    }
+    this.status("normalizing", `Mapping columns in ${source.name}…`);
+    const result = await normalizeCsv(this.deps.session, source, { startId, existingAccounts, onProgress, signal });
+    if (result.errors.length > 0) {
+      this.log("warn", "normalizing", describeSkippedRows(source.name, result.errors.map((e) => e.message)));
+    }
+    for (const warning of result.warnings) this.log("warn", "normalizing", warning);
+    return result.rows;
   }
 
   /** Deterministic grounding — match history, attach context, fast-path, dedup.
@@ -341,9 +410,10 @@ export class ImportOrchestrator {
     type Job =
       | { kind: "category"; rows: ImportTransaction[] }
       | { kind: "transfer"; rows: ImportTransaction[] };
+    const batchSize = this.deps.provider === "ollama" ? OLLAMA_ENRICH_BATCH_SIZE : ENRICH_BATCH_SIZE;
     const jobs: Job[] = [
-      ...batchRows(pendingCategory).map((b): Job => ({ kind: "category", rows: b })),
-      ...batchRows(pendingTransfer).map((b): Job => ({ kind: "transfer", rows: b })),
+      ...batchRows(pendingCategory, batchSize).map((b): Job => ({ kind: "category", rows: b })),
+      ...batchRows(pendingTransfer, batchSize).map((b): Job => ({ kind: "transfer", rows: b })),
     ];
 
     let done = 0;
@@ -358,33 +428,37 @@ export class ImportOrchestrator {
     };
 
     const concurrency = this.deps.concurrency ?? ENRICH_CONCURRENCY;
+    const { signal } = this.controller;
     let cursor = 0;
+    let deadEnd = null as { err: unknown } | null;
+    let lastFailure: unknown = null;
 
     const runNext = async (): Promise<void> => {
       while (true) {
-        if (this.stopRequested) return;
+        if (this.stopRequested || deadEnd) return;
         const index = cursor++;
         if (index >= jobs.length) return;
         const job = jobs[index];
         try {
-          if (job.kind === "category") {
-            const enriched = await enrichBatch(this.deps.session, job.rows, context, categories);
-            applyEnrichmentInto(byId, enriched);
-          } else {
-            const enriched = await enrichTransfers(this.deps.session, job.rows, transferContext, accounts);
-            applyTransferEnrichmentInto(byId, enriched);
-          }
+          const landed =
+            job.kind === "category"
+              ? applyEnrichmentInto(byId, await enrichBatch(this.deps.session, job.rows, context, categories, signal))
+              : applyTransferEnrichmentInto(byId, await enrichTransfers(this.deps.session, job.rows, transferContext, accounts, signal));
           await persistSnapshot();
-          // `done` counts landed rows only — a failed batch leaves its rows
-          // incomplete, so the meter must not advance for it.
-          done += job.rows.length;
+          done += landed;
           this.emit({ type: "rows-changed" });
         } catch (err) {
+          if (this.aborted) return;
+          if (isDeadEnd(err)) {
+            deadEnd ??= { err };
+            return;
+          }
+          lastFailure = err;
           this.log(
             "warn",
             "categorizing",
             `${job.kind === "transfer" ? "Transfer batch" : `Batch ${index + 1}`} failed (${job.rows.length} rows left for re-run): ${
-              err instanceof Error ? err.message : String(err)
+              extractErrorMessage(err).message
             }`,
           );
         }
@@ -407,8 +481,20 @@ export class ImportOrchestrator {
       updatedAt: new Date().toISOString(),
     });
 
+    if (deadEnd) {
+      this.failWith(deadEnd.err);
+      return;
+    }
     if (this.stopRequested) {
       this.log("info", "categorizing", "Stopped — landed batches kept; re-run Enrich to finish.");
+    } else if (done === 0) {
+      const cause = lastFailure === null ? null : extractErrorMessage(lastFailure);
+      this.fail(
+        "categorize",
+        `Couldn't categorize any of ${total} rows${cause ? ` — ${cause.message}` : ""}. Re-run Enrich to try again.`,
+        { status: cause?.status },
+      );
+      return;
     }
     this.finish();
   }
@@ -446,11 +532,27 @@ export class ImportOrchestrator {
     this.emit({ type: "done" });
   }
 
-  private fail(reason: ImportErrorReason, message: string, recoverable = false): void {
+  private failWith(err: unknown): void {
+    const { message, status } = extractErrorMessage(err);
+    this.fail(err instanceof UnreachableError ? "unreachable" : "internal", message, { status });
+  }
+
+  private fail(
+    reason: ImportErrorReason,
+    message: string,
+    { recoverable = false, status }: { recoverable?: boolean; status?: number } = {},
+  ): void {
     this.phase = "error";
     this.emit({ type: "phase", phase: "error" });
     this.log("error", "error", message);
-    this.emit({ type: "error", reason, message, recoverable });
+    this.emit({
+      type: "error",
+      reason,
+      message,
+      recoverable,
+      ...(status !== undefined ? { status } : {}),
+      ...(this.deps.provider ? { provider: this.deps.provider } : {}),
+    });
   }
 
   private emit(event: ImportEvent): void {
@@ -505,37 +607,40 @@ function applyGrounding(
 
 /** Merge a landed batch's enrichment into the authoritative row map. Only fills
  *  empty fields, so a re-run never clobbers a hand-mapped or already-landed
- *  value — the idempotency the predicate promises holds at write time too. */
-function applyEnrichmentInto(
-  byId: Map<string, ImportTransaction>,
-  enriched: { id: string; merchant: string; categoryId: string; confidence: "high" | "low" }[],
-): void {
+ *  value — the idempotency the predicate promises holds at write time too.
+ *  Returns how many rows this resolved (they no longer need enrichment). */
+function applyEnrichmentInto(byId: Map<string, ImportTransaction>, enriched: EnrichedRow[]): number {
+  let landed = 0;
   for (const e of enriched) {
     const row = byId.get(e.id);
     if (!row) continue;
-    byId.set(e.id, {
+    const categoryLanded = !row.categoryId && e.categoryId !== "";
+    const next = {
       ...row,
       merchant: row.merchant || e.merchant,
       categoryId: row.categoryId || e.categoryId,
-      categoryConfidence: row.categoryId ? row.categoryConfidence : e.confidence,
-    });
+      categoryConfidence: categoryLanded ? e.confidence : row.categoryConfidence,
+    };
+    byId.set(e.id, next);
+    if (needsEnrich(row) && !needsEnrich(next)) landed++;
   }
+  return landed;
 }
 
 /** Merge a landed transfer batch's counterpart picks into the row map. Only
  *  fills an empty `targetAccountId` (a model "" or unresolved name is already
  *  ""), so a re-run never clobbers a hand-set or already-landed counterpart —
  *  the same idempotency `applyEnrichmentInto` guarantees for categories. */
-function applyTransferEnrichmentInto(
-  byId: Map<string, ImportTransaction>,
-  enriched: TransferEnriched[],
-): void {
+function applyTransferEnrichmentInto(byId: Map<string, ImportTransaction>, enriched: TransferEnriched[]): number {
+  let landed = 0;
   for (const e of enriched) {
     if (!e.targetAccountId) continue;
     const row = byId.get(e.id);
     if (!row || row.targetAccountId) continue;
     byId.set(e.id, { ...row, targetAccountId: e.targetAccountId });
+    landed++;
   }
+  return landed;
 }
 
 /** The pipeline phases the section bar renders, re-exported for consumers. */

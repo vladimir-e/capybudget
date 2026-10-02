@@ -30,6 +30,9 @@ import {
 /** Rows per enrichment batch. Bounded so each `structured()` call stays small —
  *  the token blowout the redesign kills came from unbounded row shuttling. */
 export const ENRICH_BATCH_SIZE = 25;
+/** Ollama's default context window is a few thousand tokens, which a full
+ *  batch plus the category list and history context overflows. */
+export const OLLAMA_ENRICH_BATCH_SIZE = 8;
 /** Max batches dispatched concurrently. Caps in-flight token pressure. */
 export const ENRICH_CONCURRENCY = 4;
 
@@ -110,13 +113,14 @@ export async function enrichBatch(
   batch: ImportTransaction[],
   context: Record<string, RowContext>,
   categories: Category[],
+  signal?: AbortSignal,
 ): Promise<EnrichedRow[]> {
   const rowType = new Map(batch.map((r) => [r.id, r.type]));
   const idByName = categoryIndex(categories);
   const prompt = buildEnrichPrompt(batch, context, categories);
   const messages: { role: "user"; content: MessageContent }[] = [{ role: "user", content: prompt }];
 
-  const result = await session.structured<EnrichBatchResult>(messages, ENRICH_BATCH_SCHEMA);
+  const result = await session.structured<EnrichBatchResult>(messages, ENRICH_BATCH_SCHEMA, { signal });
 
   return result.rows
     .filter((r) => rowType.has(r.id))
@@ -194,7 +198,7 @@ function buildEnrichPrompt(
     `Set confidence "high" for an obvious match, "low" for a reasonable inference. Always return a category name from the matching list — a low-confidence guess beats leaving it blank.`,
     ``,
     `Rows:`,
-    JSON.stringify(rows, null, 2),
+    JSON.stringify(rows),
   ].join("\n");
 }
 
@@ -247,20 +251,21 @@ export async function enrichTransfers(
   batch: ImportTransaction[],
   context: Record<string, TransferContext>,
   accounts: Account[],
+  signal?: AbortSignal,
 ): Promise<TransferEnriched[]> {
   const idByName = accountNameToId(accounts);
   const ownAccountById = new Map(batch.map((r) => [r.id, r.accountId]));
   const prompt = buildTransferPrompt(batch, context);
   const messages: { role: "user"; content: MessageContent }[] = [{ role: "user", content: prompt }];
 
-  const result = await session.structured<TransferEnrichResult>(messages, ENRICH_TRANSFER_SCHEMA);
+  const result = await session.structured<TransferEnrichResult>(messages, ENRICH_TRANSFER_SCHEMA, { signal });
 
   return result.rows
     .filter((r) => ownAccountById.has(r.id))
     .map((r) => {
       const resolved = idByName.get(r.account.trim().toLowerCase()) ?? "";
       const targetAccountId = resolved && resolved !== ownAccountById.get(r.id) ? resolved : "";
-      return { id: r.id, targetAccountId, confidence: r.confidence };
+      return { id: r.id, targetAccountId };
     });
 }
 
@@ -303,9 +308,9 @@ function buildTransferPrompt(
     `- \`recentTransfers\` — the most recent legs in chronological order, so a periodic transfer's cadence is visible.`,
     `- the \`description\` disambiguates which partner this leg is — e.g. "ACH BOFA SAV 123" points at a savings account even when checking is the more frequent partner. The words pick among the candidates; they don't invent a new one.`,
     ``,
-    `Return \`account\` as the EXACT name of one of the accounts that appears in that row's \`topAccounts\` / \`recentTransfers\`. If the context is empty or you can't tell which counterpart this is, return an empty string "" — a blank is better than a wrong pairing. Set confidence "high" for a clear pick, "low" for a reasonable inference.`,
+    `Return \`account\` as the EXACT name of one of the accounts that appears in that row's \`topAccounts\` / \`recentTransfers\`. If the context is empty or you can't tell which counterpart this is, return an empty string "" — a blank is better than a wrong pairing.`,
     ``,
     `Rows:`,
-    JSON.stringify(rows, null, 2),
+    JSON.stringify(rows),
   ].join("\n");
 }

@@ -100,7 +100,8 @@ export class MemoryBudgetData implements BudgetDataProvider {
  * A scriptable {@link StructuredSession}. Each call pops the next responder,
  * which returns a value (sync or via a promise) or throws / returns an `Error`
  * (to exercise batch-failure isolation). An async responder lets a test gate a
- * batch's completion to drive in-flight ordering (the cancel race). Records
+ * batch's completion to drive in-flight ordering (the cancel race); a call
+ * whose signal aborts rejects at once, like a real aborted request. Records
  * every call for assertions; runs out → throws so an over-call is loud.
  *
  * The responder's value is run through `parseStructured` against the call's
@@ -124,7 +125,12 @@ export class MockStructuredSession implements StructuredSession {
     this.calls.push({ messages, schema });
     const responder = this.responders.shift();
     if (!responder) throw new Error("MockStructuredSession: no responder left for call");
-    const value = await responder(messages);
+    const signal = options?.signal;
+    signal?.throwIfAborted();
+    const value = await new Promise((resolve, reject) => {
+      signal?.addEventListener("abort", () => reject(signal.reason), { once: true });
+      (async () => responder(messages))().then(resolve, reject);
+    });
     if (value instanceof Error) throw value;
     const text = JSON.stringify(value);
     // Simulated streaming: the whole response arrives as one delta, before

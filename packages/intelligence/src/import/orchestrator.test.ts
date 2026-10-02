@@ -9,6 +9,7 @@ import type { ImportTransaction } from "@capybudget/core";
 import { ImportOrchestrator } from "./orchestrator";
 import type { ImportEvent, ImportPhase } from "./events";
 import { CSV_MAPPING_SCHEMA, ENRICH_BATCH_SCHEMA, EXTRACTION_SCHEMA } from "./schemas";
+import { CutOffError, UnreachableError } from "../structured";
 import {
   MemoryBudgetData,
   MemoryStagingStore,
@@ -270,7 +271,7 @@ describe("ImportOrchestrator — rows that skip Categorizing", () => {
     });
     // Category batch (imp-2) + transfer batch (imp-1). The transfer responder
     // picks Ally Savings by name; enrichResponder handles the category row.
-    const transferResponder = () => ({ rows: [{ id: "imp-1", account: "Ally Savings", confidence: "high" as const }] });
+    const transferResponder = () => ({ rows: [{ id: "imp-1", account: "Ally Savings" }] });
     const session = new MockStructuredSession([enrichResponder(), transferResponder]);
     const budget = new MemoryBudgetData([], CATEGORIES, [makeAccount({ id: "acct-checking", name: "Checking" }), savings]);
 
@@ -869,5 +870,251 @@ describe("ImportOrchestrator — stop", () => {
     expect(calls).toBe(1);
     expect(staging.transactions!.filter((r) => r.categoryId === "cat-dining")).toHaveLength(25);
     expect(orch.currentPhase).toBe("done");
+  });
+});
+
+// ── Cancellation ─────────────────────────────────────────────────
+
+/** A responder held open until the call's signal aborts — a model call still
+ *  in flight. `started` resolves once the call is entered. */
+function inFlight() {
+  let markStarted!: () => void;
+  const started = new Promise<void>((res) => { markStarted = res; });
+  const responder = () => {
+    markStarted();
+    return new Promise<never>(() => {});
+  };
+  return { started, responder };
+}
+
+function pendingRows(count: number): ImportTransaction[] {
+  return Array.from({ length: count }, (_, i) => makeImportTransaction({ id: `imp-${i + 1}`, description: `V${i}` }));
+}
+
+describe("ImportOrchestrator — cancellation", () => {
+  it("stop() aborts an in-flight extraction and ends cleanly, staging nothing", async () => {
+    const staging = new MemoryStagingStore({
+      sources: [{ name: "statement.png", content: "B64", mediaType: "image/png" }],
+    });
+    const call = inFlight();
+    const { events, onEvent } = collect();
+    const orch = new ImportOrchestrator({ session: new MockStructuredSession([call.responder]), staging, budget: emptyBudget(), onEvent });
+
+    const run = orch.start();
+    await call.started;
+    await orch.stop();
+    await run;
+
+    expect(events.find((e) => e.type === "error")).toBeUndefined();
+    expect(events.some((e) => e.type === "done")).toBe(true);
+    expect(staging.transactions).toBeNull();
+  });
+
+  it("never fires the CSV correction round after a stop", async () => {
+    const csv = ["Date,Description,Amount", ...Array.from({ length: 6 }, (_, i) => `2026-01-0${i + 1},SHOP ${i},-${i + 1}.00`), "2026-01-09,HOLD,PENDING"].join("\n");
+    const staging = new MemoryStagingStore({ sources: [csvSource(csv)] });
+    const { events, onEvent } = collect();
+    const session = new MockStructuredSession([
+      () => {
+        void orch.stop();
+        return MAPPING;
+      },
+      mapResponder,
+    ]);
+    const orch = new ImportOrchestrator({ session, staging, budget: emptyBudget(), onEvent });
+
+    await orch.start();
+
+    expect(session.calls).toHaveLength(1);
+    expect(events.find((e) => e.type === "error")).toBeUndefined();
+    expect(staging.transactions).toBeNull();
+  });
+
+  it("cancel() aborts an in-flight Categorizing batch without logging it as a failure", async () => {
+    const staging = new MemoryStagingStore({ transactions: pendingRows(3) });
+    const call = inFlight();
+    const { events, onEvent } = collect();
+    const orch = new ImportOrchestrator({ session: new MockStructuredSession([call.responder]), staging, budget: emptyBudget(), onEvent });
+
+    const run = orch.enrich();
+    await call.started;
+    await orch.cancel();
+    await run;
+
+    expect(events.find((e) => e.type === "error")).toBeUndefined();
+    expect(events.some((e) => e.type === "log" && e.entry.level === "warn")).toBe(false);
+    expect(staging.transactions!.every((r) => r.categoryId === "")).toBe(true);
+    expect(orch.currentPhase).toBe("done");
+  });
+});
+
+// ── Per-file failure ─────────────────────────────────────────────
+
+describe("ImportOrchestrator — a failed file", () => {
+  it("is skipped with a warning naming it, keeping the files already normalized", async () => {
+    const staging = new MemoryStagingStore({
+      sources: [
+        csvSource(csvWithRows(2), "a.csv"),
+        csvSource(csvWithRows(3), "b.csv"),
+        { name: "c.png", content: "B64", mediaType: "image/png" },
+      ],
+    });
+    const session = new MockStructuredSession([mapResponder, mapResponder, () => new CutOffError(), enrichResponder()]);
+    const { events, onEvent } = collect();
+
+    await new ImportOrchestrator({ session, staging, budget: emptyBudget(), onEvent, concurrency: 1 }).start();
+
+    expect(events.find((e) => e.type === "error")).toBeUndefined();
+    expect(staging.transactions).toHaveLength(5);
+    const warning = events.find((e) => e.type === "log" && e.entry.level === "warn" && e.entry.message.includes("c.png"));
+    expect(warning && warning.type === "log" && warning.entry.message).toContain(new CutOffError().message);
+  });
+
+  it("fails the run when every file failed", async () => {
+    const staging = new MemoryStagingStore({ sources: [{ name: "c.png", content: "B64", mediaType: "image/png" }] });
+    const session = new MockStructuredSession([() => new CutOffError()]);
+    const { events, onEvent } = collect();
+
+    await new ImportOrchestrator({ session, staging, budget: emptyBudget(), onEvent }).start();
+
+    const error = events.find((e) => e.type === "error");
+    expect(error && error.type === "error" && error.message).toContain("c.png");
+    expect(staging.transactions).toBeNull();
+  });
+
+  it("ends the run at once on a dead-end provider error, with its status and provider", async () => {
+    const rejected = Object.assign(new Error('401 {"error":{"message":"invalid x-api-key"}}'), {
+      status: 401,
+      error: { type: "error", error: { type: "authentication_error", message: "invalid x-api-key" } },
+    });
+    const staging = new MemoryStagingStore({
+      sources: [csvSource(csvWithRows(2), "a.csv"), csvSource(csvWithRows(2), "b.csv")],
+    });
+    const session = new MockStructuredSession([() => rejected]);
+    const { events, onEvent } = collect();
+
+    await new ImportOrchestrator({ session, staging, budget: emptyBudget(), onEvent, provider: "anthropic" }).start();
+
+    expect(session.calls).toHaveLength(1);
+    expect(events.find((e) => e.type === "error")).toMatchObject({
+      reason: "internal",
+      message: "invalid x-api-key",
+      status: 401,
+      provider: "anthropic",
+    });
+  });
+
+  it("skips a PDF the provider can't read", async () => {
+    const staging = new MemoryStagingStore({
+      sources: [{ name: "scan.pdf", content: "B64", mediaType: "application/pdf" }, csvSource(csvWithRows(2))],
+    });
+    const session = new MockStructuredSession([mapResponder, enrichResponder()]);
+    const { events, onEvent } = collect();
+
+    await new ImportOrchestrator({ session, staging, budget: emptyBudget(), onEvent, concurrency: 1, pdfSupported: false }).start();
+
+    expect(session.calls[0].schema).toBe(CSV_MAPPING_SCHEMA);
+    expect(staging.transactions).toHaveLength(2);
+    expect(events.some((e) => e.type === "log" && e.entry.level === "warn" && e.entry.message.includes("scan.pdf"))).toBe(true);
+  });
+
+  it("skips an image the model can't read, asking only once", async () => {
+    const staging = new MemoryStagingStore({
+      sources: [
+        { name: "a.png", content: "B64", mediaType: "image/png" },
+        { name: "b.png", content: "B64", mediaType: "image/png" },
+        csvSource(csvWithRows(1)),
+      ],
+    });
+    const imageSupport = vi.fn(async () => false);
+    const session = new MockStructuredSession([mapResponder, enrichResponder()]);
+    const { events, onEvent } = collect();
+
+    await new ImportOrchestrator({ session, staging, budget: emptyBudget(), onEvent, concurrency: 1, imageSupport }).start();
+
+    expect(imageSupport).toHaveBeenCalledTimes(1);
+    expect(session.calls[0].schema).toBe(CSV_MAPPING_SCHEMA);
+    expect(staging.transactions).toHaveLength(1);
+    const warnings = events.filter((e) => e.type === "log" && e.entry.level === "warn");
+    expect(warnings.map((e) => e.type === "log" && e.entry.message)).toEqual([
+      expect.stringContaining("a.png"),
+      expect.stringContaining("b.png"),
+    ]);
+  });
+
+  it("tries an image anyway when vision support can't be determined, with a warning", async () => {
+    const staging = new MemoryStagingStore({ sources: [{ name: "a.png", content: "B64", mediaType: "image/png" }] });
+    const extraction = () => ({
+      result: { count: 1, rows: [{ date: "2026-01-02", amount: -1234, type: "expense", description: "SHOP", sourceAccount: "Card", sourceCategory: "" }] },
+    });
+    const session = new MockStructuredSession([extraction, enrichResponder()]);
+    const { events, onEvent } = collect();
+
+    await new ImportOrchestrator({ session, staging, budget: emptyBudget(), onEvent, imageSupport: async () => null }).start();
+
+    expect(session.calls[0].schema).toBe(EXTRACTION_SCHEMA);
+    expect(staging.transactions).toHaveLength(1);
+    expect(events.some((e) => e.type === "log" && e.entry.level === "warn" && e.entry.message.includes("images"))).toBe(true);
+  });
+});
+
+// ── Categorizing failures + meter ────────────────────────────────
+
+describe("ImportOrchestrator — Categorizing failures", () => {
+  it("stops dispatching on an unreachable provider and fails with that reason", async () => {
+    const staging = new MemoryStagingStore({ transactions: pendingRows(60) });
+    const session = new MockStructuredSession([
+      () => new UnreachableError("Can't reach Ollama at http://localhost:11434"),
+      enrichResponder(),
+      enrichResponder(),
+    ]);
+    const { events, onEvent } = collect();
+
+    await new ImportOrchestrator({ session, staging, budget: emptyBudget(), onEvent, concurrency: 1, provider: "ollama" }).enrich();
+
+    expect(session.calls).toHaveLength(1);
+    expect(events.find((e) => e.type === "error")).toMatchObject({ reason: "unreachable", provider: "ollama" });
+    expect(events.some((e) => e.type === "done")).toBe(false);
+  });
+
+  it("fails the run when every batch failed", async () => {
+    const staging = new MemoryStagingStore({ transactions: pendingRows(30) });
+    const session = new MockStructuredSession([() => new Error("overloaded"), () => new Error("overloaded")]);
+    const { events, onEvent } = collect();
+
+    await new ImportOrchestrator({ session, staging, budget: emptyBudget(), onEvent, concurrency: 1 }).enrich();
+
+    expect(events.find((e) => e.type === "error")).toMatchObject({ reason: "categorize" });
+  });
+
+  it("meters only rows whose category landed, and sets confidence only on them", async () => {
+    const staging = new MemoryStagingStore({ transactions: pendingRows(2) });
+    const session = new MockStructuredSession([
+      () => ({
+        rows: [
+          { id: "imp-1", merchant: "Cafe", category: "Dining Out", confidence: "high" },
+          { id: "imp-2", merchant: "Mystery", category: "Not A Category", confidence: "low" },
+        ],
+      }),
+    ]);
+    const { events, onEvent } = collect();
+
+    await new ImportOrchestrator({ session, staging, budget: emptyBudget(), onEvent, concurrency: 1 }).enrich();
+
+    const ticks = events.filter((e) => e.type === "batch-progress").map((e) => e.type === "batch-progress" && e.progress);
+    expect(ticks[ticks.length - 1]).toEqual({ done: 1, total: 2 });
+    const [landed, missed] = staging.transactions!;
+    expect(landed.categoryConfidence).toBe("high");
+    expect(missed.merchant).toBe("Mystery");
+    expect(missed.categoryConfidence).toBe("");
+  });
+
+  it("batches smaller for Ollama", async () => {
+    const staging = new MemoryStagingStore({ transactions: pendingRows(20) });
+    const session = new MockStructuredSession(Array.from({ length: 3 }, () => enrichResponder()));
+
+    await new ImportOrchestrator({ session, staging, budget: emptyBudget(), onEvent: () => {}, concurrency: 1, provider: "ollama" }).enrich();
+
+    expect(session.calls).toHaveLength(3);
   });
 });

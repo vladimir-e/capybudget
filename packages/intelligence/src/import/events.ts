@@ -8,6 +8,8 @@
  * state, not a transcript.
  */
 
+import type { SessionProvider } from "../types";
+
 /** The four code-driven phases, in order. `idle` is the pre-start resting state;
  *  `done` and `error` are terminal. */
 export type ImportPhase =
@@ -75,7 +77,8 @@ export interface NormalizeProgress {
  *  - `rows-changed`  — staging rows were written; the preview should re-read.
  *                      Carries no data — the consumer pulls fresh from staging.
  *  - `error`         — a run-level failure (e.g. no source files). `recoverable`
- *                      distinguishes "back to file-attach" from a hard stop.
+ *                      distinguishes "back to file-attach" from a hard stop;
+ *                      `status` and `provider` let the UI word provider errors.
  *  - `done`          — the run finished (all batches dispatched + landed, or
  *                      stopped cleanly with the in-flight batch persisted).
  */
@@ -87,14 +90,23 @@ export type ImportEvent =
   | { type: "normalize-progress"; progress: NormalizeProgress }
   | { type: "batch-progress"; progress: BatchProgress }
   | { type: "rows-changed" }
-  | { type: "error"; reason: ImportErrorReason; message: string; recoverable: boolean }
+  | {
+      type: "error";
+      reason: ImportErrorReason;
+      message: string;
+      recoverable: boolean;
+      status?: number;
+      provider?: SessionProvider;
+    }
   | { type: "done" };
 
 /** Why a run ended in error. `read` = no source files staged (recoverable,
- *  return to file-attach); `internal` = an uncaught fault (a throw anywhere in
- *  the pipeline funnels here through `run()`'s catch). A run that simply finds no
- *  transaction data is not an error — it stages an empty preview and completes. */
-export type ImportErrorReason = "read" | "internal";
+ *  return to file-attach); `unreachable` = the provider can't be reached;
+ *  `categorize` = Categorizing landed no row at all; `internal` = any other
+ *  fault (a throw anywhere in the pipeline funnels here through `run()`'s
+ *  catch). A run that simply finds no transaction data is not an error — it
+ *  stages an empty preview and completes. */
+export type ImportErrorReason = "read" | "unreachable" | "categorize" | "internal";
 
 /** The grounding payoff numbers surfaced after History. Mirrors core's
  *  `GroundingStats`, narrowed to what the UI shows. */

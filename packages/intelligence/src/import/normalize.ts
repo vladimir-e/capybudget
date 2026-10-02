@@ -39,6 +39,7 @@ import {
 } from "@capybudget/core";
 import type { MessageContent } from "../types";
 import { sourceContentBlock } from "../source-files";
+import { extractErrorMessage } from "../error-message";
 import { SchemaValidationError, type StructuredSession } from "../structured";
 import type { NormalizeProgress } from "./events";
 import {
@@ -80,6 +81,7 @@ export interface NormalizeCsvResult {
    *  preview re-call). Dropped from `rows`; the orchestrator surfaces them as a
    *  warn-level log so the user sees what was skipped instead of it vanishing. */
   errors: TransformError[];
+  warnings: string[];
 }
 
 /**
@@ -104,6 +106,7 @@ export async function normalizeCsv(
      *  grid parses, so the meter gets its denominator while the mapping call
      *  (the slow part) runs; rows land all at once when the transform applies. */
     onProgress?: (progress: NormalizeProgress) => void;
+    signal?: AbortSignal;
   } = {},
 ): Promise<NormalizeCsvResult> {
   // One raw parse (header: false) is the shared frame of reference: the header
@@ -116,7 +119,8 @@ export async function normalizeCsv(
   options.onProgress?.({ rows: 0, total: Math.max(grid.length - headerPick - 1, 0) });
 
   const existingAccounts = options.existingAccounts ?? [];
-  let resolved = await resolveMapping(session, source.name, grid, headerPick, importDate, existingAccounts, null);
+  const { signal } = options;
+  let resolved = await resolveMapping(session, source.name, grid, headerPick, importDate, existingAccounts, null, signal);
 
   // Code-side preview: transform a slice, and if it errors (e.g. the model named
   // a column that isn't there), give the model one correction round. The preview
@@ -125,10 +129,11 @@ export async function normalizeCsv(
   // only good part was relocating the header doesn't lose that on retry.
   const previewErrors = previewTransformErrors(resolved.table.rows.slice(0, PREVIEW_ROWS), resolved.mapping);
   if (previewErrors.length > 0) {
-    resolved = await resolveMapping(session, source.name, grid, resolved.mapping.headerRow, importDate, existingAccounts, previewErrors);
+    signal?.throwIfAborted();
+    resolved = await resolveMapping(session, source.name, grid, resolved.mapping.headerRow, importDate, existingAccounts, previewErrors, signal);
   }
 
-  const { transactions, errors } = transformCsv(resolved.table.rows, resolved.mapping, {
+  const { transactions, errors, stats } = transformCsv(resolved.table.rows, resolved.mapping, {
     startId: options.startId,
   });
   // The mapping heal guarantees a non-empty *mapping*, but a mapped account
@@ -136,7 +141,26 @@ export async function normalizeCsv(
   // path, so no staged row leaves either normalizer account-less.
   const fallbackAccount = accountFromFilename(source.name);
   const rows = transactions.map((t) => (t.sourceAccount ? t : { ...t, sourceAccount: fallbackAccount }));
-  return { rows, mapping: resolved.mapping, errors };
+  const warnings =
+    stats.skipped > 0 ? [describeSkippedByRules(source.name, stats.skipped, resolved.table.rows, resolved.mapping)] : [];
+  return { rows, mapping: resolved.mapping, errors, warnings };
+}
+
+const SKIPPED_SHOWN = 3;
+
+function describeSkippedByRules(filename: string, skipped: number, rows: Record<string, string>[], mapping: CsvMapping): string {
+  const shown = rows
+    .filter((row) => shouldSkipRow(row, mapping.skipRules))
+    .slice(0, SKIPPED_SHOWN)
+    .map((row) => JSON.stringify(truncateValue(rowDescription(row, mapping.description))));
+  const more = skipped > shown.length ? ` (+${skipped - shown.length} more)` : "";
+  return `${skipped} ${skipped === 1 ? "row" : "rows"} skipped in ${filename} by skip rules: ${shown.join(", ")}${more}`;
+}
+
+function rowDescription(row: Record<string, string>, ref: ColumnRef): string {
+  const columns = "column" in ref ? [ref.column] : ref.columns;
+  const separator = "column" in ref ? " " : ref.separator;
+  return columns.map((c) => (row[c] ?? "").trim()).filter(Boolean).join(separator);
 }
 
 function previewTransformErrors(rows: Record<string, string>[], mapping: CsvMapping): string[] {
@@ -145,7 +169,7 @@ function previewTransformErrors(rows: Record<string, string>[], mapping: CsvMapp
     if (errors.length === 0) return [];
     return [...errors.slice(0, 5).map((e) => `Row ${e.row}: ${e.message}`), ...strayAmountNotes(rows, mapping)];
   } catch (err) {
-    return [err instanceof Error ? err.message : String(err)];
+    return [extractErrorMessage(err).message];
   }
 }
 
@@ -179,6 +203,7 @@ async function resolveMapping(
   importDate: string,
   existingAccounts: string[],
   priorErrors: string[] | null,
+  signal: AbortSignal | undefined,
 ): Promise<{ mapping: CsvMapping & { headerRow: number }; table: CsvTable }> {
   const prompt = buildMappingPrompt(filename, grid, headerPick, existingAccounts, priorErrors);
   const heal = (raw: CsvMappingResult) => {
@@ -188,14 +213,49 @@ async function resolveMapping(
         : headerPick;
     const table = buildCsvTable(grid, headerRow);
     const samples = sampleRows(table.rows);
-    return { mapping: { ...normalizeMapping(raw, samples, filename, importDate), headerRow }, table };
+    const mapping = normalizeMapping(raw, samples, filename, importDate);
+    vetSkipRules(table.rows, mapping);
+    return { mapping: { ...mapping, headerRow }, table };
   };
   try {
-    return heal(await callMapper(session, prompt));
+    return heal(await callMapper(session, prompt, signal));
   } catch (err) {
     if (!(err instanceof SchemaValidationError)) throw err;
-    const retryPrompt = `${prompt}\n\nYour previous mapping could not be used: ${err.message}\nReturn a corrected mapping that names the amount column, or both the debit and credit columns, exactly as the headers list them.`;
-    return heal(await callMapper(session, retryPrompt));
+    signal?.throwIfAborted();
+    const retryPrompt = `${prompt}\n\nYour previous mapping could not be used: ${err.message}\nReturn a corrected mapping that names the amount column, or both the debit and credit columns, exactly as the headers list them, and keeps skipRules to non-transaction rows.`;
+    return heal(await callMapper(session, retryPrompt, signal));
+  }
+}
+
+const MAX_SKIPPED_SHARE = 0.2;
+
+/**
+ * Skip rules exist for non-transaction rows, and a rule that is too broad drops
+ * real money without a trace. So a rule is refused when it matches a row whose
+ * amount is non-zero, or when the rows it matches that hold an amount at all
+ * exceed `MAX_SKIPPED_SHARE` of the file. Rows whose amount cells don't parse
+ * (`PENDING`, a repeated header) are what skip rules are for and never count.
+ */
+function vetSkipRules(rows: Record<string, string>[], mapping: CsvMapping): void {
+  const columns = amountColumns(mapping.amount);
+  const amountsOf = (row: Record<string, string>) =>
+    columns.flatMap((c) => ((row[c] ?? "").trim() === "" ? [] : (parsedCell(row[c]) ?? [])));
+  for (const rule of mapping.skipRules ?? []) {
+    const matched = rows.filter((row) => shouldSkipRow(row, [rule]));
+    const carrying = matched.filter((row) => amountsOf(row).some((cell) => cell.cents !== 0));
+    const withAmount = matched.filter((row) => amountsOf(row).length > 0);
+    const described = (subset: Record<string, string>[]) =>
+      subset.slice(0, SKIPPED_SHOWN).map((row) => JSON.stringify(truncateValue(rowDescription(row, mapping.description)))).join(", ");
+    if (carrying.length > 0) {
+      throw new SchemaValidationError(
+        `the skipRule ${JSON.stringify(rule)} matches ${carrying.length} ${carrying.length === 1 ? "row" : "rows"} with a non-zero amount (${described(carrying)}) — skipRules are only for non-transaction rows; narrow or drop it`,
+      );
+    }
+    if (rows.length > 0 && withAmount.length / rows.length > MAX_SKIPPED_SHARE) {
+      throw new SchemaValidationError(
+        `the skipRule ${JSON.stringify(rule)} matches ${withAmount.length} of ${rows.length} rows (${described(withAmount)}) — too broad for non-transaction rows; narrow or drop it`,
+      );
+    }
   }
 }
 
@@ -241,7 +301,7 @@ function buildMappingPrompt(
     `The engine reads row ${headerPick} as the table header and every row after it as data; rows before the header (bank summary preambles) are discarded. If the real header is a different row in the listing above, return "headerRow" with that row's index. Otherwise omit headerRow.`,
     `Headers (blank or duplicate cells renamed to stay addressable — use these names): ${headers.join(", ")}`,
     `Sample rows (${sample.length} of ${rows.length} data rows — the head plus rows spread across the file):`,
-    JSON.stringify(sample, null, 2),
+    JSON.stringify(sample),
     `Identify the date column, the description column(s), and how amounts are structured: a single signed column ({ style: "single", column, sign }) or split debit/credit ({ style: "split", expenseColumn, incomeColumn }). Optionally include date.format, the source account, the source category column, and skipRules for non-transaction rows (opening balances, voids).`,
     `Always name the amount: the one column holding each transaction's amount in the account's currency, or BOTH the debit and credit columns. Foreign/original-currency amounts, exchange rates, fees, taxes, and running balances are never the amount. If no column holds it, omit amount rather than guess.`,
     accountsNote,
@@ -253,9 +313,9 @@ function buildMappingPrompt(
     .join("\n");
 }
 
-function callMapper(session: StructuredSession, prompt: string): Promise<CsvMappingResult> {
+function callMapper(session: StructuredSession, prompt: string, signal: AbortSignal | undefined): Promise<CsvMappingResult> {
   const messages: { role: "user"; content: MessageContent }[] = [{ role: "user", content: prompt }];
-  return session.structured<CsvMappingResult>(messages, CSV_MAPPING_SCHEMA);
+  return session.structured<CsvMappingResult>(messages, CSV_MAPPING_SCHEMA, { signal });
 }
 
 /**
@@ -648,6 +708,7 @@ export interface NormalizeImageResult {
   rows: ImportTransaction[];
   /** Set when the source carried no transaction data (the selfie case). */
   noData?: { message: string };
+  warnings: string[];
 }
 
 /**
@@ -670,6 +731,7 @@ export async function normalizeImage(
      *  `count` once it streams (null before). Setting it makes the extraction
      *  call stream. */
     onProgress?: (progress: NormalizeProgress) => void;
+    signal?: AbortSignal;
   } = {},
 ): Promise<NormalizeImageResult> {
   const existingAccounts = options.existingAccounts ?? [];
@@ -694,15 +756,15 @@ export async function normalizeImage(
 
   // EXTRACTION_SCHEMA wraps the discriminated outcome in `result` so its root is
   // an object (OpenAI strict rejects a bare top-level anyOf) — unwrap it here.
-  const { onProgress } = options;
+  const { onProgress, signal } = options;
   const { result } = await session.structured<ExtractionEnvelope>(
     [{ role: "user", content }],
     EXTRACTION_SCHEMA,
-    onProgress && { onText: (text) => onProgress(countStreamedRows(text)) },
+    { signal, ...(onProgress && { onText: (text: string) => onProgress(countStreamedRows(text)) }) },
   );
 
   if ("error" in result) {
-    return { rows: [], noData: { message: result.message } };
+    return { rows: [], noData: { message: result.message }, warnings: [] };
   }
 
   // The model can return `{ rows: [] }` without the explicit no_data outcome;
@@ -710,7 +772,7 @@ export async function normalizeImage(
   // declared no-data file — skipped with a warning when sibling files carry
   // rows, an empty completed preview when every file is empty.
   if (result.rows.length === 0) {
-    return { rows: [], noData: { message: "No transactions found in this file." } };
+    return { rows: [], noData: { message: "No transactions found in this file." }, warnings: [] };
   }
 
   const records: StagedRecord[] = result.rows.map((r) => ({
@@ -721,7 +783,30 @@ export async function normalizeImage(
     sourceAccount: asString(r.sourceAccount) ?? accountFromFilename(source.name),
     sourceCategory: r.sourceCategory,
   }));
-  return { rows: buildStaged(records, { startId: options.startId }) };
+  return { rows: buildStaged(records, { startId: options.startId }), warnings: extractionWarnings(source.name, result) };
+}
+
+const WHOLE_UNIT_MIN_ROWS = 3;
+const WHOLE_UNIT_CEILING = 10_000;
+
+function extractionWarnings(filename: string, result: { count: number; rows: StagedRecord[] }): string[] {
+  const warnings: string[] = [];
+  const missing = result.count - result.rows.length;
+  if (missing > 0) {
+    warnings.push(
+      `${filename}: the AI counted ${result.count} transactions but returned ${result.rows.length} — ${missing} may be missing.`,
+    );
+  }
+  const amounts = result.rows.map((r) => Math.abs(r.amount));
+  if (
+    amounts.length >= WHOLE_UNIT_MIN_ROWS &&
+    amounts.every((a) => a % 100 === 0 && a < WHOLE_UNIT_CEILING)
+  ) {
+    warnings.push(
+      `${filename}: every amount is a small round number — the AI may have returned whole units instead of cents. Check the amounts.`,
+    );
+  }
+  return warnings;
 }
 
 /**

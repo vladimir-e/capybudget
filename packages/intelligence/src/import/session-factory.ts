@@ -16,6 +16,7 @@
 import {
   hasModel,
   hasProviderKey,
+  ollamaOrigin,
   resolveApiTarget,
   type IntelligenceConfig,
 } from "../config";
@@ -57,6 +58,24 @@ export function importReady(config: IntelligenceConfig): boolean {
  *  tab and chat gate PDF drops on this. */
 export function canReadPdf(provider: IntelligenceConfig["provider"]): boolean {
   return provider === "anthropic" || provider === "openai";
+}
+
+/** Whether a local Ollama model reads images, from the `capabilities` that
+ *  `/api/show` reports. Null when the server doesn't say (older Ollama, an
+ *  unreachable server) — the caller warns rather than guesses. */
+export async function ollamaReadsImages(baseUrl: string, model: string): Promise<boolean | null> {
+  try {
+    const response = await fetch(`${ollamaOrigin(baseUrl)}/api/show`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ model }),
+    });
+    if (!response.ok) return null;
+    const { capabilities } = (await response.json()) as { capabilities?: unknown };
+    return Array.isArray(capabilities) ? capabilities.includes("vision") : null;
+  } catch {
+    return null;
+  }
 }
 
 export interface StructuredImportSessionDeps {

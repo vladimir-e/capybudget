@@ -386,21 +386,21 @@ describe("enrichTransfers", () => {
     const session = new MockStructuredSession([
       () => ({
         rows: [
-          { id: "imp-1", account: "BofA Savings", confidence: "high" },
-          { id: "imp-99", account: "BofA Savings", confidence: "low" }, // not in batch — dropped
+          { id: "imp-1", account: "BofA Savings" },
+          { id: "imp-99", account: "BofA Savings" }, // not in batch — dropped
         ],
       }),
     ]);
 
     const result = await enrichTransfers(session, [row], context, accounts);
 
-    expect(result).toEqual([{ id: "imp-1", targetAccountId: "acct-savings", confidence: "high" }]);
+    expect(result).toEqual([{ id: "imp-1", targetAccountId: "acct-savings" }]);
     expect(session.calls[0].schema).toBe(ENRICH_TRANSFER_SCHEMA);
   });
 
   it("resolves the name case-insensitively", async () => {
     const session = new MockStructuredSession([
-      () => ({ rows: [{ id: "imp-1", account: "  bofa savings ", confidence: "high" }] }),
+      () => ({ rows: [{ id: "imp-1", account: "  bofa savings " }] }),
     ]);
     const result = await enrichTransfers(session, [row], context, accounts);
     expect(result[0].targetAccountId).toBe("acct-savings");
@@ -411,7 +411,7 @@ describe("enrichTransfers", () => {
     // "ACH BOFA SAV 123" names savings. The model, reading the description over
     // raw frequency, picks BofA Savings — and the mapping honors it.
     const session = new MockStructuredSession([
-      () => ({ rows: [{ id: "imp-1", account: "BofA Savings", confidence: "high" }] }),
+      () => ({ rows: [{ id: "imp-1", account: "BofA Savings" }] }),
     ]);
     const result = await enrichTransfers(session, [row], context, accounts);
     expect(result[0].targetAccountId).toBe("acct-savings");
@@ -420,7 +420,7 @@ describe("enrichTransfers", () => {
 
   it("returns blank for an empty pick (model unsure)", async () => {
     const session = new MockStructuredSession([
-      () => ({ rows: [{ id: "imp-1", account: "", confidence: "low" }] }),
+      () => ({ rows: [{ id: "imp-1", account: "" }] }),
     ]);
     const result = await enrichTransfers(session, [row], context, accounts);
     expect(result[0].targetAccountId).toBe("");
@@ -428,7 +428,7 @@ describe("enrichTransfers", () => {
 
   it("returns blank for an unknown/hallucinated account name", async () => {
     const session = new MockStructuredSession([
-      () => ({ rows: [{ id: "imp-1", account: "Imaginary Vault", confidence: "low" }] }),
+      () => ({ rows: [{ id: "imp-1", account: "Imaginary Vault" }] }),
     ]);
     const result = await enrichTransfers(session, [row], context, accounts);
     expect(result[0].targetAccountId).toBe("");
@@ -437,7 +437,7 @@ describe("enrichTransfers", () => {
   it("never returns the row's own account as the counterpart", async () => {
     // The model wrongly echoes the statement's own account — blocked.
     const session = new MockStructuredSession([
-      () => ({ rows: [{ id: "imp-1", account: "BofA Checking", confidence: "high" }] }),
+      () => ({ rows: [{ id: "imp-1", account: "BofA Checking" }] }),
     ]);
     const result = await enrichTransfers(session, [row], context, accounts);
     expect(result[0].targetAccountId).toBe("");
@@ -446,7 +446,7 @@ describe("enrichTransfers", () => {
   it("won't resolve to an archived account", async () => {
     const archived = makeAccount({ id: "acct-old", name: "Closed Account", archived: true });
     const session = new MockStructuredSession([
-      () => ({ rows: [{ id: "imp-1", account: "Closed Account", confidence: "high" }] }),
+      () => ({ rows: [{ id: "imp-1", account: "Closed Account" }] }),
     ]);
     const result = await enrichTransfers(session, [row], context, [...accounts, archived]);
     expect(result[0].targetAccountId).toBe("");

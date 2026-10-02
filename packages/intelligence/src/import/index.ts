@@ -44,6 +44,7 @@ export {
   needsTransferEnrich,
   ENRICH_BATCH_SIZE,
   ENRICH_CONCURRENCY,
+  OLLAMA_ENRICH_BATCH_SIZE,
 } from "./categorize";
 
 // Structured-call schemas + result types
@@ -63,6 +64,6 @@ export type {
 } from "./schemas";
 
 // Structured session factory + capability gate
-export { createStructuredImportSession, canImport, canReadPdf, importReady } from "./session-factory";
+export { createStructuredImportSession, canImport, canReadPdf, importReady, ollamaReadsImages } from "./session-factory";
 export type { StructuredImportSessionDeps } from "./session-factory";
 export { IMPORT_STRUCTURED_SYSTEM_PROMPT, buildImportSystemPrompt } from "./system-prompt";
