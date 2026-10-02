@@ -195,10 +195,7 @@ function parseAmount(
   decimalMark: DecimalMark,
   rowNum: number,
 ): { amount: number; isExpense: boolean } {
-  const columns =
-    amountMapping.style === "single"
-      ? [amountMapping.column]
-      : [amountMapping.expenseColumn, amountMapping.incomeColumn];
+  const columns = amountColumns(amountMapping);
   const raws = columns.map((column) => getColumn(row, column, rowNum));
   const cells = raws.map((raw) => parseAmountCell(raw, decimalMark, rowNum));
   if (raws.every((raw) => !/\d/.test(raw))) {
@@ -219,6 +216,10 @@ function parseAmount(
     directed(expense.cents, expense.direction ?? "outflow") +
     directed(income.cents, income.direction ?? "inflow");
   return { amount: Math.abs(flow), isExpense: flow < 0 };
+}
+
+export function amountColumns(mapping: AmountMapping): string[] {
+  return mapping.style === "single" ? [mapping.column] : [mapping.expenseColumn, mapping.incomeColumn];
 }
 
 function directed(cents: number, direction: Direction): number {

@@ -209,6 +209,7 @@ export type {
 export type { TransformResult, TransformError } from "./import/csv-transform";
 export {
   transformCsv,
+  amountColumns,
   serializeImportCsv,
   parseCurrencyToCents,
   parseAmountCell,

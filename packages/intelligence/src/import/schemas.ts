@@ -58,9 +58,11 @@ const COLUMN_REF_SCHEMA: JsonSchema = {
  * a valid `CsvMapping`. Tolerance lives in two places that this schema keeps
  * intact: it carries NO enums (the model phrases `sign` and
  * `typeDetection.method` however it likes — they are plain strings the code
- * coerces) and requires only `amount` (the one role we can't synthesize — no
- * amount means it isn't a transaction file; date and description default in
- * code, so the mapping bends rather than breaks).
+ * coerces) and requires nothing — not even `amount`, the one role code can't
+ * synthesize. Under constrained decoding a required amount column forces the
+ * model to invent one; optional, it can decline, and `normalizeMapping`
+ * answers the decline (or a half-named debit/credit pair) with the column
+ * listing to pick from.
  *
  * What this schema does NOT loosen is *structure*. Anthropic's `output_config`
  * rejects any object without `additionalProperties: false`, so every object
@@ -89,28 +91,15 @@ export const CSV_MAPPING_SCHEMA: JsonSchema = {
     },
     description: COLUMN_REF_SCHEMA,
     amount: {
-      anyOf: [
-        {
-          type: "object",
-          additionalProperties: false,
-          properties: {
-            style: { type: "string" },
-            column: { type: "string" },
-            sign: { type: "string" },
-          },
-          required: ["column"],
-        },
-        {
-          type: "object",
-          additionalProperties: false,
-          properties: {
-            style: { type: "string" },
-            expenseColumn: { type: "string" },
-            incomeColumn: { type: "string" },
-          },
-          required: ["expenseColumn", "incomeColumn"],
-        },
-      ],
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        style: { type: "string" },
+        column: { type: "string" },
+        sign: { type: "string" },
+        expenseColumn: { type: "string" },
+        incomeColumn: { type: "string" },
+      },
     },
     typeDetection: {
       type: "object",
@@ -155,7 +144,6 @@ export const CSV_MAPPING_SCHEMA: JsonSchema = {
       },
     },
   },
-  required: ["amount"],
 };
 
 /**

@@ -31,8 +31,10 @@ describe("CSV_MAPPING_SCHEMA", () => {
     }
   });
 
-  it("requires only amount at the top level", () => {
-    expect(CSV_MAPPING_SCHEMA.required).toEqual(["amount"]);
+  it("requires nothing, so the model can decline to name an amount column", () => {
+    expect(CSV_MAPPING_SCHEMA.required).toBeUndefined();
+    expect(CSV_MAPPING_SCHEMA.properties?.amount?.required).toBeUndefined();
+    expect(CSV_MAPPING_SCHEMA.strict).toBeUndefined();
   });
 
   it("does not describe an open-keyed typeMap", () => {
@@ -182,13 +184,27 @@ describe("normalizeCsv", () => {
     const csv = "Date,Description,Amount,Local amount\n2026-01-05,COFFEE,-4.50,-5.20\n2026-01-06,SALARY,2000.00,2300.00";
     const roles = { date: { column: "Date" }, description: { column: "Description" } };
 
-    it("a mapping with no amount at all", async () => {
+    it("a mapping with no amount at all, answered with the column listing", async () => {
       const session = new MockStructuredSession([() => roles, () => MAPPING]);
 
       const { rows } = await normalizeCsv(session, { name: "monzo.csv", content: csv });
 
       expect(session.calls).toHaveLength(2);
-      expect(session.calls[1].messages[0].content).toContain("names the amount column");
+      const correction = session.calls[1].messages[0].content as string;
+      expect(correction).toContain("no amount column named");
+      expect(correction).toContain('"Amount" ("-4.50", "2000.00"); "Local amount" ("-5.20", "2300.00")');
+      expect(rows.map((r) => r.amount)).toEqual([-450, 200000]);
+    });
+
+    it("a half-named debit/credit pair, answered with the column listing", async () => {
+      const session = new MockStructuredSession([() => ({ ...roles, amount: { expenseColumn: "Amount" } }), () => MAPPING]);
+
+      const { rows } = await normalizeCsv(session, { name: "monzo.csv", content: csv });
+
+      expect(session.calls).toHaveLength(2);
+      const correction = session.calls[1].messages[0].content as string;
+      expect(correction).toContain('only the debit side ("Amount") was named');
+      expect(correction).toContain('"Local amount" ("-5.20", "2300.00")');
       expect(rows.map((r) => r.amount)).toEqual([-450, 200000]);
     });
 
@@ -205,6 +221,41 @@ describe("normalizeCsv", () => {
       expect(correction).toContain('column "Transaction amount" does not exist');
       expect(correction).toContain('"Amount" ("-4.50", "2000.00"); "Local amount" ("-5.20", "2300.00")');
       expect(rows.map((r) => r.amount)).toEqual([-450, 200000]);
+    });
+  });
+
+  describe("stray non-amount cells in a valid amount column", () => {
+    const csv = [
+      "Date,Description,Amount",
+      "2026-01-05,COFFEE,-4.50",
+      "2026-01-06,CARD AUTH,PENDING",
+      "2026-01-07,SALARY,2000.00",
+      "Date,Description,Amount",
+      "2026-01-08,LUNCH,-12.00",
+    ].join("\n");
+
+    it("imports the column, leaving those rows as errors, and asks for skipRules instead of another column", async () => {
+      const session = new MockStructuredSession([() => MAPPING, () => MAPPING]);
+
+      const { rows, errors } = await normalizeCsv(session, { name: "f.csv", content: csv });
+
+      expect(session.calls).toHaveLength(2);
+      const correction = session.calls[1].messages[0].content as string;
+      expect(correction).toContain("add skipRules for non-transaction rows");
+      expect(correction).toContain("don't change a column whose values parse");
+      expect(correction).toContain('"Amount" holds amounts apart from "PENDING", "Amount" — keep this column; add a skipRule for rows like "PENDING"');
+      expect(rows.map((r) => r.amount)).toEqual([-450, 200000, -1200]);
+      expect(errors.map((e) => e.row)).toEqual([2, 4]);
+    });
+
+    it("imports cleanly once the correction skips them", async () => {
+      const skipping = { ...MAPPING, skipRules: [{ column: "Amount", equals: "PENDING" }, { column: "Date", equals: "Date" }] };
+      const session = new MockStructuredSession([() => MAPPING, () => skipping]);
+
+      const { rows, errors } = await normalizeCsv(session, { name: "f.csv", content: csv });
+
+      expect(errors).toEqual([]);
+      expect(rows.map((r) => r.amount)).toEqual([-450, 200000, -1200]);
     });
   });
 
@@ -672,6 +723,33 @@ describe("normalizeMapping", () => {
       expect(refusal({ expenseColumn: "Out", incomeColumn: "In" }, [{ Out: "1.00" }])).toMatch(/^column "In" does not exist\./);
     });
 
+    it("refuses a mostly-text column even when a few cells parse", () => {
+      const rows = [{ Note: "COFFEE" }, { Note: "LUNCH" }, { Note: "12" }, { Note: "SALARY" }].map((r) => ({ Amount: "-1.00", ...r }));
+      expect(refusal({ column: "Note" }, rows)).toMatch(/^column "Note" does not hold amounts\./);
+    });
+
+    it("accepts a column whose stray cells are a minority, in either mode", () => {
+      const single = normalizeMapping(
+        { amount: { column: "Amount" } },
+        [{ Amount: "-1.00" }, { Amount: "PENDING" }, { Amount: "Amount" }, { Amount: "2.00" }, { Amount: "-3.00" }],
+        "f.csv",
+        IMPORT_DATE,
+      );
+      expect(single.amount).toMatchObject({ style: "single", column: "Amount" });
+      const split = normalizeMapping(
+        { amount: { expenseColumn: "Debit", incomeColumn: "Credit" } },
+        [
+          { Debit: "12.50", Credit: "" },
+          { Debit: "VOID", Credit: "" },
+          { Debit: "", Credit: "4.00" },
+          { Debit: "3.10", Credit: "" },
+        ],
+        "f.csv",
+        IMPORT_DATE,
+      );
+      expect(split.amount).toEqual({ style: "split", expenseColumn: "Debit", incomeColumn: "Credit" });
+    });
+
     it.each([
       ["descriptions", { Memo2: "COFFEE" }, "Memo2"],
       ["dates", { Posted: "2026-01-05" }, "Posted"],
@@ -688,7 +766,8 @@ describe("normalizeMapping", () => {
     });
 
     it("judges only the rows the mapping's skip rules keep", () => {
-      const rows: Record<string, string>[] = [{ Amount: "-1.00" }, { Amount: "PENDING", Memo: "Pending auth" }];
+      const pending = { Amount: "PENDING", Memo: "Pending auth" };
+      const rows: Record<string, string>[] = [{ Amount: "-1.00" }, pending, pending];
       expect(refusal({ column: "Amount" }, rows)).toMatch(/^column "Amount" does not hold amounts/);
       const m = normalizeMapping(
         { amount: { column: "Amount" }, skipRules: [{ column: "Memo", contains: "Pending" }] },
