@@ -34,6 +34,7 @@ export interface StructuredCallOptions {
    * JSON prefix, not a parseable value.
    */
   onText?: (text: string) => void
+  signal?: AbortSignal
 }
 
 export interface StructuredSession {
@@ -104,6 +105,30 @@ export class RefusedError extends Error {
     this.name = "RefusedError"
   }
 }
+
+export class UnreachableError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = "UnreachableError"
+  }
+}
+
+/**
+ * A per-request signal that follows `signal` only until `release()`. The SDKs
+ * keep their abort listener on the caller's signal for good, so aborting it
+ * after a reply landed would abort that finished request's still-draining body
+ * — which under WKWebView can stall the next request for minutes.
+ */
+export function requestSignal(signal?: AbortSignal): { signal?: AbortSignal; release: () => void } {
+  if (!signal) return { release: () => {} }
+  const controller = new AbortController()
+  const abort = () => controller.abort(signal.reason)
+  if (signal.aborted) abort()
+  else signal.addEventListener("abort", abort, { once: true })
+  return { signal: controller.signal, release: () => signal.removeEventListener("abort", abort) }
+}
+
+export const STRUCTURED_MAX_RETRIES = 1
 
 export function assertStructuredFinished(ending: Ending): void {
   if (ending === "refused") throw new RefusedError()

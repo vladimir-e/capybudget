@@ -4,8 +4,9 @@ import { AgentSession } from "./agent-session"
 import { UNANSWERED_RESULT, parseToolArguments, readToTerminal, toolCallBlock } from "./agent-turn"
 import type { LoopOutcome, TurnDisplay } from "./agent-turn"
 import type { ApiAdapterOptions } from "../factory"
+import { ollamaOrigin } from "../config"
 import type { MessageContent, SessionProvider } from "../types"
-import { assertStructuredFinished, parseStructured, schemaBody } from "../structured"
+import { STRUCTURED_MAX_RETRIES, UnreachableError, assertStructuredFinished, parseStructured, requestSignal, schemaBody } from "../structured"
 import type { Ending, JsonSchema, StructuredCallOptions, StructuredMessage, StructuredSession } from "../structured"
 
 type ChatMessage = OpenAI.Chat.Completions.ChatCompletionMessageParam
@@ -109,35 +110,44 @@ export class OllamaSession extends AgentSession<ChatMessage> implements Structur
       },
     }
 
-    if (!options?.onText) {
-      const completion = await this.withOutputCap((maxTokens) =>
-        this.client.chat.completions.create({ ...params, max_completion_tokens: maxTokens }),
-      )
-      const choice = completion.choices[0]
-      assertStructuredFinished(endingOf(choice?.finish_reason, choice?.message.refusal))
-      return parseStructured<T>(choice.message.content ?? "", schema)
-    }
-
-    const stream = await this.withOutputCap((maxTokens) =>
-      this.client.chat.completions.create({ ...params, max_completion_tokens: maxTokens, stream: true }),
-    )
-    let text = ""
-    let refusal = ""
-    let finishReason: string | null = null
-    await readToTerminal(stream, (chunk) => {
-      const choice = chunk.choices[0]
-      if (!choice) return false
-      if (typeof choice.delta?.content === "string" && choice.delta.content.length > 0) {
-        text += choice.delta.content
-        options.onText?.(text)
+    const request = requestSignal(options?.signal)
+    const requestOptions = { signal: request.signal, maxRetries: STRUCTURED_MAX_RETRIES }
+    try {
+      if (!options?.onText) {
+        const completion = await this.withOutputCap((maxTokens) =>
+          this.client.chat.completions.create({ ...params, max_completion_tokens: maxTokens }, requestOptions),
+        )
+        const choice = completion.choices[0]
+        assertStructuredFinished(endingOf(choice?.finish_reason, choice?.message.refusal))
+        return parseStructured<T>(choice.message.content ?? "", schema)
       }
-      if (choice.delta?.refusal) refusal += choice.delta.refusal
-      if (!choice.finish_reason) return false
-      finishReason = choice.finish_reason
-      return true
-    })
-    assertStructuredFinished(endingOf(finishReason, refusal))
-    return parseStructured<T>(text, schema)
+
+      const stream = await this.withOutputCap((maxTokens) =>
+        this.client.chat.completions.create({ ...params, max_completion_tokens: maxTokens, stream: true }, requestOptions),
+      )
+      let text = ""
+      let refusal = ""
+      let finishReason: string | null = null
+      await readToTerminal(stream, (chunk) => {
+        const choice = chunk.choices[0]
+        if (!choice) return false
+        if (typeof choice.delta?.content === "string" && choice.delta.content.length > 0) {
+          text += choice.delta.content
+          options.onText?.(text)
+        }
+        if (choice.delta?.refusal) refusal += choice.delta.refusal
+        if (!choice.finish_reason) return false
+        finishReason = choice.finish_reason
+        return true
+      })
+      assertStructuredFinished(endingOf(finishReason, refusal))
+      return parseStructured<T>(text, schema)
+    } catch (err) {
+      if (err instanceof OpenAI.APIConnectionError) throw new UnreachableError(`Can't reach Ollama at ${ollamaOrigin(this.opts.baseUrl)}`)
+      throw err
+    } finally {
+      request.release()
+    }
   }
 
   protected async runAgenticLoop(display: TurnDisplay): Promise<LoopOutcome> {

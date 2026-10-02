@@ -1,3 +1,5 @@
+import { UnreachableError } from "./structured"
+
 /**
  * Extract a human-readable message from an SDK error.
  *
@@ -64,6 +66,15 @@ export function isRejectedRequest(err: unknown): boolean {
   const { status, code } = err
   if (typeof status === "number") return status >= 400 && status < 500 && status !== 429
   return typeof code === "string" && !TRANSIENT_STREAM_CODES.includes(code)
+}
+
+const DEAD_END_STATUSES = [401, 403, 404]
+
+/** Every further call fails the same way: the key is rejected, the model or
+ *  endpoint doesn't exist, or the provider can't be reached at all. */
+export function isDeadEnd(err: unknown): boolean {
+  if (err instanceof UnreachableError) return true
+  return isObject(err) && typeof err.status === "number" && DEAD_END_STATUSES.includes(err.status)
 }
 
 function isObject(value: unknown): value is Record<string, unknown> {

@@ -199,6 +199,7 @@ const { mockCreate, queueTurn, queueStructured, lastCreateCall, allCreateCalls, 
 vi.mock("openai", () => {
   return {
     default: class {
+      static APIConnectionError = class extends Error {}
       responses = { create: mockCreate }
     },
   }
@@ -217,6 +218,8 @@ vi.mock("../tools", async (importOriginal) => {
 })
 
 import { OpenAiSession } from "./openai-session"
+import OpenAI from "openai"
+import { UnreachableError } from "../structured"
 import { MAX_OUTPUT_TOKENS, STOPPED_MARKER, STOPPED_RESULT, UNANSWERED_RESULT } from "./agent-turn"
 import { CutOffError, RefusedError } from "../structured"
 
@@ -1558,5 +1561,46 @@ describe("OpenAiSession failures", () => {
     await session.send("hi")
 
     expect(events.at(-1)).toMatchObject({ type: "error", code: "cutOff", provider: "openai" })
+  })
+})
+
+describe("OpenAiSession.structured — cancellation and retries", () => {
+  const SCHEMA = { type: "object" as const, properties: { ok: { type: "boolean" as const } }, required: ["ok"] }
+  const requestOptions = () => mockCreate.mock.lastCall?.[1] as { signal?: AbortSignal; maxRetries?: number }
+
+  it("retries a failed request at most once, streaming or not", async () => {
+    const { session } = makeSession()
+    queueStructured({ text: '{"ok": true}' })
+    await session.structured([{ role: "user", content: "x" }], SCHEMA)
+    expect(requestOptions().maxRetries).toBe(1)
+    queueTurn({ textDeltas: ['{"ok": true}'], status: "completed" })
+    await session.structured([{ role: "user", content: "x" }], SCHEMA, { onText: () => {} })
+    expect(requestOptions().maxRetries).toBe(1)
+  })
+
+  it("aborts the request when the caller's signal aborts mid-stream", async () => {
+    queueTurn({ textDeltas: ['{"ok"', ": true}"], status: "completed" })
+    const controller = new AbortController()
+    const { session } = makeSession()
+    const promise = session.structured([{ role: "user", content: "x" }], SCHEMA, {
+      signal: controller.signal,
+      onText: () => controller.abort(),
+    })
+    await expect(promise).rejects.toThrow(/aborted/i)
+  })
+
+  it("leaves a finished request alone when the caller's signal aborts later", async () => {
+    queueStructured({ text: '{"ok": true}' })
+    const controller = new AbortController()
+    const { session } = makeSession()
+    await session.structured([{ role: "user", content: "x" }], SCHEMA, { signal: controller.signal })
+    controller.abort()
+    expect(requestOptions().signal?.aborted).toBe(false)
+  })
+
+  it("reports a connection failure as unreachable", async () => {
+    queueStructured({ error: new OpenAI.APIConnectionError({ message: "Connection error." }) })
+    const { session } = makeSession()
+    await expect(session.structured([{ role: "user", content: "x" }], SCHEMA)).rejects.toBeInstanceOf(UnreachableError)
   })
 })

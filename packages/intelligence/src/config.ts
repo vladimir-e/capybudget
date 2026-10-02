@@ -62,6 +62,10 @@ export interface IntelligenceConfig {
 
 export const DEFAULT_OLLAMA_BASE_URL = "http://localhost:11434/v1"
 
+export function ollamaOrigin(baseUrl: string = DEFAULT_OLLAMA_BASE_URL): string {
+  return baseUrl.trim().replace(/\/+$/, "").replace(/\/v1$/, "")
+}
+
 /** The OpenAI SDK requires a non-empty key; Ollama ignores it. */
 export const OLLAMA_PLACEHOLDER_KEY = "ollama"
 

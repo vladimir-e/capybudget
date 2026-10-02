@@ -5,7 +5,7 @@ import { UNANSWERED_RESULT, parseToolArguments, readToTerminal, toolCallBlock } 
 import type { LoopOutcome, TurnDisplay } from "./agent-turn"
 import type { ApiAdapterOptions } from "../factory"
 import type { MessageContent, SessionProvider } from "../types"
-import { assertStructuredFinished, parseStructured, schemaBody } from "../structured"
+import { STRUCTURED_MAX_RETRIES, UnreachableError, assertStructuredFinished, parseStructured, requestSignal, schemaBody } from "../structured"
 import type { Ending, JsonSchema, StructuredCallOptions, StructuredMessage, StructuredSession } from "../structured"
 
 type ModelResponse = OpenAI.Responses.Response
@@ -145,26 +145,35 @@ export class OpenAiSession extends AgentSession<InputItem> implements Structured
       },
     }
 
-    if (!options?.onText) {
-      const response = await this.withOutputCap((maxTokens) =>
-        this.client.responses.create({ ...params, max_output_tokens: maxTokens }),
-      )
-      assertStructuredFinished(endingOf(response))
-      return parseStructured<T>(response.output_text, schema)
-    }
+    const request = requestSignal(options?.signal)
+    const requestOptions = { signal: request.signal, maxRetries: STRUCTURED_MAX_RETRIES }
+    try {
+      if (!options?.onText) {
+        const response = await this.withOutputCap((maxTokens) =>
+          this.client.responses.create({ ...params, max_output_tokens: maxTokens }, requestOptions),
+        )
+        assertStructuredFinished(endingOf(response))
+        return parseStructured<T>(response.output_text, schema)
+      }
 
-    const stream = await this.withOutputCap((maxTokens) =>
-      this.client.responses.create({ ...params, max_output_tokens: maxTokens, stream: true }),
-    )
-    let text = ""
-    const response = await readStream(stream, {
-      text: (event) => {
-        text += event.delta
-        options.onText?.(text)
-      },
-    })
-    assertStructuredFinished(endingOf(response))
-    return parseStructured<T>(text, schema)
+      const stream = await this.withOutputCap((maxTokens) =>
+        this.client.responses.create({ ...params, max_output_tokens: maxTokens, stream: true }, requestOptions),
+      )
+      let text = ""
+      const response = await readStream(stream, {
+        text: (event) => {
+          text += event.delta
+          options.onText?.(text)
+        },
+      })
+      assertStructuredFinished(endingOf(response))
+      return parseStructured<T>(text, schema)
+    } catch (err) {
+      if (err instanceof OpenAI.APIConnectionError) throw new UnreachableError("Can't reach OpenAI. Check your internet connection.")
+      throw err
+    } finally {
+      request.release()
+    }
   }
 
   protected async runAgenticLoop(display: TurnDisplay): Promise<LoopOutcome> {

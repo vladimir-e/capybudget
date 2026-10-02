@@ -237,6 +237,7 @@ const { clientConfigs } = vi.hoisted(() => ({
 vi.mock("openai", () => {
   return {
     default: class {
+      static APIConnectionError = class extends Error {}
       chat = {
         completions: { create: mockCreate },
       }
@@ -267,7 +268,8 @@ vi.mock("../tools", async (importOriginal) => {
 
 import { OllamaSession } from "./ollama-session"
 import { MAX_OUTPUT_TOKENS, STOPPED_MARKER, STOPPED_RESULT, UNANSWERED_RESULT } from "./agent-turn"
-import { CutOffError, RefusedError } from "../structured"
+import OpenAI from "openai"
+import { CutOffError, RefusedError, UnreachableError } from "../structured"
 
 function makeSession(
   onEvent?: (e: StreamEvent, session: OllamaSession) => void,
@@ -1953,5 +1955,48 @@ describe("OllamaSession failures", () => {
       { type: "tool-activity", tool: "create_transaction", status: "failed" },
       { type: "text", content: "That didn't work." },
     ])
+  })
+})
+
+describe("OllamaSession.structured — cancellation and retries", () => {
+  const SCHEMA = { type: "object" as const, properties: { ok: { type: "boolean" as const } }, required: ["ok"] }
+  const requestOptions = () => mockCreate.mock.lastCall?.[1] as { signal?: AbortSignal; maxRetries?: number }
+
+  it("retries a failed request at most once, streaming or not", async () => {
+    const { session } = makeSession()
+    queueStructured({ content: '{"ok": true}' })
+    await session.structured([{ role: "user", content: "x" }], SCHEMA)
+    expect(requestOptions().maxRetries).toBe(1)
+    queueTurn({ textDeltas: ['{"ok": true}'], finish_reason: "stop" })
+    await session.structured([{ role: "user", content: "x" }], SCHEMA, { onText: () => {} })
+    expect(requestOptions().maxRetries).toBe(1)
+  })
+
+  it("aborts the request when the caller's signal aborts mid-stream", async () => {
+    queueTurn({ textDeltas: ['{"ok"', ": true}"], finish_reason: "stop" })
+    const controller = new AbortController()
+    const { session } = makeSession()
+    const promise = session.structured([{ role: "user", content: "x" }], SCHEMA, {
+      signal: controller.signal,
+      onText: () => controller.abort(),
+    })
+    await expect(promise).rejects.toThrow(/aborted/i)
+  })
+
+  it("leaves a finished request alone when the caller's signal aborts later", async () => {
+    queueStructured({ content: '{"ok": true}' })
+    const controller = new AbortController()
+    const { session } = makeSession()
+    await session.structured([{ role: "user", content: "x" }], SCHEMA, { signal: controller.signal })
+    controller.abort()
+    expect(requestOptions().signal?.aborted).toBe(false)
+  })
+
+  it("names the server when it can't be reached", async () => {
+    queueStructured({ error: new OpenAI.APIConnectionError({ message: "Connection error." }) })
+    const { session } = makeSession(undefined, "http://box:11434/v1")
+    const err = await session.structured([{ role: "user", content: "x" }], SCHEMA).catch((e: unknown) => e)
+    expect(err).toBeInstanceOf(UnreachableError)
+    expect((err as Error).message).toBe("Can't reach Ollama at http://box:11434")
   })
 })

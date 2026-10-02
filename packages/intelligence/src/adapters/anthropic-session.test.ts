@@ -1,5 +1,4 @@
 import { describe, it, expect, vi, beforeEach } from "vitest"
-import type Anthropic from "@anthropic-ai/sdk"
 import type { StreamEvent } from "@capybudget/intelligence"
 import type { CurrencySettings } from "@capybudget/core"
 import type { BudgetRepository, FileAdapter } from "@capybudget/persistence"
@@ -184,6 +183,7 @@ const { mockStream, queueTurn, lastStreamCall, abortSignals, streamStubs } = vi.
 vi.mock("@anthropic-ai/sdk", () => {
   return {
     default: class {
+      static APIConnectionError = class extends Error {}
       messages = { stream: mockStream }
     },
   }
@@ -209,7 +209,8 @@ vi.mock("../tools", async (importOriginal) => {
 
 import { AnthropicSession } from "./anthropic-session"
 import { MAX_OUTPUT_TOKENS, STOPPED_MARKER, STOPPED_RESULT, UNANSWERED_RESULT } from "./agent-turn"
-import { CutOffError, RefusedError } from "../structured"
+import Anthropic from "@anthropic-ai/sdk"
+import { CutOffError, RefusedError, UnreachableError } from "../structured"
 
 function makeSession(onEvent?: (e: StreamEvent, session: AnthropicSession) => void) {
   const events: StreamEvent[] = []
@@ -1253,6 +1254,44 @@ describe("AnthropicSession.structured", () => {
     // The stream stub exists synchronously; abort before its deferred emits run.
     streamStubs[streamStubs.length - 1].controller.abort()
     await expect(promise).rejects.toThrow(/aborted/i)
+  })
+})
+
+describe("AnthropicSession.structured — cancellation and retries", () => {
+  const SCHEMA = { type: "object" as const, properties: { ok: { type: "boolean" as const } }, required: ["ok"] }
+  const requestOptions = () => mockStream.mock.lastCall?.[1] as { signal?: AbortSignal; maxRetries?: number }
+
+  it("retries a failed request at most once", async () => {
+    queueTurn({ textDeltas: ['{"ok": true}'], stop_reason: "end_turn" })
+    const { session } = makeSession()
+    await session.structured([{ role: "user", content: "x" }], SCHEMA)
+    expect(requestOptions().maxRetries).toBe(1)
+  })
+
+  it("aborts the request when the caller's signal aborts mid-stream", async () => {
+    queueTurn({ textDeltas: ['{"ok"', ": true}"], stop_reason: "end_turn" })
+    const controller = new AbortController()
+    const { session } = makeSession()
+    const promise = session.structured([{ role: "user", content: "x" }], SCHEMA, {
+      signal: controller.signal,
+      onText: () => controller.abort(),
+    })
+    await expect(promise).rejects.toThrow(/aborted/i)
+  })
+
+  it("leaves a finished request alone when the caller's signal aborts later", async () => {
+    queueTurn({ textDeltas: ['{"ok": true}'], stop_reason: "end_turn" })
+    const controller = new AbortController()
+    const { session } = makeSession()
+    await session.structured([{ role: "user", content: "x" }], SCHEMA, { signal: controller.signal })
+    controller.abort()
+    expect(requestOptions().signal?.aborted).toBe(false)
+  })
+
+  it("reports a connection failure as unreachable", async () => {
+    queueTurn({ stop_reason: "end_turn", error: new Anthropic.APIConnectionError({ message: "Connection error." }) })
+    const { session } = makeSession()
+    await expect(session.structured([{ role: "user", content: "x" }], SCHEMA)).rejects.toBeInstanceOf(UnreachableError)
   })
 })
 

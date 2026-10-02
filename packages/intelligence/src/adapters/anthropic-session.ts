@@ -6,7 +6,7 @@ import { UNANSWERED_RESULT, toolCallBlock } from "./agent-turn"
 import type { LoopOutcome, TurnDisplay } from "./agent-turn"
 import type { ApiAdapterOptions } from "../factory"
 import type { MessageContent, SessionProvider } from "../types"
-import { CutOffError, RefusedError, parseStructured, schemaBody } from "../structured"
+import { CutOffError, RefusedError, STRUCTURED_MAX_RETRIES, UnreachableError, parseStructured, requestSignal, schemaBody } from "../structured"
 import type { JsonSchema, StructuredCallOptions, StructuredMessage, StructuredSession } from "../structured"
 
 const FINISHED = new Set<Anthropic.StopReason | null>(["end_turn", "stop_sequence"])
@@ -98,9 +98,18 @@ export class AnthropicSession extends AgentSession<Anthropic.MessageParam> imple
       },
     }
 
-    const message = await this.withOutputCap((maxTokens) =>
-      this.streamStructured({ ...params, max_tokens: maxTokens }, options?.onText),
-    )
+    const request = requestSignal(options?.signal)
+    let message: Anthropic.Message
+    try {
+      message = await this.withOutputCap((maxTokens) =>
+        this.streamStructured({ ...params, max_tokens: maxTokens }, request.signal, options?.onText),
+      )
+    } catch (err) {
+      if (err instanceof Anthropic.APIConnectionError) throw new UnreachableError("Can't reach Anthropic. Check your internet connection.")
+      throw err
+    } finally {
+      request.release()
+    }
     if (!FINISHED.has(message.stop_reason)) {
       throw message.stop_reason === "refusal" ? new RefusedError() : new CutOffError()
     }
@@ -118,9 +127,10 @@ export class AnthropicSession extends AgentSession<Anthropic.MessageParam> imple
    *  see the note there on `finalMessage()`/abort under WKWebView. */
   private streamStructured(
     params: Anthropic.MessageStreamParams,
+    signal: AbortSignal | undefined,
     onText?: (text: string) => void,
   ): Promise<Anthropic.Message> {
-    const stream = this.client.messages.stream(params)
+    const stream = this.client.messages.stream(params, { signal, maxRetries: STRUCTURED_MAX_RETRIES })
     if (onText) {
       let accumulated = ""
       stream.on("text", (delta) => {
