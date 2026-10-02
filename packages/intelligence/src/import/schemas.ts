@@ -18,12 +18,14 @@
  * shape the model must hit.
  *
  * `strict: true` on a schema asks the provider to *guarantee* on-schema output
- * (OpenAI `text.format.strict`, Ollama `response_format.json_schema.strict`; Anthropic enforces the same
- * always). Strict requires every object to set `additionalProperties: false`
- * and list every property in `required`, with optionality expressed as a
- * `null`-union rather than omission. The two failure-prone, high-volume calls —
- * extraction and enrichment — opt in: best-effort output there means off-schema
- * rows, failed batches, and the retry cascade this redesign exists to kill.
+ * (OpenAI `text.format.strict`, Ollama `response_format.json_schema.strict`;
+ * Anthropic constrains every schema). Only these opt-in strict schemas must
+ * list every property in `required`, with optionality expressed as a
+ * `null`-union rather than omission; every schema, strict or not, sets
+ * `additionalProperties: false` on each object. The failure-prone,
+ * high-volume calls — extraction and enrichment — opt in: best-effort output
+ * there means off-schema rows, failed batches, and the retry cascade this
+ * redesign exists to kill.
  */
 
 import type { JsonSchema } from "../structured";
@@ -70,6 +72,10 @@ const COLUMN_REF_SCHEMA: JsonSchema = {
  * explicitly and lists real-typed properties (mirroring `EXTRACTION_SCHEMA`).
  * The over-loosening that 400'd was structural (`{}` objects with no
  * `additionalProperties`); the loosening we actually need is value-level, above.
+ *
+ * Anthropic caps a request at 24 optional parameters and 16 union-typed
+ * parameters across its schemas; this one uses about 20 and 3, so new optional
+ * fields here spend scarce headroom.
  *
  * `typeDetection.typeMap` is intentionally absent: an open-keyed map can't
  * satisfy `additionalProperties: false`, and `normalizeMapping` defaults

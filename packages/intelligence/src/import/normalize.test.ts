@@ -230,9 +230,15 @@ describe("normalizeCsv", () => {
       "2026-01-05,COFFEE,-4.50",
       "2026-01-06,CARD AUTH,PENDING",
       "2026-01-07,SALARY,2000.00",
+      "2026-01-08,BAKERY,-3.00",
+      "2026-01-09,BOOKS,-15.00",
+      "2026-01-10,GAS,-40.00",
       "Date,Description,Amount",
-      "2026-01-08,LUNCH,-12.00",
+      "2026-01-11,LUNCH,-12.00",
+      "2026-01-12,TRAIN,-2.75",
+      "2026-01-13,REFUND,8.00",
     ].join("\n");
+    const amounts = [-450, 200000, -300, -1500, -4000, -1200, -275, 800];
 
     it("imports the column, leaving those rows as errors, and asks for skipRules instead of another column", async () => {
       const session = new MockStructuredSession([() => MAPPING, () => MAPPING]);
@@ -242,10 +248,9 @@ describe("normalizeCsv", () => {
       expect(session.calls).toHaveLength(2);
       const correction = session.calls[1].messages[0].content as string;
       expect(correction).toContain("add skipRules for non-transaction rows");
-      expect(correction).toContain("don't change a column whose values parse");
       expect(correction).toContain('"Amount" holds amounts apart from "PENDING", "Amount" — keep this column; add a skipRule for rows like "PENDING"');
-      expect(rows.map((r) => r.amount)).toEqual([-450, 200000, -1200]);
-      expect(errors.map((e) => e.row)).toEqual([2, 4]);
+      expect(rows.map((r) => r.amount)).toEqual(amounts);
+      expect(errors.map((e) => e.row)).toEqual([2, 7]);
     });
 
     it("imports cleanly once the correction skips them", async () => {
@@ -255,7 +260,22 @@ describe("normalizeCsv", () => {
       const { rows, errors } = await normalizeCsv(session, { name: "f.csv", content: csv });
 
       expect(errors).toEqual([]);
-      expect(rows.map((r) => r.amount)).toEqual([-450, 200000, -1200]);
+      expect(rows.map((r) => r.amount)).toEqual(amounts);
+    });
+
+    it("never tells the model to keep a column it would refuse", async () => {
+      const refs = [
+        "Date,Description,Amount",
+        "2026-01-05,COFFEE,-4.50",
+        "2026-01-06,CARD AUTH,REF-1",
+        "2026-01-07,SALARY,2000.00",
+        "2026-01-08,LUNCH,REF-2",
+        "2026-01-09,BOOKS,-3.00",
+      ].join("\n");
+      const session = new MockStructuredSession([() => MAPPING, () => MAPPING]);
+
+      await expect(normalizeCsv(session, { name: "f.csv", content: refs })).rejects.toThrow(/column "Amount" does not hold amounts/);
+      expect(session.calls[1].messages[0].content).not.toContain("keep this column");
     });
   });
 
@@ -718,6 +738,22 @@ describe("normalizeMapping", () => {
       expect(message).toContain('"Credit" (blank)');
     });
 
+    it.each([
+      [{ column: "Amount", expenseColumn: "Debit", incomeColumn: "Credit" }, '("Amount") and debit/credit columns ("Debit" and "Credit")'],
+      [{ style: "split", column: "Amount", expenseColumn: "Debit", incomeColumn: "Credit" }, '("Amount") and debit/credit columns ("Debit" and "Credit")'],
+      [{ style: "single", column: "Amount", expenseColumn: "Debit" }, '("Amount") and debit/credit columns ("Debit")'],
+      [{ column: "Amount", incomeColumn: "Credit" }, '("Amount") and debit/credit columns ("Credit")'],
+    ])("refuses a single column named alongside debit/credit columns %j", (amount, named) => {
+      const message = refusal(amount, [{ Amount: "-1.00", Debit: "1.00", Credit: "" }]);
+      expect(message.startsWith(`both a single amount column ${named} were named`)).toBe(true);
+      expect(message).toContain('"Debit" ("1.00")');
+    });
+
+    it("reads style \"split\" with only a column as that single column", () => {
+      const m = normalizeMapping({ amount: { style: "split", column: "Amount" } }, [{ Amount: "-1.00" }], "f.csv", IMPORT_DATE);
+      expect(m.amount).toMatchObject({ style: "single", column: "Amount" });
+    });
+
     it("refuses a column that does not exist", () => {
       expect(refusal({ column: "Amount" }, [{ Amt: "-1.00" }])).toMatch(/^column "Amount" does not exist\./);
       expect(refusal({ expenseColumn: "Out", incomeColumn: "In" }, [{ Out: "1.00" }])).toMatch(/^column "In" does not exist\./);
@@ -728,26 +764,43 @@ describe("normalizeMapping", () => {
       expect(refusal({ column: "Note" }, rows)).toMatch(/^column "Note" does not hold amounts\./);
     });
 
-    it("accepts a column whose stray cells are a minority, in either mode", () => {
-      const single = normalizeMapping(
-        { amount: { column: "Amount" } },
-        [{ Amount: "-1.00" }, { Amount: "PENDING" }, { Amount: "Amount" }, { Amount: "2.00" }, { Amount: "-3.00" }],
-        "f.csv",
-        IMPORT_DATE,
-      );
-      expect(single.amount).toMatchObject({ style: "single", column: "Amount" });
+    const amountsWith = (strays: string[], parsing: number) => [
+      ...Array.from({ length: parsing }, (_, i) => ({ Amount: `-${i + 1}.00` })),
+      ...strays.map((Amount) => ({ Amount })),
+    ];
+    const accepts = (rows: Record<string, string>[]) =>
+      normalizeMapping({ amount: { column: "Amount" } }, rows, "f.csv", IMPORT_DATE).amount;
+
+    it("accepts a column whose strays are PENDING and a repeated header, in either mode", () => {
+      expect(accepts(amountsWith(["PENDING", "Amount", "PENDING"], 12))).toMatchObject({ style: "single", column: "Amount" });
       const split = normalizeMapping(
         { amount: { expenseColumn: "Debit", incomeColumn: "Credit" } },
         [
-          { Debit: "12.50", Credit: "" },
+          ...Array.from({ length: 4 }, (_, i) => ({ Debit: `${i + 1}.50`, Credit: "" })),
           { Debit: "VOID", Credit: "" },
           { Debit: "", Credit: "4.00" },
-          { Debit: "3.10", Credit: "" },
         ],
         "f.csv",
         IMPORT_DATE,
       );
       expect(split.amount).toEqual({ style: "split", expenseColumn: "Debit", incomeColumn: "Credit" });
+    });
+
+    it.each([
+      ["exactly 80% parse", ["PENDING"], 4, true],
+      ["just under 80% parse", ["PENDING", "PENDING"], 7, false],
+      ["exactly 80% parse with two distinct strays", ["PENDING", "Amount"], 8, true],
+      ["60% parse", ["REF-1", "REF-1"], 3, false],
+    ])("judges %s", (_, strays, parsing, accepted) => {
+      const rows = amountsWith(strays, parsing);
+      if (accepted) expect(accepts(rows)).toMatchObject({ column: "Amount" });
+      else expect(refusal({ column: "Amount" }, rows)).toMatch(/^column "Amount" does not hold amounts\./);
+    });
+
+    it("refuses three distinct strays even when the rest parse", () => {
+      expect(refusal({ column: "Amount" }, amountsWith(["PENDING", "Amount", "VOID"], 20))).toMatch(
+        /^column "Amount" does not hold amounts\./,
+      );
     });
 
     it.each([

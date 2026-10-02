@@ -152,11 +152,10 @@ function previewTransformErrors(rows: Record<string, string>[], mapping: CsvMapp
 function strayAmountNotes(rows: Record<string, string>[], mapping: CsvMapping): string[] {
   const kept = rows.filter((row) => !shouldSkipRow(row, mapping.skipRules));
   return amountColumns(mapping.amount).flatMap((column) => {
-    const strays = [...new Set(columnSamples(kept, column).filter((v) => parsedCell(v) === null))].map(truncateValue);
-    if (strays.length === 0) return [];
-    const listed = strays.slice(0, DESCRIBED_VALUES).map((v) => JSON.stringify(v)).join(", ");
+    const strays = acceptedStrays(kept, column)?.map((v) => JSON.stringify(truncateValue(v)));
+    if (!strays?.length) return [];
     return [
-      `"${column}" holds amounts apart from ${listed} — keep this column; add a skipRule for rows like ${JSON.stringify(strays[0])}`,
+      `"${column}" holds amounts apart from ${strays.join(", ")} — keep this column; add a skipRule for rows like ${strays[0]}`,
     ];
   });
 }
@@ -169,7 +168,8 @@ function strayAmountNotes(rows: Record<string, string>[], mapping: CsvMapping): 
  * against samples from the resulting table. Two failures surface as a
  * `SchemaValidationError`: output that isn't valid on-schema JSON, and an
  * amount `normalizeMapping` refuses (none named, half a debit/credit pair, a
- * missing or mostly unparseable column, or one blank in every sampled row).
+ * single column named alongside debit/credit columns, a missing column, one
+ * that isn't reliably amounts, or one blank in every sampled row).
  * Either gets one corrective retry carrying the error — for a refused amount,
  * the column listing to pick from — before it surfaces.
  */
@@ -230,7 +230,7 @@ function buildMappingPrompt(
       : "";
   const errorNote =
     priorErrors && priorErrors.length > 0
-      ? `\n\nYour previous mapping produced these transform errors. Correct it: add skipRules for non-transaction rows (pending, section, subtotal or repeated header lines); don't change a column whose values parse.\n${priorErrors
+      ? `\n\nYour previous mapping produced these transform errors. Correct it: add skipRules for non-transaction rows (pending, section, subtotal or repeated header lines).\n${priorErrors
           .map((e) => `- ${e}`)
           .join("\n")}`
       : "";
@@ -344,11 +344,10 @@ function normalizeDescription(raw: unknown): ColumnRef {
 /**
  * The amount role is the one place the mapping never guesses: a wrong column
  * is a silent money error, a refusal is a correction round and then a loud
- * failure. So the model must name the column(s), and they must exist and be
- * mostly amounts in the sample — at least half the non-blank cells parse; a
- * stray `PENDING` or repeated header is left to fail its own row. Otherwise
- * the error tells the model exactly what to fix, with every column's sample
- * values to pick from.
+ * failure. So the model must name one shape — a single column or a debit/credit
+ * pair, never both — and the column(s) must exist and pass `acceptedStrays`.
+ * Otherwise the error tells the model exactly what to fix, with every column's
+ * sample values to pick from.
  */
 function normalizeAmount(
   raw: unknown,
@@ -362,6 +361,13 @@ function normalizeAmount(
   const refuse = (problem: string): never => {
     throw new SchemaValidationError(`${problem}. ${describeColumns(samples)}`);
   };
+
+  if (column && (expenseColumn || incomeColumn)) {
+    const pair = [expenseColumn, incomeColumn].filter(Boolean).map((c) => `"${c}"`).join(" and ");
+    refuse(
+      `both a single amount column ("${column}") and debit/credit columns (${pair}) were named — name one signed amount column, or both the debit and credit columns, not both`,
+    );
+  }
 
   const rows = samples.filter((row) => !shouldSkipRow(row, skipRules));
   const amount: AmountMapping | null =
@@ -384,14 +390,29 @@ function normalizeAmount(
   const headers = samples.length > 0 ? Object.keys(samples[0]) : null;
   for (const c of columns) {
     if (headers && !headers.includes(c)) refuse(`column "${c}" does not exist`);
-    const values = columnSamples(rows, c);
-    const parsed = values.filter((v) => parsedCell(v) !== null).length;
-    if (parsed * 2 < values.length) refuse(`column "${c}" does not hold amounts`);
+    if (!acceptedStrays(rows, c)) refuse(`column "${c}" does not hold amounts`);
   }
   if (rows.length > 0 && !columns.some((c) => columnSamples(rows, c).some((v) => /\d/.test(v)))) {
     refuse(`no sampled row has an amount in ${columns.map((c) => `"${c}"`).join(" or ")}`);
   }
   return amount;
+}
+
+const MAX_STRAY_VALUES = 2;
+
+/**
+ * A column holds amounts when at least 80% of its non-blank cells parse and the
+ * rest come from at most two distinct values — real strays repeat (`PENDING`,
+ * the header text, `VOID`), while a reference or memo column fails in many
+ * different ways. Returns those distinct stray values, or null when the column
+ * is refused.
+ */
+function acceptedStrays(rows: Record<string, string>[], column: string): string[] | null {
+  const values = columnSamples(rows, column);
+  const strays = values.filter((v) => parsedCell(v) === null);
+  const distinct = [...new Set(strays.map((v) => v.trim()))];
+  const mostlyParse = (values.length - strays.length) * 5 >= values.length * 4;
+  return mostlyParse && distinct.length <= MAX_STRAY_VALUES ? distinct : null;
 }
 
 const DESCRIBED_COLUMNS = 30;
