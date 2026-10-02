@@ -197,7 +197,7 @@ export type {
   AmountMapping,
   SingleAmountMapping,
   SplitAmountMapping,
-  AmountFormat,
+  DecimalMark,
   TypeDetection,
   SkipRule,
   ColumnRef,

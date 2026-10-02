@@ -124,17 +124,12 @@ function accountLabel(base: string, acctId: string | undefined, index: number): 
 }
 
 /** OFX `TRNAMT` is a signed decimal already in capy's sign convention (negative
- *  = outflow). Usually a dot decimal (`-9.99`), but the spec permits a comma
- *  decimal (`-9,99`) with no thousands grouping — route that to the european
- *  parser so it isn't read as `-999`. A dot decimal with comma thousands
- *  (`-1,234.56`) stays plain. Reuses the CSV path's parser so cents round
- *  identically. */
+ *  = outflow), with a dot or — as the spec permits — a comma decimal. Reuses
+ *  the CSV path's parser so cents round identically. */
 function amountToCents(raw: string | undefined): number | null {
   if (raw == null || raw.trim() === "") return null
-  const trimmed = raw.trim()
-  const format = /^-?\d+,\d{1,2}$/.test(trimmed) ? "european" : "plain"
   try {
-    return parseCurrencyToCents(trimmed, format, 0)
+    return parseCurrencyToCents(raw, ".", 0)
   } catch {
     return null
   }

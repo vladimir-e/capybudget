@@ -54,97 +54,203 @@ describe("single signed amount column", () => {
 
 describe("parseCurrencyToCents", () => {
   it("parses plain number", () => {
-    expect(parseCurrencyToCents("1234.56", "plain", 1)).toBe(123456);
+    expect(parseCurrencyToCents("1234.56", ".", 1)).toBe(123456);
   });
 
   it("parses currency-formatted string with symbols and commas", () => {
-    expect(parseCurrencyToCents("$1,234.56", "currency", 1)).toBe(123456);
+    expect(parseCurrencyToCents("$1,234.56", ".", 1)).toBe(123456);
   });
 
   it("parses negative with currency symbol", () => {
-    expect(parseCurrencyToCents("-$50.00", "currency", 1)).toBe(-5000);
+    expect(parseCurrencyToCents("-$50.00", ".", 1)).toBe(-5000);
   });
 
   it("parses parenthesized negative", () => {
-    expect(parseCurrencyToCents("($50.00)", "currency", 1)).toBe(-5000);
+    expect(parseCurrencyToCents("($50.00)", ".", 1)).toBe(-5000);
   });
 
   it("parses parenthesized negative without currency symbol", () => {
-    expect(parseCurrencyToCents("(50.00)", "plain", 1)).toBe(-5000);
+    expect(parseCurrencyToCents("(50.00)", ".", 1)).toBe(-5000);
   });
 
   it("parses European format", () => {
-    expect(parseCurrencyToCents("1.234,56", "european", 1)).toBe(123456);
+    expect(parseCurrencyToCents("1.234,56", ",", 1)).toBe(123456);
   });
 
   it("parses European format without thousands separator", () => {
-    expect(parseCurrencyToCents("234,56", "european", 1)).toBe(23456);
+    expect(parseCurrencyToCents("234,56", ",", 1)).toBe(23456);
   });
 
   it("returns 0 for empty string", () => {
-    expect(parseCurrencyToCents("", "plain", 1)).toBe(0);
+    expect(parseCurrencyToCents("", ".", 1)).toBe(0);
   });
 
   it("returns 0 for whitespace-only", () => {
-    expect(parseCurrencyToCents("   ", "plain", 1)).toBe(0);
+    expect(parseCurrencyToCents("   ", ".", 1)).toBe(0);
   });
 
   it("returns 0 for $0.00", () => {
-    expect(parseCurrencyToCents("$0.00", "currency", 1)).toBe(0);
+    expect(parseCurrencyToCents("$0.00", ".", 1)).toBe(0);
   });
 
   it("returns 0 for bare 0.00", () => {
-    expect(parseCurrencyToCents("0.00", "plain", 1)).toBe(0);
+    expect(parseCurrencyToCents("0.00", ".", 1)).toBe(0);
   });
 
   it("returns 0 for bare dash", () => {
-    expect(parseCurrencyToCents("-", "plain", 1)).toBe(0);
+    expect(parseCurrencyToCents("-", ".", 1)).toBe(0);
   });
 
   it("handles euro symbol", () => {
-    expect(parseCurrencyToCents("€1,234.56", "currency", 1)).toBe(123456);
+    expect(parseCurrencyToCents("€1,234.56", ".", 1)).toBe(123456);
   });
 
   it("handles pound symbol", () => {
-    expect(parseCurrencyToCents("£99.99", "currency", 1)).toBe(9999);
+    expect(parseCurrencyToCents("£99.99", ".", 1)).toBe(9999);
   });
 
   it("rounds to nearest cent", () => {
-    expect(parseCurrencyToCents("10.005", "plain", 1)).toBe(1001);
-    expect(parseCurrencyToCents("10.004", "plain", 1)).toBe(1000);
+    expect(parseCurrencyToCents("10.005", ".", 1)).toBe(1001);
+    expect(parseCurrencyToCents("10.004", ".", 1)).toBe(1000);
   });
 
   it("throws on non-numeric garbage", () => {
-    expect(() => parseCurrencyToCents("abc", "plain", 1)).toThrow('cannot parse amount "abc"');
+    expect(() => parseCurrencyToCents("abc", ".", 1)).toThrow('cannot parse amount "abc"');
   });
 
   it.each([
-    ["1 234,56", "european", 123456],
-    ["1\u00A0234,56", "european", 123456],
-    ["1\u202F234,56", "european", 123456],
-    ["1\u2009234,56", "european", 123456],
-    ["-1 500", "european", -150000],
-    ["-1 500", "plain", -150000],
-    ["1 234 567,89 ₽", "european", 123456789],
-    ["1'234.56", "plain", 123456],
-    ["1\u2019234.56", "plain", 123456],
-    ["CHF 1'234.56", "currency", 123456],
-    ["1,234.56", "currency", 123456],
-    ["1.234,56", "european", 123456],
-    ["1.234,56", "plain", 123456],
-    ["1,234.56", "european", 123456],
-    ["1.234.567", "plain", 123456700],
-    ["1,234,567", "european", 123456700],
-    ["1.234", "plain", 123],
-    ["1.234", "european", 123400],
-    ["1,234", "currency", 123400],
-    ["1,234", "european", 123],
-    ["(1 234,56)", "european", -123456],
-    ["-€1.234,56", "european", -123456],
-    ["($1,234.56)", "currency", -123456],
-    [".50", "european", 50],
-  ] as const)("%j (%s) → %i cents", (raw, format, cents) => {
-    expect(parseCurrencyToCents(raw, format, 1)).toBe(cents);
+    ["1 234,56", ",", 123456],
+    ["1\u00A0234,56", ",", 123456],
+    ["1\u202F234,56", ",", 123456],
+    ["1\u2009234,56", ",", 123456],
+    ["-1 500", ",", -150000],
+    ["-1 500", ".", -150000],
+    ["1 234 567,89 ₽", ",", 123456789],
+    ["1'234.56", ".", 123456],
+    ["1\u2019234.56", ".", 123456],
+    ["CHF 1'234.56", ".", 123456],
+    ["1,234.56", ".", 123456],
+    ["1.234,56", ",", 123456],
+    ["1.234,56", ".", 123456],
+    ["1,234.56", ",", 123456],
+    ["1.234.567", ".", 123456700],
+    ["1,234,567", ",", 123456700],
+    ["1.234", ".", 123],
+    ["1.234", ",", 123400],
+    ["1,234", ".", 123400],
+    ["1,234", ",", 123],
+    ["(1 234,56)", ",", -123456],
+    ["-€1.234,56", ",", -123456],
+    ["($1,234.56)", ".", -123456],
+    [".50", ",", 50],
+    ["1,23,456.78", ".", 12345678],
+    ["1,23,456", ".", 12345600],
+    ["1234.567", ",", 123457],
+    ["1234,567", ".", 123457],
+    ["0,500", ".", 50],
+    ["0.500", ",", 50],
+    ["12.", ",", 1200],
+    ["12,50 zł", ".", 1250],
+    ["12,50 Kč", ".", 1250],
+    ["12,50 лв", ".", 1250],
+    ["12.50 руб.", ",", 1250],
+    ["12.50 р.", ",", 1250],
+    ["12,50 kr.", ".", 1250],
+    ["zł 12,50", ".", 1250],
+    ["USD 12.50", ".", 1250],
+    ["12.50 USD", ".", 1250],
+    ["US$12.50", ".", 1250],
+    ["R$ 1.234,56", ".", 123456],
+    ["12.50*", ".", 1250],
+    ["£12.50p", ".", 1250],
+    ["+12.50", ".", 1250],
+    ["12,50-", ",", -1250],
+    ["1.234,50 €-", ",", -123450],
+    ["−12.50", ".", -1250],
+    ["12.50−", ".", -1250],
+    ["-(12.50)", ".", -1250],
+    ["12.50 DR", ".", -1250],
+    ["12.50 CR", ".", 1250],
+    ["12.50 dr", ".", -1250],
+    ["12.50 USD DR", ".", -1250],
+    ["$12.50 CR", ".", 1250],
+    ["$", ".", 0],
+    ["()", ".", 0],
+    ["($)", ".", 0],
+    ["−", ".", 0],
+  ] as const)("%j (%s) → %i cents", (raw, mark, cents) => {
+    expect(parseCurrencyToCents(raw, mark, 1)).toBe(cents);
+  });
+
+  it.each([
+    "1_000",
+    "0x10",
+    "0b11",
+    "1e3",
+    "12.50 (pending)",
+    "12.50 pending",
+    "12.3.4",
+    "1,234,5",
+    "1.234.5,6",
+    "1,2,3.45",
+    "12 50",
+    "12-15",
+    "2025-01-15",
+    "(12.50",
+    "12.50)",
+    "--12.50",
+    "-12.50-",
+    "+-12.50",
+    "-12.50 DR",
+    "(12.50) CR",
+    "12.50 CR DR",
+    "USD",
+    "CR",
+  ])("rejects %j", (raw) => {
+    expect(() => parseCurrencyToCents(raw, ".", 1)).toThrow(`cannot parse amount "${raw}"`);
+  });
+});
+
+// ── CR/DR markers ──────────────────────────────────────────────────
+
+describe("CR/DR markers set the direction under every amount convention", () => {
+  const amountOf = (mapping: Parameters<typeof baseMapping>[0], fields: Record<string, string>) => {
+    const result = transformCsv([makeRow({ Date: "2025-03-01", Description: "X", ...fields })], baseMapping(mapping));
+    expect(result.errors).toEqual([]);
+    const [txn] = result.transactions;
+    return [txn.amount, txn.type];
+  };
+
+  it.each(["negative_expense", "positive_expense"] as const)("single column, %s", (sign) => {
+    const mapping = { amount: { style: "single", column: "Amount", sign } } as const;
+    expect(amountOf(mapping, { Amount: "12.50 DR" })).toEqual([-1250, "expense"]);
+    expect(amountOf(mapping, { Amount: "12.50 CR" })).toEqual([1250, "income"]);
+  });
+
+  it("split columns: the marker wins over the column's direction", () => {
+    const mapping = { amount: { style: "split", expenseColumn: "Debit", incomeColumn: "Credit" } } as const;
+    expect(amountOf(mapping, { Debit: "12.50 DR", Credit: "" })).toEqual([-1250, "expense"]);
+    expect(amountOf(mapping, { Debit: "", Credit: "12.50 CR" })).toEqual([1250, "income"]);
+    expect(amountOf(mapping, { Debit: "12.50 CR", Credit: "" })).toEqual([1250, "income"]);
+    expect(amountOf(mapping, { Debit: "", Credit: "12.50 DR" })).toEqual([-1250, "expense"]);
+  });
+
+  it("split columns: an unmarked value counts by magnitude in its column's direction", () => {
+    const mapping = { amount: { style: "split", expenseColumn: "Debit", incomeColumn: "Credit" } } as const;
+    expect(amountOf(mapping, { Debit: "-12.50", Credit: "" })).toEqual([-1250, "expense"]);
+    expect(amountOf(mapping, { Debit: "12,50-", Credit: "" })).toEqual([-1250, "expense"]);
+  });
+});
+
+describe("unparseable amounts are skipped rows, not guesses", () => {
+  it("reports the row as an error", () => {
+    const rows = [
+      makeRow({ Date: "2025-03-01", Description: "A", Amount: "12.50 (pending)" }),
+      makeRow({ Date: "2025-03-02", Description: "B", Amount: "12,50 zł" }),
+    ];
+    const result = transformCsv(rows, baseMapping({ decimalMark: "," }));
+    expect(result.errors.map((e) => e.row)).toEqual([1]);
+    expect(result.transactions.map((t) => t.amount)).toEqual([1250]);
   });
 });
 
@@ -659,22 +765,22 @@ describe("date-with-time stripping", () => {
 
 describe("multi-character currency codes", () => {
   it("strips CHF prefix", () => {
-    expect(parseCurrencyToCents("CHF 1,234.56", "currency", 1)).toBe(123456);
+    expect(parseCurrencyToCents("CHF 1,234.56", ".", 1)).toBe(123456);
   });
 
   it("strips USD prefix", () => {
-    expect(parseCurrencyToCents("USD 50.00", "currency", 1)).toBe(5000);
+    expect(parseCurrencyToCents("USD 50.00", ".", 1)).toBe(5000);
   });
 
   it("strips trailing currency code", () => {
-    expect(parseCurrencyToCents("1234.56 USD", "currency", 1)).toBe(123456);
+    expect(parseCurrencyToCents("1234.56 USD", ".", 1)).toBe(123456);
   });
 
   it("strips EUR with european format", () => {
-    expect(parseCurrencyToCents("EUR 1.234,56", "european", 1)).toBe(123456);
+    expect(parseCurrencyToCents("EUR 1.234,56", ",", 1)).toBe(123456);
   });
 
   it("strips GBP prefix", () => {
-    expect(parseCurrencyToCents("GBP 99.99", "currency", 1)).toBe(9999);
+    expect(parseCurrencyToCents("GBP 99.99", ".", 1)).toBe(9999);
   });
 });

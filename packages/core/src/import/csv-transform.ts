@@ -13,7 +13,7 @@ import type {
   CsvMapping,
   ColumnRef,
   AmountMapping,
-  AmountFormat,
+  DecimalMark,
   TypeDetection,
   SkipRule,
 } from "./csv-mapping";
@@ -105,7 +105,7 @@ function mapRowToRecord(
       ? mapping.date.literal
       : parseDate(getColumn(row, mapping.date.column, rowNum), mapping.date.format, rowNum);
   const description = resolveColumnRef(row, mapping.description, rowNum);
-  const { amount, isExpense } = parseAmount(row, mapping.amount, mapping.amountFormat, rowNum);
+  const { amount, isExpense } = parseAmount(row, mapping.amount, mapping.decimalMark, rowNum);
   const type = detectType(row, description, isExpense, mapping.typeDetection);
   const sourceAccount = resolveSourceAccount(row, mapping.sourceAccount, rowNum);
   const sourceCategory = mapping.sourceCategory
@@ -179,148 +179,145 @@ function validateDate(isoDate: string, rawValue: string, rowNum: number): void {
 
 // ── Amount parsing ──────────────────────────────────────────────
 
-interface ParsedAmount {
-  /** Absolute amount in cents. */
-  amount: number;
-  /** Whether this looks like an expense based on the source data. */
-  isExpense: boolean;
-  /** Whether this looks like income based on the source data. */
-  isIncome: boolean;
+type Direction = "inflow" | "outflow";
+
+interface AmountCell {
+  cents: number;
+  direction: Direction | null;
 }
 
 function parseAmount(
   row: Record<string, string>,
   amountMapping: AmountMapping,
-  amountFormat: AmountFormat,
+  decimalMark: DecimalMark,
   rowNum: number,
-): ParsedAmount {
+): { amount: number; isExpense: boolean } {
+  const cell = (column: string) => parseAmountCell(getColumn(row, column, rowNum), decimalMark, rowNum);
+
   if (amountMapping.style === "single") {
-    return parseSingleAmount(row, amountMapping.column, amountMapping.sign, amountFormat, rowNum);
+    const { cents, direction } = cell(amountMapping.column);
+    const flow = direction
+      ? directed(cents, direction)
+      : amountMapping.sign === "negative_expense" ? cents : -cents;
+    return { amount: Math.abs(flow), isExpense: flow < 0 };
   }
-  return parseSplitAmount(
-    row,
-    amountMapping.expenseColumn,
-    amountMapping.incomeColumn,
-    amountFormat,
-    rowNum,
-  );
+
+  const expense = cell(amountMapping.expenseColumn);
+  const income = cell(amountMapping.incomeColumn);
+  if (expense.cents === 0 && income.cents === 0) return { amount: 0, isExpense: true };
+  const flow =
+    directed(expense.cents, expense.direction ?? "outflow") +
+    directed(income.cents, income.direction ?? "inflow");
+  return { amount: Math.abs(flow), isExpense: flow < 0 };
 }
 
-function parseSingleAmount(
-  row: Record<string, string>,
-  column: string,
-  sign: "negative_expense" | "positive_expense",
-  amountFormat: AmountFormat,
-  rowNum: number,
-): ParsedAmount {
-  const raw = getColumn(row, column, rowNum);
-  const cents = parseCurrencyToCents(raw, amountFormat.format, rowNum);
-
-  const isExpense =
-    sign === "negative_expense" ? cents < 0 : cents > 0;
-  const isIncome =
-    sign === "negative_expense" ? cents > 0 : cents < 0;
-
-  return { amount: Math.abs(cents), isExpense, isIncome };
-}
-
-function parseSplitAmount(
-  row: Record<string, string>,
-  expenseCol: string,
-  incomeCol: string,
-  amountFormat: AmountFormat,
-  rowNum: number,
-): ParsedAmount {
-  const rawExpense = getColumn(row, expenseCol, rowNum);
-  const rawIncome = getColumn(row, incomeCol, rowNum);
-
-  const expense = parseCurrencyToCents(rawExpense, amountFormat.format, rowNum);
-  const income = parseCurrencyToCents(rawIncome, amountFormat.format, rowNum);
-
-  if (expense !== 0 && income !== 0) {
-    // Both columns have values — net them
-    const net = income - expense;
-    return {
-      amount: Math.abs(net),
-      isExpense: net < 0,
-      isIncome: net >= 0,
-    };
-  }
-
-  if (expense !== 0) {
-    return { amount: Math.abs(expense), isExpense: true, isIncome: false };
-  }
-
-  if (income !== 0) {
-    return { amount: Math.abs(income), isExpense: false, isIncome: true };
-  }
-
-  // Both zero — treat as zero-amount expense (e.g. balance adjustment)
-  return { amount: 0, isExpense: true, isIncome: false };
+function directed(cents: number, direction: Direction): number {
+  return direction === "outflow" ? -Math.abs(cents) : Math.abs(cents);
 }
 
 const AMOUNT_GROUPING = /[\s'’]/g;
+const NUMERIC_CORE = /^(.*?)([.,]?\d(?:[\d.,'’\s]*\d)?)(.*)$/su;
+const AFFIX_TOKEN = /\s*(\p{L}+\.?|[\p{Sc}*.()+\-−])\s*/uy;
+const MARKERS: Record<string, Direction> = { CR: "inflow", DR: "outflow" };
+const MAX_CURRENCY_TEXT = 4;
 
 /**
  * The decimal mark a single amount proves on its own, or null when it can't.
- * Both marks present → the last one is the decimal; one mark repeated → it
- * groups, so the other is the decimal; one mark followed by exactly three
- * digits (`1.234`, `1,234`) is ambiguous.
+ * `1.234` / `1,234` are ambiguous; `1234.567` and `0.500` are not.
  */
-export function decimalMarkOf(raw: string): "." | "," | null {
-  const digits = raw.replace(AMOUNT_GROUPING, "");
-  const marks = digits.match(/[.,](?=\d)/g);
+export function decimalMarkOf(raw: string): DecimalMark | null {
+  const core = raw.replace(AMOUNT_GROUPING, "").match(/[.,]?\d[\d.,]*/)?.[0] ?? "";
+  const marks = core.match(/[.,](?=\d)/g) as DecimalMark[] | null;
   if (!marks) return null;
-  const last = marks[marks.length - 1] as "." | ",";
+  const last = marks[marks.length - 1];
   const other = last === "." ? "," : ".";
   if (marks.includes(other)) return last;
   if (marks.length > 1) return other;
-  return /\d[.,]\d{3}(?!\d)/.test(digits) ? null : last;
+  return /^[1-9]\d{0,2}[.,]\d{3}[.,]?$/.test(core) ? null : last;
 }
 
 /**
- * Parse a currency string into integer cents.
- *
- * Handles: "$1,234.56", "($50.00)", "-$50.00", "1234.56", "1.234,56" (European),
- * "1 234,56" (space / NBSP grouping), "1'234.56" (Swiss), empty strings (→ 0).
- * The value's own decimal mark wins when it proves one; an ambiguous value
- * follows the column's `format`.
+ * Parse a currency string into integer cents, signed from the user's
+ * perspective (negative = outflow). `decimalMark` applies only when the value
+ * doesn't prove its own. Throws on anything that isn't an amount.
  */
-export function parseCurrencyToCents(
-  raw: string,
-  format: "plain" | "currency" | "european",
-  rowNum: number,
-): number {
-  const trimmed = raw.trim();
-  if (trimmed === "" || trimmed === "-") return 0;
+export function parseCurrencyToCents(raw: string, decimalMark: DecimalMark, rowNum: number): number {
+  const { cents, direction } = parseAmountCell(raw, decimalMark, rowNum);
+  return direction ? directed(cents, direction) : cents;
+}
 
-  let isNegative = false;
-  let cleaned = trimmed;
-
-  if (cleaned.startsWith("(") && cleaned.endsWith(")")) {
-    isNegative = true;
-    cleaned = cleaned.slice(1, -1);
-  }
-
-  if (cleaned.startsWith("-")) {
-    isNegative = true;
-    cleaned = cleaned.slice(1);
-  }
-
-  cleaned = cleaned.replace(/[$€£¥₽₹₱₴₫₦₩₪₿]/g, "");
-  cleaned = cleaned.replace(/^[A-Z]{2,4}\s*(?=[\d(,.])/i, "").replace(/(?<=\d)\s*[A-Z]{2,4}$/i, "");
-  cleaned = cleaned.replace(AMOUNT_GROUPING, "");
-
-  const decimalMark = decimalMarkOf(cleaned) ?? (format === "european" ? "," : ".");
-  const groupMark = decimalMark === "." ? /,/g : /\./g;
-  const numeric = Number(cleaned.replace(groupMark, "").replace(decimalMark, "."));
-
-  if (cleaned === "" || !Number.isFinite(numeric)) {
+function parseAmountCell(raw: string, columnMark: DecimalMark, rowNum: number): AmountCell {
+  const fail = (): never => {
     throw new Error(`Row ${rowNum}: cannot parse amount "${raw}"`);
+  };
+  const trimmed = raw.trim();
+  const match = trimmed.match(NUMERIC_CORE);
+
+  if (!match) {
+    const tokens = affixTokens(trimmed) ?? fail();
+    return tokens.some(isWord) ? fail() : { cents: 0, direction: null };
   }
 
-  const cents = Math.round(numeric * 100);
-  return isNegative ? -cents : cents;
+  const [, prefixText, core, suffixText] = match;
+  const prefix = affixTokens(prefixText) ?? fail();
+  const suffix = affixTokens(suffixText) ?? fail();
+  const sign = readSign(prefix, suffix) ?? fail();
+  const magnitude = coreToCents(core, decimalMarkOf(core) ?? columnMark) ?? fail();
+  const cents = magnitude === 0 ? 0 : sign.negative ? -magnitude : magnitude;
+  return { cents, direction: sign.direction };
+}
+
+function affixTokens(text: string): string[] | null {
+  const tokens: string[] = [];
+  const trimmed = text.trim();
+  AFFIX_TOKEN.lastIndex = 0;
+  while (AFFIX_TOKEN.lastIndex < trimmed.length) {
+    const token = AFFIX_TOKEN.exec(trimmed);
+    if (!token) return null;
+    tokens.push(token[1]);
+  }
+  return tokens;
+}
+
+function isWord(token: string): boolean {
+  return /^\p{L}/u.test(token);
+}
+
+function readSign(
+  prefix: string[],
+  suffix: string[],
+): { negative: boolean; direction: Direction | null } | null {
+  const tokens = [...prefix, ...suffix];
+  const count = (...symbols: string[]) => tokens.filter((t) => symbols.includes(t)).length;
+  const words = tokens.filter(isWord).map((w) => w.replace(/\.$/, "").toUpperCase());
+  if (words.some((w) => w.length > MAX_CURRENCY_TEXT)) return null;
+
+  const markers = words.filter((w) => w in MARKERS);
+  const parens = prefix.includes("(") && suffix.includes(")");
+  const signs = count("-", "−", "+");
+  if (count("(") + count(")") !== (parens ? 2 : 0)) return null;
+  if (signs > 1 || markers.length > 1) return null;
+  if (markers.length === 1 && (signs > 0 || parens)) return null;
+
+  return {
+    negative: parens || count("-", "−") > 0,
+    direction: markers.length === 1 ? MARKERS[markers[0]] : null,
+  };
+}
+
+function coreToCents(core: string, decimalMark: DecimalMark): number | null {
+  const parts = core.split(decimalMark);
+  if (parts.length > 2) return null;
+  const [integer, fraction = ""] = parts;
+  if (!/^\d*$/.test(fraction)) return null;
+  if (!/^\d*$/.test(integer) && !isGrouped(integer.replace(/\D/g, ","))) return null;
+  const digits = integer.replace(/\D/g, "");
+  if (digits === "" && fraction === "") return null;
+  return Math.round(Number(`${digits || "0"}.${fraction || "0"}`) * 100);
+}
+
+function isGrouped(integer: string): boolean {
+  return /^\d{1,3}(,\d{3})+$/.test(integer) || /^\d{1,2}(,\d{2})+,\d{3}$/.test(integer);
 }
 
 // ── Type detection ──────────────────────────────────────────────

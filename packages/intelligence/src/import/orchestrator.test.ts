@@ -69,7 +69,7 @@ const MAPPING = {
   date: { column: "Date", format: "YYYY-MM-DD" },
   description: { column: "Description" },
   amount: { style: "single", column: "Amount", sign: "negative_expense" },
-  amountFormat: { format: "plain" },
+  decimalMark: ".",
   typeDetection: { method: "amount_sign" },
   sourceAccount: { literal: "Checking" },
   sourceCategory: null,

@@ -26,6 +26,7 @@ import {
   type ColumnRef,
   type CsvMapping,
   type CsvTable,
+  type DecimalMark,
   type ImportTransaction,
   type SingleAmountMapping,
   type SkipRule,
@@ -259,7 +260,7 @@ export function normalizeMapping(
     date: normalizeDate(raw.date, samples, importDate),
     description: normalizeDescription(raw.description),
     amount,
-    amountFormat: inferAmountFormat(amountSamples(samples, amount)),
+    decimalMark: inferDecimalMark(amountSamples(samples, amount)),
     typeDetection: normalizeTypeDetection(raw.typeDetection),
     sourceAccount: normalizeSourceAccount(raw.sourceAccount, filename),
     sourceCategory: toColumnRef(raw.sourceCategory),
@@ -345,7 +346,7 @@ function normalizeAmount(raw: unknown, samples: Record<string, string>[]): Amoun
 function normalizeSign(raw: unknown, samples: Record<string, string>[], column: string): SingleAmountMapping["sign"] {
   const coerced = coerceSign(typeof raw === "string" ? raw.toLowerCase() : "");
   if (coerced) return coerced;
-  const hasNegative = columnSamples(samples, column).some((v) => /^[(-]/.test(v));
+  const hasNegative = columnSamples(samples, column).some((v) => /^[(\-−]|[-−]$/.test(v.trim()));
   return hasNegative ? "negative_expense" : "positive_expense";
 }
 
@@ -482,21 +483,12 @@ function amountSamples(samples: Record<string, string>[], amount: AmountMapping)
     .filter((v) => v.trim() !== "");
 }
 
-/**
- * The column's decimal mark is a vote over the values that prove one on their
- * own (`decimalMarkOf`); a comma majority → european. Otherwise a currency
- * symbol or thousands grouping → currency, else plain. With no evidence the
- * mark defaults to a dot, so a lone `1.234` reads as 1.234 and `1,234` as 1234.
- */
-function inferAmountFormat(values: string[]): CsvMapping["amountFormat"] {
+/** A vote over the values that prove a mark; a tie or no evidence → dot. */
+function inferDecimalMark(values: string[]): DecimalMark {
   const marks = values.map(decimalMarkOf);
   const commas = marks.filter((m) => m === ",").length;
   const dots = marks.filter((m) => m === ".").length;
-  if (commas > dots) return { format: "european" };
-  if (values.some((v) => /[$€£¥₽₹₱₴₫₦₩₪₿]/.test(v) || /\d{1,3}([\s'’.,]\d{3})+/.test(v))) {
-    return { format: "currency" };
-  }
-  return { format: "plain" };
+  return commas > dots ? "," : ".";
 }
 
 /**

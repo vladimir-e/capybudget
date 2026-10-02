@@ -45,7 +45,7 @@ const MAPPING = {
   date: { column: "Date", format: "YYYY-MM-DD" },
   description: { column: "Description" },
   amount: { style: "single", column: "Amount", sign: "negative_expense" },
-  amountFormat: { format: "plain" },
+  decimalMark: ".",
   typeDetection: { method: "amount_sign" },
   sourceAccount: { literal: "Checking" },
   sourceCategory: null,
@@ -102,7 +102,7 @@ describe("normalizeCsv", () => {
   });
 
   it("completes omitted metadata from the data and transforms without a retry", async () => {
-    // The model returns only the column roles — no amountFormat, typeDetection,
+    // The model returns only the column roles — no typeDetection,
     // sourceAccount, or date.format. normalizeMapping infers them; no re-call.
     const csv = "Date,Description,Amount\n2026-01-05,COFFEE,-4.50\n2026-01-06,SALARY,2000.00";
     const rolesOnly = {
@@ -116,7 +116,7 @@ describe("normalizeCsv", () => {
 
     expect(session.calls).toHaveLength(1); // no retry — metadata is inferred, not demanded
     expect(mapping.date).toMatchObject({ column: "Date", format: "YYYY-MM-DD" });
-    expect(mapping.amountFormat.format).toBe("plain");
+    expect(mapping.decimalMark).toBe(".");
     expect(mapping.typeDetection).toEqual({ method: "amount_sign" });
     expect(mapping.sourceAccount).toEqual({ literal: "checking" });
     expect(mapping.sourceCategory).toBeNull();
@@ -124,9 +124,7 @@ describe("normalizeCsv", () => {
     expect(rows[1]).toMatchObject({ amount: 200000, type: "income" });
   });
 
-  it("succeeds when the model phrases amountFormat outside our vocabulary", async () => {
-    // The reported third failure: amountFormat returned off-enum. It's advisory
-    // now — code infers the format from the data and ignores the model's value.
+  it("ignores an amount format the model volunteers", async () => {
     const csv = "Date,Description,Amount\n2026-01-05,COFFEE,-4.50";
     const offEnum = { ...MAPPING, amountFormat: { format: "usd" } };
     const session = new MockStructuredSession([() => offEnum]);
@@ -134,7 +132,7 @@ describe("normalizeCsv", () => {
     const { rows, mapping } = await normalizeCsv(session, { name: "f.csv", content: csv });
 
     expect(session.calls).toHaveLength(1); // no rejection, no retry
-    expect(mapping.amountFormat.format).toBe("plain"); // inferred from the data
+    expect(mapping.decimalMark).toBe(".");
     expect(rows).toHaveLength(1);
   });
 
@@ -487,7 +485,7 @@ describe("normalizeMapping", () => {
   it("fills every omitted metadata field, defaulting sourceCategory to null", () => {
     const m = normalizeMapping(ROLES, sampleWith({ Date: "2026-01-05", Amount: "-4.50" }), "wells-fargo_2026.csv", IMPORT_DATE);
     expect(columnDate(m.date).format).toBe("YYYY-MM-DD");
-    expect(m.amountFormat.format).toBe("plain");
+    expect(m.decimalMark).toBe(".");
     expect(m.typeDetection).toEqual({ method: "amount_sign" });
     expect(m.sourceAccount).toEqual({ literal: "wells fargo 2026" });
     expect(m.sourceCategory).toBeNull();
@@ -615,37 +613,40 @@ describe("normalizeMapping", () => {
     });
     it("infers from the data only when the model gave no usable sign", () => {
       expect(sign(undefined, "-4.50")).toBe("negative_expense"); // negatives present
+      expect(sign(undefined, "4,50-")).toBe("negative_expense");
       expect(sign("???", "2.99")).toBe("positive_expense"); // unparseable → data: all-positive
     });
   });
 
-  describe("amountFormat inference", () => {
-    const fmt = (amount: string) => normalizeMapping(ROLES, sampleWith({ Amount: amount }), "f.csv", IMPORT_DATE).amountFormat.format;
-    it("currency for a symbol or thousands grouping", () => {
-      expect(fmt("$1,234.56")).toBe("currency");
-      expect(fmt("1,234.56")).toBe("currency");
-      expect(fmt("($50.00)")).toBe("currency");
+  describe("decimalMark inference", () => {
+    const mark = (...amounts: string[]) =>
+      normalizeMapping(ROLES, amounts.map((Amount) => ({ Date: "2026-01-01", Description: "X", Amount })), "f.csv", IMPORT_DATE).decimalMark;
+    it("comma for values that prove a comma decimal", () => {
+      expect(mark("1.234,56")).toBe(",");
+      expect(mark("1234,56")).toBe(",");
+      expect(mark("1 234,56")).toBe(",");
+      expect(mark("1\u00A0234,56")).toBe(",");
+      expect(mark("1\u202F234,56")).toBe(",");
+      expect(mark("12,50 zł")).toBe(",");
     });
-    it("european for a comma decimal", () => {
-      expect(fmt("1.234,56")).toBe("european");
-      expect(fmt("1234,56")).toBe("european");
+    it("dot for values that prove a dot decimal", () => {
+      expect(mark("$1,234.56")).toBe(".");
+      expect(mark("($50.00)")).toBe(".");
+      expect(mark("-4.50")).toBe(".");
+      expect(mark("1'234.56")).toBe(".");
     });
-    it("plain otherwise", () => {
-      expect(fmt("-4.50")).toBe("plain");
-      expect(fmt("1234.56")).toBe("plain");
+    it("the majority wins in a mixed column", () => {
+      expect(mark("1,50", "2,75", "3.10")).toBe(",");
+      expect(mark("1.50", "2.75", "3,10")).toBe(".");
     });
-    it("european for space, NBSP, and narrow-NBSP grouping with a comma decimal", () => {
-      expect(fmt("1 234,56")).toBe("european");
-      expect(fmt("1\u00A0234,56")).toBe("european");
-      expect(fmt("1\u202F234,56")).toBe("european");
-    });
-    it("currency for apostrophe grouping", () => {
-      expect(fmt("1'234.56")).toBe("currency");
+    it("a tie with evidence on both sides falls back to a dot", () => {
+      expect(mark("1,50", "3.10")).toBe(".");
+      expect(mark("1,50", "1.234", "3.10")).toBe(".");
     });
 
     const column = (...amounts: string[]) => {
       const m = normalizeMapping(ROLES, amounts.map((Amount) => ({ Date: "2026-01-01", Description: "X", Amount })), "f.csv", IMPORT_DATE);
-      return (raw: string) => parseCurrencyToCents(raw, m.amountFormat.format, 1);
+      return (raw: string) => parseCurrencyToCents(raw, m.decimalMark, 1);
     };
     it("reads an ambiguous 1.234 from the column's other values", () => {
       expect(column("1.234", "5,50")("1.234")).toBe(123400);

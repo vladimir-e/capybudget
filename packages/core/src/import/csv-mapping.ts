@@ -32,17 +32,7 @@ export interface SplitAmountMapping {
 
 export type AmountMapping = SingleAmountMapping | SplitAmountMapping;
 
-// ── Amount format ───────────────────────────────────────────────
-
-export interface AmountFormat {
-  /**
-   * How amounts are formatted in the source:
-   * - "plain":    1234.56 or -1234.56
-   * - "currency": $1,234.56 or ($1,234.56) or -$1,234.56 or 1'234.56
-   * - "european": 1.234,56 or 1 234,56 (comma as decimal)
-   */
-  format: "plain" | "currency" | "european";
-}
+export type DecimalMark = "." | ",";
 
 // ── Type detection ──────────────────────────────────────────────
 
@@ -117,8 +107,8 @@ export interface CsvMapping {
   /** How amounts are structured in the source. */
   amount: AmountMapping;
 
-  /** How amounts are formatted (currency symbols, separators). */
-  amountFormat: AmountFormat;
+  /** The column's decimal mark, applied to values that don't prove their own. */
+  decimalMark: DecimalMark;
 
   /** How to determine expense/income/transfer. */
   typeDetection: TypeDetection;
