@@ -421,22 +421,37 @@ function looksLikeDate(value: string): boolean {
   return /^\d{4}[-/]\d{2}[-/]\d{2}$/.test(v) || /^\d{1,2}[./-]\d{1,2}[./-]\d{4}$/.test(v);
 }
 
+const BALANCE_HEADERS = ["balance", "available", "saldo", "solde", "остаток", "баланс", "kontostand", "残高", "余额"];
+const AMOUNT_HEADERS = ["amount", "sum", "сумма", "betrag", "montant", "importe", "valor", "金額", "金额"];
+
+function headerMentions(header: string, terms: string[]): boolean {
+  const h = header.normalize("NFC").toLowerCase();
+  return terms.some((term) => h.includes(term));
+}
+
 /**
- * A column whose values read as money — preferring one with a clear monetary
- * signal (sign, cents, currency text, or direction marker) over a bare-integer column that might
- * be an id. Date columns are excluded so a dotted European date isn't mistaken
- * for a number.
+ * A column whose values read as money, ranked by an amount-like header, then a
+ * clear monetary signal (sign, cents, currency text, or direction marker) over
+ * a bare-integer column that might be an id. Date columns are excluded so a
+ * dotted European date isn't mistaken for a number, and running-balance
+ * columns are never picked: importing balances as transactions is worse than
+ * asking.
  */
 function detectAmountColumn(samples: Record<string, string>[]): string | undefined {
   if (samples.length === 0) return undefined;
-  const headers = Object.keys(samples[0]);
-  const isNumeric = (header: string): boolean => {
+  const candidates = Object.keys(samples[0]).filter((header) => {
     const values = columnSamples(samples, header);
-    return values.length > 0 && values.every((v) => looksLikeAmount(v) && !looksLikeDate(v));
-  };
-  return (
-    headers.find((h) => isNumeric(h) && columnSamples(samples, h).some(hasMoneySignal)) ??
-    headers.find(isNumeric)
+    return (
+      !headerMentions(header, BALANCE_HEADERS) &&
+      values.length > 0 &&
+      values.every((v) => looksLikeAmount(v) && !looksLikeDate(v))
+    );
+  });
+  const rank = (header: string): number =>
+    (headerMentions(header, AMOUNT_HEADERS) ? 2 : 0) + (columnSamples(samples, header).some(hasMoneySignal) ? 1 : 0);
+  return candidates.reduce<string | undefined>(
+    (best, header) => (best === undefined || rank(header) > rank(best) ? header : best),
+    undefined,
   );
 }
 

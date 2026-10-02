@@ -580,6 +580,48 @@ describe("normalizeMapping", () => {
     expect(m.amount).toMatchObject({ style: "single", column: "Amount" });
   });
 
+  it("never auto-detects a running balance listed before the amount", () => {
+    const m = normalizeMapping(
+      { date: { column: "Date" }, description: { column: "Memo" } },
+      [
+        { Date: "2026-01-05", Memo: "X", Balance: "1,234.56", Amount: "-12.50" },
+        { Date: "2026-01-06", Memo: "Y", Balance: "2,234.56", Amount: "1,000.00" },
+      ],
+      "f.csv",
+      IMPORT_DATE,
+    );
+    expect(m.amount).toMatchObject({ style: "single", column: "Amount" });
+  });
+
+  it("refuses when only balance-like columns read as money", () => {
+    expect(() =>
+      normalizeMapping(
+        { date: { column: "Date" }, description: { column: "Memo" } },
+        [{ Date: "2026-01-05", Memo: "X", "Running Balance": "1,234.56", "Available": "1,200.00" }],
+        "f.csv",
+        IMPORT_DATE,
+      ),
+    ).toThrow(SchemaValidationError);
+  });
+
+  it.each([
+    ["Saldo", "Importe"],
+    ["Solde", "Montant"],
+    ["Остаток", "Сумма"],
+    ["Kontostand", "Betrag"],
+    ["Saldo disponível", "Valor"],
+    ["残高", "金額"],
+    ["余额", "金额"],
+  ])("prefers the localized amount column over %s", (balance, amount) => {
+    const m = normalizeMapping(
+      { date: { column: "Date" }, description: { column: "Memo" } },
+      [{ Date: "2026-01-05", Memo: "X", Ref: "-1", [balance]: "1234,56", [amount]: "12,50" }],
+      "f.csv",
+      IMPORT_DATE,
+    );
+    expect(m.amount).toMatchObject({ style: "single", column: amount });
+  });
+
   it("auto-detects an amount column of suffixed local currency text", () => {
     const m = normalizeMapping(
       { date: { column: "Date" }, description: { column: "Memo" } },
