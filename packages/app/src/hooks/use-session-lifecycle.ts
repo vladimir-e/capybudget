@@ -68,8 +68,7 @@ export interface UseSessionLifecycleReturn<TOpts extends SessionLifecycleOptions
  * @param onExit          Called only by the Claude-CLI adapter when its subprocess dies
  *                        unexpectedly (kill()/stop()/restart() suppress it), with the
  *                        process's last stderr lines when it wrote any and the session
- *                        it belonged to. A send queued on that session keeps streaming:
- *                        it runs next on a fresh process. API adapters
+ *                        it belonged to. API adapters
  *                        have no process to die so they never invoke this. Use it for
  *                        recovery UX (e.g. appending a "session ended" message).
  *                        Kept fresh via ref like onStreamEvent.
@@ -112,7 +111,7 @@ export function useSessionLifecycle<TOpts extends SessionLifecycleOptions>(
 
   const handleExit = useCallback((reason?: string) => {
     console.debug(`[${label}-session] process exited`, reason ?? "");
-    if (!sessionRef.current?.hasQueuedSend) setIsStreaming(false);
+    setIsStreaming(false);
     onExitRef.current?.(reason, sessionRef.current);
   }, [label, setIsStreaming]);
 

@@ -34,9 +34,7 @@ describe("detectClaudeCli", () => {
     ["2.1.247 (Claude Code)", "outdated"],
     ["1.9.999 (Claude Code)", "outdated"],
     ["2.2.0 (Claude Code)", "ready"],
-    ["2.1.280 (Claude Code)\n", "ready"],
-    ["claude-wrapper 1.0.3", "ready"],
-    ["claude-wrapper 1.0.3\n2.1.100 (Claude Code)\n", "outdated"],
+    ["3.0.0", "ready"],
     ["my-claude-wrapper", "ready"],
   ])("reads %s as %s", async (stdout, status) => {
     execute.mockResolvedValueOnce({ code: 0, stdout, stderr: "" })

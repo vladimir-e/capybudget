@@ -987,45 +987,6 @@ describe("useCapySession error copy", () => {
     expect(markInterrupted).toHaveBeenCalledWith(before)
   })
 
-  it("keeps a send queued behind the crashed process out of its recovery context and keeps it streaming", () => {
-    useIntelligenceStore.setState({
-      hydrated: true,
-      config: { ...DEFAULT_INTELLIGENCE_CONFIG, provider: "claude-cli" },
-    })
-    const { result } = renderHook(() => useCapySession(baseOpts))
-    act(() => {
-      result.current.sendMessage("first")
-    })
-    const fake = createdSessions[0]
-    act(() => {
-      fake.emit({ type: "done" })
-    })
-    const answered = result.current.messages
-    act(() => {
-      result.current.sendMessage("second")
-    })
-    const queued = result.current.messages.slice(answered.length)
-    const markInterrupted = vi.fn()
-    fake.session.markInterrupted = markInterrupted
-    ;(fake.session as { hasQueuedSend?: boolean }).hasQueuedSend = true
-    act(() => {
-      fake.exit()
-    })
-
-    expect(markInterrupted).toHaveBeenCalledWith(answered)
-    expect(result.current.isStreaming).toBe(true)
-    expect(result.current.messages.slice(answered.length + 1)).toEqual(queued)
-    expect(result.current.messages[answered.length].blocks[0]).toMatchObject({ type: "text", content: expect.stringMatching(/ended unexpectedly/) })
-
-    ;(fake.session as { hasQueuedSend?: boolean }).hasQueuedSend = false
-    act(() => {
-      fake.emit({ type: "content", blocks: [{ type: "text", content: "fresh answer" }] })
-      fake.emit({ type: "done" })
-    })
-    expect(result.current.isStreaming).toBe(false)
-    expect(result.current.messages.at(-1)).toEqual({ ...queued[1], blocks: [{ type: "text", content: "fresh answer" }] })
-  })
-
   it("shows the process's last words when it exits unexpectedly", () => {
     useIntelligenceStore.setState({
       hydrated: true,

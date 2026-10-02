@@ -203,28 +203,26 @@ export function useCapySession(opts: UseCapySessionOptions): UseCapySessionRetur
     "capy",
     // onExit — process crashed unexpectedly, append recovery message
     (reason, session) => {
-      const queuedIds = session?.hasQueuedSend === true ? turnRef.current.bubbleIds : []
-      session?.markInterrupted?.(messagesRef.current.filter((m) => !queuedIds.includes(m.id)))
-      if (queuedIds.length === 0) endTurn()
+      session?.markInterrupted?.(messagesRef.current)
+      endTurn()
       snapshotSentRef.current = false
       hadMutationsRef.current = false
       ackedToolCallsRef.current = new Set()
-      const notice: ChatMessage = {
-        id: crypto.randomUUID(),
-        role: "assistant",
-        blocks: [
-          {
-            type: "text",
-            content: reason
-              ? tRef.current("session.endedUnexpectedlyWithReason", { reason })
-              : tRef.current("session.endedUnexpectedly"),
-          },
-        ],
-      }
-      setMessages((prev) => {
-        const queuedAt = prev.findIndex((m) => queuedIds.includes(m.id))
-        return queuedAt === -1 ? [...prev, notice] : [...prev.slice(0, queuedAt), notice, ...prev.slice(queuedAt)]
-      })
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: crypto.randomUUID(),
+          role: "assistant",
+          blocks: [
+            {
+              type: "text",
+              content: reason
+                ? tRef.current("session.endedUnexpectedlyWithReason", { reason })
+                : tRef.current("session.endedUnexpectedly"),
+            },
+          ],
+        },
+      ])
     },
   )
 

@@ -36,7 +36,7 @@ export function parseStreamLine(line: string): CliEvent[] {
       return [{ type: "result", event: parseResult(event) }]
     case "error": {
       const message = (event.error as { message?: unknown } | undefined)?.message
-      return [{ type: "end", event: failureEvent(typeof message === "string" ? message : "") }]
+      return [{ type: "result", event: failureEvent(typeof message === "string" ? message : "") }]
     }
     default:
       return []

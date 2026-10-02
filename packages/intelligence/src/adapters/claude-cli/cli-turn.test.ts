@@ -164,14 +164,10 @@ describe("CliTurn", () => {
       expect(events).toHaveLength(2)
     })
 
-    it("shows a top-level error line at once and swallows the result line after it", () => {
+    it("completes on a top-level error line", () => {
       const { events, turn } = play([JSON.stringify({ type: "error", error: { message: "Overloaded" } })])
-      expect(events).toEqual([{ type: "error", message: "Overloaded" }])
-      expect(turn.hasEnded).toBe(true)
-      expect(turn.isComplete).toBe(false)
-      turn.feed(DONE)
       expect(turn.isComplete).toBe(true)
-      expect(events).toHaveLength(1)
+      expect(events).toEqual([{ type: "error", message: "Overloaded" }])
     })
 
     it("ends a cut-off reply with the shared cutOff error, keeping what streamed", () => {

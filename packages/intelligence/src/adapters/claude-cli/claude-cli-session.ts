@@ -14,7 +14,7 @@ export interface ClaudeCliProcess {
 export interface ClaudeCliProcessEvents {
   line(line: string): void
   stderr(line: string): void
-  exit(code: number | null): void
+  exit(): void
 }
 
 export interface ClaudeCliSpawnOptions {
@@ -29,8 +29,6 @@ export interface ClaudeCliHost {
 
 const RECOVERY_CONTEXT_MAX_CHARS = 5000
 const EXIT_REASON_LINES = 3
-const RESULT_GRACE_MS = 30_000
-const HARMLESS_STDERR = [/claude\.ai connectors are disabled/, /DeprecationWarning/, /--trace-deprecation/]
 const MCP_SERVER_NAME = "capy"
 
 export class ClaudeCliSession implements CapySession {
@@ -44,7 +42,6 @@ export class ClaudeCliSession implements CapySession {
   private turn: { cli: CliTurn; end: () => void } | null = null
   private interruptedMessages: readonly ChatMessage[] | null = null
   private stderrTail: string[] = []
-  private resultWatchdog: ReturnType<typeof setTimeout> | null = null
 
   constructor(
     private readonly opts: ClaudeCliAdapterOptions,
@@ -119,7 +116,7 @@ export class ClaudeCliSession implements CapySession {
       stderr: (line) => {
         if (generation === this.generation) this.noteStderr(line)
       },
-      exit: (code) => this.exited(generation, code),
+      exit: () => this.exited(generation),
     })
     if (generation !== this.generation) {
       await child.kill().catch(() => undefined)
@@ -135,8 +132,9 @@ export class ClaudeCliSession implements CapySession {
     const mcpConfig = {
       mcpServers: {
         [MCP_SERVER_NAME]: {
-          command: `${root}/node_modules/.bin/tsx`,
-          args: [`${root}/${mcpServerPath}`],
+          command: "npx",
+          args: ["tsx", `${root}/${mcpServerPath}`],
+          cwd: root,
           env: { BUDGET_PATH: budgetPath },
         },
       },
@@ -165,30 +163,19 @@ export class ClaudeCliSession implements CapySession {
     if (!turn) return
     turn.cli.feed(line)
     if (turn.cli.isComplete) this.finishTurn()
-    else if (turn.cli.hasEnded) this.awaitResult()
   }
 
-  private awaitResult(): void {
-    if (this.resultWatchdog) return
-    this.resultWatchdog = setTimeout(() => {
-      this.resultWatchdog = null
-      const child = this.child
-      this.exited(this.generation, null)
-      void child?.kill().catch(() => undefined)
-    }, RESULT_GRACE_MS)
-  }
-
-  private exited(generation: number, code: number | null): void {
+  private exited(generation: number): void {
     if (generation !== this.generation) return
     this.generation++
     this.child = null
     this.finishTurn()
-    this.opts.onExit?.(code === 0 ? undefined : this.stderrTail.join("\n") || undefined)
+    this.opts.onExit?.(this.stderrTail.join("\n") || undefined)
   }
 
   private noteStderr(line: string): void {
     const trimmed = line.trim()
-    if (trimmed && !HARMLESS_STDERR.some((pattern) => pattern.test(trimmed))) this.stderrTail = [...this.stderrTail, trimmed].slice(-EXIT_REASON_LINES)
+    if (trimmed) this.stderrTail = [...this.stderrTail, trimmed].slice(-EXIT_REASON_LINES)
   }
 
   private async endProcess(): Promise<void> {
@@ -200,8 +187,6 @@ export class ClaudeCliSession implements CapySession {
   }
 
   private finishTurn(): void {
-    if (this.resultWatchdog) clearTimeout(this.resultWatchdog)
-    this.resultWatchdog = null
     const turn = this.turn
     this.turn = null
     turn?.end()
