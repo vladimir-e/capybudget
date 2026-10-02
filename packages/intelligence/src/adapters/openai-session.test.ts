@@ -28,6 +28,7 @@ interface FakeTurn {
   failureCode?: string
   /** Ends the stream with an `error` event carrying this message. */
   errorEvent?: string
+  errorEventCode?: string
   /** Fails the stream with this error after its content events. */
   failAfter?: Error
   /** A text delta queued after the terminal event — must never be observed. */
@@ -126,7 +127,7 @@ const { mockCreate, queueTurn, queueStructured, lastCreateCall, allCreateCalls, 
       if (turn.failure) {
         events.push({ type: "response.failed", response: { ...response("failed", output), error: { code: turn.failureCode ?? "server_error", message: turn.failure } } })
       } else if (turn.errorEvent) {
-        events.push({ type: "error", code: null, message: turn.errorEvent, param: null })
+        events.push({ type: "error", code: turn.errorEventCode ?? null, message: turn.errorEvent, param: null })
       } else if (turn.status) {
         events.push({ type: `response.${turn.status}`, response: response(turn.status, output, turn.incompleteReason) })
       }
@@ -1498,6 +1499,24 @@ describe("OpenAiSession failures", () => {
       expect(lastCreateCall().input).toEqual([{ role: "user", content: "hello" }])
     },
   )
+
+  it("rolls back a send whose stream ends with a content-coded error event", async () => {
+    queueTurn({ status: null, errorEvent: "Invalid image.", errorEventCode: "invalid_image" })
+
+    const { session, events } = makeSession()
+    await session.send("what's on this receipt?")
+    expect(events.at(-1)).toEqual({ type: "error", message: "Invalid image.", provider: "openai", rolledBack: true })
+    expect(history(session)).toEqual([])
+  })
+
+  it("reports a stream that ends with a rate_limit_exceeded error event as rateLimited, keeping the question", async () => {
+    queueTurn({ status: null, errorEvent: "Rate limit reached.", errorEventCode: "rate_limit_exceeded" })
+
+    const { session, events } = makeSession()
+    await session.send("hi")
+    expect(events.at(-1)).toEqual({ type: "error", message: "Rate limit reached.", provider: "openai", code: "rateLimited" })
+    expect(history(session)).toEqual([{ role: "user", content: "hi" }])
+  })
 
   it.each(["server_error", "vector_store_timeout"])(
     "keeps the question in history after a response fails mid-stream with %s",
