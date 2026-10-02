@@ -203,6 +203,8 @@ export function useCapySession(opts: UseCapySessionOptions): UseCapySessionRetur
     "capy",
     // onExit — process crashed unexpectedly, append recovery message
     () => {
+      endTurn()
+      snapshotSentRef.current = false
       hadMutationsRef.current = false
       ackedToolCallsRef.current = new Set()
       setMessages((prev) => [

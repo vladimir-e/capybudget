@@ -31,12 +31,13 @@ interface FakeSession {
   sendSpy: ReturnType<typeof vi.fn>
   stopSpy: ReturnType<typeof vi.fn>
   emit: (event: StreamEvent) => void
+  exit: () => void
 }
 
 const { createdSessions, createSessionMock } = vi.hoisted(() => {
   const list: FakeSession[] = []
   const mock = vi.fn(
-    (opts: { onEvent: (event: StreamEvent) => void }): CapySession => {
+    (opts: { onEvent: (event: StreamEvent) => void; onExit?: () => void }): CapySession => {
       const killSpy = vi.fn(async () => {})
       const sendSpy = vi.fn(async () => {})
       const stopSpy = vi.fn(async () => {})
@@ -48,7 +49,7 @@ const { createdSessions, createSessionMock } = vi.hoisted(() => {
         restart: restartSpy,
         kill: killSpy,
       }
-      list.push({ session, killSpy, sendSpy, stopSpy, emit: opts.onEvent })
+      list.push({ session, killSpy, sendSpy, stopSpy, emit: opts.onEvent, exit: () => opts.onExit?.() })
       return session
     },
   )
@@ -499,7 +500,7 @@ describe("useCapySession live cache invalidation", () => {
     act(() => {
       emit({
         type: "content",
-        blocks: [{ type: "tool-activity", tool: "create_transaction" }],
+        blocks: [{ type: "tool-activity", tool: "create_transaction", status: "running" }],
       })
     })
     expect(onDataChanged).not.toHaveBeenCalled()
@@ -517,7 +518,7 @@ describe("useCapySession live cache invalidation", () => {
     act(() => {
       emit({
         type: "content",
-        blocks: [{ type: "tool-activity", tool: "list_transactions" }],
+        blocks: [{ type: "tool-activity", tool: "list_transactions", status: "running" }],
       })
       emit({ type: "tool-result", tool: "list_transactions", id: "tu_1", ok: true })
     })
@@ -563,7 +564,7 @@ describe("useCapySession live cache invalidation", () => {
     act(() => {
       emit({
         type: "content",
-        blocks: [{ type: "tool-activity", tool: "create_transaction" }],
+        blocks: [{ type: "tool-activity", tool: "create_transaction", status: "running" }],
       })
       emit({ type: "done" })
     })
@@ -576,7 +577,7 @@ describe("useCapySession live cache invalidation", () => {
     act(() => {
       emit({
         type: "content",
-        blocks: [{ type: "tool-activity", tool: "create_transaction" }],
+        blocks: [{ type: "tool-activity", tool: "create_transaction", status: "running" }],
       })
       emit({ type: "tool-result", tool: "create_transaction", id: "tu_1", ok: true })
       emit({ type: "done" })
@@ -886,6 +887,7 @@ describe("useCapySession error copy", () => {
         sendSpy: vi.fn(),
         stopSpy: vi.fn(),
         emit: opts.onEvent,
+        exit: () => opts.onExit?.(),
       })
       return session
     })
@@ -944,6 +946,29 @@ describe("useCapySession error copy", () => {
     expect(getBudgetSnapshot).toHaveBeenCalledTimes(reads)
   })
 
+  it("ends the turn on a crash and hands the budget snapshot to the respawned process", () => {
+    useIntelligenceStore.setState({
+      hydrated: true,
+      config: { ...DEFAULT_INTELLIGENCE_CONFIG, provider: "claude-cli" },
+    })
+    const getBudgetSnapshot = vi.fn(() => undefined)
+    const { result } = renderHook(() => useCapySession({ ...baseOpts, getBudgetSnapshot }))
+    act(() => {
+      result.current.sendMessage("hi")
+    })
+    act(() => {
+      createdSessions[0].exit()
+    })
+    expect(result.current.isStreaming).toBe(false)
+    expect(result.current.messages.at(-1)?.blocks[0]).toMatchObject({ type: "text", content: expect.stringMatching(/ended unexpectedly/) })
+
+    act(() => {
+      result.current.sendMessage("again")
+    })
+    expect(createdSessions[0].sendSpy).toHaveBeenCalledTimes(2)
+    expect(getBudgetSnapshot).toHaveBeenCalledTimes(2)
+  })
+
   it("refreshes data when a mutation lands after New Chat killed its turn", () => {
     const { result, onDataChanged, fake } = setup()
     act(() => {
@@ -999,7 +1024,7 @@ describe("useCapySession events from a replaced session", () => {
     expect(onDataChanged).toHaveBeenCalledTimes(1)
 
     act(() => {
-      fresh.emit({ type: "content", blocks: [{ type: "tool-activity", tool: "create_transaction" }] })
+      fresh.emit({ type: "content", blocks: [{ type: "tool-activity", tool: "create_transaction", status: "running" }] })
       fresh.emit({ type: "done" })
     })
     expect(onDataChanged).toHaveBeenCalledTimes(2)
