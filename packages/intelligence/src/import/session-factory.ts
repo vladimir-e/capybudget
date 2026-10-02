@@ -67,19 +67,26 @@ const OLLAMA_PROBE_TIMEOUT_MS = 5000;
  *  unreachable or stalled server, an aborted run) — the caller warns rather
  *  than guesses. */
 export async function ollamaReadsImages(baseUrl: string, model: string, signal?: AbortSignal): Promise<boolean | null> {
+  const controller = new AbortController();
+  const abort = () => controller.abort();
+  const timer = setTimeout(abort, OLLAMA_PROBE_TIMEOUT_MS);
+  if (signal?.aborted) abort();
+  signal?.addEventListener("abort", abort, { once: true });
   try {
-    const timeout = AbortSignal.timeout(OLLAMA_PROBE_TIMEOUT_MS);
     const response = await fetch(`${ollamaOrigin(baseUrl)}/api/show`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ model }),
-      signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
+      signal: controller.signal,
     });
     if (!response.ok) return null;
     const { capabilities } = (await response.json()) as { capabilities?: unknown };
     return Array.isArray(capabilities) ? capabilities.includes("vision") : null;
   } catch {
     return null;
+  } finally {
+    clearTimeout(timer);
+    signal?.removeEventListener("abort", abort);
   }
 }
 

@@ -89,21 +89,17 @@ describe("ollamaReadsImages", () => {
   });
 
   it("gives up as unknown when the server stalls past the timeout", async () => {
-    vi.useFakeTimers({ toFake: ["setTimeout"] });
-    const timeout = vi.spyOn(AbortSignal, "timeout").mockImplementation((ms) => {
-      const controller = new AbortController();
-      setTimeout(() => controller.abort(new DOMException("timed out", "TimeoutError")), ms);
-      return controller.signal;
-    });
+    vi.useFakeTimers();
     vi.stubGlobal("fetch", stalledServer());
     try {
       const probe = ollamaReadsImages("http://box:11434/v1", "llava", new AbortController().signal);
-      await vi.advanceTimersByTimeAsync(5000);
+      await vi.advanceTimersByTimeAsync(4999);
+      expect(vi.getTimerCount()).toBe(1);
+      await vi.advanceTimersByTimeAsync(1);
       await expect(probe).resolves.toBeNull();
-      expect(timeout).toHaveBeenCalledWith(5000);
+      expect(vi.getTimerCount()).toBe(0);
     } finally {
       vi.unstubAllGlobals();
-      timeout.mockRestore();
       vi.useRealTimers();
     }
   });

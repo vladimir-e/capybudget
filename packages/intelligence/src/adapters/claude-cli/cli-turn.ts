@@ -9,6 +9,7 @@ export class CliTurn {
   private openText: string | null = null
   private followupsShown = false
   private ended = false
+  private failed = false
   private complete = false
 
   constructor(private readonly emit: (event: StreamEvent) => void) {
@@ -21,6 +22,10 @@ export class CliTurn {
 
   get hasEnded(): boolean {
     return this.ended
+  }
+
+  get hasFailed(): boolean {
+    return this.failed
   }
 
   feed(line: string): void {
@@ -60,6 +65,7 @@ export class CliTurn {
   private end(event: StreamEvent): void {
     if (this.ended) return
     this.ended = true
+    this.failed = event.type === "error"
     this.display.settle()
     this.emit(event)
   }

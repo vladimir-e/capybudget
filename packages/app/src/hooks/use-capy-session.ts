@@ -201,14 +201,16 @@ export function useCapySession(opts: UseCapySessionOptions): UseCapySessionRetur
       }
     },
     "capy",
-    // onExit — process crashed unexpectedly, append recovery message
-    (reason, session) => {
+    // onExit — the process died: carry the conversation into the next send, and
+    // say so unless the turn already showed the fault as an error
+    (reason, reported, session) => {
       const queuedIds = session?.hasQueuedSend === true ? turnRef.current.bubbleIds : []
       session?.markInterrupted?.(messagesRef.current.filter((m) => !queuedIds.includes(m.id)))
       if (queuedIds.length === 0) endTurn()
       snapshotSentRef.current = false
       hadMutationsRef.current = false
       ackedToolCallsRef.current = new Set()
+      if (reported) return
       const notice: ChatMessage = {
         id: crypto.randomUUID(),
         role: "assistant",

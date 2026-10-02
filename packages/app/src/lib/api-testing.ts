@@ -13,12 +13,10 @@ import {
   extractErrorMessage,
 } from "@capybudget/intelligence"
 
-export interface PingResult {
-  ok: boolean
-  message: string
-}
+export type PingResult = { ok: true } | { ok: false; message: string } | { ok: false; unreachable: true }
+type ApiPingResult = Exclude<PingResult, { unreachable: true }>
 
-function failed(err: unknown): PingResult {
+function failed(err: unknown): ApiPingResult {
   return { ok: false, message: extractErrorMessage(err).message || "Connection failed" }
 }
 
@@ -26,7 +24,7 @@ export async function pingApi(
   provider: "anthropic" | "openai",
   apiKey: string,
   model: string,
-): Promise<PingResult> {
+): Promise<ApiPingResult> {
   if (provider === "anthropic") return pingAnthropic(apiKey, model)
   return pingOpenAi(apiKey, model)
 }
@@ -43,7 +41,7 @@ export async function listOllamaModels(baseUrl: string): Promise<string[]> {
 }
 
 /** A one-shot chat — unlike the model list, this fails when the model isn't pulled. */
-export async function pingOllama(baseUrl: string, model: string): Promise<PingResult | { ok: false; unreachable: true }> {
+export async function pingOllama(baseUrl: string, model: string): Promise<PingResult> {
   const { OpenAI, client } = await ollamaClient(baseUrl)
   try {
     await client.chat.completions.create({
@@ -51,7 +49,7 @@ export async function pingOllama(baseUrl: string, model: string): Promise<PingRe
       max_tokens: 8,
       messages: [{ role: "user", content: "Hi" }],
     })
-    return { ok: true, message: "" }
+    return { ok: true }
   } catch (err) {
     if (err instanceof OpenAI.APIConnectionError) {
       return { ok: false, unreachable: true }
@@ -63,7 +61,7 @@ export async function pingOllama(baseUrl: string, model: string): Promise<PingRe
 export async function pingAnthropic(
   apiKey: string,
   model: string,
-): Promise<PingResult> {
+): Promise<ApiPingResult> {
   try {
     const { default: Anthropic } = await import("@anthropic-ai/sdk")
     const client = new Anthropic({ apiKey, dangerouslyAllowBrowser: true })
@@ -72,7 +70,7 @@ export async function pingAnthropic(
       max_tokens: 8,
       messages: [{ role: "user", content: "Hi" }],
     })
-    return { ok: true, message: "" }
+    return { ok: true }
   } catch (err) {
     return failed(err)
   }
@@ -81,7 +79,7 @@ export async function pingAnthropic(
 export async function pingOpenAi(
   apiKey: string,
   model: string,
-): Promise<PingResult> {
+): Promise<ApiPingResult> {
   try {
     const { default: OpenAI } = await import("openai")
     const client = new OpenAI({ apiKey, dangerouslyAllowBrowser: true })
@@ -91,7 +89,7 @@ export async function pingOpenAi(
       store: false,
       input: "Hi",
     })
-    return { ok: true, message: "" }
+    return { ok: true }
   } catch (err) {
     return failed(err)
   }

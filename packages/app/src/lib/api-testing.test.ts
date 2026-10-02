@@ -48,7 +48,7 @@ describe("pingOllama", () => {
   it("chats once with the chosen model against the given server", async () => {
     chatCreate.mockResolvedValue({})
 
-    expect(await pingOllama("http://box:11434/v1", "qwen3")).toEqual({ ok: true, message: "" })
+    expect(await pingOllama("http://box:11434/v1", "qwen3")).toEqual({ ok: true })
     expect(ctorArgs[0]).toMatchObject({ apiKey: OLLAMA_PLACEHOLDER_KEY, baseURL: "http://box:11434/v1" })
     expect(chatCreate).toHaveBeenCalledWith(expect.objectContaining({ model: "qwen3" }))
   })
@@ -89,7 +89,7 @@ describe("pingOpenAi", () => {
   it("makes one tiny, unstored Responses call with the chosen model", async () => {
     responsesCreate.mockResolvedValue({})
 
-    expect(await pingOpenAi("sk-test", "gpt-6-astra")).toEqual({ ok: true, message: "" })
+    expect(await pingOpenAi("sk-test", "gpt-6-astra")).toEqual({ ok: true })
     expect(responsesCreate).toHaveBeenCalledWith({
       model: "gpt-6-astra",
       max_output_tokens: 16,

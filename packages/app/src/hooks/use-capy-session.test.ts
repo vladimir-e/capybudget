@@ -31,13 +31,13 @@ interface FakeSession {
   sendSpy: ReturnType<typeof vi.fn>
   stopSpy: ReturnType<typeof vi.fn>
   emit: (event: StreamEvent) => void
-  exit: (reason?: string) => void
+  exit: (reason?: string, reported?: boolean) => void
 }
 
 const { createdSessions, createSessionMock } = vi.hoisted(() => {
   const list: FakeSession[] = []
   const mock = vi.fn(
-    (opts: { onEvent: (event: StreamEvent) => void; onExit?: (reason?: string) => void }): CapySession => {
+    (opts: { onEvent: (event: StreamEvent) => void; onExit?: (reason: string | undefined, reported: boolean) => void }): CapySession => {
       const killSpy = vi.fn(async () => {})
       const sendSpy = vi.fn(async () => {})
       const stopSpy = vi.fn(async () => {})
@@ -49,7 +49,7 @@ const { createdSessions, createSessionMock } = vi.hoisted(() => {
         restart: restartSpy,
         kill: killSpy,
       }
-      list.push({ session, killSpy, sendSpy, stopSpy, emit: opts.onEvent, exit: (reason) => opts.onExit?.(reason) })
+      list.push({ session, killSpy, sendSpy, stopSpy, emit: opts.onEvent, exit: (reason, reported = false) => opts.onExit?.(reason, reported) })
       return session
     },
   )
@@ -887,7 +887,7 @@ describe("useCapySession error copy", () => {
         sendSpy: vi.fn(),
         stopSpy: vi.fn(),
         emit: opts.onEvent,
-        exit: (reason) => opts.onExit?.(reason),
+        exit: (reason, reported = false) => opts.onExit?.(reason, reported),
       })
       return session
     })
@@ -1024,6 +1024,29 @@ describe("useCapySession error copy", () => {
     })
     expect(result.current.isStreaming).toBe(false)
     expect(result.current.messages.at(-1)).toEqual({ ...queued[1], blocks: [{ type: "text", content: "fresh answer" }] })
+  })
+
+  it("restarts quietly when the turn already showed the fault as an error", () => {
+    useIntelligenceStore.setState({
+      hydrated: true,
+      config: { ...DEFAULT_INTELLIGENCE_CONFIG, provider: "claude-cli" },
+    })
+    const { result } = renderHook(() => useCapySession(baseOpts))
+    act(() => {
+      result.current.sendMessage("hi")
+    })
+    const markInterrupted = vi.fn()
+    createdSessions[0].session.markInterrupted = markInterrupted
+    act(() => {
+      createdSessions[0].emit({ type: "error", provider: "claude-cli", message: "Overloaded" })
+    })
+    const shown = result.current.messages
+    act(() => {
+      createdSessions[0].exit(undefined, true)
+    })
+    expect(result.current.messages).toEqual(shown)
+    expect(markInterrupted).toHaveBeenCalledWith(shown)
+    expect(result.current.isStreaming).toBe(false)
   })
 
   it("shows the process's last words when it exits unexpectedly", () => {

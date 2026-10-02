@@ -38,10 +38,12 @@ export interface ClaudeCliAdapterOptions {
   /**
    * Fires when the Claude CLI subprocess exits unexpectedly (not the
    * result of a deliberate `kill()` / `stop()`), with the last lines it
-   * wrote to stderr, if any. Claude-CLI-only — API adapters have no
-   * process to die, so the option doesn't apply.
+   * wrote to stderr, if any. `reported` is true when the running turn
+   * already ended in an error event, so the exit needs no second notice.
+   * Claude-CLI-only — API adapters have no process to die, so the option
+   * doesn't apply.
    */
-  onExit?: (reason?: string) => void
+  onExit?: (reason: string | undefined, reported: boolean) => void
 }
 
 export interface ApiAdapterOptions {
@@ -89,7 +91,7 @@ export interface SessionOptions {
   mcpServerPath: string
   systemPrompt: string
   onEvent: (event: StreamEvent) => void
-  onExit?: (reason?: string) => void
+  onExit?: (reason: string | undefined, reported: boolean) => void
   repo?: BudgetRepository
   fileAdapter?: FileAdapter
   /** Budget's default currency (ISO 4217). Consumed by the API adapters'

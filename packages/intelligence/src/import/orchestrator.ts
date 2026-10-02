@@ -424,12 +424,12 @@ export class ImportOrchestrator {
     const concurrency = this.deps.concurrency ?? ENRICH_CONCURRENCY;
     const { signal } = this.controller;
     let cursor = 0;
-    const deadEnds: unknown[] = [];
+    let deadEnd: unknown = null;
     let lastFailure: unknown = null;
 
     const runNext = async (): Promise<void> => {
       while (true) {
-        if (this.stopRequested || deadEnds.length > 0) return;
+        if (this.stopRequested || deadEnd !== null) return;
         const index = cursor++;
         if (index >= jobs.length) return;
         const job = jobs[index];
@@ -444,7 +444,7 @@ export class ImportOrchestrator {
         } catch (err) {
           if (this.aborted) return;
           if (isDeadEnd(err)) {
-            deadEnds.push(err);
+            deadEnd ??= err;
             return;
           }
           lastFailure = err;
@@ -475,8 +475,8 @@ export class ImportOrchestrator {
       updatedAt: new Date().toISOString(),
     });
 
-    if (deadEnds.length > 0) {
-      this.failWith(deadEnds[0]);
+    if (deadEnd !== null) {
+      this.failWith(deadEnd);
       return;
     }
     if (this.stopRequested) {

@@ -169,7 +169,7 @@ export class ClaudeCliSession implements CapySession {
   }
 
   private awaitResult(): void {
-    if (this.resultWatchdog) return
+    if (this.resultWatchdog) clearTimeout(this.resultWatchdog)
     this.resultWatchdog = setTimeout(() => {
       this.resultWatchdog = null
       const child = this.child
@@ -182,8 +182,9 @@ export class ClaudeCliSession implements CapySession {
     if (generation !== this.generation) return
     this.generation++
     this.child = null
+    const reported = this.turn?.cli.hasFailed ?? false
     this.finishTurn()
-    this.opts.onExit?.(code === 0 ? undefined : this.stderrTail.join("\n") || undefined)
+    this.opts.onExit?.(code === 0 ? undefined : this.stderrTail.join("\n") || undefined, reported)
   }
 
   private noteStderr(line: string): void {

@@ -67,7 +67,8 @@ export interface UseSessionLifecycleReturn<TOpts extends SessionLifecycleOptions
  * @param label           Log prefix for debug output (e.g. "import", "enrich", "capy")
  * @param onExit          Called only by the Claude-CLI adapter when its subprocess dies
  *                        unexpectedly (kill()/stop()/restart() suppress it), with the
- *                        process's last stderr lines when it wrote any and the session
+ *                        process's last stderr lines when it wrote any, whether the
+ *                        turn already showed the fault as an error, and the session
  *                        it belonged to. A send queued on that session keeps streaming:
  *                        it runs next on a fresh process. API adapters
  *                        have no process to die so they never invoke this. Use it for
@@ -78,7 +79,7 @@ export function useSessionLifecycle<TOpts extends SessionLifecycleOptions>(
   opts: TOpts,
   onStreamEvent: (event: StreamEvent, ctx: StreamEventContext<TOpts>) => void,
   label: string,
-  onExit?: (reason: string | undefined, session: CapySession | null) => void,
+  onExit?: (reason: string | undefined, reported: boolean, session: CapySession | null) => void,
 ): UseSessionLifecycleReturn<TOpts> {
   const [isStreaming, _setIsStreaming] = useState(false);
   const isStreamingRef = useRef(false);
@@ -110,10 +111,11 @@ export function useSessionLifecycle<TOpts extends SessionLifecycleOptions>(
     [setIsStreaming],
   );
 
-  const handleExit = useCallback((reason?: string) => {
+  const handleExit = useCallback((reason: string | undefined, reported: boolean) => {
     console.debug(`[${label}-session] process exited`, reason ?? "");
-    if (!sessionRef.current?.hasQueuedSend) setIsStreaming(false);
-    onExitRef.current?.(reason, sessionRef.current);
+    const session = sessionRef.current;
+    if (session?.hasQueuedSend !== true) setIsStreaming(false);
+    onExitRef.current?.(reason, reported, session);
   }, [label, setIsStreaming]);
 
   // Cleanup on unmount

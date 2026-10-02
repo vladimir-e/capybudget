@@ -243,6 +243,7 @@ describe("ClaudeCliSession", () => {
         await first
         expect(spawned[0].kill).toHaveBeenCalled()
         expect(onExit).toHaveBeenCalledTimes(1)
+        expect(onExit).toHaveBeenCalledWith(undefined, true)
         expect(queuedAtExit).toBe(true)
         expect(spawned).toHaveLength(2)
         expect(JSON.parse(spawned[1].writes[0]).message.content).toBe("two")
@@ -250,6 +251,45 @@ describe("ClaudeCliSession", () => {
         expect(onExit).toHaveBeenCalledTimes(1)
         spawned[1].say(DONE)
         await second
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it("waits while a cut-off turn keeps streaming, and only gives up after the grace period of silence", async () => {
+      vi.useFakeTimers()
+      try {
+        const { session, onExit, spawned } = makeSession()
+        const first = session.send("one")
+        await vi.advanceTimersByTimeAsync(0)
+        spawned[0].say({ type: "assistant", message: { id: "msg_1", content: [{ type: "text", text: "Long" }], stop_reason: "max_tokens" } })
+        for (let i = 0; i < 4; i++) {
+          await vi.advanceTimersByTimeAsync(20_000)
+          spawned[0].say({ type: "system", subtype: "status" })
+        }
+        expect(spawned[0].kill).not.toHaveBeenCalled()
+        expect(onExit).not.toHaveBeenCalled()
+        await vi.advanceTimersByTimeAsync(30_000)
+        await first
+        expect(spawned[0].kill).toHaveBeenCalled()
+        expect(onExit).toHaveBeenCalledWith(undefined, true)
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it.each(["stop", "kill"] as const)("clears the grace timer on %s()", async (method) => {
+      vi.useFakeTimers()
+      try {
+        const { session, onExit, spawned } = makeSession()
+        const first = session.send("one")
+        await vi.advanceTimersByTimeAsync(0)
+        spawned[0].say({ type: "error", error: { message: "Overloaded" } })
+        await session[method]()
+        await first
+        await vi.advanceTimersByTimeAsync(30_000)
+        expect(onExit).not.toHaveBeenCalled()
+        expect(spawned[0].kill).toHaveBeenCalledTimes(1)
       } finally {
         vi.useRealTimers()
       }
@@ -296,7 +336,7 @@ describe("ClaudeCliSession", () => {
       last().events.exit(1)
       await turn.sent
       expect(onExit).toHaveBeenCalledTimes(1)
-      expect(onExit).toHaveBeenCalledWith(undefined)
+      expect(onExit).toHaveBeenCalledWith(undefined, false)
       expect(events).toEqual([])
       expect(session.isAlive).toBe(false)
     })
@@ -307,7 +347,7 @@ describe("ClaudeCliSession", () => {
       for (const line of ["warming up", "", "line two", "line three", "error: unknown option '--restricted'"]) last().events.stderr(line)
       last().events.exit(1)
       await turn.sent
-      expect(onExit).toHaveBeenCalledWith("line two\nline three\nerror: unknown option '--restricted'")
+      expect(onExit).toHaveBeenCalledWith("line two\nline three\nerror: unknown option '--restricted'", false)
     })
 
     it("gives no reason for a clean exit", async () => {
@@ -316,7 +356,7 @@ describe("ClaudeCliSession", () => {
       last().events.stderr("something chatty")
       last().events.exit(0)
       await turn.sent
-      expect(onExit).toHaveBeenCalledWith(undefined)
+      expect(onExit).toHaveBeenCalledWith(undefined, false)
     })
 
     it("leaves known harmless stderr lines out of the reason", async () => {
@@ -327,7 +367,16 @@ describe("ClaudeCliSession", () => {
       last().events.stderr("(Use `node --trace-deprecation ...` to show where the warning was created)")
       last().events.exit(1)
       await turn.sent
-      expect(onExit).toHaveBeenCalledWith(undefined)
+      expect(onExit).toHaveBeenCalledWith(undefined, false)
+    })
+
+    it("carries the stderr reason when a signal ends the process", async () => {
+      const { session, onExit, last } = makeSession()
+      const turn = await started(session, "hi")
+      last().events.stderr("Killed: 9")
+      last().events.exit(null)
+      await turn.sent
+      expect(onExit).toHaveBeenCalledWith("Killed: 9", false)
     })
 
     it("still reports a crash after a max-turns ending, since the CLI survives it", async () => {
