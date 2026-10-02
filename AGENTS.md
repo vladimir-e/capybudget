@@ -27,7 +27,7 @@ Releases are cut from `main` via a version tag: `npm run release <version>` bump
 Read the specs before making changes — they are the source of truth:
 - `specs/PRODUCT.md` — vision, philosophy, feature set
 - `specs/ARCHITECTURE.md` — tech stack, data flow, state management, principles
-- `specs/MONOREPO.md` — package structure, dependency graph, adapter pattern
+- `specs/MONOREPO.md` — package structure, dependency graph, platform seams
 - `specs/STRUCTURE.md` — file placement, package internals, decomposition conventions
 - `specs/INTELLIGENCE.md` — AI assistant, MCP server, session interface
 - `specs/DATA_MODEL.md` — CSV schemas, budget.json, migration strategy

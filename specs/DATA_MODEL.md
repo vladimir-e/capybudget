@@ -274,6 +274,7 @@ Record<string /* row id */, {
   rowCount?: number            // set once staging is written
   updatedAt: string            // ISO timestamp of the last write
   source?: "chat"              // present when the chat on-ramp staged the run; its absence marks a manual Import-tab drop
+  merged?: boolean             // the merge committed but clearing staging failed: debris to clear, never a resumable import
 }
 ```
 

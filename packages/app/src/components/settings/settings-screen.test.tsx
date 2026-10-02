@@ -144,6 +144,7 @@ describe("SettingsScreen", () => {
     expect(screen.getByText("Off")).toBeInTheDocument()
     expect(screen.getByText("Anthropic API")).toBeInTheDocument()
     expect(screen.getByText("OpenAI API")).toBeInTheDocument()
+    expect(screen.getByText("Ollama")).toBeInTheDocument()
     // Claude Code spawns a subprocess — offered only in the desktop build.
     if (__MAS__) {
       expect(screen.queryByText("Claude Code")).not.toBeInTheDocument()
@@ -152,16 +153,16 @@ describe("SettingsScreen", () => {
     }
   })
 
-  it("orders providers Off / Anthropic / OpenAI (/ Claude Code on desktop)", async () => {
+  it("orders providers Off / Anthropic / OpenAI / Ollama (/ Claude Code on desktop)", async () => {
     await renderSettings()
 
     const labels = screen
-      .getAllByText(/^(Off|Anthropic API|OpenAI API|Claude Code)$/)
+      .getAllByText(/^(Off|Anthropic API|OpenAI API|Ollama|Claude Code)$/)
       .map((el) => el.textContent)
     expect(labels).toEqual(
       __MAS__
-        ? ["Off", "Anthropic API", "OpenAI API"]
-        : ["Off", "Anthropic API", "OpenAI API", "Claude Code"],
+        ? ["Off", "Anthropic API", "OpenAI API", "Ollama"]
+        : ["Off", "Anthropic API", "OpenAI API", "Ollama", "Claude Code"],
     )
   })
 

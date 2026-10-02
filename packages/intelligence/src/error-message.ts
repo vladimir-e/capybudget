@@ -5,8 +5,8 @@ import { UnreachableError } from "./structured"
  *
  * Both SDKs (Anthropic, and OpenAI, which also drives Ollama) throw
  * `APIError` instances whose `.message` is `${status} ${stringified-body}`
- * — fine for logs, useless in the chat UI. The cleaner copy is buried in the parsed body the SDK already
- * attached as `.error`. The shapes differ:
+ * — fine for logs, useless in the chat UI. The cleaner copy is buried in
+ * the parsed body the SDK already attached as `.error`. The shapes differ:
  *
  *   Anthropic: `.error = { type: "error", error: { type, message } }`
  *   OpenAI:    `.error = { type, code, message, ... }`  (pre-unwrapped)

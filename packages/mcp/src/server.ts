@@ -61,10 +61,9 @@ const server = new Server(
 )
 
 server.setRequestHandler(ListToolsRequestSchema, async () => ({
-  // One ungated tool surface — `getToolDefinitions()` takes no argument and
-  // returns every tool. The MCP server, the in-process chat agent loop, and
-  // external agents (Claude Desktop, Cursor) all see the same set, consistent
-  // with specs/INTELLIGENCE.md § Tool Layer.
+  // The same tool set the in-process chat loop sends. `pdfSupported` only
+  // rewords start_import, a no-op from MCP, so it stays unset here — see
+  // specs/INTELLIGENCE.md § Tool Layer.
   tools: getToolDefinitions(),
 }))
 

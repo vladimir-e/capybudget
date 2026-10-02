@@ -48,13 +48,13 @@ Rust is only used for Tauri plugin registration. All application logic — data 
 
 ### Monorepo
 
-See `MONOREPO.md` for package layout, dependency graph, and adapter pattern.
+See `MONOREPO.md` for package layout, dependency graph, and platform seams.
 
 ## Data Flow
 
 ```
 User picks folder (or demo loads preset data)
-  → BudgetService adapter detects/bootstraps budget
+  → budget service detects/bootstraps the budget
   → CsvRepository reads CSVs via FileAdapter
   → PapaParse with typed coercion → domain objects
   → TanStack Query cache

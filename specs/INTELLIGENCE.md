@@ -30,7 +30,8 @@ Capy is an AI financial assistant. The intelligence layer is **provider-pluggabl
            ▼                         ▼
         ┌──────────────────────────────┐
         │  ToolContext                 │
-        │  { repo, fileAdapter, path } │
+        │  { repo, fileAdapter,        │
+        │    budgetPath, currency, … } │
         └──────────────┬───────────────┘
                        ▼
                    Budget Data
@@ -49,20 +50,22 @@ Smart Import does not run through the agent loop. It's a code-orchestrated pipel
 
 `CapySession` defines the contract:
 
-- `send(content)` — send user message (`MessageContent`: plain string or array of text / image / document blocks). Sends run one at a time — a send issued while an earlier turn winds down waits for it — and the promise resolves when that send's turn is over (ended, stopped, or killed). It never rejects: every failure arrives as an `error` event. After `kill()`, `send()` is a no-op.
-- `stop()` — interrupt current response (provider-specific: CLI kills the subprocess; API adapters abort the in-flight request)
-- `kill()` — terminate
-- `onEvent(callback)` — receive stream events
+- `send(content, attachments?)` — send a user turn. `content` is `MessageContent`: a plain string or an array of text / image / document blocks. `attachments` carries the turn's raw files (`FileAttachment[]`) so the in-process `start_import` tool can stage their bytes, which `content` has already flattened past reconstruction; the Claude CLI adapter ignores it. Sends run one at a time — a send issued while an earlier turn winds down waits for it — and the promise resolves when that send's turn is over (ended, stopped, or killed). It never rejects: every failure arrives as an `error` event. After `kill()`, `send()` is a no-op.
+- `stop()` — interrupt the current response and cancel every send queued behind it (the CLI kills its subprocess; the API adapters abort the in-flight request)
+- `kill()` — terminate for good
 - `hasQueuedSend` (optional) — a send is waiting behind a stopped round that is still winding down; `stop()` cancels it before the model sees it
+- `markInterrupted(priorMessages)` (optional) — the previous turn was interrupted (Stop or a crash); the chat hands over its messages so far. Only the Claude CLI adapter implements it, to build its recovery prefix (see **Claude Code adapter**); the API adapters keep their own history and omit it.
+
+Stream events arrive through the `onEvent` callback, a constructor option rather than a method. Each adapter takes its options at construction: `ClaudeCliAdapterOptions` (budget path, MCP server path, system prompt, model, `onEvent`, and an `onExit` for an unexpected process exit) or `ApiAdapterOptions` (budget path, system prompt, API key, model, Ollama's `baseUrl`, `onEvent`, the repository and file adapter for in-process tool dispatch, `currency` / `currencies` / `getCurrencies`, and the `importSupported` / `pdfSupported` flags). `createIntelligenceSession` builds either from the user's config.
 
 ### Stream Events
 
 | Event | Meaning |
 |---|---|
 | `content` | Full cumulative blocks array for the current user→done cycle (entire agentic loop, across iterations and tool calls). Consumer replaces the trailing assistant message's blocks wholesale on every emit. |
-| `tool-result` | A tool call finished executing. Carries the tool name, the adapter-specific call id, and an `ok` flag. Used by the hook to invalidate caches live, per-call, instead of waiting for `done`. Distinct from the `tool-activity` ContentBlock, which signals the call was *requested*. It fires even after `kill()` for a call that was already running, so a write that lands after New Chat or a provider switch still refreshes the app. The chat routes events from a session it has since killed or replaced only to that data refresh — they never reach the new conversation, its per-turn bookkeeping, or the import hand-off. |
+| `tool-result` | A tool call finished executing. Carries the tool name, the adapter-specific call id, and an `ok` flag. Used by the hook to invalidate caches live, per-call, instead of waiting for `done`. Distinct from the `tool-activity` ContentBlock, which signals the call was *requested*. On the API adapters it fires even after `kill()` for a call that was already running, so a write that lands after New Chat or a provider switch still refreshes the app. The chat routes events from a session it has since killed or replaced only to that data refresh — they never reach the new conversation, its per-turn bookkeeping, or the import hand-off. |
 | `done` | Cycle complete |
-| `error` | Error message. The API adapters stamp every error with their `provider`. A `code` marks errors the UI words itself (`session.<code>`): `cutOff`, `refused`, `budgetExhausted`, and `rateLimited`. `rolledBack` marks a failed send taken back out of the model's history (see **Failure** below); the chat marks that question as not sent. |
+| `error` | `message`, the untranslated fallback copy, plus optional fields: `status`, the HTTP status when the provider answered with one; `provider`, stamped by every adapter on every error (absent only on errors the chat raises itself, such as an unconfigured provider); `code`, which marks errors the UI words itself (`session.<code>`): `cutOff`, `refused`, `budgetExhausted`, and `rateLimited`; `rolledBack`, which marks a failed send taken back out of the model's history (see **Failure** below), so the chat marks that question as not sent. |
 
 ### Content Blocks
 
@@ -211,8 +214,8 @@ All adapters share `buildRenderToolMap()` from `@capybudget/intelligence` for th
 
 Single source of truth shared between transports:
 
-- **Definitions** — tool descriptors (name, description, JSON-Schema input). `getToolDefinitions()` is the single source: no argument, one surface. The MCP server, the in-process chat agent loop, and external agents all see the same set. The structured import session calls the model with no tools, so it never draws from here.
-- **Dispatch** — `runTool(name, input, ctx) → string`. The MCP server and the API adapters call this with the same signature. `ToolContext` is `{ repo, fileAdapter, budgetPath, attachments?, importSupported?, pdfSupported? }` — the last three ride only the chat path, for `start_import`.
+- **Definitions** — tool descriptors (name, description, JSON-Schema input). `getToolDefinitions({ pdfSupported })` is the single source, and every caller gets the same set of tools: the MCP server, the in-process chat agent loop, and external agents. `pdfSupported` only rewords `start_import` — whether chat accepts PDF statements, or the model should point the user to a PDF-capable provider. The API adapters pass their provider's `canReadPdf`; the MCP server passes nothing, since `start_import` is a no-op there. The structured import session calls the model with no tools, so it never draws from here.
+- **Dispatch** — `runTool(name, input, ctx) → string`. The MCP server and the API adapters call this with the same signature. `ToolContext` is `{ repo, fileAdapter, budgetPath, currency, currencies?, attachments?, importSupported?, pdfSupported? }`. `currency` is the budget's default and `currencies` its per-currency settings (see **Context Enrichment**): the API adapters read them live through `getCurrencies` at each call (falling back to the `currencies` snapshot), so a rate edit reaches the next call without a session rebuild, and the MCP server reads them from `budget.json` per call. The last three ride only the chat path, for `start_import`.
 - **Handlers** — per-tool implementations:
   - **Data tools** — `list_accounts`, `list_transactions` (filters + `sort` + `offset` + `format: "compact" | "full"`, plus `ids` to fetch exact rows after a scan), `search_transactions` (fuzzy cross-field + money query and structured filters → compact rows), `group_transactions` (the universal aggregator: same filters as search, then `groupBy` one or more dimensions — merchant/category/account/type/month/week/dayOfMonth/amountBucket — and request `metrics` over signed cents, including per-group `cadence` for recurrence; subsumes spending-by-category, merchant rollups, duplicate clusters, and interval analysis), `list_categories`
   - **Mutation tools** — full CRUD for transactions / accounts / categories, plus `bulk_update_transactions` (category/account/date/merchant across many rows; skips transfers for category/account/merchant). `update_account` carries `archived` (archiving fails on a non-zero balance) and `excludeFromNetWorth`. `update_category` carries `archived` and `budgetCents` (the explicit `assigned` budget — `null` untracked, `0` tracked-at-zero, omitted unchanged; a category without one still has an implicit target derived from its spending history).
@@ -229,6 +232,7 @@ The tools + system prefix is static across a session, so the API adapters cache 
 
 - **Anthropic** marks the system block with `cache_control: { type: "ephemeral" }`. One breakpoint at the end of system caches everything before it in the prefix hierarchy — tools, then system. Cache hits show up as `cache_read_input_tokens` in usage from turn 2 on.
 - **OpenAI** caches eligible prefixes (>~1024 tokens) automatically, no flag — the adapter's job is to keep the prefix byte-stable: `instructions` are immutable for the session, tools follow the same definition order, dynamic content never bakes into either.
+- **Ollama** keeps its leading system message and tools byte-stable the same way, so the local server's prompt cache keeps hitting.
 
 This is in-process-adapter only; the Claude CLI manages its own caching.
 
