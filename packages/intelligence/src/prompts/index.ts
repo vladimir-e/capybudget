@@ -12,6 +12,5 @@
  */
 
 export { buildSystemPrompt, buildContext } from "./chat"
-export { APP_KNOWLEDGE } from "./app-knowledge"
-export { buildBudgetSnapshot, formatBudgetSnapshot } from "./budget-snapshot"
+export { buildBudgetSnapshot } from "./budget-snapshot"
 export type { BudgetSnapshot } from "./budget-snapshot"

@@ -13,6 +13,6 @@ export const API_ADAPTERS: Record<ApiProvider, (opts: ApiAdapterOptions) => Capy
 }
 
 export { listModels, pingProvider } from "./providers"
-export type { PingResult, PingTarget, ProviderEndpoint } from "./providers"
+export type { ProviderEndpoint } from "./providers"
 export { ClaudeCliSession } from "./claude-cli/claude-cli-session"
 export type { ClaudeCliHost } from "./claude-cli/claude-cli-session"

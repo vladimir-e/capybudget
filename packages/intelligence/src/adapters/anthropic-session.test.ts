@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest"
-import type { StreamEvent } from "@capybudget/intelligence"
+import type { StreamEvent } from "../types"
 import type { CurrencySettings } from "@capybudget/core"
 import type { BudgetRepository, FileAdapter } from "@capybudget/persistence"
 import { getToolDefinitions } from "../tools"
@@ -719,7 +719,7 @@ describe("AnthropicSession", () => {
   })
 
   it("terminates with a budget-exhausted error after REPLY_TOOL_CALL_BUDGET tool calls", async () => {
-    const { REPLY_TOOL_CALL_BUDGET } = await import("@capybudget/intelligence")
+    const { REPLY_TOOL_CALL_BUDGET } = await import("../tools")
     for (let i = 0; i < REPLY_TOOL_CALL_BUDGET + 1; i++) {
       queueTurn({
         toolUses: [{ id: `tu-${i}`, name: "list_accounts", input: {} }],
@@ -784,7 +784,7 @@ describe("AnthropicSession", () => {
   })
 
   it("the next send starts with a fresh tool-call budget", async () => {
-    const { REPLY_TOOL_CALL_BUDGET } = await import("@capybudget/intelligence")
+    const { REPLY_TOOL_CALL_BUDGET } = await import("../tools")
     for (let i = 0; i < REPLY_TOOL_CALL_BUDGET + 1; i++) {
       queueTurn({
         toolUses: [{ id: `tu-${i}`, name: "list_accounts", input: {} }],
@@ -1508,7 +1508,7 @@ describe("AnthropicSession lifecycle", () => {
   })
 
   it("marks the budget-exhausted result as an error", async () => {
-    const { REPLY_TOOL_CALL_BUDGET } = await import("@capybudget/intelligence")
+    const { REPLY_TOOL_CALL_BUDGET } = await import("../tools")
     for (let i = 0; i < REPLY_TOOL_CALL_BUDGET + 1; i++) {
       queueTurn({ toolUses: [{ id: `tu-${i}`, name: "list_accounts", input: {} }], stop_reason: "tool_use" })
     }

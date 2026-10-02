@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest"
-import type { StreamEvent } from "@capybudget/intelligence"
+import type { StreamEvent } from "../types"
 import type { CurrencySettings } from "@capybudget/core"
 import type { BudgetRepository, FileAdapter } from "@capybudget/persistence"
 import { getToolDefinitions } from "../tools"
@@ -769,7 +769,7 @@ describe("OllamaSession", () => {
   })
 
   it("terminates with a budget-exhausted error after REPLY_TOOL_CALL_BUDGET tool calls", async () => {
-    const { REPLY_TOOL_CALL_BUDGET } = await import("@capybudget/intelligence")
+    const { REPLY_TOOL_CALL_BUDGET } = await import("../tools")
     for (let i = 0; i < REPLY_TOOL_CALL_BUDGET + 1; i++) {
       queueTurn({
         toolCallDeltas: [
@@ -1029,7 +1029,7 @@ describe("OllamaSession", () => {
   })
 
   it("the next send starts with a fresh tool-call budget", async () => {
-    const { REPLY_TOOL_CALL_BUDGET } = await import("@capybudget/intelligence")
+    const { REPLY_TOOL_CALL_BUDGET } = await import("../tools")
     for (let i = 0; i < REPLY_TOOL_CALL_BUDGET + 1; i++) {
       queueTurn({
         toolCallDeltas: [
