@@ -16,9 +16,7 @@ function makeStubSession(): CapySession {
   return {
     send: vi.fn().mockResolvedValue(undefined),
     stop: vi.fn().mockResolvedValue(undefined),
-    restart: vi.fn().mockResolvedValue(undefined),
     kill: vi.fn().mockResolvedValue(undefined),
-    isAlive: false,
   }
 }
 
@@ -78,13 +76,12 @@ describe("createIntelligenceSession", () => {
     })
   })
 
-  it("threads claudeCliModel through to the claude-cli ctor as model", () => {
+  it("reads the claude-cli model from config", () => {
     const ctor = vi.fn().mockImplementation(() => makeStubSession())
-    const opts: SessionOptions = { ...makeOptions(), claudeCliModel: "opus" }
     createIntelligenceSession({
-      config: { ...DEFAULT_INTELLIGENCE_CONFIG, provider: "claude-cli" },
+      config: { ...DEFAULT_INTELLIGENCE_CONFIG, provider: "claude-cli", claudeCli: { model: "opus" } },
       adapters: { "claude-cli": ctor },
-      options: opts,
+      options: makeOptions(),
     })
     expect(ctor).toHaveBeenCalledWith(
       expect.objectContaining({ model: "opus" }),

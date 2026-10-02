@@ -592,15 +592,6 @@ describe("OpenAiSession", () => {
     expect(lastCreateCall().max_output_tokens).toBe(MAX_OUTPUT_TOKENS)
   })
 
-  it("kill() flips isAlive false", async () => {
-    queueTurn({ textDeltas: ["typing"], status: "completed" })
-    const { session } = makeSession()
-    await session.send("Hi")
-    expect(session.isAlive).toBe(true)
-    await session.kill()
-    expect(session.isAlive).toBe(false)
-  })
-
   it("walks a multi-turn tool loop, threading each result back to the model", async () => {
     queueTurn({ calls: [{ id: "call-1", name: "search_transactions", argFragments: ['{"query":', '"Apple"}'] }], status: "completed" })
     queueTurn({
@@ -1238,23 +1229,6 @@ describe("OpenAiSession lifecycle", () => {
       { type: "function_call_output", call_id: "call_a", output: "created" },
       { type: "function_call_output", call_id: "call_b", output: STOPPED_RESULT },
     ])
-  })
-
-  it("restart() waits for an in-flight tool before clearing history", async () => {
-    queueTurn({ calls: [{ id: "call_a", name: "create_transaction", argFragments: ["{}"] }], status: "completed" })
-    const tools = blockingTools()
-
-    const { session } = makeSession()
-    const sending = session.send("Add it")
-    await tools.started()
-    const restarting = session.restart()
-    tools.resolvers[0]("created")
-    await Promise.all([sending, restarting])
-
-    expect(history(session)).toEqual([])
-    queueTurn({ textDeltas: ["ok"], status: "completed" })
-    await session.send("Fresh")
-    expect(lastCreateCall().input).toEqual([{ role: "user", content: "Fresh" }])
   })
 
   it("Stop mid-text keeps the streamed text, marked as stopped, and drops the calls that never arrived", async () => {

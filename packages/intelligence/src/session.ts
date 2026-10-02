@@ -1,10 +1,4 @@
-import type { StreamEvent, MessageContent, ChatMessage, FileAttachment } from "./types"
-
-export interface CapySessionOptions {
-  budgetPath: string
-  mcpServerPath: string
-  onEvent: (event: StreamEvent) => void
-}
+import type { MessageContent, ChatMessage, FileAttachment } from "./types"
 
 export interface CapySession {
   /**
@@ -17,9 +11,7 @@ export interface CapySession {
    */
   send(content: MessageContent, attachments?: readonly FileAttachment[]): Promise<void>
   stop(): Promise<void>
-  restart(): Promise<void>
   kill(): Promise<void>
-  readonly isAlive: boolean
   /**
    * Optional: whether a send is waiting behind an earlier turn that is still
    * winding down. `stop()` cancels it before the model ever sees it.

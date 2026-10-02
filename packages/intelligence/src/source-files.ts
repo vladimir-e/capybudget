@@ -9,7 +9,7 @@
  * predicates all read from one source of truth instead of each re-deriving it.
  */
 
-import type { CliDocumentContent, CliImageContent } from "./types"
+import type { UserDocumentContent, UserImageContent } from "./types"
 
 /** Conventional media type for the OFX family (.ofx/.qfx/.qbo). Not an IANA
  *  type, but the de-facto one financial tools use, and the routing key the
@@ -110,7 +110,7 @@ export function sourceContentBlock(file: {
   name: string
   content: string
   mediaType: string
-}): CliImageContent | CliDocumentContent {
+}): UserImageContent | UserDocumentContent {
   if (file.mediaType === "application/pdf") {
     return {
       type: "document",

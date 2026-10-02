@@ -692,18 +692,6 @@ describe("OllamaSession", () => {
     expect(lastCreateCall().max_completion_tokens).toBe(MAX_OUTPUT_TOKENS)
   })
 
-  it("kill() flips isAlive false and aborts in-flight requests", async () => {
-    queueTurn({
-      textDeltas: ["typing"],
-      finish_reason: "stop",
-    })
-    const { session } = makeSession()
-    await session.send("Hi")
-    expect(session.isAlive).toBe(true)
-    await session.kill()
-    expect(session.isAlive).toBe(false)
-  })
-
   it("walks a multi-turn tool loop, threading each result back to the model", async () => {
     queueTurn({
       toolCallDeltas: [
@@ -1608,29 +1596,6 @@ describe("OllamaSession lifecycle", () => {
     expect(history(session).slice(-2)).toEqual([
       { role: "tool", tool_call_id: "call_a", content: "created" },
       { role: "tool", tool_call_id: "call_b", content: STOPPED_RESULT },
-    ])
-  })
-
-  it("restart() waits for an in-flight tool before clearing history", async () => {
-    queueTurn({
-      toolCallDeltas: [{ index: 0, id: "call_a", name: "create_transaction", argFragments: ["{}"] }],
-      finish_reason: "tool_calls",
-    })
-    const tools = blockingTools()
-
-    const { session } = makeSession()
-    const sending = session.send("Add it")
-    await tools.started()
-    const restarting = session.restart()
-    tools.resolvers[0]("created")
-    await Promise.all([sending, restarting])
-
-    expect(history(session)).toEqual([])
-    queueTurn({ textDeltas: ["ok"], finish_reason: "stop" })
-    await session.send("Fresh")
-    expect(lastCreateCall().messages).toEqual([
-      { role: "system", content: "you are capy" },
-      { role: "user", content: "Fresh" },
     ])
   })
 

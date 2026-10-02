@@ -36,7 +36,6 @@ export abstract class AgentSession<Message> implements CapySession {
   protected readonly messages: Message[] = []
   private outputCap = MAX_OUTPUT_TOKENS
   private abortController: AbortController | null = null
-  private alive = false
   private killed = false
   private sendSeq = 0
   private cancelledThrough = 0
@@ -52,10 +51,6 @@ export abstract class AgentSession<Message> implements CapySession {
   protected abstract get providerId(): SessionProvider
   protected abstract appendUserTurn(content: MessageContent): void
   protected abstract runAgenticLoop(display: TurnDisplay): Promise<LoopOutcome>
-
-  get isAlive(): boolean {
-    return this.alive
-  }
 
   get hasQueuedSend(): boolean {
     return this.sendSeq > Math.max(this.turnEpoch, this.cancelledThrough)
@@ -77,19 +72,9 @@ export abstract class AgentSession<Message> implements CapySession {
     this.display?.settle()
   }
 
-  async restart(): Promise<void> {
-    this.cancelledThrough = this.sendSeq
-    this.abortRequest()
-    await this.exclusive(async () => {
-      this.messages.length = 0
-      this.alive = false
-    })
-  }
-
   async kill(): Promise<void> {
     this.killed = true
     this.abortRequest()
-    this.alive = false
   }
 
   protected openRequest(): AbortSignal {
@@ -168,7 +153,6 @@ export abstract class AgentSession<Message> implements CapySession {
     let end: StreamEvent | null
     try {
       this.appendUserTurn(content)
-      this.alive = true
       end = outcomeEvent(await this.runAgenticLoop(display))
     } catch (err) {
       const rolledBack = !this.replyStored && !this.stopped && isRejectedRequest(err)

@@ -104,8 +104,6 @@ export interface SessionOptions {
    *  Lets a manual rate edit reach the running session's next tool call without
    *  a chat reset. Consumed by the API adapters only. */
   getCurrencies?: () => Record<string, CurrencySettings> | undefined
-  /** Claude-CLI-only `--model` value; ignored by API adapters. */
-  claudeCliModel?: string
 }
 
 export interface AdapterConstructors {
@@ -132,7 +130,7 @@ export function createIntelligenceSession(
       budgetPath: options.budgetPath,
       mcpServerPath: options.mcpServerPath,
       systemPrompt: options.systemPrompt,
-      model: options.claudeCliModel ?? "",
+      model: config.claudeCli.model,
       onEvent: options.onEvent,
       onExit: options.onExit,
     })

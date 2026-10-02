@@ -649,18 +649,6 @@ describe("AnthropicSession", () => {
     expect(lastStreamCall().max_tokens).toBe(MAX_OUTPUT_TOKENS)
   })
 
-  it("kill() flips isAlive false and aborts in-flight requests", async () => {
-    queueTurn({
-      textDeltas: ["typing"],
-      stop_reason: "end_turn",
-    })
-    const { session } = makeSession()
-    await session.send("Hi")
-    expect(session.isAlive).toBe(true)
-    await session.kill()
-    expect(session.isAlive).toBe(false)
-  })
-
   it("walks a multi-turn tool loop, threading each result back to the model", async () => {
     queueTurn({
       toolUses: [
@@ -1404,26 +1392,6 @@ describe("AnthropicSession lifecycle", () => {
     })
   })
 
-  it("restart() waits for an in-flight tool before clearing history", async () => {
-    queueTurn({
-      toolUses: [{ id: "tu1", name: "create_transaction", input: {} }],
-      stop_reason: "tool_use",
-    })
-    const tools = blockingTools()
-
-    const { session } = makeSession()
-    const sending = session.send("Add it")
-    await tools.started()
-    const restarting = session.restart()
-    tools.resolvers[0]("created")
-    await Promise.all([sending, restarting])
-
-    expect(history(session)).toEqual([])
-    queueTurn({ textDeltas: ["ok"], stop_reason: "end_turn" })
-    await session.send("Fresh")
-    expect(lastStreamCall().messages).toEqual([{ role: "user", content: [{ type: "text", text: "Fresh" }] }])
-  })
-
   it("a second Stop cancels a send queued behind the stopped round", async () => {
     queueTurn({
       toolUses: [{ id: "tu1", name: "create_transaction", input: {} }],
@@ -1449,26 +1417,6 @@ describe("AnthropicSession lifecycle", () => {
       role: "user",
       content: [{ type: "tool_result", tool_use_id: "tu1", content: "created" }],
     })
-  })
-
-  it("restart() cancels a send queued behind a stopped round, so it never runs against the old history", async () => {
-    queueTurn({
-      toolUses: [{ id: "tu1", name: "create_transaction", input: {} }],
-      stop_reason: "tool_use",
-    })
-    const tools = blockingTools()
-
-    const { session } = makeSession()
-    const first = session.send("Add it")
-    await tools.started()
-    await session.stop()
-    const queued = session.send("Next")
-    const restarting = session.restart()
-    tools.resolvers[0]("created")
-    await Promise.all([first, queued, restarting])
-
-    expect(mockStream).toHaveBeenCalledTimes(1)
-    expect(history(session)).toEqual([])
   })
 
   it("Stop mid-text keeps the streamed text, marked as stopped, and shows exactly that text", async () => {

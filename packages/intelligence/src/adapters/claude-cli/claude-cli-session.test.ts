@@ -129,7 +129,6 @@ describe("ClaudeCliSession", () => {
 
     it("spawns lazily and reuses the process across turns", async () => {
       const { session, spawned, last } = makeSession()
-      expect(session.isAlive).toBe(false)
       const first = await started(session, "one")
       last().say(DONE)
       await first.sent
@@ -139,7 +138,6 @@ describe("ClaudeCliSession", () => {
       expect(spawned).toHaveLength(1)
       expect(last().writes).toHaveLength(2)
       expect(JSON.parse(last().writes[0])).toEqual({ type: "user", message: { role: "user", content: "one" } })
-      expect(session.isAlive).toBe(true)
     })
   })
 
@@ -338,7 +336,6 @@ describe("ClaudeCliSession", () => {
       expect(onExit).toHaveBeenCalledTimes(1)
       expect(onExit).toHaveBeenCalledWith(undefined, false)
       expect(events).toEqual([])
-      expect(session.isAlive).toBe(false)
     })
 
     it("passes the last stderr lines of an unexpected exit as its reason", async () => {
@@ -418,7 +415,6 @@ describe("ClaudeCliSession", () => {
       expect(events.filter((e) => e.type === "error")).toEqual([{ type: "error", message: "broken pipe", provider: "claude-cli" }])
       expect(onExit).not.toHaveBeenCalled()
       expect(spawned[0].kill).toHaveBeenCalled()
-      expect(session.isAlive).toBe(false)
     })
   })
 
@@ -447,7 +443,6 @@ describe("ClaudeCliSession", () => {
       expect(events).toEqual([])
       expect(onExit).not.toHaveBeenCalled()
       expect(next.isResolved()).toBe(false)
-      expect(session.isAlive).toBe(true)
       spawned[1].say(TEXT("fresh"))
       spawned[1].say(DONE)
       await next.sent
@@ -484,7 +479,6 @@ describe("ClaudeCliSession", () => {
       await sent
       expect(spawned[0].kill).toHaveBeenCalled()
       expect(spawned[0].writes).toEqual([])
-      expect(session.isAlive).toBe(false)
     })
 
     it("prepends the interrupted conversation to the next send, once", async () => {
@@ -507,14 +501,6 @@ describe("ClaudeCliSession", () => {
       expect(JSON.parse(spawned[1].writes[1]).message.content).toBe("three")
     })
 
-    it("drops the recovery context on restart", async () => {
-      const { session, spawned } = makeSession()
-      await started(session, "one")
-      session.markInterrupted([{ id: "u", role: "user", blocks: [{ type: "text", content: "old" }] }])
-      await session.restart()
-      await started(session, "fresh")
-      expect(JSON.parse(spawned[1].writes[0]).message.content).toBe("fresh")
-    })
   })
 
   describe("kill", () => {
@@ -529,7 +515,6 @@ describe("ClaudeCliSession", () => {
       expect(spawned).toHaveLength(1)
       expect(events).toEqual([])
       expect(onExit).not.toHaveBeenCalled()
-      expect(session.isAlive).toBe(false)
     })
   })
 })

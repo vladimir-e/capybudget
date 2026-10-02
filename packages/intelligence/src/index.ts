@@ -1,9 +1,9 @@
 // Types
 export type {
   FileAttachment,
-  CliTextContent,
-  CliImageContent,
-  CliDocumentContent,
+  UserTextContent,
+  UserImageContent,
+  UserDocumentContent,
   MessageContent,
   MessageRole,
   TextBlock,
@@ -29,7 +29,7 @@ export { deadEndKind, extractErrorMessage } from "./error-message"
 export type { DeadEndKind } from "./error-message"
 
 // Session interface
-export type { CapySessionOptions, CapySession } from "./session"
+export type { CapySession } from "./session"
 
 // Structured-output primitive (stateless, schema-validated single call)
 export { parseStructured, SchemaValidationError } from "./structured"

@@ -41,12 +41,9 @@ const { createdSessions, createSessionMock } = vi.hoisted(() => {
       const killSpy = vi.fn(async () => {})
       const sendSpy = vi.fn(async () => {})
       const stopSpy = vi.fn(async () => {})
-      const restartSpy = vi.fn(async () => {})
       const session: CapySession = {
-        isAlive: true,
         send: sendSpy,
         stop: stopSpy,
-        restart: restartSpy,
         kill: killSpy,
       }
       list.push({ session, killSpy, sendSpy, stopSpy, emit: opts.onEvent, exit: (reason, reported = false) => opts.onExit?.(reason, reported) })
@@ -873,12 +870,10 @@ describe("useCapySession error copy", () => {
         error: { message: "Readable message" },
       })
       const session: CapySession = {
-        isAlive: true,
         send: vi.fn(async () => {
           throw err
         }),
         stop: vi.fn(async () => {}),
-        restart: vi.fn(async () => {}),
         kill: vi.fn(async () => {}),
       }
       createdSessions.push({

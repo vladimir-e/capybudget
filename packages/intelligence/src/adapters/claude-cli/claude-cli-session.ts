@@ -51,10 +51,6 @@ export class ClaudeCliSession implements CapySession {
     private readonly host: ClaudeCliHost,
   ) {}
 
-  get isAlive(): boolean {
-    return this.child !== null
-  }
-
   get hasQueuedSend(): boolean {
     return this.sendSeq > Math.max(this.turnEpoch, this.cancelledThrough)
   }
@@ -71,12 +67,6 @@ export class ClaudeCliSession implements CapySession {
 
   async stop(): Promise<void> {
     this.cancelledThrough = this.sendSeq
-    await this.endProcess()
-  }
-
-  async restart(): Promise<void> {
-    this.cancelledThrough = this.sendSeq
-    this.interruptedMessages = null
     await this.endProcess()
   }
 

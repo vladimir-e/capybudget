@@ -36,6 +36,6 @@ export function createSession(opts: SessionOptions): CapySession | null {
   return createIntelligenceSession({
     config,
     adapters,
-    options: { ...opts, claudeCliModel: config.claudeCli.model },
+    options: opts,
   })
 }

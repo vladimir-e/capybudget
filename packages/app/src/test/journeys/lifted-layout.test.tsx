@@ -48,10 +48,8 @@ const { createdSessions, createSessionMock } = vi.hoisted(() => {
     const killSpy = vi.fn(async () => {});
     list.push({ systemPrompt: opts.systemPrompt, killSpy, emit: opts.onEvent });
     return {
-      isAlive: true,
       send: vi.fn(async () => {}),
       stop: vi.fn(async () => {}),
-      restart: vi.fn(async () => {}),
       kill: killSpy,
     };
   });

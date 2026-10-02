@@ -7,25 +7,25 @@ export interface FileAttachment {
   mediaType: string
 }
 
-// ── CLI message content (stream-json protocol) ──────────────────
+// ── User message content ─────────────────────────────────────────
 
-export type CliTextContent = { type: "text"; text: string }
-export type CliImageContent = {
+export type UserTextContent = { type: "text"; text: string }
+export type UserImageContent = {
   type: "image"
   source: { type: "base64"; media_type: string; data: string }
 }
 /** Document content — used for PDF imports and chat PDF attachments.
  *  Anthropic sends it through the SDK's native `document` type; OpenAI
  *  takes it as an `input_file` content part, which carries the source
- *  filename. */
-export type CliDocumentContent = {
+ *  filename. Ollama has no document part. */
+export type UserDocumentContent = {
   type: "document"
   source: { type: "base64"; media_type: string; data: string }
   filename?: string
 }
 export type MessageContent =
   | string
-  | Array<CliTextContent | CliImageContent | CliDocumentContent>
+  | Array<UserTextContent | UserImageContent | UserDocumentContent>
 
 // ── Content block types (UI rendering) ──────────────────────────
 

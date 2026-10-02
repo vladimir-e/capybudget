@@ -27,19 +27,13 @@ export interface CapySessionOptions {
 
 export class CapySession {
   private readonly onEvent: (event: StreamEvent) => void;
-  private alive = false;
   private cancelled = false;
 
   constructor(opts: CapySessionOptions) {
     this.onEvent = opts.onEvent;
   }
 
-  get isAlive(): boolean {
-    return this.alive;
-  }
-
   async send(_content: MessageContent): Promise<void> {
-    this.alive = true;
     this.cancelled = false;
     await this.simulateChat();
   }
@@ -113,21 +107,13 @@ export class CapySession {
   private finish(): void {
     if (this.cancelled) return;
     this.onEvent({ type: "done" });
-    this.alive = false;
   }
 
   async stop(): Promise<void> {
     this.cancelled = true;
-    this.alive = false;
-  }
-
-  async restart(): Promise<void> {
-    this.cancelled = true;
-    this.alive = false;
   }
 
   async kill(): Promise<void> {
     this.cancelled = true;
-    this.alive = false;
   }
 }

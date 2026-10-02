@@ -157,7 +157,6 @@ export class OllamaSession extends AgentSession<ChatMessage> implements Structur
       display.beginIteration()
       const signal = this.openRequest()
 
-      // System prompt kept out of `this.messages` so restart() resets cleanly.
       // The tools + system prefix stay byte-identical across turns so the
       // server's prompt cache keeps hitting — all per-turn context (budget
       // snapshot, date, attachments) rides in the user messages, never here.
