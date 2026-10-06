@@ -11,9 +11,9 @@ CHANGELOG PHILOSOPHY:
 
 ## 1.6.1 — 2026-10-05
 
-- **Capy** - Long multi-step replies no longer break the chat, Stop leaves the conversation usable, OpenAI's newest models work, and model pickers list each provider's current models.
-- **Capy** - Claude Code chats load only Capy's tools and stay inside the budget folder, so accounts with claude.ai connectors no longer fail with "Prompt is too long".
-- **Import** - Bank CSVs in more formats and currencies import with the right amounts and signs, and rows a skip rule matches that carry an amount are held unselected instead of dropped.
+- **Capy** - Long multi-step replies no longer break the chat, Stop leaves the conversation usable, OpenAI's newest models work, and model pickers list each provider's current models (#115).
+- **Capy** - Claude Code chats load only Capy's tools and stay inside the budget folder, so accounts with claude.ai connectors no longer fail with "Prompt is too long" (#115).
+- **Import** - Bank CSVs in more formats and currencies import with the right amounts and signs, and rows a skip rule matches that carry an amount are held unselected instead of dropped (#115).
 
 ## 1.6.0 — 2026-09-23
 
