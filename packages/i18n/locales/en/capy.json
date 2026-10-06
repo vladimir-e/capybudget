@@ -27,6 +27,9 @@
     "newLineHint": "Shift + Enter for new line"
   },
   "thinking": "Thinking...",
+  "message": {
+    "notSent": "Not sent"
+  },
   "jumpToLatest": "Scroll to latest",
   "chart": {
     "total": "total"
@@ -71,7 +74,9 @@
   "instructionsDialog": {
     "title": "Custom Instructions",
     "description": "Help Capy understand your financial situation. Describe common patterns, account purposes, or categorization preferences.",
-    "placeholder": "e.g. I use my Chase card for daily expenses.\nWhole Foods and Trader Joe's are groceries.\nVenmo transfers to Sarah are rent splits."
+    "placeholder": "e.g. I use my Chase card for daily expenses.\nWhole Foods and Trader Joe's are groceries.\nVenmo transfers to Sarah are rent splits.",
+    "appliesToNewChats": "Applies to new chats.",
+    "startNewChat": "Start new chat"
   },
   "unconfigured": {
     "title": "Set up your AI assistant",
@@ -107,12 +112,19 @@
     "openBilling": "Open billing page"
   },
   "session": {
-    "endedUnexpectedly": "Session ended unexpectedly. Send a message to start a new conversation.",
+    "endedUnexpectedly": "Session ended unexpectedly. Send a message to continue.",
+    "endedUnexpectedlyWithReason": "Session ended unexpectedly. Claude Code reported:\n\n{{reason}}\n\nSend a message to continue.",
     "notConfigured": "Capy is not configured. Open settings to pick an AI provider.",
     "sendFailed": "Failed to send message",
     "interrupted": "Session interrupted. Send a message to continue.",
-    "cutOff": "The response was cut off before Capy could reply. Try again.",
-    "budgetExhausted": "Capy reached its limit of tool calls for this reply. Send a message to continue."
+    "cutOff": "Capy's reply was cut off before it finished. Try again, or ask for less at once.",
+    "refused": "Capy declined to answer that one. Try rephrasing.",
+    "budgetExhausted": "Capy reached its limit of tool calls for this reply. Send a message to continue.",
+    "keyAccessDismissed": "Capy needs your AI key to reply. Send again and choose Allow to unlock it.",
+    "keyReadFailed": "Capy couldn't read your AI key from the system keychain. Send again to retry.",
+    "rateLimited": "{{provider}} is rate-limiting requests right now. Try again in a moment.",
+    "unreachable": "Can't reach {{provider}} — check your internet connection.",
+    "ollamaUnreachable": "Can't reach Ollama at {{url}}. Start it with `ollama serve`, or check the URL in Settings."
   },
   "secretGate": {
     "title": "Unlock your AI key",

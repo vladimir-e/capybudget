@@ -5,7 +5,7 @@
  * lands on reopen is a pure function of which artifacts exist. The orchestrator
  * never touches a filesystem directly; it reads and writes through this
  * interface, so the engine is headless and unit-testable against an in-memory
- * double. Unit 3 supplies the concrete {@link FileStagingStore}.
+ * double. The app supplies the concrete {@link FileStagingStore}.
  *
  * ```
  * .capy/import/
@@ -23,6 +23,7 @@ import {
   validateImportTransactions,
   type ImportTransaction,
   type RowContext,
+  type SkipRule,
   type TransferContext,
 } from "@capybudget/core";
 import type { FileAdapter } from "@capybudget/persistence";
@@ -156,10 +157,26 @@ export function parseImportCsv(content: string): StagedTransactions {
         row.duplicateConfidence === "high" || row.duplicateConfidence === "low"
           ? row.duplicateConfidence
           : "",
+      skipRule: parseSkipRule(row.skipRule),
     };
   });
   const { valid, dropped, fixed } = validateImportTransactions(rows);
   return { rows: valid, dropped, fixed };
+}
+
+function parseSkipRule(cell: string | undefined): SkipRule | null {
+  if (!cell) return null;
+  try {
+    const rule: unknown = JSON.parse(cell);
+    if (typeof rule !== "object" || rule === null) return null;
+    const { column, contains, equals } = rule as Record<string, unknown>;
+    if (typeof column !== "string") return null;
+    if (typeof contains === "string") return { column, contains };
+    if (typeof equals === "string") return { column, equals };
+    return null;
+  } catch {
+    return null;
+  }
 }
 
 const IMPORT_DIR_REL = ".capy/import";
@@ -169,7 +186,7 @@ const IMPORT_DIR_REL = ".capy/import";
  *
  * Imports only `intelligence` / `persistence` types, so it lives in the
  * intelligence layer per `STRUCTURE.md` and any consumer (the app, a CLI)
- * reuses it. Unit 3 constructs one with the Tauri file adapter; tests use the
+ * reuses it. The app constructs one with the Tauri file adapter; tests use the
  * in-memory double instead.
  */
 export class FileStagingStore implements StagingStore {

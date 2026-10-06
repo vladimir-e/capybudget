@@ -25,6 +25,7 @@ function makeImportTxn(overrides: Partial<ImportTransaction> = {}): ImportTransa
     categoryConfidence: "high",
     duplicate: false,
     duplicateConfidence: "",
+    skipRule: null,
     ...overrides,
   };
 }
@@ -40,6 +41,17 @@ describe("prepareMerge", () => {
         "USD",
       ),
     ).toThrow("No transactions selected");
+  });
+
+  it("commits a skip-rule row only when it is selected", () => {
+    const real = makeImportTxn({ description: "GROCERY" });
+    const held = makeImportTxn({ description: "Opening balance", amount: 152000, type: "income", skipRule: { column: "Description", contains: "balance" } });
+    const merge = (selected: ImportTransaction[]) =>
+      prepareMerge({ transactions: [real, held], selectedIds: new Set(selected.map((t) => t.id)), accountMapping: {} }, [], [], "USD")
+        .transactions.map((t) => t.note);
+
+    expect(merge([real])).toEqual(["GROCERY"]);
+    expect(merge([real, held]).sort()).toEqual(["GROCERY", "Opening balance"]);
   });
 
   it("creates accounts for unmapped sources", () => {

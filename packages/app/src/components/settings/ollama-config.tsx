@@ -1,21 +1,22 @@
 import { useEffect, useState } from "react"
-import { openUrl } from "@tauri-apps/plugin-opener"
-import { AlertTriangle, Check, ExternalLink, Loader2, RefreshCw } from "lucide-react"
-import { DEFAULT_OLLAMA_BASE_URL } from "@capybudget/intelligence"
+import { AlertTriangle, Check, Loader2, RefreshCw } from "lucide-react"
+import { DEFAULT_OLLAMA_BASE_URL, type ModelOption } from "@capybudget/intelligence"
+import { listModels, pingProvider } from "@capybudget/intelligence/adapters"
 import { useTranslation } from "@capybudget/i18n"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useIntelligenceStore } from "@/stores/intelligence-store"
-import { listOllamaModels, pingOllama } from "@/lib/api-testing"
-import { ModelField, type ModelOption } from "./model-field"
+import { ExternalLinkButton } from "./external-link-button"
+import { ModelField } from "./model-field"
 import { TestResult, type TestState } from "./test-result"
 
 const OLLAMA_SITE_URL = "https://ollama.com/download"
+const OLLAMA_LIBRARY_URL = "https://ollama.com/library"
 
 type ProbeState =
   | { kind: "probing" }
-  | { kind: "ok"; models: string[] }
+  | { kind: "ok"; models: ModelOption[] }
   | { kind: "unreachable" }
 
 /** Ollama's settings: no key, and a model list discovered from the server. */
@@ -35,7 +36,7 @@ export function OllamaConfig() {
   // effect body never sets state synchronously.
   useEffect(() => {
     let cancelled = false
-    listOllamaModels(baseUrl)
+    listModels({ provider: "ollama", baseUrl })
       .then((models) => {
         if (!cancelled) setProbe({ kind: "ok", models })
       })
@@ -58,20 +59,20 @@ export function OllamaConfig() {
   async function handleTest() {
     if (!model) return
     setTestState({ kind: "running" })
-    const result = await pingOllama(baseUrl, model)
+    const result = await pingProvider({ provider: "ollama", baseUrl, model })
     if (result.ok) {
       setTestState({ kind: "success" })
       setTimeout(() => setTestState({ kind: "idle" }), 3000)
     } else {
-      setTestState({ kind: "error", message: result.message })
+      setTestState({
+        kind: "error",
+        message: result.unreachable ? t("provider.ollama.notRunningHint") : result.message,
+      })
     }
   }
 
-  // Keep a saved model that's no longer pulled, so the choice isn't blanked.
   const detected = probe.kind === "ok" ? probe.models : []
-  const modelOptions: ModelOption[] = (
-    model && !detected.includes(model) ? [...detected, model] : detected
-  ).map((id) => ({ value: id, label: id }))
+  const nothingPulled = probe.kind === "ok" && detected.length === 0
 
   return (
     <div className="space-y-5">
@@ -147,29 +148,24 @@ export function OllamaConfig() {
           {t("provider.ollama.notRunningHint")}
         </p>
       )}
-      {probe.kind === "ok" && detected.length === 0 && (
-        <p className="text-xs text-muted-foreground">{t("provider.ollama.noModels")}</p>
+      {nothingPulled && (
+        <div className="space-y-1.5 rounded-lg border border-border bg-muted/40 px-3 py-2.5 text-xs">
+          <p className="text-muted-foreground">{t("provider.ollama.noModels")}</p>
+          <ExternalLinkButton label={t("provider.ollama.browseModels")} href={OLLAMA_LIBRARY_URL} />
+        </div>
       )}
 
       <ModelField
         id="ollama-model"
         model={model}
         onSaveModel={setModel}
-        models={modelOptions}
+        models={detected}
+        freeText={nothingPulled}
       />
 
       <p className="text-xs text-muted-foreground/80">{t("provider.ollama.toolsHint")}</p>
 
-      <button
-        type="button"
-        onClick={() => {
-          void openUrl(OLLAMA_SITE_URL)
-        }}
-        className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
-      >
-        {t("provider.ollama.install")}
-        <ExternalLink className="h-3 w-3" />
-      </button>
+      <ExternalLinkButton label={t("provider.ollama.install")} href={OLLAMA_SITE_URL} />
     </div>
   )
 }

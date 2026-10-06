@@ -18,6 +18,9 @@ dist-ssr
 # TanStack Router generated
 src/routeTree.gen.ts
 
+# Live smoke-suite credentials (see .env.live.example)
+.env.live
+
 # Local task notes (not part of shipped specs)
 tasks/
 

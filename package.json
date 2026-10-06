@@ -27,6 +27,7 @@
     "test:rust": "cargo test --manifest-path src-tauri/Cargo.toml",
     "test:rust:mas": "node scripts/test-rust-mas.mjs",
     "test:watch": "vitest",
+    "test:live": "vitest run --config vitest.live.config.ts",
     "lint": "eslint .",
     "demo": "npm run dev --workspace=@capybudget/demo",
     "routes:generate": "tsr generate && cd apps/demo && tsr generate",

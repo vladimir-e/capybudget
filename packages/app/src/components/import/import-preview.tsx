@@ -26,7 +26,7 @@ import {
   type ImportSortConfig,
 } from "@/components/import/import-table-utils";
 import { ImportMappingRows } from "./import-mapping";
-import { Search, X, GitMerge, AlertTriangle, Copy, Loader2 } from "lucide-react";
+import { Search, X, GitMerge, AlertTriangle, Copy, ListFilter, Loader2 } from "lucide-react";
 
 interface ImportPreviewProps {
   budgetPath: string;
@@ -96,6 +96,7 @@ export function ImportPreview({
     sourceAccounts,
     duplicateIds,
     possibleDuplicateCount,
+    skipRuleCount,
     uncategorizedCount,
     lowConfidenceCount,
     incompleteCount,
@@ -130,7 +131,8 @@ export function ImportPreview({
   const sorted = useMemo(() => sortImportTransactions(filtered, sort), [filtered, sort]);
 
   // ── Selection helpers ──────────────────────────────────────────
-  const allSelected = sorted.length > 0 && sorted.every((t) => selectedIds.has(t.id));
+  const sweepable = useMemo(() => sorted.filter((t) => !t.skipRule), [sorted]);
+  const allSelected = sweepable.length > 0 && sweepable.every((t) => selectedIds.has(t.id));
   const indeterminate = !allSelected && sorted.some((t) => selectedIds.has(t.id));
   const lastToggledRef = useRef<string | null>(null);
 
@@ -146,8 +148,8 @@ export function ImportPreview({
             const [start, end] = from < to ? [from, to] : [to, from];
             const shouldSelect = !prev.has(id);
             for (let i = start; i <= end; i++) {
-              if (shouldSelect) next.add(ids[i]);
-              else next.delete(ids[i]);
+              if (!shouldSelect) next.delete(ids[i]);
+              else if (ids[i] === id || !sorted[i].skipRule) next.add(ids[i]);
             }
           }
         } else if (next.has(id)) {
@@ -164,16 +166,15 @@ export function ImportPreview({
 
   const handleToggleAll = useCallback(() => {
     setSelectedIds((prev) => {
-      const visibleIds = sorted.map((t) => t.id);
-      const allChecked = visibleIds.every((id) => prev.has(id));
       const next = new Set(prev);
-      for (const id of visibleIds) {
-        if (allChecked) next.delete(id);
-        else next.add(id);
+      if (sweepable.every((t) => prev.has(t.id))) {
+        for (const t of sorted) next.delete(t.id);
+      } else {
+        for (const t of sweepable) next.add(t.id);
       }
       return next;
     });
-  }, [sorted, setSelectedIds]);
+  }, [sorted, sweepable, setSelectedIds]);
 
   // ── Stats ──────────────────────────────────────────────────────
   const selected = transactions.filter((t) => selectedIds.has(t.id));
@@ -295,6 +296,7 @@ export function ImportPreview({
 
   const showSkippedNote = skippedRowCount > 0;
   const showDuplicatesNote = duplicateIds.size > 0;
+  const showSkipRuleNote = skipRuleCount > 0;
   // Issue counts are still settling while a run is in flight.
   const showIssuesNote = !running && (uncategorizedCount > 0 || lowConfidenceCount > 0);
 
@@ -303,7 +305,7 @@ export function ImportPreview({
       {/* Run notes — one compact panel, a line per note. Certain duplicate
           matches and the speculative (close-date) tier read differently: the
           former are settled, the latter prompt review. */}
-      {(showSkippedNote || showDuplicatesNote || showIssuesNote) && (
+      {(showSkippedNote || showDuplicatesNote || showSkipRuleNote || showIssuesNote) && (
         <div className="w-fit max-w-full space-y-1.5 rounded-xl border border-border/40 bg-card/30 px-3.5 py-2.5">
           {showSkippedNote && (
             <div className="flex items-center gap-2.5 text-sm text-foreground/70">
@@ -324,6 +326,12 @@ export function ImportPreview({
                   .filter(Boolean)
                   .join(" · ")}
               </span>
+            </div>
+          )}
+          {showSkipRuleNote && (
+            <div className="flex items-center gap-2.5 text-sm text-foreground/70">
+              <ListFilter className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+              <span>{t("preview.skipRuleRows", { count: skipRuleCount })}</span>
             </div>
           )}
           {showIssuesNote && (

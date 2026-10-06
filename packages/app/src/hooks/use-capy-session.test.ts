@@ -31,24 +31,22 @@ interface FakeSession {
   sendSpy: ReturnType<typeof vi.fn>
   stopSpy: ReturnType<typeof vi.fn>
   emit: (event: StreamEvent) => void
+  exit: (reason?: string, reported?: boolean) => void
 }
 
 const { createdSessions, createSessionMock } = vi.hoisted(() => {
   const list: FakeSession[] = []
   const mock = vi.fn(
-    (opts: { onEvent: (event: StreamEvent) => void }): CapySession => {
+    (opts: { onEvent: (event: StreamEvent) => void; onExit?: (reason: string | undefined, reported: boolean) => void }): CapySession => {
       const killSpy = vi.fn(async () => {})
       const sendSpy = vi.fn(async () => {})
       const stopSpy = vi.fn(async () => {})
-      const restartSpy = vi.fn(async () => {})
       const session: CapySession = {
-        isAlive: true,
         send: sendSpy,
         stop: stopSpy,
-        restart: restartSpy,
         kill: killSpy,
       }
-      list.push({ session, killSpy, sendSpy, stopSpy, emit: opts.onEvent })
+      list.push({ session, killSpy, sendSpy, stopSpy, emit: opts.onEvent, exit: (reason, reported = false) => opts.onExit?.(reason, reported) })
       return session
     },
   )
@@ -63,6 +61,8 @@ import { useCapySession, type UseCapySessionOptions } from "./use-capy-session"
 import {
   useIntelligenceStore,
   _resetIntelligenceStoreForTests,
+  _resetStoreForTests,
+  _setStoreLoaderForTests,
 } from "@/stores/intelligence-store"
 
 const baseOpts: UseCapySessionOptions = {
@@ -80,6 +80,7 @@ beforeEach(() => {
 
 afterEach(() => {
   _resetIntelligenceStoreForTests()
+  _resetStoreForTests()
 })
 
 describe("useCapySession session teardown", () => {
@@ -289,6 +290,120 @@ describe("useCapySession session teardown", () => {
     expect(firstSession.killSpy).toHaveBeenCalled()
   })
 
+  it("rebuilds the session when the API key is saved, without ever carrying the key in the signature", () => {
+    useIntelligenceStore.setState({
+      hydrated: true,
+      config: {
+        ...DEFAULT_INTELLIGENCE_CONFIG,
+        provider: "anthropic",
+        anthropic: { apiKey: "sk-wrong", model: "claude-sonnet-4-6" },
+      },
+    })
+    const { result } = renderHook(() => useCapySession(baseOpts))
+    act(() => {
+      result.current.sendMessage("hi")
+    })
+    const firstSession = createdSessions[0]
+
+    act(() => {
+      useIntelligenceStore.getState().setAnthropicKey("sk-right")
+    })
+    expect(firstSession.killSpy).toHaveBeenCalled()
+    expect(result.current.messages).toEqual([])
+  })
+
+  it("keeps an active chat when the API key of another provider is saved", () => {
+    useIntelligenceStore.setState({
+      hydrated: true,
+      config: {
+        ...DEFAULT_INTELLIGENCE_CONFIG,
+        provider: "anthropic",
+        anthropic: { apiKey: "sk-ant", model: "claude-sonnet-4-6" },
+      },
+    })
+    const { result } = renderHook(() => useCapySession(baseOpts))
+    act(() => {
+      result.current.sendMessage("hi")
+    })
+
+    act(() => {
+      useIntelligenceStore.getState().setOpenAiKey("sk-openai")
+    })
+    expect(createdSessions[0].killSpy).not.toHaveBeenCalled()
+    expect(result.current.messages).toHaveLength(2)
+  })
+
+  it("keeps an active chat when the custom instructions change, and the next chat picks them up", () => {
+    useIntelligenceStore.setState({
+      hydrated: true,
+      config: { ...DEFAULT_INTELLIGENCE_CONFIG, provider: "claude-cli" },
+    })
+    const { result, rerender } = renderHook((props: UseCapySessionOptions) => useCapySession(props), {
+      initialProps: { ...baseOpts, customInstructions: "Be brief." },
+    })
+    act(() => {
+      result.current.sendMessage("hi")
+    })
+    const firstSession = createdSessions[0]
+
+    rerender({ ...baseOpts, customInstructions: "Always show charts." })
+    expect(firstSession.killSpy).not.toHaveBeenCalled()
+    expect(result.current.messages).toHaveLength(2)
+
+    act(() => {
+      firstSession.emit({ type: "done" })
+    })
+    act(() => {
+      result.current.newChat()
+    })
+    act(() => {
+      result.current.sendMessage("hi again")
+    })
+    expect(createSessionMock.mock.calls.at(-1)?.[0]).toMatchObject({
+      systemPrompt: expect.stringContaining("Always show charts."),
+    })
+  })
+
+  it("rebuilds right away when the custom instructions change on an empty chat", () => {
+    useIntelligenceStore.setState({
+      hydrated: true,
+      config: { ...DEFAULT_INTELLIGENCE_CONFIG, provider: "claude-cli" },
+    })
+    const { result, rerender } = renderHook((props: UseCapySessionOptions) => useCapySession(props), {
+      initialProps: { ...baseOpts, customInstructions: "Be brief." },
+    })
+    act(() => {
+      result.current.sendMessage("hi")
+    })
+    const firstSession = createdSessions[0]
+    ;(firstSession.session as { hasQueuedSend?: boolean }).hasQueuedSend = true
+    act(() => {
+      result.current.stopStreaming()
+    })
+    expect(result.current.messages).toEqual([])
+
+    rerender({ ...baseOpts, customInstructions: "Always show charts." })
+    expect(firstSession.killSpy).toHaveBeenCalled()
+  })
+
+  it("never cancels an early send when the instructions finish loading", () => {
+    useIntelligenceStore.setState({
+      hydrated: true,
+      config: { ...DEFAULT_INTELLIGENCE_CONFIG, provider: "claude-cli" },
+    })
+    const { result, rerender } = renderHook((props: UseCapySessionOptions) => useCapySession(props), {
+      initialProps: { ...baseOpts, customInstructions: "" },
+    })
+    act(() => {
+      result.current.sendMessage("hi")
+    })
+
+    rerender({ ...baseOpts, customInstructions: "Be brief." })
+    expect(createdSessions[0].killSpy).not.toHaveBeenCalled()
+    expect(result.current.isStreaming).toBe(true)
+    expect(result.current.messages).toHaveLength(2)
+  })
+
   it("kills the session when the provider goes to null", () => {
     useIntelligenceStore.setState({
       hydrated: true,
@@ -332,17 +447,35 @@ describe("useCapySession live cache invalidation", () => {
     return { onDataChanged, onImportStarted, emit: session.emit, result }
   }
 
-  it("words a coded error in the UI language instead of the adapter's fallback", () => {
+  it.each([
+    ["cutOff" as const, "Capy's reply was cut off before it finished. Try again, or ask for less at once."],
+    ["refused" as const, "Capy declined to answer that one. Try rephrasing."],
+  ])("words a %s error in the UI language instead of the adapter's fallback", (code, message) => {
     const { emit, result } = setup()
 
     act(() => {
-      emit({ type: "error", code: "cutOff", message: "fallback" })
+      emit({ type: "error", code, message: "fallback" })
     })
     const blocks = result.current.messages.at(-1)?.blocks ?? []
-    expect(blocks.at(-1)).toMatchObject({
-      type: "error",
-      message: "The response was cut off before Capy could reply. Try again.",
+    expect(blocks.at(-1)).toMatchObject({ type: "error", message })
+  })
+
+  it.each([
+    [true, "done"],
+    [false, "failed"],
+  ] as const)("shows the real outcome of a call that was running at Stop (ok: %s)", (ok, status) => {
+    const { emit, result } = setup()
+    act(() => {
+      emit({ type: "content", blocks: [{ type: "tool-activity", tool: "create_transaction", status: "running", id: "c1" }] })
     })
+    act(() => {
+      result.current.stopStreaming()
+    })
+    act(() => {
+      emit({ type: "tool-result", tool: "create_transaction", id: "c1", ok })
+    })
+    const blocks = result.current.messages.flatMap((m) => m.blocks)
+    expect(blocks.find((b) => b.type === "tool-activity")).toMatchObject({ id: "c1", status })
   })
 
   it("fires onImportStarted when a start_import tool-result lands", () => {
@@ -382,7 +515,7 @@ describe("useCapySession live cache invalidation", () => {
     act(() => {
       emit({
         type: "content",
-        blocks: [{ type: "tool-activity", tool: "create_transaction" }],
+        blocks: [{ type: "tool-activity", tool: "create_transaction", status: "running" }],
       })
     })
     expect(onDataChanged).not.toHaveBeenCalled()
@@ -400,7 +533,7 @@ describe("useCapySession live cache invalidation", () => {
     act(() => {
       emit({
         type: "content",
-        blocks: [{ type: "tool-activity", tool: "list_transactions" }],
+        blocks: [{ type: "tool-activity", tool: "list_transactions", status: "running" }],
       })
       emit({ type: "tool-result", tool: "list_transactions", id: "tu_1", ok: true })
     })
@@ -446,7 +579,7 @@ describe("useCapySession live cache invalidation", () => {
     act(() => {
       emit({
         type: "content",
-        blocks: [{ type: "tool-activity", tool: "create_transaction" }],
+        blocks: [{ type: "tool-activity", tool: "create_transaction", status: "running" }],
       })
       emit({ type: "done" })
     })
@@ -459,7 +592,7 @@ describe("useCapySession live cache invalidation", () => {
     act(() => {
       emit({
         type: "content",
-        blocks: [{ type: "tool-activity", tool: "create_transaction" }],
+        blocks: [{ type: "tool-activity", tool: "create_transaction", status: "running" }],
       })
       emit({ type: "tool-result", tool: "create_transaction", id: "tu_1", ok: true })
       emit({ type: "done" })
@@ -536,5 +669,545 @@ describe("useCapySession attachment content", () => {
       (b) => b.type === "text",
     )
     expect(textBlock?.text).not.toContain("JVBERi0xSECRET")
+  })
+})
+
+describe("useCapySession sends that never reach the model", () => {
+  function lockedAnthropic() {
+    const backend = {
+      load: vi.fn(async () => null),
+      loadSecrets: vi.fn(async () => ({ anthropic: "sk-loaded", openai: "" })),
+      save: vi.fn(async () => {}),
+      markGateSeen: vi.fn(async () => {}),
+      clearGateSeen: vi.fn(async () => {}),
+    }
+    _setStoreLoaderForTests(async () => backend)
+    useIntelligenceStore.setState({
+      hydrated: true,
+      secretGateSeen: false,
+      config: {
+        ...DEFAULT_INTELLIGENCE_CONFIG,
+        provider: "anthropic",
+        anthropic: { apiKey: "", model: "claude-sonnet-4-6", keyPresent: true },
+      },
+    })
+    return backend
+  }
+
+  const settle = () => act(async () => {
+    await new Promise((resolve) => setTimeout(resolve, 0))
+  })
+
+  it("Stop while the key is still loading cancels the send and drops its bubbles", async () => {
+    lockedAnthropic()
+    const { result } = renderHook(() => useCapySession(baseOpts))
+    act(() => {
+      result.current.sendMessage("hi")
+    })
+    await vi.waitFor(() => expect(useIntelligenceStore.getState().secretGateOpen).toBe(true))
+    act(() => {
+      result.current.stopStreaming()
+    })
+    expect(useIntelligenceStore.getState().secretGateOpen).toBe(false)
+    await settle()
+
+    expect(createdSessions).toHaveLength(0)
+    expect(result.current.messages).toEqual([])
+  })
+
+  it("New Chat while the key is still loading cancels the send", async () => {
+    lockedAnthropic()
+    const { result } = renderHook(() => useCapySession(baseOpts))
+    act(() => {
+      result.current.sendMessage("hi")
+    })
+    await vi.waitFor(() => expect(useIntelligenceStore.getState().secretGateOpen).toBe(true))
+    act(() => {
+      result.current.newChat()
+    })
+    expect(useIntelligenceStore.getState().secretGateOpen).toBe(false)
+    await settle()
+
+    expect(createdSessions).toHaveLength(0)
+    expect(result.current.messages).toEqual([])
+  })
+
+  it("a dismissed key heads-up says the key is needed, not that Capy is unconfigured", async () => {
+    lockedAnthropic()
+    useIntelligenceStore.setState({ secretsError: true })
+    const { result } = renderHook(() => useCapySession(baseOpts))
+    act(() => {
+      result.current.sendMessage("hi")
+    })
+    act(() => {
+      useIntelligenceStore.getState().dismissSecretGate()
+    })
+    await settle()
+
+    expect(result.current.messages.at(-1)?.blocks.at(-1)).toMatchObject({
+      type: "error",
+      message: "Capy needs your AI key to reply. Send again and choose Allow to unlock it.",
+    })
+    expect(result.current.isStreaming).toBe(false)
+  })
+
+  it("a failed keychain read says so", async () => {
+    const backend = lockedAnthropic()
+    backend.loadSecrets.mockRejectedValue(new Error("denied"))
+    useIntelligenceStore.setState({ secretGateSeen: true })
+    const { result } = renderHook(() => useCapySession(baseOpts))
+    act(() => {
+      result.current.sendMessage("hi")
+    })
+    await settle()
+
+    expect(result.current.messages.at(-1)?.blocks.at(-1)).toMatchObject({
+      type: "error",
+      message: "Capy couldn't read your AI key from the system keychain. Send again to retry.",
+    })
+  })
+
+  it("a New Chat after a failed send never closes a gate opened since", async () => {
+    lockedAnthropic()
+    const { result } = renderHook(() => useCapySession(baseOpts))
+    act(() => {
+      result.current.sendMessage("hi")
+    })
+    await vi.waitFor(() => expect(useIntelligenceStore.getState().secretGateOpen).toBe(true))
+    act(() => {
+      useIntelligenceStore.getState().dismissSecretGate()
+    })
+    await settle()
+
+    void useIntelligenceStore.getState().ensureSecrets()
+    await vi.waitFor(() => expect(useIntelligenceStore.getState().secretGateOpen).toBe(true))
+    act(() => {
+      result.current.newChat()
+    })
+    expect(useIntelligenceStore.getState().secretGateOpen).toBe(true)
+  })
+
+  it("a first send that never reached the model hands the budget snapshot to the next one", async () => {
+    lockedAnthropic()
+    const getBudgetSnapshot = vi.fn(() => undefined)
+    const { result } = renderHook(() => useCapySession({ ...baseOpts, getBudgetSnapshot }))
+    act(() => {
+      result.current.sendMessage("hi")
+    })
+    act(() => {
+      useIntelligenceStore.getState().dismissSecretGate()
+    })
+    await settle()
+
+    act(() => {
+      result.current.sendMessage("again")
+    })
+    act(() => {
+      result.current.stopStreaming()
+    })
+    await settle()
+
+    act(() => {
+      result.current.sendMessage("third")
+    })
+    expect(getBudgetSnapshot).toHaveBeenCalledTimes(3)
+  })
+
+  it("a second Stop drops the bubbles of a send queued behind the stopped round", () => {
+    useIntelligenceStore.setState({
+      hydrated: true,
+      config: {
+        ...DEFAULT_INTELLIGENCE_CONFIG,
+        provider: "anthropic",
+        anthropic: { apiKey: "sk-x", model: "claude-sonnet-4-6" },
+      },
+    })
+    const { result } = renderHook(() => useCapySession(baseOpts))
+    act(() => {
+      result.current.sendMessage("first")
+    })
+    act(() => {
+      result.current.stopStreaming()
+    })
+    const afterFirstStop = result.current.messages
+
+    act(() => {
+      result.current.sendMessage("second")
+    })
+    ;(createdSessions[0].session as { hasQueuedSend?: boolean }).hasQueuedSend = true
+    act(() => {
+      result.current.stopStreaming()
+    })
+
+    expect(result.current.messages).toEqual(afterFirstStop)
+    expect(createdSessions[0].stopSpy).toHaveBeenCalledTimes(2)
+  })
+
+  it("Stop with a send queued behind a winding-down turn keeps the history for the next send", () => {
+    useIntelligenceStore.setState({
+      hydrated: true,
+      config: { ...DEFAULT_INTELLIGENCE_CONFIG, provider: "claude-cli" },
+    })
+    const { result } = renderHook(() => useCapySession(baseOpts))
+    act(() => {
+      result.current.sendMessage("first")
+    })
+    const fake = createdSessions[0]
+    const markInterrupted = vi.fn()
+    fake.session.markInterrupted = markInterrupted
+    act(() => {
+      fake.emit({ type: "content", blocks: [{ type: "text", content: "answer" }] })
+      fake.emit({ type: "done" })
+    })
+    const answered = result.current.messages
+
+    act(() => {
+      result.current.sendMessage("second")
+    })
+    ;(fake.session as { hasQueuedSend?: boolean }).hasQueuedSend = true
+    act(() => {
+      result.current.stopStreaming()
+    })
+
+    expect(markInterrupted).toHaveBeenCalledWith(answered)
+    expect(markInterrupted.mock.invocationCallOrder[0]).toBeLessThan(fake.stopSpy.mock.invocationCallOrder[0])
+    expect(result.current.messages).toEqual(answered)
+  })
+
+  it("marks a question unsent when it failed before reaching the session", async () => {
+    lockedAnthropic()
+    const { result } = renderHook(() => useCapySession(baseOpts))
+    act(() => {
+      result.current.sendMessage("hi")
+    })
+    act(() => {
+      useIntelligenceStore.getState().dismissSecretGate()
+    })
+    await settle()
+
+    expect(result.current.messages[0]).toMatchObject({ role: "user", unsent: true })
+  })
+})
+
+describe("useCapySession error copy", () => {
+  function setup() {
+    useIntelligenceStore.setState({
+      hydrated: true,
+      config: {
+        ...DEFAULT_INTELLIGENCE_CONFIG,
+        provider: "openai",
+        openai: { apiKey: "sk-x", model: "gpt-6-sol" },
+      },
+    })
+    const onDataChanged = vi.fn()
+    const { result } = renderHook(() => useCapySession({ ...baseOpts, onDataChanged }))
+    act(() => {
+      result.current.sendMessage("hi")
+    })
+    return { result, onDataChanged, fake: createdSessions[0] }
+  }
+
+  it("words a rate limit with the provider's name", () => {
+    const { result, fake } = setup()
+    act(() => {
+      fake.emit({ type: "error", code: "rateLimited", status: 429, provider: "openai", message: "Rate limit reached" })
+    })
+    expect(result.current.messages.at(-1)?.blocks.at(-1)).toMatchObject({
+      type: "error",
+      message: "OpenAI API is rate-limiting requests right now. Try again in a moment.",
+    })
+  })
+
+  it("words an unreachable provider with its name", () => {
+    const { result, fake } = setup()
+    act(() => {
+      fake.emit({ type: "error", code: "unreachable", provider: "openai", message: "openai unreachable" })
+    })
+    expect(result.current.messages.at(-1)?.blocks.at(-1)).toMatchObject({
+      type: "error",
+      message: "Can't reach OpenAI API — check your internet connection.",
+    })
+  })
+
+  it("points an unreachable Ollama at its server and `ollama serve`", () => {
+    const { result, fake } = setup()
+    act(() => {
+      useIntelligenceStore.setState((s) => ({ config: { ...s.config, ollama: { ...s.config.ollama, baseUrl: "http://box:11434/v1" } } }))
+    })
+    act(() => {
+      fake.emit({ type: "error", code: "unreachable", provider: "ollama", message: "ollama unreachable" })
+    })
+    expect(result.current.messages.at(-1)?.blocks.at(-1)).toMatchObject({
+      type: "error",
+      message: "Can't reach Ollama at http://box:11434. Start it with `ollama serve`, or check the URL in Settings.",
+    })
+  })
+
+  it("routes a rejected send through the SDK error extractor", async () => {
+    useIntelligenceStore.setState({
+      hydrated: true,
+      config: {
+        ...DEFAULT_INTELLIGENCE_CONFIG,
+        provider: "openai",
+        openai: { apiKey: "sk-x", model: "gpt-6-sol" },
+      },
+    })
+    createSessionMock.mockImplementationOnce((opts) => {
+      const err = Object.assign(new Error('400 {"message":"raw"}'), {
+        status: 400,
+        error: { message: "Readable message" },
+      })
+      const session: CapySession = {
+        send: vi.fn(async () => {
+          throw err
+        }),
+        stop: vi.fn(async () => {}),
+        kill: vi.fn(async () => {}),
+      }
+      createdSessions.push({
+        session,
+        killSpy: vi.fn(),
+        sendSpy: vi.fn(),
+        stopSpy: vi.fn(),
+        emit: opts.onEvent,
+        exit: (reason, reported = false) => opts.onExit?.(reason, reported),
+      })
+      return session
+    })
+    const { result } = renderHook(() => useCapySession(baseOpts))
+    await act(async () => {
+      result.current.sendMessage("hi")
+      await Promise.resolve()
+    })
+    expect(result.current.messages.at(-1)?.blocks.at(-1)).toMatchObject({
+      type: "error",
+      message: "Readable message",
+      status: 400,
+    })
+  })
+
+  it("marks the question unsent when the adapter rolled it back out of history", () => {
+    const { result, fake } = setup()
+    act(() => {
+      fake.emit({ type: "error", status: 400, provider: "openai", message: "Invalid image", rolledBack: true })
+    })
+    expect(result.current.messages[0]).toMatchObject({ role: "user", unsent: true })
+    expect(result.current.messages.at(-1)?.blocks.at(-1)).toMatchObject({ type: "error", message: "Invalid image" })
+  })
+
+  it("leaves the question delivered on an error that kept it in history", () => {
+    const { result, fake } = setup()
+    act(() => {
+      fake.emit({ type: "error", status: 500, provider: "openai", message: "server error" })
+    })
+    expect(result.current.messages[0]).not.toHaveProperty("unsent")
+  })
+
+  it.each([
+    ["rolled back", true, 2],
+    ["kept in history", false, 1],
+  ])("reads the budget snapshot again only when the first send was %s", (_, rolledBack, reads) => {
+    useIntelligenceStore.setState({
+      hydrated: true,
+      config: {
+        ...DEFAULT_INTELLIGENCE_CONFIG,
+        provider: "openai",
+        openai: { apiKey: "sk-x", model: "gpt-6-sol" },
+      },
+    })
+    const getBudgetSnapshot = vi.fn(() => undefined)
+    const { result } = renderHook(() => useCapySession({ ...baseOpts, getBudgetSnapshot }))
+    act(() => {
+      result.current.sendMessage("hi")
+    })
+    act(() => {
+      createdSessions[0].emit({ type: "error", status: 400, provider: "openai", message: "Invalid image", rolledBack })
+    })
+    act(() => {
+      result.current.sendMessage("again")
+    })
+    expect(getBudgetSnapshot).toHaveBeenCalledTimes(reads)
+  })
+
+  it("ends the turn on a crash and hands the budget snapshot to the respawned process", () => {
+    useIntelligenceStore.setState({
+      hydrated: true,
+      config: { ...DEFAULT_INTELLIGENCE_CONFIG, provider: "claude-cli" },
+    })
+    const getBudgetSnapshot = vi.fn(() => undefined)
+    const { result } = renderHook(() => useCapySession({ ...baseOpts, getBudgetSnapshot }))
+    act(() => {
+      result.current.sendMessage("hi")
+    })
+    act(() => {
+      createdSessions[0].exit()
+    })
+    expect(result.current.isStreaming).toBe(false)
+    expect(result.current.messages.at(-1)?.blocks[0]).toMatchObject({ type: "text", content: expect.stringMatching(/ended unexpectedly/) })
+
+    act(() => {
+      result.current.sendMessage("again")
+    })
+    expect(createdSessions[0].sendSpy).toHaveBeenCalledTimes(2)
+    expect(getBudgetSnapshot).toHaveBeenCalledTimes(2)
+  })
+
+  it("hands the conversation to the adapter on a crash so the respawned process gets it back", () => {
+    useIntelligenceStore.setState({
+      hydrated: true,
+      config: { ...DEFAULT_INTELLIGENCE_CONFIG, provider: "claude-cli" },
+    })
+    const { result } = renderHook(() => useCapySession(baseOpts))
+    act(() => {
+      result.current.sendMessage("hi")
+    })
+    const markInterrupted = vi.fn()
+    createdSessions[0].session.markInterrupted = markInterrupted
+    const before = result.current.messages
+    act(() => {
+      createdSessions[0].exit()
+    })
+    expect(markInterrupted).toHaveBeenCalledWith(before)
+  })
+
+  it("keeps a send queued behind the crashed process out of its recovery context and keeps it streaming", () => {
+    useIntelligenceStore.setState({
+      hydrated: true,
+      config: { ...DEFAULT_INTELLIGENCE_CONFIG, provider: "claude-cli" },
+    })
+    const { result } = renderHook(() => useCapySession(baseOpts))
+    act(() => {
+      result.current.sendMessage("first")
+    })
+    const fake = createdSessions[0]
+    act(() => {
+      fake.emit({ type: "done" })
+    })
+    const answered = result.current.messages
+    act(() => {
+      result.current.sendMessage("second")
+    })
+    const queued = result.current.messages.slice(answered.length)
+    const markInterrupted = vi.fn()
+    fake.session.markInterrupted = markInterrupted
+    ;(fake.session as { hasQueuedSend?: boolean }).hasQueuedSend = true
+    act(() => {
+      fake.exit()
+    })
+
+    expect(markInterrupted).toHaveBeenCalledWith(answered)
+    expect(result.current.isStreaming).toBe(true)
+    expect(result.current.messages.slice(answered.length + 1)).toEqual(queued)
+    expect(result.current.messages[answered.length].blocks[0]).toMatchObject({ type: "text", content: expect.stringMatching(/ended unexpectedly/) })
+
+    ;(fake.session as { hasQueuedSend?: boolean }).hasQueuedSend = false
+    act(() => {
+      fake.emit({ type: "content", blocks: [{ type: "text", content: "fresh answer" }] })
+      fake.emit({ type: "done" })
+    })
+    expect(result.current.isStreaming).toBe(false)
+    expect(result.current.messages.at(-1)).toEqual({ ...queued[1], blocks: [{ type: "text", content: "fresh answer" }] })
+  })
+
+  it("restarts quietly when the turn already showed the fault as an error", () => {
+    useIntelligenceStore.setState({
+      hydrated: true,
+      config: { ...DEFAULT_INTELLIGENCE_CONFIG, provider: "claude-cli" },
+    })
+    const { result } = renderHook(() => useCapySession(baseOpts))
+    act(() => {
+      result.current.sendMessage("hi")
+    })
+    const markInterrupted = vi.fn()
+    createdSessions[0].session.markInterrupted = markInterrupted
+    act(() => {
+      createdSessions[0].emit({ type: "error", provider: "claude-cli", message: "Overloaded" })
+    })
+    const shown = result.current.messages
+    act(() => {
+      createdSessions[0].exit(undefined, true)
+    })
+    expect(result.current.messages).toEqual(shown)
+    expect(markInterrupted).toHaveBeenCalledWith(shown)
+    expect(result.current.isStreaming).toBe(false)
+  })
+
+  it("shows the process's last words when it exits unexpectedly", () => {
+    useIntelligenceStore.setState({
+      hydrated: true,
+      config: { ...DEFAULT_INTELLIGENCE_CONFIG, provider: "claude-cli" },
+    })
+    const { result } = renderHook(() => useCapySession(baseOpts))
+    act(() => {
+      result.current.sendMessage("hi")
+    })
+    act(() => {
+      createdSessions[0].exit("error: unknown option '--restricted'")
+    })
+    expect(result.current.messages.at(-1)?.blocks[0]).toMatchObject({
+      type: "text",
+      content: expect.stringContaining("error: unknown option '--restricted'"),
+    })
+  })
+
+  it("refreshes data when a mutation lands after New Chat killed its turn", () => {
+    const { result, onDataChanged, fake } = setup()
+    act(() => {
+      fake.emit({ type: "content", blocks: [{ type: "tool-activity", tool: "create_transaction", status: "running" }] })
+    })
+    act(() => {
+      result.current.newChat()
+    })
+    expect(fake.killSpy).toHaveBeenCalled()
+
+    act(() => {
+      fake.emit({ type: "tool-result", tool: "create_transaction", id: "call_a", ok: true })
+    })
+    expect(onDataChanged).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe("useCapySession events from a replaced session", () => {
+  it("only refresh data — they never touch the new chat, its acks, or the import flow", () => {
+    useIntelligenceStore.setState({
+      hydrated: true,
+      config: {
+        ...DEFAULT_INTELLIGENCE_CONFIG,
+        provider: "openai",
+        openai: { apiKey: "sk-x", model: "gpt-6-sol" },
+      },
+    })
+    const onDataChanged = vi.fn()
+    const onImportStarted = vi.fn()
+    const { result } = renderHook(() => useCapySession({ ...baseOpts, onDataChanged, onImportStarted }))
+    act(() => {
+      result.current.sendMessage("first")
+    })
+    const old = createdSessions[0]
+    act(() => {
+      result.current.newChat()
+    })
+    act(() => {
+      result.current.sendMessage("second")
+    })
+    const fresh = createdSessions[1]
+    const before = result.current.messages
+
+    act(() => {
+      old.emit({ type: "content", blocks: [{ type: "text", content: "stale" }] })
+      old.emit({ type: "tool-result", tool: "start_import", id: "call_i", ok: true })
+      old.emit({ type: "tool-result", tool: "create_transaction", id: "call_a", ok: true })
+      old.emit({ type: "error", message: "stale failure" })
+    })
+    expect(result.current.messages).toEqual(before)
+    expect(result.current.isStreaming).toBe(true)
+    expect(onImportStarted).not.toHaveBeenCalled()
+    expect(onDataChanged).toHaveBeenCalledTimes(1)
+
+    act(() => {
+      fresh.emit({ type: "content", blocks: [{ type: "tool-activity", tool: "create_transaction", status: "running" }] })
+      fresh.emit({ type: "done" })
+    })
+    expect(onDataChanged).toHaveBeenCalledTimes(2)
   })
 })

@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest"
 import { serializeConversation } from "./serialize-conversation"
-import type { ChatMessage } from "@capybudget/intelligence"
+import type { ChatMessage } from "../../types"
 
 function msg(role: "user" | "assistant", ...blocks: ChatMessage["blocks"]): ChatMessage {
   return { id: "test", role, blocks }
@@ -21,7 +21,7 @@ describe("serializeConversation", () => {
 
   it("serializes tool activity blocks", () => {
     const messages: ChatMessage[] = [
-      msg("assistant", { type: "tool-activity", tool: "list_accounts" }),
+      msg("assistant", { type: "tool-activity", tool: "list_accounts", status: "done" }),
     ]
     expect(serializeConversation(messages, 5000)).toBe("[Tool: list_accounts]")
   })
@@ -42,7 +42,7 @@ describe("serializeConversation", () => {
     const messages: ChatMessage[] = [
       msg("assistant",
         { type: "text", content: "Let me check." },
-        { type: "tool-activity", tool: "list_transactions" },
+        { type: "tool-activity", tool: "list_transactions", status: "done" },
         { type: "text", content: "Here are the results." },
       ),
     ]

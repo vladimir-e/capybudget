@@ -62,8 +62,9 @@ export interface IntelligenceConfig {
 
 export const DEFAULT_OLLAMA_BASE_URL = "http://localhost:11434/v1"
 
-/** The OpenAI SDK requires a non-empty key; Ollama ignores it. */
-export const OLLAMA_PLACEHOLDER_KEY = "ollama"
+export function ollamaOrigin(baseUrl: string = DEFAULT_OLLAMA_BASE_URL): string {
+  return baseUrl.trim().replace(/\/+$/, "").replace(/\/v1$/, "")
+}
 
 /**
  * Default model per provider — used as the seed value in the settings
@@ -72,7 +73,7 @@ export const OLLAMA_PLACEHOLDER_KEY = "ollama"
 export const DEFAULT_INTELLIGENCE_CONFIG: IntelligenceConfig = {
   provider: null,
   anthropic: { apiKey: "", model: "claude-sonnet-5", keyPresent: false },
-  openai: { apiKey: "", model: "gpt-5.5", keyPresent: false },
+  openai: { apiKey: "", model: "gpt-6-sol", keyPresent: false },
   ollama: { baseUrl: DEFAULT_OLLAMA_BASE_URL, model: "" },
   claudeCli: { model: "" },
 }
@@ -92,6 +93,8 @@ export function hasModel(model: string): boolean {
 }
 
 export type ApiProvider = "anthropic" | "openai" | "ollama"
+
+export type HostedProvider = Exclude<ApiProvider, "ollama">
 
 export interface ApiTarget {
   provider: ApiProvider
@@ -113,7 +116,7 @@ export function resolveApiTarget(config: IntelligenceConfig): ApiTarget | null {
     case "ollama": {
       const { baseUrl, model } = config.ollama
       if (!hasModel(model)) return null
-      return { provider: "ollama", apiKey: OLLAMA_PLACEHOLDER_KEY, model: model.trim(), baseUrl }
+      return { provider: "ollama", apiKey: "", model: model.trim(), baseUrl }
     }
     default:
       return null

@@ -1,12 +1,18 @@
 import { create } from "zustand";
 import type {
   BatchProgress,
-  ImportErrorReason,
   ImportEvent,
+  ImportFailure,
   ImportPhase,
+  ImportStatus,
   NormalizeProgress,
   TerminalLogEntry,
 } from "@capybudget/intelligence";
+
+export interface ImportRunError {
+  notice: ImportFailure;
+  recoverable: boolean;
+}
 
 /**
  * Import store — the event-driven view of an orchestrator run.
@@ -33,7 +39,7 @@ interface ImportRunState {
   /** The orchestrator's current phase, or `idle` before a run starts. */
   phase: ImportPhase;
   /** The single current-status line (with spinner), replaced as it ticks. */
-  status: string;
+  status: ImportStatus | null;
   /** Timestamped terminal log, oldest first. */
   log: TerminalLogEntry[];
   /** Normalizing row counter (streamed extraction rows, CSV counts); null until it ticks. */
@@ -46,7 +52,7 @@ interface ImportRunState {
   grounded: boolean;
   /** Terminal run error, or null. `recoverable` (e.g. no source files) routes
    *  the screen back to file-attach rather than to a hard error state. */
-  error: { reason: ImportErrorReason; message: string; recoverable: boolean } | null;
+  error: ImportRunError | null;
   /** True between `start`/`enrich` and the terminal `done`/`error`. Drives Stop
    *  vs Enrich availability and the live/read-only preview split. */
   running: boolean;
@@ -91,7 +97,7 @@ interface ImportStore extends ImportRunState {
 
 const IDLE_RUN: ImportRunState = {
   phase: "idle",
-  status: "",
+  status: null,
   log: [],
   normalizeProgress: null,
   batchProgress: null,
@@ -121,7 +127,7 @@ export const useImportStore = create<ImportStore>((set) => ({
             running: true,
             error: null,
             phase: "categorizing",
-            status: "",
+            status: null,
             normalizeProgress: null,
             batchProgress: null,
             rowsVersion: s.rowsVersion,
@@ -150,7 +156,7 @@ export function reduce(s: ImportRunState, event: ImportEvent): Partial<ImportRun
         running: event.phase !== "done" && event.phase !== "error",
       };
     case "status":
-      return { status: event.message };
+      return { status: event.notice };
     case "log":
       return { log: appendLog(s.log, event.entry) };
     case "grounding":
@@ -162,12 +168,9 @@ export function reduce(s: ImportRunState, event: ImportEvent): Partial<ImportRun
     case "rows-changed":
       return { rowsVersion: s.rowsVersion + 1 };
     case "error":
-      return {
-        error: { reason: event.reason, message: event.message, recoverable: event.recoverable },
-        running: false,
-      };
+      return { error: { notice: event.notice, recoverable: event.recoverable }, running: false };
     case "done":
-      return { running: false, status: "" };
+      return { running: false, status: null };
   }
 }
 

@@ -19,6 +19,7 @@ function makeImport(overrides: Partial<ImportTransaction> = {}): ImportTransacti
     categoryConfidence: "",
     duplicate: false,
     duplicateConfidence: "",
+    skipRule: null,
     ...overrides,
   };
 }

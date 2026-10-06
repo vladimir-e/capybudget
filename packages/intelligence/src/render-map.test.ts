@@ -33,6 +33,33 @@ describe("render builders — empty-data rejection", () => {
   })
 })
 
+describe("render_followups builder", () => {
+  it("keeps the well-formed chips and drops the rest", () => {
+    expect(
+      MAP.render_followups({
+        chips: [
+          { label: "Good chip", prompt: "Good prompt" },
+          { label: "", prompt: "missing label" },
+          { label: "missing prompt" },
+          null,
+          { label: "Another good", prompt: "Another good prompt" },
+        ],
+      }),
+    ).toEqual({
+      type: "followups",
+      chips: [
+        { label: "Good chip", prompt: "Good prompt" },
+        { label: "Another good", prompt: "Another good prompt" },
+      ],
+    })
+  })
+
+  it("returns null when no chip survives", () => {
+    expect(MAP.render_followups({ chips: [] })).toBeNull()
+    expect(MAP.render_followups({ suggestions: ["a"] })).toBeNull()
+  })
+})
+
 describe("validateRenderInput", () => {
   it("returns null for valid input", () => {
     expect(
@@ -55,6 +82,31 @@ describe("validateRenderInput", () => {
     expect(
       validateRenderInput("render_chart", { title: "x", type: "bar", data: [] }),
     ).toContain("render_chart expects")
+  })
+
+  it("rejects chart data whose items aren't {label, value} points", () => {
+    for (const data of [
+      [{ foo: 1 }],
+      [{ label: "Food" }],
+      [{ label: "Food", value: "50" }],
+      [{ label: 3, value: 50 }],
+      [{ label: "Food", value: Number.NaN }],
+      [{ label: "Refund", value: -20 }],
+      [{ label: "Food", value: 0 }],
+      ["Food"],
+    ]) {
+      for (const type of ["bar", "donut"]) {
+        expect(validateRenderInput("render_chart", { title: "x", type, data })).toContain("render_chart expects")
+      }
+    }
+  })
+
+  it("accepts chart data with a zero point among positive ones", () => {
+    const data = [
+      { label: "Food", value: 50 },
+      { label: "Gifts", value: 0 },
+    ]
+    expect(validateRenderInput("render_chart", { title: "x", type: "donut", data })).toBeNull()
   })
 
   it("returns null for render tools without a builder", () => {

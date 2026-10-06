@@ -1,0 +1,5 @@
+id,name,type,archived,excludeFromNetWorth,sortOrder,createdAt,currency
+5aec4598-e1e3-47f2-9706-2fefc062dbaa,Checking,checking,false,false,0,2020-01-01T00:00:00.000Z,USD
+636ee78d-ee4f-46b0-8c89-acab7b548a6d,High-Yield Savings,savings,false,false,1,2020-01-01T00:00:00.000Z,USD
+9376648d-d173-4262-b311-05875062e51b,Amex Platinum,credit_card,false,false,2,2020-01-01T00:00:00.000Z,USD
+9dc0e78e-32fb-44b5-9ba0-e26a5475921b,Cash,cash,false,false,3,2020-01-01T00:00:00.000Z,USD

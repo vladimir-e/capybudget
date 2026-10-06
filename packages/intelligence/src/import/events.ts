@@ -3,10 +3,14 @@
  *
  * The orchestrator is headless: it never narrates in prose and never touches
  * React. It drives the pipeline as a deterministic state machine and emits
- * these events so any consumer (Unit 3's progress UI, a test harness, a CLI)
+ * these events so any consumer (the app's progress UI, a test harness, a CLI)
  * can render where the run is. Code always knows the phase, so the surface is
- * state, not a transcript.
+ * state, not a transcript. User-facing lines travel as `ImportNotice` codes;
+ * the consumer owns the wording and the language.
  */
+
+import type { DeadEndKind } from "../error-message";
+import type { SessionProvider } from "../types";
 
 /** The four code-driven phases, in order. `idle` is the pre-start resting state;
  *  `done` and `error` are terminal. */
@@ -30,16 +34,94 @@ export const PIPELINE_PHASES: readonly ImportPhase[] = [
 /** Severity of a terminal-log line. */
 export type LogLevel = "info" | "warn" | "error";
 
+/** Why a model call failed. `unusable` and `other` carry the underlying
+ *  message: `other` is the provider's own words, shown to the user; an
+ *  `unusable` detail is for the log only. */
+export type ModelFailureCause =
+  | { kind: "cutOff" | "refused" | "rateLimited" }
+  | { kind: "unusable" | "other"; detail: string };
+
+/** Why a Categorizing batch failed. */
+export type BatchFailureCause = ModelFailureCause;
+
+/** Why a source file couldn't be read: a model failure, or one of the two
+ *  capability gaps only a file can hit. */
+export type FileFailureCause = ModelFailureCause | { kind: "pdfUnsupported" | "noVision" };
+
+/** The first few items of a list, and how many more were left out. */
+export interface Sample {
+  items: string[];
+  more: number;
+}
+
+const SAMPLE_SIZE = 3;
+
+/** Cap a list for a log line, so a wholly broken file logs a line, not a wall. */
+export function sample(notes: readonly string[]): Sample;
+export function sample<T>(notes: readonly T[], map: (note: T) => string): Sample;
+export function sample<T>(notes: readonly T[], map: (note: T) => string = String): Sample {
+  const items = notes.slice(0, SAMPLE_SIZE).map(map);
+  return { items, more: notes.length - items.length };
+}
+
+/** The current-status line. */
+export type ImportStatus =
+  | { code: "normalize.extracting"; params: { file: string } }
+  | { code: "normalize.readingOfx"; params: { file: string } }
+  | { code: "normalize.mappingColumns"; params: { file: string } }
+  | { code: "history.matching" }
+  | { code: "categorize.progress"; params: { done: number; total: number } };
+
+/** Data-quality warnings a normalizer raises about a file it did read. */
+export type NormalizeWarning =
+  | { code: "normalize.skipRules"; params: { file: string; sample: Sample; held: number } }
+  | { code: "normalize.countMismatch"; params: { file: string; counted: number; returned: number } }
+  | { code: "normalize.wholeUnits"; params: { file: string } }
+  | { code: "normalize.droppedCents"; params: { file: string } };
+
+/** A run-ending failure. `deadEnd` is a provider that fails every call the
+ *  same way; `failed` is any other fault, with its raw message. */
+export type ImportFailure =
+  | { code: "read.noSources" }
+  | { code: "enrich.noStaging" }
+  | { code: "normalize.fileFailed"; params: { file: string; cause: FileFailureCause } }
+  | { code: "categorize.noneLanded"; params: { count: number; cause: BatchFailureCause | null } }
+  | { code: "deadEnd"; params: { kind: DeadEndKind; provider: SessionProvider } }
+  | { code: "failed"; params: { detail: string } };
+
+/** A terminal-log line. A failure is logged as well as emitted. */
+export type ImportLogNotice =
+  | NormalizeWarning
+  | ImportFailure
+  | { code: "reading.files"; params: { files: string[] } }
+  | { code: "normalize.visionUnknown" }
+  | { code: "normalize.noData"; params: { file: string; detail?: string } }
+  | { code: "normalize.fileSkipped"; params: { file: string; cause: FileFailureCause } }
+  | { code: "normalize.rowsUnparsed"; params: { file: string; sample: Sample } }
+  | { code: "normalize.done"; params: { count: number } }
+  | { code: "history.payoff"; params: GroundingEventStats }
+  | { code: "categorize.resuming"; params: { count: number } }
+  | { code: "categorize.droppedRows"; params: { sample: Sample } }
+  | { code: "categorize.nothingToDo" }
+  | { code: "categorize.transfers"; params: { count: number } }
+  | { code: "categorize.batchFailed"; params: { batch: number; count: number; cause: BatchFailureCause } }
+  | { code: "categorize.transferBatchFailed"; params: { count: number; cause: BatchFailureCause } }
+  | { code: "categorize.stopped" }
+  | { code: "stopped" };
+
+/** Everything the orchestrator says to the user: a typed code plus the params
+ *  the app's catalog interpolates. No prose crosses this boundary. */
+export type ImportNotice = ImportStatus | ImportLogNotice;
+
 /**
- * A timestamped terminal-log line. The orchestrator emits these for the
- * human-readable run record (the "terminal" pane). `phase` ties the line to a
- * section so the UI can group; `ts` is epoch millis for stable ordering.
+ * A timestamped terminal-log line. `phase` ties the line to a section so the
+ * UI can group; `ts` is epoch millis for stable ordering.
  */
 export interface TerminalLogEntry {
   ts: number;
   level: LogLevel;
   phase: ImportPhase;
-  message: string;
+  notice: ImportLogNotice;
 }
 
 /** Categorizing progress over the remaining incomplete rows. `total` is the
@@ -81,20 +163,14 @@ export interface NormalizeProgress {
  */
 export type ImportEvent =
   | { type: "phase"; phase: ImportPhase }
-  | { type: "status"; phase: ImportPhase; message: string }
+  | { type: "status"; phase: ImportPhase; notice: ImportStatus }
   | { type: "log"; entry: TerminalLogEntry }
-  | { type: "grounding"; stats: GroundingEventStats; message: string }
+  | { type: "grounding"; stats: GroundingEventStats }
   | { type: "normalize-progress"; progress: NormalizeProgress }
   | { type: "batch-progress"; progress: BatchProgress }
   | { type: "rows-changed" }
-  | { type: "error"; reason: ImportErrorReason; message: string; recoverable: boolean }
+  | { type: "error"; notice: ImportFailure; recoverable: boolean }
   | { type: "done" };
-
-/** Why a run ended in error. `read` = no source files staged (recoverable,
- *  return to file-attach); `internal` = an uncaught fault (a throw anywhere in
- *  the pipeline funnels here through `run()`'s catch). A run that simply finds no
- *  transaction data is not an error — it stages an empty preview and completes. */
-export type ImportErrorReason = "read" | "internal";
 
 /** The grounding payoff numbers surfaced after History. Mirrors core's
  *  `GroundingStats`, narrowed to what the UI shows. */

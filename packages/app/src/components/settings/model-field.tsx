@@ -9,46 +9,38 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-
-export interface ModelOption {
-  value: string
-  label: string
-}
+import type { ModelOption } from "@capybudget/intelligence"
 
 interface ModelFieldProps {
-  /** Unique id linking the label to the control. */
   id: string
   model: string
   onSaveModel: (m: string) => void
   models: ModelOption[]
+  freeText?: boolean
 }
 
-/**
- * Model picker shared by every provider config: a curated dropdown plus a
- * "Use a custom model" toggle that swaps in a free-text field for any model
- * ID outside the list. A saved value not in the list opens in custom mode so
- * the user's choice survives a refreshed list.
- */
-export function ModelField({ id, model, onSaveModel, models }: ModelFieldProps) {
+export function ModelField({ id, model, onSaveModel, models, freeText = false }: ModelFieldProps) {
   const { t } = useTranslation("settings")
-  const isModelInList = models.some((m) => m.value === model)
-  const [customMode, setCustomMode] = useState(!isModelInList && model !== "")
+  const [customMode, setCustomMode] = useState(false)
+  const options = withSavedModel(models, model)
 
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between">
         <Label htmlFor={id}>{t("provider.model.label")}</Label>
-        <label className="inline-flex cursor-pointer items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors">
-          <input
-            type="checkbox"
-            className="h-3 w-3 cursor-pointer accent-brand"
-            checked={customMode}
-            onChange={(e) => setCustomMode(e.target.checked)}
-          />
-          {t("provider.model.useCustom")}
-        </label>
+        {!freeText && (
+          <label className="inline-flex cursor-pointer items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors">
+            <input
+              type="checkbox"
+              className="h-3 w-3 cursor-pointer accent-brand"
+              checked={customMode}
+              onChange={(e) => setCustomMode(e.target.checked)}
+            />
+            {t("provider.model.useCustom")}
+          </label>
+        )}
       </div>
-      {customMode ? (
+      {freeText || customMode ? (
         <Input
           id={id}
           placeholder={t("provider.model.customPlaceholder")}
@@ -59,6 +51,7 @@ export function ModelField({ id, model, onSaveModel, models }: ModelFieldProps) 
         />
       ) : (
         <Select
+          items={options}
           value={model}
           onValueChange={(v) => {
             if (typeof v === "string") onSaveModel(v)
@@ -68,7 +61,7 @@ export function ModelField({ id, model, onSaveModel, models }: ModelFieldProps) 
             <SelectValue placeholder={t("provider.model.selectPlaceholder")} />
           </SelectTrigger>
           <SelectContent>
-            {models.map((m) => (
+            {options.map((m) => (
               <SelectItem key={m.value} value={m.value}>
                 {m.label}
               </SelectItem>
@@ -78,4 +71,9 @@ export function ModelField({ id, model, onSaveModel, models }: ModelFieldProps) 
       )}
     </div>
   )
+}
+
+function withSavedModel(options: ModelOption[], model: string): ModelOption[] {
+  if (!model || options.some((o) => o.value === model)) return options
+  return [...options, { value: model, label: model }]
 }

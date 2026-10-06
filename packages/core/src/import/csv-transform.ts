@@ -9,11 +9,12 @@
 import type { ImportTransaction, StagedRecord } from "./import-types";
 import { buildStaged } from "./build-staged";
 import { DATE_FORMATS, isCalendarDate } from "./import-dates";
+import { isCurrencyText, type AffixSide } from "./currency-text";
 import type {
   CsvMapping,
   ColumnRef,
   AmountMapping,
-  AmountFormat,
+  DecimalMark,
   TypeDetection,
   SkipRule,
 } from "./csv-mapping";
@@ -27,6 +28,7 @@ export interface TransformResult {
     totalRows: number;
     transformed: number;
     skipped: number;
+    held: number;
     errored: number;
   };
 }
@@ -57,19 +59,25 @@ export function transformCsv(
   const records: StagedRecord[] = [];
   const errors: TransformError[] = [];
   let skipped = 0;
+  let held = 0;
 
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i];
-    const rowNum = i + 1; // 1-indexed for user display
+    const rowNum = i + 1;
 
-    // Check skip rules
-    if (shouldSkipRow(row, mapping.skipRules)) {
+    const skipRule = matchingSkipRule(row, mapping.skipRules);
+    if (skipRule && hasNoAmount(row, rowNum, mapping)) {
       skipped++;
       continue;
     }
 
     try {
-      records.push(mapRowToRecord(row, rowNum, mapping));
+      if (skipRule) {
+        records.push({ ...mapRowToRecord(row, rowNum, heldRowMapping(row, mapping)), skipRule });
+        held++;
+      } else {
+        records.push(mapRowToRecord(row, rowNum, mapping));
+      }
     } catch (e) {
       errors.push({
         row: rowNum,
@@ -88,12 +96,26 @@ export function transformCsv(
       totalRows: rows.length,
       transformed: transactions.length,
       skipped,
+      held,
       errored: errors.length,
     },
   };
 }
 
 // ── Row → intermediate record ───────────────────────────────────
+
+function hasNoAmount(row: Record<string, string>, rowNum: number, mapping: CsvMapping): boolean {
+  try {
+    return parseAmount(row, mapping.amount, mapping.decimalMark, rowNum).amount === 0;
+  } catch {
+    return !amountColumns(mapping.amount).some((column) => /\d/.test(row[column] ?? ""));
+  }
+}
+
+function heldRowMapping(row: Record<string, string>, mapping: CsvMapping): CsvMapping {
+  const dateless = "column" in mapping.date && !(row[mapping.date.column] ?? "").trim();
+  return dateless ? { ...mapping, date: { literal: "" } } : mapping;
+}
 
 function mapRowToRecord(
   row: Record<string, string>,
@@ -105,7 +127,7 @@ function mapRowToRecord(
       ? mapping.date.literal
       : parseDate(getColumn(row, mapping.date.column, rowNum), mapping.date.format, rowNum);
   const description = resolveColumnRef(row, mapping.description, rowNum);
-  const { amount, isExpense } = parseAmount(row, mapping.amount, mapping.amountFormat, rowNum);
+  const { amount, isExpense } = parseAmount(row, mapping.amount, mapping.decimalMark, rowNum);
   const type = detectType(row, description, isExpense, mapping.typeDetection);
   const sourceAccount = resolveSourceAccount(row, mapping.sourceAccount, rowNum);
   const sourceCategory = mapping.sourceCategory
@@ -179,147 +201,185 @@ function validateDate(isoDate: string, rawValue: string, rowNum: number): void {
 
 // ── Amount parsing ──────────────────────────────────────────────
 
-interface ParsedAmount {
-  /** Absolute amount in cents. */
-  amount: number;
-  /** Whether this looks like an expense based on the source data. */
-  isExpense: boolean;
-  /** Whether this looks like income based on the source data. */
-  isIncome: boolean;
+type Direction = "inflow" | "outflow";
+
+interface AmountCell {
+  cents: number;
+  direction: Direction | null;
+  marker: string | null;
+  currencyText: boolean;
 }
 
 function parseAmount(
   row: Record<string, string>,
   amountMapping: AmountMapping,
-  amountFormat: AmountFormat,
+  decimalMark: DecimalMark,
   rowNum: number,
-): ParsedAmount {
+): { amount: number; isExpense: boolean } {
+  const columns = amountColumns(amountMapping);
+  const raws = columns.map((column) => getColumn(row, column, rowNum));
+  const cells = raws.map((raw) => parseAmountCell(raw, decimalMark, rowNum));
+  if (raws.every((raw) => !/\d/.test(raw))) {
+    throw new Error(`Row ${rowNum}: no amount in ${columns.map((c) => `"${c}"`).join(" or ")}`);
+  }
+
   if (amountMapping.style === "single") {
-    return parseSingleAmount(row, amountMapping.column, amountMapping.sign, amountFormat, rowNum);
+    const { cents, direction } = cells[0];
+    const flow = direction
+      ? directed(cents, direction)
+      : amountMapping.sign === "negative_expense" ? cents : -cents;
+    return { amount: Math.abs(flow), isExpense: flow < 0 };
   }
-  return parseSplitAmount(
-    row,
-    amountMapping.expenseColumn,
-    amountMapping.incomeColumn,
-    amountFormat,
-    rowNum,
-  );
+
+  const [expense, income] = cells;
+  if (expense.cents === 0 && income.cents === 0) return { amount: 0, isExpense: true };
+  const flow =
+    directed(expense.cents, expense.direction ?? "outflow") +
+    directed(income.cents, income.direction ?? "inflow");
+  return { amount: Math.abs(flow), isExpense: flow < 0 };
 }
 
-function parseSingleAmount(
-  row: Record<string, string>,
-  column: string,
-  sign: "negative_expense" | "positive_expense",
-  amountFormat: AmountFormat,
-  rowNum: number,
-): ParsedAmount {
-  const raw = getColumn(row, column, rowNum);
-  const cents = parseCurrencyToCents(raw, amountFormat.format, rowNum);
-
-  const isExpense =
-    sign === "negative_expense" ? cents < 0 : cents > 0;
-  const isIncome =
-    sign === "negative_expense" ? cents > 0 : cents < 0;
-
-  return { amount: Math.abs(cents), isExpense, isIncome };
+export function amountColumns(mapping: AmountMapping): string[] {
+  return mapping.style === "single" ? [mapping.column] : [mapping.expenseColumn, mapping.incomeColumn];
 }
 
-function parseSplitAmount(
-  row: Record<string, string>,
-  expenseCol: string,
-  incomeCol: string,
-  amountFormat: AmountFormat,
-  rowNum: number,
-): ParsedAmount {
-  const rawExpense = getColumn(row, expenseCol, rowNum);
-  const rawIncome = getColumn(row, incomeCol, rowNum);
+function directed(cents: number, direction: Direction): number {
+  return direction === "outflow" ? -Math.abs(cents) : Math.abs(cents);
+}
 
-  const expense = parseCurrencyToCents(rawExpense, amountFormat.format, rowNum);
-  const income = parseCurrencyToCents(rawIncome, amountFormat.format, rowNum);
+const AMOUNT_GROUPING = /[\s'’]/g;
+const NUMERIC_CORE = /^(.*?)((?:(?<![\p{L}\p{M}/])[.,])?\d(?:[\d.,'’\s]*\d)?)(.*)$/su;
+const AFFIX_TOKEN = /\s*(\p{L}[\p{L}\p{M}]*(?:\.\p{L}[\p{L}\p{M}]*)*[$/]?\.?|[\p{Sc}*.()+\-−△▲])\s*/uy;
+const MINUS = ["-", "−", "△", "▲"];
+const LEADING_ONLY_MINUS = ["△", "▲"];
+const MARKERS: Record<string, Direction> = {
+  C: "inflow",
+  CR: "inflow",
+  H: "inflow",
+  D: "outflow",
+  DB: "outflow",
+  DR: "outflow",
+  S: "outflow",
+};
 
-  if (expense !== 0 && income !== 0) {
-    // Both columns have values — net them
-    const net = income - expense;
-    return {
-      amount: Math.abs(net),
-      isExpense: net < 0,
-      isIncome: net >= 0,
-    };
-  }
+interface AmountParts {
+  text: string;
+  parts: { prefix: string; core: string; suffix: string } | null;
+}
 
-  if (expense !== 0) {
-    return { amount: Math.abs(expense), isExpense: true, isIncome: false };
-  }
-
-  if (income !== 0) {
-    return { amount: Math.abs(income), isExpense: false, isIncome: true };
-  }
-
-  // Both zero — treat as zero-amount expense (e.g. balance adjustment)
-  return { amount: 0, isExpense: true, isIncome: false };
+function splitAmount(raw: string): AmountParts {
+  const text = raw.trim().replace(/^'/, "");
+  const match = text.match(NUMERIC_CORE);
+  return { text, parts: match && { prefix: match[1], core: match[2], suffix: match[3] } };
 }
 
 /**
- * Parse a currency string into integer cents.
- *
- * Handles: "$1,234.56", "($50.00)", "-$50.00", "1234.56", "1.234,56" (European),
- * empty strings (→ 0), and bare "0.00" / "$0.00".
+ * The decimal mark a single amount proves on its own, or null when it can't.
+ * `1.234` / `1,234` are ambiguous; `1234.567` and `0.500` are not.
  */
-export function parseCurrencyToCents(
-  raw: string,
-  format: "plain" | "currency" | "european",
-  rowNum: number,
-): number {
-  const trimmed = raw.trim();
-  if (trimmed === "" || trimmed === "-") return 0;
+export function decimalMarkOf(raw: string): DecimalMark | null {
+  const core = splitAmount(raw).parts?.core.replace(AMOUNT_GROUPING, "") ?? "";
+  const marks = core.match(/[.,](?=\d)/g) as DecimalMark[] | null;
+  if (!marks) return null;
+  const last = marks[marks.length - 1];
+  const other = last === "." ? "," : ".";
+  if (marks.includes(other)) return last;
+  if (marks.length > 1) return other;
+  return /^[1-9]\d{0,2}[.,]\d{3}[.,]?$/.test(core) ? null : last;
+}
 
-  // Detect parenthesized negatives: ($123.45) or (123.45)
-  let isNegative = false;
-  let cleaned = trimmed;
+/**
+ * Parse a currency string into integer cents, signed from the user's
+ * perspective (negative = outflow). `decimalMark` applies only when the value
+ * doesn't prove its own. Throws on anything that isn't an amount.
+ */
+export function parseCurrencyToCents(raw: string, decimalMark: DecimalMark, rowNum: number): number {
+  const { cents, direction } = parseAmountCell(raw, decimalMark, rowNum);
+  return direction ? directed(cents, direction) : cents;
+}
 
-  if (cleaned.startsWith("(") && cleaned.endsWith(")")) {
-    isNegative = true;
-    cleaned = cleaned.slice(1, -1);
-  }
-
-  if (cleaned.startsWith("-")) {
-    isNegative = true;
-    cleaned = cleaned.slice(1);
-  }
-
-  // Strip currency symbols
-  cleaned = cleaned.replace(/[$€£¥₽₹₱₴₫₦₩₪₿]/g, "");
-  // Strip multi-character currency codes (CHF, USD, etc.) — only when digits follow/precede
-  cleaned = cleaned.replace(/^[A-Z]{2,4}\s*(?=[\d(,.])/i, "").replace(/(?<=\d)\s*[A-Z]{2,4}$/i, "");
-  cleaned = cleaned.trim();
-
-  if (cleaned === "" || cleaned === "0" || cleaned === "0.00" || cleaned === "0,00") return 0;
-
-  let numeric: number;
-
-  switch (format) {
-    case "european": {
-      // 1.234,56 → remove dot thousands separator, replace comma with dot
-      cleaned = cleaned.replace(/\./g, "").replace(",", ".");
-      numeric = parseFloat(cleaned);
-      break;
-    }
-    case "currency":
-    case "plain":
-    default: {
-      // 1,234.56 → remove comma thousands separator
-      cleaned = cleaned.replace(/,/g, "");
-      numeric = parseFloat(cleaned);
-      break;
-    }
-  }
-
-  if (!Number.isFinite(numeric)) {
+/** The cell's own signed cents plus any direction marker, before a column convention applies. */
+export function parseAmountCell(raw: string, columnMark: DecimalMark, rowNum: number): AmountCell {
+  const fail = (): never => {
     throw new Error(`Row ${rowNum}: cannot parse amount "${raw}"`);
+  };
+  const { text, parts } = splitAmount(raw);
+
+  if (!parts) {
+    const tokens = affixTokens(text) ?? fail();
+    return tokens.some(isWord) ? fail() : { cents: 0, direction: null, marker: null, currencyText: tokens.some(isSymbol) };
   }
 
-  const cents = Math.round(numeric * 100);
-  return isNegative ? -cents : cents;
+  const prefix = affixTokens(parts.prefix) ?? fail();
+  const suffix = affixTokens(parts.suffix) ?? fail();
+  const sign = readSign(prefix, suffix) ?? fail();
+  const magnitude = coreToCents(parts.core, decimalMarkOf(parts.core) ?? columnMark) ?? fail();
+  const cents = magnitude === 0 ? 0 : sign.negative ? -magnitude : magnitude;
+  const currencyText = [...prefix, ...suffix].some((t) => isSymbol(t) || (isWord(t) && !markerOf(t)));
+  return { cents, direction: sign.marker ? MARKERS[sign.marker] : null, marker: sign.marker, currencyText };
+}
+
+function affixTokens(text: string): string[] | null {
+  const tokens: string[] = [];
+  const trimmed = text.trim();
+  AFFIX_TOKEN.lastIndex = 0;
+  while (AFFIX_TOKEN.lastIndex < trimmed.length) {
+    const token = AFFIX_TOKEN.exec(trimmed);
+    if (!token) return null;
+    tokens.push(token[1]);
+  }
+  return tokens;
+}
+
+function isWord(token: string): boolean {
+  return /^\p{L}/u.test(token);
+}
+
+function isSymbol(token: string): boolean {
+  return /^\p{Sc}$/u.test(token);
+}
+
+function markerOf(word: string): string | undefined {
+  const marker = word.replace(/\.$/, "").toUpperCase();
+  return marker in MARKERS ? marker : undefined;
+}
+
+function readSign(
+  prefix: string[],
+  suffix: string[],
+): { negative: boolean; marker: string | null } | null {
+  const tokens = [...prefix, ...suffix];
+  const count = (...symbols: string[]) => tokens.filter((t) => symbols.includes(t)).length;
+  const known = (side: AffixSide) => (t: string) => !isWord(t) || !!markerOf(t) || isCurrencyText(t, side);
+  if (!prefix.every(known("prefix")) || !suffix.every(known("suffix"))) return null;
+  if (suffix.some((t) => LEADING_ONLY_MINUS.includes(t))) return null;
+
+  const markers = tokens.filter(isWord).flatMap((w) => markerOf(w) ?? []);
+  const parens = prefix.includes("(") && suffix.includes(")");
+  const signs = count(...MINUS, "+");
+  if (count("(") + count(")") !== (parens ? 2 : 0)) return null;
+  if (signs > 1 || markers.length > 1) return null;
+  if (markers.length === 1 && (signs > 0 || parens)) return null;
+
+  return {
+    negative: parens || count(...MINUS) > 0,
+    marker: markers[0] ?? null,
+  };
+}
+
+function coreToCents(core: string, decimalMark: DecimalMark): number | null {
+  const parts = core.split(decimalMark);
+  if (parts.length > 2) return null;
+  const [integer, fraction = ""] = parts;
+  if (!/^\d*$/.test(fraction)) return null;
+  if (!/^\d*$/.test(integer) && !isGrouped(integer.replace(/\D/g, ","))) return null;
+  const digits = integer.replace(/\D/g, "");
+  if (digits === "" && fraction === "") return null;
+  return Math.round(Number(`${digits || "0"}.${fraction || "0"}`) * 100);
+}
+
+function isGrouped(integer: string): boolean {
+  return /^\d{1,3}(,\d{3})+$/.test(integer) || /^\d{1,2}(,\d{2})+,\d{3}$/.test(integer);
 }
 
 // ── Type detection ──────────────────────────────────────────────
@@ -380,19 +440,23 @@ function detectType(
 
 // ── Skip rules ──────────────────────────────────────────────────
 
-function shouldSkipRow(
+function matchingSkipRule(
+  row: Record<string, string>,
+  rules?: SkipRule[],
+): SkipRule | null {
+  for (const rule of rules ?? []) {
+    const value = (row[rule.column] ?? "").toLowerCase();
+    if (rule.contains && value.includes(rule.contains.toLowerCase())) return rule;
+    if (rule.equals && value === rule.equals.toLowerCase()) return rule;
+  }
+  return null;
+}
+
+export function shouldSkipRow(
   row: Record<string, string>,
   rules?: SkipRule[],
 ): boolean {
-  if (!rules || rules.length === 0) return false;
-
-  for (const rule of rules) {
-    const value = (row[rule.column] ?? "").toLowerCase();
-    if (rule.contains && value.includes(rule.contains.toLowerCase())) return true;
-    if (rule.equals && value === rule.equals.toLowerCase()) return true;
-  }
-
-  return false;
+  return matchingSkipRule(row, rules) !== null;
 }
 
 // ── CSV serialization ───────────────────────────────────────────
@@ -401,16 +465,21 @@ const IMPORT_COLUMNS = [
   "id", "date", "description", "amount", "type",
   "sourceAccount", "sourceCategory",
   "merchant", "accountId", "targetAccountId", "categoryId", "categoryConfidence",
-  "duplicate", "duplicateConfidence",
+  "duplicate", "duplicateConfidence", "skipRule",
 ] as const;
 
 /** Serialize ImportTransaction[] to a CSV string. */
 export function serializeImportCsv(transactions: ImportTransaction[]): string {
   const header = IMPORT_COLUMNS.join(",");
   const rows = transactions.map((t) =>
-    IMPORT_COLUMNS.map((col) => csvEscape(String(t[col] ?? ""))).join(","),
+    IMPORT_COLUMNS.map((col) => csvEscape(cellText(t, col))).join(","),
   );
   return [header, ...rows].join("\n");
+}
+
+function cellText(t: ImportTransaction, col: (typeof IMPORT_COLUMNS)[number]): string {
+  if (col === "skipRule") return t.skipRule ? JSON.stringify(t.skipRule) : "";
+  return String(t[col] ?? "");
 }
 
 function csvEscape(value: string): string {

@@ -1,170 +1,116 @@
 import OpenAI from "openai"
-import { buildRenderToolMap, RENDER_FOLLOWUPS_TOOL_NAME } from "../render-map"
-import { extractErrorMessage } from "../error-message"
-import { runTool, getToolDefinitions, SESSION_TOOL_CALL_BUDGET } from "../tools"
-import type { ApiAdapterOptions } from "../factory"
-import type { CapySession } from "../session"
-import type { ContentBlock, FileAttachment, MessageContent, SessionProvider } from "../types"
-import { parseStructured, schemaBody } from "../structured"
-import type { JsonSchema, StructuredCallOptions, StructuredMessage, StructuredSession } from "../structured"
+import { AgentSession } from "./agent-session"
+import { openAiClient } from "./clients"
+import { UNANSWERED_RESULT, parseToolArguments, readToTerminal, toolCallBlock } from "./agent-turn"
+import type { LoopOutcome, TurnDisplay } from "./agent-turn"
+import type { MessageContent, SessionProvider } from "../types"
+import { STRUCTURED_MAX_RETRIES, assertStructuredFinished, parseStructured, schemaBody } from "../structured"
+import type { Ending, JsonSchema, StructuredCallOptions, StructuredMessage, StructuredSession } from "../structured"
 
-const MAX_TOKENS = 8192
+type ModelResponse = OpenAI.Responses.Response
+type InputItem = OpenAI.Responses.ResponseInputItem
+type OutputItem = OpenAI.Responses.ResponseOutputItem
+type ReplayedItem =
+  | OpenAI.Responses.ResponseOutputMessage
+  | OpenAI.Responses.ResponseFunctionToolCall
+  | OpenAI.Responses.ResponseReasoningItem
+type Includable = OpenAI.Responses.ResponseIncludable
 
-const RENDER_TOOL_MAP = buildRenderToolMap()
-
-function toolUseToContentBlock(name: string, input: Record<string, unknown>): ContentBlock {
-  const rendered = RENDER_TOOL_MAP[name]?.(input) ?? null
-  return rendered ?? { type: "tool-activity", tool: name }
+interface StreamHandlers {
+  text?: (event: OpenAI.Responses.ResponseTextDeltaEvent) => void
+  itemDone?: (item: OutputItem) => void
 }
 
-function toOpenAiUserContent(
-  content: MessageContent,
-): OpenAI.Chat.Completions.ChatCompletionUserMessageParam["content"] {
+const REASONING_REPLAY: Includable[] = ["reasoning.encrypted_content"]
+
+async function readStream(
+  stream: AsyncIterable<OpenAI.Responses.ResponseStreamEvent>,
+  on: StreamHandlers = {},
+): Promise<ModelResponse | null> {
+  let response: ModelResponse | null = null
+  await readToTerminal(stream, (event) => {
+    switch (event.type) {
+      case "response.output_text.delta":
+        on.text?.(event)
+        return false
+      case "response.output_item.done":
+        on.itemDone?.(event.item)
+        return false
+      case "response.completed":
+      case "response.incomplete":
+        response = event.response
+        return true
+      case "response.failed":
+        throw streamError(event.response.error?.message ?? "The response failed.", event.response.error?.code)
+      case "error":
+        throw streamError(event.message, event.code)
+      default:
+        return false
+    }
+  })
+  return response
+}
+
+function streamError(message: string, code: string | null | undefined): Error {
+  return Object.assign(new Error(message), { code })
+}
+
+function endingOf(response: ModelResponse | null): Ending {
+  const refused = response?.output.some(
+    (item) => item.type === "message" && item.content.some((part) => part.type === "refusal"),
+  )
+  if (refused) return "refused"
+  if (response?.status === "completed") return "finished"
+  return response?.incomplete_details?.reason === "content_filter" ? "refused" : "cutOff"
+}
+
+function isReplayed(item: OutputItem): item is ReplayedItem {
+  return item.type === "message" || item.type === "function_call" || item.type === "reasoning"
+}
+
+function rejectsReasoningReplay(err: unknown): boolean {
+  const { status, param } = (err ?? {}) as { status?: unknown; param?: unknown }
+  return status === 400 && param === "include"
+}
+
+function toResponsesUserContent(content: MessageContent): string | OpenAI.Responses.ResponseInputMessageContentList {
   if (typeof content === "string") return content
   return content.map((block) => {
     if (block.type === "text") {
-      return { type: "text", text: block.text }
+      return { type: "input_text", text: block.text }
     }
     if (block.type === "document") {
       return {
-        type: "file",
-        file: {
-          filename: block.filename ?? "document.pdf",
-          file_data: `data:${block.source.media_type};base64,${block.source.data}`,
-        },
+        type: "input_file",
+        filename: block.filename ?? "document.pdf",
+        file_data: `data:${block.source.media_type};base64,${block.source.data}`,
       }
     }
     return {
-      type: "image_url",
-      image_url: {
-        url: `data:${block.source.media_type};base64,${block.source.data}`,
-      },
+      type: "input_image",
+      image_url: `data:${block.source.media_type};base64,${block.source.data}`,
+      detail: "auto",
     }
   })
 }
 
-interface ToolCallAccumulator {
-  id: string
-  name: string
-  argsString: string
-  parsed?: Record<string, unknown> | Error
-}
+export class OpenAiSession extends AgentSession<InputItem> implements StructuredSession {
+  private readonly client = openAiClient(this.opts.apiKey)
+  private readonly tools: OpenAI.Responses.FunctionTool[] = this.toolDefinitions.map((t) => ({
+    type: "function",
+    name: t.name,
+    description: t.description,
+    parameters: t.inputSchema as Record<string, unknown>,
+    strict: false,
+  }))
+  private replayReasoning = true
 
-/** Ollama's stream may omit `index`: a new `id` opens a call, anything else
- *  continues the last one. */
-function toolSlot(
-  tc: { index?: number; id?: string },
-  accs: Map<number, ToolCallAccumulator>,
-  lastSlot: number,
-): number {
-  if (typeof tc.index === "number") return tc.index
-  if (tc.id) {
-    for (const [slot, acc] of accs) if (acc.id === tc.id) return slot
-    return accs.size === 0 ? 0 : Math.max(...accs.keys()) + 1
-  }
-  return Math.max(lastSlot, 0)
-}
-
-function finalizeToolArgs(acc: ToolCallAccumulator): Record<string, unknown> | Error {
-  if (acc.parsed !== undefined) return acc.parsed
-  let result: Record<string, unknown> | Error
-  try {
-    result = acc.argsString ? JSON.parse(acc.argsString) : {}
-  } catch (err) {
-    result = err instanceof Error ? err : new Error(String(err))
-  }
-  acc.parsed = result
-  return result
-}
-
-export class OpenAiSession implements CapySession, StructuredSession {
-  private readonly client: OpenAI
-  private readonly opts: ApiAdapterOptions
-  private readonly tools: OpenAI.Chat.Completions.ChatCompletionTool[]
-  private readonly messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = []
-  private abortController: AbortController | null = null
-  private alive = false
-  private killed = false
-  private interrupted = false
-  private toolCallCount = 0
-  /** Attachments on the current turn — staged by `start_import`, then cleared.
-   *  Held outside `messages` because the flattened message content can't be
-   *  turned back into files. */
-  private turnAttachments: readonly FileAttachment[] = []
-
-  constructor(opts: ApiAdapterOptions) {
-    this.opts = opts
-    this.tools = getToolDefinitions({ pdfSupported: opts.pdfSupported }).map((t) => ({
-      type: "function",
-      function: {
-        name: t.name,
-        description: t.description,
-        parameters: t.inputSchema as Record<string, unknown>,
-      },
-    }))
-    this.client = new OpenAI({
-      apiKey: opts.apiKey,
-      baseURL: opts.baseUrl,
-      // Tauri webview — key lives on disk, not bundled into a public app.
-      dangerouslyAllowBrowser: true,
-    })
-  }
-
-  /** The provider error events are tagged with — overridden by subclasses. */
   protected get providerId(): SessionProvider {
     return "openai"
   }
 
-  get isAlive(): boolean {
-    return this.alive
-  }
-
-  async send(content: MessageContent, attachments: readonly FileAttachment[] = []): Promise<void> {
-    if (this.killed) return
-
-    this.interrupted = false
-    this.turnAttachments = attachments
-    this.messages.push({
-      role: "user",
-      content: toOpenAiUserContent(content),
-    })
-    this.alive = true
-
-    try {
-      await this.runAgenticLoop()
-      if (!this.interrupted && !this.killed) {
-        this.opts.onEvent({ type: "done" })
-      }
-    } catch (err) {
-      if (this.wasAborted(err)) return
-      const { message, status } = extractErrorMessage(err)
-      this.opts.onEvent({ type: "error", message, status, provider: this.providerId })
-    } finally {
-      this.turnAttachments = []
-      this.abortController = null
-    }
-  }
-
-  async stop(): Promise<void> {
-    this.interrupted = true
-    this.abortController?.abort()
-    this.abortController = null
-    this.dropTrailingUnmatchedToolCalls()
-  }
-
-  async restart(): Promise<void> {
-    this.abortController?.abort()
-    this.abortController = null
-    this.messages.length = 0
-    this.alive = false
-    this.toolCallCount = 0
-  }
-
-  async kill(): Promise<void> {
-    this.killed = true
-    this.abortController?.abort()
-    this.abortController = null
-    this.alive = false
+  protected isConnectionError(err: unknown): boolean {
+    return err instanceof OpenAI.APIConnectionError
   }
 
   async structured<T = unknown>(
@@ -172,285 +118,171 @@ export class OpenAiSession implements CapySession, StructuredSession {
     schema: JsonSchema,
     options?: StructuredCallOptions,
   ): Promise<T> {
-    const requestMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
-      { role: "system", content: this.opts.systemPrompt },
-      ...messages.map((m) =>
+    const params: Omit<OpenAI.Responses.ResponseCreateParamsNonStreaming, "max_output_tokens"> = {
+      model: this.opts.model,
+      instructions: this.opts.systemPrompt,
+      store: false,
+      input: messages.map((m) =>
         m.role === "assistant"
           ? { role: "assistant" as const, content: m.content }
-          : { role: "user" as const, content: toOpenAiUserContent(m.content) },
+          : { role: "user" as const, content: toResponsesUserContent(m.content) },
       ),
-    ]
-
-    // `strict` is our own marker on the schema, not a JSON-schema keyword;
-    // it rides on the json_schema wrapper, not inside the schema OpenAI sees.
-    const params: OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming = {
-      model: this.opts.model,
-      messages: requestMessages,
-      max_completion_tokens: MAX_TOKENS,
-      response_format: {
-        type: "json_schema",
-        json_schema: {
+      text: {
+        format: {
+          type: "json_schema",
           name: "structured_output",
           schema: schemaBody(schema),
-          ...(schema.strict === true ? { strict: true } : {}),
+          strict: schema.strict === true,
         },
       },
     }
 
-    if (!options?.onText) {
-      const completion = await this.client.chat.completions.create(params)
-      return parseStructured<T>(completion.choices[0]?.message.content ?? "", schema)
-    }
-
-    const stream = await this.client.chat.completions.create({ ...params, stream: true })
-    let text = ""
-    for await (const chunk of stream) {
-      const choice = chunk.choices[0]
-      if (!choice) continue
-      if (typeof choice.delta?.content === "string" && choice.delta.content.length > 0) {
-        text += choice.delta.content
-        options.onText(text)
+    return this.withStructuredRequest(options?.signal, async (signal) => {
+      const requestOptions = { signal, maxRetries: STRUCTURED_MAX_RETRIES }
+      if (!options?.onText) {
+        const response = await this.withOutputCap((maxTokens) =>
+          this.client.responses.create({ ...params, max_output_tokens: maxTokens }, requestOptions),
+        )
+        assertStructuredFinished(endingOf(response))
+        return parseStructured<T>(response.output_text, schema)
       }
-      // Same early break as the agentic loop — the terminal usage chunk
-      // isn't needed and `return()` lets the SDK clean up.
-      if (choice.finish_reason) break
-    }
-    return parseStructured<T>(text, schema)
+
+      const stream = await this.withOutputCap((maxTokens) =>
+        this.client.responses.create({ ...params, max_output_tokens: maxTokens, stream: true }, requestOptions),
+      )
+      let text = ""
+      const response = await readStream(stream, {
+        text: (event) => {
+          text += event.delta
+          options.onText?.(text)
+        },
+      })
+      assertStructuredFinished(endingOf(response))
+      return parseStructured<T>(text, schema)
+    })
   }
 
-  private async runAgenticLoop(): Promise<void> {
-    const tools = this.tools
-
-    const completedBlocks: ContentBlock[] = []
-    const emitContent = () => {
-      if (completedBlocks.length === 0) return
-      this.opts.onEvent({ type: "content", blocks: [...completedBlocks] })
-    }
-
+  protected async runAgenticLoop(display: TurnDisplay): Promise<LoopOutcome> {
     while (true) {
-      if (this.killed) return
-      if (this.interrupted) return
+      if (this.stopped) return "stopped"
 
-      this.abortController = new AbortController()
+      display.beginIteration()
+      const signal = this.openRequest()
 
-      // System prompt kept out of `this.messages` so restart() resets cleanly.
-      // The tools + system prefix must stay byte-identical across turns for
-      // OpenAI's automatic prefix caching to hit — `systemPrompt` is immutable
-      // for the session's life and all per-turn context (budget snapshot, date,
-      // attachments) rides in the user messages of `this.messages`, never here.
-      const requestMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
-        { role: "system", content: this.opts.systemPrompt },
-        ...this.messages,
-      ]
-
-      const stream = await this.client.chat.completions.create(
-        {
-          model: this.opts.model,
-          messages: requestMessages,
-          tools,
-          stream: true,
-          // GPT-5 and the o-series reject `max_tokens`; `max_completion_tokens`
-          // works across all current chat models.
-          max_completion_tokens: MAX_TOKENS,
-        },
-        { signal: this.abortController.signal },
+      // The tools + instructions prefix must stay byte-identical across turns
+      // for OpenAI's automatic prefix caching to hit — all per-turn context
+      // rides in the user items of `this.messages`, never here.
+      const stream = await this.withOutputCap((maxTokens) =>
+        this.withReasoningReplay((include) =>
+          this.client.responses.create(
+            {
+              model: this.opts.model,
+              instructions: this.opts.systemPrompt,
+              input: this.messages,
+              tools: this.tools,
+              store: false,
+              include,
+              stream: true,
+              max_output_tokens: maxTokens,
+            },
+            { signal },
+          ),
+        ),
       )
 
-      let accumulatedText = ""
-      let currentTextDraftIndex: number | null = null
-      const toolAccs = new Map<number, ToolCallAccumulator>()
-      let finishReason: string | null = null
-      let lastSlot = -1
+      const leadingTexts = new Map<string, string>()
+      let textItem: string | null = null
+      let callSeen = false
+      let response: ModelResponse | null = null
 
-      for await (const chunk of stream) {
-        const choice = chunk.choices[0]
-        if (!choice) continue
-        const delta = choice.delta
-
-        if (typeof delta.content === "string" && delta.content.length > 0) {
-          accumulatedText += delta.content
-          if (currentTextDraftIndex === null) {
-            currentTextDraftIndex = completedBlocks.length
-            completedBlocks.push({ type: "text", content: accumulatedText })
-          } else {
-            completedBlocks[currentTextDraftIndex] = {
-              type: "text",
-              content: accumulatedText,
+      try {
+        response = await readStream(stream, {
+          text: ({ item_id, delta }) => {
+            if (item_id !== textItem) {
+              display.endText()
+              textItem = item_id
             }
-          }
-          emitContent()
-        }
-
-        if (delta.tool_calls) {
-          for (const tc of delta.tool_calls) {
-            const idx = toolSlot(tc, toolAccs, lastSlot)
-            lastSlot = idx
-            let acc = toolAccs.get(idx)
-            if (!acc) {
-              acc = { id: "", name: "", argsString: "" }
-              toolAccs.set(idx, acc)
-            }
-            if (tc.id) acc.id = tc.id
-            if (tc.function?.name) acc.name = tc.function.name
-            if (tc.function?.arguments) acc.argsString += tc.function.arguments
-          }
-        }
-
-        if (choice.finish_reason) {
-          finishReason = choice.finish_reason
-          // OpenAI keeps the stream open for a terminal usage chunk Capy
-          // doesn't display. Breaking out of `for await` lets V8 invoke the
-          // iterator's `return()`, which the SDK hooks for cleanup — no
-          // explicit abort needed, and symmetric with the Anthropic adapter.
-          break
-        }
-      }
-
-      // Tool calls run only on a clean finish — Ollama reports "stop" alongside
-      // them. A cut-off or dropped stream may carry half-formed calls, and tools
-      // mutate the budget; that turn keeps its text only, since stored calls
-      // without tool replies would fail every later request.
-      const completed = finishReason === "tool_calls" || finishReason === "stop"
-      const assistantToolCalls: OpenAI.Chat.Completions.ChatCompletionMessageToolCall[] = []
-      const sortedIndices = completed ? [...toolAccs.keys()].sort((a, b) => a - b) : []
-      const assistantTextOnly = accumulatedText
-      for (const idx of sortedIndices) {
-        const acc = toolAccs.get(idx)!
-        const parsed = finalizeToolArgs(acc)
-        assistantToolCalls.push({
-          id: acc.id,
-          type: "function",
-          function: { name: acc.name, arguments: acc.argsString },
+            display.appendText(delta)
+            if (!callSeen) leadingTexts.set(item_id, (leadingTexts.get(item_id) ?? "") + delta)
+          },
+          itemDone: (item) => {
+            if (item.type !== "function_call") return
+            callSeen = true
+            const input = parseToolArguments(item.arguments)
+            // Malformed args degrade to {} so the tool block still renders;
+            // the JSON error surfaces in the tool result.
+            display.addCall(item.call_id, toolCallBlock(item.name, input instanceof Error ? {} : input))
+          },
         })
-        // Malformed args degrade to {} so the tool block still renders;
-        // the JSON error surfaces in the tool result below.
-        const inputForRender = parsed instanceof Error ? {} : parsed
-        completedBlocks.push(toolUseToContentBlock(acc.name, inputForRender))
-      }
-
-      if (assistantToolCalls.length > 0) {
-        emitContent()
-      }
-
-      if (!completed && assistantTextOnly.length === 0) {
-        if (this.interrupted || this.killed) return
-        this.interrupted = true
-        this.opts.onEvent({
-          type: "error",
-          code: "cutOff",
-          message: "The response was cut off before Capy could reply. Try again.",
-        })
-        return
-      }
-
-      // Only persist a turn that carries text or tool calls. An empty terminal
-      // completion stored as `{content: null}` with no tool_calls is invalid to
-      // OpenAI, and history replays on every send — so one poisons the whole
-      // session. Tool-call turns keep null content (canonical).
-      const hasToolCalls = assistantToolCalls.length > 0
-      if (assistantTextOnly.length > 0 || hasToolCalls) {
-        const assistantMessage: OpenAI.Chat.Completions.ChatCompletionAssistantMessageParam = {
-          role: "assistant",
-          content: assistantTextOnly.length > 0 ? assistantTextOnly : null,
+      } catch (err) {
+        if (!this.stopped) {
+          this.keepLeadingTexts(leadingTexts, display)
+          throw err
         }
-        if (hasToolCalls) {
-          assistantMessage.tool_calls = assistantToolCalls
-        }
-        this.messages.push(assistantMessage)
+      }
+      this.closeRequest()
+
+      const ending = endingOf(response)
+      if (ending !== "finished") {
+        this.keepLeadingTexts(leadingTexts, display)
+        return this.stopped ? "stopped" : ending
       }
 
-      // No calls = terminal: re-sending unchanged history spins.
-      if (!hasToolCalls) return
+      const output = (response?.output ?? []).filter(isReplayed)
+      // A reasoning item replayed without the item it led to is rejected, so a
+      // reasoning-only response leaves no trace in history.
+      if (output.some((item) => item.type !== "reasoning")) this.storeReply(...output)
 
-      const toolMessages: OpenAI.Chat.Completions.ChatCompletionToolMessageParam[] = []
-      let budgetExhausted = false
-      let terminalToolSeen = false
-      for (const idx of sortedIndices) {
-        const acc = toolAccs.get(idx)!
-        this.toolCallCount++
-        if (this.toolCallCount > SESSION_TOOL_CALL_BUDGET) {
-          budgetExhausted = true
-          toolMessages.push({
-            role: "tool",
-            tool_call_id: acc.id,
-            content: `Error: tool-call budget exhausted (${SESSION_TOOL_CALL_BUDGET} calls). Stopping. Run again if more work is needed.`,
-          })
-          continue
-        }
-        const parsed = finalizeToolArgs(acc)
-        if (parsed instanceof Error) {
-          this.opts.onEvent({ type: "tool-result", tool: acc.name, id: acc.id, ok: false })
-          toolMessages.push({
-            role: "tool",
-            tool_call_id: acc.id,
-            content: `Error: invalid JSON arguments — ${parsed.message}`,
-          })
-          continue
-        }
-        let resultText: string
-        let ok = true
-        try {
-          resultText = await runTool(acc.name, parsed, {
-            repo: this.opts.repo,
-            fileAdapter: this.opts.fileAdapter,
-            budgetPath: this.opts.budgetPath,
-            currency: this.opts.currency,
-            // Live read so a manual rate edit lands on this call's stamping,
-            // without rebuilding the session.
-            currencies: this.opts.getCurrencies?.() ?? this.opts.currencies,
-            attachments: [...this.turnAttachments],
-            importSupported: this.opts.importSupported,
-            pdfSupported: this.opts.pdfSupported,
-          })
-        } catch (err) {
-          ok = false
-          resultText = `Error: ${err instanceof Error ? err.message : String(err)}`
-        }
-        // A failed followups call is not terminal — the loop must continue so
-        // the model sees the error result and recovers.
-        if (ok && acc.name === RENDER_FOLLOWUPS_TOOL_NAME) terminalToolSeen = true
-        this.opts.onEvent({ type: "tool-result", tool: acc.name, id: acc.id, ok })
-        toolMessages.push({
-          role: "tool",
-          tool_call_id: acc.id,
-          content: resultText,
-        })
-      }
+      const calls = output.flatMap((item) =>
+        item.type === "function_call"
+          ? [{ id: item.call_id, name: item.name, input: parseToolArguments(item.arguments) }]
+          : [],
+      )
+      if (calls.length === 0) return "done"
 
-      // stop() dropped the trailing assistant turn — pushing tool messages
-      // referencing its tool_call_ids would 400 on the next request.
-      if (this.interrupted || this.killed) return
-
-      this.messages.push(...toolMessages)
-      if (budgetExhausted) {
-        this.interrupted = true
-        this.opts.onEvent({
-          type: "error",
-          code: "budgetExhausted",
-          message: `Tool-call budget exhausted (${SESSION_TOOL_CALL_BUDGET} calls). Stopping. Run again if more work is needed.`,
-        })
-        return
-      }
-      // Terminal-signal tool — exit. OpenAI tool messages use `role: "tool"`,
-      // so the next user send lands naturally without merge gymnastics.
-      if (terminalToolSeen) return
+      const round = await this.runToolCalls(calls, display)
+      this.messages.push(
+        ...round.replies.map((r) => ({ type: "function_call_output" as const, call_id: r.id, output: r.content })),
+      )
+      if (round.outcome) return round.outcome
     }
   }
 
-  private dropTrailingUnmatchedToolCalls(): void {
-    const last = this.messages[this.messages.length - 1]
-    if (!last || last.role !== "assistant") return
-    if (last.tool_calls && last.tool_calls.length > 0) {
-      this.messages.pop()
+  protected appendUserTurn(content: MessageContent): void {
+    this.answerOpenToolCalls()
+    this.messages.push({ role: "user", content: toResponsesUserContent(content) })
+  }
+
+  private keepLeadingTexts(streamed: ReadonlyMap<string, string>, display: TurnDisplay): void {
+    const texts = [...streamed.values()].filter((t) => t.length > 0)
+    display.replaceIteration(texts)
+    this.storeReply(
+      ...texts.map((text, i) => ({
+        role: "assistant" as const,
+        content: i === texts.length - 1 ? this.markedIfStopped(text) : text,
+      })),
+    )
+  }
+
+  private async withReasoningReplay<T>(request: (include: Includable[] | undefined) => Promise<T>): Promise<T> {
+    if (!this.replayReasoning) return request(undefined)
+    try {
+      return await request(REASONING_REPLAY)
+    } catch (err) {
+      if (!rejectsReasoningReplay(err)) throw err
+      this.replayReasoning = false
+      return request(undefined)
     }
   }
 
-  private wasAborted(err: unknown): boolean {
-    if (this.killed) return true
-    if (err instanceof Error) {
-      if (err.name === "AbortError") return true
-      if ((err as { type?: string }).type === "aborted") return true
+  private answerOpenToolCalls(): void {
+    const answered = new Set<string>()
+    for (const item of this.messages) {
+      if (item.type === "function_call_output") answered.add(item.call_id)
     }
-    return this.abortController?.signal.aborted === true
+    for (const item of [...this.messages]) {
+      if (item.type !== "function_call" || answered.has(item.call_id)) continue
+      this.messages.push({ type: "function_call_output", call_id: item.call_id, output: UNANSWERED_RESULT })
+    }
   }
 }

@@ -70,6 +70,7 @@
     "demoNoticeBody": "A demonstração web roda inteiramente no seu navegador e não pode guardar um provedor de IA. Baixe o app para desktop para conversar com o Capy e usar a importação inteligente.",
     "missingTitle": "O Claude Code não é mais detectado",
     "missingBody": "Reinstale o Claude Code ou escolha outro provedor para continuar usando o Capy.",
+    "outdatedTitle": "O Claude Code precisa de uma atualização",
     "sourceBuildTitle": "O Claude Code exige uma build a partir do código-fonte",
     "sourceBuildBody": "O app para desktop ainda não consegue rodar o Claude Code. Escolha outro provedor ou",
     "runFromSource": "rode o Capy a partir do código-fonte",
@@ -102,6 +103,8 @@
       "detected": "Detectado",
       "notDetected": "Não detectado",
       "notDetectedHint": "Não detectado — instale a partir de",
+      "outdated": "Precisa de atualização",
+      "outdatedHint": "É necessário o Claude Code {{minimum}} ou mais recente — execute `claude update`.",
       "testConnection": "Testar conexão",
       "testing": "Testando…",
       "connectionWorks": "A conexão funciona"
@@ -121,7 +124,8 @@
       "localOnly": "Sem chave de API — seus dados vão apenas para este servidor, que por padrão é a sua própria máquina.",
       "refreshModels": "Atualizar",
       "notRunningHint": "O Capy não consegue acessar o Ollama neste endereço. Inicie-o com `ollama serve` ou confira a URL.",
-      "noModels": "O Ollama está rodando, mas ainda não tem modelos. Baixe um com `ollama pull llama3.1` e depois atualize.",
+      "noModels": "O Ollama está rodando, mas ainda não tem modelos. Baixe um com `ollama pull llama3.1` e atualize, ou digite o nome de um modelo abaixo.",
+      "browseModels": "Ver modelos do Ollama",
       "toolsHint": "Escolha um modelo com suporte a chamadas de ferramentas — o Capy usa ferramentas para ler e editar seu orçamento.",
       "install": "Instalar o Ollama"
     },
@@ -129,7 +133,8 @@
       "label": "Modelo",
       "useCustom": "Usar um modelo personalizado",
       "customPlaceholder": "identificador-do-modelo",
-      "selectPlaceholder": "Selecione um modelo…"
+      "selectPlaceholder": "Selecione um modelo…",
+      "listUnavailable": "Não deu para carregar a lista atual de modelos — mostrando uma lista curta."
     }
   },
   "chatInstructions": {

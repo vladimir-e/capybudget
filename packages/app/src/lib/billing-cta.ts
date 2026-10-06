@@ -13,7 +13,7 @@ export function billingCtaUrl(block: ErrorBlock): string | null {
   if (!block.provider) return null
   const url = BILLING_CTA_URLS[block.provider]
   if (!url) return null
-  const isBillingStatus = block.status === 400 || block.status === 402
+  const isBillingStatus = block.status === 400 || block.status === 402 || block.status === 429
   if (!isBillingStatus) return null
   if (!BILLING_MESSAGE_PATTERN.test(block.message)) return null
   return url

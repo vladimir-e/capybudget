@@ -39,6 +39,8 @@ export interface SessionLifecycleOptions {
 export interface StreamEventContext<TOpts> {
   setIsStreaming: (value: boolean) => void;
   optsRef: React.RefObject<TOpts>;
+  /** False for events from a session that has since been killed or replaced. */
+  current: boolean;
 }
 
 export interface UseSessionLifecycleReturn<TOpts extends SessionLifecycleOptions> {
@@ -64,7 +66,11 @@ export interface UseSessionLifecycleReturn<TOpts extends SessionLifecycleOptions
  *                        to avoid stale closures.
  * @param label           Log prefix for debug output (e.g. "import", "enrich", "capy")
  * @param onExit          Called only by the Claude-CLI adapter when its subprocess dies
- *                        unexpectedly (kill()/stop()/restart() suppress it). API adapters
+ *                        unexpectedly (kill()/stop()/restart() suppress it), with the
+ *                        process's last stderr lines when it wrote any, whether the
+ *                        turn already showed the fault as an error, and the session
+ *                        it belonged to. A send queued on that session keeps streaming:
+ *                        it runs next on a fresh process. API adapters
  *                        have no process to die so they never invoke this. Use it for
  *                        recovery UX (e.g. appending a "session ended" message).
  *                        Kept fresh via ref like onStreamEvent.
@@ -73,7 +79,7 @@ export function useSessionLifecycle<TOpts extends SessionLifecycleOptions>(
   opts: TOpts,
   onStreamEvent: (event: StreamEvent, ctx: StreamEventContext<TOpts>) => void,
   label: string,
-  onExit?: () => void,
+  onExit?: (reason: string | undefined, reported: boolean, session: CapySession | null) => void,
 ): UseSessionLifecycleReturn<TOpts> {
   const [isStreaming, _setIsStreaming] = useState(false);
   const isStreamingRef = useRef(false);
@@ -98,20 +104,18 @@ export function useSessionLifecycle<TOpts extends SessionLifecycleOptions>(
     onExitRef.current = onExit;
   });
 
-  // Stable context object passed to the stream event callback
-  const streamEventCtxRef = useRef<StreamEventContext<TOpts>>({ setIsStreaming, optsRef });
-
   const handleStreamEvent = useCallback(
-    (event: StreamEvent) => {
-      onStreamEventRef.current(event, streamEventCtxRef.current);
+    (event: StreamEvent, current: boolean) => {
+      onStreamEventRef.current(event, { setIsStreaming, optsRef, current });
     },
-    [],
+    [setIsStreaming],
   );
 
-  const handleExit = useCallback(() => {
-    console.debug(`[${label}-session] process exited`);
-    setIsStreaming(false);
-    onExitRef.current?.();
+  const handleExit = useCallback((reason: string | undefined, reported: boolean) => {
+    console.debug(`[${label}-session] process exited`, reason ?? "");
+    const session = sessionRef.current;
+    if (session?.hasQueuedSend !== true) setIsStreaming(false);
+    onExitRef.current?.(reason, reported, session);
   }, [label, setIsStreaming]);
 
   // Cleanup on unmount
@@ -126,7 +130,10 @@ export function useSessionLifecycle<TOpts extends SessionLifecycleOptions>(
     (systemPrompt: string): CapySession | null => {
       sessionRef.current?.kill();
       const o = optsRef.current;
-      const session = createSession({
+      // Declared before the call: an adapter can emit during construction, and
+      // `onEvent` must read `null` then rather than hit the TDZ of a `const`.
+      let session: CapySession | null = null;
+      session = createSession({
         budgetPath: o.budgetPath,
         mcpServerPath: o.mcpServerPath,
         systemPrompt,
@@ -136,7 +143,7 @@ export function useSessionLifecycle<TOpts extends SessionLifecycleOptions>(
         // so a manual rate edit reaches the running session's next tool call
         // without a rebuild. `o` is a snapshot; `optsRef.current` stays fresh.
         getCurrencies: () => optsRef.current.currencies,
-        onEvent: handleStreamEvent,
+        onEvent: (event) => handleStreamEvent(event, session !== null && sessionRef.current === session),
         onExit: handleExit,
         repo: o.repo,
         fileAdapter: o.fileAdapter,
@@ -155,10 +162,8 @@ export function useSessionLifecycle<TOpts extends SessionLifecycleOptions>(
   );
 
   const dispatchStreamEvent = useCallback(
-    (event: StreamEvent) => {
-      onStreamEventRef.current(event, streamEventCtxRef.current);
-    },
-    [],
+    (event: StreamEvent) => handleStreamEvent(event, true),
+    [handleStreamEvent],
   );
 
   const cancel = useCallback(() => {

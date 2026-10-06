@@ -6,7 +6,6 @@ import {
 } from "./factory"
 import {
   DEFAULT_INTELLIGENCE_CONFIG,
-  OLLAMA_PLACEHOLDER_KEY,
   type IntelligenceConfig,
 } from "./config"
 import type { CapySession } from "./session"
@@ -16,9 +15,7 @@ function makeStubSession(): CapySession {
   return {
     send: vi.fn().mockResolvedValue(undefined),
     stop: vi.fn().mockResolvedValue(undefined),
-    restart: vi.fn().mockResolvedValue(undefined),
     kill: vi.fn().mockResolvedValue(undefined),
-    isAlive: false,
   }
 }
 
@@ -78,13 +75,12 @@ describe("createIntelligenceSession", () => {
     })
   })
 
-  it("threads claudeCliModel through to the claude-cli ctor as model", () => {
+  it("reads the claude-cli model from config", () => {
     const ctor = vi.fn().mockImplementation(() => makeStubSession())
-    const opts: SessionOptions = { ...makeOptions(), claudeCliModel: "opus" }
     createIntelligenceSession({
-      config: { ...DEFAULT_INTELLIGENCE_CONFIG, provider: "claude-cli" },
+      config: { ...DEFAULT_INTELLIGENCE_CONFIG, provider: "claude-cli", claudeCli: { model: "opus" } },
       adapters: { "claude-cli": ctor },
-      options: opts,
+      options: makeOptions(),
     })
     expect(ctor).toHaveBeenCalledWith(
       expect.objectContaining({ model: "opus" }),
@@ -162,7 +158,7 @@ describe("createIntelligenceSession", () => {
     expect(ctor).not.toHaveBeenCalled()
   })
 
-  it("invokes ollama ctor with the local endpoint, a placeholder key, and no PDF support", () => {
+  it("invokes ollama ctor with the local endpoint, no key, and no PDF support", () => {
     const ctor = vi.fn().mockImplementation(() => makeStubSession())
     const opts = makeOptions()
     const session = createIntelligenceSession({
@@ -178,7 +174,7 @@ describe("createIntelligenceSession", () => {
     expect(ctor).toHaveBeenCalledWith({
       budgetPath: opts.budgetPath,
       systemPrompt: opts.systemPrompt,
-      apiKey: OLLAMA_PLACEHOLDER_KEY,
+      apiKey: "",
       model: "qwen3",
       baseUrl: "http://127.0.0.1:9999/v1",
       onEvent: opts.onEvent,

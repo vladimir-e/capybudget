@@ -20,8 +20,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useImportRepository, type SourceFileInfo } from "@/hooks/use-import-repository";
-import type { ImportPhase } from "@capybudget/intelligence";
-import { useImportStore } from "@/stores/import-store";
+import { MAX_ATTACHMENT_SIZE, MAX_IMPORT_PDF_SIZE, isPdfFilename, type ImportPhase } from "@capybudget/intelligence";
+import { useImportStore, type ImportRunError } from "@/stores/import-store";
 import { useImportOrchestrator } from "@/hooks/use-import-orchestrator";
 import { useImportInstructions } from "@/hooks/use-custom-instructions";
 import { useAccounts } from "@/hooks/use-budget-data";
@@ -36,6 +36,7 @@ import { ImportDropZone } from "./import-drop-zone";
 import { ImportProgress } from "./import-progress";
 import { resumeMeter } from "./import-progress-utils";
 import { ImportPreview } from "./import-preview";
+import { useImportNoticeText } from "./import-notice-text";
 
 interface ImportScreenProps {
   budgetPath: string;
@@ -63,6 +64,7 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
   const batchProgress = useImportStore((s) => s.batchProgress);
   const grounded = useImportStore((s) => s.grounded);
   const error = useImportStore((s) => s.error);
+  const noticeText = useImportNoticeText();
   const running = useImportStore((s) => s.running);
   const rowsVersion = useImportStore((s) => s.rowsVersion);
   const reset = useImportStore((s) => s.reset);
@@ -248,23 +250,22 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
   // to file-attach so the user can retry; if rows did land, the preview stays put
   // with the partial result. A run that finds no transaction data is not an
   // error — it lands on an empty preview and never reaches here.
-  const reportedErrorRef = useRef<string | null>(null);
+  const reportedErrorRef = useRef<ImportRunError | null>(null);
   useEffect(() => {
     if (!error) {
       reportedErrorRef.current = null;
       return;
     }
-    const key = `${error.reason}:${error.message}`;
-    if (reportedErrorRef.current === key) return;
-    reportedErrorRef.current = key;
+    if (reportedErrorRef.current === error) return;
+    reportedErrorRef.current = error;
 
-    toast.error(error.message);
+    toast.error(noticeText(error.notice));
     if (error.recoverable || !hasStaging) {
       reset();
       setHasStaging(false);
       void refreshSourceFiles();
     }
-  }, [error, hasStaging, reset, refreshSourceFiles]);
+  }, [error, hasStaging, reset, refreshSourceFiles, noticeText]);
 
   // ── Derived view state ────────────────────────────────────────
   let viewState: ImportViewState;
@@ -289,6 +290,11 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
         // run the model never sees.
         if (isPdfFile(file) && !pdfSupported) {
           toast.error(t("errors.pdfNeedsCapableProvider", { name: file.name }));
+          continue;
+        }
+        const sizeCap = isPdfFile(file) ? MAX_IMPORT_PDF_SIZE : MAX_ATTACHMENT_SIZE;
+        if (isImportBinaryFile(file) && file.size > sizeCap) {
+          toast.error(t("errors.tooLarge", { name: file.name, limit: sizeCap / 1_048_576 }));
           continue;
         }
         setUploadingFiles((prev) => new Set(prev).add(file.name));
@@ -387,6 +393,11 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
   // ── Actions ───────────────────────────────────────────────────
   const handleStart = useCallback(async () => {
     if (sourceFiles.length === 0 || running) return;
+    if (!pdfSupported) {
+      const unreadable = sourceFiles.filter((f) => isPdfFilename(f.name));
+      for (const f of unreadable) toast.error(t("errors.pdfNeedsCapableProvider", { name: f.name }));
+      if (unreadable.length === sourceFiles.length) return;
+    }
     const instructions = (localInstructions ?? "").trim();
     await customInstructions.save(instructions);
     const accountName = accounts.find((a) => a.id === selectedAccountId)?.name;
@@ -401,6 +412,7 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
     accounts,
     selectedAccountId,
     start,
+    pdfSupported,
     t,
   ]);
 
@@ -466,7 +478,7 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
   // History all completed, so a resting `idle` phase renders as `done`. It only
   // disappears at file-attach. (`grounded` keeps the bar up for the brief window
   // between History's stats and the first staged-rows flip.)
-  const barPhase: ImportPhase = phase === "idle" && hasStaging ? "done" : phase;
+  const barPhase: ImportPhase = (phase === "idle" || phase === "error") && hasStaging ? "done" : phase;
   const showProgressBar = showRun && (running || barPhase !== "idle" || grounded);
 
   const subtitle = running
@@ -544,6 +556,7 @@ export function ImportScreen({ budgetPath, budgetName }: ImportScreenProps) {
               onAccountChange={setSelectedAccountId}
               onStart={handleStart}
               canStart={canStart}
+              pdfSupported={pdfSupported}
               providerIsClaudeCli={provider === "claude-cli"}
               onSetupAi={() =>
                 navigate({ to: "/budget/settings", search: { path: budgetPath, name: budgetName, section: "intelligence" } })

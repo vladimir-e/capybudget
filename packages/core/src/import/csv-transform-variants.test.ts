@@ -8,7 +8,7 @@ import { baseMapping, makeRow } from "./csv-transform.test-helpers";
 describe("split amount columns", () => {
   const mapping = baseMapping({
     amount: { style: "split", expenseColumn: "Outflow", incomeColumn: "Inflow" },
-    amountFormat: { format: "currency" },
+    decimalMark: ".",
   });
 
   it("row with only outflow produces expense with negative amount", () => {
@@ -69,7 +69,7 @@ describe("full budget-export-style transform", () => {
     date: { column: "Date", format: "MM/DD/YYYY" },
     description: { columns: ["Payee", "Memo"], separator: " - " },
     amount: { style: "split", expenseColumn: "Outflow", incomeColumn: "Inflow" },
-    amountFormat: { format: "currency" },
+    decimalMark: ".",
     typeDetection: { method: "rules", transferPatterns: ["Transfer :"] },
     sourceAccount: { column: "Account" },
     sourceCategory: { columns: ["Category Group", "Category"], separator: "/" },
@@ -134,11 +134,8 @@ describe("full budget-export-style transform", () => {
   it("transforms the full export dataset correctly", () => {
     const result = transformCsv(exportRows, exportMapping);
 
-    // Row 4 is skipped (Cleared = Uncleared)
-    expect(result.stats.totalRows).toBe(4);
-    expect(result.stats.transformed).toBe(3);
-    expect(result.stats.skipped).toBe(1);
-    expect(result.stats.errored).toBe(0);
+    expect(result.stats).toEqual({ totalRows: 4, transformed: 4, skipped: 0, held: 1, errored: 0 });
+    expect(result.transactions[3].skipRule).toEqual({ column: "Cleared", equals: "uncleared" });
 
     // Row 1: Expense
     const t0 = result.transactions[0];
@@ -254,7 +251,7 @@ describe("bank-style CSV (single signed amount, MM/DD/YYYY, currency)", () => {
     date: { column: "Date", format: "MM/DD/YYYY" },
     description: { column: "Description" },
     amount: { style: "single", column: "Amount", sign: "negative_expense" },
-    amountFormat: { format: "currency" },
+    decimalMark: ".",
     typeDetection: { method: "rules", transferPatterns: ["transfer", "xfer"] },
     sourceAccount: { literal: "Chase Checking" },
     sourceCategory: null,
@@ -308,7 +305,7 @@ describe("European CSV (DD.MM.YYYY, european amounts)", () => {
     date: { column: "Datum", format: "DD.MM.YYYY" },
     description: { column: "Beschreibung" },
     amount: { style: "single", column: "Betrag", sign: "negative_expense" },
-    amountFormat: { format: "european" },
+    decimalMark: ",",
     typeDetection: { method: "amount_sign" },
     sourceAccount: { literal: "Deutsche Bank" },
     sourceCategory: null,

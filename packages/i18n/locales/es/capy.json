@@ -27,6 +27,9 @@
     "newLineHint": "Shift + Enter para salto de línea"
   },
   "thinking": "Pensando...",
+  "message": {
+    "notSent": "No enviado"
+  },
   "jumpToLatest": "Ir al último mensaje",
   "chart": {
     "total": "total"
@@ -71,7 +74,9 @@
   "instructionsDialog": {
     "title": "Instrucciones personalizadas",
     "description": "Ayuda a Capy a entender tu situación financiera. Describe tus patrones habituales, para qué usas cada cuenta o cómo prefieres categorizar.",
-    "placeholder": "p. ej. Uso mi tarjeta Chase para los gastos diarios.\nWhole Foods y Trader Joe's son alimentación.\nLas transferencias por Venmo a Sarah son su parte del alquiler."
+    "placeholder": "p. ej. Uso mi tarjeta Chase para los gastos diarios.\nWhole Foods y Trader Joe's son alimentación.\nLas transferencias por Venmo a Sarah son su parte del alquiler.",
+    "appliesToNewChats": "Se aplica a los chats nuevos.",
+    "startNewChat": "Empezar un chat nuevo"
   },
   "unconfigured": {
     "title": "Configura tu asistente con IA",
@@ -107,12 +112,19 @@
     "openBilling": "Abrir la página de facturación"
   },
   "session": {
-    "endedUnexpectedly": "La sesión terminó de forma inesperada. Envía un mensaje para empezar una nueva conversación.",
+    "endedUnexpectedly": "La sesión terminó de forma inesperada. Envía un mensaje para continuar.",
+    "endedUnexpectedlyWithReason": "La sesión terminó de forma inesperada. Claude Code informó:\n\n{{reason}}\n\nEnvía un mensaje para continuar.",
     "notConfigured": "Capy no está configurado. Abre los ajustes para elegir un proveedor de IA.",
     "sendFailed": "No se pudo enviar el mensaje",
     "interrupted": "Sesión interrumpida. Envía un mensaje para continuar.",
-    "cutOff": "La respuesta se cortó antes de que Capy pudiera contestar. Inténtalo de nuevo.",
-    "budgetExhausted": "Capy alcanzó su límite de llamadas a herramientas en esta respuesta. Envía un mensaje para continuar."
+    "cutOff": "La respuesta de Capy se cortó antes de terminar. Inténtalo de nuevo o pide menos a la vez.",
+    "refused": "Capy prefirió no responder a eso. Intenta reformularlo.",
+    "budgetExhausted": "Capy alcanzó su límite de llamadas a herramientas en esta respuesta. Envía un mensaje para continuar.",
+    "keyAccessDismissed": "Capy necesita tu clave de IA para responder. Envía de nuevo y elige Permitir para desbloquearla.",
+    "keyReadFailed": "Capy no pudo leer tu clave de IA del llavero del sistema. Envía de nuevo para reintentarlo.",
+    "rateLimited": "{{provider}} está limitando las solicitudes ahora mismo. Inténtalo de nuevo en un momento.",
+    "unreachable": "No se puede conectar con {{provider}} — revisa tu conexión a internet.",
+    "ollamaUnreachable": "No se puede conectar con Ollama en {{url}}. Inícialo con `ollama serve` o revisa la URL en Ajustes."
   },
   "secretGate": {
     "title": "Desbloquea tu clave de IA",

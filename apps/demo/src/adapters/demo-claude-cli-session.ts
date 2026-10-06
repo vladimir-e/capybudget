@@ -1,8 +1,6 @@
-/**
- * Re-export shim so the demo's vite alias for `claude-cli-session`
- * resolves to a module that exports `ClaudeCliSession` — the symbol
- * name the renamed app code imports. The actual stubbed behavior
- * lives in `demo-capy-session.ts` (kept untouched).
- */
+import type { CapySession as AppCapySession, ClaudeCliAdapterOptions } from "@capybudget/intelligence"
+import { CapySession } from "./demo-capy-session"
 
-export { CapySession as ClaudeCliSession } from "./demo-capy-session"
+export function createClaudeCliSession(opts: ClaudeCliAdapterOptions): AppCapySession {
+  return new CapySession(opts)
+}

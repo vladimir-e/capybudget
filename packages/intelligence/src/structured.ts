@@ -4,14 +4,14 @@
  * a value the caller's JSON Schema describes — no agent loop, no tools.
  *
  * The providers constrain generation to the schema server-side (Anthropic
- * `output_config.format`, OpenAI and Ollama `response_format` json_schema).
+ * `output_config.format`, OpenAI `text.format`, Ollama `response_format`).
  * `parseStructured` is the client-side enforcement layer: it parses the
  * returned text and checks it against the same schema, so a malformed or
  * off-schema response surfaces as a thrown error at the call site rather
  * than as a silently-wrong object downstream.
  */
 
-import type { MessageContent } from "./types"
+import type { MessageContent, SessionProvider } from "./types"
 
 /**
  * A user or assistant turn. Only user turns may carry non-text content:
@@ -34,6 +34,7 @@ export interface StructuredCallOptions {
    * JSON prefix, not a parseable value.
    */
   onText?: (text: string) => void
+  signal?: AbortSignal
 }
 
 export interface StructuredSession {
@@ -70,7 +71,7 @@ export type JsonSchema = {
   readonly items?: JsonSchema
   readonly enum?: ReadonlyArray<unknown>
   readonly anyOf?: ReadonlyArray<JsonSchema>
-  /** When `true`, the OpenAI adapter sends `response_format.json_schema.strict`
+  /** When `true`, the OpenAI and Ollama adapters send `strict` on the json_schema format
    *  so the provider *guarantees* on-schema output. Only set it on a schema
    *  that satisfies strict's rules (every object `additionalProperties: false`,
    *  all properties `required`). The Anthropic adapter ignores it — its
@@ -80,13 +81,58 @@ export type JsonSchema = {
 }
 
 /** The schema as sent over the wire: the `strict` marker stripped out. It's our
- *  own field for the OpenAI adapter (it rides the request wrapper, not the
+ *  own field for the OpenAI and Ollama adapters (it rides the request wrapper, not the
  *  schema), not a JSON-schema keyword — neither provider should see it inside
  *  the schema body. */
 export function schemaBody(schema: JsonSchema): Record<string, unknown> {
   const body: Record<string, unknown> = { ...schema }
   delete body.strict
   return body
+}
+
+export type Ending = "finished" | "refused" | "cutOff"
+
+export class CutOffError extends Error {
+  constructor() {
+    super("structured reply was cut off before it completed")
+    this.name = "CutOffError"
+  }
+}
+
+export class RefusedError extends Error {
+  constructor() {
+    super("model refused the structured request")
+    this.name = "RefusedError"
+  }
+}
+
+export class UnreachableError extends Error {
+  constructor(provider: SessionProvider) {
+    super(`${provider} unreachable`)
+    this.name = "UnreachableError"
+  }
+}
+
+/**
+ * A per-request signal that follows `signal` only until `release()`. The SDKs
+ * keep their abort listener on the caller's signal for good, so aborting it
+ * after a reply landed would abort that finished request's still-draining body
+ * — which under WKWebView can stall the next request for minutes.
+ */
+export function requestSignal(signal?: AbortSignal): { signal?: AbortSignal; release: () => void } {
+  if (!signal) return { release: () => {} }
+  const controller = new AbortController()
+  const abort = () => controller.abort(signal.reason)
+  if (signal.aborted) abort()
+  else signal.addEventListener("abort", abort, { once: true })
+  return { signal: controller.signal, release: () => signal.removeEventListener("abort", abort) }
+}
+
+export const STRUCTURED_MAX_RETRIES = 1
+
+export function assertStructuredFinished(ending: Ending): void {
+  if (ending === "refused") throw new RefusedError()
+  if (ending === "cutOff") throw new CutOffError()
 }
 
 export class SchemaValidationError extends Error {

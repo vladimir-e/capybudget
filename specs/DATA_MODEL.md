@@ -211,6 +211,7 @@ The three normalization paths (a `CsvMapping` applied to a CSV, a model reading 
 | `description`   | string  | Raw merchant text, untrimmed at this stage                   |
 | `sourceAccount` | string  | Raw account string from the source                           |
 | `sourceCategory`| string  | Raw category string from the source (empty when none)        |
+| `skipRule`      | SkipRule? | CSV only: the mapping skip rule that matched a row with an amount |
 
 `buildStaged` is the single sink: it assigns ids and trims `description` to produce the staged row.
 
@@ -232,6 +233,7 @@ The three normalization paths (a `CsvMapping` applied to a CSV, a model reading 
 | `categoryConfidence`| string  | `high` · `low` · `""` — set alongside `categoryId`                                       |
 | `duplicate`         | boolean | True when the row matches an existing budget transaction — skipped by enrichment, unselected at merge |
 | `duplicateConfidence`| string | `high` · `low` · `""` — the dup match tier; `low` (relaxed date window) renders as a possible duplicate to review |
+| `skipRule`          | SkipRule \| null | The mapping skip rule that matched the row (JSON in the CSV cell) — never matched against history or enriched, unselected at merge |
 
 There is no `memo` field. At merge, `note` is the trimmed `description` and nothing else; `merchant` on `Transaction` is reserved for the cleaned name.
 
@@ -272,6 +274,7 @@ Record<string /* row id */, {
   rowCount?: number            // set once staging is written
   updatedAt: string            // ISO timestamp of the last write
   source?: "chat"              // present when the chat on-ramp staged the run; its absence marks a manual Import-tab drop
+  merged?: boolean             // the merge committed but clearing staging failed: debris to clear, never a resumable import
 }
 ```
 

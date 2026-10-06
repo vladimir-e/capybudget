@@ -5,6 +5,7 @@ import {
   DEFAULT_INTELLIGENCE_CONFIG,
   DEFAULT_OLLAMA_BASE_URL,
   type IntelligenceConfig,
+  type ModelOption,
 } from "@capybudget/intelligence"
 import { OllamaConfig } from "./ollama-config"
 import {
@@ -13,19 +14,26 @@ import {
   _setStoreLoaderForTests,
   type SecretConfigBackend,
 } from "@/stores/intelligence-store"
-import { listOllamaModels } from "@/lib/api-testing"
+import type { ProviderEndpoint } from "@capybudget/intelligence/adapters"
 
-vi.mock("@/lib/api-testing", () => ({
-  listOllamaModels: vi.fn(),
-  pingOllama: vi.fn(),
+const { listModels } = vi.hoisted(() => ({
+  listModels: vi.fn<(endpoint: ProviderEndpoint) => Promise<ModelOption[]>>(),
 }))
 
-const mockList = vi.mocked(listOllamaModels)
+vi.mock("@capybudget/intelligence/adapters", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@capybudget/intelligence/adapters")>()),
+  listModels,
+  pingProvider: vi.fn(),
+}))
+
+function pulled(...ids: string[]): ModelOption[] {
+  return ids.map((id) => ({ value: id, label: id }))
+}
 
 afterEach(cleanup)
 beforeEach(() => {
   _resetIntelligenceStoreForTests()
-  mockList.mockReset()
+  listModels.mockReset()
 })
 
 /** Hydrate the store from a config, with a backend that persists nowhere. */
@@ -48,17 +56,17 @@ async function hydrate(ollama: Partial<IntelligenceConfig["ollama"]> = {}) {
 
 describe("OllamaConfig", () => {
   it("probes the saved endpoint and offers what the server has pulled", async () => {
-    mockList.mockResolvedValue(["llama3.1:8b", "qwen3:8b"])
+    listModels.mockResolvedValue(pulled("llama3.1:8b", "qwen3:8b"))
     await hydrate({ model: "qwen3:8b" })
 
     render(<OllamaConfig />)
 
-    await waitFor(() => expect(mockList).toHaveBeenCalledWith(DEFAULT_OLLAMA_BASE_URL))
+    await waitFor(() => expect(listModels).toHaveBeenCalledWith({ provider: "ollama", baseUrl: DEFAULT_OLLAMA_BASE_URL }))
     expect(await screen.findByText("Detected")).toBeInTheDocument()
   })
 
   it("says the server is unreachable rather than silently offering nothing", async () => {
-    mockList.mockRejectedValue(new Error("ECONNREFUSED"))
+    listModels.mockRejectedValue(new Error("ECONNREFUSED"))
     await hydrate()
 
     render(<OllamaConfig />)
@@ -69,17 +77,35 @@ describe("OllamaConfig", () => {
     ).toBeInTheDocument()
   })
 
-  it("flags a reachable server with nothing pulled", async () => {
-    mockList.mockResolvedValue([])
+  it("guides a reachable server with nothing pulled to the library and a typed model name", async () => {
+    listModels.mockResolvedValue(pulled())
     await hydrate()
+    const user = userEvent.setup()
 
     render(<OllamaConfig />)
 
     expect(await screen.findByText(/no models yet/i)).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Browse Ollama models" })).toBeInTheDocument()
+    expect(screen.queryByLabelText("Use a custom model")).not.toBeInTheDocument()
+
+    await user.type(screen.getByPlaceholderText("model-identifier"), "qwen3:8b")
+
+    expect(useIntelligenceStore.getState().config.ollama.model).toBe("qwen3:8b")
+  })
+
+  it("shows no empty state when the server has models", async () => {
+    listModels.mockResolvedValue(pulled("llama3.1:8b"))
+    await hydrate()
+
+    render(<OllamaConfig />)
+
+    expect(await screen.findByText("Detected")).toBeInTheDocument()
+    expect(screen.queryByText(/no models yet/i)).not.toBeInTheDocument()
+    expect(screen.getByLabelText("Use a custom model")).toBeInTheDocument()
   })
 
   it("keeps a saved model the server no longer has in the picker", async () => {
-    mockList.mockResolvedValue(["llama3.1:8b"])
+    listModels.mockResolvedValue(pulled("llama3.1:8b"))
     await hydrate({ model: "mistral:7b" })
     const user = userEvent.setup()
 
@@ -95,12 +121,12 @@ describe("OllamaConfig", () => {
   })
 
   it("re-probes the new endpoint when the URL is committed", async () => {
-    mockList.mockResolvedValue(["llama3.1:8b"])
+    listModels.mockResolvedValue(pulled("llama3.1:8b"))
     await hydrate()
     const user = userEvent.setup()
 
     render(<OllamaConfig />)
-    await waitFor(() => expect(mockList).toHaveBeenCalledTimes(1))
+    await waitFor(() => expect(listModels).toHaveBeenCalledTimes(1))
 
     const url = screen.getByLabelText("Server URL") as HTMLInputElement
     await user.clear(url)
@@ -108,7 +134,7 @@ describe("OllamaConfig", () => {
     await user.tab()
 
     await waitFor(() =>
-      expect(mockList).toHaveBeenLastCalledWith("http://192.168.0.9:11434/v1"),
+      expect(listModels).toHaveBeenLastCalledWith({ provider: "ollama", baseUrl: "http://192.168.0.9:11434/v1" }),
     )
     expect(useIntelligenceStore.getState().config.ollama.baseUrl).toBe(
       "http://192.168.0.9:11434/v1",
@@ -116,7 +142,7 @@ describe("OllamaConfig", () => {
   })
 
   it("snaps a cleared URL back to the stock endpoint instead of persisting an empty one", async () => {
-    mockList.mockResolvedValue(["llama3.1:8b"])
+    listModels.mockResolvedValue(pulled("llama3.1:8b"))
     await hydrate({ baseUrl: "http://192.168.0.9:11434/v1" })
     const user = userEvent.setup()
 

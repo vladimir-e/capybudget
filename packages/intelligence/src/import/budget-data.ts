@@ -5,7 +5,7 @@
  * accounts (sourceAccount resolution).
  *
  * Kept separate from the staging store: staging is the import's scratch space,
- * this is the live budget. Unit 3 supplies a concrete impl backed by the
+ * this is the live budget. The app supplies a concrete impl backed by the
  * budget repository; tests pass a fixed snapshot.
  */
 

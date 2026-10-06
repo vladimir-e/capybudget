@@ -10,7 +10,7 @@
  *   has a stale in-memory cache w.r.t. disk, so we drop the cache and
  *   let the next `get*()` re-read.
  *
- * - **API adapters (Anthropic / OpenAI)**: mutations dispatch in-process
+ * - **API adapters (Anthropic / OpenAI / Ollama)**: mutations dispatch in-process
  *   against the *same* repo the UI uses. `saveTransactions` already
  *   updated the in-memory cache, and the CSV write is debounced (300ms).
  *   Calling `invalidateCache()` here clears the in-memory truth before

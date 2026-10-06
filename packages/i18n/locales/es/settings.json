@@ -70,6 +70,7 @@
     "demoNoticeBody": "La demo web se ejecuta por completo en tu navegador y no puede guardar un proveedor de IA. Descarga la app de escritorio para chatear con Capy y usar la importación inteligente.",
     "missingTitle": "Ya no se detecta Claude Code",
     "missingBody": "Reinstala Claude Code o elige otro proveedor para seguir usando Capy.",
+    "outdatedTitle": "Claude Code necesita una actualización",
     "sourceBuildTitle": "Claude Code requiere una compilación desde el código fuente",
     "sourceBuildBody": "La app de escritorio aún no puede ejecutar Claude Code. Elige otro proveedor o",
     "runFromSource": "ejecuta Capy desde el código fuente",
@@ -102,6 +103,8 @@
       "detected": "Detectado",
       "notDetected": "No detectado",
       "notDetectedHint": "No detectado: instálalo desde",
+      "outdated": "Necesita actualización",
+      "outdatedHint": "Se requiere Claude Code {{minimum}} o posterior — ejecuta `claude update`.",
       "testConnection": "Probar conexión",
       "testing": "Probando…",
       "connectionWorks": "La conexión funciona"
@@ -121,7 +124,8 @@
       "localOnly": "Sin clave de API: tus datos solo van a este servidor, que por defecto es tu propio equipo.",
       "refreshModels": "Actualizar",
       "notRunningHint": "Capy no puede conectar con Ollama en esta dirección. Inícialo con `ollama serve` o revisa la URL.",
-      "noModels": "Ollama está en marcha pero aún no tiene modelos. Descarga uno con `ollama pull llama3.1` y actualiza.",
+      "noModels": "Ollama está en marcha pero aún no tiene modelos. Descarga uno con `ollama pull llama3.1` y actualiza, o escribe el nombre de un modelo abajo.",
+      "browseModels": "Ver modelos de Ollama",
       "toolsHint": "Elige un modelo compatible con llamadas a herramientas: Capy las usa para leer y editar tu presupuesto.",
       "install": "Instalar Ollama"
     },
@@ -129,7 +133,8 @@
       "label": "Modelo",
       "useCustom": "Usar un modelo personalizado",
       "customPlaceholder": "identificador-del-modelo",
-      "selectPlaceholder": "Selecciona un modelo…"
+      "selectPlaceholder": "Selecciona un modelo…",
+      "listUnavailable": "No se pudo cargar la lista actual de modelos; te mostramos una lista corta."
     }
   },
   "chatInstructions": {

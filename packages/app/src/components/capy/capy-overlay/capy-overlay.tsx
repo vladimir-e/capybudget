@@ -136,8 +136,8 @@ export function CapyOverlay({
     if (__MAS__) return
     let cancelled = false
     detectClaudeCli()
-      .then((available) => {
-        if (!cancelled) setClaudeCliAvailable(available)
+      .then((status) => {
+        if (!cancelled) setClaudeCliAvailable(status === "ready")
       })
       .catch(() => {
         if (!cancelled) setClaudeCliAvailable(false)
@@ -601,6 +601,7 @@ export function CapyOverlay({
         onOpenChange={setInstructionsOpen}
         instructions={instructions}
         onSave={onSaveInstructions}
+        onStartNewChat={messages.length > 0 ? onNewChat : undefined}
       />
     </aside>
   )

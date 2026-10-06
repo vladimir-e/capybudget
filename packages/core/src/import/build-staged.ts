@@ -40,6 +40,7 @@ export function buildStaged(
     categoryConfidence: "",
     duplicate: false,
     duplicateConfidence: "",
+    skipRule: record.skipRule ?? null,
   }));
 }
 

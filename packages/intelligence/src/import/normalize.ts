@@ -13,11 +13,15 @@
 
 import Papa from "papaparse";
 import {
+  amountColumns,
   buildCsvTable,
   buildStaged,
+  decimalMarkOf,
   detectHeaderRow,
   getToday,
   isViableHeaderRow,
+  parseAmountCell,
+  shouldSkipRow,
   transformCsv,
   HEADER_SCAN_ROWS,
   SUPPORTED_DATE_FORMATS,
@@ -25,6 +29,7 @@ import {
   type ColumnRef,
   type CsvMapping,
   type CsvTable,
+  type DecimalMark,
   type ImportTransaction,
   type SingleAmountMapping,
   type SkipRule,
@@ -34,8 +39,9 @@ import {
 } from "@capybudget/core";
 import type { MessageContent } from "../types";
 import { sourceContentBlock } from "../source-files";
+import { extractErrorMessage } from "../error-message";
 import { SchemaValidationError, type StructuredSession } from "../structured";
-import type { NormalizeProgress } from "./events";
+import { sample, type NormalizeProgress, type NormalizeWarning } from "./events";
 import {
   CSV_MAPPING_SCHEMA,
   EXTRACTION_SCHEMA,
@@ -75,17 +81,19 @@ export interface NormalizeCsvResult {
    *  preview re-call). Dropped from `rows`; the orchestrator surfaces them as a
    *  warn-level log so the user sees what was skipped instead of it vanishing. */
   errors: TransformError[];
+  warnings: NormalizeWarning[];
 }
 
 /**
  * CSV → staged rows. A mapping call is applied in code to every row. Two
  * bounded retry layers guard distinct failure modes: `resolveMapping` retries
- * once on a malformed schema (the model named no usable amount column), and if
- * a code-side preview of the first rows then surfaces *transform* errors (a bad
- * column reference that still parsed as a schema), the model gets one more
- * correction round with those errors attached. Worst case is 2×2 = 4 mapping
- * calls; whatever the final round produces is final. Payloads are tiny (headers
- * + samples), so the bound is on correctness, not cost.
+ * once on an unusable mapping (off-schema output, or an amount
+ * `normalizeMapping` refuses), and if a code-side preview of the first rows
+ * then surfaces *transform* errors (a bad column reference, or non-transaction
+ * rows the mapping doesn't skip), the model gets one more correction round with
+ * those errors attached. Worst case is 2×2 = 4 mapping calls; whatever the
+ * final round produces is final. Payloads are tiny (headers + samples), so the
+ * bound is on correctness, not cost.
  */
 export async function normalizeCsv(
   session: StructuredSession,
@@ -98,6 +106,7 @@ export async function normalizeCsv(
      *  grid parses, so the meter gets its denominator while the mapping call
      *  (the slow part) runs; rows land all at once when the transform applies. */
     onProgress?: (progress: NormalizeProgress) => void;
+    signal?: AbortSignal;
   } = {},
 ): Promise<NormalizeCsvResult> {
   // One raw parse (header: false) is the shared frame of reference: the header
@@ -110,7 +119,8 @@ export async function normalizeCsv(
   options.onProgress?.({ rows: 0, total: Math.max(grid.length - headerPick - 1, 0) });
 
   const existingAccounts = options.existingAccounts ?? [];
-  let resolved = await resolveMapping(session, source.name, grid, headerPick, importDate, existingAccounts, null);
+  const { signal } = options;
+  let resolved = await resolveMapping(session, source.name, grid, headerPick, importDate, existingAccounts, null, signal);
 
   // Code-side preview: transform a slice, and if it errors (e.g. the model named
   // a column that isn't there), give the model one correction round. The preview
@@ -119,10 +129,11 @@ export async function normalizeCsv(
   // only good part was relocating the header doesn't lose that on retry.
   const previewErrors = previewTransformErrors(resolved.table.rows.slice(0, PREVIEW_ROWS), resolved.mapping);
   if (previewErrors.length > 0) {
-    resolved = await resolveMapping(session, source.name, grid, resolved.mapping.headerRow, importDate, existingAccounts, previewErrors);
+    signal?.throwIfAborted();
+    resolved = await resolveMapping(session, source.name, grid, resolved.mapping.headerRow, importDate, existingAccounts, previewErrors, signal);
   }
 
-  const { transactions, errors } = transformCsv(resolved.table.rows, resolved.mapping, {
+  const { transactions, errors, stats } = transformCsv(resolved.table.rows, resolved.mapping, {
     startId: options.startId,
   });
   // The mapping heal guarantees a non-empty *mapping*, but a mapped account
@@ -130,16 +141,42 @@ export async function normalizeCsv(
   // path, so no staged row leaves either normalizer account-less.
   const fallbackAccount = accountFromFilename(source.name);
   const rows = transactions.map((t) => (t.sourceAccount ? t : { ...t, sourceAccount: fallbackAccount }));
-  return { rows, mapping: resolved.mapping, errors };
+  const warnings =
+    stats.skipped + stats.held > 0 ? [describeSkippedByRules(source.name, stats.held, resolved.table.rows, resolved.mapping)] : [];
+  return { rows, mapping: resolved.mapping, errors, warnings };
+}
+
+function describeSkippedByRules(filename: string, held: number, rows: Record<string, string>[], mapping: CsvMapping): NormalizeWarning {
+  const matched = rows.filter((row) => shouldSkipRow(row, mapping.skipRules));
+  return {
+    code: "normalize.skipRules",
+    params: { file: filename, sample: sample(matched, (row) => truncateValue(rowDescription(row, mapping.description))), held },
+  };
+}
+
+function rowDescription(row: Record<string, string>, ref: ColumnRef): string {
+  const columns = "column" in ref ? [ref.column] : ref.columns;
+  const separator = "column" in ref ? " " : ref.separator;
+  return columns.map((c) => (row[c] ?? "").trim()).filter(Boolean).join(separator);
 }
 
 function previewTransformErrors(rows: Record<string, string>[], mapping: CsvMapping): string[] {
   try {
     const { errors } = transformCsv(rows, mapping);
-    return errors.slice(0, 5).map((e) => `Row ${e.row}: ${e.message}`);
+    if (errors.length === 0) return [];
+    return [...errors.slice(0, 5).map((e) => `Row ${e.row}: ${e.message}`), ...strayAmountNotes(rows, mapping)];
   } catch (err) {
-    return [err instanceof Error ? err.message : String(err)];
+    return [extractErrorMessage(err).message];
   }
+}
+
+function strayAmountNotes(rows: Record<string, string>[], mapping: CsvMapping): string[] {
+  const kept = rows.filter((row) => !shouldSkipRow(row, mapping.skipRules));
+  return amountColumns(mapping.amount).flatMap((column) => {
+    const fit = amountColumnFit(kept, column);
+    if (fit.verdict === "refused" || fit.strays.length === 0) return [];
+    return [`"${column}" holds amounts apart from ${quoteValues(fit.strays, ", ")} — keep this column; ${skipRuleAdvice(column, fit.strays)}`];
+  });
 }
 
 /**
@@ -147,10 +184,13 @@ function previewTransformErrors(rows: Record<string, string>[], mapping: CsvMapp
  * to. The model's output is advisory and healed in code: `headerRow` stands
  * only when it survives `isViableHeaderRow` (else `headerPick` — code's
  * current pick — holds), and `normalizeMapping` heals every column-level field
- * against samples from the resulting table. The only failure mode is an amount
- * column that can't be identified at all (date and description default), which
- * `normalizeMapping` throws on — that gets one corrective retry before it
- * surfaces, so a transient bad response doesn't abort the import.
+ * against samples from the resulting table. Two failures surface as a
+ * `SchemaValidationError`: output that isn't valid on-schema JSON, and an
+ * amount `normalizeMapping` refuses (none named, half a debit/credit pair, a
+ * single column named alongside debit/credit columns, a missing column, one
+ * that isn't reliably amounts, or one blank in every sampled row).
+ * Either gets one corrective retry carrying the error — for a refused amount,
+ * the column listing to pick from — before it surfaces.
  */
 async function resolveMapping(
   session: StructuredSession,
@@ -160,6 +200,7 @@ async function resolveMapping(
   importDate: string,
   existingAccounts: string[],
   priorErrors: string[] | null,
+  signal: AbortSignal | undefined,
 ): Promise<{ mapping: CsvMapping & { headerRow: number }; table: CsvTable }> {
   const prompt = buildMappingPrompt(filename, grid, headerPick, existingAccounts, priorErrors);
   const heal = (raw: CsvMappingResult) => {
@@ -169,14 +210,45 @@ async function resolveMapping(
         : headerPick;
     const table = buildCsvTable(grid, headerRow);
     const samples = sampleRows(table.rows);
-    return { mapping: { ...normalizeMapping(raw, samples, filename, importDate), headerRow }, table };
+    const mapping = normalizeMapping(raw, samples, filename, importDate);
+    vetSkipRules(table.rows, mapping);
+    return { mapping: { ...mapping, headerRow }, table };
   };
   try {
-    return heal(await callMapper(session, prompt));
+    return heal(await callMapper(session, prompt, signal));
   } catch (err) {
     if (!(err instanceof SchemaValidationError)) throw err;
-    const retryPrompt = `${prompt}\n\nYour previous response could not be used: ${err.message}. Return a mapping that clearly identifies the amount column(s).`;
-    return heal(await callMapper(session, retryPrompt));
+    signal?.throwIfAborted();
+    const retryPrompt = `${prompt}\n\nYour previous mapping could not be used: ${err.message}\nReturn a corrected mapping that names the amount column, or both the debit and credit columns, exactly as the headers list them, and keeps skipRules to non-transaction rows.`;
+    return heal(await callMapper(session, retryPrompt, signal));
+  }
+}
+
+const MAX_HELD_SHARE = 0.2;
+const MIN_HELD_ALLOWANCE = 2;
+
+/**
+ * A row a skip rule matches is dropped only when it carries no amount; one with
+ * an amount is staged unselected for the user to judge. That keeps a wrong rule
+ * from deleting money, but a broad one would bury the preview in unselected
+ * rows — so a rule is refused when the rows it holds exceed `MAX_HELD_SHARE` of
+ * the rows carrying an amount (never below `MIN_HELD_ALLOWANCE`, so a short
+ * statement keeps its opening and closing balance).
+ */
+function vetSkipRules(rows: Record<string, string>[], mapping: CsvMapping): void {
+  const columns = amountColumns(mapping.amount);
+  const carriesAmount = (row: Record<string, string>) =>
+    columns.some((c) => (parsedCell(row[c] ?? "")?.cents ?? 0) !== 0);
+  const withAmount = rows.filter(carriesAmount);
+  const allowance = Math.max(MIN_HELD_ALLOWANCE, Math.floor(withAmount.length * MAX_HELD_SHARE));
+  for (const rule of mapping.skipRules ?? []) {
+    const held = withAmount.filter((row) => shouldSkipRow(row, [rule]));
+    if (held.length > allowance) {
+      const shown = sample(held, (row) => JSON.stringify(truncateValue(rowDescription(row, mapping.description)))).items;
+      throw new SchemaValidationError(
+        `the skipRule ${JSON.stringify(rule)} matches ${held.length} of ${withAmount.length} rows with an amount (${shown.join(", ")}) — too broad for non-transaction rows; narrow or drop it`,
+      );
+    }
   }
 }
 
@@ -209,7 +281,7 @@ function buildMappingPrompt(
       : "";
   const errorNote =
     priorErrors && priorErrors.length > 0
-      ? `\n\nYour previous mapping produced these transform errors. Correct it:\n${priorErrors
+      ? `\n\nYour previous mapping produced these transform errors. Correct it: add skipRules for non-transaction rows (pending, section, subtotal or repeated header lines).\n${priorErrors
           .map((e) => `- ${e}`)
           .join("\n")}`
       : "";
@@ -222,8 +294,9 @@ function buildMappingPrompt(
     `The engine reads row ${headerPick} as the table header and every row after it as data; rows before the header (bank summary preambles) are discarded. If the real header is a different row in the listing above, return "headerRow" with that row's index. Otherwise omit headerRow.`,
     `Headers (blank or duplicate cells renamed to stay addressable — use these names): ${headers.join(", ")}`,
     `Sample rows (${sample.length} of ${rows.length} data rows — the head plus rows spread across the file):`,
-    JSON.stringify(sample, null, 2),
+    JSON.stringify(sample),
     `Identify the date column, the description column(s), and how amounts are structured: a single signed column ({ style: "single", column, sign }) or split debit/credit ({ style: "split", expenseColumn, incomeColumn }). Optionally include date.format, the source account, the source category column, and skipRules for non-transaction rows (opening balances, voids).`,
+    `Always name the amount: the one column holding each transaction's amount in the account's currency, or BOTH the debit and credit columns. Foreign/original-currency amounts, exchange rates, fees, taxes, and running balances are never the amount. If no column holds it, omit amount rather than guess.`,
     accountsNote,
     `Determine the sign convention from the account type and the merchant context, not from a default. "sign" says which polarity is an expense: "negative_expense" (negatives are spending, positives are income — typical of bank/checking exports) or "positive_expense" (positives are spending — typical of CREDIT-CARD statements). On a credit-card statement such as Apple Card, purchases are POSITIVE and represent expenses, while NEGATIVE amounts are payments toward the card — treat those as transfers, not income. For split debit/credit columns, the outflow/debit column is expenses. Add transferPatterns for descriptions that name a card payment or account-to-account move (e.g. "Payment", "ACH Pmt", "Transfer") so they classify as transfers.`,
     `Guidance (the engine heals any deviation, so approximate freely): date.format like MM/DD/YYYY, YYYY-MM-DD, or DD.MM.YYYY. Amount formatting is read from the data, so don't worry about it.`,
@@ -233,9 +306,9 @@ function buildMappingPrompt(
     .join("\n");
 }
 
-function callMapper(session: StructuredSession, prompt: string): Promise<CsvMappingResult> {
+function callMapper(session: StructuredSession, prompt: string, signal: AbortSignal | undefined): Promise<CsvMappingResult> {
   const messages: { role: "user"; content: MessageContent }[] = [{ role: "user", content: prompt }];
-  return session.structured<CsvMappingResult>(messages, CSV_MAPPING_SCHEMA);
+  return session.structured<CsvMappingResult>(messages, CSV_MAPPING_SCHEMA, { signal });
 }
 
 /**
@@ -243,9 +316,9 @@ function callMapper(session: StructuredSession, prompt: string): Promise<CsvMapp
  * guaranteed-valid `CsvMapping`. Column roles are read defensively (tolerating
  * synonyms and a bare-string form); every metadata field is healed — amount
  * formatting is always inferred from the data, and the rest is coerced to a
- * valid value or defaulted. Amount is the only role that can fail (a file with
- * no amount column isn't a transaction file); date and description default —
- * date to an auto-detected column else the import date, description to empty.
+ * valid value or defaulted. Amount is the only role that can fail — it is never
+ * guessed; date and description default — date to an auto-detected column else
+ * the import date, description to empty.
  */
 export function normalizeMapping(
   raw: CsvMappingResult,
@@ -253,16 +326,17 @@ export function normalizeMapping(
   filename: string,
   importDate: string,
 ): CsvMapping {
-  const amount = normalizeAmount(raw.amount, samples);
+  const skipRules = normalizeSkipRules(raw.skipRules);
+  const amount = normalizeAmount(raw.amount, samples, skipRules);
   return {
     date: normalizeDate(raw.date, samples, importDate),
     description: normalizeDescription(raw.description),
     amount,
-    amountFormat: inferAmountFormat(amountSamples(samples, amount)),
+    decimalMark: inferDecimalMark(amountSamples(samples, amount)),
     typeDetection: normalizeTypeDetection(raw.typeDetection),
     sourceAccount: normalizeSourceAccount(raw.sourceAccount, filename),
     sourceCategory: toColumnRef(raw.sourceCategory),
-    skipRules: normalizeSkipRules(raw.skipRules),
+    skipRules,
   };
 }
 
@@ -318,33 +392,153 @@ function normalizeDescription(raw: unknown): ColumnRef {
   return toColumnRef(raw) ?? EMPTY_DESCRIPTION;
 }
 
-function normalizeAmount(raw: unknown, samples: Record<string, string>[]): AmountMapping {
+/**
+ * The amount role is the one place the mapping never guesses: a wrong column
+ * is a silent money error, a refusal is a correction round and then a loud
+ * failure. So the model must name one shape — a single column or a debit/credit
+ * pair, never both — and the column(s) must exist and fit `amountColumnFit`.
+ * Otherwise the error tells the model exactly what to fix, with every column's
+ * sample values to pick from.
+ */
+function normalizeAmount(
+  raw: unknown,
+  samples: Record<string, string>[],
+  skipRules: SkipRule[] | undefined,
+): AmountMapping {
   const obj = isRecord(raw) ? raw : {};
   const expenseColumn = pickString(obj, ["expenseColumn", "debitColumn", "outflowColumn", "outflow", "debit"]);
   const incomeColumn = pickString(obj, ["incomeColumn", "creditColumn", "inflowColumn", "inflow", "credit"]);
-  if (expenseColumn && incomeColumn) {
-    return { style: "split", expenseColumn, incomeColumn };
+  const column = asString(raw) ?? pickString(obj, ["column", "amountColumn", "amount", "value"]);
+  const refuse = (problem: string): never => {
+    throw new SchemaValidationError(`${problem}. ${describeColumns(samples)}`);
+  };
+
+  if (column && (expenseColumn || incomeColumn)) {
+    const pair = [expenseColumn, incomeColumn].filter(Boolean).map((c) => `"${c}"`).join(" and ");
+    refuse(
+      `both a single amount column ("${column}") and debit/credit columns (${pair}) were named — name one signed amount column, or both the debit and credit columns, not both`,
+    );
   }
-  const column =
-    asString(raw) ?? pickString(obj, ["column", "amountColumn", "amount", "value"]) ?? detectAmountColumn(samples);
-  if (!column) throw new SchemaValidationError("CSV mapping has no identifiable amount column");
-  return { style: "single", column, sign: normalizeSign(obj.sign, samples, column) };
+
+  const rows = samples.filter((row) => !shouldSkipRow(row, skipRules));
+  const amount: AmountMapping | null =
+    expenseColumn && incomeColumn
+      ? { style: "split", expenseColumn, incomeColumn }
+      : column
+        ? { style: "single", column, sign: normalizeSign(obj.sign, rows, column) }
+        : null;
+  if (!amount) {
+    if (expenseColumn || incomeColumn) {
+      const [side, named] = expenseColumn ? ["debit", expenseColumn] : ["credit", incomeColumn];
+      refuse(
+        `only the ${side} side ("${named}") was named — name both debit and credit columns, or a single signed amount column`,
+      );
+    }
+    return refuse("no amount column named — name the column holding each transaction's amount, or both the debit and credit columns");
+  }
+
+  const columns = amountColumns(amount);
+  const headers = samples.length > 0 ? Object.keys(samples[0]) : null;
+  for (const c of columns) {
+    if (headers && !headers.includes(c)) refuse(`column "${c}" does not exist`);
+    const fit = amountColumnFit(rows, c);
+    if (fit.verdict === "refused") refuse(`column "${c}" does not hold amounts`);
+    if (fit.verdict === "skippable") {
+      refuse(
+        `column "${c}" holds amounts apart from ${quoteValues(fit.strays, ", ")}, too many to leave as row errors — keep this column and ${skipRuleAdvice(c, fit.strays)}`,
+      );
+    }
+  }
+  if (rows.length > 0 && !columns.some((c) => columnSamples(rows, c).some((v) => /\d/.test(v)))) {
+    refuse(`no sampled row has an amount in ${columns.map((c) => `"${c}"`).join(" or ")}`);
+  }
+  return amount;
+}
+
+const MIN_PARSED_SHARE = 0.8;
+const MIN_SKIPPABLE_SHARE = 0.5;
+const MAX_STRAY_VALUES = 2;
+
+type AmountColumnFit = { verdict: "amounts" | "skippable"; strays: string[] } | { verdict: "refused" };
+
+/**
+ * A column holds amounts when at least `MIN_PARSED_SHARE` of its non-blank
+ * cells parse and the rest come from at most `MAX_STRAY_VALUES` distinct values
+ * (compared trimmed and case-insensitively) — real strays repeat (`PENDING`,
+ * the header text, `VOID`), while a reference or memo column fails in many
+ * different ways. A column with those few strays that misses the share only
+ * because they are dense (a tiny file, strays bunched at the top) is
+ * "skippable": skipping its stray values leaves pure amounts. The strays are
+ * returned as first seen.
+ */
+function amountColumnFit(rows: Record<string, string>[], column: string): AmountColumnFit {
+  const values = columnSamples(rows, column);
+  const strays = new Map<string, string>();
+  for (const v of values) {
+    if (parsedCell(v) !== null) continue;
+    const value = v.trim();
+    if (!strays.has(value.toLowerCase())) strays.set(value.toLowerCase(), value);
+  }
+  if (strays.size > MAX_STRAY_VALUES) return { verdict: "refused" };
+  const distinct = [...strays.values()];
+  if (distinct.length === 0) return { verdict: "amounts", strays: distinct };
+  const parsedShare = values.filter((v) => parsedCell(v) !== null).length / values.length;
+  if (parsedShare >= MIN_PARSED_SHARE) return { verdict: "amounts", strays: distinct };
+  return parsedShare >= MIN_SKIPPABLE_SHARE ? { verdict: "skippable", strays: distinct } : { verdict: "refused" };
+}
+
+function quoteValues(values: string[], separator: string): string {
+  return values.map((v) => JSON.stringify(truncateValue(v))).join(separator);
+}
+
+function skipRuleAdvice(column: string, strays: string[]): string {
+  return `add a skipRule for rows whose "${column}" is ${quoteValues(strays, " or ")}`;
+}
+
+const DESCRIBED_COLUMNS = 30;
+const DESCRIBED_VALUES = 3;
+const DESCRIBED_VALUE_LENGTH = 24;
+
+function describeColumns(samples: Record<string, string>[]): string {
+  if (samples.length === 0) return "The file has no data rows.";
+  const headers = Object.keys(samples[0]);
+  const described = headers.slice(0, DESCRIBED_COLUMNS).map((header) => {
+    const values = [...new Set(columnSamples(samples, header))].slice(0, DESCRIBED_VALUES).map(truncateValue);
+    return `"${header}" (${values.length > 0 ? values.map((v) => JSON.stringify(v)).join(", ") : "blank"})`;
+  });
+  const more = headers.length > DESCRIBED_COLUMNS ? `, +${headers.length - DESCRIBED_COLUMNS} more` : "";
+  return `Columns with sample values: ${described.join("; ")}${more}`;
+}
+
+function truncateValue(value: string): string {
+  const v = value.trim();
+  return v.length > DESCRIBED_VALUE_LENGTH ? `${v.slice(0, DESCRIBED_VALUE_LENGTH - 1)}…` : v;
 }
 
 /**
  * Sign is genuine model judgment — it depends on account type and merchant
  * context (an Apple Card export reads positive purchases as expenses; a checking
  * export reads them as income), which the data can't reveal. So a model-provided
- * sign is authoritative and is never overridden by the data: any recognizable
- * phrasing is coerced to one of the two valid values. The data heuristic is the
- * last resort, reached only when the model offered no usable sign at all — a
- * column with negatives stores expenses as negatives; an all-positive column
- * reads as positive-expense.
+ * sign is authoritative over the data heuristic: any recognizable phrasing is
+ * coerced to one of the two valid values. The data heuristic is the last resort,
+ * reached only when the model offered no usable sign at all — a column with
+ * negatives stores expenses as negatives; an all-positive column reads as
+ * positive-expense. One-sided direction markers are the exception, since they
+ * do reveal it: a column of unsigned values marking only credits (`CR`) leaves
+ * the unmarked ones as outflows, and one marking only debits leaves them inflows.
+ * A single-letter marker is too easily a stray flag to drive that on its own.
  */
 function normalizeSign(raw: unknown, samples: Record<string, string>[], column: string): SingleAmountMapping["sign"] {
+  const cells = columnSamples(samples, column).flatMap((v) => parsedCell(v) ?? []);
+  const hasNegative = cells.some((c) => c.cents < 0);
+  const inflowMarked = cells.some((c) => c.direction === "inflow");
+  const outflowMarked = cells.some((c) => c.direction === "outflow");
+  const wordMarked = cells.some((c) => (c.marker?.length ?? 0) > 1);
+  if (!hasNegative && wordMarked && inflowMarked !== outflowMarked) {
+    return inflowMarked ? "positive_expense" : "negative_expense";
+  }
   const coerced = coerceSign(typeof raw === "string" ? raw.toLowerCase() : "");
   if (coerced) return coerced;
-  const hasNegative = columnSamples(samples, column).some((v) => /^[(-]/.test(v));
   return hasNegative ? "negative_expense" : "positive_expense";
 }
 
@@ -391,7 +585,7 @@ function normalizeSourceAccount(raw: unknown, filename: string): CsvMapping["sou
   return { literal: accountFromFilename(filename) };
 }
 
-// ── Column auto-detection (when the model named no role) ─────────
+// ── Date column auto-detection (when the model named none) ───────
 
 /** A column whose every non-empty sample value parses as a supported date. */
 function detectDateColumn(samples: Record<string, string>[]): CsvMapping["date"] | null {
@@ -410,32 +604,12 @@ function looksLikeDate(value: string): boolean {
   return /^\d{4}[-/]\d{2}[-/]\d{2}$/.test(v) || /^\d{1,2}[./-]\d{1,2}[./-]\d{4}$/.test(v);
 }
 
-/**
- * A column whose values read as money — preferring one with a clear monetary
- * signal (sign, cents, or currency symbol) over a bare-integer column that might
- * be an id. Date columns are excluded so a dotted European date isn't mistaken
- * for a number.
- */
-function detectAmountColumn(samples: Record<string, string>[]): string | undefined {
-  if (samples.length === 0) return undefined;
-  const headers = Object.keys(samples[0]);
-  const isNumeric = (header: string): boolean => {
-    const values = columnSamples(samples, header);
-    return values.length > 0 && values.every((v) => looksLikeAmount(v) && !looksLikeDate(v));
-  };
-  return (
-    headers.find((h) => isNumeric(h) && columnSamples(samples, h).some(hasMoneySignal)) ??
-    headers.find(isNumeric)
-  );
-}
-
-function looksLikeAmount(value: string): boolean {
-  const cleaned = value.replace(/[$€£¥₽₹₱₴₫₦₩₪₿()\s]/g, "");
-  return /^[-+]?[\d.,]+$/.test(cleaned) && /\d/.test(cleaned);
-}
-
-function hasMoneySignal(value: string): boolean {
-  return /[$€£¥₽₹₱₴₫₦₩₪₿]/.test(value) || /[.,]\d{2}\b/.test(value) || /^\s*[-+(]/.test(value);
+function parsedCell(value: string): ReturnType<typeof parseAmountCell> | null {
+  try {
+    return parseAmountCell(value, ".", 0);
+  } catch {
+    return null;
+  }
 }
 
 /** A `string`, `{ column }`, or `{ columns, separator }` → `ColumnRef`; else null. */
@@ -474,28 +648,15 @@ function columnSamples(samples: Record<string, string>[], column: string): strin
 }
 
 function amountSamples(samples: Record<string, string>[], amount: AmountMapping): string[] {
-  const columns =
-    amount.style === "single" ? [amount.column] : [amount.expenseColumn, amount.incomeColumn];
-  return samples
-    .flatMap((row) => columns.map((c) => row[c] ?? ""))
-    .filter((v) => v.trim() !== "");
+  return amountColumns(amount).flatMap((c) => columnSamples(samples, c));
 }
 
-/**
- * `1.234,56` (comma decimal) → european; a currency symbol or `1,234.56`
- * thousands grouping → currency; otherwise plain. European is checked first
- * because the comma-as-decimal is its defining trait even with a `€` present.
- */
-function inferAmountFormat(values: string[]): CsvMapping["amountFormat"] {
-  if (values.some((v) => /\d,\d{2}\b/.test(v) && !/\d\.\d{2}\b/.test(v))) {
-    return { format: "european" };
-  }
-  if (
-    values.some((v) => /[$€£¥₽₹₱₴₫₦₩₪₿]/.test(v) || /\d{1,3}(,\d{3})+/.test(v))
-  ) {
-    return { format: "currency" };
-  }
-  return { format: "plain" };
+/** A vote over the values that prove a mark; a tie or no evidence → dot. */
+function inferDecimalMark(values: string[]): DecimalMark {
+  const marks = values.map(decimalMarkOf);
+  const commas = marks.filter((m) => m === ",").length;
+  const dots = marks.filter((m) => m === ".").length;
+  return commas > dots ? "," : ".";
 }
 
 /**
@@ -538,8 +699,10 @@ export function accountFromFilename(filename: string): string {
 export interface NormalizeImageResult {
   /** Empty when the outcome was `no_data`. */
   rows: ImportTransaction[];
-  /** Set when the source carried no transaction data (the selfie case). */
-  noData?: { message: string };
+  /** Set when the source carried no transaction data (the selfie case), with
+   *  the model's own explanation when it gave one. */
+  noData?: { detail?: string };
+  warnings: NormalizeWarning[];
 }
 
 /**
@@ -562,6 +725,7 @@ export async function normalizeImage(
      *  `count` once it streams (null before). Setting it makes the extraction
      *  call stream. */
     onProgress?: (progress: NormalizeProgress) => void;
+    signal?: AbortSignal;
   } = {},
 ): Promise<NormalizeImageResult> {
   const existingAccounts = options.existingAccounts ?? [];
@@ -586,15 +750,15 @@ export async function normalizeImage(
 
   // EXTRACTION_SCHEMA wraps the discriminated outcome in `result` so its root is
   // an object (OpenAI strict rejects a bare top-level anyOf) — unwrap it here.
-  const { onProgress } = options;
+  const { onProgress, signal } = options;
   const { result } = await session.structured<ExtractionEnvelope>(
     [{ role: "user", content }],
     EXTRACTION_SCHEMA,
-    onProgress && { onText: (text) => onProgress(countStreamedRows(text)) },
+    { signal, ...(onProgress && { onText: (text: string) => onProgress(countStreamedRows(text)) }) },
   );
 
   if ("error" in result) {
-    return { rows: [], noData: { message: result.message } };
+    return { rows: [], noData: { detail: result.message }, warnings: [] };
   }
 
   // The model can return `{ rows: [] }` without the explicit no_data outcome;
@@ -602,7 +766,7 @@ export async function normalizeImage(
   // declared no-data file — skipped with a warning when sibling files carry
   // rows, an empty completed preview when every file is empty.
   if (result.rows.length === 0) {
-    return { rows: [], noData: { message: "No transactions found in this file." } };
+    return { rows: [], noData: {}, warnings: [] };
   }
 
   const records: StagedRecord[] = result.rows.map((r) => ({
@@ -613,7 +777,26 @@ export async function normalizeImage(
     sourceAccount: asString(r.sourceAccount) ?? accountFromFilename(source.name),
     sourceCategory: r.sourceCategory,
   }));
-  return { rows: buildStaged(records, { startId: options.startId }) };
+  return { rows: buildStaged(records, { startId: options.startId }), warnings: extractionWarnings(source.name, result) };
+}
+
+const AMOUNT_CHECK_MIN_ROWS = 3;
+const ROUND_AMOUNT_CEILING = 10_000;
+
+function extractionWarnings(filename: string, result: { count: number; rows: StagedRecord[] }): NormalizeWarning[] {
+  const warnings: NormalizeWarning[] = [];
+  if (result.count > result.rows.length) {
+    warnings.push({ code: "normalize.countMismatch", params: { file: filename, counted: result.count, returned: result.rows.length } });
+  }
+  const amounts = result.rows.map((r) => Math.abs(r.amount));
+  if (amounts.length >= AMOUNT_CHECK_MIN_ROWS) {
+    if (amounts.every((a) => a < 100)) {
+      warnings.push({ code: "normalize.wholeUnits", params: { file: filename } });
+    } else if (amounts.every((a) => a % 100 === 0 && a < ROUND_AMOUNT_CEILING)) {
+      warnings.push({ code: "normalize.droppedCents", params: { file: filename } });
+    }
+  }
+  return warnings;
 }
 
 /**

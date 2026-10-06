@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 4,
+  "name": "Live Smoke",
+  "defaultCurrency": "USD",
+  "currencies": {
+    "USD": {
+      "decimals": 2,
+      "symbolPosition": "before"
+    }
+  },
+  "createdAt": "2025-09-30T00:00:00.000Z",
+  "lastModified": "2025-09-30T00:00:00.000Z"
+}

@@ -11,6 +11,7 @@ import {
 } from "@tanstack/react-router"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { DEFAULT_INTELLIGENCE_CONFIG } from "@capybudget/intelligence"
+import type { ClaudeCliStatus } from "@/services/claude-cli-detect"
 
 // Suppress sonner toasts during tests (must be hoisted via vi.mock).
 vi.mock("sonner", () => ({
@@ -22,10 +23,11 @@ vi.mock("sonner", () => ({
 // shell mock always returns exit code 0, so we need to control detection
 // directly.
 const { recheckMock } = vi.hoisted(() => ({
-  recheckMock: vi.fn<() => Promise<boolean>>(),
+  recheckMock: vi.fn<() => Promise<ClaudeCliStatus>>(),
 }))
 
 vi.mock("@/services/claude-cli-detect", () => ({
+  MIN_CLAUDE_CLI_VERSION: "2.1.248",
   detectClaudeCli: recheckMock,
   recheckClaudeCli: recheckMock,
   _resetClaudeCliCacheForTests: () => {},
@@ -116,7 +118,7 @@ beforeEach(() => {
   _resetStoreForTests()
   _resetIntelligenceStoreForTests()
   recheckMock.mockReset()
-  recheckMock.mockResolvedValue(true)
+  recheckMock.mockResolvedValue("ready")
   // Default backend: explicit null — Phase 10.5b first-run default.
   _setStoreLoaderForTests(async () => ({
     load: async () => ({ config: { ...DEFAULT_INTELLIGENCE_CONFIG, provider: null }, gateSeen: false }),
@@ -142,6 +144,7 @@ describe("SettingsScreen", () => {
     expect(screen.getByText("Off")).toBeInTheDocument()
     expect(screen.getByText("Anthropic API")).toBeInTheDocument()
     expect(screen.getByText("OpenAI API")).toBeInTheDocument()
+    expect(screen.getByText("Ollama")).toBeInTheDocument()
     // Claude Code spawns a subprocess — offered only in the desktop build.
     if (__MAS__) {
       expect(screen.queryByText("Claude Code")).not.toBeInTheDocument()
@@ -150,16 +153,16 @@ describe("SettingsScreen", () => {
     }
   })
 
-  it("orders providers Off / Anthropic / OpenAI (/ Claude Code on desktop)", async () => {
+  it("orders providers Off / Anthropic / OpenAI / Ollama (/ Claude Code on desktop)", async () => {
     await renderSettings()
 
     const labels = screen
-      .getAllByText(/^(Off|Anthropic API|OpenAI API|Claude Code)$/)
+      .getAllByText(/^(Off|Anthropic API|OpenAI API|Ollama|Claude Code)$/)
       .map((el) => el.textContent)
     expect(labels).toEqual(
       __MAS__
-        ? ["Off", "Anthropic API", "OpenAI API"]
-        : ["Off", "Anthropic API", "OpenAI API", "Claude Code"],
+        ? ["Off", "Anthropic API", "OpenAI API", "Ollama"]
+        : ["Off", "Anthropic API", "OpenAI API", "Ollama", "Claude Code"],
     )
   })
 
@@ -175,7 +178,7 @@ describe("SettingsScreen", () => {
   // The Claude Code provider (subprocess-backed) is desktop-only; its config
   // surface never renders in the sandboxed MAS build.
   it.skipIf(__MAS__)("exposes a model selector for Claude Code", async () => {
-    recheckMock.mockResolvedValue(true)
+    recheckMock.mockResolvedValue("ready")
     useIntelligenceStore.setState({
       hydrated: true,
       config: { ...DEFAULT_INTELLIGENCE_CONFIG, provider: "claude-cli" },
@@ -189,7 +192,7 @@ describe("SettingsScreen", () => {
 
   it.skipIf(__MAS__)("Claude Code custom-model field accepts a full model ID", async () => {
     const user = userEvent.setup()
-    recheckMock.mockResolvedValue(true)
+    recheckMock.mockResolvedValue("ready")
     useIntelligenceStore.setState({
       hydrated: true,
       config: { ...DEFAULT_INTELLIGENCE_CONFIG, provider: "claude-cli" },
@@ -238,13 +241,25 @@ describe("SettingsScreen", () => {
   })
 
   it.skipIf(__MAS__)("disables the Claude Code option when CLI is not detected", async () => {
-    recheckMock.mockResolvedValue(false)
+    recheckMock.mockResolvedValue("missing")
     await renderSettings()
 
     await waitFor(() => {
       expect(screen.getByText(/Not detected/i)).toBeInTheDocument()
     })
     expect(screen.getByText("claude.ai/code")).toBeInTheDocument()
+  })
+
+  it.skipIf(__MAS__)("asks for an update when the installed CLI is too old", async () => {
+    recheckMock.mockResolvedValue("outdated")
+    useIntelligenceStore.setState({
+      hydrated: true,
+      config: { ...DEFAULT_INTELLIGENCE_CONFIG, provider: "claude-cli" },
+    })
+    await renderSettings()
+
+    expect(await screen.findByText("Claude Code needs an update")).toBeInTheDocument()
+    expect(screen.getAllByText(/run `claude update`/).length).toBeGreaterThan(0)
   })
 
   it("toggling provider updates the store", async () => {
@@ -339,7 +354,7 @@ describe("SettingsScreen", () => {
   })
 
   it.skipIf(__MAS__)("warns when claude-cli is selected but not detected", async () => {
-    recheckMock.mockResolvedValue(false)
+    recheckMock.mockResolvedValue("missing")
     useIntelligenceStore.setState({
       hydrated: true,
       config: { ...DEFAULT_INTELLIGENCE_CONFIG, provider: "claude-cli" },

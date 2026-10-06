@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { getToday } from "@capybudget/core";
+import { getToday, parseCurrencyToCents, transformCsv } from "@capybudget/core";
 import { countStreamedRows, normalizeCsv, normalizeImage, normalizeMapping } from "./normalize";
 import type { NormalizeProgress } from "./events";
 import { CSV_MAPPING_SCHEMA, EXTRACTION_SCHEMA } from "./schemas";
@@ -31,8 +31,10 @@ describe("CSV_MAPPING_SCHEMA", () => {
     }
   });
 
-  it("requires only amount at the top level", () => {
-    expect(CSV_MAPPING_SCHEMA.required).toEqual(["amount"]);
+  it("requires nothing, so the model can decline to name an amount column", () => {
+    expect(CSV_MAPPING_SCHEMA.required).toBeUndefined();
+    expect(CSV_MAPPING_SCHEMA.properties?.amount?.required).toBeUndefined();
+    expect(CSV_MAPPING_SCHEMA.strict).toBeUndefined();
   });
 
   it("does not describe an open-keyed typeMap", () => {
@@ -45,7 +47,7 @@ const MAPPING = {
   date: { column: "Date", format: "YYYY-MM-DD" },
   description: { column: "Description" },
   amount: { style: "single", column: "Amount", sign: "negative_expense" },
-  amountFormat: { format: "plain" },
+  decimalMark: ".",
   typeDetection: { method: "amount_sign" },
   sourceAccount: { literal: "Checking" },
   sourceCategory: null,
@@ -102,7 +104,7 @@ describe("normalizeCsv", () => {
   });
 
   it("completes omitted metadata from the data and transforms without a retry", async () => {
-    // The model returns only the column roles — no amountFormat, typeDetection,
+    // The model returns only the column roles — no typeDetection,
     // sourceAccount, or date.format. normalizeMapping infers them; no re-call.
     const csv = "Date,Description,Amount\n2026-01-05,COFFEE,-4.50\n2026-01-06,SALARY,2000.00";
     const rolesOnly = {
@@ -116,7 +118,7 @@ describe("normalizeCsv", () => {
 
     expect(session.calls).toHaveLength(1); // no retry — metadata is inferred, not demanded
     expect(mapping.date).toMatchObject({ column: "Date", format: "YYYY-MM-DD" });
-    expect(mapping.amountFormat.format).toBe("plain");
+    expect(mapping.decimalMark).toBe(".");
     expect(mapping.typeDetection).toEqual({ method: "amount_sign" });
     expect(mapping.sourceAccount).toEqual({ literal: "checking" });
     expect(mapping.sourceCategory).toBeNull();
@@ -124,9 +126,7 @@ describe("normalizeCsv", () => {
     expect(rows[1]).toMatchObject({ amount: 200000, type: "income" });
   });
 
-  it("succeeds when the model phrases amountFormat outside our vocabulary", async () => {
-    // The reported third failure: amountFormat returned off-enum. It's advisory
-    // now — code infers the format from the data and ignores the model's value.
+  it("ignores an amount format the model volunteers", async () => {
     const csv = "Date,Description,Amount\n2026-01-05,COFFEE,-4.50";
     const offEnum = { ...MAPPING, amountFormat: { format: "usd" } };
     const session = new MockStructuredSession([() => offEnum]);
@@ -134,7 +134,7 @@ describe("normalizeCsv", () => {
     const { rows, mapping } = await normalizeCsv(session, { name: "f.csv", content: csv });
 
     expect(session.calls).toHaveLength(1); // no rejection, no retry
-    expect(mapping.amountFormat.format).toBe("plain"); // inferred from the data
+    expect(mapping.decimalMark).toBe(".");
     expect(rows).toHaveLength(1);
   });
 
@@ -178,6 +178,192 @@ describe("normalizeCsv", () => {
       SchemaValidationError,
     );
     expect(session.calls).toHaveLength(2);
+  });
+
+  describe("a refused amount gets one correction round, then imports", () => {
+    const csv = "Date,Description,Amount,Local amount\n2026-01-05,COFFEE,-4.50,-5.20\n2026-01-06,SALARY,2000.00,2300.00";
+    const roles = { date: { column: "Date" }, description: { column: "Description" } };
+
+    it("a mapping with no amount at all, answered with the column listing", async () => {
+      const session = new MockStructuredSession([() => roles, () => MAPPING]);
+
+      const { rows } = await normalizeCsv(session, { name: "monzo.csv", content: csv });
+
+      expect(session.calls).toHaveLength(2);
+      const correction = session.calls[1].messages[0].content as string;
+      expect(correction).toContain("no amount column named");
+      expect(correction).toContain('"Amount" ("-4.50", "2000.00"); "Local amount" ("-5.20", "2300.00")');
+      expect(rows.map((r) => r.amount)).toEqual([-450, 200000]);
+    });
+
+    it("a half-named debit/credit pair, answered with the column listing", async () => {
+      const session = new MockStructuredSession([() => ({ ...roles, amount: { expenseColumn: "Amount" } }), () => MAPPING]);
+
+      const { rows } = await normalizeCsv(session, { name: "monzo.csv", content: csv });
+
+      expect(session.calls).toHaveLength(2);
+      const correction = session.calls[1].messages[0].content as string;
+      expect(correction).toContain('only the debit side ("Amount") was named');
+      expect(correction).toContain('"Local amount" ("-5.20", "2300.00")');
+      expect(rows.map((r) => r.amount)).toEqual([-450, 200000]);
+    });
+
+    it("a named column that doesn't exist, answered with the column listing", async () => {
+      const session = new MockStructuredSession([
+        () => ({ ...roles, amount: { column: "Transaction amount", sign: "negative_expense" } }),
+        () => MAPPING,
+      ]);
+
+      const { rows } = await normalizeCsv(session, { name: "monzo.csv", content: csv });
+
+      expect(session.calls).toHaveLength(2);
+      const correction = session.calls[1].messages[0].content as string;
+      expect(correction).toContain('column "Transaction amount" does not exist');
+      expect(correction).toContain('"Amount" ("-4.50", "2000.00"); "Local amount" ("-5.20", "2300.00")');
+      expect(rows.map((r) => r.amount)).toEqual([-450, 200000]);
+    });
+  });
+
+  describe("stray non-amount cells in a valid amount column", () => {
+    const csv = [
+      "Date,Description,Amount",
+      "2026-01-05,COFFEE,-4.50",
+      "2026-01-06,CARD AUTH,PENDING",
+      "2026-01-07,SALARY,2000.00",
+      "2026-01-08,BAKERY,-3.00",
+      "2026-01-09,BOOKS,-15.00",
+      "2026-01-10,GAS,-40.00",
+      "Date,Description,Amount",
+      "2026-01-11,LUNCH,-12.00",
+      "2026-01-12,TRAIN,-2.75",
+      "2026-01-13,REFUND,8.00",
+    ].join("\n");
+    const amounts = [-450, 200000, -300, -1500, -4000, -1200, -275, 800];
+
+    it("imports the column, leaving those rows as errors, and asks for skipRules instead of another column", async () => {
+      const session = new MockStructuredSession([() => MAPPING, () => MAPPING]);
+
+      const { rows, errors } = await normalizeCsv(session, { name: "f.csv", content: csv });
+
+      expect(session.calls).toHaveLength(2);
+      const correction = session.calls[1].messages[0].content as string;
+      expect(correction).toContain("add skipRules for non-transaction rows");
+      expect(correction).toContain('"Amount" holds amounts apart from "PENDING", "Amount" — keep this column; add a skipRule for rows whose "Amount" is "PENDING" or "Amount"');
+      expect(rows.map((r) => r.amount)).toEqual(amounts);
+      expect(errors.map((e) => e.row)).toEqual([2, 7]);
+    });
+
+    it("imports cleanly once the correction skips them", async () => {
+      const skipping = { ...MAPPING, skipRules: [{ column: "Amount", equals: "PENDING" }, { column: "Date", equals: "Date" }] };
+      const session = new MockStructuredSession([() => MAPPING, () => skipping]);
+
+      const { rows, errors } = await normalizeCsv(session, { name: "f.csv", content: csv });
+
+      expect(errors).toEqual([]);
+      expect(rows.map((r) => r.amount)).toEqual(amounts);
+    });
+
+    describe("strays the sample misses but the preview catches", () => {
+      // 40 rows: the sample is rows 0-9 plus a spread hitting 12, 15, …, so
+      // strays at 10, 11, 13, 14 sit in the 15-row preview but not the sample.
+      const withPreviewStrays = (strays: string[]) =>
+        [
+          "Date,Description,Amount",
+          ...Array.from({ length: 40 }, (_, i) => {
+            const k = [10, 11, 13, 14].indexOf(i);
+            return `2026-01-05,ROW ${i},${k >= 0 && k < strays.length ? strays[k] : `-${i + 1}.00`}`;
+          }),
+        ].join("\n");
+
+      it("tells the model to keep a column whose preview strays a skipRule would clear", async () => {
+        const session = new MockStructuredSession([() => MAPPING, () => MAPPING]);
+
+        await normalizeCsv(session, { name: "f.csv", content: withPreviewStrays(["PENDING", "Pending", "PENDING", "pending"]) });
+
+        expect(session.calls).toHaveLength(2);
+        expect(session.calls[1].messages[0].content).toContain(
+          '"Amount" holds amounts apart from "PENDING" — keep this column; add a skipRule for rows whose "Amount" is "PENDING"',
+        );
+      });
+
+      it("never tells the model to keep a column it would refuse", async () => {
+        const session = new MockStructuredSession([() => MAPPING, () => MAPPING]);
+
+        await normalizeCsv(session, { name: "f.csv", content: withPreviewStrays(["REF-1", "REF-2", "REF-3"]) });
+
+        expect(session.calls).toHaveLength(2);
+        const correction = session.calls[1].messages[0].content as string;
+        expect(correction).toMatch(/- Row \d+: /);
+        expect(correction).not.toContain("keep this column");
+      });
+    });
+  });
+
+  describe("a small file whose strays fall under the parse share", () => {
+    const csv = [
+      "Date,Description,Amount",
+      "2026-01-05,COFFEE,-4.50",
+      "2026-01-06,CARD AUTH,PENDING",
+      "2026-01-07,SALARY,2000.00",
+      "2026-01-08,LUNCH,-12.00",
+    ].join("\n");
+
+    it("is refused with a skipRule to add, and imports once the correction adds it", async () => {
+      const skipping = { ...MAPPING, skipRules: [{ column: "Amount", equals: "PENDING" }] };
+      const session = new MockStructuredSession([() => MAPPING, () => skipping]);
+
+      const { rows, errors } = await normalizeCsv(session, { name: "f.csv", content: csv });
+
+      expect(session.calls).toHaveLength(2);
+      expect(session.calls[1].messages[0].content).toContain(
+        'column "Amount" holds amounts apart from "PENDING", too many to leave as row errors — keep this column and add a skipRule for rows whose "Amount" is "PENDING"',
+      );
+      expect(errors).toEqual([]);
+      expect(rows.map((r) => r.amount)).toEqual([-450, 200000, -1200]);
+    });
+
+    it("fails loudly when the correction repeats the mapping", async () => {
+      const session = new MockStructuredSession([() => MAPPING, () => MAPPING]);
+
+      await expect(normalizeCsv(session, { name: "f.csv", content: csv })).rejects.toThrow(/add a skipRule for rows whose "Amount" is "PENDING"/);
+    });
+  });
+
+  describe("a debit/credit file whose credits fall outside the sample", () => {
+    // 60 rows: the sample is rows 0-9 plus a spread from 14 on, so the lone
+    // credit at row 10 is never shown to the model or the mapping checks.
+    const csv = [
+      "Date,Description,Debit,Credit",
+      ...Array.from({ length: 60 }, (_, i) =>
+        i === 10 ? "2026-01-11,REFUND,,25.00" : `2026-01-${String((i % 28) + 1).padStart(2, "0")},SHOP ${i},4.50,`,
+      ),
+    ].join("\n");
+    const roles = { date: { column: "Date" }, description: { column: "Description" } };
+
+    it("imports the late credit as income once both sides are named", async () => {
+      const session = new MockStructuredSession([
+        () => ({ ...roles, amount: { column: "Credit", sign: "positive_expense" } }),
+        () => ({ ...roles, amount: { expenseColumn: "Debit", incomeColumn: "Credit" } }),
+      ]);
+
+      const { rows, errors } = await normalizeCsv(session, { name: "f.csv", content: csv });
+
+      expect(session.calls).toHaveLength(2);
+      expect(session.calls[1].messages[0].content).toContain('no sampled row has an amount in "Credit"');
+      expect(errors).toEqual([]);
+      expect(rows.find((r) => r.description === "REFUND")).toMatchObject({ amount: 2500, type: "income" });
+    });
+
+    it("never imports the late credit as $0 when only Debit is mapped as the amount", async () => {
+      const debitOnly = () => ({ ...roles, amount: { column: "Debit", sign: "positive_expense" } });
+      const session = new MockStructuredSession([debitOnly, debitOnly]);
+
+      const { rows, errors } = await normalizeCsv(session, { name: "f.csv", content: csv });
+
+      expect(rows.some((r) => r.description === "REFUND")).toBe(false);
+      expect(rows.some((r) => r.amount === 0)).toBe(false);
+      expect(errors.map((e) => e.message)).toEqual(['Row 11: no amount in "Debit"']);
+    });
   });
 
   it("imports a CSV with no date column, dating every row to the import date", async () => {
@@ -487,7 +673,7 @@ describe("normalizeMapping", () => {
   it("fills every omitted metadata field, defaulting sourceCategory to null", () => {
     const m = normalizeMapping(ROLES, sampleWith({ Date: "2026-01-05", Amount: "-4.50" }), "wells-fargo_2026.csv", IMPORT_DATE);
     expect(columnDate(m.date).format).toBe("YYYY-MM-DD");
-    expect(m.amountFormat.format).toBe("plain");
+    expect(m.decimalMark).toBe(".");
     expect(m.typeDetection).toEqual({ method: "amount_sign" });
     expect(m.sourceAccount).toEqual({ literal: "wells fargo 2026" });
     expect(m.sourceCategory).toBeNull();
@@ -543,20 +729,188 @@ describe("normalizeMapping", () => {
     expect(m.description).toEqual({ columns: [], separator: " " });
   });
 
-  it("throws only when no amount column can be identified", () => {
-    expect(() =>
-      normalizeMapping({ amount: {} }, [{ Memo: "X", Note: "Y" }], "f.csv", IMPORT_DATE),
-    ).toThrow(SchemaValidationError);
-  });
+  describe("the amount is never guessed", () => {
+    const refusal = (amount: unknown, rows: Record<string, string>[], skipRules?: unknown): string => {
+      try {
+        normalizeMapping(
+          { date: { column: "Date" }, description: { column: "Memo" }, amount, skipRules },
+          rows.map((r) => ({ Date: "2026-01-05", Memo: "X", ...r })),
+          "f.csv",
+          IMPORT_DATE,
+        );
+      } catch (err) {
+        if (err instanceof SchemaValidationError) return err.message;
+        throw err;
+      }
+      throw new Error("expected a refusal");
+    };
 
-  it("auto-detects an amount column when the model named none", () => {
-    const m = normalizeMapping(
-      { date: { column: "Date" }, description: { column: "Memo" } },
-      [{ Date: "2026-01-05", Memo: "X", Total: "-12.50" }],
-      "f.csv",
-      IMPORT_DATE,
-    );
-    expect(m.amount).toMatchObject({ style: "single", column: "Total" });
+    it.each([
+      ["Debit/Credit with Credit blank in every sample", [{ Debit: "12.50", Credit: "", Balance: "987.50" }]],
+      ["a whole-number KRW amount beside foreign and FX columns", [{ Amount: "15000", "Foreign Amount": "-11.20", "FX Rate": "1339.29" }]],
+      ["Fee Amount and Tax Amount beside an unnamed amount", [{ "Fee Amount": "0.50", "Tax Amount": "1.20", "Column 4": "-12.50" }]],
+      ["Monzo Amount and Local amount", [{ Amount: "-4.50", "Local amount": "-5.20", "Local currency": "EUR" }]],
+      ["Ref and Total", [{ Ref: "1042", Total: "-12.50" }]],
+      ["Balance listed before Amount", [{ Balance: "1,234.56", Amount: "-12.50" }]],
+    ])("refuses when no amount column is named: %s", (_, rows) => {
+      const message = refusal({}, rows);
+      expect(message).toMatch(/^no amount column named — name the column holding each transaction's amount, or both the debit and credit columns\./);
+      for (const header of Object.keys(rows[0])) expect(message).toContain(`"${header}" (`);
+    });
+
+    it("lists each column with its sample values", () => {
+      expect(refusal({}, [{ Debit: "12.50", Credit: "" }, { Debit: "3.10", Credit: "" }])).toBe(
+        'no amount column named — name the column holding each transaction\'s amount, or both the debit and credit columns. ' +
+          'Columns with sample values: "Date" ("2026-01-05"); "Memo" ("X"); "Debit" ("12.50", "3.10"); "Credit" (blank)',
+      );
+    });
+
+    it("caps the listing: three distinct values, truncated long cells, a bounded column count", () => {
+      const wide = Object.fromEntries(Array.from({ length: 40 }, (_, i) => [`C${i}`, "1"]));
+      const message = refusal({}, [
+        { ...wide, Memo: "A very long merchant description that goes on" },
+        { ...wide, Memo: "B" },
+        { ...wide, Memo: "C" },
+        { ...wide, Memo: "D" },
+      ]);
+      expect(message).toContain('"Memo" ("A very long merchant de…", "B", "C")');
+      expect(message).toContain(", +12 more");
+      expect(message).not.toContain('"C39"');
+    });
+
+    it.each([
+      [{ expenseColumn: "Debit" }, 'only the debit side ("Debit") was named'],
+      [{ style: "split", debit: "Debit" }, 'only the debit side ("Debit") was named'],
+      [{ incomeColumn: "Credit" }, 'only the credit side ("Credit") was named'],
+    ])("refuses a half-named debit/credit pair %j", (amount, problem) => {
+      const message = refusal(amount, [{ Debit: "12.50", Credit: "" }]);
+      expect(message).toContain(`${problem} — name both debit and credit columns, or a single signed amount column.`);
+      expect(message).toContain('"Credit" (blank)');
+    });
+
+    it.each([
+      [{ column: "Amount", expenseColumn: "Debit", incomeColumn: "Credit" }, '("Amount") and debit/credit columns ("Debit" and "Credit")'],
+      [{ style: "split", column: "Amount", expenseColumn: "Debit", incomeColumn: "Credit" }, '("Amount") and debit/credit columns ("Debit" and "Credit")'],
+      [{ style: "single", column: "Amount", expenseColumn: "Debit" }, '("Amount") and debit/credit columns ("Debit")'],
+      [{ column: "Amount", incomeColumn: "Credit" }, '("Amount") and debit/credit columns ("Credit")'],
+    ])("refuses a single column named alongside debit/credit columns %j", (amount, named) => {
+      const message = refusal(amount, [{ Amount: "-1.00", Debit: "1.00", Credit: "" }]);
+      expect(message.startsWith(`both a single amount column ${named} were named`)).toBe(true);
+      expect(message).toContain('"Debit" ("1.00")');
+    });
+
+    it("reads style \"split\" with only a column as that single column", () => {
+      const m = normalizeMapping({ amount: { style: "split", column: "Amount" } }, [{ Amount: "-1.00" }], "f.csv", IMPORT_DATE);
+      expect(m.amount).toMatchObject({ style: "single", column: "Amount" });
+    });
+
+    it("refuses a column that does not exist", () => {
+      expect(refusal({ column: "Amount" }, [{ Amt: "-1.00" }])).toMatch(/^column "Amount" does not exist\./);
+      expect(refusal({ expenseColumn: "Out", incomeColumn: "In" }, [{ Out: "1.00" }])).toMatch(/^column "In" does not exist\./);
+    });
+
+    it("refuses a mostly-text column even when a few cells parse", () => {
+      const rows = [{ Note: "COFFEE" }, { Note: "LUNCH" }, { Note: "12" }, { Note: "SALARY" }].map((r) => ({ Amount: "-1.00", ...r }));
+      expect(refusal({ column: "Note" }, rows)).toMatch(/^column "Note" does not hold amounts\./);
+    });
+
+    const amountsWith = (strays: string[], parsing: number) => [
+      ...Array.from({ length: parsing }, (_, i) => ({ Amount: `-${i + 1}.00` })),
+      ...strays.map((Amount) => ({ Amount })),
+    ];
+    const accepts = (rows: Record<string, string>[]) =>
+      normalizeMapping({ amount: { column: "Amount" } }, rows, "f.csv", IMPORT_DATE).amount;
+
+    it("accepts a column whose strays are PENDING and a repeated header, in either mode", () => {
+      expect(accepts(amountsWith(["PENDING", "Amount", "PENDING"], 12))).toMatchObject({ style: "single", column: "Amount" });
+      const split = normalizeMapping(
+        { amount: { expenseColumn: "Debit", incomeColumn: "Credit" } },
+        [
+          ...Array.from({ length: 4 }, (_, i) => ({ Debit: `${i + 1}.50`, Credit: "" })),
+          { Debit: "VOID", Credit: "" },
+          { Debit: "", Credit: "4.00" },
+        ],
+        "f.csv",
+        IMPORT_DATE,
+      );
+      expect(split.amount).toEqual({ style: "split", expenseColumn: "Debit", incomeColumn: "Credit" });
+    });
+
+    it.each([
+      ["exactly 80% parse", ["PENDING"], 4, "accepted"],
+      ["just under 80% parse", ["PENDING", "PENDING"], 7, "skippable"],
+      ["exactly 80% parse with two distinct strays", ["PENDING", "Amount"], 8, "accepted"],
+      ["60% parse", ["REF-1", "REF-1"], 3, "skippable"],
+      ["exactly 50% parse", ["PENDING", "PENDING"], 2, "skippable"],
+      ["under 50% parse", ["N/A", "N/A", "N/A"], 2, "refused"],
+    ])("judges %s", (_, strays, parsing, verdict) => {
+      const rows = amountsWith(strays, parsing);
+      if (verdict === "accepted") expect(accepts(rows)).toMatchObject({ column: "Amount" });
+      else if (verdict === "skippable") expect(refusal({ column: "Amount" }, rows)).toMatch(/^column "Amount" holds amounts apart from .*add a skipRule for rows whose "Amount" is /);
+      else expect(refusal({ column: "Amount" }, rows)).toMatch(/^column "Amount" does not hold amounts\./);
+    });
+
+    it("counts strays trimmed and case-insensitively, naming the first spelling", () => {
+      expect(accepts(amountsWith(["Pending", " PENDING ", "pending", "Amount"], 16))).toMatchObject({ column: "Amount" });
+      expect(refusal({ column: "Amount" }, amountsWith(["Pending", "PENDING", "Amount", "amount"], 4))).toContain(
+        'apart from "Pending", "Amount", too many to leave as row errors — keep this column and add a skipRule for rows whose "Amount" is "Pending" or "Amount"',
+      );
+    });
+
+    it("accepts a skippable column once a skipRule drops its strays", () => {
+      const rows = amountsWith(["PENDING", "PENDING"], 3);
+      const m = normalizeMapping(
+        { amount: { column: "Amount" }, skipRules: [{ column: "Amount", equals: "PENDING" }] },
+        rows,
+        "f.csv",
+        IMPORT_DATE,
+      );
+      expect(m.amount).toMatchObject({ column: "Amount" });
+    });
+
+    it("refuses three distinct strays even when the rest parse", () => {
+      expect(refusal({ column: "Amount" }, amountsWith(["PENDING", "Amount", "VOID"], 20))).toMatch(
+        /^column "Amount" does not hold amounts\./,
+      );
+    });
+
+    it.each([
+      ["descriptions", { Memo2: "COFFEE" }, "Memo2"],
+      ["dates", { Posted: "2026-01-05" }, "Posted"],
+      ["a mix with an unparseable cell", { Total: "12.50 (pending)" }, "Total"],
+    ])("refuses a named column of %s", (_, row, column) => {
+      expect(refusal({ column }, [{ Amount: "-1.00", ...row }])).toMatch(new RegExp(`^column "${column}" does not hold amounts\\.`));
+    });
+
+    it("refuses named columns blank in every sampled row", () => {
+      expect(refusal({ column: "Credit" }, [{ Debit: "1.00", Credit: "" }])).toMatch(/^no sampled row has an amount in "Credit"\./);
+      expect(refusal({ expenseColumn: "Debit", incomeColumn: "Credit" }, [{ Debit: "", Credit: "-" }])).toMatch(
+        /^no sampled row has an amount in "Debit" or "Credit"\./,
+      );
+    });
+
+    it("judges only the rows the mapping's skip rules keep", () => {
+      const pending = { Amount: "PENDING", Memo: "Pending auth" };
+      const rows: Record<string, string>[] = [{ Amount: "-1.00" }, pending, pending];
+      expect(refusal({ column: "Amount" }, rows)).toMatch(/^column "Amount" does not hold amounts/);
+      const m = normalizeMapping(
+        { amount: { column: "Amount" }, skipRules: [{ column: "Memo", contains: "Pending" }] },
+        rows.map((r) => ({ Memo: "X", ...r })),
+        "f.csv",
+        IMPORT_DATE,
+      );
+      expect(m.amount).toMatchObject({ style: "single", column: "Amount" });
+    });
+
+    it("accepts a named debit/credit pair whose credit side is blank in every sample", () => {
+      const m = normalizeMapping(
+        { amount: { expenseColumn: "Debit", incomeColumn: "Credit" } },
+        [{ Debit: "12.50", Credit: "" }],
+        "f.csv",
+        IMPORT_DATE,
+      );
+      expect(m.amount).toEqual({ style: "split", expenseColumn: "Debit", incomeColumn: "Credit" });
+    });
   });
 
   it("reads bare-string column refs", () => {
@@ -582,10 +936,10 @@ describe("normalizeMapping", () => {
   });
 
   describe("sign", () => {
-    const sign = (rawSign: unknown, amountValue: string) =>
+    const sign = (rawSign: unknown, ...amounts: string[]) =>
       (normalizeMapping(
         { date: { column: "Date" }, description: { column: "Memo" }, amount: { column: "Amount", sign: rawSign } },
-        [{ Date: "2026-01-05", Memo: "X", Amount: amountValue }],
+        amounts.map((Amount) => ({ Date: "2026-01-05", Memo: "X", Amount })),
         "f.csv",
         IMPORT_DATE,
       ).amount as { sign: string }).sign;
@@ -605,24 +959,98 @@ describe("normalizeMapping", () => {
     });
     it("infers from the data only when the model gave no usable sign", () => {
       expect(sign(undefined, "-4.50")).toBe("negative_expense"); // negatives present
+      expect(sign(undefined, "4,50-")).toBe("negative_expense");
       expect(sign("???", "2.99")).toBe("positive_expense"); // unparseable → data: all-positive
+    });
+    it.each(["$-12.50", "USD -12.50", "€-12,50", "R$ -1.234,56", "'-12.50"])(
+      "reads a negative %j after a currency prefix",
+      (value) => {
+        expect(sign(undefined, value)).toBe("negative_expense");
+      },
+    );
+    it("unmarked values are outflows in a column that marks only credits", () => {
+      expect(sign("negative_expense", "12.50", "40.00 CR", "3.10")).toBe("positive_expense");
+      expect(sign(undefined, "12.50", "40.00 C")).toBe("positive_expense");
+    });
+    it("unmarked values are inflows in a column that marks only debits", () => {
+      expect(sign("positive_expense", "12.50", "40.00 DR")).toBe("negative_expense");
+      expect(sign("positive_expense", "12.50", "40.00 D", "1.00 DB")).toBe("negative_expense");
+    });
+    it("a lone single-letter marker doesn't flip the column", () => {
+      expect(sign("positive_expense", "12.50", "40.00 S", "3.10")).toBe("positive_expense");
+      expect(sign("negative_expense", "12.50", "40.00 s")).toBe("negative_expense");
+      expect(sign("negative_expense", "12.50", "40.00 H")).toBe("negative_expense");
+      expect(sign("positive_expense", "12.50", "40.00 D")).toBe("positive_expense");
+    });
+    it("leaves the model's sign alone when markers are mixed or negatives exist", () => {
+      expect(sign("positive_expense", "12.50", "40.00 CR", "3.10 DR")).toBe("positive_expense");
+      expect(sign("negative_expense", "-12.50", "40.00 CR")).toBe("negative_expense");
+    });
+    it("a CR-only column imports its unmarked debits as expenses", () => {
+      const rows = [
+        { Date: "2026-01-05", Memo: "Coffee", Amount: "12.50" },
+        { Date: "2026-01-06", Memo: "Salary", Amount: "1,000.00 CR" },
+      ];
+      const m = normalizeMapping(
+        { date: { column: "Date" }, description: { column: "Memo" }, amount: { column: "Amount", sign: "negative_expense" } },
+        rows,
+        "f.csv",
+        IMPORT_DATE,
+      );
+      expect(transformCsv(rows, m).transactions.map((t) => [t.amount, t.type])).toEqual([
+        [-1250, "expense"],
+        [100000, "income"],
+      ]);
     });
   });
 
-  describe("amountFormat inference", () => {
-    const fmt = (amount: string) => normalizeMapping(ROLES, sampleWith({ Amount: amount }), "f.csv", IMPORT_DATE).amountFormat.format;
-    it("currency for a symbol or thousands grouping", () => {
-      expect(fmt("$1,234.56")).toBe("currency");
-      expect(fmt("1,234.56")).toBe("currency");
-      expect(fmt("($50.00)")).toBe("currency");
+  describe("decimalMark inference", () => {
+    const mark = (...amounts: string[]) =>
+      normalizeMapping(ROLES, amounts.map((Amount) => ({ Date: "2026-01-01", Description: "X", Amount })), "f.csv", IMPORT_DATE).decimalMark;
+    it("comma for values that prove a comma decimal", () => {
+      expect(mark("1.234,56")).toBe(",");
+      expect(mark("1234,56")).toBe(",");
+      expect(mark("1 234,56")).toBe(",");
+      expect(mark("1\u00A0234,56")).toBe(",");
+      expect(mark("1\u202F234,56")).toBe(",");
+      expect(mark("12,50 zł")).toBe(",");
     });
-    it("european for a comma decimal", () => {
-      expect(fmt("1.234,56")).toBe("european");
-      expect(fmt("1234,56")).toBe("european");
+    it("dot for values that prove a dot decimal", () => {
+      expect(mark("$1,234.56")).toBe(".");
+      expect(mark("($50.00)")).toBe(".");
+      expect(mark("-4.50")).toBe(".");
+      expect(mark("1'234.56")).toBe(".");
     });
-    it("plain otherwise", () => {
-      expect(fmt("-4.50")).toBe("plain");
-      expect(fmt("1234.56")).toBe("plain");
+    it("a dotted abbreviation before the number casts no vote of its own", () => {
+      expect(mark("Rs. 1,234", "Rs. 5,678")).toBe(".");
+      expect(mark("Rs.1,234.00")).toBe(".");
+      expect(mark("Fr. 1'234.50")).toBe(".");
+      expect(mark("Fr.1'234.50")).toBe(".");
+      expect(mark("kr.1.234,56")).toBe(",");
+      expect(mark("руб.1 234,56")).toBe(",");
+    });
+    it("the majority wins in a mixed column", () => {
+      expect(mark("1,50", "2,75", "3.10")).toBe(",");
+      expect(mark("1.50", "2.75", "3,10")).toBe(".");
+    });
+    it("a tie with evidence on both sides falls back to a dot", () => {
+      expect(mark("1,50", "3.10")).toBe(".");
+      expect(mark("1,50", "1.234", "3.10")).toBe(".");
+    });
+
+    const column = (...amounts: string[]) => {
+      const m = normalizeMapping(ROLES, amounts.map((Amount) => ({ Date: "2026-01-01", Description: "X", Amount })), "f.csv", IMPORT_DATE);
+      return (raw: string) => parseCurrencyToCents(raw, m.decimalMark, 1);
+    };
+    it("reads an ambiguous 1.234 from the column's other values", () => {
+      expect(column("1.234", "5,50")("1.234")).toBe(123400);
+      expect(column("1.234", "2.345.678")("1.234")).toBe(123400);
+      expect(column("1.234", "-4.50")("1.234")).toBe(123);
+      expect(column("1,234", "5,50")("1,234")).toBe(123);
+    });
+    it("falls back to a dot decimal when the column offers no evidence", () => {
+      expect(column("1.234", "2.345")("1.234")).toBe(123);
+      expect(column("1,234", "2,345")("1,234")).toBe(123400);
     });
   });
 
@@ -772,13 +1200,13 @@ describe("normalizeImage", () => {
     const session = new MockStructuredSession([() => ({ result: { error: "no_data", message: "Just a selfie." } })]);
     const { rows, noData } = await normalizeImage(session, { name: "s.png", content: "B64", mediaType: "image/png" });
     expect(rows).toHaveLength(0);
-    expect(noData?.message).toBe("Just a selfie.");
+    expect(noData?.detail).toBe("Just a selfie.");
   });
 
   it("treats an empty extraction as noData", async () => {
     const session = new MockStructuredSession([() => ({ result: { count: 0, rows: [] } })]);
     const { noData } = await normalizeImage(session, { name: "s.png", content: "B64", mediaType: "image/png" });
-    expect(noData).toBeDefined();
+    expect(noData).toEqual({});
   });
 
   it("reports streamed progress with the model-declared count as the total", async () => {
@@ -817,5 +1245,182 @@ describe("countStreamedRows", () => {
   it("declares count before rows in the schema, so the denominator streams first", () => {
     const rowsAlternative = EXTRACTION_SCHEMA.properties!.result.anyOf![0];
     expect(Object.keys(rowsAlternative.properties!)).toEqual(["count", "rows"]);
+  });
+});
+
+describe("normalizeCsv — skip rules", () => {
+  const csv = [
+    "Date,Description,Amount",
+    "2026-01-01,OPENING BALANCE,",
+    "2026-01-02,COFFEE,-4.50",
+    "2026-01-03,GROCER,-30.00",
+    "2026-01-04,BOOKS,-12.00",
+    "2026-01-05,RENT,-900.00",
+    "2026-01-06,SALARY,2000.00",
+  ].join("\n");
+
+  it("drops matched rows with no amount and logs them with the first few descriptions", async () => {
+    const session = new MockStructuredSession([
+      () => ({ ...MAPPING, skipRules: [{ column: "Description", contains: "OPENING" }] }),
+    ]);
+
+    const { rows, warnings } = await normalizeCsv(session, { name: "bank.csv", content: csv });
+
+    expect(rows).toHaveLength(5);
+    expect(rows.every((r) => r.skipRule === null)).toBe(true);
+    expect(warnings).toEqual([
+      { code: "normalize.skipRules", params: { file: "bank.csv", sample: { items: ["OPENING BALANCE"], more: 0 }, held: 0 } },
+    ]);
+  });
+
+  it("drops a pending row whose amount is blank", async () => {
+    const pending = ["Date,Description,Amount", "2026-01-01,A,-1.00", "2026-01-02,B,-2.00", "2026-01-03,C,-3.00", "2026-01-04,D,PENDING"].join("\n");
+    const session = new MockStructuredSession([
+      () => ({ ...MAPPING, skipRules: [{ column: "Amount", equals: "PENDING" }] }),
+    ]);
+
+    const { rows } = await normalizeCsv(session, { name: "bank.csv", content: pending });
+
+    expect(session.calls).toHaveLength(1);
+    expect(rows.map((r) => r.description)).toEqual(["A", "B", "C"]);
+  });
+
+  describe("rows with an amount are staged with their rule, not dropped", () => {
+    const statement = [
+      "Date,Description,Amount",
+      "2026-01-01,Opening balance,1520.00",
+      "2026-01-02,Balance forward,1520.00",
+      ...["COFFEE,-4.50", "GROCER,-30.00", "BOOKS,-12.00", "PHARMACY,-8.20", "CINEMA,-15.00"].map((r, i) => `2026-01-0${i + 3},${r}`),
+      "2026-01-08,Saldovortrag,1450.30",
+      ...["BAKERY,-3.10", "GYM,-40.00", "TAXI,-18.00", "RENT,-900.00", "SALARY,2000.00", "TAXES,-120.00"].map((r, i) => `2026-01-${10 + i},${r}`),
+      "2026-01-20,Total,4087.20",
+    ].join("\n");
+    const rules = [
+      { column: "Description", contains: "balance" },
+      { column: "Description", equals: "Saldovortrag" },
+      { column: "Description", equals: "Total" },
+    ];
+
+    it("keeps each balance and total row, tagged with the rule that matched it", async () => {
+      const session = new MockStructuredSession([() => ({ ...MAPPING, skipRules: rules })]);
+
+      const { rows, warnings } = await normalizeCsv(session, { name: "bank.csv", content: statement });
+
+      expect(session.calls).toHaveLength(1);
+      expect(rows).toHaveLength(15);
+      expect(rows.filter((r) => r.skipRule).map((r) => [r.description, r.skipRule])).toEqual([
+        ["Opening balance", rules[0]],
+        ["Balance forward", rules[0]],
+        ["Saldovortrag", rules[1]],
+        ["Total", rules[2]],
+      ]);
+      expect(warnings).toEqual([
+        {
+          code: "normalize.skipRules",
+          params: { file: "bank.csv", sample: { items: ["Opening balance", "Balance forward", "Saldovortrag"], more: 1 }, held: 4 },
+        },
+      ]);
+    });
+  });
+
+  it("refuses a broad rule that would hold more than a fifth of the rows with an amount", async () => {
+    const transfers = [
+      "Date,Description,Amount",
+      ...Array.from({ length: 10 }, (_, i) => `2026-01-${10 + i},${i % 3 === 0 ? `TRANSFER ${i}` : `SHOP ${i}`},-${i + 1}.00`),
+    ].join("\n");
+    const session = new MockStructuredSession([
+      () => ({ ...MAPPING, skipRules: [{ column: "Description", contains: "TRANSFER" }] }),
+      () => MAPPING,
+    ]);
+
+    const { rows } = await normalizeCsv(session, { name: "bank.csv", content: transfers });
+
+    expect(session.calls).toHaveLength(2);
+    expect(JSON.stringify(session.calls[1].messages)).toContain(
+      'matches 4 of 10 rows with an amount (\\"TRANSFER 0\\", \\"TRANSFER 3\\", \\"TRANSFER 6\\") — too broad',
+    );
+    expect(rows.every((r) => r.skipRule === null)).toBe(true);
+  });
+
+  it("lets a short statement hold its opening and closing balance", async () => {
+    const short = ["Date,Description,Amount", "2026-01-01,Opening balance,100.00", "2026-01-02,SHOP,-5.00", "2026-01-03,Closing balance,95.00"].join("\n");
+    const session = new MockStructuredSession([
+      () => ({ ...MAPPING, skipRules: [{ column: "Description", contains: "balance" }] }),
+    ]);
+
+    const { rows } = await normalizeCsv(session, { name: "bank.csv", content: short });
+
+    expect(session.calls).toHaveLength(1);
+    expect(rows.filter((r) => r.skipRule)).toHaveLength(2);
+  });
+
+  it("never counts rows without an amount toward a rule's share", async () => {
+    const zeros = ["Date,Description,Amount", ...Array.from({ length: 8 }, (_, i) => `2026-01-0${i + 1},${i < 4 ? "HOLD" : "SHOP"} ${i},${i < 4 ? "0.00" : `-${i}.00`}`)].join("\n");
+    const session = new MockStructuredSession([
+      () => ({ ...MAPPING, skipRules: [{ column: "Description", contains: "HOLD" }] }),
+    ]);
+
+    const { rows } = await normalizeCsv(session, { name: "bank.csv", content: zeros });
+
+    expect(session.calls).toHaveLength(1);
+    expect(rows).toHaveLength(4);
+  });
+
+  it("does not ask again once the caller's signal aborted", async () => {
+    const controller = new AbortController();
+    const session = new MockStructuredSession([
+      () => {
+        controller.abort();
+        return { ...MAPPING, amount: { column: "Nope" } };
+      },
+      () => MAPPING,
+    ]);
+
+    await expect(normalizeCsv(session, { name: "bank.csv", content: csv }, { signal: controller.signal })).rejects.toThrow();
+    expect(session.calls).toHaveLength(1);
+  });
+});
+
+describe("normalizeImage — extraction warnings", () => {
+  const row = (amount: number) => ({ date: "2026-01-05", amount, type: "expense", description: "Shop", sourceAccount: "Visa", sourceCategory: "" });
+
+  it("names the file and the gap when the model returns fewer rows than it counted", async () => {
+    const session = new MockStructuredSession([() => ({ result: { count: 5, rows: [row(-1234), row(-567)] } })]);
+
+    const { warnings } = await normalizeImage(session, { name: "scan.png", content: "B64", mediaType: "image/png" });
+
+    expect(warnings).toEqual([{ code: "normalize.countMismatch", params: { file: "scan.png", counted: 5, returned: 2 } }]);
+  });
+
+  it("flags amounts that all end in .00 as dropped cents", async () => {
+    const session = new MockStructuredSession([() => ({ result: { count: 3, rows: [row(-1200), row(-4500), row(-800)] } })]);
+
+    const { warnings } = await normalizeImage(session, { name: "scan.png", content: "B64", mediaType: "image/png" });
+
+    expect(warnings).toEqual([{ code: "normalize.droppedCents", params: { file: "scan.png" } }]);
+  });
+
+  it("flags amounts that are all under one unit as whole units", async () => {
+    const session = new MockStructuredSession([() => ({ result: { count: 3, rows: [row(-12), row(-45), row(-8)] } })]);
+
+    const { warnings } = await normalizeImage(session, { name: "scan.png", content: "B64", mediaType: "image/png" });
+
+    expect(warnings).toEqual([{ code: "normalize.wholeUnits", params: { file: "scan.png" } }]);
+  });
+
+  it("needs three rows before judging the amounts", async () => {
+    const session = new MockStructuredSession([() => ({ result: { count: 2, rows: [row(-12), row(-45)] } })]);
+
+    const { warnings } = await normalizeImage(session, { name: "scan.png", content: "B64", mediaType: "image/png" });
+
+    expect(warnings).toEqual([]);
+  });
+
+  it("stays quiet on ordinary cents", async () => {
+    const session = new MockStructuredSession([() => ({ result: { count: 3, rows: [row(-1234), row(-4500), row(-800)] } })]);
+
+    const { warnings } = await normalizeImage(session, { name: "scan.png", content: "B64", mediaType: "image/png" });
+
+    expect(warnings).toEqual([]);
   });
 });

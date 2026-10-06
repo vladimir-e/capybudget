@@ -7,8 +7,9 @@ import {
 } from "@capybudget/core/test-factories";
 import type { ImportTransaction } from "@capybudget/core";
 import { ImportOrchestrator } from "./orchestrator";
-import type { ImportEvent, ImportPhase } from "./events";
+import type { ImportEvent, ImportLogNotice, ImportPhase } from "./events";
 import { CSV_MAPPING_SCHEMA, ENRICH_BATCH_SCHEMA, EXTRACTION_SCHEMA } from "./schemas";
+import { CutOffError, UnreachableError } from "../structured";
 import {
   MemoryBudgetData,
   MemoryStagingStore,
@@ -69,7 +70,7 @@ const MAPPING = {
   date: { column: "Date", format: "YYYY-MM-DD" },
   description: { column: "Description" },
   amount: { style: "single", column: "Amount", sign: "negative_expense" },
-  amountFormat: { format: "plain" },
+  decimalMark: ".",
   typeDetection: { method: "amount_sign" },
   sourceAccount: { literal: "Checking" },
   sourceCategory: null,
@@ -92,6 +93,9 @@ function collect() {
   const events: ImportEvent[] = [];
   return { events, onEvent: (e: ImportEvent) => events.push(e) };
 }
+
+const warnNotices = (events: ImportEvent[]): ImportLogNotice[] =>
+  events.flatMap((e) => (e.type === "log" && e.entry.level === "warn" ? [e.entry.notice] : []));
 
 const phases = (events: ImportEvent[]): ImportPhase[] =>
   events.filter((e): e is { type: "phase"; phase: ImportPhase } => e.type === "phase").map((e) => e.phase);
@@ -154,6 +158,26 @@ describe("ImportOrchestrator — phase progression", () => {
     const grounding = events.find((e) => e.type === "grounding");
     expect(grounding).toBeDefined();
     expect(grounding && grounding.type === "grounding" && grounding.stats.total).toBe(2);
+  });
+
+  it("speaks in notice codes with params, never prose", async () => {
+    const staging = new MemoryStagingStore({ sources: [csvSource(csvWithRows(2), "bank.csv")] });
+    const session = new MockStructuredSession([mapResponder, enrichResponder()]);
+    const { events, onEvent } = collect();
+
+    await new ImportOrchestrator({ session, staging, budget: emptyBudget(), onEvent, concurrency: 1 }).start();
+
+    expect(events.flatMap((e) => (e.type === "status" ? [e.notice] : []))).toEqual([
+      { code: "normalize.mappingColumns", params: { file: "bank.csv" } },
+      { code: "history.matching" },
+      { code: "categorize.progress", params: { done: 0, total: 2 } },
+      { code: "categorize.progress", params: { done: 2, total: 2 } },
+    ]);
+    expect(events.flatMap((e) => (e.type === "log" ? [e.entry.notice] : []))).toEqual([
+      { code: "reading.files", params: { files: ["bank.csv"] } },
+      { code: "normalize.done", params: { count: 2 } },
+      { code: "history.payoff", params: { total: 2, resolved: 0, duplicates: 0 } },
+    ]);
   });
 
   it("passes the right schema to each model call", async () => {
@@ -270,7 +294,7 @@ describe("ImportOrchestrator — rows that skip Categorizing", () => {
     });
     // Category batch (imp-2) + transfer batch (imp-1). The transfer responder
     // picks Ally Savings by name; enrichResponder handles the category row.
-    const transferResponder = () => ({ rows: [{ id: "imp-1", account: "Ally Savings", confidence: "high" as const }] });
+    const transferResponder = () => ({ rows: [{ id: "imp-1", account: "Ally Savings" }] });
     const session = new MockStructuredSession([enrichResponder(), transferResponder]);
     const budget = new MemoryBudgetData([], CATEGORIES, [makeAccount({ id: "acct-checking", name: "Checking" }), savings]);
 
@@ -430,7 +454,10 @@ describe("ImportOrchestrator — empty import", () => {
     expect(events.find((e) => e.type === "error")).toBeUndefined();
     expect(staging.transactions).toHaveLength(2);
     const warn = events.find((e) => e.type === "log" && e.entry.level === "warn");
-    expect(warn && warn.type === "log" && warn.entry.message).toContain("selfie.png");
+    expect(warn && warn.type === "log" && warn.entry.notice).toEqual({
+      code: "normalize.noData",
+      params: { file: "selfie.png", detail: "Just a selfie." },
+    });
     // Ids continue from 1 — the skipped file consumed none.
     expect(staging.transactions![0].id).toBe("imp-1");
   });
@@ -523,8 +550,10 @@ describe("ImportOrchestrator — CSV path", () => {
     expect(staging.transactions).toHaveLength(1); // only the good row staged
     const warn = events.find((e) => e.type === "log" && e.entry.level === "warn");
     expect(warn && warn.type === "log" && warn.entry.phase).toBe("normalizing");
-    expect(warn && warn.type === "log" && warn.entry.message).toContain("skipped");
-    expect(warn && warn.type === "log" && warn.entry.message).toContain("NOTADATE");
+    expect(warn && warn.type === "log" && warn.entry.notice).toMatchObject({
+      code: "normalize.rowsUnparsed",
+      params: { file: "statement.csv", sample: { items: [expect.stringContaining("NOTADATE")], more: 0 } },
+    });
   });
 });
 
@@ -650,13 +679,14 @@ describe("ImportOrchestrator — re-run idempotency + resume", () => {
     const logs = events.flatMap((e) => (e.type === "log" ? [e.entry] : []));
     const warn = logs.find((l) => l.level === "warn");
     expect(warn).toBeDefined();
-    expect(warn!.message).toContain("5 staged rows skipped — failed validation");
-    expect(warn!.message).toContain('invalid date "Pending"');
-    expect(warn!.message).toContain("(+2 more)"); // detail capped at 3 samples
-    expect(warn!.message).not.toContain("missing id"); // the fix isn't a drop
+    expect(warn!.notice.code).toBe("categorize.droppedRows");
+    const { sample } = (warn!.notice as Extract<ImportLogNotice, { code: "categorize.droppedRows" }>).params;
+    expect(sample.items).toHaveLength(3);
+    expect(sample.more).toBe(2);
+    expect(sample.items[0]).toContain('invalid date "Pending"');
+    expect(sample.items.join()).not.toContain("missing id"); // the fix isn't a drop
     // The run resumes over the survivors: the fixed row + the intact one.
-    const resume = logs.find((l) => l.message.startsWith("Resuming import"));
-    expect(resume!.message).toContain("2 rows already staged");
+    expect(logs.map((l) => l.notice)).toContainEqual({ code: "categorize.resuming", params: { count: 2 } });
   });
 });
 
@@ -702,6 +732,35 @@ describe("ImportOrchestrator — duplicate persistence", () => {
     const reread = await staging.readTransactions();
     expect(reread!.rows[0].duplicate).toBe(true);
     expect(reread!.rows[0].duplicateConfidence).toBe("high");
+  });
+});
+
+describe("ImportOrchestrator — skip-rule rows", () => {
+  it("stages a held row with its rule through a round-trip and never sends it to the classifier", async () => {
+    const rule = { column: "Description", contains: "balance" };
+    const csv = ["Date,Description,Amount", "2026-01-01,Opening balance,1520.00", "2026-01-02,MERCHANT A,-10.00", "2026-01-03,MERCHANT B,-11.00"].join("\n");
+    const staging = new MemoryStagingStore({ sources: [csvSource(csv)] });
+    const session = new MockStructuredSession([() => ({ ...MAPPING, skipRules: [rule] }), enrichResponder()]);
+
+    await new ImportOrchestrator({ session, staging, budget: emptyBudget(), onEvent: () => {}, concurrency: 1 }).start();
+
+    expect(session.calls).toHaveLength(2);
+    const enriched = JSON.stringify(session.calls[1].messages);
+    expect(enriched).toContain("MERCHANT A");
+    expect(enriched).not.toContain("Opening balance");
+    const reread = await staging.readTransactions();
+    const held = reread!.rows.find((r) => r.description === "Opening balance")!;
+    expect(held).toMatchObject({ skipRule: rule, amount: 152000, merchant: "", categoryId: "" });
+  });
+
+  it("an Enrich re-run leaves held rows alone", async () => {
+    const held = makeImportTransaction({ id: "imp-1", description: "Saldovortrag", skipRule: { column: "Description", equals: "Saldovortrag" } });
+    const staging = new MemoryStagingStore({ transactions: [held] });
+    const session = new MockStructuredSession([]);
+
+    await new ImportOrchestrator({ session, staging, budget: emptyBudget(), onEvent: () => {}, concurrency: 1 }).enrich();
+
+    expect(session.calls).toHaveLength(0);
   });
 });
 
@@ -869,5 +928,378 @@ describe("ImportOrchestrator — stop", () => {
     expect(calls).toBe(1);
     expect(staging.transactions!.filter((r) => r.categoryId === "cat-dining")).toHaveLength(25);
     expect(orch.currentPhase).toBe("done");
+  });
+});
+
+// ── Cancellation ─────────────────────────────────────────────────
+
+/** A responder held open until the call's signal aborts — a model call still
+ *  in flight. `started` resolves once the call is entered. */
+function inFlight() {
+  let markStarted!: () => void;
+  const started = new Promise<void>((res) => { markStarted = res; });
+  const responder = () => {
+    markStarted();
+    return new Promise<never>(() => {});
+  };
+  return { started, responder };
+}
+
+function pendingRows(count: number): ImportTransaction[] {
+  return Array.from({ length: count }, (_, i) => makeImportTransaction({ id: `imp-${i + 1}`, description: `V${i}` }));
+}
+
+describe("ImportOrchestrator — cancellation", () => {
+  it("stop() aborts an in-flight extraction and ends cleanly, staging nothing", async () => {
+    const staging = new MemoryStagingStore({
+      sources: [{ name: "statement.png", content: "B64", mediaType: "image/png" }],
+    });
+    const call = inFlight();
+    const { events, onEvent } = collect();
+    const orch = new ImportOrchestrator({ session: new MockStructuredSession([call.responder]), staging, budget: emptyBudget(), onEvent });
+
+    const run = orch.start();
+    await call.started;
+    await orch.stop();
+    await run;
+
+    expect(events.find((e) => e.type === "error")).toBeUndefined();
+    expect(events.some((e) => e.type === "done")).toBe(true);
+    expect(staging.transactions).toBeNull();
+  });
+
+  it("never fires the CSV correction round after a stop", async () => {
+    const csv = ["Date,Description,Amount", ...Array.from({ length: 6 }, (_, i) => `2026-01-0${i + 1},SHOP ${i},-${i + 1}.00`), "2026-01-09,HOLD,PENDING"].join("\n");
+    const staging = new MemoryStagingStore({ sources: [csvSource(csv)] });
+    const { events, onEvent } = collect();
+    const session = new MockStructuredSession([
+      () => {
+        void orch.stop();
+        return MAPPING;
+      },
+      mapResponder,
+    ]);
+    const orch = new ImportOrchestrator({ session, staging, budget: emptyBudget(), onEvent });
+
+    await orch.start();
+
+    expect(session.calls).toHaveLength(1);
+    expect(events.find((e) => e.type === "error")).toBeUndefined();
+    expect(staging.transactions).toBeNull();
+  });
+
+  it("cancel() aborts an in-flight Categorizing batch without logging it as a failure", async () => {
+    const staging = new MemoryStagingStore({ transactions: pendingRows(3) });
+    const call = inFlight();
+    const { events, onEvent } = collect();
+    const orch = new ImportOrchestrator({ session: new MockStructuredSession([call.responder]), staging, budget: emptyBudget(), onEvent });
+
+    const run = orch.enrich();
+    await call.started;
+    await orch.cancel();
+    await run;
+
+    expect(events.find((e) => e.type === "error")).toBeUndefined();
+    expect(events.some((e) => e.type === "log" && e.entry.level === "warn")).toBe(false);
+    expect(staging.transactions!.every((r) => r.categoryId === "")).toBe(true);
+    expect(orch.currentPhase).toBe("done");
+  });
+  it("cancel() resolves only after a batch whose call already resolved has written", async () => {
+    const staging = new MemoryStagingStore({ transactions: pendingRows(3) });
+    const write = staging.writeTransactions.bind(staging);
+    let releaseWrite!: () => void;
+    const writeGate = new Promise<void>((res) => { releaseWrite = res; });
+    let markWriting!: () => void;
+    const writing = new Promise<void>((res) => { markWriting = res; });
+    staging.writeTransactions = async (rows) => {
+      markWriting();
+      await writeGate;
+      await write(rows);
+    };
+    const orch = new ImportOrchestrator({ session: new MockStructuredSession([enrichResponder()]), staging, budget: emptyBudget(), onEvent: () => {} });
+
+    const run = orch.enrich();
+    await writing;
+    let cancelled = false;
+    const cancel = orch.cancel().then(() => { cancelled = true; });
+    await Promise.resolve();
+    expect(cancelled).toBe(false);
+    releaseWrite();
+    await cancel;
+    await run;
+
+    expect(staging.transactions!.every((r) => r.categoryId === "cat-dining")).toBe(true);
+    expect(orch.currentPhase).toBe("done");
+  });
+
+  it("a stop after the last file's request completed ends cleanly, staging nothing", async () => {
+    const staging = new MemoryStagingStore({ sources: [csvSource(csvWithRows(2), "a.csv"), csvSource(csvWithRows(3), "b.csv")] });
+    const { events, onEvent } = collect();
+    const session = new MockStructuredSession([mapResponder, mapResponder, enrichResponder()]);
+    const orch = new ImportOrchestrator({
+      session,
+      staging,
+      budget: emptyBudget(),
+      onEvent: (e) => {
+        onEvent(e);
+        if (e.type === "normalize-progress" && session.calls.length === 2 && e.progress.rows === 5) void orch.stop();
+      },
+    });
+
+    await orch.start();
+
+    expect(session.calls).toHaveLength(2);
+    expect(events.find((e) => e.type === "error")).toBeUndefined();
+    expect(events.at(-1)?.type).toBe("done");
+    expect(staging.transactions).toBeNull();
+  });
+});
+
+// ── Per-file failure ─────────────────────────────────────────────
+
+describe("ImportOrchestrator — a failed file", () => {
+  it("is skipped with a warning naming it, keeping the files already normalized", async () => {
+    const staging = new MemoryStagingStore({
+      sources: [
+        csvSource(csvWithRows(2), "a.csv"),
+        csvSource(csvWithRows(3), "b.csv"),
+        { name: "c.png", content: "B64", mediaType: "image/png" },
+      ],
+    });
+    const session = new MockStructuredSession([mapResponder, mapResponder, () => new CutOffError(), enrichResponder()]);
+    const { events, onEvent } = collect();
+
+    await new ImportOrchestrator({ session, staging, budget: emptyBudget(), onEvent, concurrency: 1 }).start();
+
+    expect(events.find((e) => e.type === "error")).toBeUndefined();
+    expect(staging.transactions).toHaveLength(5);
+    expect(warnNotices(events)).toEqual([{ code: "normalize.fileSkipped", params: { file: "c.png", cause: { kind: "cutOff" } } }]);
+  });
+
+  it("fails the run when every file failed", async () => {
+    const staging = new MemoryStagingStore({ sources: [{ name: "c.png", content: "B64", mediaType: "image/png" }] });
+    const session = new MockStructuredSession([() => new CutOffError()]);
+    const { events, onEvent } = collect();
+
+    await new ImportOrchestrator({ session, staging, budget: emptyBudget(), onEvent }).start();
+
+    expect(events.find((e) => e.type === "error")).toEqual({
+      type: "error",
+      notice: { code: "normalize.fileFailed", params: { file: "c.png", cause: { kind: "cutOff" } } },
+      recoverable: false,
+    });
+    expect(staging.transactions).toBeNull();
+  });
+
+  it("carries the reason a refused mapping couldn't be used", async () => {
+    const staging = new MemoryStagingStore({ sources: [csvSource(csvWithRows(2), "a.csv"), csvSource(csvWithRows(2), "b.csv")] });
+    const amountless = () => ({ ...MAPPING, amount: { ...MAPPING.amount, column: "Missing" } });
+    const session = new MockStructuredSession([amountless, amountless, mapResponder, enrichResponder()]);
+    const { events, onEvent } = collect();
+
+    await new ImportOrchestrator({ session, staging, budget: emptyBudget(), onEvent, concurrency: 1 }).start();
+
+    expect(warnNotices(events)).toEqual([
+      {
+        code: "normalize.fileSkipped",
+        params: { file: "a.csv", cause: { kind: "unusable", detail: expect.stringContaining("Missing") } },
+      },
+    ]);
+  });
+
+  it("ends the run at once on a dead-end provider error, naming its kind and provider", async () => {
+    const rejected = Object.assign(new Error('401 {"error":{"message":"invalid x-api-key"}}'), {
+      status: 401,
+      error: { type: "error", error: { type: "authentication_error", message: "invalid x-api-key" } },
+    });
+    const staging = new MemoryStagingStore({
+      sources: [csvSource(csvWithRows(2), "a.csv"), csvSource(csvWithRows(2), "b.csv")],
+    });
+    const session = new MockStructuredSession([() => rejected]);
+    const { events, onEvent } = collect();
+
+    await new ImportOrchestrator({ session, staging, budget: emptyBudget(), onEvent, provider: "anthropic" }).start();
+
+    expect(session.calls).toHaveLength(1);
+    expect(events.find((e) => e.type === "error")).toMatchObject({
+      notice: { code: "deadEnd", params: { kind: "keyRejected", provider: "anthropic" } },
+    });
+  });
+
+  it("skips a PDF the provider can't read", async () => {
+    const staging = new MemoryStagingStore({
+      sources: [{ name: "scan.pdf", content: "B64", mediaType: "application/pdf" }, csvSource(csvWithRows(2))],
+    });
+    const session = new MockStructuredSession([mapResponder, enrichResponder()]);
+    const { events, onEvent } = collect();
+
+    await new ImportOrchestrator({ session, staging, budget: emptyBudget(), onEvent, concurrency: 1, pdfSupported: false }).start();
+
+    expect(session.calls[0].schema).toBe(CSV_MAPPING_SCHEMA);
+    expect(staging.transactions).toHaveLength(2);
+    expect(warnNotices(events)).toEqual([
+      { code: "normalize.fileSkipped", params: { file: "scan.pdf", cause: { kind: "pdfUnsupported" } } },
+    ]);
+  });
+
+  it("skips an image the model can't read, asking only once", async () => {
+    const staging = new MemoryStagingStore({
+      sources: [
+        { name: "a.png", content: "B64", mediaType: "image/png" },
+        { name: "b.png", content: "B64", mediaType: "image/png" },
+        csvSource(csvWithRows(1)),
+      ],
+    });
+    const imageSupport = vi.fn(async () => false);
+    const session = new MockStructuredSession([mapResponder, enrichResponder()]);
+    const { events, onEvent } = collect();
+
+    await new ImportOrchestrator({ session, staging, budget: emptyBudget(), onEvent, concurrency: 1, imageSupport }).start();
+
+    expect(imageSupport).toHaveBeenCalledTimes(1);
+    expect(session.calls[0].schema).toBe(CSV_MAPPING_SCHEMA);
+    expect(staging.transactions).toHaveLength(1);
+    expect(warnNotices(events)).toEqual([
+      { code: "normalize.fileSkipped", params: { file: "a.png", cause: { kind: "noVision" } } },
+      { code: "normalize.fileSkipped", params: { file: "b.png", cause: { kind: "noVision" } } },
+    ]);
+  });
+
+  it("tries an image anyway when vision support can't be determined, with a warning", async () => {
+    const staging = new MemoryStagingStore({ sources: [{ name: "a.png", content: "B64", mediaType: "image/png" }] });
+    const extraction = () => ({
+      result: { count: 1, rows: [{ date: "2026-01-02", amount: -1234, type: "expense", description: "SHOP", sourceAccount: "Card", sourceCategory: "" }] },
+    });
+    const session = new MockStructuredSession([extraction, enrichResponder()]);
+    const { events, onEvent } = collect();
+
+    await new ImportOrchestrator({ session, staging, budget: emptyBudget(), onEvent, imageSupport: async () => null }).start();
+
+    expect(session.calls[0].schema).toBe(EXTRACTION_SCHEMA);
+    expect(staging.transactions).toHaveLength(1);
+    expect(warnNotices(events)).toEqual([{ code: "normalize.visionUnknown" }]);
+  });
+});
+
+// ── Categorizing failures + meter ────────────────────────────────
+
+describe("ImportOrchestrator — run-level failures", () => {
+  it("fails with the raw message when a dependency throws", async () => {
+    const staging = new MemoryStagingStore();
+    vi.spyOn(staging, "listSources").mockRejectedValue(new Error("disk full"));
+    const { events, onEvent } = collect();
+
+    await new ImportOrchestrator({ session: new MockStructuredSession([]), staging, budget: emptyBudget(), onEvent }).start();
+
+    expect(events.find((e) => e.type === "error")).toEqual({
+      type: "error",
+      notice: { code: "failed", params: { detail: "disk full" } },
+      recoverable: false,
+    });
+  });
+
+  it("refuses to enrich when nothing is staged", async () => {
+    const { events, onEvent } = collect();
+
+    await new ImportOrchestrator({
+      session: new MockStructuredSession([]),
+      staging: new MemoryStagingStore(),
+      budget: emptyBudget(),
+      onEvent,
+    }).enrich();
+
+    expect(events.find((e) => e.type === "error")).toEqual({
+      type: "error",
+      notice: { code: "enrich.noStaging" },
+      recoverable: false,
+    });
+  });
+});
+
+describe("ImportOrchestrator — Categorizing failures", () => {
+  it("stops dispatching on an unreachable provider and fails with that reason", async () => {
+    const staging = new MemoryStagingStore({ transactions: pendingRows(60) });
+    const session = new MockStructuredSession([
+      () => new UnreachableError("ollama"),
+      enrichResponder(),
+      enrichResponder(),
+    ]);
+    const { events, onEvent } = collect();
+
+    await new ImportOrchestrator({ session, staging, budget: emptyBudget(), onEvent, concurrency: 1, provider: "ollama" }).enrich();
+
+    expect(session.calls).toHaveLength(1);
+    expect(events.find((e) => e.type === "error")).toMatchObject({
+      notice: { code: "deadEnd", params: { kind: "unreachable", provider: "ollama" } },
+    });
+    expect(events.some((e) => e.type === "done")).toBe(false);
+  });
+
+  it("fails the run when every batch failed", async () => {
+    const staging = new MemoryStagingStore({ transactions: pendingRows(30) });
+    const session = new MockStructuredSession([() => new Error("overloaded"), () => new Error("overloaded")]);
+    const { events, onEvent } = collect();
+
+    await new ImportOrchestrator({ session, staging, budget: emptyBudget(), onEvent, concurrency: 1 }).enrich();
+
+    expect(events.find((e) => e.type === "error")).toMatchObject({
+      notice: { code: "categorize.noneLanded", params: { count: 30, cause: { kind: "other", detail: "overloaded" } } },
+    });
+  });
+
+  it("words a cut-off batch as a batch failure, not a file failure", async () => {
+    const staging = new MemoryStagingStore({ transactions: pendingRows(30) });
+    const session = new MockStructuredSession([() => new CutOffError(), enrichResponder()]);
+    const { events, onEvent } = collect();
+
+    await new ImportOrchestrator({ session, staging, budget: emptyBudget(), onEvent, concurrency: 1 }).enrich();
+
+    expect(warnNotices(events)).toEqual([
+      { code: "categorize.batchFailed", params: { batch: 1, count: 25, cause: { kind: "cutOff" } } },
+    ]);
+  });
+
+  it("words a rate-limited batch as a rate limit, not the provider's raw text", async () => {
+    const staging = new MemoryStagingStore({ transactions: pendingRows(30) });
+    const rateLimited = () => Object.assign(new Error("429 Rate limit reached"), { status: 429 });
+    const session = new MockStructuredSession([rateLimited, enrichResponder()]);
+    const { events, onEvent } = collect();
+
+    await new ImportOrchestrator({ session, staging, budget: emptyBudget(), onEvent, concurrency: 1 }).enrich();
+
+    expect(warnNotices(events)).toEqual([
+      { code: "categorize.batchFailed", params: { batch: 1, count: 25, cause: { kind: "rateLimited" } } },
+    ]);
+  });
+
+  it("meters only rows whose category landed, and sets confidence only on them", async () => {
+    const staging = new MemoryStagingStore({ transactions: pendingRows(2) });
+    const session = new MockStructuredSession([
+      () => ({
+        rows: [
+          { id: "imp-1", merchant: "Cafe", category: "Dining Out", confidence: "high" },
+          { id: "imp-2", merchant: "Mystery", category: "Not A Category", confidence: "low" },
+        ],
+      }),
+    ]);
+    const { events, onEvent } = collect();
+
+    await new ImportOrchestrator({ session, staging, budget: emptyBudget(), onEvent, concurrency: 1 }).enrich();
+
+    const ticks = events.filter((e) => e.type === "batch-progress").map((e) => e.type === "batch-progress" && e.progress);
+    expect(ticks[ticks.length - 1]).toEqual({ done: 1, total: 2 });
+    const [landed, missed] = staging.transactions!;
+    expect(landed.categoryConfidence).toBe("high");
+    expect(missed.merchant).toBe("Mystery");
+    expect(missed.categoryConfidence).toBe("");
+  });
+
+  it("batches smaller for Ollama", async () => {
+    const staging = new MemoryStagingStore({ transactions: pendingRows(20) });
+    const session = new MockStructuredSession(Array.from({ length: 3 }, () => enrichResponder()));
+
+    await new ImportOrchestrator({ session, staging, budget: emptyBudget(), onEvent: () => {}, concurrency: 1, provider: "ollama" }).enrich();
+
+    expect(session.calls).toHaveLength(3);
   });
 });

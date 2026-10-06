@@ -2,10 +2,10 @@
  * Intelligence session factory.
  *
  * Picks the right adapter based on `config.provider` and constructs it
- * via app-injected constructors. The factory itself is platform-agnostic:
- * the app wraps it with platform-specific adapter constructors (Tauri
- * shell for Claude CLI, fetch for the API adapters) — that keeps this
- * package free of Tauri / SDK deps.
+ * via injected constructors: `API_ADAPTERS` from
+ * `@capybudget/intelligence/adapters` for the API providers, plus the
+ * shell's Claude CLI constructor (it needs a platform `ClaudeCliHost`).
+ * Injection keeps this module free of Tauri and the provider SDKs.
  *
  * Returns null when:
  *   - config.provider is null (AI features disabled by the user)
@@ -37,10 +37,13 @@ export interface ClaudeCliAdapterOptions {
   onEvent: (event: StreamEvent) => void
   /**
    * Fires when the Claude CLI subprocess exits unexpectedly (not the
-   * result of a deliberate `kill()` / `stop()`). Claude-CLI-only —
-   * API adapters have no process to die, so the option doesn't apply.
+   * result of a deliberate `kill()` / `stop()`), with the last lines it
+   * wrote to stderr, if any. `reported` is true when the running turn
+   * already ended in an error event, so the exit needs no second notice.
+   * Claude-CLI-only — API adapters have no process to die, so the option
+   * doesn't apply.
    */
-  onExit?: () => void
+  onExit?: (reason: string | undefined, reported: boolean) => void
 }
 
 export interface ApiAdapterOptions {
@@ -48,7 +51,7 @@ export interface ApiAdapterOptions {
   systemPrompt: string
   apiKey: string
   model: string
-  /** OpenAI-compatible endpoint override (Ollama); undefined = SDK default. */
+  /** The Ollama server; the hosted providers use their SDK default. */
   baseUrl?: string
   onEvent: (event: StreamEvent) => void
   repo: BudgetRepository
@@ -88,7 +91,7 @@ export interface SessionOptions {
   mcpServerPath: string
   systemPrompt: string
   onEvent: (event: StreamEvent) => void
-  onExit?: () => void
+  onExit?: (reason: string | undefined, reported: boolean) => void
   repo?: BudgetRepository
   fileAdapter?: FileAdapter
   /** Budget's default currency (ISO 4217). Consumed by the API adapters'
@@ -101,8 +104,6 @@ export interface SessionOptions {
    *  Lets a manual rate edit reach the running session's next tool call without
    *  a chat reset. Consumed by the API adapters only. */
   getCurrencies?: () => Record<string, CurrencySettings> | undefined
-  /** Claude-CLI-only `--model` value; ignored by API adapters. */
-  claudeCliModel?: string
 }
 
 export interface AdapterConstructors {
@@ -129,7 +130,7 @@ export function createIntelligenceSession(
       budgetPath: options.budgetPath,
       mcpServerPath: options.mcpServerPath,
       systemPrompt: options.systemPrompt,
-      model: options.claudeCliModel ?? "",
+      model: config.claudeCli.model,
       onEvent: options.onEvent,
       onExit: options.onExit,
     })

@@ -1,4 +1,4 @@
-import { AlertTriangle, Check, ExternalLink, Loader2 } from "lucide-react"
+import { AlertTriangle, Check, ExternalLink, Loader2, Minus, X } from "lucide-react"
 import { openUrl } from "@tauri-apps/plugin-opener"
 import { useTranslation } from "@capybudget/i18n"
 import { getToolLabel } from "@/lib/tool-labels"
@@ -9,6 +9,7 @@ import type {
   ErrorBlock,
   FollowupChip,
   ToolActivityBlock,
+  ToolCallStatus,
 } from "@capybudget/intelligence"
 import { BlockRenderer } from "./capy-block-renderer"
 
@@ -83,11 +84,12 @@ export function MessageBubble({
   isStreaming: boolean
   onSend: (text: string) => void
 }) {
+  const { t } = useTranslation("capy")
   const isUser = message.role === "user"
   const groups = groupBlocks(message.blocks)
 
   return (
-    <div className="space-y-3">
+    <div className={`space-y-3 ${message.unsent ? "opacity-60" : ""}`}>
       {groups.map((group, gi) => {
         if (group.kind === "followups") {
           return <FollowupChips key={gi} chips={group.chips} onSend={onSend} disabled={isStreaming} />
@@ -119,6 +121,9 @@ export function MessageBubble({
           </div>
         )
       })}
+      {message.unsent && (
+        <p className="text-right text-xs text-muted-foreground">{t("message.notSent")}</p>
+      )}
     </div>
   )
 }
@@ -126,10 +131,9 @@ export function MessageBubble({
 /* ── Tool group card ──────────────────────────────────────────── */
 
 /**
- * Grouped tool-progress card. Rows show the friendly label and a
- * status indicator: spinner for the in-progress row, checkmark for
- * completed rows. Renders even with one row (matches the design
- * mockup — every tool-activity sequence ends up in a card).
+ * Grouped tool-progress card. Every tool-activity sequence ends up in a
+ * card, even a single row. A settled message never spins: a call that was
+ * still running when the turn ended ran to completion.
  */
 function ToolGroupCard({
   blocks,
@@ -143,18 +147,16 @@ function ToolGroupCard({
     <div className="rounded-xl bg-muted/40 px-3.5 py-2.5">
       <div className="flex flex-col gap-1.5">
         {blocks.map((block, i) => {
-          const isLast = i === blocks.length - 1
-          const isCurrent = inProgress && isLast
+          const status = shownStatus(block, inProgress)
           return (
             <div
               key={i}
-              className="flex items-center gap-2 text-xs text-muted-foreground/80"
+              data-status={status}
+              className={`flex items-center gap-2 text-xs ${
+                status === "pending" ? "text-muted-foreground/50" : "text-muted-foreground/80"
+              }`}
             >
-              {isCurrent ? (
-                <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-brand" />
-              ) : (
-                <Check className="h-3.5 w-3.5 shrink-0 text-brand/80" />
-              )}
+              <ToolStatusIcon status={status} />
               <span>{getToolLabel(block.tool, t)}</span>
             </div>
           )
@@ -162,6 +164,31 @@ function ToolGroupCard({
       </div>
     </div>
   )
+}
+
+type ShownStatus = ToolCallStatus | "stopped"
+
+function shownStatus(block: ToolActivityBlock, inProgress: boolean): ShownStatus {
+  return block.status === "running" && !inProgress ? "stopped" : block.status
+}
+
+function ToolStatusIcon({ status }: { status: ShownStatus }) {
+  switch (status) {
+    case "pending":
+      return (
+        <span className="flex h-3.5 w-3.5 shrink-0 items-center justify-center">
+          <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/40" />
+        </span>
+      )
+    case "running":
+      return <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-brand" />
+    case "done":
+      return <Check className="h-3.5 w-3.5 shrink-0 text-brand/80" />
+    case "failed":
+      return <X className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+    case "stopped":
+      return <Minus className="h-3.5 w-3.5 shrink-0 text-muted-foreground/60" />
+  }
 }
 
 /* ── Follow-up chips ──────────────────────────────────────────── */

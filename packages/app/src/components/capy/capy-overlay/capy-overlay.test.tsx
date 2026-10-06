@@ -22,6 +22,7 @@ import {
   _resetStoreForTests,
 } from "@/stores/intelligence-store"
 import { DEFAULT_INTELLIGENCE_CONFIG, type ChatMessage } from "@capybudget/intelligence"
+import type { ClaudeCliStatus } from "@/services/claude-cli-detect"
 
 declare const __MAS__: boolean
 
@@ -30,10 +31,10 @@ vi.mock("sonner", () => ({
   Toaster: () => null,
 }))
 
-// Module-level mock for the Claude CLI detector. Default: detected (true).
-// Individual tests override with detectMock.mockResolvedValueOnce(false).
+// Module-level mock for the Claude CLI detector. Default: "ready".
+// Individual tests override with detectMock.mockResolvedValueOnce("missing").
 const { detectMock } = vi.hoisted(() => ({
-  detectMock: vi.fn<() => Promise<boolean>>(),
+  detectMock: vi.fn<() => Promise<ClaudeCliStatus>>(),
 }))
 
 vi.mock("@/services/claude-cli-detect", () => ({
@@ -138,7 +139,7 @@ beforeEach(() => {
     clearGateSeen: async () => {},
   }))
   detectMock.mockReset()
-  detectMock.mockResolvedValue(true)
+  detectMock.mockResolvedValue("ready")
 })
 
 afterEach(() => {
@@ -349,7 +350,7 @@ describe("CapyOverlay click-through behavior", () => {
   it.skipIf(__MAS__)("disables the Claude Code chip when the CLI is not detected", async () => {
     const user = userEvent.setup()
     detectMock.mockReset()
-    detectMock.mockResolvedValue(false)
+    detectMock.mockResolvedValue("missing")
     useIntelligenceStore.setState({
       hydrated: true,
       config: { ...DEFAULT_INTELLIGENCE_CONFIG, provider: null },
@@ -397,6 +398,37 @@ describe("CapyOverlay click-through behavior", () => {
 
     await user.click(screen.getByRole("button", { name: /New chat/i }))
     expect(onNewChat).toHaveBeenCalledTimes(1)
+  })
+
+  it("tells an active chat that instructions apply to new chats, with a way to start one", async () => {
+    const user = userEvent.setup()
+    const onNewChat = vi.fn()
+    useIntelligenceStore.setState({
+      hydrated: true,
+      config: { ...DEFAULT_INTELLIGENCE_CONFIG, provider: "claude-cli" },
+    })
+    const messages: ChatMessage[] = [
+      { id: "m1", role: "user", blocks: [{ type: "text", content: "hi" }] },
+    ]
+    await mountOverlay({ messages, onNewChat })
+
+    await user.click(screen.getByRole("button", { name: "Custom instructions" }))
+    expect(await screen.findByText(/Applies to new chats/)).toBeInTheDocument()
+    await user.click(screen.getByRole("button", { name: "Start new chat" }))
+    expect(onNewChat).toHaveBeenCalledTimes(1)
+  })
+
+  it("says nothing about new chats when the chat is empty", async () => {
+    const user = userEvent.setup()
+    useIntelligenceStore.setState({
+      hydrated: true,
+      config: { ...DEFAULT_INTELLIGENCE_CONFIG, provider: "claude-cli" },
+    })
+    await mountOverlay()
+
+    await user.click(screen.getByRole("button", { name: "Custom instructions" }))
+    await screen.findByRole("dialog")
+    expect(screen.queryByText(/Applies to new chats/)).not.toBeInTheDocument()
   })
 })
 
@@ -542,9 +574,9 @@ describe("CapyOverlay tool-progress grouping", () => {
         id: "a1",
         role: "assistant",
         blocks: [
-          { type: "tool-activity", tool: "list_transactions" },
-          { type: "tool-activity", tool: "list_accounts" },
-          { type: "tool-activity", tool: "list_categories" },
+          { type: "tool-activity", tool: "list_transactions", status: "done" },
+          { type: "tool-activity", tool: "list_accounts", status: "done" },
+          { type: "tool-activity", tool: "list_categories", status: "done" },
           { type: "text", content: "Done." },
         ],
       },
@@ -564,8 +596,8 @@ describe("CapyOverlay tool-progress grouping", () => {
         id: "a1",
         role: "assistant",
         blocks: [
-          { type: "tool-activity", tool: "list_transactions" },
-          { type: "tool-activity", tool: "list_accounts" },
+          { type: "tool-activity", tool: "list_transactions", status: "done" },
+          { type: "tool-activity", tool: "list_accounts", status: "running" },
         ],
       },
     ]
@@ -584,8 +616,8 @@ describe("CapyOverlay tool-progress grouping", () => {
         id: "a1",
         role: "assistant",
         blocks: [
-          { type: "tool-activity", tool: "list_transactions" },
-          { type: "tool-activity", tool: "list_accounts" },
+          { type: "tool-activity", tool: "list_transactions", status: "done" },
+          { type: "tool-activity", tool: "list_accounts", status: "running" },
           { type: "text", content: "Done." },
         ],
       },
@@ -602,9 +634,9 @@ describe("CapyOverlay tool-progress grouping", () => {
         id: "a1",
         role: "assistant",
         blocks: [
-          { type: "tool-activity", tool: "list_transactions" },
+          { type: "tool-activity", tool: "list_transactions", status: "done" },
           { type: "text", content: "Here you go." },
-          { type: "tool-activity", tool: "list_accounts" },
+          { type: "tool-activity", tool: "list_accounts", status: "done" },
         ],
       },
     ]
@@ -681,9 +713,9 @@ describe("CapyOverlay tool → text → tool while streaming", () => {
         id: "a1",
         role: "assistant",
         blocks: [
-          { type: "tool-activity", tool: "list_transactions" },
+          { type: "tool-activity", tool: "list_transactions", status: "done" },
           { type: "text", content: "I see…" },
-          { type: "tool-activity", tool: "list_accounts" },
+          { type: "tool-activity", tool: "list_accounts", status: "running" },
         ],
       },
     ]

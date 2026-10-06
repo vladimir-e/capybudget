@@ -56,7 +56,8 @@ Empty states:
 - **Welcome** (configured, no messages): mascot + greeting + four suggestion cards (click sends prompt as user message).
 
 Conversation:
-- Tool calls render as a stacked card with spinner→checkmark; the card persists in history.
+- Tool calls render as a stacked card, one row per call, each row marked by its call's status: a faint dot while queued, a spinner while running, a check when done, and a muted cross when the tool failed — quiet, since the model usually recovers on its own. A settled message never spins: a call stopped mid-run shows a neutral dash until its real outcome arrives (a check or cross), and keeps the dash if none does (Claude Code's process is killed on Stop). A call that never ran keeps its faint dot. The card persists in history.
+- A question the model never kept (its send failed with a rejected request and was rolled back, or failed before reaching the session, such as a dismissed keychain prompt) stays on screen dimmed and marked as not sent, so the chat never shows as delivered what the model didn't see.
 - Money and percentages get inline emphasis via lightweight `**bold**` parsing rendered in brand color (bold/italic XOR — not nestable).
 - Follow-up suggestion chips appear after responses (model-driven via `render_followups`) and click-to-send.
 

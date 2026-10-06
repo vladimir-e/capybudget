@@ -1,7 +1,6 @@
 import { describe, it, expect } from "vitest"
 import {
   DEFAULT_INTELLIGENCE_CONFIG,
-  OLLAMA_PLACEHOLDER_KEY,
   resolveApiTarget,
   type IntelligenceConfig,
 } from "./config"
@@ -17,10 +16,10 @@ describe("resolveApiTarget", () => {
     ).toEqual({ provider: "openai", apiKey: "sk-oai", model: "gpt" })
   })
 
-  it("resolves Ollama to its endpoint and the placeholder key", () => {
+  it("resolves Ollama to its endpoint and no key", () => {
     expect(
       resolveApiTarget(config({ provider: "ollama", ollama: { baseUrl: "http://x/v1", model: "qwen3" } })),
-    ).toEqual({ provider: "ollama", apiKey: OLLAMA_PLACEHOLDER_KEY, model: "qwen3", baseUrl: "http://x/v1" })
+    ).toEqual({ provider: "ollama", apiKey: "", model: "qwen3", baseUrl: "http://x/v1" })
   })
 
   it.each([

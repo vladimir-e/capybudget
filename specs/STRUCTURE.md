@@ -9,7 +9,9 @@ placement, decomposition. When unsure where something belongs, look here.
 A package's `src` stays flat until ~12 files or two distinct domains, then
 splits into domain subfolders. The `index.ts` barrel is the only public
 surface: consumers import from `@capybudget/<pkg>`, never a deep path; internal
-references are relative.
+references are relative. A barrel exports only what some consumer imports
+through it. The one subpath is `@capybudget/intelligence/adapters`, which keeps
+the provider SDKs out of the main barrel.
 
 `core` groups by domain:
 
@@ -22,8 +24,11 @@ references are relative.
 | `constants/` | Default categories, label/order tables |
 
 `persistence` and `mcp` stay flat (small, single-domain). `intelligence` groups
-under `prompts/`, `tools/`, `tools/handlers/`, and `adapters/` (provider
-session implementations).
+under `prompts/`, `tools/` (with `tools/definitions/` and `tools/handlers/`),
+`import/` (the Smart Import pipeline: orchestrator, normalizers, categorizer,
+staging store), and `adapters/` (provider session implementations, SDK
+clients, and the Settings ping and model listing; the Claude Code CLI's stream
+parser, turn decoder, and session sit in `adapters/claude-cli/`).
 
 ## Placement Law
 
@@ -34,16 +39,21 @@ imports*, not *who uses it*.
 |---|---|---|
 | Pure domain logic, transforms, queries | `core` | imports only types / other core |
 | Storage, CSV I/O, repository | `persistence` | knows files, not UI |
-| AI provider adapters, sessions | `intelligence/adapters` | imports only `intelligence` types |
+| AI provider adapters, sessions | `intelligence/adapters` | imports `intelligence` and the provider SDKs, never the platform |
 | Tool schemas + dispatch | `intelligence/tools` | one file per domain, mirrors handlers |
 | React data-to-state bridges | `app/hooks` | delegates to core, no business logic |
 | Display | `app/components` | no file I/O, no business logic |
 | Platform / Tauri glue | shell `src/` | imports `@tauri-apps/*` |
 
-A file that imports only `intelligence` types belongs there, not in `app`:
+A file that needs no platform or React belongs in `intelligence`, not in `app`:
 provider sessions live in `intelligence/adapters` so any consumer (the app, the
 MCP server, a CLI) reuses them without depending on `app`, and the app keeps
-only the React context wrapper that injects them. Schema migrations are a
+only the wiring that builds them (`services/create-session.ts`) and the React
+context that provides them. A provider that needs the
+platform takes it as an injected interface: `ClaudeCliSession` gets a
+`ClaudeCliHost`, and the Tauri implementation that spawns the process stays in
+`app/services/claude-cli-session.ts`, beside the `claude --version` probe
+(`claude-cli-detect.ts`). Schema migrations are a
 persistence concern — `persistence` owns the transform, the shell calls
 `repo.migrate()`.
 
@@ -71,10 +81,20 @@ and pass tests with zero React or DOM imports belongs in `core`.
 
 - Colocate unit tests as `<source>.test.ts`; full-app journey tests live in
   `app/src/test/journeys/`.
+- The live smoke suite against real providers lives in `app/src/test/live/`
+  (`*.live.ts`, its own vitest config, run by `npm run test:live`) — never
+  part of `npm test` or CI.
 - Shared builders (`makeAccount`, `makeCategory`, `makeTransaction`) live once
   in `core/src/test-factories.ts` (export-only, not a test file) and are
   imported everywhere — packages do not redefine them. Persistence's CSV-string
   builders are the exception.
+- Shared test doubles are export-only modules beside the code they fake:
+  `intelligence/src/import/test-doubles.ts` for the import pipeline, and
+  `intelligence/src/adapters/test-doubles/` for the provider SDK fakes.
+- Behavior several implementations share is tested once, as a contract suite
+  run against each of them: `adapters/agent-session.test.ts` drives the three
+  API adapters through the `AgentSession` lifecycle. Each adapter's own test
+  keeps only what differs — wire format, endings, error classification.
 - A test splits when its module splits; one bloated only by exhaustive edge
   cases (parsing, stream decoding) may split by concern.
 

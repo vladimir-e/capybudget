@@ -1,7 +1,7 @@
 /**
  * Render-tool → ContentBlock mapping.
  *
- * Shared by every adapter (Claude CLI, Anthropic API, OpenAI API). The
+ * Shared by every adapter (Claude CLI, Anthropic, OpenAI, Ollama). The
  * model emits the same `render_*` tool calls regardless of provider, so
  * each adapter routes them through the same builders here. Single source
  * of truth — adding a new render tool means adding it to
@@ -16,6 +16,7 @@
  */
 import type {
   BarChartBlock,
+  ChartPoint,
   ContentBlock,
   DonutChartBlock,
   FollowupChip,
@@ -36,8 +37,7 @@ const BUILDERS = {
   },
 
   render_chart: (input) => {
-    if (typeof input.title !== "string" || !Array.isArray(input.data)) return null
-    if (input.data.length === 0) return null
+    if (typeof input.title !== "string" || !isChartData(input.data)) return null
     if (input.type === "donut") {
       return { type: "donut-chart", title: input.title, data: input.data } satisfies DonutChartBlock
     }
@@ -66,7 +66,8 @@ export function buildRenderToolMap(): Record<string, RenderBuilder> {
 // "expects undefined".
 const EXPECTED_INPUTS: Record<RenderToolName, string> = {
   render_table: "{headers: [...], rows: [[...], ...]} with at least one header and one row",
-  render_chart: '{title, type: "bar" | "donut", data: [{label, value}, ...]} with non-empty data',
+  render_chart:
+    '{title, type: "bar" | "donut", data: [{label, value}, ...]} with non-empty data, each label a string and each value a non-negative number, at least one above zero',
   [RENDER_FOLLOWUPS_TOOL_NAME]: "{chips: [{label, prompt}, ...]} with at least one chip",
 }
 
@@ -86,6 +87,16 @@ export function validateRenderInput(
 
 function isRenderToolName(name: string): name is RenderToolName {
   return name in BUILDERS
+}
+
+function isChartData(raw: unknown): raw is ChartPoint[] {
+  return Array.isArray(raw) && raw.length > 0 && raw.every(isChartPoint) && raw.some((p) => p.value > 0)
+}
+
+function isChartPoint(raw: unknown): raw is ChartPoint {
+  if (!raw || typeof raw !== "object") return false
+  const { label, value } = raw as { label?: unknown; value?: unknown }
+  return typeof label === "string" && typeof value === "number" && Number.isFinite(value) && value >= 0
 }
 
 function sanitizeFollowupChips(raw: unknown): FollowupChip[] | null {

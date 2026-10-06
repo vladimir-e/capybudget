@@ -10,7 +10,7 @@
  *  3. enrichBatch — ~25 rows + context → `{ id, merchant, category, … }[]`
  *                   (`category` is a name; `enrichBatch` maps it to an id).
  *  4. transfers   — transfer rows + direction-aware transfer context →
- *                   `{ id, account, confidence }[]` (`account` is a name the
+ *                   `{ id, account }[]` (`account` is a name the
  *                   model picks for the counterpart; mapped to an id).
  *
  * Schemas mirror the `core` types they parse into (`CsvMapping`, `StagedRecord`)
@@ -18,12 +18,14 @@
  * shape the model must hit.
  *
  * `strict: true` on a schema asks the provider to *guarantee* on-schema output
- * (OpenAI `response_format.json_schema.strict`; Anthropic enforces the same
- * always). Strict requires every object to set `additionalProperties: false`
- * and list every property in `required`, with optionality expressed as a
- * `null`-union rather than omission. The two failure-prone, high-volume calls —
- * extraction and enrichment — opt in: best-effort output there means off-schema
- * rows, failed batches, and the retry cascade this redesign exists to kill.
+ * (OpenAI `text.format.strict`, Ollama `response_format.json_schema.strict`;
+ * Anthropic constrains every schema). Only these opt-in strict schemas must
+ * list every property in `required`, with optionality expressed as a
+ * `null`-union rather than omission; every schema, strict or not, sets
+ * `additionalProperties: false` on each object. The failure-prone,
+ * high-volume calls — extraction and enrichment — opt in: best-effort output
+ * there means off-schema rows, failed batches, and the retry cascade this
+ * redesign exists to kill.
  */
 
 import type { JsonSchema } from "../structured";
@@ -58,9 +60,11 @@ const COLUMN_REF_SCHEMA: JsonSchema = {
  * a valid `CsvMapping`. Tolerance lives in two places that this schema keeps
  * intact: it carries NO enums (the model phrases `sign` and
  * `typeDetection.method` however it likes — they are plain strings the code
- * coerces) and requires only `amount` (the one role we can't synthesize — no
- * amount means it isn't a transaction file; date and description default in
- * code, so the mapping bends rather than breaks).
+ * coerces) and requires nothing — not even `amount`, the one role code can't
+ * synthesize. Under constrained decoding a required amount column forces the
+ * model to invent one; optional, it can decline, and `normalizeMapping`
+ * answers the decline (or a half-named debit/credit pair) with the column
+ * listing to pick from.
  *
  * What this schema does NOT loosen is *structure*. Anthropic's `output_config`
  * rejects any object without `additionalProperties: false`, so every object
@@ -68,6 +72,9 @@ const COLUMN_REF_SCHEMA: JsonSchema = {
  * explicitly and lists real-typed properties (mirroring `EXTRACTION_SCHEMA`).
  * The over-loosening that 400'd was structural (`{}` objects with no
  * `additionalProperties`); the loosening we actually need is value-level, above.
+ *
+ * Anthropic caps a request at 24 optional parameters and 16 union-typed
+ * parameters across all its schemas.
  *
  * `typeDetection.typeMap` is intentionally absent: an open-keyed map can't
  * satisfy `additionalProperties: false`, and `normalizeMapping` defaults
@@ -89,28 +96,15 @@ export const CSV_MAPPING_SCHEMA: JsonSchema = {
     },
     description: COLUMN_REF_SCHEMA,
     amount: {
-      anyOf: [
-        {
-          type: "object",
-          additionalProperties: false,
-          properties: {
-            style: { type: "string" },
-            column: { type: "string" },
-            sign: { type: "string" },
-          },
-          required: ["column"],
-        },
-        {
-          type: "object",
-          additionalProperties: false,
-          properties: {
-            style: { type: "string" },
-            expenseColumn: { type: "string" },
-            incomeColumn: { type: "string" },
-          },
-          required: ["expenseColumn", "incomeColumn"],
-        },
-      ],
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        style: { type: "string" },
+        column: { type: "string" },
+        sign: { type: "string" },
+        expenseColumn: { type: "string" },
+        incomeColumn: { type: "string" },
+      },
     },
     typeDetection: {
       type: "object",
@@ -155,7 +149,6 @@ export const CSV_MAPPING_SCHEMA: JsonSchema = {
       },
     },
   },
-  required: ["amount"],
 };
 
 /**
@@ -305,7 +298,6 @@ export interface EnrichBatchResult {
 export interface TransferEnrichRaw {
   id: string;
   account: string;
-  confidence: "high" | "low";
 }
 
 /** One resolved transfer counterpart `enrichTransfers` returns, post name→id
@@ -314,7 +306,6 @@ export interface TransferEnrichRaw {
 export interface TransferEnriched {
   id: string;
   targetAccountId: string;
-  confidence: "high" | "low";
 }
 
 export const ENRICH_TRANSFER_SCHEMA: JsonSchema = {
@@ -330,9 +321,8 @@ export const ENRICH_TRANSFER_SCHEMA: JsonSchema = {
         properties: {
           id: { type: "string" },
           account: { type: "string" },
-          confidence: { type: "string", enum: ["high", "low"] },
         },
-        required: ["id", "account", "confidence"],
+        required: ["id", "account"],
       },
     },
   },

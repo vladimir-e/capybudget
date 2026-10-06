@@ -197,7 +197,7 @@ export type {
   AmountMapping,
   SingleAmountMapping,
   SplitAmountMapping,
-  AmountFormat,
+  DecimalMark,
   TypeDetection,
   SkipRule,
   ColumnRef,
@@ -209,8 +209,12 @@ export type {
 export type { TransformResult, TransformError } from "./import/csv-transform";
 export {
   transformCsv,
+  amountColumns,
   serializeImportCsv,
   parseCurrencyToCents,
+  parseAmountCell,
+  decimalMarkOf,
+  shouldSkipRow,
   DEFAULT_TRANSFER_PATTERNS,
 } from "./import/csv-transform";
 

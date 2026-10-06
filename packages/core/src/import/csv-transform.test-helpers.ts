@@ -6,7 +6,7 @@ export function baseMapping(overrides: Partial<CsvMapping> = {}): CsvMapping {
     date: { column: "Date", format: "YYYY-MM-DD" },
     description: { column: "Description" },
     amount: { style: "single", column: "Amount", sign: "negative_expense" },
-    amountFormat: { format: "plain" },
+    decimalMark: ".",
     typeDetection: { method: "amount_sign" },
     sourceAccount: { literal: "Test Account" },
     sourceCategory: null,

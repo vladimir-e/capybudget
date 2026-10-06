@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest"
 import {
+  isImageFile,
   isImportBinaryFile,
   isImportTextFile,
   readFileAsBase64,
@@ -12,6 +13,29 @@ function fileOf(name: string, type: string, bytes: Uint8Array): File {
 // A handful of bytes outside the ASCII range — the kind a real PNG/PDF carries
 // and the kind that breaks when binary is decoded as UTF-8 text.
 const BINARY_BYTES = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x00, 0xff, 0xfe, 0x01, 0x80])
+
+describe("isImageFile", () => {
+  it("accepts the image types every provider reads, by MIME or by extension", () => {
+    for (const [name, type] of [
+      ["a.png", "image/png"],
+      ["a.jpg", "image/jpeg"],
+      ["a.gif", "image/gif"],
+      ["a.webp", "image/webp"],
+      ["a.jpeg", ""],
+      ["a.png", "application/octet-stream"],
+    ]) {
+      expect(isImageFile(fileOf(name, type, BINARY_BYTES))).toBe(true)
+    }
+  })
+
+  it("rejects image types no provider reads, whatever the extension", () => {
+    expect(isImageFile(fileOf("IMG_0001.HEIC", "image/heic", BINARY_BYTES))).toBe(false)
+    expect(isImageFile(fileOf("scan.tiff", "image/tiff", BINARY_BYTES))).toBe(false)
+    expect(isImageFile(fileOf("logo.svg", "image/svg+xml", BINARY_BYTES))).toBe(false)
+    expect(isImageFile(fileOf("old.bmp", "", BINARY_BYTES))).toBe(false)
+    expect(isImageFile(fileOf("photo.png", "image/heic", BINARY_BYTES))).toBe(false)
+  })
+})
 
 describe("isImportBinaryFile", () => {
   it("flags images by MIME", () => {

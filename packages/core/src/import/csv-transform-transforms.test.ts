@@ -13,7 +13,7 @@ describe("serializeImportCsv", () => {
 
     const lines = csv.split("\n");
     expect(lines[0]).toBe(
-      "id,date,description,amount,type,sourceAccount,sourceCategory,merchant,accountId,targetAccountId,categoryId,categoryConfidence,duplicate,duplicateConfidence",
+      "id,date,description,amount,type,sourceAccount,sourceCategory,merchant,accountId,targetAccountId,categoryId,categoryConfidence,duplicate,duplicateConfidence,skipRule",
     );
   });
 
@@ -82,10 +82,10 @@ describe("stats correctness", () => {
     });
     const rows = [
       makeRow({ Date: "2025-01-01", Description: "Good row", Amount: "-10.00" }),
-      makeRow({ Date: "2025-01-02", Description: "Skip this", Amount: "-5.00" }),
+      makeRow({ Date: "2025-01-02", Description: "Skip this", Amount: "" }),
       makeRow({ Date: "bad", Description: "Error row", Amount: "-5.00" }),
       makeRow({ Date: "2025-01-04", Description: "Another good", Amount: "-20.00" }),
-      makeRow({ Date: "2025-01-05", Description: "Skip me too", Amount: "-3.00" }),
+      makeRow({ Date: "2025-01-05", Description: "Skip me too", Amount: "0.00" }),
     ];
     const result = transformCsv(rows, mapping);
 
@@ -101,7 +101,7 @@ describe("stats correctness", () => {
   it("empty input produces all-zero stats", () => {
     const mapping = baseMapping();
     const result = transformCsv([], mapping);
-    expect(result.stats).toEqual({ totalRows: 0, transformed: 0, skipped: 0, errored: 0 });
+    expect(result.stats).toEqual({ totalRows: 0, transformed: 0, skipped: 0, held: 0, errored: 0 });
     expect(result.transactions).toEqual([]);
     expect(result.errors).toEqual([]);
   });
@@ -125,8 +125,8 @@ describe("stats correctness", () => {
       skipRules: [{ column: "Description", contains: "x" }],
     });
     const rows = [
-      makeRow({ Date: "2025-01-01", Description: "x1", Amount: "-1.00" }),
-      makeRow({ Date: "2025-01-02", Description: "x2", Amount: "-2.00" }),
+      makeRow({ Date: "2025-01-01", Description: "x1", Amount: "" }),
+      makeRow({ Date: "2025-01-02", Description: "x2", Amount: "0" }),
     ];
     const result = transformCsv(rows, mapping);
     expect(result.stats.totalRows).toBe(2);
@@ -169,7 +169,7 @@ describe("sequential IDs", () => {
     });
     const rows = [
       makeRow({ Date: "2025-01-01", Description: "A", Amount: "-1.00" }),
-      makeRow({ Date: "2025-01-02", Description: "skip", Amount: "-2.00" }),
+      makeRow({ Date: "2025-01-02", Description: "skip", Amount: "" }),
       makeRow({ Date: "2025-01-03", Description: "B", Amount: "-3.00" }),
     ];
     const result = transformCsv(rows, mapping);
@@ -217,7 +217,7 @@ describe("startId option for multi-file append", () => {
     const mapping2 = baseMapping({ skipRules: [{ column: "Description", equals: "skip" }] });
     const rows = [
       makeRow({ Date: "2025-01-01", Description: "A", Amount: "-1.00" }),
-      makeRow({ Date: "2025-01-02", Description: "skip", Amount: "-2.00" }),
+      makeRow({ Date: "2025-01-02", Description: "skip", Amount: "" }),
       makeRow({ Date: "2025-01-03", Description: "B", Amount: "-3.00" }),
     ];
     const result = transformCsv(rows, mapping2, { startId: 100 });

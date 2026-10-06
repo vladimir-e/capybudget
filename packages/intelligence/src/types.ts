@@ -7,25 +7,25 @@ export interface FileAttachment {
   mediaType: string
 }
 
-// ── CLI message content (stream-json protocol) ──────────────────
+// ── User message content ─────────────────────────────────────────
 
-export type CliTextContent = { type: "text"; text: string }
-export type CliImageContent = {
+export type UserTextContent = { type: "text"; text: string }
+export type UserImageContent = {
   type: "image"
   source: { type: "base64"; media_type: string; data: string }
 }
 /** Document content — used for PDF imports and chat PDF attachments.
- *  Anthropic sends it through the SDK's native `document` type; OpenAI's
- *  chat.completions takes it as a `file` content part, which requires the
- *  source filename. */
-export type CliDocumentContent = {
+ *  Anthropic sends it through the SDK's native `document` type; OpenAI
+ *  takes it as an `input_file` content part, which carries the source
+ *  filename. Ollama has no document part. */
+export type UserDocumentContent = {
   type: "document"
   source: { type: "base64"; media_type: string; data: string }
   filename?: string
 }
 export type MessageContent =
   | string
-  | Array<CliTextContent | CliImageContent | CliDocumentContent>
+  | Array<UserTextContent | UserImageContent | UserDocumentContent>
 
 // ── Content block types (UI rendering) ──────────────────────────
 
@@ -42,21 +42,30 @@ export interface TableBlock {
   rows: string[][]
 }
 
+export interface ChartPoint {
+  label: string
+  value: number
+}
+
 export interface BarChartBlock {
   type: "bar-chart"
   title: string
-  data: { label: string; value: number }[]
+  data: ChartPoint[]
 }
 
 export interface DonutChartBlock {
   type: "donut-chart"
   title: string
-  data: { label: string; value: number }[]
+  data: ChartPoint[]
 }
+
+export type ToolCallStatus = "pending" | "running" | "done" | "failed"
 
 export interface ToolActivityBlock {
   type: "tool-activity"
   tool: string
+  status: ToolCallStatus
+  id?: string
 }
 
 export interface FileAttachmentBlock {
@@ -100,17 +109,13 @@ export interface ChatMessage {
   id: string
   role: MessageRole
   blocks: ContentBlock[]
+  unsent?: boolean
 }
 
 // ── Stream event types ──────────────────────────────────────────
 
 export type StreamEvent =
-  | {
-      type: "content"
-      blocks: ContentBlock[]
-      /** Per-turn boundary signal from Claude CLI's stream-json. */
-      messageId?: string
-    }
+  | { type: "content"; blocks: ContentBlock[] }
   | {
       /**
        * Signals that a tool call has *finished executing* and any side
@@ -134,14 +139,17 @@ export type StreamEvent =
       message: string
       status?: number
       /** Set by the adapter so the UI can route billing CTAs to the
-       *  right provider's console. Omitted on synthetic errors raised
-       *  by the hook layer (e.g. budget exhausted, unconfigured). */
+       *  right provider's console and name it in copy. Omitted on
+       *  synthetic errors raised by the hook layer (e.g. unconfigured). */
       provider?: SessionProvider
       /** Set on errors the UI words itself (`session.<code>` in the capy
-       *  namespace); `message` is the untranslated fallback. */
+       *  namespace); `message` is then a terse diagnostic. */
       code?: SessionErrorCode
+      /** The failed send was taken back out of the model's history, so the
+       *  chat must not show it as delivered. */
+      rolledBack?: boolean
     }
 
-export type SessionErrorCode = "cutOff" | "budgetExhausted"
+export type SessionErrorCode = "cutOff" | "refused" | "budgetExhausted" | "rateLimited" | "unreachable"
 
 export type SessionProvider = "anthropic" | "openai" | "claude-cli" | "ollama"

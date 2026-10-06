@@ -33,6 +33,19 @@ packages/app/src/test/journeys/fresh-start.test.tsx
 
 Journey tests exercise real user interactions (open form, type, click, submit) against the complete component tree including routing, TanStack Query, and mutations. Each file pays a one-time cold-start to transform and import the full app module graph, so they run as a dedicated `full-app` Vitest project (`vite.config.ts`) with `pool: "threads"` and `isolate: false` — sharing the module graph within the worker keeps the suite fast. The partition is by **cost-class, not directory**: a full-app-mount test colocated beside its component (e.g. `components/budget/first-run-guide.test.tsx`) belongs here too, not just files under `journeys/`. The list lives in `fullAppMountTests` in `vite.config.ts`. Eligibility is stricter than "mounts the full app", though: because `isolate: false` shares one module registry across the worker, a file here must **not `vi.mock` a module that another file in the pool uses for real**, and must reset its own state per test (`renderApp`'s `afterEach`, or a `beforeEach` mock/store reset). `budget-selector.test.tsx` is excluded for exactly this reason — it module-mocks `src/services/budget`, which the journey tests exercise live, so a shared registry would feed them the mock and they'd never render; it stays in the isolated `unit` pool. The rest of the suite also runs in `unit` on defaults, since `isolate: false` would corrupt it. A 30s per-test timeout gives headroom over the cold-start under CPU contention.
 
+### AgentSession Contract Suite
+
+`packages/intelligence/src/adapters/agent-session.test.ts` runs one behavioral contract over all three in-process API adapters (Anthropic, OpenAI, Ollama) via `describe.each`: turns, tool rounds, the per-reply tool budget, stop and kill, failures, rollback, the output cap, and history repair. Each adapter plugs in through an `AdapterDriver` that scripts its SDK fake (`adapters/test-doubles/`) and reads its wire history back as provider-neutral entries. A behavior every adapter must share is tested here once, not per adapter; the per-adapter `*-session.test.ts` files keep only wire-format specifics. The Claude CLI adapter has its own suite (`claude-cli/claude-cli-session.test.ts`) over a fake process host.
+
+### Live Smoke Suite
+
+`npm run test:live` runs an opt-in smoke suite against real models (`packages/app/src/test/live/*.live.ts`, config in `vitest.live.config.ts`). It never runs under `npm test` or CI. Each target model gets the same chat and import scenarios against a fixture budget, and a grid reporter summarizes pass/skip/fail per model.
+
+- **Credentials** come from the environment or a gitignored `.env.live` (template: `.env.live.example`). A provider without a credential, or a Claude CLI that isn't installed, is skipped, not failed.
+- **Targets**: `LIVE_MODELS=provider:model,...` overrides the default set (`anthropic`, `openai`, `claude-cli`), e.g. `LIVE_MODELS=anthropic:claude-haiku-4-5,claude-cli:haiku npm run test:live`.
+
+Run it after changing an adapter, a prompt, or a model list, since unit tests only exercise the SDK fakes.
+
 ## Test Infrastructure
 
 | File | Purpose |
@@ -93,6 +106,7 @@ it("does the thing", async () => {
 ```bash
 npm test              # Run all tests (vitest run)
 npm run test:watch    # Vitest in watch mode
+npm run test:live     # Opt-in smoke suite against real models
 ```
 
 ## Linting

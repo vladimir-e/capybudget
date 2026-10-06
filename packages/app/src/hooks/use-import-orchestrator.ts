@@ -6,13 +6,10 @@ import {
   canReadPdf,
   createStructuredImportSession,
   importReady,
+  ollamaReadsImages,
   type BudgetDataProvider,
 } from "@capybudget/intelligence";
-import {
-  AnthropicSession,
-  OllamaSession,
-  OpenAiSession,
-} from "@capybudget/intelligence/adapters";
+import { API_ADAPTERS } from "@capybudget/intelligence/adapters";
 import { useBudgetRepository } from "@/contexts/repository-context";
 import { useCurrency } from "@/contexts/currency-context";
 import { useIntelligenceStore } from "@/stores/intelligence-store";
@@ -63,8 +60,8 @@ function composeSystemPrompt(opts?: RunOptions): string {
 /**
  * Drives the headless import orchestrator from the app.
  *
- * Constructs an {@link ImportOrchestrator} per run with the three injected seams
- * Unit 2 left open: the {@link FileStagingStore} over the Tauri file adapter
+ * Constructs an {@link ImportOrchestrator} per run with its three injected
+ * seams: the {@link FileStagingStore} over the Tauri file adapter
  * (`.capy/import/` on disk), a {@link BudgetDataProvider} backed by the budget
  * repository (the History phase's read-only corpus), and a structured session
  * for the provider's model. Events flow straight into the import store, which
@@ -116,13 +113,10 @@ export function useImportOrchestrator(budgetPath: string) {
       // Read the live config, not the render-time closure: `start`/`enrich`
       // await `ensureSecrets` first, so the freshly-loaded API key is on the
       // store by the time we build here.
+      const config = useIntelligenceStore.getState().config;
       const session = createStructuredImportSession({
-        config: useIntelligenceStore.getState().config,
-        adapters: {
-          anthropic: (o) => new AnthropicSession(o),
-          openai: (o) => new OpenAiSession(o),
-          ollama: (o) => new OllamaSession(o),
-        },
+        config,
+        adapters: API_ADAPTERS,
         options: {
           budgetPath,
           systemPrompt: composeSystemPrompt(opts),
@@ -141,6 +135,12 @@ export function useImportOrchestrator(budgetPath: string) {
         session,
         staging,
         budget,
+        provider: config.provider ?? undefined,
+        pdfSupported: canReadPdf(config.provider),
+        imageSupport:
+          config.provider === "ollama"
+            ? (signal) => ollamaReadsImages(config.ollama.baseUrl, config.ollama.model, signal)
+            : undefined,
         onEvent: (event) => {
           if (activeOrchestrator === orchestrator) apply(event);
         },
@@ -188,7 +188,7 @@ export function useImportOrchestrator(budgetPath: string) {
     await activeOrchestrator?.stop();
   }, []);
 
-  /** Cancel = stop + discard. Detaches the orchestrator first so its trailing
+  /** Cancel = abort + discard. Detaches the orchestrator first so its trailing
    *  events (the in-flight batch's `rows-changed`) can't re-flip the store after
    *  the caller clears staging, then awaits the in-flight batch so the clear
    *  races nothing. The caller clears staging once this resolves.
@@ -200,7 +200,7 @@ export function useImportOrchestrator(budgetPath: string) {
     const orchestrator = activeOrchestrator;
     if (!orchestrator) return;
     activeOrchestrator = null;
-    await orchestrator.stop();
+    await orchestrator.cancel();
   }, []);
 
   return { canStart, pdfSupported, provider: config.provider, start, enrich, stop, cancel, staging };

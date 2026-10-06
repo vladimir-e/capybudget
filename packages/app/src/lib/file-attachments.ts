@@ -1,8 +1,9 @@
 import {
+  effectiveMediaType,
   fileExtension,
-  isImageFilename,
   isOfxFilename,
   isPdfFilename,
+  isSupportedImageType,
 } from "@capybudget/intelligence"
 
 /** Plain-text formats the drop zones accept. Format classification (image, PDF,
@@ -29,7 +30,7 @@ export function isImportTextFile(file: File): boolean {
 }
 
 export function isImageFile(file: File): boolean {
-  return file.type.startsWith("image/") || isImageFilename(file.name)
+  return isSupportedImageType(effectiveMediaType({ name: file.name, mediaType: file.type }))
 }
 
 /** Whether a file is a PDF, by MIME type or `.pdf` extension (browsers sometimes

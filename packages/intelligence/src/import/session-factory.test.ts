@@ -2,30 +2,27 @@ import { describe, it, expect, vi } from "vitest";
 import type { BudgetRepository, FileAdapter } from "@capybudget/persistence";
 import {
   DEFAULT_INTELLIGENCE_CONFIG,
-  OLLAMA_PLACEHOLDER_KEY,
   type IntelligenceConfig,
 } from "../config";
-import type { AdapterConstructors } from "../factory";
-import type { CapySession } from "../session";
+import type { StructuredSession } from "../structured";
 import {
   canImport,
   canReadPdf,
   createStructuredImportSession,
   importReady,
+  ollamaReadsImages,
+  type StructuredAdapterConstructors,
 } from "./session-factory";
 
-// A session that exposes the structured surface — the factory's #6 guard
-// returns null for anything missing it.
-const stubSession = { structured: vi.fn() } as unknown as CapySession;
+const stubSession: StructuredSession = { structured: vi.fn() };
 const repo = {} as BudgetRepository;
 const fileAdapter = {} as FileAdapter;
 
-function adapters(): AdapterConstructors {
+function adapters(): Required<StructuredAdapterConstructors> {
   return {
     anthropic: vi.fn(() => stubSession),
     openai: vi.fn(() => stubSession),
     ollama: vi.fn(() => stubSession),
-    "claude-cli": vi.fn(() => stubSession),
   };
 }
 
@@ -53,6 +50,54 @@ describe("canImport", () => {
     expect(canImport("ollama")).toBe(true);
     expect(canImport("claude-cli")).toBe(false);
     expect(canImport(null)).toBe(false);
+  });
+});
+
+describe("ollamaReadsImages", () => {
+  function stalledServer() {
+    return vi.fn(
+      (_url: string, init: RequestInit) =>
+        new Promise<Response>((_, reject) => {
+          init.signal?.addEventListener("abort", () => reject(init.signal?.reason));
+        }),
+    );
+  }
+
+  it("reads vision from the model's capabilities", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => Response.json({ capabilities: ["completion", "vision"] })));
+    try {
+      await expect(ollamaReadsImages("http://box:11434/v1", "llava")).resolves.toBe(true);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("gives up as unknown when the run aborts mid-probe", async () => {
+    vi.stubGlobal("fetch", stalledServer());
+    const run = new AbortController();
+    try {
+      const probe = ollamaReadsImages("http://box:11434/v1", "llava", run.signal);
+      run.abort();
+      await expect(probe).resolves.toBeNull();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("gives up as unknown when the server stalls past the timeout", async () => {
+    vi.useFakeTimers();
+    vi.stubGlobal("fetch", stalledServer());
+    try {
+      const probe = ollamaReadsImages("http://box:11434/v1", "llava", new AbortController().signal);
+      await vi.advanceTimersByTimeAsync(4999);
+      expect(vi.getTimerCount()).toBe(1);
+      await vi.advanceTimersByTimeAsync(1);
+      await expect(probe).resolves.toBeNull();
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      vi.unstubAllGlobals();
+      vi.useRealTimers();
+    }
   });
 });
 
@@ -116,7 +161,7 @@ describe("createStructuredImportSession", () => {
       expect.objectContaining({
         model: "qwen3",
         baseUrl: "http://localhost:11434/v1",
-        apiKey: OLLAMA_PLACEHOLDER_KEY,
+        apiKey: "",
         systemPrompt: "P",
       }),
     );
@@ -133,15 +178,13 @@ describe("createStructuredImportSession", () => {
     expect(adapterSet.ollama).not.toHaveBeenCalled();
   });
 
-  it("returns null for the deferred CLI provider", () => {
-    const adapterSet = adapters();
+  it("returns null for the CLI provider", () => {
     const session = createStructuredImportSession({
       config: config({ provider: "claude-cli" }),
-      adapters: adapterSet,
+      adapters: adapters(),
       options: baseOptions,
     });
     expect(session).toBeNull();
-    expect(adapterSet["claude-cli"]).not.toHaveBeenCalled();
   });
 
   it("returns null when AI is off", () => {
@@ -168,12 +211,4 @@ describe("createStructuredImportSession", () => {
     expect(session).toBeNull();
   });
 
-  it("returns null when the adapter lacks a structured() surface", () => {
-    const session = createStructuredImportSession({
-      config: config({ provider: "anthropic" }),
-      adapters: { anthropic: vi.fn(() => ({}) as unknown as CapySession) },
-      options: baseOptions,
-    });
-    expect(session).toBeNull();
-  });
 });

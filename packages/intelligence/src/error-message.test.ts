@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest"
-import { extractErrorMessage } from "./error-message"
+import { deadEndKind, extractErrorMessage, isDeadEnd, isRejectedRequest } from "./error-message"
+import { UnreachableError } from "./structured"
 
 /**
  * The shapes below mirror what the Anthropic and OpenAI SDKs actually
@@ -62,9 +63,67 @@ describe("extractErrorMessage", () => {
   })
 })
 
+describe("isRejectedRequest", () => {
+  it("rejects a 4xx other than a rate limit", () => {
+    expect(isRejectedRequest({ status: 400 })).toBe(true)
+    expect(isRejectedRequest({ status: 413 })).toBe(true)
+    expect(isRejectedRequest({ status: 429 })).toBe(false)
+    expect(isRejectedRequest({ status: 500 })).toBe(false)
+  })
+
+  it("rejects a status-less error coded with anything but a transient code", () => {
+    expect(isRejectedRequest({ code: "invalid_image" })).toBe(true)
+    expect(isRejectedRequest({ code: "invalid_prompt" })).toBe(true)
+  })
+
+  it.each(["server_error", "rate_limit_exceeded", "vector_store_timeout"])("keeps a status-less %s error", (code) => {
+    expect(isRejectedRequest({ code })).toBe(false)
+  })
+
+  it("does not reject an error with neither a status nor a string code", () => {
+    expect(isRejectedRequest({ code: null })).toBe(false)
+    expect(isRejectedRequest(new Error("socket hang up"))).toBe(false)
+    expect(isRejectedRequest("boom")).toBe(false)
+    expect(isRejectedRequest(null)).toBe(false)
+  })
+
+  it("lets the status decide over the code", () => {
+    expect(isRejectedRequest({ status: 500, code: "invalid_image" })).toBe(false)
+    expect(isRejectedRequest({ status: 400, code: "server_error" })).toBe(true)
+  })
+})
+
 function makeError(status: number, message: string, body: unknown): Error {
   const err = new Error(message) as Error & { status: number; error: unknown }
   err.status = status
   err.error = body
   return err
 }
+
+describe("deadEndKind / isDeadEnd", () => {
+  it.each([
+    [401, "keyRejected"],
+    [403, "forbidden"],
+    [404, "modelNotFound"],
+  ] as const)("names a %i as a dead end", (status, kind) => {
+    const err = Object.assign(new Error(`${status}`), { status })
+    expect(deadEndKind(err)).toBe(kind)
+    expect(isDeadEnd(err)).toBe(true)
+  })
+
+  it("counts an unreachable provider", () => {
+    const err = new UnreachableError("ollama")
+    expect(deadEndKind(err)).toBe("unreachable")
+    expect(isDeadEnd(err)).toBe(true)
+  })
+
+  it.each([429, 500])("leaves a %i to a later call", (status) => {
+    const err = Object.assign(new Error(`${status}`), { status })
+    expect(deadEndKind(err)).toBeNull()
+    expect(isDeadEnd(err)).toBe(false)
+  })
+
+  it("leaves an error without a status alone", () => {
+    expect(isDeadEnd(new Error("boom"))).toBe(false)
+  })
+})

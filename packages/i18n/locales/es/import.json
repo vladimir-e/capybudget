@@ -19,7 +19,23 @@
     "saveFailed": "No se pudo guardar {{name}}",
     "providerRequired": "La importación necesita Anthropic, OpenAI u Ollama configurado.",
     "clearFailed": "No se pudo limpiar la preparación de importación — inténtalo de nuevo.",
-    "removeFileFailed": "No se pudo eliminar {{name}}"
+    "removeFileFailed": "No se pudo eliminar {{name}}",
+    "tooLarge": "{{name}} supera el límite de {{limit}} MB",
+    "unreachable": "No se puede conectar con {{provider}} — revisa tu conexión a internet.",
+    "ollamaUnreachable": "No se puede conectar con Ollama en {{url}}. Inícialo con `ollama serve` o revisa la URL en Ajustes.",
+    "keyRejected": "{{provider}} rechazó la clave de API — revísala en Ajustes.",
+    "forbidden": "{{provider}} rechazó la solicitud — revisa tu clave y tu acceso en Ajustes.",
+    "modelNotFound": "{{provider}} no encuentra el modelo seleccionado — elige otro en Ajustes.",
+    "noSources": "No hay archivos de origen para importar.",
+    "noStaging": "No hay transacciones preparadas para enriquecer.",
+    "failed": "La importación falló — {{detail}}",
+    "fileFailed": "No se pudo importar {{file}} — {{cause}}.",
+    "noneLanded_one": "No se pudo categorizar {{count}} fila — {{cause}}. Ejecuta Enriquecer para intentarlo de nuevo.",
+    "noneLanded_many": "No se pudo categorizar ninguna de las {{count}} filas — {{cause}}. Ejecuta Enriquecer para intentarlo de nuevo.",
+    "noneLanded_other": "No se pudo categorizar ninguna de las {{count}} filas — {{cause}}. Ejecuta Enriquecer para intentarlo de nuevo.",
+    "noneLandedNoCause_one": "Capy no pudo categorizar {{count}} fila. Sigue preparada — ejecuta Enriquecer para intentarlo de nuevo.",
+    "noneLandedNoCause_many": "Capy no pudo categorizar ninguna de las {{count}} filas. Siguen preparadas — ejecuta Enriquecer para intentarlo de nuevo.",
+    "noneLandedNoCause_other": "Capy no pudo categorizar ninguna de las {{count}} filas. Siguen preparadas — ejecuta Enriquecer para intentarlo de nuevo."
   },
   "dropZone": {
     "browseLabel": "Buscar archivos para importar",
@@ -34,7 +50,8 @@
     "instructionsPlaceholder": "p. ej. «Es la exportación de mi presupuesto en Excel, los importes están en las columnas Debe/Haber»",
     "anyAccount": "Cualquier cuenta",
     "start": "Empezar importación",
-    "rerunHint": "¿No te gusta el resultado? Cancela, dale más instrucciones a Capy y vuelve a ejecutarla."
+    "rerunHint": "¿No te gusta el resultado? Cancela, dale más instrucciones a Capy y vuelve a ejecutarla.",
+    "pdfUnreadable": "no se leerá — la importación de PDF necesita Anthropic u OpenAI"
   },
   "setupAi": {
     "title": "Configura la IA para importar",
@@ -51,6 +68,79 @@
     "countRows_one": "{{count}} fila",
     "countRows_many": "{{count}} filas",
     "countRows_other": "{{count}} filas"
+  },
+  "run": {
+    "status": {
+      "extracting": "Extrayendo transacciones de {{file}}…",
+      "readingOfx": "Leyendo transacciones de {{file}}…",
+      "mappingColumns": "Asignando columnas en {{file}}…",
+      "matchingHistory": "Comparando con tu historial…",
+      "categorizing": "Categorizando {{done}} de {{total}}…"
+    },
+    "log": {
+      "readFiles_one": "Leído {{count}} archivo: {{files, list}}.",
+      "readFiles_many": "Leídos {{count}} archivos: {{files, list}}.",
+      "readFiles_other": "Leídos {{count}} archivos: {{files, list}}.",
+      "visionUnknown": "No se pudo confirmar que el modelo seleccionado lea imágenes — se intentará de todos modos.",
+      "noData": "{{file}} omitido — no se encontraron transacciones.",
+      "noDataDetail": "{{file}} omitido — no se encontraron transacciones ({{detail}}).",
+      "fileSkipped": "{{file}} omitido — {{cause}}.",
+      "rowsUnparsed_one": "{{count}} fila omitida en {{file}} — no se pudo leer: {{sample}}",
+      "rowsUnparsed_many": "{{count}} filas omitidas en {{file}} — no se pudieron leer: {{sample}}",
+      "rowsUnparsed_other": "{{count}} filas omitidas en {{file}} — no se pudieron leer: {{sample}}",
+      "skipRules_one": "{{count}} fila coincidió con reglas de omisión en {{file}}: {{sample}}",
+      "skipRules_many": "{{count}} filas coincidieron con reglas de omisión en {{file}}: {{sample}}",
+      "skipRules_other": "{{count}} filas coincidieron con reglas de omisión en {{file}}: {{sample}}",
+      "skipRulesHeld_one": "{{count}} fila coincidió con reglas de omisión en {{file}}: {{sample}} — {{held}} con importe quedaron sin seleccionar en la vista previa",
+      "skipRulesHeld_many": "{{count}} filas coincidieron con reglas de omisión en {{file}}: {{sample}} — {{held}} con importe quedaron sin seleccionar en la vista previa",
+      "skipRulesHeld_other": "{{count}} filas coincidieron con reglas de omisión en {{file}}: {{sample}} — {{held}} con importe quedaron sin seleccionar en la vista previa",
+      "countMismatch": "{{file}}: la IA contó {{counted}} transacciones pero devolvió {{returned}} — puede que falten algunas ({{missing}}).",
+      "wholeUnits": "{{file}}: todos los importes son menores que 1,00 — puede que la IA haya devuelto unidades enteras en lugar de céntimos. Revisa los importes.",
+      "droppedCents": "{{file}}: todos los importes terminan en ,00 — puede que la IA haya perdido los céntimos. Revisa los importes.",
+      "normalized_one": "{{count}} transacción normalizada.",
+      "normalized_many": "{{count}} transacciones normalizadas.",
+      "normalized_other": "{{count}} transacciones normalizadas.",
+      "payoff": "{{resolved}} de {{total}} resueltas con tu historial",
+      "payoffDuplicates_one": "{{resolved}} de {{total}} resueltas con tu historial · {{count}} duplicado",
+      "payoffDuplicates_many": "{{resolved}} de {{total}} resueltas con tu historial · {{count}} duplicados",
+      "payoffDuplicates_other": "{{resolved}} de {{total}} resueltas con tu historial · {{count}} duplicados",
+      "resuming_one": "Reanudando la importación — {{count}} fila ya preparada.",
+      "resuming_many": "Reanudando la importación — {{count}} filas ya preparadas.",
+      "resuming_other": "Reanudando la importación — {{count}} filas ya preparadas.",
+      "droppedRows_one": "{{count}} fila preparada omitida — no pasó la validación: {{sample}}",
+      "droppedRows_many": "{{count}} filas preparadas omitidas — no pasaron la validación: {{sample}}",
+      "droppedRows_other": "{{count}} filas preparadas omitidas — no pasaron la validación: {{sample}}",
+      "nothingToDo": "Nada que categorizar — todas las filas están resueltas.",
+      "transfers_one": "Resolviendo la contrapartida de {{count}} transferencia…",
+      "transfers_many": "Resolviendo las contrapartidas de {{count}} transferencias…",
+      "transfers_other": "Resolviendo las contrapartidas de {{count}} transferencias…",
+      "batchFailed_one": "El lote {{batch}} falló ({{count}} fila pendiente para volver a ejecutar): {{cause}}",
+      "batchFailed_many": "El lote {{batch}} falló ({{count}} filas pendientes para volver a ejecutar): {{cause}}",
+      "batchFailed_other": "El lote {{batch}} falló ({{count}} filas pendientes para volver a ejecutar): {{cause}}",
+      "transferBatchFailed_one": "El lote de transferencias falló ({{count}} fila pendiente para volver a ejecutar): {{cause}}",
+      "transferBatchFailed_many": "El lote de transferencias falló ({{count}} filas pendientes para volver a ejecutar): {{cause}}",
+      "transferBatchFailed_other": "El lote de transferencias falló ({{count}} filas pendientes para volver a ejecutar): {{cause}}",
+      "categorizeStopped": "Detenido — los lotes completados se conservan; ejecuta Enriquecer para terminar.",
+      "stopped": "Detenido — vuelve a ejecutar para continuar desde aquí.",
+      "sampleMore": "{{sample}} (+{{count}} más)"
+    },
+    "cause": {
+      "file": {
+        "cutOff": "la respuesta de la IA se cortó antes de completar los datos. Prueba con un archivo más pequeño o divídelo en partes",
+        "refused": "la IA se negó a leer este archivo. Comprueba que sea un extracto bancario o una exportación de transacciones",
+        "unusable": "la respuesta de la IA no se pudo convertir en transacciones",
+        "pdfUnsupported": "el proveedor de IA seleccionado no puede leer PDF. Cambia a Anthropic u OpenAI, o importa una exportación CSV",
+        "noVision": "el modelo seleccionado no puede leer imágenes. Elige un modelo con visión en Ajustes",
+        "rateLimited": "el proveedor de IA está limitando las solicitudes ahora mismo. Espera un momento e inténtalo de nuevo"
+      },
+      "batch": {
+        "cutOff": "la respuesta de la IA se cortó antes de completar el lote",
+        "refused": "la IA se negó a categorizar estas filas",
+        "unusable": "la respuesta de la IA no se pudo usar",
+        "rateLimited": "el proveedor de IA está limitando las solicitudes ahora mismo. Espera un momento e inténtalo de nuevo"
+      },
+      "unknown": "error desconocido"
+    }
   },
   "preview": {
     "skippedRows_one": "Se omitió {{count}} fila (no se pudo leer)",
@@ -91,7 +181,10 @@
     "mergeConfirmDescriptionAfter": " a tu presupuesto.",
     "unmappedTransfers_one": "{{count}} transferencia no tenía contraparte — se importará como ingreso/gasto.",
     "unmappedTransfers_many": "{{count}} transferencias no tenían contraparte — se importarán como ingresos/gastos.",
-    "unmappedTransfers_other": "{{count}} transferencias no tenían contraparte — se importarán como ingresos/gastos."
+    "unmappedTransfers_other": "{{count}} transferencias no tenían contraparte — se importarán como ingresos/gastos.",
+    "skipRuleRows_one": "{{count}} fila coincide con una regla de omisión — está deseleccionada; selecciónala para importarla",
+    "skipRuleRows_many": "{{count}} filas coinciden con una regla de omisión — están deseleccionadas; selecciona las que quieras importar",
+    "skipRuleRows_other": "{{count}} filas coinciden con una regla de omisión — están deseleccionadas; selecciona las que quieras importar"
   },
   "table": {
     "selectAll": "Seleccionar todas las transacciones",
@@ -123,7 +216,11 @@
       "expense": "gasto",
       "income": "ingreso",
       "transfer": "transferencia"
-    }
+    },
+    "skipRuleTag": "retenida por regla",
+    "skipRuleContains": "{{column}} contiene «{{value}}»",
+    "skipRuleEquals": "{{column}} es «{{value}}»",
+    "skipRuleTitle": "Coincide con la regla {{rule}}, así que empieza deseleccionada. Selecciónala para importarla."
   },
   "editors": {
     "merchantPlaceholder": "Comercio"

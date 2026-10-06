@@ -64,7 +64,7 @@ export function resumeMeter(
   let total = 0;
   let done = 0;
   for (const row of rows) {
-    if (row.duplicate) continue;
+    if (row.duplicate || row.skipRule) continue;
     if (row.type === "transfer") {
       // In-population iff context-bearing (a resolved one stays counted so the
       // denominator is stable as counterparts land); done once the counterpart is

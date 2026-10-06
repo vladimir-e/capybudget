@@ -1,79 +1,56 @@
+// The package's public surface: only what the app, MCP server, demo, and
+// scripts import. Everything else is reached by relative path inside the package.
+
 // Types
 export type {
   FileAttachment,
-  CliTextContent,
-  CliImageContent,
-  CliDocumentContent,
   MessageContent,
-  MessageRole,
-  TextBlock,
   TableBlock,
   BarChartBlock,
   DonutChartBlock,
   ToolActivityBlock,
-  FileAttachmentBlock,
+  ToolCallStatus,
   FollowupChip,
-  FollowupsBlock,
   ErrorBlock,
   ContentBlock,
   ChatMessage,
   StreamEvent,
-  SessionErrorCode,
   SessionProvider,
 } from "./types"
 
-// Error extraction (shared across API adapters)
+// Error extraction
 export { extractErrorMessage } from "./error-message"
+export type { DeadEndKind } from "./error-message"
 
 // Session interface
-export type { CapySessionOptions, CapySession } from "./session"
-
-// Structured-output primitive (stateless, schema-validated single call)
-export { parseStructured, SchemaValidationError } from "./structured"
-export type {
-  JsonSchema,
-  StructuredCallOptions,
-  StructuredMessage,
-  StructuredSession,
-} from "./structured"
+export type { CapySession } from "./session"
 
 // Provider config
 export {
   DEFAULT_INTELLIGENCE_CONFIG,
   DEFAULT_OLLAMA_BASE_URL,
-  OLLAMA_PLACEHOLDER_KEY,
   PROVIDER_LABELS,
   hasProviderKey,
+  ollamaOrigin,
 } from "./config"
 export type {
+  HostedProvider,
   IntelligenceConfig,
   IntelligenceProvider,
-  OllamaSettings,
   ProviderCredentials,
 } from "./config"
 
+// Model choices
+export { FALLBACK_MODELS } from "./models"
+export type { ModelOption } from "./models"
+
 // Session factory
 export { createIntelligenceSession } from "./factory"
-export type {
-  CreateSessionDeps,
-  AdapterConstructors,
-  SessionOptions,
-  ClaudeCliAdapterOptions,
-  ApiAdapterOptions,
-} from "./factory"
+export type { AdapterConstructors, SessionOptions, ClaudeCliAdapterOptions } from "./factory"
 
 // Chat prompt + shared budget snapshot
-export {
-  buildSystemPrompt,
-  buildContext,
-  APP_KNOWLEDGE,
-  buildBudgetSnapshot,
-  formatBudgetSnapshot,
-} from "./prompts"
+export { buildSystemPrompt, buildContext, buildBudgetSnapshot } from "./prompts"
 export type { BudgetSnapshot } from "./prompts"
-
-// Render-tool → ContentBlock map (shared by every adapter)
-export { buildRenderToolMap, RENDER_FOLLOWUPS_TOOL_NAME } from "./render-map"
 
 // Attachments
 export {
@@ -82,108 +59,50 @@ export {
   isImageAttachment,
   isPdfAttachment,
   MAX_ATTACHMENT_SIZE,
+  MAX_IMPORT_PDF_SIZE,
   MAX_TOTAL_ATTACHMENT_SIZE,
 } from "./attachments"
 
-// Source-file classification — one owner for media-type inference, the
-// normalization path a source takes, and the model content block it becomes.
-// (classifySource / classifyFile / mediaTypeForFilename stay package-internal —
-// imported directly where needed, not re-exported without an app consumer.)
+// Source-file classification
 export {
   fileExtension,
   isImageFilename,
+  isSupportedImageType,
   isPdfFilename,
   isOfxFilename,
   effectiveMediaType,
   sourceContentBlock,
 } from "./source-files"
 
-// Tool layer — definitions, dispatch, handlers, and metadata
-export {
-  // Definitions
-  DATA_TOOL_DEFS,
-  MUTATION_TOOL_DEFS,
-  importToolDefs,
-  READ_FILE_TOOL_DEF,
-  READ_SPEC_TOOL_DEF,
-  RENDER_TOOL_DEFS,
-  MUTATION_TOOL_NAMES,
-  START_IMPORT_TOOL_NAME,
-  getToolDefinitions,
-  // Dispatch
-  runTool,
-  isDispatchTool,
-  SESSION_TOOL_CALL_BUDGET,
-  // Handlers (re-exported for transports / tests that use them directly)
-  handleListAccounts,
-  handleListTransactions,
-  handleListCategories,
-  handleCreateTransaction,
-  handleUpdateTransaction,
-  handleDeleteTransactions,
-  handleCreateAccount,
-  handleUpdateAccount,
-  handleDeleteAccount,
-  handleCreateCategory,
-  handleUpdateCategory,
-  handleDeleteCategory,
-  handleReadFile,
-  handleReadSpec,
-} from "./tools"
-export type { ToolDefinition, ToolContext } from "./tools"
+// Tool layer
+export { MUTATION_TOOL_NAMES, START_IMPORT_TOOL_NAME, getToolDefinitions, runTool } from "./tools"
+export type { ToolContext } from "./tools"
 
-// Import orchestrator — state machine, event stream, injected seams, schemas
+// Import orchestrator
 export {
   ImportOrchestrator,
-  PIPELINE_PHASES,
   FileStagingStore,
-  parseImportCsv,
-  normalizeCsv,
-  normalizeImage,
-  normalizeOfx,
-  enrichBatch,
-  enrichTransfers,
-  batchRows,
   needsEnrich,
   needsTransferEnrich,
-  ENRICH_BATCH_SIZE,
-  ENRICH_CONCURRENCY,
-  CSV_MAPPING_SCHEMA,
-  EXTRACTION_SCHEMA,
-  ENRICH_BATCH_SCHEMA,
-  ENRICH_TRANSFER_SCHEMA,
   createStructuredImportSession,
   canImport,
   canReadPdf,
   importReady,
-  IMPORT_STRUCTURED_SYSTEM_PROMPT,
+  ollamaReadsImages,
   buildImportSystemPrompt,
 } from "./import"
 export type {
-  OrchestratorDeps,
   ImportEvent,
-  ImportEventHandler,
   ImportPhase,
   TerminalLogEntry,
-  ImportErrorReason,
-  LogLevel,
+  ImportNotice,
+  ImportStatus,
+  ImportFailure,
+  BatchFailureCause,
+  FileFailureCause,
+  Sample,
   BatchProgress,
   NormalizeProgress,
-  GroundingEventStats,
   StagingStore,
-  SourceFile,
-  ImportState,
-  StagedTransactions,
   BudgetDataProvider,
-  NormalizeCsvResult,
-  NormalizeImageResult,
-  NormalizeOfxResult,
-  CsvMappingResult,
-  ExtractionResult,
-  EnrichBatchResult,
-  EnrichedRow,
-  TransferEnrichResult,
-  TransferEnriched,
-  StructuredImportSessionDeps,
 } from "./import"
-

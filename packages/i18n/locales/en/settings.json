@@ -70,6 +70,7 @@
     "demoNoticeBody": "The web demo runs entirely in your browser and can't store an AI provider. Download the desktop app to chat with Capy and use smart import.",
     "missingTitle": "Claude Code is no longer detected",
     "missingBody": "Reinstall Claude Code or pick another provider to keep using Capy.",
+    "outdatedTitle": "Claude Code needs an update",
     "sourceBuildTitle": "Claude Code requires a source build",
     "sourceBuildBody": "The desktop app can't run Claude Code yet. Pick another provider, or",
     "runFromSource": "run Capy from source",
@@ -102,6 +103,8 @@
       "detected": "Detected",
       "notDetected": "Not detected",
       "notDetectedHint": "Not detected — install from",
+      "outdated": "Needs an update",
+      "outdatedHint": "Claude Code {{minimum}} or newer is required — run `claude update`.",
       "testConnection": "Test connection",
       "testing": "Testing…",
       "connectionWorks": "Connection works"
@@ -121,7 +124,8 @@
       "localOnly": "No API key needed — your data goes only to this server, which is your own machine by default.",
       "refreshModels": "Refresh",
       "notRunningHint": "Capy can't reach Ollama at this address. Start it with `ollama serve`, or check the URL.",
-      "noModels": "Ollama is running but has no models yet. Pull one with `ollama pull llama3.1`, then refresh.",
+      "noModels": "Ollama is running but has no models yet. Pull one with `ollama pull llama3.1` and refresh, or type a model name below.",
+      "browseModels": "Browse Ollama models",
       "toolsHint": "Pick a model that supports tool calling — Capy uses tools to read and edit your budget.",
       "install": "Install Ollama"
     },
@@ -129,7 +133,8 @@
       "label": "Model",
       "useCustom": "Use a custom model",
       "customPlaceholder": "model-identifier",
-      "selectPlaceholder": "Select a model…"
+      "selectPlaceholder": "Select a model…",
+      "listUnavailable": "Couldn't load the latest models — showing a short list."
     }
   },
   "chatInstructions": {

@@ -13,13 +13,15 @@ import {
 } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
-import { recheckClaudeCli } from "@/services/claude-cli-detect"
+import { MIN_CLAUDE_CLI_VERSION, recheckClaudeCli, type ClaudeCliStatus } from "@/services/claude-cli-detect"
 import { useIntelligenceStore } from "@/stores/intelligence-store"
+import type { ModelOption } from "@capybudget/intelligence"
 import { PROVIDER_LABELS } from "@capybudget/intelligence"
 import type { IntelligenceProvider } from "@capybudget/intelligence"
 import { AnthropicConfig, OpenAiConfig } from "./api-provider-config"
 import { OllamaConfig } from "./ollama-config"
-import { ModelField, type ModelOption } from "./model-field"
+import { InlineLinkButton } from "./inline-link-button"
+import { ModelField } from "./model-field"
 import { TestResult, type TestState } from "./test-result"
 
 declare const __IS_DEMO__: boolean
@@ -72,7 +74,7 @@ export function ProviderSection() {
   }
 
   // Probe state — null means we haven't checked yet on this mount.
-  const [claudeDetected, setClaudeDetected] = useState<boolean | null>(null)
+  const [claudeStatus, setClaudeStatus] = useState<ClaudeCliStatus | null>(null)
   const [claudeProbing, setClaudeProbing] = useState(true)
 
   useEffect(() => {
@@ -83,18 +85,18 @@ export function ProviderSection() {
       // Skip the probe — Claude Code provider can't function without
       // the bundled MCP server (see IS_DIST_BUILD comment). Treat as
       // unavailable and let the hint copy point users at source build.
-      setClaudeDetected(false)
+      setClaudeStatus("missing")
       setClaudeProbing(false)
       return
     }
     let cancelled = false
     setClaudeProbing(true)
     recheckClaudeCli()
-      .then((detected) => {
-        if (!cancelled) setClaudeDetected(detected)
+      .then((status) => {
+        if (!cancelled) setClaudeStatus(status)
       })
       .catch(() => {
-        if (!cancelled) setClaudeDetected(false)
+        if (!cancelled) setClaudeStatus("missing")
       })
       .finally(() => {
         if (!cancelled) setClaudeProbing(false)
@@ -115,8 +117,9 @@ export function ProviderSection() {
   // longer detected — don't auto-flip; let them decide. Never in the demo:
   // the demo seeds claude-cli to power its stubbed chat, but Settings there
   // is a disabled preview that reads as "Off", so the warning is noise.
-  const claudeMissingWarning =
-    !__IS_DEMO__ && provider === "claude-cli" && claudeDetected === false
+  const claudeUnavailable = claudeStatus === "missing" || claudeStatus === "outdated"
+  const claudeMissingWarning = !__IS_DEMO__ && provider === "claude-cli" && claudeUnavailable
+  const outdatedHint = t("provider.detection.outdatedHint", { minimum: MIN_CLAUDE_CLI_VERSION })
 
   return (
     <Card>
@@ -149,17 +152,20 @@ export function ProviderSection() {
                   <p className="font-medium">{t("provider.sourceBuildTitle")}</p>
                   <p className="text-xs text-destructive/80 mt-0.5">
                     {t("provider.sourceBuildBody")}{" "}
-                    <button
-                      type="button"
-                      className="underline hover:text-foreground transition-colors"
+                    <InlineLinkButton
                       onClick={() => {
                         void openUrl(BUILD_FROM_SOURCE_URL)
                       }}
                     >
                       {t("provider.runFromSource")}
-                    </button>{" "}
+                    </InlineLinkButton>{" "}
                     {t("provider.toUseSubscription")}
                   </p>
+                </>
+              ) : claudeStatus === "outdated" ? (
+                <>
+                  <p className="font-medium">{t("provider.outdatedTitle")}</p>
+                  <p className="text-xs text-destructive/80 mt-0.5">{outdatedHint}</p>
                 </>
               ) : (
                 <>
@@ -216,20 +222,18 @@ export function ProviderSection() {
             label={PROVIDER_LABELS["claude-cli"]}
             badge={t("provider.advanced")}
             description={t("provider.options.claudeCli.description")}
-            disabled={__IS_DEMO__ || claudeDetected === false || claudeProbing}
+            disabled={__IS_DEMO__ || claudeUnavailable || claudeProbing}
             hint={
               __IS_DEMO__ ? undefined : IS_DIST_BUILD ? (
                 <span>
                   {t("provider.distHint")}{" "}
-                  <button
-                    type="button"
-                    className="underline hover:text-foreground transition-colors"
+                  <InlineLinkButton
                     onClick={() => {
                       void openUrl(BUILD_FROM_SOURCE_URL)
                     }}
                   >
                     {t("provider.buildFromSource")}
-                  </button>{" "}
+                  </InlineLinkButton>{" "}
                   {t("provider.toUseSubscription")}
                 </span>
               ) : claudeProbing ? (
@@ -237,18 +241,18 @@ export function ProviderSection() {
                   <Loader2 className="h-3 w-3 animate-spin" />
                   {t("provider.detection.checking")}
                 </span>
-              ) : claudeDetected === false ? (
+              ) : claudeStatus === "outdated" ? (
+                <span>{outdatedHint}</span>
+              ) : claudeStatus === "missing" ? (
                 <span>
                   {t("provider.detection.notDetectedHint")}{" "}
-                  <button
-                    type="button"
-                    className="underline hover:text-foreground transition-colors"
+                  <InlineLinkButton
                     onClick={() => {
                       void openUrl("https://claude.ai/code")
                     }}
                   >
                     claude.ai/code
-                  </button>
+                  </InlineLinkButton>
                 </span>
               ) : null
             }
@@ -262,14 +266,14 @@ export function ProviderSection() {
           <div className="border-t pt-6">
             {!__MAS__ && provider === "claude-cli" && (
               <ClaudeCliConfig
-                detected={claudeDetected}
+                status={claudeStatus}
                 probing={claudeProbing}
                 onRecheck={async () => {
                   setClaudeProbing(true)
                   try {
-                    const detected = await recheckClaudeCli()
-                    setClaudeDetected(detected)
-                    return detected
+                    const status = await recheckClaudeCli()
+                    setClaudeStatus(status)
+                    return status
                   } finally {
                     setClaudeProbing(false)
                   }
@@ -332,12 +336,12 @@ function ProviderRadio({
 }
 
 interface ClaudeCliConfigProps {
-  detected: boolean | null
+  status: ClaudeCliStatus | null
   probing: boolean
-  onRecheck: () => Promise<boolean>
+  onRecheck: () => Promise<ClaudeCliStatus>
 }
 
-function ClaudeCliConfig({ detected, probing, onRecheck }: ClaudeCliConfigProps) {
+function ClaudeCliConfig({ status, probing, onRecheck }: ClaudeCliConfigProps) {
   const { t } = useTranslation("settings")
   const [testState, setTestState] = useState<TestState>({ kind: "idle" })
   const model = useIntelligenceStore((s) => s.config.claudeCli.model)
@@ -346,14 +350,17 @@ function ClaudeCliConfig({ detected, probing, onRecheck }: ClaudeCliConfigProps)
   async function handleTest() {
     setTestState({ kind: "running" })
     try {
-      const ok = await onRecheck()
-      if (ok) {
+      const result = await onRecheck()
+      if (result === "ready") {
         setTestState({ kind: "success" })
         setTimeout(() => setTestState({ kind: "idle" }), 3000)
       } else {
         setTestState({
           kind: "error",
-          message: "claude --version returned a non-zero exit code",
+          message:
+            result === "outdated"
+              ? t("provider.detection.outdatedHint", { minimum: MIN_CLAUDE_CLI_VERSION })
+              : "claude --version returned a non-zero exit code",
         })
       }
     } catch (err) {
@@ -373,9 +380,13 @@ function ClaudeCliConfig({ detected, probing, onRecheck }: ClaudeCliConfigProps)
               <span className="inline-flex items-center gap-1.5 text-muted-foreground">
                 <Loader2 className="h-3.5 w-3.5 animate-spin" /> {t("provider.detection.checking")}
               </span>
-            ) : detected ? (
+            ) : status === "ready" ? (
               <span className="inline-flex items-center gap-1.5 text-amount-income">
                 <Check className="h-3.5 w-3.5" /> {t("provider.detection.detected")}
+              </span>
+            ) : status === "outdated" ? (
+              <span className="inline-flex items-center gap-1.5 text-destructive">
+                <AlertTriangle className="h-3.5 w-3.5" /> {t("provider.detection.outdated")}
               </span>
             ) : (
               <span className="inline-flex items-center gap-1.5 text-destructive">

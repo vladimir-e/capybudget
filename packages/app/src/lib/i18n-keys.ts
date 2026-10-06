@@ -9,3 +9,4 @@ export type AnalyticsKey = ParseKeys<"analytics">
 export type SettingsKey = ParseKeys<"settings">
 export type CapyKey = ParseKeys<"capy">
 export type DemoKey = ParseKeys<"demo">
+export type ImportKey = ParseKeys<"import">
